@@ -17,7 +17,7 @@ const NAV = [
     { label: 'Home', href: '/', icon: LayoutDashboard },
     { label: 'Conversations', href: '/conversations', icon: MessageSquare },
     { label: 'Tasks', href: '/tasks', icon: CheckSquare },
-    { label: 'Sprints', href: '/sprints', icon: Zap },
+    { label: 'Projects', href: '/sprints', icon: Zap },
     { label: 'Insights', href: '/insights', icon: Brain },
     { label: 'Marketplace', href: '/marketplace', icon: Store },
     { label: 'Logs', href: '/logs', icon: FileText },
@@ -36,7 +36,7 @@ export function Sidebar() {
                 </div>
                 <span className="text-sm font-semibold tracking-tight">Plexo</span>
                 <span className="ml-auto rounded-md bg-zinc-800/80 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
-                    v0.1.0
+                    v0.7.0
                 </span>
             </div>
 

@@ -58,7 +58,7 @@ function IntegrationCard({
     const [creds, setCreds] = useState<Record<string, string>>({})
     const [pending, startTransition] = useTransition()
 
-    const hasSetupFields = item.setup_fields.length > 0
+    const hasSetupFields = (item.setup_fields ?? []).length > 0
 
     async function handleInstall() {
         startTransition(async () => {
@@ -102,14 +102,14 @@ function IntegrationCard({
 
             {/* Tools */}
             <div className="flex flex-wrap gap-1">
-                {item.tools_provided.slice(0, 4).map((t) => (
+                {(item.tools_provided ?? []).slice(0, 4).map((t) => (
                     <span key={t} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">
                         {t}
                     </span>
                 ))}
-                {item.tools_provided.length > 4 && (
+                {(item.tools_provided ?? []).length > 4 && (
                     <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500">
-                        +{item.tools_provided.length - 4}
+                        +{(item.tools_provided ?? []).length - 4}
                     </span>
                 )}
             </div>
@@ -133,7 +133,7 @@ function IntegrationCard({
                 <div>
                     {hasSetupFields && open && (
                         <div className="mb-3 flex flex-col gap-2">
-                            {item.setup_fields.map((field) => (
+                            {(item.setup_fields ?? []).map((field) => (
                                 <div key={field.key}>
                                     <label className="text-[10px] text-zinc-500 uppercase tracking-wide">{field.label}</label>
                                     <input

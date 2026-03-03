@@ -127,12 +127,12 @@ export async function DashboardCards() {
                 : 'Loading…',
         },
         {
-            title: 'Sprints',
+            title: 'Projects',
             subtitle: 'None active',
             icon: GitBranch,
             accent: 'from-pink-500 to-rose-600',
             dot: 'bg-zinc-600',
-            content: 'Start a sprint via Settings → Sprints.',
+            content: 'No active projects. Create one from the Projects page.',
         },
     ]
 

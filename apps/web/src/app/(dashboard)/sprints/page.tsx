@@ -82,7 +82,7 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
                         />
                     </div>
                     <div className="mt-1.5 flex items-center gap-3 text-[11px] text-zinc-600">
-                        <span>{sprint.completedTasks}/{sprint.totalTasks} tasks</span>
+                        <span>{sprint.completedTasks}/{sprint.totalTasks} steps</span>
                         {sprint.failedTasks > 0 && <span className="text-red-500">{sprint.failedTasks} failed</span>}
                         {sprint.conflictCount > 0 && <span className="text-amber-500">{sprint.conflictCount} conflicts</span>}
                         {sprint.costUsd != null && <span className="ml-auto">${sprint.costUsd.toFixed(4)}</span>}
@@ -101,9 +101,9 @@ export default async function SprintsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-zinc-50">Sprints</h1>
+                    <h1 className="text-xl font-bold text-zinc-50">Projects</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">
-                        Parallel AI execution across branches
+                        Run multiple AI tasks in parallel toward a shared goal
                     </p>
                 </div>
                 <Link
@@ -113,7 +113,7 @@ export default async function SprintsPage() {
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    New Sprint
+                    New Project
                 </Link>
             </div>
 
@@ -121,15 +121,15 @@ export default async function SprintsPage() {
             {sprints.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
                     <div className="mb-3 text-3xl">⚡</div>
-                    <p className="text-sm font-medium text-zinc-400">No sprints yet</p>
+                    <p className="text-sm font-medium text-zinc-400">No projects yet</p>
                     <p className="mt-1 text-xs text-zinc-600">
-                        Create a sprint to run parallel AI tasks across a repo.
+                        Create a project to run parallel AI tasks across your codebase.
                     </p>
                     <Link
                         href="/sprints/new"
                         className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
                     >
-                        Create first sprint
+                        Create first project
                     </Link>
                 </div>
             ) : (
