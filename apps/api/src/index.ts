@@ -20,35 +20,27 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }))
 app.use(traceMiddleware)
 
+import { tasksRouter } from './routes/tasks.js'
+import { sprintsRouter } from './routes/sprints.js'
+import { dashboardRouter } from './routes/dashboard.js'
+import { telegramRouter, initTelegramWebhook } from './routes/telegram.js'
+
 // ── Routes ───────────────────────────────────────────────────
 
 app.use('/health', healthRouter)
 app.use('/api/sse', sseRouter)
 app.use('/api/auth', authRouter)
 app.use('/api/oauth', oauthRouter)
+app.use('/api/tasks', tasksRouter)
+app.use('/api/sprints', sprintsRouter)
+app.use('/api/dashboard', dashboardRouter)
+app.use('/api/channels/telegram', telegramRouter)
 
-// Stub route groups — expanded in later phases
 app.get('/api/agent/status', (_req, res) => {
     res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })
 })
 
-app.get('/api/tasks', (_req, res) => {
-    res.json({ items: [], nextCursor: null, total: 0 })
-})
-
-app.get('/api/sprints', (_req, res) => {
-    res.json({ items: [], nextCursor: null, total: 0 })
-})
-
 app.get('/api/connections/registry', (_req, res) => {
-    res.json({ items: [], nextCursor: null, total: 0 })
-})
-
-app.get('/api/dashboard/cards', (_req, res) => {
-    res.json({ items: [], nextCursor: null, total: 0 })
-})
-
-app.get('/api/dashboard/activity', (_req, res) => {
     res.json({ items: [], nextCursor: null, total: 0 })
 })
 
@@ -72,6 +64,7 @@ import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
 const server = app.listen(port, '0.0.0.0', () => {
     logger.info({ port }, 'Plexo API server started')
     startAgentLoop()
+    initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
 })
 
 process.on('SIGTERM', () => {

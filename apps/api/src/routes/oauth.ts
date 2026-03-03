@@ -7,12 +7,9 @@ import {
     exchangeAnthropicCode,
 } from '@plexo/agent/ai/anthropic-oauth'
 import { logger } from '../logger.js'
+import { storePkce, consumePkce } from '../pkce-store.js'
 
 export const oauthRouter: RouterType = Router()
-
-// In-memory PKCE verifier store — keyed by state, cleared after exchange.
-// In Phase 3+, move this to Redis with a short TTL.
-const pkceStore = new Map<string, { verifier: string; workspaceId: string; redirectUri: string }>()
 
 function base64url(buf: Buffer): string {
     return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
@@ -24,8 +21,8 @@ function generatePKCE(): { verifier: string; challenge: string } {
     return { verifier, challenge }
 }
 
-// GET /api/oauth/anthropic/start?workspaceId=...
-// Initiates the Anthropic OAuth flow — returns redirect URL.
+// ── GET /api/oauth/anthropic/start?workspaceId= ──────────────────────────────
+
 oauthRouter.get('/anthropic/start', async (req, res) => {
     const workspaceId = req.query.workspaceId as string
     if (!workspaceId) {
@@ -37,20 +34,26 @@ oauthRouter.get('/anthropic/start', async (req, res) => {
     const state = base64url(randomBytes(16))
     const redirectUri = `${process.env.PUBLIC_URL}/api/oauth/anthropic/callback`
 
-    pkceStore.set(state, { verifier, workspaceId, redirectUri })
-
-    // Clean up stale entries after 10 minutes
-    setTimeout(() => pkceStore.delete(state), 10 * 60 * 1000)
+    try {
+        await storePkce(state, {
+            codeVerifier: verifier,
+            workspaceId,
+            redirectUri,
+            createdAt: Date.now(),
+        })
+    } catch (err) {
+        logger.error({ err }, 'PKCE store failed — Redis may be down')
+        res.status(503).json({ error: 'OAuth service temporarily unavailable' })
+        return
+    }
 
     const url = buildAnthropicAuthUrl({ redirectUri, state, codeChallenge: challenge })
     res.json({ url, state })
 })
 
-// GET /api/oauth/anthropic/callback?code=...&state=...
-const CallbackSchema = z.object({
-    code: z.string(),
-    state: z.string(),
-})
+// ── GET /api/oauth/anthropic/callback?code=...&state=... ─────────────────────
+
+const CallbackSchema = z.object({ code: z.string(), state: z.string() })
 
 oauthRouter.get('/anthropic/callback', async (req, res) => {
     const parse = CallbackSchema.safeParse(req.query)
@@ -60,29 +63,36 @@ oauthRouter.get('/anthropic/callback', async (req, res) => {
     }
 
     const { code, state } = parse.data
-    const pending = pkceStore.get(state)
-    if (!pending) {
-        res.status(400).json({ error: 'Invalid or expired state' })
+
+    let pending: Awaited<ReturnType<typeof consumePkce>>
+    try {
+        pending = await consumePkce(state)
+    } catch (err) {
+        logger.error({ err }, 'PKCE consume failed')
+        res.status(503).json({ error: 'OAuth service temporarily unavailable' })
         return
     }
-    pkceStore.delete(state)
+
+    if (!pending) {
+        res.status(400).json({ error: 'Invalid or expired state — please restart the OAuth flow' })
+        return
+    }
 
     try {
         const tokens = await exchangeAnthropicCode({
             code,
             redirectUri: pending.redirectUri,
-            codeVerifier: pending.verifier,
+            codeVerifier: pending.codeVerifier,
         })
 
         logger.info({ workspaceId: pending.workspaceId }, 'Anthropic OAuth token obtained')
 
-        // TODO Phase 3: persist encrypted tokens to installed_connections table
-        // For now, return tokens so the web client can store them in the session
+        // TODO Phase 4: persist encrypted tokens to installed_connections table.
+        // For now, return to client to store in session.
         res.json({
             workspaceId: pending.workspaceId,
             credentialType: 'oauth_token',
             expiresIn: tokens.expires_in,
-            // DO NOT log the actual tokens — only return to client
             accessToken: tokens.access_token,
             refreshToken: tokens.refresh_token,
         })
@@ -92,7 +102,8 @@ oauthRouter.get('/anthropic/callback', async (req, res) => {
     }
 })
 
-// GET /api/oauth/anthropic/info — static info about Anthropic OAuth capabilities
+// ── GET /api/oauth/anthropic/info ────────────────────────────────────────────
+
 oauthRouter.get('/anthropic/info', (_req, res) => {
     res.json({
         available: true,
