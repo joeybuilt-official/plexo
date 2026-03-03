@@ -1,63 +1,12 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { generateText, tool, stepCountIs } from 'ai'
+import { z } from 'zod'
 import { db, sql } from '@plexo/db'
-import { taskSteps, apiCostTracking } from '@plexo/db'
-import { buildAnthropicClient } from '../ai/client.js'
-import { MODEL_ROUTING, SAFETY_LIMITS } from '../constants.js'
+import { taskSteps } from '@plexo/db'
+import { withFallback } from '../providers/registry.js'
+import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
-
-// ── Built-in tools exposed to the agent ──────────────────────────────────────
-// Phase 2: read_file, write_file, shell (sandboxed). Full tool set in Phase 3.
-
-const TOOLS: Anthropic.Messages.Tool[] = [
-    {
-        name: 'read_file',
-        description: 'Read the contents of a file at the given path.',
-        input_schema: {
-            type: 'object' as const,
-            properties: {
-                path: { type: 'string', description: 'Absolute or repo-relative path to read' },
-            },
-            required: ['path'],
-        },
-    },
-    {
-        name: 'write_file',
-        description: 'Write content to a file. Creates the file if it does not exist.',
-        input_schema: {
-            type: 'object' as const,
-            properties: {
-                path: { type: 'string', description: 'Path to write to' },
-                content: { type: 'string', description: 'Full file content to write' },
-            },
-            required: ['path', 'content'],
-        },
-    },
-    {
-        name: 'shell',
-        description: 'Run a shell command. Avoid destructive operations; prefer reads first.',
-        input_schema: {
-            type: 'object' as const,
-            properties: {
-                command: { type: 'string', description: 'Shell command to execute' },
-                cwd: { type: 'string', description: 'Working directory (optional)' },
-            },
-            required: ['command'],
-        },
-    },
-    {
-        name: 'task_complete',
-        description: 'Signal that all steps are done and provide a summary of the outcome.',
-        input_schema: {
-            type: 'object' as const,
-            properties: {
-                summary: { type: 'string', description: 'What was accomplished' },
-                qualityScore: { type: 'number', description: '0.0–1.0 self-assessment score' },
-            },
-            required: ['summary', 'qualityScore'],
-        },
-    },
-]
+import type { WorkspaceAISettings } from '../providers/registry.js'
 
 // ── Tool dispatcher — Phase 2 stubs ──────────────────────────────────────────
 // Each tool runs locally for now. Phase 3 moves to sandboxed worker containers.
@@ -115,13 +64,66 @@ async function dispatchTool(
     }
 }
 
+// ── Vercel AI SDK tool definitions (AI SDK v6 format) ────────────────────────
+// Tool.inputSchema replaces "parameters" from earlier SDK versions.
+
+function buildTools(ctx: ExecutionContext) {
+    return {
+        read_file: tool({
+            description: 'Read the contents of a file at the given path.',
+            inputSchema: z.object({
+                path: z.string().describe('Absolute or repo-relative path to read'),
+            }),
+            execute: async (input) => dispatchTool('read_file', input as Record<string, unknown>, ctx),
+        }),
+        write_file: tool({
+            description: 'Write content to a file. Creates the file if it does not exist.',
+            inputSchema: z.object({
+                path: z.string().describe('Path to write to'),
+                content: z.string().describe('Full file content to write'),
+            }),
+            execute: async (input) => dispatchTool('write_file', input as Record<string, unknown>, ctx),
+        }),
+        shell: tool({
+            description: 'Run a shell command. Avoid destructive operations; prefer reads first.',
+            inputSchema: z.object({
+                command: z.string().describe('Shell command to execute'),
+                cwd: z.string().optional().describe('Working directory (optional)'),
+            }),
+            execute: async (input) => dispatchTool('shell', input as Record<string, unknown>, ctx),
+        }),
+        task_complete: tool({
+            description: 'Signal that all steps are done and provide a summary of the outcome.',
+            inputSchema: z.object({
+                summary: z.string().describe('What was accomplished'),
+                qualityScore: z.number().min(0).max(1).describe('0.0–1.0 self-assessment score'),
+            }),
+            execute: async (input) =>
+                dispatchTool('task_complete', input as Record<string, unknown>, ctx),
+        }),
+    }
+}
+
+// ── Default workspace AI settings (legacy / no-config mode) ─────────────────
+
+function defaultSettings(): WorkspaceAISettings {
+    return {
+        primaryProvider: 'anthropic',
+        fallbackChain: [],
+        providers: {
+            anthropic: { provider: 'anthropic' },
+        },
+    }
+}
+
 // ── Executor ──────────────────────────────────────────────────────────────────
 
 export async function executeTask(
     ctx: ExecutionContext,
     plan: ExecutionPlan,
+    aiSettings?: WorkspaceAISettings,
 ): Promise<ExecutionResult> {
-    const client = await buildAnthropicClient(ctx.credential)
+    const settings = aiSettings ?? defaultSettings()
     const startTime = Date.now()
     const stepResults: StepResult[] = []
 
@@ -141,149 +143,114 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 - Be conservative. If something seems wrong, stop and report it.
 - NEVER output credentials, secrets, or tokens in any tool call or message.`
 
-    // Build initial message from plan
     const planSummary = plan.steps
         .map((s) => `Step ${s.stepNumber}: ${s.description}`)
         .join('\n')
 
-    const messages: Anthropic.Messages.MessageParam[] = [
-        {
-            role: 'user',
-            content: `Execute this plan:\n\n${planSummary}\n\nBegin with step 1.`,
-        },
-    ]
+    const userMessage = `Execute this plan:\n\n${planSummary}\n\nBegin with step 1.`
 
-    let consecutiveToolCalls = 0
-    let done = false
-    let stepNumber = 0
+    if (ctx.signal.aborted) {
+        throw new PlexoError('Task cancelled', 'TASK_CANCELLED', 'user', 499)
+    }
 
-    while (!done) {
-        if (ctx.signal.aborted) {
-            throw new PlexoError('Task cancelled', 'TASK_CANCELLED', 'user', 499)
-        }
+    const stepStart = Date.now()
 
-        stepNumber++
-        const stepStart = Date.now()
-        const toolCallsThisStep: StepResult['toolCalls'] = []
-
-        const response = await client.messages.create({
-            model: MODEL_ROUTING.codeGeneration,
-            max_tokens: 4096,
+    const genResult = await withFallback(settings, 'codeGeneration', async (model) => {
+        return generateText({
+            model,
             system: systemPrompt,
-            tools: TOOLS,
-            messages,
+            messages: [{ role: 'user', content: userMessage }],
+            tools: buildTools(ctx),
+            stopWhen: stepCountIs(SAFETY_LIMITS.maxConsecutiveToolCalls),
+            abortSignal: ctx.signal,
         })
+    })
 
-        const tokensIn = response.usage.input_tokens
-        const tokensOut = response.usage.output_tokens
+    // AI SDK v6: usage.inputTokens / usage.outputTokens
+    const tokensIn = genResult.usage.inputTokens ?? 0
+    const tokensOut = genResult.usage.outputTokens ?? 0
 
-        // Estimate cost — claude-sonnet-4-5 rates
-        const costUsd = (tokensIn / 1_000_000) * 3 + (tokensOut / 1_000_000) * 15
-        totalTokensIn += tokensIn
-        totalTokensOut += tokensOut
-        totalCost += costUsd
+    // Estimate cost — rough claude-sonnet rates
+    const costUsd = (tokensIn / 1_000_000) * 3 + (tokensOut / 1_000_000) * 15
+    totalTokensIn += tokensIn
+    totalTokensOut += tokensOut
+    totalCost += costUsd
 
-        // Check cost ceiling
-        if (totalCost > (Number(process.env.API_COST_CEILING_USD) || 10)) {
-            throw new PlexoError(
-                `Cost ceiling reached: $${totalCost.toFixed(4)}`,
-                'COST_CEILING_REACHED',
-                'system',
-                429,
-            )
-        }
+    // Check cost ceiling
+    if (totalCost > (Number(process.env.API_COST_CEILING_USD) || 10)) {
+        throw new PlexoError(
+            `Cost ceiling reached: $${totalCost.toFixed(4)}`,
+            'COST_CEILING_REACHED',
+            'system',
+            429,
+        )
+    }
 
-        // Process response content
-        const assistantContent: Anthropic.Messages.ContentBlockParam[] = []
-        const toolResults: Anthropic.Messages.ToolResultBlockParam[] = []
+    // Extract tool call records from steps
+    // AI SDK v6: toolCalls[].input (not .args), toolResults[].output (not .result)
+    const toolCallRecords: StepResult['toolCalls'] = []
+    for (const step of genResult.steps) {
+        for (const tc of step.toolCalls) {
+            // TypedToolCall has .input in v6; DynamicToolCall also has .input
+            const input = (tc as { input: unknown }).input as Record<string, unknown>
+            const toolResult = step.toolResults.find((r) => r.toolCallId === tc.toolCallId)
+            // TypedToolResult / DynamicToolResult have .output in v6
+            const output = toolResult
+                ? String((toolResult as { output: unknown }).output ?? '')
+                : ''
 
-        for (const block of response.content) {
-            assistantContent.push(block as Anthropic.Messages.ContentBlockParam)
+            toolCallRecords.push({
+                tool: tc.toolName,
+                input,
+                output,
+            })
 
-            if (block.type === 'tool_use') {
-                consecutiveToolCalls++
-                if (consecutiveToolCalls > SAFETY_LIMITS.maxConsecutiveToolCalls) {
-                    throw new PlexoError(
-                        `Exceeded max consecutive tool calls (${SAFETY_LIMITS.maxConsecutiveToolCalls})`,
-                        'TOO_MANY_TOOL_CALLS',
-                        'system',
-                        500,
-                    )
+            if (tc.toolName === 'task_complete') {
+                try {
+                    const parsed = JSON.parse(output) as { summary: string; qualityScore: number }
+                    finalSummary = parsed.summary
+                    finalQuality = Math.min(1, Math.max(0, parsed.qualityScore))
+                } catch {
+                    finalSummary = output
                 }
-
-                const toolInput = block.input as Record<string, unknown>
-                const toolOutput = await dispatchTool(block.name, toolInput, ctx)
-
-                if (block.name === 'task_complete') {
-                    try {
-                        const parsed = JSON.parse(toolOutput) as { summary: string; qualityScore: number }
-                        finalSummary = parsed.summary
-                        finalQuality = Math.min(1, Math.max(0, parsed.qualityScore))
-                    } catch {
-                        finalSummary = toolOutput
-                    }
-                    done = true
-                }
-
-                toolCallsThisStep.push({
-                    tool: block.name,
-                    input: toolInput,
-                    output: toolOutput,
-                })
-
-                toolResults.push({
-                    type: 'tool_result',
-                    tool_use_id: block.id,
-                    content: toolOutput,
-                })
-            } else {
-                consecutiveToolCalls = 0
             }
-        }
-
-        // Add assistant turn + tool results to message history
-        messages.push({ role: 'assistant', content: assistantContent })
-        if (toolResults.length > 0) {
-            messages.push({ role: 'user', content: toolResults })
-        }
-
-        const stepDurationMs = Date.now() - stepStart
-
-        // Persist step record to DB
-        await db.insert(taskSteps).values({
-            taskId: ctx.taskId,
-            stepNumber,
-            model: MODEL_ROUTING.codeGeneration,
-            tokensIn,
-            tokensOut,
-            toolCalls: toolCallsThisStep,
-            outcome: done ? 'complete' : 'running',
-        })
-
-        stepResults.push({
-            stepNumber,
-            ok: true,
-            output: finalSummary || '',
-            toolCalls: toolCallsThisStep,
-            tokensIn,
-            tokensOut,
-            costUsd,
-            durationMs: stepDurationMs,
-        })
-
-        // Stop if model says stop_reason is end_turn with no tool use
-        if (response.stop_reason === 'end_turn' && toolCallsThisStep.length === 0 && !done) {
-            finalSummary = finalSummary || 'Agent stopped without calling task_complete'
-            done = true
-        }
-
-        // Hard wall clock limit
-        if (Date.now() - startTime > SAFETY_LIMITS.maxWallClockMs) {
-            throw new PlexoError('Wall clock limit exceeded', 'WALL_CLOCK_EXCEEDED', 'system', 500)
         }
     }
 
-    const result: ExecutionResult = {
+    if (!finalSummary) {
+        finalSummary = genResult.text || 'Agent stopped without calling task_complete'
+    }
+
+    const stepDurationMs = Date.now() - stepStart
+
+    // Persist step record to DB
+    await db.insert(taskSteps).values({
+        taskId: ctx.taskId,
+        stepNumber: 1,
+        model: 'vercel-ai-sdk',
+        tokensIn,
+        tokensOut,
+        toolCalls: toolCallRecords,
+        outcome: finalSummary ? 'complete' : 'running',
+    })
+
+    stepResults.push({
+        stepNumber: 1,
+        ok: true,
+        output: finalSummary,
+        toolCalls: toolCallRecords,
+        tokensIn,
+        tokensOut,
+        costUsd,
+        durationMs: stepDurationMs,
+    })
+
+    // Hard wall clock check
+    if (Date.now() - startTime > SAFETY_LIMITS.maxWallClockMs) {
+        throw new PlexoError('Wall clock limit exceeded', 'WALL_CLOCK_EXCEEDED', 'system', 500)
+    }
+
+    const executionResult: ExecutionResult = {
         taskId: ctx.taskId,
         ok: true,
         steps: stepResults,
@@ -298,9 +265,9 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
     // Write cost to api_cost_tracking (weekly accumulation)
     try {
         const now = new Date()
-        const day = now.getDay() // 0=Sun, 1=Mon...
+        const day = now.getDay()
         const weekStart = new Date(now)
-        weekStart.setDate(now.getDate() - ((day + 6) % 7)) // ISO week: Monday
+        weekStart.setDate(now.getDate() - ((day + 6) % 7))
         weekStart.setUTCHours(0, 0, 0, 0)
         const weekStartStr = weekStart.toISOString().slice(0, 10)
 
@@ -329,10 +296,12 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         s.toolCalls
             .filter((t) => t.tool === 'write_file' || t.tool === 'create_file')
             .map((t) => String((t.input as Record<string, unknown>)?.path ?? ''))
-            .filter(Boolean)
+            .filter(Boolean),
     )
-    const memOutcome: 'success' | 'partial' | 'failure' = result.ok
-        ? (finalQuality >= 0.7 ? 'success' : 'partial')
+    const memOutcome: 'success' | 'partial' | 'failure' = executionResult.ok
+        ? finalQuality >= 0.7
+            ? 'success'
+            : 'partial'
         : 'failure'
 
     Promise.all([
@@ -340,12 +309,12 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
             recordTaskMemory({
                 workspaceId: ctx.workspaceId,
                 taskId: ctx.taskId,
-                description: ctx.taskId, // executor doesn't receive description; memory content includes tool trace
+                description: ctx.taskId,
                 outcome: memOutcome,
                 toolsUsed,
                 qualityScore: finalQuality,
-                durationMs: result.totalDurationMs,
-            })
+                durationMs: executionResult.totalDurationMs,
+            }),
         ),
         import('../memory/preferences.js').then(({ inferFromTaskOutcome }) =>
             inferFromTaskOutcome({
@@ -354,9 +323,9 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
                 filesWritten,
                 qualityScore: finalQuality,
                 outcome: memOutcome,
-            })
+            }),
         ),
     ]).catch(() => { /* memory errors are never fatal */ })
 
-    return result
+    return executionResult
 }

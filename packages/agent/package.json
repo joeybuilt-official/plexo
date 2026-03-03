@@ -17,7 +17,8 @@
         "./memory/store": "./src/memory/store.ts",
         "./memory/preferences": "./src/memory/preferences.ts",
         "./memory/self-improvement": "./src/memory/self-improvement.ts",
-        "./memory/prompt-improvement": "./src/memory/prompt-improvement.ts"
+        "./memory/prompt-improvement": "./src/memory/prompt-improvement.ts",
+        "./providers/registry": "./src/providers/registry.ts"
     },
     "scripts": {
         "typecheck": "tsc --noEmit",
@@ -25,18 +26,29 @@
         "test:watch": "vitest"
     },
     "dependencies": {
+        "@ai-sdk/anthropic": "^3.0.54",
+        "@ai-sdk/deepseek": "^2.0.22",
+        "@ai-sdk/google": "^3.0.37",
+        "@ai-sdk/groq": "^3.0.27",
+        "@ai-sdk/mistral": "^3.0.22",
+        "@ai-sdk/openai": "^3.0.39",
+        "@ai-sdk/openai-compatible": "^2.0.33",
+        "@ai-sdk/xai": "^3.0.64",
+        "@anthropic-ai/sdk": "^0.39",
+        "@openrouter/ai-sdk-provider": "^2.2.3",
         "@plexo/db": "workspace:*",
         "@plexo/queue": "workspace:*",
-        "@anthropic-ai/sdk": "^0.39",
-        "ulid": "^2.3",
+        "ai": "^6.0.111",
+        "bcrypt": "^5.1",
+        "ollama-ai-provider": "^1.2.0",
         "pino": "^9",
-        "zod": "^3.24",
-        "bcrypt": "^5.1"
+        "ulid": "^2.3",
+        "zod": "^3.24"
     },
     "devDependencies": {
-        "typescript": "^5.7",
-        "@types/node": "^22",
         "@types/bcrypt": "^5.0",
+        "@types/node": "^22",
+        "typescript": "^5.7",
         "vitest": "^3"
     }
 }

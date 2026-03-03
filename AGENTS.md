@@ -152,3 +152,19 @@ This has implications for every decision:
 ### What ZeroClaw provides (parity checklist — to be specced in detail by user)
 - [ ] TBD — user to spec out ZeroClaw feature list
 
+---
+
+## Decisions Log
+
+### 2025-06 — Vercel AI SDK v6 Migration (Phase A)
+
+- **ai@6 breaking changes**: `maxSteps` removed → use `stopWhen: stepCountIs(N)`. `usage.promptTokens/completionTokens` → `usage.inputTokens/outputTokens`. Tool definitions use `inputSchema:` not `parameters:`. `execute` receives `(input, options)`.
+- **Ollama**: `ollama-ai-provider` is LanguageModelV1 only — incompatible with ai@6. Replaced with `@ai-sdk/openai-compatible` pointing at Ollama's `/v1` endpoint.
+- **LanguageModel types**: `@ai-sdk/provider` is not a direct dep. Return type of `buildModel` uses `any` internally; generateText accepts all provider versions at runtime.
+- **Tool execute typing**: Explicit parameter type annotations on execute callbacks cause TS overload mismatch. Let TypeScript infer from Zod `inputSchema`.
+
+### 2025-06 — Navigation Restructure (Phase B)
+
+- **Sidebar groups**: Chat · Control · Agent · Settings · System. Collapsible, state persisted in `localStorage` under `plexo:sidebar:collapse`.
+- **New routes created**: `/settings/ai-providers`, `/settings/connections`, `/settings/channels`, `/settings/agent`, `/settings/users`, `/debug`, `/projects`, `/cron`.
+- **AI Providers page** (Phase C): Two-panel layout. Primary selection, test connection, fallback chain display, collapsible model routing table. Test API endpoint wired in frontend; `POST /api/settings/ai-providers/test` handler not yet implemented.
