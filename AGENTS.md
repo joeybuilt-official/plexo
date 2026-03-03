@@ -168,3 +168,13 @@ This has implications for every decision:
 - **Sidebar groups**: Chat · Control · Agent · Settings · System. Collapsible, state persisted in `localStorage` under `plexo:sidebar:collapse`.
 - **New routes created**: `/settings/ai-providers`, `/settings/connections`, `/settings/channels`, `/settings/agent`, `/settings/users`, `/debug`, `/projects`, `/cron`.
 - **AI Providers page** (Phase C): Two-panel layout. Primary selection, test connection, fallback chain display, collapsible model routing table. Test API endpoint wired in frontend; `POST /api/settings/ai-providers/test` handler not yet implemented.
+
+### 2026-03 — Phase 8 completion (C–G)
+
+- **AI provider test**: `testProvider()` lives in `packages/agent/src/providers/registry.ts` — all AI SDK deps stay in that package. `apps/api` imports `testProvider` from `@plexo/agent/providers/registry`; `apps/web` Next.js route is a thin proxy to Express. No AI SDK imports bleed into apps not owning them.
+- **maxTokens → maxOutputTokens**: ai@6 renamed this field in `generateText`. Fixed in `testProvider` and any future uses.
+- **Connections browser**: Backed by real `/api/connections/registry` + `/api/connections/installed`. Auth-type-aware install UI: OAuth2 opens popup via `window.open`, API key uses input fields + `POST /api/connections/install`.
+- **DashboardRefresher**: SSE EventSource at `/api/sse?workspaceId=...` + `router.refresh()` on task events. Falls back to 15s polling on SSE failure. Reconnects after 5s. Mounted once in `(dashboard)/layout.tsx` — affects all dashboard pages.
+- **Workspace resolver pattern**: `getWorkspaceId()` in `apps/web/src/lib/workspace.ts` — React `cache()` deduplicates within a render pass. All server components should import from here, NOT use raw env vars. Three different env var names were previously inconsistent across files (`DEV_WORKSPACE_ID`, `DEFAULT_WORKSPACE_ID`, `NEXT_PUBLIC_DEFAULT_WORKSPACE`). Server components use `DEV_WORKSPACE_ID` fallback; client components use `NEXT_PUBLIC_DEFAULT_WORKSPACE`.
+- **workspaces API**: Added `?ownerId=` filter param. Owner is the `uuid workspace.owner_id` FK to `users.id`. Session `user.id` maps to this.
+- **Debug page**: Uses only `NEXT_PUBLIC_*` vars (client component). Route checks run in parallel with `Promise.all`. SSE connection opened on mount for stream diagnostics.

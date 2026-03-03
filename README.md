@@ -11,7 +11,7 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-8%20in%20progress-blue)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Phase](https://img.shields.io/badge/phase-8%20complete-brightgreen)](https://github.com/dustin-olenslager/plexo#roadmap)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
 
@@ -304,18 +304,19 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 - [x] Settings page — workspace, agent model/budget, API key management
 - [x] k6 smoke test
 
-### 🔄 Phase 8 — Multi-provider AI + navigation (in progress)
+### ✅ Phase 8 — Multi-provider AI + navigation
 - [x] **Vercel AI SDK migration** — unified `generateObject` / `generateText` / tool API across all providers
 - [x] **Provider registry** — `buildModel`, `resolveModel`, `withFallback` — fallback chains with retryable error detection
 - [x] **9 providers supported** — Anthropic, OpenAI, Google, Mistral, Groq, xAI, DeepSeek, Ollama (via OpenAI-compat), OpenRouter
 - [x] **Grouped sidebar** — collapsible sections (Chat · Control · Agent · Settings · System), state persisted to localStorage
 - [x] **AI Providers settings page** — two-panel UI, provider cards, API key config, test connection, primary selection, fallback chain, model routing per task type
+- [x] **`POST /api/settings/ai-providers/test`** — Express handler via `testProvider()` in registry, proxied through Next.js route
+- [x] **Connections browser** — two-panel UI backed by real `/api/connections/registry` + `/api/connections/installed`, OAuth2 popup flow, API key config, disconnect
+- [x] **SSE-driven dashboard refresh** — `DashboardRefresher` client component calls `router.refresh()` on task events, falls back to 15s polling
+- [x] **Workspace resolver** — `getWorkspaceId()` server util resolves from NextAuth session via `/api/workspaces?ownerId=...`, React `cache()` deduped
+- [x] **Insights page real data** — uses `getWorkspaceId()`, renders preferences grid + improvement log from live API
+- [x] **Debug page** — health endpoint with service latencies, SSE stream monitor + live event feed, route diagnostic table, client-side env panel
 - [x] **New routes** — `/settings/ai-providers`, `/settings/connections`, `/settings/channels`, `/settings/agent`, `/settings/users`, `/debug`, `/projects`, `/cron`
-- [ ] `POST /api/settings/ai-providers/test` — API handler for provider test endpoint
-- [ ] Connections browser — two-panel service list with OAuth flow integration
-- [ ] Live dashboard data via SSE (Phase E)
-- [ ] Insights page real data wiring (Phase F)
-- [ ] Debug page — agent snapshot + manual RPC (Phase G)
 
 ### 🔲 Backlog
 - [ ] Sandbox tools in isolated Docker containers
