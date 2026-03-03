@@ -10,6 +10,9 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
+[![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
+[![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
+[![Phase](https://img.shields.io/badge/phase-3%20complete-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
 
@@ -25,7 +28,7 @@ Plexo inverts that. You describe what you want — in a Telegram message, a Slac
 
 **This is for anyone who wants AI doing real work for them.**
 
-A founder monitoring Stripe and generating weekly reports, an operator managing deployments and alerts, a researcher tracking topics and synthesizing sources, a developer running parallel code sprints — these are equally first-class use cases. The UX, language, and defaults treat them all the same.
+A founder monitoring Stripe and generating weekly reports, an operator managing deployments and alerts, a researcher tracking topics and synthesizing sources, a developer running parallel code sprints — these are equally first-class use cases.
 
 ---
 
@@ -43,8 +46,6 @@ A founder monitoring Stripe and generating weekly reports, an operator managing 
 
 ## Self-host in under 20 minutes
 
-The hard constraint: a semi-technical user with no engineering background must be able to self-host Plexo in under 20 minutes. Every design decision is evaluated against this.
-
 ```bash
 git clone https://github.com/dustin-olenslager/plexo
 cd plexo
@@ -58,232 +59,283 @@ Open your domain. A browser wizard handles the rest — admin account, AI key, m
 <summary><strong>The 5 values you need</strong></summary>
 
 ```bash
-# openssl rand -hex 32
-POSTGRES_PASSWORD=
-
-PUBLIC_URL=https://plexo.yourdomain.com
-PUBLIC_DOMAIN=plexo.yourdomain.com
-
-# openssl rand -hex 64
-SESSION_SECRET=
-
-# console.anthropic.com
-ANTHROPIC_API_KEY=
+DATABASE_URL=postgresql://...     # or leave blank to use the bundled Postgres
+REDIS_URL=redis://...             # or leave blank to use the bundled Redis
+ANTHROPIC_API_KEY=sk-ant-...      # or connect via Claude.ai OAuth — no API key needed
+PUBLIC_URL=https://your-domain    # where Plexo is reachable from the internet
+SECRET=any-random-string          # for signing sessions
 ```
-
-Everything else in `.env.example` is optional — OpenAI/Gemini fallbacks, GitHub OAuth, sprint worker count, weekly cost ceiling.
 
 </details>
 
 ---
 
-## Execution protocol
+## Anthropic auth — API key or Claude.ai OAuth
 
-Every task follows five steps without exception.
+Plexo supports both:
 
-```
-PLAN     → structured plan written and sent to you before anything runs
-CONFIRM  → destructive steps (deletions, deploys, schema changes) pause for a 6-char code
-EXECUTE  → steps run in sequence, max 4 tool calls before a mandatory verification pause
-VERIFY   → post-condition checked after each step — not just the exit code
-COMPLETE → quality scored, work ledger written, memory entry created, you get notified
-```
+**API key** — paste a key from [console.anthropic.com](https://console.anthropic.com). Standard pay-per-token billing.
 
-Safety limits are constants in source — not configuration, not overridable at runtime:
-
-```ts
-export const SAFETY_LIMITS = {
-  maxConsecutiveToolCalls: 4,
-  maxWallClockMs: 2 * 60 * 60 * 1000,  // 2 hours hard ceiling
-  noForcePush: true,
-  noDeletionWithoutConfirmation: true,
-  noCredentialsInLogs: true,
-} as const
-```
-
-The agent tells you what it's about to do. You can block anything with `/block {task_id}` in the two-minute window before execution begins. One-way doors — resource deletions, deploys, data writes — each require their own confirmation code.
-
----
-
-## Sprint engine
-
-One message. A full parallel software sprint.
-
-```
-/sprint "Add OAuth login to the dashboard"
-
-→ Planner reads repo context (file tree, recent commits, SPEC.md, AGENTS.md)
-→ Discovery phase — learns the codebase before specifying anything
-→ Emits task batches; workers execute in parallel (up to 5 isolated containers)
-→ Merge queue serializes branches; conflict-fix tasks injected automatically
-→ Reconciler sweeps build health every 5 min, auto-injects targeted fix tasks
-→ Planner iterates until the goal is verifiably met
-→ Post-sprint: FEATURES.json diff + DECISIONS.md draft sent for your review
-```
-
-Workers are isolated containers with a hard 40-tool-call limit. Each one knows only what the planner writes in its task description — nothing else about the project.
-
----
-
-## Connections
-
-Connect a service and its tools are immediately available to the agent — no additional configuration.
-
-| Service | Category |
-|---------|----------|
-| GitHub, Linear, Vercel, Netlify, Hetzner | Developer |
-| Slack, Discord, Telegram | Communication |
-| Notion, Google Drive | Productivity |
-| Stripe | Finance |
-| PostHog | Analytics |
-| Mailchimp | Marketing |
-| AWS S3 | Storage |
-
-OAuth services connect with a single button click. API key services use forms auto-rendered from the service registry — no hardcoded forms. Credentials are encrypted at rest and fetched fresh at call time, never cached in memory.
-
-Third-party services publish to the marketplace as connection plugins. They appear in the browser automatically after install.
-
----
-
-## Plugin system
-
-Plugins run in isolated Node.js worker threads. A plugin crash never reaches the core process.
-
-```ts
-import { sdk } from '@plexo/sdk'
-
-// Register a tool the agent can call
-sdk.agent.registerTool('stripe_list_customers', 'List Stripe customers', schema, async (input) => {
-  const key = sdk.settings.get('secret_key')
-  const res = await fetch('https://api.stripe.com/v1/customers', {
-    headers: { Authorization: `Bearer ${key}` },
-  })
-  return { success: true, output: await res.json() }
-})
-
-// Inject context into every agent session
-sdk.agent.injectContext(`## Stripe\nWhen billing questions arise, check Stripe first.`)
-
-// Add a dashboard card
-sdk.dashboard.registerCard('revenue', { title: 'MRR', defaultSize: { w: 4, h: 3 }, ... })
-```
-
-Plugin types: `skill` · `channel` · `tool` · `card` · `mcp-server` · `theme`
-
-Crash policy: auto-restart with 5s backoff, max 3 restarts per hour, then disabled with notification. The core process is unaffected.
+**Claude.ai OAuth (Pro/Max subscription)** — connect your Claude.ai account instead of buying API credits. Uses the same PKCE OAuth flow as Claude's own apps. No API key needed. Tokens are stored encrypted, auto-refreshed before expiry. This is the same mechanism used by [OpenClaw](https://openclaw.ai) and similar Claude subscription wrappers.
 
 ---
 
 ## Stack
 
-```
-Next.js 15 (App Router) · Express 5 · PostgreSQL 16 + pgvector
-Drizzle ORM · Auth.js v5 · Redis (Valkey) · Caddy · Docker
-TypeScript strict · pnpm workspaces
-```
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| **Runtime** | Node.js ≥22, TypeScript strict | Native ESM, built-in crypto, no transpile overhead |
+| **Web** | Next.js 15 App Router, Tailwind CSS | Server components, streaming, proven at scale |
+| **API** | Express 5 | Async middleware native, vast ecosystem, simple mental model |
+| **Database** | PostgreSQL 16 + pgvector 0.8.2, Drizzle ORM | Vector search native, no binary deps, SQL-native |
+| **Cache / queue** | Redis (Valkey-compatible) | PKCE state, task queue, session cache |
+| **Auth** | Auth.js v5 (NextAuth) | Credential + OAuth providers, session management |
+| **AI** | Anthropic Claude (claude-3-5-haiku / claude-3-5-sonnet) | Best instruction-following, tool use, long context |
+| **Build** | pnpm workspaces + Turborepo | Incremental builds, workspace dependency graph |
+| **Infra** | Docker Compose, Caddy reverse proxy | Self-hosting-first, automatic HTTPS |
+| **Testing** | Vitest (unit + integration), Playwright (E2E) | Fast, ESM-native, first-class TypeScript |
+
+---
+
+## Monorepo layout
 
 ```
 plexo/
-├── apps/web            Next.js dashboard (App Router)
-├── apps/api            Express API + SSE event bus
-├── packages/agent      Core execution runtime
-├── packages/sdk        Plugin API — stable, semver-versioned
-├── packages/db         Drizzle schema + migrations
-├── packages/queue      Task queue operations
-├── packages/ui         Shared components (shadcn/ui)
-├── plugins/core/
-│   ├── github-ops      GitHub tools + Pending PRs card
-│   ├── telegram-channel
-│   ├── slack-channel
-│   ├── devops-skill    Docker + Hetzner tools
-│   ├── cron-manager    Visual cron + CRUD tools
-│   ├── product-skill   PM-mode context
-│   └── research-skill  Evidence-based research mode
-└── docker/
-    ├── compose.yml
-    └── worker/         Sprint worker image + harness
+├── apps/
+│   ├── api/          Express 5 — agent loop, task/sprint APIs, channel adapters, SSE
+│   └── web/          Next.js 15 — dashboard, auth, settings
+├── packages/
+│   ├── agent/        Planner + Executor, Anthropic OAuth, tool dispatch
+│   ├── db/           Drizzle schema, migrations, lazy client
+│   ├── queue/        Task queue (push/list/complete/block/cancel)
+│   └── sdk/          Public plugin API (stable interface — semver enforced)
+├── plugins/
+│   └── core/         Built-in tools (read_file, write_file, shell, task_complete)
+├── docker/           Compose files, Caddy config
+├── docs/             Architecture, plugin SDK guide
+└── tests/
+    ├── unit/         Vitest unit tests (no network, no DB)
+    └── integration/  Vitest integration tests (real Postgres)
 ```
 
 ---
 
-## Memory
+## Execution protocol
 
-The agent builds a semantic memory of everything it works on — tasks, incidents, patterns, sessions. Memory is searched using hybrid BM25 + vector retrieval with RRF fusion and recency weighting.
+The agent runs in a tight loop: **plan → execute → verify → report**.
 
-Patterns learned on one project are available to others. After each sprint, generalizable patterns (conflict hotspots, sizing calibration, recurring errors) are stored and injected as priors when starting a sprint on a project with a similar stack. The more you use it, the smarter the planner gets — across all your projects.
+```
+User message
+  └─▶ Planner (Claude)           generates ExecutionPlan JSON
+        └─▶ Executor             dispatches tools step by step
+              ├─▶ read_file      read any file in scope
+              ├─▶ write_file     write/patch files
+              ├─▶ shell          run commands (sandboxed in Phase 4)
+              └─▶ task_complete  persist outcome, score quality, notify channel
+```
+
+Safety limits (hardcoded, not configurable):
+
+| Limit | Default |
+|-------|---------|
+| Max steps per task | 50 |
+| Wall clock time | 30 minutes |
+| Consecutive tool calls | 10 |
+| API cost ceiling | $10 / task (env override) |
+| No credentials in logs | Always |
+| No force-push / delete without confirmation | Always |
+
+One-way door operations (schema migrations, public API changes, destructive shell commands) require explicit approval via channel or dashboard before execution.
 
 ---
 
-## Recursive self-improvement
+## Channel adapters
 
-The agent observes its own performance every week and proposes targeted changes.
+| Channel | Status | Notes |
+|---------|--------|-------|
+| **Telegram** | ✅ Phase 3 | Webhook, secret validation, message→task, chat reply |
+| **Slack** | 🔜 Phase 4 | Events API, OAuth app install |
+| **Discord** | 🔜 Phase 5 | Slash commands, DM |
+| **Dashboard** | ✅ Phase 3 | QuickSend widget, task feed, live cards |
+| **API** | ✅ Phase 3 | REST — `POST /api/tasks` |
+
+---
+
+## API surface
+
+All routes require a valid `workspaceId` UUID.
 
 ```
-Weekly cron → collect metrics → detect anomalies → generate proposals
-Operator approves → 1-week shadow test on parallel task queue
-Shadow metrics better than baseline → ready to deploy
-/rsi_deploy {id} → applied to production with 14-day regression guard
-Metric regresses during guard → auto-rollback
+GET    /health                               Postgres + Redis latency, version, uptime
+GET    /api/tasks                            List tasks (paginated, filter by status/type)
+POST   /api/tasks                            Create task
+GET    /api/tasks/:id                        Task detail + execution steps
+DELETE /api/tasks/:id                        Cancel task
+GET    /api/tasks/stats/summary              Counts by status + cost totals
+GET    /api/sprints                          List sprints
+POST   /api/sprints                          Create sprint
+GET    /api/sprints/:id                      Sprint detail + linked tasks
+PATCH  /api/sprints/:id                      Update status
+GET    /api/dashboard/summary                All dashboard card data (one request)
+GET    /api/dashboard/activity               Recent task feed
+POST   /api/channels/telegram/webhook        Telegram message ingestion
+GET    /api/channels/telegram/info           Telegram adapter status
+GET    /api/oauth/anthropic/start            Begin Anthropic OAuth PKCE flow
+GET    /api/oauth/anthropic/callback         Exchange code, store tokens
+GET    /api/oauth/anthropic/info             OAuth app metadata
+GET    /api/sse                              Server-Sent Events (real-time task progress)
+POST   /api/auth/register                    Register user + workspace
+POST   /api/auth/login                       Verify credentials
 ```
 
-What it can improve: planning prompts, model routing thresholds, scanner scheduling, confidence calibration.
+---
 
-What it cannot touch, ever — enforced in code, not policy:
+## Plugin system
+
+Plugins extend the agent's tool set without touching core. They are isolated Node.js modules that import only from `@plexo/sdk` — never from `packages/db` or `packages/agent`.
 
 ```ts
-const PROTECTED_PATHS = [
-  'packages/agent/constants.ts',  // SAFETY_LIMITS
-  'packages/agent/rsi/**',        // RSI module itself
-  'packages/db/schema/**',        // schema
-  'apps/api/auth/**',             // auth
-]
+import { defineTool } from '@plexo/sdk'
+
+export default defineTool({
+  name: 'stripe_report',
+  description: 'Generate a Stripe revenue report for a date range',
+  schema: z.object({ from: z.string(), to: z.string() }),
+  execute: async ({ from, to }) => {
+    // ...
+    return { summary, csv }
+  },
+})
 ```
+
+Plugins are loaded at runtime from the `plugins/` directory. No restart needed after adding a plugin. Breaking changes to the SDK require a major version bump with a migration guide.
 
 ---
 
-## Development
+## Testing
 
 ```bash
-pnpm dev               # all apps, watch mode
-pnpm test              # unit tests (Vitest, TDD)
-pnpm test:integration  # DB + queue tests (requires Docker)
-pnpm test:e2e          # Playwright (requires running stack)
+pnpm test:unit         # 24 tests, no network/DB — Vitest, <1s
+pnpm test:integration  # 6 tests, real Postgres — queue semantics
+pnpm test:e2e          # Playwright critical paths (Phase 4)
 pnpm typecheck         # tsc --noEmit across all packages
-pnpm db:migrate        # run pending migrations
-pnpm db:rollback       # back one migration
 ```
 
-Read [`AGENTS.md`](AGENTS.md) before starting. Read [`docs/architecture.md`](docs/architecture.md) before touching package boundaries. The wall between `packages/sdk` and `packages/agent` is the plugin isolation boundary — plugins must never import from agent internals or the database directly.
+Unit test coverage: errors, agent constants, Anthropic OAuth (PKCE URL, headers, token refresh).
+Integration coverage: queue push/list/complete/block/cancel/priority ordering.
+
+---
+
+## Roadmap
+
+> Updated with every push. Last updated: 2026-03-03 @ `427d83d`
+
+### ✅ Phase 1 — Foundation (`dffedb9`)
+- [x] pnpm workspace monorepo, Turborepo pipeline
+- [x] PostgreSQL 16 + pgvector schema (20 tables)
+- [x] Drizzle ORM + migrations
+- [x] Next.js 15 App Router shell — login, register, dashboard
+- [x] Docker Compose stack (Postgres, Redis, Caddy, API, Web)
+- [x] Typed plugin SDK interface
+- [x] Agent/queue/db package scaffolds
+
+### ✅ Phase 2 — Agent runtime (`060f8b3`)
+- [x] User registration — bcrypt(12), workspace auto-creation
+- [x] Password verification — constant-time comparison
+- [x] Anthropic OAuth — PKCE flow, token exchange, auto-refresh
+- [x] Planner — Claude generates `ExecutionPlan` JSON with safety limits
+- [x] Executor — multi-turn tool dispatch (read_file, write_file, shell, task_complete)
+- [x] Task steps persisted to `task_steps` table with token/cost accounting
+- [x] Agent loop — polls queue, executes tasks, emits SSE events
+- [x] SSE emitter — per-workspace and global broadcast, heartbeats
+- [x] `GET /health` — live Postgres + Redis latency
+
+### ✅ Phase 3 — Core features (`427d83d`)
+- [x] Vitest unit tests (24 tests) — errors, constants, Anthropic OAuth
+- [x] Vitest integration tests (6 tests) — real Postgres, queue semantics
+- [x] Live task API — list (paginated), create, detail with steps, cancel, stats
+- [x] Live sprint API — list, create, detail with tasks, status transitions
+- [x] Dashboard summary API — agent status, task counts, cost vs ceiling, steps/tokens
+- [x] Telegram channel adapter — webhook, secret validation, message→task, chat reply
+- [x] Redis PKCE store — atomic GET+DEL Lua script, 10-min TTL, replay-proof
+- [x] Live dashboard — server components fetch real data, dynamic cost colors, task feed
+- [x] QuickSend widget — client-side task submission from dashboard
+- [x] Lazy DB client — no `DATABASE_URL` throw at import, enables unit test isolation
+
+### 🔜 Phase 4 — Channels + one-way doors
+- [ ] Slack channel adapter (Events API, OAuth app install)
+- [ ] One-way door confirmation flow (destructive ops held pending approval via channel or dashboard)
+- [ ] Anthropic OAuth tokens persisted encrypted to `installed_connections` table
+- [ ] Token encryption/decryption via AES-256-GCM with per-workspace key
+- [ ] Playwright E2E — login, register, task creation, SSE receive, Telegram echo
+- [ ] Cost write-back from executor to `api_cost_tracking` table
+
+### 🗓 Phase 5 — Sprint engine
+- [ ] Sprint planner — multi-task parallel execution with dependency graph
+- [ ] GitHub integration — PR creation, branch management, CI status polling
+- [ ] Conflict detection and reconciliation across parallel task branches
+- [ ] Sprint progress dashboard — live task tree, conflict log, quality scores
+
+### 🗓 Phase 6 — Memory + self-improvement
+- [ ] pgvector semantic memory — task outcomes indexed and retrieved contextually
+- [ ] Workspace-level preference learning (tool selection, code style, communication tone)
+- [ ] Recursive self-improvement — agent identifies patterns in its own failures, proposes changes
+- [ ] Plugin marketplace — install from registry, sandboxed, signed
+
+### 🗓 Phase 7 — Production hardening
+- [ ] Setup wizard — browser-based, handles all config, no terminal after clone
+- [ ] Sandbox tools in Docker containers (not in API process)
+- [ ] k6 load tests against VPS limits
+- [ ] Multi-workspace isolation, RBAC
+- [ ] Managed hosting (getplexo.com)
 
 ---
 
 ## Health
 
-```
-GET /health  →  200 ok  |  503 degraded
-```
+The `/health` endpoint reports live service status. Use it for uptime monitoring.
 
 ```json
 {
   "status": "ok",
   "services": {
     "postgres": { "ok": true, "latencyMs": 2 },
-    "redis":    { "ok": true, "latencyMs": 1 },
-    "anthropic": { "ok": true, "latencyMs": 289 }
+    "redis":    { "ok": true, "latencyMs": 2 },
+    "anthropic": { "ok": false, "latencyMs": 0 }
   },
   "version": "0.1.0",
-  "uptime": 86400
+  "uptime": 42
 }
+```
+
+Anthropic is marked non-critical — the agent degrades to queue-only mode if the Anthropic API is unreachable.
+
+---
+
+## Development
+
+```bash
+pnpm install
+docker compose -f docker/compose.dev.yml up -d   # Postgres + Redis
+cp .env.example .env.local                       # fill in DATABASE_URL, REDIS_URL
+pnpm db:migrate
+pnpm dev                                         # all apps in watch mode
+```
+
+```bash
+pnpm test:unit          # unit tests, no services needed
+pnpm test:integration   # needs Postgres running
+pnpm typecheck          # must pass before committing
 ```
 
 ---
 
 ## Managed hosting
 
-Don't want to run your own server? [**getplexo.com**](https://getplexo.com) — no Docker required, fully isolated instance per account (separate Postgres, Redis, and containers — isolation is architectural, not policy), managed AI credits available.
+[getplexo.com](https://getplexo.com) — fully managed, zero-config, auto-updated. Same codebase as self-hosted.
 
 ---
 
 ## License
 
-MIT — [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE).
