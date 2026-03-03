@@ -65,3 +65,40 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-03-03 | Phase 1: Foundation scaffold | Initial monorepo setup, DB schema, auth, typed interfaces, Docker stack |
+| 2026-03-03 | Drizzle over Prisma | No binary dependency, no generation step, SQL-native, smaller bundle |
+| 2026-03-03 | Valkey over Redis | Open-source fork, API-compatible, production-stable, no license risk |
+| 2026-03-03 | ULID over UUID | Lexicographically sortable, URL-safe, no coordination needed |
+| 2026-03-03 | Express 5 over Fastify | Mature ecosystem, async middleware native, simpler mental model |
+| 2026-03-03 | Pino over Winston | 10x faster, structured JSON native, built-in redaction |
+| 2026-03-03 | Turborepo over Nx | Simpler config, faster cold starts, Vercel-maintained |
+
+## Current State — Phase 1 Complete
+
+### What's live
+- Full monorepo scaffold: 7 packages, 2 apps, 7 plugin stubs
+- Database schema: 21 tables defined in Drizzle, ready for migration
+- Auth.js v5: credentials + GitHub OAuth configured
+- API server: Express 5 with `/health`, SSE, request tracing, structured logging
+- Dashboard: Next.js 15 with sidebar, 6-card grid, login/register pages
+- Docker Compose: Postgres 16+pgvector, Valkey, Caddy reverse proxy
+- `pnpm typecheck` passes 7/7 packages, 0 errors
+
+### What's stubbed (throws NotImplementedError)
+- All agent operations: pushTask, claimTask, completeTask, blockTask, sendMessage, startSprint, storeMemory, searchMemory
+- Plugin SDK runtime: all methods log warnings and return no-ops
+- Dashboard data: all cards show placeholder content
+- API routes: `/api/tasks`, `/api/sprints`, `/api/connections/registry` return empty arrays
+- Registration endpoint: form exists but `/api/auth/register` is not implemented
+
+### What needs Docker stack to verify
+- `pnpm db:migrate` on fresh Postgres
+- End-to-end login flow
+- `/health` with real service pings
+
+### Phase 2 scope (next)
+- Agent execution loop: plan → confirm → execute → verify → complete
+- Real task queue processing (claim + run)
+- Channel adapter framework (inbound/outbound message routing)
+- Live `/health` checks against Postgres, Redis, AI provider
+- Real credentials registration (bcrypt password hashing, DB insert)
+- First unit tests (Vitest, TDD)
