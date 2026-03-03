@@ -4,6 +4,8 @@ import cors from 'cors'
 import { logger } from './logger.js'
 import { healthRouter } from './routes/health.js'
 import { sseRouter } from './routes/sse.js'
+import { authRouter } from './routes/auth.js'
+import { oauthRouter } from './routes/oauth.js'
 import { traceMiddleware } from './middleware/trace.js'
 
 const app: Express = express()
@@ -22,6 +24,8 @@ app.use(traceMiddleware)
 
 app.use('/health', healthRouter)
 app.use('/api/sse', sseRouter)
+app.use('/api/auth', authRouter)
+app.use('/api/oauth', oauthRouter)
 
 // Stub route groups — expanded in later phases
 app.get('/api/agent/status', (_req, res) => {

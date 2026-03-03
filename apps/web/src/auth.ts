@@ -11,19 +11,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 password: { label: 'Password', type: 'password' },
             },
             async authorize(credentials) {
-                // Phase 1 stub — real validation against DB + bcrypt in Phase 2
-                // This allows local development login
-                if (
-                    credentials?.email === 'admin@plexo.dev' &&
-                    credentials?.password === 'plexo-dev-only'
-                ) {
-                    return {
-                        id: '00000000-0000-0000-0000-000000000001',
-                        email: 'admin@plexo.dev',
-                        name: 'Admin',
-                    }
-                }
-                return null
+                if (!credentials?.email || !credentials?.password) return null
+
+                const apiUrl = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
+                const res = await fetch(`${apiUrl}/api/auth/verify-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: credentials.email,
+                        password: credentials.password,
+                    }),
+                })
+
+                if (!res.ok) return null
+
+                const user = await res.json() as { id: string; email: string; name: string }
+                return { id: user.id, email: user.email, name: user.name }
             },
         }),
         GitHub({

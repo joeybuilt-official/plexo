@@ -289,3 +289,54 @@ export interface ToolResult {
         latencyMs?: number
     }
 }
+
+// ── AI Provider Credentials ──────────────────────────────────
+//
+// AnthropicCredential is a discriminated union — either a standard API key
+// or OAuth tokens from the claude.ai subscription flow. Both are supported
+// transparently by resolveAnthropicHeaders() in ai/anthropic-oauth.ts.
+
+export type AnthropicCredential =
+    | { type: 'api_key'; apiKey: string }
+    | {
+        type: 'oauth_token'
+        accessToken: string
+        refreshToken: string
+        /** Unix ms — token is refreshed proactively 60s before this */
+        expiresAt: number
+    }
+
+// ── Execution Context ────────────────────────────────────────
+
+export interface ExecutionContext {
+    taskId: string
+    workspaceId: string
+    userId: string
+    credential: AnthropicCredential
+    tokenBudget: number
+    signal: AbortSignal
+}
+
+export interface StepResult {
+    stepNumber: number
+    ok: boolean
+    output: string
+    toolCalls: Array<{ tool: string; input: unknown; output: unknown }>
+    tokensIn: number
+    tokensOut: number
+    costUsd: number
+    durationMs: number
+}
+
+export interface ExecutionResult {
+    taskId: string
+    ok: boolean
+    steps: StepResult[]
+    outcomeSummary: string
+    qualityScore: number
+    totalTokensIn: number
+    totalTokensOut: number
+    totalCostUsd: number
+    totalDurationMs: number
+}
+
