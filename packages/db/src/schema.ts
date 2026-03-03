@@ -462,3 +462,35 @@ export const apiCostTracking = pgTable('api_cost_tracking', {
 }, (table) => [
     uniqueIndex('api_cost_workspace_week_idx').on(table.workspaceId, table.weekStart),
 ])
+
+// ── Memory + self-improvement tables (Phase 6) ───────────────────
+
+export const workspacePreferences = pgTable('workspace_preferences', {
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    value: jsonb('value').notNull(),
+    confidence: real('confidence').default(0.5).notNull(),
+    evidenceCount: integer('evidence_count').default(1).notNull(),
+    lastUpdated: timestamp('last_updated', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    primaryKey({ columns: [table.workspaceId, table.key] }),
+    index('workspace_preferences_workspace_idx').on(table.workspaceId),
+])
+
+export const agentImprovementLog = pgTable('agent_improvement_log', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    patternType: text('pattern_type').notNull(), // failure_pattern | success_pattern | tool_preference | scope_adjustment
+    description: text('description').notNull(),
+    evidence: jsonb('evidence').default('[]').notNull(), // task IDs
+    proposedChange: text('proposed_change'),
+    applied: boolean('applied').default(false).notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('agent_improvement_log_workspace_idx').on(table.workspaceId),
+])
+

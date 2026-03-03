@@ -145,6 +145,39 @@ test.describe('Sprint API', () => {
   })
 })
 
+// ── Memory API ────────────────────────────────────────────────────────────────
+
+test.describe('Memory API', () => {
+  test('GET /api/memory/search requires workspaceId', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/memory/search?q=test`)
+    expect(res.status()).toBe(400)
+  })
+
+  test('GET /api/memory/search requires q', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/memory/search?workspaceId=00000000-0000-0000-0000-000000000001`)
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('MISSING_QUERY')
+  })
+
+  test('GET /api/memory/preferences requires workspaceId', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/memory/preferences`)
+    expect(res.status()).toBe(400)
+  })
+
+  test('GET /api/memory/preferences returns empty for unknown workspace', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/memory/preferences?workspaceId=00000000-0000-0000-0000-000000000001`)
+    expect(res.status()).toBe(200)
+    const body = await res.json() as { preferences: Record<string, unknown> }
+    expect(typeof body.preferences).toBe('object')
+  })
+
+  test('GET /api/memory/improvements requires workspaceId', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/memory/improvements`)
+    expect(res.status()).toBe(400)
+  })
+})
+
 // ── Browser tests (require Next.js on :3000) ──────────────────────────────────
 
 test.describe('Login', () => {

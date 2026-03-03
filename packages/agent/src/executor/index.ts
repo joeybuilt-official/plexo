@@ -323,5 +323,40 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         // Non-fatal — don't fail the task if cost tracking write fails
     }
 
+    // Record task outcome to semantic memory + infer preferences (non-blocking)
+    const toolsUsed = stepResults.flatMap((s) => s.toolCalls.map((t) => t.tool))
+    const filesWritten = stepResults.flatMap((s) =>
+        s.toolCalls
+            .filter((t) => t.tool === 'write_file' || t.tool === 'create_file')
+            .map((t) => String((t.input as Record<string, unknown>)?.path ?? ''))
+            .filter(Boolean)
+    )
+    const memOutcome: 'success' | 'partial' | 'failure' = result.ok
+        ? (finalQuality >= 0.7 ? 'success' : 'partial')
+        : 'failure'
+
+    Promise.all([
+        import('../memory/store.js').then(({ recordTaskMemory }) =>
+            recordTaskMemory({
+                workspaceId: ctx.workspaceId,
+                taskId: ctx.taskId,
+                description: ctx.taskId, // executor doesn't receive description; memory content includes tool trace
+                outcome: memOutcome,
+                toolsUsed,
+                qualityScore: finalQuality,
+                durationMs: result.totalDurationMs,
+            })
+        ),
+        import('../memory/preferences.js').then(({ inferFromTaskOutcome }) =>
+            inferFromTaskOutcome({
+                workspaceId: ctx.workspaceId,
+                toolsUsed,
+                filesWritten,
+                qualityScore: finalQuality,
+                outcome: memOutcome,
+            })
+        ),
+    ]).catch(() => { /* memory errors are never fatal */ })
+
     return result
 }

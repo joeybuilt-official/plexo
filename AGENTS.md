@@ -110,3 +110,29 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 - API routes for tasks/sprints with pagination
 - Cost tracking to api_cost_tracking table
 
+
+## Dev Environment
+
+### Ports
+- Web (Next.js): 3000 (localhost only)
+- API (Express): 3001 (localhost only)
+- Postgres: 5432 (localhost only in dev; Docker-internal in prod)
+- Redis: 6379 (localhost only in dev; Docker-internal in prod)
+- User request: consider moving to less common ports (e.g. 7330/7331) — deferred. Only matters if other services conflict. Change in .env.local + playwright.config.ts E2E_API_URL + E2E_BASE_URL if needed.
+
+### Dev login
+- Email: dustin@plexo.dev
+- Password: plexo-dev-2026!
+- test@plexo.dev / smoke@plexo.dev are E2E-only accounts with unknown passwords.
+
+### Running locally
+```
+# API (terminal 1)
+DATABASE_URL=postgresql://plexo:plexo-dev-local-only@localhost:5432/plexo \
+  REDIS_URL=redis://localhost:6379 PORT=3001 \
+  ANTHROPIC_API_KEY=... ANTHROPIC_CLIENT_ID=... ENCRYPTION_SECRET=... \
+  pnpm --filter @plexo/api exec tsx src/index.ts
+
+# Web (terminal 2)
+pnpm --filter @plexo/web dev
+```

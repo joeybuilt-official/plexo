@@ -13,7 +13,10 @@
         "./sprint/planner": "./src/sprint/planner.ts",
         "./sprint/runner": "./src/sprint/runner.ts",
         "./sprint/conflicts": "./src/sprint/conflicts.ts",
-        "./github/client": "./src/github/client.ts"
+        "./github/client": "./src/github/client.ts",
+        "./memory/store": "./src/memory/store.ts",
+        "./memory/preferences": "./src/memory/preferences.ts",
+        "./memory/self-improvement": "./src/memory/self-improvement.ts"
     },
     "scripts": {
         "typecheck": "tsc --noEmit",

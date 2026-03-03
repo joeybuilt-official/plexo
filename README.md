@@ -11,8 +11,8 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Tests](https://img.shields.io/badge/unit%2FE2E-43%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-5%20complete-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Tests](https://img.shields.io/badge/unit%2FE2E-48%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
+[![Phase](https://img.shields.io/badge/phase-6%20in%20progress-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
 
@@ -295,9 +295,16 @@ E2E coverage: API health (Postgres+Redis), task API edge cases, OAuth metadata, 
 - [x] Sprints sidebar nav item
 - [x] 19 E2E tests passing (API health, all channel adapters, discord 401, sprints, login UI, dashboard)
 
-### 🗓 Phase 6 — Memory + self-improvement
-- [ ] pgvector semantic memory — task outcomes indexed and retrieved contextually
-- [ ] Workspace-level preference learning (tool selection, code style, communication tone)
+### ✅ Phase 6 — Memory + self-improvement (in progress)
+- [x] Semantic memory store — `memory_entries` + pgvector HNSW index, optional OpenAI embedding (graceful degradation to ILIKE text search)
+- [x] Workspace preference learning — confidence-weighted upsert per key, language/framework/tool inference from task outcomes
+- [x] Self-improvement loop — Claude Haiku scans `work_ledger`, stores proposals in `agent_improvement_log`, auto-applies tool preferences
+- [x] Executor hook — records every task outcome + infers preferences post-completion (non-blocking)
+- [x] Memory API — `/api/memory/search`, `/api/memory/preferences`, `/api/memory/improvements`, `/api/memory/improvements/run`
+- [x] Insights page — workspace preferences grid + improvement log with pattern type badges
+- [x] DB migration 0002 — `workspace_preferences` + `agent_improvement_log` tables
+- [ ] Plugin marketplace UI (install/enable/configure)
+- [ ] Recursive self-improvement: agent proposes and tests its own prompt changes
 - [ ] Recursive self-improvement — agent identifies patterns in its own failures, proposes changes
 - [ ] Plugin marketplace — install from registry, sandboxed, signed
 
