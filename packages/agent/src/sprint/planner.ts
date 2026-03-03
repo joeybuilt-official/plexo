@@ -2,13 +2,13 @@
  * Sprint planner — given a repo + request, produces a list of SprintTask
  * records that can be executed in parallel with dependency ordering.
  */
-import Anthropic from '@anthropic-ai/sdk'
+import { generateObject } from 'ai'
+import { z } from 'zod'
 import pino from 'pino'
 import { db, eq } from '@plexo/db'
 import { sprints, sprintTasks } from '@plexo/db'
-import { buildAnthropicClient } from '../ai/client.js'
+import { resolveModelFromEnv } from '../providers/registry.js'
 import { MODEL_ROUTING } from '../constants.js'
-import type { AnthropicCredential } from '../types.js'
 
 const logger = pino({ name: 'sprint-planner' })
 
@@ -35,7 +35,24 @@ export interface PlanResult {
     executionOrder: string[][] // waves of parallel tasks (by local id)
 }
 
-// ── Planner ──────────────────────────────────────────────────────────────────
+// ── Schema ───────────────────────────────────────────────────────────────────
+
+const SprintTaskSchema = z.object({
+    id: z.string(),
+    description: z.string(),
+    scope: z.array(z.string()),
+    acceptance: z.string(),
+    branch: z.string(),
+    priority: z.number(),
+    depends_on: z.array(z.string()),
+})
+
+const SprintPlanSchema = z.object({
+    tasks: z.array(SprintTaskSchema).max(8),
+    parallelism_note: z.string().optional(),
+})
+
+// ── System prompt ─────────────────────────────────────────────────────────────
 
 const PLANNER_SYSTEM = `You are a sprint planning system. Given a repository name and a feature/change request, decompose the work into independent tasks that can be executed in parallel by separate AI agents.
 
@@ -46,24 +63,9 @@ Rules:
 - Each task needs an acceptance criterion that can be verified programmatically
 - Tasks that share scope must be marked as dependencies in depends_on
 - Branch names use the format: sprint/{sprintId}/{short-slug}
-- Maximum 8 tasks per sprint
-- Return valid JSON only — no markdown, no explanation outside the JSON
+- Maximum 8 tasks per sprint`
 
-Return format:
-{
-  "tasks": [
-    {
-      "id": "t1",
-      "description": "...",
-      "scope": ["path/to/files/"],
-      "acceptance": "...",
-      "branch": "sprint/{sprintId}/{slug}",
-      "priority": 1,
-      "depends_on": []
-    }
-  ],
-  "parallelism_note": "..."
-}`
+// ── Planner ──────────────────────────────────────────────────────────────────
 
 export async function planSprint(params: {
     sprintId: string
@@ -71,19 +73,12 @@ export async function planSprint(params: {
     repo: string
     request: string
     contextFiles?: string[]
-    credential?: AnthropicCredential
 }): Promise<PlanResult> {
-    const { sprintId, workspaceId, repo, request, contextFiles = [], credential } = params
+    const { sprintId, workspaceId, repo, request, contextFiles = [] } = params
 
     logger.info({ sprintId, repo }, 'Sprint planning started')
 
-    // Use provided credential or fall back to API key env
-    const resolvedCredential: AnthropicCredential = credential ?? {
-        type: 'api_key',
-        apiKey: process.env.ANTHROPIC_API_KEY ?? '',
-    }
-
-    const client = await buildAnthropicClient(resolvedCredential)
+    const model = resolveModelFromEnv(MODEL_ROUTING.planning)
 
     const userMessage = [
         `Repository: ${repo}`,
@@ -93,15 +88,13 @@ export async function planSprint(params: {
 
     let rawPlan: SprintPlan
     try {
-        const response = await client.messages.create({
-            model: MODEL_ROUTING.planning,
-            max_tokens: 4096,
+        const result = await generateObject({
+            model,
+            schema: SprintPlanSchema,
             system: PLANNER_SYSTEM,
-            messages: [{ role: 'user', content: userMessage }],
+            prompt: userMessage,
         })
-
-        const text = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text')?.text ?? ''
-        rawPlan = JSON.parse(text) as SprintPlan
+        rawPlan = result.object
     } catch (err) {
         logger.error({ err, sprintId }, 'Sprint planner LLM call failed')
         throw new Error(`Sprint planning failed: ${(err as Error).message}`)

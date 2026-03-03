@@ -4,27 +4,37 @@
  *
  * Runs on a schedule (e.g. post-sprint or nightly) and:
  * 1. Loads recent work-ledger entries
- * 2. Uses Claude to identify failure patterns and success patterns
+ * 2. Uses the registry model to identify failure patterns and success patterns
  * 3. Stores proposals in agent_improvement_log
  * 4. Updates workspace preferences from high-confidence patterns
  *
  * This does NOT apply code changes to itself — it surfaces proposals
  * for the operator to review (one-way door gate for anything structural).
  */
-import Anthropic from '@anthropic-ai/sdk'
+import { generateObject } from 'ai'
+import { z } from 'zod'
 import pino from 'pino'
 import { db, sql, desc, eq } from '@plexo/db'
 import { workLedger } from '@plexo/db'
+import { resolveModelFromEnv } from '../providers/registry.js'
 import { learnPreference } from './preferences.js'
 
 const logger = pino({ name: 'self-improvement' })
 
-interface ImprovementProposal {
-    pattern_type: 'failure_pattern' | 'success_pattern' | 'tool_preference' | 'scope_adjustment'
-    description: string
-    evidence: string[]
-    proposed_change?: string
-}
+// ── Schema ───────────────────────────────────────────────────────────────────
+
+const ImprovementProposalSchema = z.object({
+    pattern_type: z.enum(['failure_pattern', 'success_pattern', 'tool_preference', 'scope_adjustment']),
+    description: z.string(),
+    evidence: z.array(z.string()),
+    proposed_change: z.string().optional(),
+})
+
+const ProposalsSchema = z.object({
+    proposals: z.array(ImprovementProposalSchema).max(5),
+})
+
+type ImprovementProposal = z.infer<typeof ImprovementProposalSchema>
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
@@ -61,14 +71,8 @@ export async function runSelfImprovementCycle(params: {
         return { proposals: 0, applied: 0 }
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-        logger.warn('No ANTHROPIC_API_KEY — skipping LLM-based improvement analysis')
-        return { proposals: 0, applied: 0 }
-    }
+    const model = resolveModelFromEnv('claude-haiku-4-5')
 
-    // Ask Claude to identify patterns
-    const client = new Anthropic({ apiKey })
     const ledgerSummary = ledgerRows.map((r) => ({
         taskId: r.taskId?.slice(0, 8),
         type: r.type,
@@ -80,18 +84,14 @@ export async function runSelfImprovementCycle(params: {
 
     let proposals: ImprovementProposal[] = []
     try {
-        const response = await client.messages.create({
-            model: 'claude-haiku-4-5',
-            max_tokens: 1024,
-            system: `You are an AI operations analyst. Given task performance data, identify patterns that an AI agent could use to improve. Return JSON only.`,
-            messages: [{
-                role: 'user',
-                content: `Analyze these recent task outcomes and identify up to 5 improvement patterns:\n${JSON.stringify(ledgerSummary, null, 2)}\n\nReturn JSON array:\n[{"pattern_type":"failure_pattern|success_pattern|tool_preference|scope_adjustment","description":"...","evidence":["taskId1"],"proposed_change":"..."}]`,
-            }],
+        const result = await generateObject({
+            model,
+            schema: ProposalsSchema,
+            system: 'You are an AI operations analyst. Given task performance data, identify patterns that an AI agent could use to improve.',
+            prompt: `Analyze these recent task outcomes and identify up to 5 improvement patterns:\n${JSON.stringify(ledgerSummary, null, 2)}`,
+            maxOutputTokens: 1024,
         })
-
-        const text = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text')?.text ?? '[]'
-        proposals = JSON.parse(text) as ImprovementProposal[]
+        proposals = result.object.proposals
     } catch (err) {
         logger.error({ err }, 'LLM analysis failed in self-improvement cycle')
     }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
     CheckCircle2,
     AlertCircle,
@@ -172,9 +172,54 @@ export default function AIProvidersPage() {
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
     const [showRouting, setShowRouting] = useState(false)
+    const [loadError, setLoadError] = useState<string | null>(null)
     const [modelRouting, setModelRouting] = useState<Record<TaskType, string>>(
         { ...DEFAULT_MODELS }
     )
+
+    const API_BASE = typeof window !== 'undefined'
+        ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001')
+        : 'http://localhost:3001'
+    const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
+
+    // Load persisted config on mount
+    useEffect(() => {
+        if (!WS_ID) return
+        void (async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`)
+                if (!res.ok) return
+                const ws = await res.json() as {
+                    settings?: {
+                        aiProviders?: {
+                            primary?: ProviderKey
+                            modelRouting?: Record<TaskType, string>
+                            providers?: Record<ProviderKey, { status: ProviderStatus; selectedModel: string; baseUrl: string }>
+                        }
+                    }
+                }
+                const aiCfg = ws.settings?.aiProviders
+                if (!aiCfg) return
+                if (aiCfg.primary) setPrimaryProvider(aiCfg.primary)
+                if (aiCfg.modelRouting) setModelRouting((prev) => ({ ...prev, ...aiCfg.modelRouting }))
+                if (aiCfg.providers) {
+                    setProviderStates((prev) => {
+                        const next = { ...prev }
+                        for (const [k, v] of Object.entries(aiCfg.providers!)) {
+                            const pk = k as ProviderKey
+                            if (next[pk]) {
+                                next[pk] = { ...next[pk], status: v.status, selectedModel: v.selectedModel ?? '', baseUrl: v.baseUrl ?? next[pk].baseUrl }
+                            }
+                        }
+                        return next
+                    })
+                }
+            } catch {
+                setLoadError('Could not load saved provider config')
+            }
+        })()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const selected = PROVIDERS.find((p) => p.key === selectedProvider)!
     const state = providerStates[selectedProvider]
@@ -223,15 +268,43 @@ export default function AIProvidersPage() {
     }
 
     async function handleSave() {
+        if (!WS_ID) return
         setSaving(true)
-        await new Promise((r) => setTimeout(r, 500))
-        // Mark as untested if key changed
-        if (state.status === 'unconfigured' && state.apiKey) {
-            updateState(selectedProvider, { status: 'untested' })
+        try {
+            // Persist non-secret config to workspace settings.
+            // API keys are NOT stored here — they are env-var managed.
+            // We store: status, selected model, baseUrl, primary, routing.
+            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string }> = {}
+            for (const p of PROVIDERS) {
+                const s = providerStates[p.key]
+                if (s.status !== 'unconfigured') {
+                    providersConfig[p.key] = { status: s.status, selectedModel: s.selectedModel, baseUrl: s.baseUrl }
+                }
+            }
+            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    settings: {
+                        aiProviders: {
+                            primary: primaryProvider,
+                            modelRouting,
+                            providers: providersConfig,
+                        },
+                    },
+                }),
+            })
+            if (res.ok) {
+                // Mark current key entry as untested if key was just entered but not tested
+                if (state.status === 'unconfigured' && state.apiKey) {
+                    updateState(selectedProvider, { status: 'untested' })
+                }
+                setSaved(true)
+                setTimeout(() => setSaved(false), 2500)
+            }
+        } finally {
+            setSaving(false)
         }
-        setSaving(false)
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2500)
     }
 
     const configuredProviders = PROVIDERS.filter((p) => providerStates[p.key].status !== 'unconfigured')
@@ -246,6 +319,13 @@ export default function AIProvidersPage() {
                 </p>
             </div>
 
+            {loadError && (
+                <div className="rounded-lg border border-amber-800/50 bg-amber-950/20 px-3 py-2 text-xs text-amber-400">{loadError}</div>
+            )}
+            {!WS_ID && (
+                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-xs text-red-400">NEXT_PUBLIC_DEFAULT_WORKSPACE not set — changes will not be persisted.</div>
+            )}
+
             {/* Two-panel layout */}
             <div className="flex gap-4 flex-1 min-h-0">
                 {/* Left panel — provider grid */}
@@ -258,8 +338,8 @@ export default function AIProvidersPage() {
                                 key={p.key}
                                 onClick={() => setSelectedProvider(p.key)}
                                 className={`text-left rounded-xl border p-3 transition-all ${active
-                                        ? 'border-indigo-500/50 bg-zinc-900 shadow-sm shadow-indigo-500/10'
-                                        : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900/70'
+                                    ? 'border-indigo-500/50 bg-zinc-900 shadow-sm shadow-indigo-500/10'
+                                    : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900/70'
                                     }`}
                             >
                                 <div className="flex items-start justify-between gap-2">
@@ -308,8 +388,8 @@ export default function AIProvidersPage() {
                         <button
                             onClick={() => setPrimaryProvider(selectedProvider)}
                             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${primaryProvider === selectedProvider
-                                    ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-400'
-                                    : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                                ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-400'
+                                : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
                                 }`}
                         >
                             <Star className={`h-3.5 w-3.5 ${primaryProvider === selectedProvider ? 'fill-indigo-400' : ''}`} />
@@ -387,8 +467,8 @@ export default function AIProvidersPage() {
 
                         {state.testResult && (
                             <div className={`rounded-lg border px-3 py-2 text-sm font-mono ${state.testResult.startsWith('✓')
-                                    ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald-400'
-                                    : 'border-red-800/50 bg-red-950/30 text-red-400'
+                                ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald-400'
+                                : 'border-red-800/50 bg-red-950/30 text-red-400'
                                 }`}>
                                 {state.testResult}
                             </div>

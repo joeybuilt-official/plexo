@@ -7,7 +7,7 @@
  * Proposal flow:
  * 1. Load current prompt version from workspace_preferences
  * 2. Sample N recent work_ledger entries (failed/low-quality biased)
- * 3. Ask Claude to identify what the prompt causes it to do poorly
+ * 3. Ask the registry model to identify what the prompt causes it to do poorly
  * 4. Generate a proposed patch (diff-style: section + replacement)
  * 5. Store in agent_improvement_log with applied=false
  * 6. Operator reviews via GET /api/memory/improvements
@@ -17,13 +17,17 @@
  * The agent reads workspace_preferences['prompt_overrides'] at task start
  * to pick up approved prompt changes without a code deploy.
  */
-import Anthropic from '@anthropic-ai/sdk'
+import { generateObject } from 'ai'
+import { z } from 'zod'
 import pino from 'pino'
 import { db, sql, desc, eq } from '@plexo/db'
 import { workLedger } from '@plexo/db'
+import { resolveModelFromEnv } from '../providers/registry.js'
 import { getPreference, learnPreference } from './preferences.js'
 
 const logger = pino({ name: 'prompt-improvement' })
+
+// ── Schema ───────────────────────────────────────────────────────────────────
 
 export interface PromptPatch {
     section: string         // e.g. "tool_selection" | "error_handling" | "code_quality"
@@ -32,6 +36,18 @@ export interface PromptPatch {
     rationale: string       // Why the change is proposed
     supportingTaskIds: string[]
 }
+
+const PromptPatchSchema = z.object({
+    section: z.enum(['tool_selection', 'error_handling', 'code_quality', 'planning', 'output_format']),
+    original: z.string(),
+    proposed: z.string(),
+    rationale: z.string(),
+    supportingTaskIds: z.array(z.string()),
+})
+
+const PatchesSchema = z.object({
+    patches: z.array(PromptPatchSchema).max(3),
+})
 
 // ── Analyse and propose ───────────────────────────────────────────────────────
 
@@ -42,9 +58,9 @@ export async function proposePromptImprovements(params: {
 }): Promise<PromptPatch[]> {
     const { workspaceId, lookbackDays = 14, minSamples = 5 } = params
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
+    const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY
     if (!apiKey) {
-        logger.warn('No ANTHROPIC_API_KEY — cannot run prompt improvement analysis')
+        logger.warn('No AI provider API key — cannot run prompt improvement analysis')
         return []
     }
 
@@ -76,47 +92,39 @@ export async function proposePromptImprovements(params: {
     const lowQuality = samples.filter((s) => (s.qualityScore ?? 1) < 0.7 || s.calibration === 'over')
     const highQuality = samples.filter((s) => (s.qualityScore ?? 0) >= 0.8)
 
-    const client = new Anthropic({ apiKey })
+    const model = resolveModelFromEnv('claude-haiku-4-5')
 
     let patches: PromptPatch[] = []
     try {
-        const response = await client.messages.create({
-            model: 'claude-haiku-4-5',
-            max_tokens: 2048,
+        const result = await generateObject({
+            model,
+            schema: PatchesSchema,
             system: `You are an AI meta-evaluator. You review AI agent task performance data and the agent's current system prompt overrides, then propose targeted improvements to the prompt.
 
 Rules:
 - Only propose changes supported by concrete evidence in the data
 - Changes must be specific and actionable, not vague
-- Maximum 3 proposals per run
-- Return JSON only, no prose`,
-            messages: [{
-                role: 'user',
-                content: `Current prompt overrides: ${JSON.stringify(currentOverrides)}
+- Maximum 3 proposals per run`,
+            prompt: `Current prompt overrides: ${JSON.stringify(currentOverrides)}
 
 Low-quality outcomes (${lowQuality.length}): ${JSON.stringify(lowQuality.slice(0, 10).map((s) => ({
-                    id: s.taskId?.slice(0, 8),
-                    type: s.type,
-                    q: s.qualityScore,
-                    cal: s.calibration,
-                    ms: s.wallClockMs,
-                })))}
+                id: s.taskId?.slice(0, 8),
+                type: s.type,
+                q: s.qualityScore,
+                cal: s.calibration,
+                ms: s.wallClockMs,
+            })))}
 
 High-quality outcomes (${highQuality.length}): ${JSON.stringify(highQuality.slice(0, 5).map((s) => ({
-                    id: s.taskId?.slice(0, 8),
-                    type: s.type,
-                    q: s.qualityScore,
-                })))}
+                id: s.taskId?.slice(0, 8),
+                type: s.type,
+                q: s.qualityScore,
+            })))}
 
-Propose prompt changes. Return JSON array:
-[{"section":"tool_selection|error_handling|code_quality|planning|output_format","original":"current text (empty if new)","proposed":"replacement text","rationale":"evidence-based reason","supportingTaskIds":["<8char taskId>"]}]`,
-            }],
+Propose up to 3 prompt improvements.`,
+            maxOutputTokens: 2048,
         })
-
-        const text = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text')?.text ?? '[]'
-        // Strip markdown fences if present
-        const clean = text.replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim()
-        patches = JSON.parse(clean) as PromptPatch[]
+        patches = result.object.patches as PromptPatch[]
     } catch (err) {
         logger.error({ err }, 'Prompt improvement LLM call failed')
     }
