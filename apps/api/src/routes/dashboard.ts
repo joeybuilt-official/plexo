@@ -16,6 +16,17 @@ dashboardRouter.get('/summary', async (req, res) => {
         return
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!UUID_RE.test(workspaceId)) {
+        res.json({
+            agent: { status: 'idle', activeTasks: 0, queuedTasks: 0, connectedClients: 0 },
+            tasks: { byStatus: {}, total: 0, recentActivity: [] },
+            cost: { total: 0, thisWeek: 0, ceiling: parseFloat(process.env.API_COST_CEILING_USD ?? '10'), percentUsed: 0 },
+            steps: { thisWeek: 0, tokensThisWeek: 0 },
+        })
+        return
+    }
+
     try {
         // Task counts by status
         const statusRows = await db.execute<{ status: string; count: string }>(sql`
@@ -103,6 +114,12 @@ dashboardRouter.get('/activity', async (req, res) => {
     const { workspaceId, limit = '20' } = req.query as Record<string, string>
     if (!workspaceId) {
         res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
+        return
+    }
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!UUID_RE.test(workspaceId)) {
+        res.json({ items: [] })
         return
     }
 

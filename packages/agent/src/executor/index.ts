@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { db } from '@plexo/db'
-import { taskSteps } from '@plexo/db'
+import { db, sql } from '@plexo/db'
+import { taskSteps, apiCostTracking } from '@plexo/db'
 import { buildAnthropicClient } from '../ai/client.js'
 import { MODEL_ROUTING, SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
@@ -283,7 +283,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         }
     }
 
-    return {
+    const result: ExecutionResult = {
         taskId: ctx.taskId,
         ok: true,
         steps: stepResults,
@@ -294,4 +294,34 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         totalCostUsd: totalCost,
         totalDurationMs: Date.now() - startTime,
     }
+
+    // Write cost to api_cost_tracking (weekly accumulation)
+    try {
+        const now = new Date()
+        const day = now.getDay() // 0=Sun, 1=Mon...
+        const weekStart = new Date(now)
+        weekStart.setDate(now.getDate() - ((day + 6) % 7)) // ISO week: Monday
+        weekStart.setUTCHours(0, 0, 0, 0)
+        const weekStartStr = weekStart.toISOString().slice(0, 10)
+
+        const ceiling = Number(process.env.API_COST_CEILING_USD) || 10
+
+        await db.execute(sql`
+            INSERT INTO api_cost_tracking
+                (id, workspace_id, week_start, cost_usd, ceiling_usd, alerted_80)
+            VALUES
+                (gen_random_uuid(), ${ctx.workspaceId}, ${weekStartStr}, ${totalCost}, ${ceiling}, false)
+            ON CONFLICT (workspace_id, week_start) DO UPDATE SET
+                cost_usd = api_cost_tracking.cost_usd + EXCLUDED.cost_usd,
+                alerted_80 = CASE
+                    WHEN (api_cost_tracking.cost_usd + EXCLUDED.cost_usd) >= (api_cost_tracking.ceiling_usd * 0.8)
+                    THEN true
+                    ELSE api_cost_tracking.alerted_80
+                END
+        `)
+    } catch (_costErr) {
+        // Non-fatal — don't fail the task if cost tracking write fails
+    }
+
+    return result
 }

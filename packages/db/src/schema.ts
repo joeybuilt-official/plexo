@@ -53,6 +53,8 @@ export const taskStatusEnum = pgEnum('task_status', [
 
 export const taskSourceEnum = pgEnum('task_source', [
     'telegram',
+    'slack',
+    'discord',
     'scanner',
     'github',
     'cron',

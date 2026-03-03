@@ -8,6 +8,7 @@ import {
 } from '@plexo/agent/ai/anthropic-oauth'
 import { logger } from '../logger.js'
 import { storePkce, consumePkce } from '../pkce-store.js'
+import { storeAnthropicTokens } from '../anthropic-tokens.js'
 
 export const oauthRouter: RouterType = Router()
 
@@ -85,16 +86,17 @@ oauthRouter.get('/anthropic/callback', async (req, res) => {
             codeVerifier: pending.codeVerifier,
         })
 
-        logger.info({ workspaceId: pending.workspaceId }, 'Anthropic OAuth token obtained')
+        // Persist encrypted to installed_connections (Phase 4)
+        await storeAnthropicTokens(pending.workspaceId, tokens)
 
-        // TODO Phase 4: persist encrypted tokens to installed_connections table.
-        // For now, return to client to store in session.
+        logger.info({ workspaceId: pending.workspaceId }, 'Anthropic OAuth tokens stored (encrypted)')
+
+        // Don't return raw tokens — they're persisted in DB now
         res.json({
+            success: true,
             workspaceId: pending.workspaceId,
             credentialType: 'oauth_token',
             expiresIn: tokens.expires_in,
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
         })
     } catch (err) {
         logger.error({ err }, 'Anthropic OAuth exchange failed')

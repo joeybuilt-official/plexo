@@ -10,20 +10,21 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@auth/drizzle-adapter": "^1",
     "@plexo/ui": "workspace:*",
+    "class-variance-authority": "^0.7",
+    "clsx": "^2",
+    "lucide-react": "^0.480",
     "next": "16.1.6",
     "next-auth": "^5.0.0-beta.25",
-    "@auth/drizzle-adapter": "^1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-grid-layout": "^1.5",
-    "lucide-react": "^0.480",
-    "clsx": "^2",
-    "tailwind-merge": "^3",
-    "class-variance-authority": "^0.7",
-    "sonner": "^2"
+    "sonner": "^2",
+    "tailwind-merge": "^3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22",
     "@types/react": "^19",

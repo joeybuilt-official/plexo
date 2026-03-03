@@ -13,7 +13,7 @@
         "test:unit": "vitest run tests/unit",
         "test:unit:watch": "vitest tests/unit",
         "test:integration": "DATABASE_URL=postgresql://plexo:plexo-dev-local-only@localhost:5432/plexo vitest run tests/integration --config vitest.integration.config.ts",
-        "test:e2e": "turbo test:e2e",
+        "test:e2e": "playwright test",
         "lint": "turbo lint",
         "db:generate": "pnpm --filter @plexo/db db:generate",
         "db:migrate": "pnpm --filter @plexo/db db:migrate",
@@ -24,10 +24,11 @@
         "clean": "turbo clean && rm -rf node_modules"
     },
     "devDependencies": {
+        "@playwright/test": "^1.58.2",
+        "@types/node": "^22",
+        "prettier": "^3",
         "turbo": "^2",
         "typescript": "^5.7",
-        "prettier": "^3",
-        "@types/node": "^22",
         "vitest": "^3"
     }
 }
