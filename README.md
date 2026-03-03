@@ -318,11 +318,21 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 - [x] **Debug page** — health endpoint with service latencies, SSE stream monitor + live event feed, route diagnostic table, client-side env panel
 - [x] **New routes** — `/settings/ai-providers`, `/settings/connections`, `/settings/channels`, `/settings/agent`, `/settings/users`, `/debug`, `/projects`, `/cron`
 
+### ✅ Phase 9 — Settings completion + API surface
+- [x] **Channels settings** — two-panel UI: type picker (Telegram/Slack/Discord/WhatsApp/Signal/Matrix), per-adapter config fields, enable/disable toggle, delete — backed by `GET/POST/PATCH/DELETE /api/channels`
+- [x] **Cron jobs page** — table with enable/disable, manual trigger, delete; add form with schedule preset chips — backed by `GET/POST/PATCH/DELETE /api/cron` + `POST /api/cron/:id/trigger`
+- [x] **Agent settings** — live agent status banner (model, task, session count), model override, system prompt addition, execution limits (max steps/tokens), weekly cost ceiling, quality auto-approve threshold, safe mode toggle — saves to `workspace.settings` JSONB via `PATCH /api/workspaces/:id`
+- [x] **Users settings** — two-panel with avatar initials, role badge, name/role editing backed by `GET/PATCH /api/users`
+- [x] **Projects route** — sidebar "Projects" links directly to `/sprints` (canonical); placeholder redirect removed
+- [x] **New API routes** — `GET/POST/PATCH/DELETE /api/channels`, `GET/POST/PATCH/DELETE /api/cron`, `POST /api/cron/:id/trigger`, `GET/PATCH /api/users`, `PATCH /api/workspaces/:id`
+- [x] All placeholder pages eliminated — every sidebar route now renders real content
+
 ### 🔲 Backlog
 - [ ] Sandbox tools in isolated Docker containers
-- [ ] Multi-workspace RBAC
+- [ ] Multi-workspace RBAC + workspace membership table
 - [ ] Plugin marketplace — install from registry, sandboxed, signed
 - [ ] Recursive self-improvement — agent proposes + tests its own prompt changes
+
 
 ---
 

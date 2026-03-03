@@ -8,7 +8,6 @@ import {
     MessageSquare,
     CheckSquare,
     FolderOpen,
-    Zap,
     Clock,
     Plug,
     Radio,
@@ -53,8 +52,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { label: 'Overview', href: '/', icon: LayoutDashboard },
             { label: 'Tasks', href: '/tasks', icon: CheckSquare },
-            { label: 'Projects', href: '/projects', icon: FolderOpen },
-            { label: 'Sprints', href: '/sprints', icon: Zap },
+            { label: 'Projects', href: '/sprints', icon: FolderOpen },
             { label: 'Cron Jobs', href: '/cron', icon: Clock },
         ],
     },
@@ -185,14 +183,14 @@ export function Sidebar() {
                                                 key={href}
                                                 href={href}
                                                 className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors border-l-2 ${active
-                                                        ? 'border-indigo-500 bg-zinc-800/80 text-zinc-100'
-                                                        : 'border-transparent text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
+                                                    ? 'border-indigo-500 bg-zinc-800/80 text-zinc-100'
+                                                    : 'border-transparent text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
                                                     }`}
                                             >
                                                 <Icon
                                                     className={`h-4 w-4 shrink-0 ${active
-                                                            ? 'text-indigo-400'
-                                                            : 'text-zinc-600 group-hover:text-zinc-400'
+                                                        ? 'text-indigo-400'
+                                                        : 'text-zinc-600 group-hover:text-zinc-400'
                                                         }`}
                                                 />
                                                 {label}
