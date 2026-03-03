@@ -1,0 +1,39 @@
+/**
+ * Rate limiting middleware
+ *
+ * Tiers:
+ * - General API: 300 req / 15 min per IP
+ * - Auth endpoints: 20 req / 15 min per IP (brute-force protection)
+ * - Task creation: 60 req / 15 min per IP (cost protection)
+ *
+ * Uses in-memory store (sufficient for single-instance VPS).
+ * For multi-instance: swap to redis store via rate-limit-redis.
+ */
+import { rateLimit } from 'express-rate-limit'
+
+const WINDOW_MS = 15 * 60 * 1000 // 15 minutes
+
+export const generalLimiter = rateLimit({
+    windowMs: WINDOW_MS,
+    max: 300,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMITED', message: 'Too many requests — try again later' } },
+    skip: (req) => req.path === '/health', // health check exempt
+})
+
+export const authLimiter = rateLimit({
+    windowMs: WINDOW_MS,
+    max: 20,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error: { code: 'AUTH_RATE_LIMITED', message: 'Too many auth attempts — try again in 15 minutes' } },
+})
+
+export const taskCreationLimiter = rateLimit({
+    windowMs: WINDOW_MS,
+    max: 60,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error: { code: 'TASK_RATE_LIMITED', message: 'Task creation limit reached — try again later' } },
+})

@@ -17,6 +17,7 @@ import { sprintRunnerRouter } from './routes/sprint-runner.js'
 import { memoryRouter } from './routes/memory.js'
 import { connectionsRouter } from './routes/connections.js'
 import { traceMiddleware } from './middleware/trace.js'
+import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
 
 const app: Express = express()
@@ -24,33 +25,47 @@ const port = parseInt(process.env.PORT ?? '3001', 10)
 
 // ── Middleware ───────────────────────────────────────────────
 
+app.set('trust proxy', 1) // required for rate limiter behind Caddy/nginx
 app.use(cors({
     origin: process.env.PUBLIC_URL ?? 'http://localhost:3000',
     credentials: true,
 }))
 app.use(express.json({ limit: '1mb' }))
 app.use(traceMiddleware)
+app.use(generalLimiter) // default: 300/15min
 
-// ── Routes ───────────────────────────────────────────────────
+// ── Routes (/api/v1/ canonical + /api/ aliases) ──────────────
 
+// Health — always available, no rate limit (exempt via skip fn)
 app.use('/health', healthRouter)
-app.use('/api/sse', sseRouter)
-app.use('/api/auth', authRouter)
-app.use('/api/oauth', oauthRouter)
-app.use('/api/tasks', tasksRouter)
-app.use('/api/sprints', sprintsRouter)
-app.use('/api/sprints', sprintRunnerRouter)
-app.use('/api/dashboard', dashboardRouter)
-app.use('/api/approvals', owdRouter)
-app.use('/api/channels/telegram', telegramRouter)
-app.use('/api/channels/slack', slackRouter)
-app.use('/api/channels/discord', discordRouter)
-app.use('/api/memory', memoryRouter)
-app.use('/api/connections', connectionsRouter)
 
-app.get('/api/agent/status', (_req, res) => {
+// Build a v1 sub-router so we can mount once at both prefixes
+const v1 = express.Router()
+
+v1.use('/sse', sseRouter)
+v1.use('/auth', authLimiter, authRouter)
+v1.use('/oauth', oauthRouter)
+v1.use('/tasks', taskCreationLimiter, tasksRouter)
+v1.use('/sprints', sprintsRouter)
+v1.use('/sprints', sprintRunnerRouter)
+v1.use('/dashboard', dashboardRouter)
+v1.use('/approvals', owdRouter)
+v1.use('/channels/telegram', telegramRouter)
+v1.use('/channels/slack', slackRouter)
+v1.use('/channels/discord', discordRouter)
+v1.use('/memory', memoryRouter)
+v1.use('/connections', connectionsRouter)
+
+v1.get('/agent/status', (_req, res) => {
     res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })
 })
+
+// Canonical versioned prefix
+app.use('/api/v1', v1)
+
+// Legacy aliases — preserve backward compat while clients migrate
+// TODO: Remove /api/* aliases at v2
+app.use('/api', v1)
 
 // ── Error Handler ────────────────────────────────────────────
 

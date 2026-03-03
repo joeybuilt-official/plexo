@@ -11,6 +11,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, and } from '@plexo/db'
 import { connectionsRegistry, installedConnections } from '@plexo/db'
+import { encrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 
 export const connectionsRouter: RouterType = Router()
@@ -99,14 +100,17 @@ connectionsRouter.post('/install', async (req, res) => {
             return
         }
 
-        // Credentials stored as-is here — in prod, encrypt via anthropic-tokens pattern
-        // For 'none' auth type, credentials object is empty
+        // Encrypt credentials at rest with workspace-scoped AES-256-GCM key
+        const encryptedCreds = Object.keys(credentials).length > 0
+            ? { encrypted: encrypt(JSON.stringify(credentials), workspaceId) }
+            : {}
+
         const [installed] = await db.insert(installedConnections).values({
             workspaceId,
             registryId: reg.id,
             name: name ?? reg.name,
-            credentials: credentials as Record<string, string>,
-            status: reg.authType === 'none' ? 'active' : 'active',
+            credentials: encryptedCreds,
+            status: 'active',
         }).returning({ id: installedConnections.id })
 
         logger.info({ workspaceId, registryId, name: reg.name }, 'Connection installed')
@@ -135,7 +139,9 @@ connectionsRouter.patch('/installed/:id', async (req, res) => {
     try {
         const update: Record<string, unknown> = {}
         if (status) update.status = status
-        if (credentials) update.credentials = credentials
+        if (credentials && Object.keys(credentials).length > 0) {
+            update.credentials = { encrypted: encrypt(JSON.stringify(credentials), workspaceId) }
+        }
 
         await db.update(installedConnections)
             .set(update)

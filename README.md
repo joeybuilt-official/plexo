@@ -12,7 +12,8 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
 [![Tests](https://img.shields.io/badge/unit%2FE2E-48%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-6%20in%20progress-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Phase](https://img.shields.io/badge/phase-7%20in%20progress-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![License](https://img.shields.io/badge/license-BSL%201.1-orange)](LICENSE)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
 
