@@ -41,3 +41,23 @@ workspacesRouter.get('/:id', async (req, res) => {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get workspace' } })
     }
 })
+
+// PATCH /api/workspaces/:id — update name and/or settings
+workspacesRouter.patch('/:id', async (req, res) => {
+    const { name, settings } = req.body as { name?: string; settings?: Record<string, unknown> }
+    try {
+        const update: Record<string, unknown> = {}
+        if (name) update.name = name
+        if (settings !== undefined) update.settings = settings
+
+        if (Object.keys(update).length === 0) {
+            res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'name or settings required' } })
+            return
+        }
+
+        await db.update(workspaces).set(update).where(eq(workspaces.id, req.params.id))
+        res.json({ ok: true })
+    } catch (err) {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update workspace' } })
+    }
+})

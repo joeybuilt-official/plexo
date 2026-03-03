@@ -18,6 +18,8 @@ import { memoryRouter } from './routes/memory.js'
 import { connectionsRouter } from './routes/connections.js'
 import { workspacesRouter } from './routes/workspaces.js'
 import { aiProvidersRouter } from './routes/ai-providers.js'
+import { channelsRouter } from './routes/channels.js'
+import { cronRouter } from './routes/cron.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
@@ -59,6 +61,8 @@ v1.use('/memory', memoryRouter)
 v1.use('/connections', connectionsRouter)
 v1.use('/workspaces', workspacesRouter)
 v1.use('/settings/ai-providers', aiProvidersRouter)
+v1.use('/channels', channelsRouter)
+v1.use('/cron', cronRouter)
 
 v1.get('/agent/status', (_req, res) => {
     res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })
