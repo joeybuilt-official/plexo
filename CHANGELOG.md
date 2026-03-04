@@ -12,6 +12,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [0.7.0-dev] — 2026-03-04 (Phase 7A continued + UX polish)
+
+### Added
+- **Approvals page** (`/approvals`) — review queue for one-way-door operations: approve/reject with risk level banners, task link, 5s polling auto-refresh
+- **Sidebar approval badge** — red count badge on Approvals nav item, polls every 10s; visibility cue when agent is waiting for a decision
+- **Task cancel button** — `DELETE /api/tasks/:id` wired to task detail page; visible for `pending` and `running` tasks only; triggers `router.refresh()` post-cancel
+- **First-run redirect** — dashboard home checks `GET /api/workspaces`; if no workspaces exist, redirects to `/setup`. Timeout-safe (2s abort) — API unreachable yields graceful fallback
+
+### Changed
+- **Marketplace install errors** — API errors now surfaced as red inline text on the card instead of silently failing
+
+---
+
 ## [0.7.0-dev] — 2026-03-04 (Phase 7A — Parity & Stability)
 
 ### Added

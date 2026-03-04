@@ -205,3 +205,11 @@ This has implications for every decision:
 - **Insights/Memory browser**: Converted from server component to client component. Memory semantic search via `GET /api/memory/search`. Run improvement cycle button → `POST /api/memory/improvements/run`. Per-entry Apply buttons → `POST /api/memory/improvements/:id/apply`.
 - **Telegram setup wizard**: `TelegramWizard` component in channels/page.tsx. 3-step: (1) BotFather guide, (2) token paste + live verify via `api.telegram.org/bot:token/getMe`, (3) webhook secret. Generic raw fields still used for Slack/Discord/etc.
 - **GripVertical in fallback chain**: Was decorative only. Replaced with ▲▼ buttons that call `moveFallback(key, -1|1)` — no DnD dependency needed.
+
+### 2026-03 — Phase 7A UX Polish
+
+- **Approvals page**: `PendingDecision` from Redis `owd:*` keys, rendered with risk banners (low/medium/high/critical). Polling every 5s in page, 10s in sidebar. Sidebar badge uses `NEXT_PUBLIC_DEFAULT_WORKSPACE` env var since it runs client-side.
+- **Sidebar badge pattern**: For future notification-style badges on nav items, follow `href === '/target' && count > 0` conditional pattern already in sidebar.
+- **Task cancel**: `_cancel-button.tsx` is a client component within a server-rendered page — uses `router.refresh()` not `window.location.reload()` for proper RSC cache invalidation.
+- **First-run gate**: `isFirstRun()` in `page.tsx` is async, timeout-wrapped. Always returns `false` on API error to prevent redirect loops. Only on home route, not layout, to avoid impacting all dashboard page loads.
+- **Marketplace install error propagation**: `handleInstall` now throws on non-ok response; `IntegrationCard` catches and sets `installError` state displayed inline.
