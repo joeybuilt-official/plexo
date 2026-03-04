@@ -342,7 +342,20 @@ export default function ConnectionsPage() {
                                         <div className="flex items-center justify-between gap-2">
                                             <div className="flex items-center gap-2.5">
                                                 {r.logoUrl ? (
-                                                    <img src={r.logoUrl} alt={r.name} className="h-6 w-6 rounded object-contain bg-white/5" />
+                                                    <span className="relative h-6 w-6 shrink-0">
+                                                        <img
+                                                            src={r.logoUrl}
+                                                            alt={r.name}
+                                                            className="h-6 w-6 rounded object-contain bg-white/5"
+                                                            onError={(e) => {
+                                                                e.currentTarget.style.display = 'none';
+                                                                (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'flex')
+                                                            }}
+                                                        />
+                                                        <span className="h-6 w-6 rounded bg-zinc-800 items-center justify-center text-[10px] font-bold text-zinc-400 hidden" style={{ display: 'none' }}>
+                                                            {r.name.slice(0, 2).toUpperCase()}
+                                                        </span>
+                                                    </span>
                                                 ) : (
                                                     <div className="h-6 w-6 rounded bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400">
                                                         {r.name.slice(0, 2).toUpperCase()}

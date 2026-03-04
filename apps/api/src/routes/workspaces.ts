@@ -42,6 +42,23 @@ workspacesRouter.get('/:id', async (req, res) => {
     }
 })
 
+// POST /api/workspaces — create a new workspace
+workspacesRouter.post('/', async (req, res) => {
+    const { name, ownerId } = req.body as { name?: string; ownerId?: string }
+    if (!name?.trim() || !ownerId) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'name and ownerId are required' } })
+        return
+    }
+    try {
+        const [created] = await db.insert(workspaces)
+            .values({ name: name.trim(), ownerId, settings: {} })
+            .returning({ id: workspaces.id, name: workspaces.name })
+        res.status(201).json(created)
+    } catch (err) {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create workspace' } })
+    }
+})
+
 // PATCH /api/workspaces/:id — update name and/or settings (deep-merges settings)
 workspacesRouter.patch('/:id', async (req, res) => {
     const { name, settings } = req.body as { name?: string; settings?: Record<string, unknown> }

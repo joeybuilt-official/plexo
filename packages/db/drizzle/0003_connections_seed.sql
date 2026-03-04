@@ -39,7 +39,7 @@ VALUES
         'Discord',
         'Accept /task slash commands in your Discord server and receive results.',
         'communication',
-        'https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6cc3c481a15a141738_icon_clyde_black_RGB.png',
+        'https://cdn.simpleicons.org/discord/5865F2',
         'webhook',
         '[]',
         '[{"key":"public_key","label":"Public Key","type":"password"},{"key":"application_id","label":"Application ID","type":"text"},{"key":"bot_token","label":"Bot Token","type":"password"}]',

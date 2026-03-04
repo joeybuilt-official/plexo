@@ -177,6 +177,9 @@ export default function SettingsPage() {
                             <Field id="workspace-name" label="Workspace name" description="Displayed in the sidebar and agent context.">
                                 <Input id="workspace-name" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} placeholder="My Workspace" />
                             </Field>
+                            <Field id="workspace-id" label="Workspace ID" description="Read-only — used in API calls and env vars.">
+                                <Input id="workspace-id" value={WS_ID} readOnly className="font-mono text-xs opacity-50 cursor-default" />
+                            </Field>
                             <Field id="cost-ceiling" label="Weekly cost ceiling (USD)" description="Agent stops queueing new tasks when the weekly API cost exceeds this amount. Alert fires at 80%.">
                                 <Input id="cost-ceiling" type="number" min="1" step="1" value={costCeiling} onChange={(e) => setCostCeiling(e.target.value)} />
                             </Field>

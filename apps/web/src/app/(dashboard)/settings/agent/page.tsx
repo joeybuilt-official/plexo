@@ -170,8 +170,8 @@ export default function AgentSettingsPage() {
             {/* Agent status banner */}
             {agentStatus && (
                 <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${agentStatus.status === 'running'
-                        ? 'border-green-800/40 bg-green-950/20'
-                        : 'border-zinc-800 bg-zinc-900/40'
+                    ? 'border-green-800/40 bg-green-950/20'
+                    : 'border-zinc-800 bg-zinc-900/40'
                     }`}>
                     <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${agentStatus.status === 'running' ? 'bg-green-400 animate-pulse' : 'bg-zinc-600'
                         }`} />
@@ -208,15 +208,14 @@ export default function AgentSettingsPage() {
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-zinc-300">Avatar</label>
                                 <div className="flex flex-wrap gap-1.5">
-                                    {['🤖','🧠','⚡','🦾','🌟','👾','🔱','🦊','🐉','🔮'].map((emoji) => (
+                                    {['🤖', '🧠', '⚡', '🦾', '🌟', '👾', '🔱', '🦊', '🐉', '🔮'].map((emoji) => (
                                         <button
                                             key={emoji}
                                             onClick={() => updateSetting('agentAvatar', emoji)}
-                                            className={`h-9 w-9 rounded-lg text-lg transition-all ${
-                                                (settings.agentAvatar ?? '🤖') === emoji
-                                                ? 'bg-indigo-600/30 ring-1 ring-indigo-500'
-                                                : 'bg-zinc-800 hover:bg-zinc-700'
-                                            }`}
+                                            className={`h-9 w-9 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji
+                                                    ? 'bg-indigo-600/30 ring-1 ring-indigo-500'
+                                                    : 'bg-zinc-800 hover:bg-zinc-700'
+                                                }`}
                                         >{emoji}</button>
                                     ))}
                                 </div>
@@ -255,20 +254,6 @@ export default function AgentSettingsPage() {
                                 placeholder="You are a calm, methodical senior engineer. You prefer to verify before acting. You ask clarifying questions rather than making assumptions."
                                 className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 resize-none"
                             />
-                        </Field>
-                    </Section>
-
-                    {/* Workspace */}
-                    <Section title="Workspace" icon={Settings}>
-                        <Field label="Workspace name">
-                            <Input
-                                value={workspaceName}
-                                onChange={(e) => setWorkspaceName(e.target.value)}
-                                placeholder="My workspace"
-                            />
-                        </Field>
-                        <Field label="Workspace ID" description="Read-only — used in API calls and env vars.">
-                            <Input value={workspaceId} readOnly className="font-mono text-xs opacity-50 cursor-default" />
                         </Field>
                     </Section>
 

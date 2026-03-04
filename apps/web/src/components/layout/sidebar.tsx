@@ -29,6 +29,7 @@ interface NavItem {
     label: string
     href: string
     icon: React.ElementType
+    exact?: boolean  // if true, only active on exact pathname match (avoids prefix collisions)
 }
 
 interface NavGroup {
@@ -78,7 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { label: 'AI Providers', href: '/settings/ai-providers', icon: Cpu },
             { label: 'Agent', href: '/settings/agent', icon: Bot },
-            { label: 'Workspace', href: '/settings', icon: SettingsIcon },
+            { label: 'Workspace', href: '/settings', icon: SettingsIcon, exact: true },
             { label: 'Users', href: '/settings/users', icon: Users },
         ],
     },
@@ -155,9 +156,11 @@ export function Sidebar() {
         })
     }
 
-    function isActive(href: string): boolean {
-        if (href === '/') return pathname === '/'
-        return pathname.startsWith(href)
+    function isActive(href: string, exact?: boolean): boolean {
+        if (href === '/' || exact) return pathname === href
+        // Segment-boundary match: /tasks matches /tasks/abc but NOT /taskssomething
+        // Also avoids /settings matching /settings/agent
+        return pathname === href || pathname.startsWith(href + '/')
     }
 
     return (
@@ -200,8 +203,8 @@ export function Sidebar() {
                             {/* Group items */}
                             {!isCollapsed && (
                                 <div className="space-y-0.5">
-                                    {group.items.map(({ label, href, icon: Icon }) => {
-                                        const active = isActive(href)
+                                    {group.items.map(({ label, href, icon: Icon, exact }) => {
+                                        const active = isActive(href, exact)
                                         return (
                                             <Link
                                                 key={href}
