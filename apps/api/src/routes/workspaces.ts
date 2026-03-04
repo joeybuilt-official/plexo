@@ -42,18 +42,34 @@ workspacesRouter.get('/:id', async (req, res) => {
     }
 })
 
-// PATCH /api/workspaces/:id — update name and/or settings
+// PATCH /api/workspaces/:id — update name and/or settings (deep-merges settings)
 workspacesRouter.patch('/:id', async (req, res) => {
     const { name, settings } = req.body as { name?: string; settings?: Record<string, unknown> }
     try {
-        const update: Record<string, unknown> = {}
-        if (name) update.name = name
-        if (settings !== undefined) update.settings = settings
-
-        if (Object.keys(update).length === 0) {
+        if (!name && settings === undefined) {
             res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'name or settings required' } })
             return
         }
+
+        // Read current settings so we can deep-merge instead of overwrite
+        const [current] = await db
+            .select({ settings: workspaces.settings })
+            .from(workspaces)
+            .where(eq(workspaces.id, req.params.id))
+            .limit(1)
+
+        if (!current) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })
+            return
+        }
+
+        const merged = settings !== undefined
+            ? { ...(current.settings as Record<string, unknown> ?? {}), ...settings }
+            : undefined
+
+        const update: Record<string, unknown> = {}
+        if (name) update.name = name
+        if (merged !== undefined) update.settings = merged
 
         await db.update(workspaces).set(update).where(eq(workspaces.id, req.params.id))
         res.json({ ok: true })

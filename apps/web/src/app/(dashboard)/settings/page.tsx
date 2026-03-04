@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Settings as SettingsIcon, Key, Zap, Globe, Save, Check, AlertCircle } from 'lucide-react'
 
 interface Section {
@@ -60,6 +60,10 @@ export default function SettingsPage() {
     const [active, setActive] = useState('workspace')
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
+    const [saveError, setSaveError] = useState<string | null>(null)
+
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+    const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
     // Workspace settings state
     const [workspaceName, setWorkspaceName] = useState('My Workspace')
@@ -70,6 +74,24 @@ export default function SettingsPage() {
     const [defaultModel, setDefaultModel] = useState('claude-opus-4-5')
     const [maxRetries, setMaxRetries] = useState('3')
 
+    // Load workspace data on mount
+    const loadWorkspace = useCallback(async () => {
+        if (!WS_ID) return
+        try {
+            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`)
+            if (!res.ok) return
+            const data = await res.json() as { name: string; settings?: Record<string, unknown> }
+            if (data.name) setWorkspaceName(data.name)
+            const s = data.settings ?? {}
+            if (typeof s.costCeilingUsdWeekly === 'number') setCostCeiling(String(s.costCeilingUsdWeekly))
+            if (typeof s.defaultModel === 'string') setDefaultModel(s.defaultModel)
+            if (typeof s.tokenBudgetPerTask === 'number') setTokenBudget(String(s.tokenBudgetPerTask))
+            if (typeof s.maxRetries === 'number') setMaxRetries(String(s.maxRetries))
+        } catch { /* non-fatal */ }
+    }, [API_BASE, WS_ID])
+
+    useEffect(() => { void loadWorkspace() }, [loadWorkspace])
+
     // API key state (write-only — never read back)
     const [anthropicKey, setAnthropicKey] = useState('')
     const [openaiKey, setOpenaiKey] = useState('')
@@ -77,12 +99,45 @@ export default function SettingsPage() {
     async function handleSave(e: React.FormEvent) {
         e.preventDefault()
         setSaving(true)
-        // Settings persisted to workspace_preferences via /api/memory/preferences in a real impl
-        // For now, simulate save
-        await new Promise((r) => setTimeout(r, 600))
-        setSaving(false)
-        setSaved(true)
-        setTimeout(() => setSaved(false), 3000)
+        setSaveError(null)
+        try {
+            if (active === 'workspace' || active === 'agent') {
+                // Merge changes into workspace settings
+                const payload = active === 'workspace'
+                    ? { name: workspaceName, settings: { costCeilingUsdWeekly: parseFloat(costCeiling) || 10 } }
+                    : { settings: { defaultModel, tokenBudgetPerTask: parseInt(tokenBudget) || 50000, maxRetries: parseInt(maxRetries) || 3 } }
+                const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                })
+                if (!res.ok) {
+                    const err = await res.json() as { error?: { message?: string } }
+                    throw new Error(err.error?.message ?? 'Save failed')
+                }
+            } else if (active === 'api-keys') {
+                // Store non-empty keys into workspace settings (API encrypts at rest)
+                const apiKeys: Record<string, string> = {}
+                if (anthropicKey.trim()) apiKeys.anthropic = anthropicKey.trim()
+                if (openaiKey.trim()) apiKeys.openai = openaiKey.trim()
+                if (Object.keys(apiKeys).length > 0) {
+                    const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ settings: { apiKeys } }),
+                    })
+                    if (!res.ok) throw new Error('Failed to save keys')
+                }
+                setAnthropicKey('')
+                setOpenaiKey('')
+            }
+            setSaved(true)
+            setTimeout(() => setSaved(false), 3000)
+        } catch (err: unknown) {
+            setSaveError(err instanceof Error ? err.message : 'Save failed')
+        } finally {
+            setSaving(false)
+        }
     }
 
     return (
@@ -105,7 +160,13 @@ export default function SettingsPage() {
             </nav>
 
             {/* Content */}
-            <form onSubmit={handleSave} className="flex-1">
+            <form onSubmit={handleSave} className="flex-1 flex flex-col gap-4">
+                {saveError && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2.5 text-sm text-red-400">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        {saveError}
+                    </div>
+                )}
                 {active === 'workspace' && (
                     <div className="flex flex-col gap-6">
                         <div>
