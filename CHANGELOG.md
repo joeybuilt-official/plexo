@@ -12,6 +12,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.0.0-dev] — 2026-03-04 (Phase 13 — Sandbox, Audit, Workspace Rate Limit)
+
+### Added
+- **Plugin sandbox** (`packages/agent/src/plugins/sandbox-worker.ts` + `pool.ts`) — plugin tools now execute in `worker_threads`; 10s timeout per call; auto-terminate on timeout or error; permission set forwarded from manifest; non-fatal fallback if worker spawn fails
+- **Plugin bridge upgraded** — `loadPluginTools()` now delegates execution to `runInSandbox()` instead of inline stub; returns structured `{ status: 'timeout' | 'error' | 'ok' }` result
+- **`audit_log` table** — migration 0008; workspaceId + userId (nullable) + action + resource + resourceId + metadata JSONB + IP; 3 indexes (workspace, action, created_at DESC)
+- **Audit helper** (`apps/api/src/audit.ts`) — fire-and-forget `audit(req, entry)` — extracts X-Forwarded-For IP, writes to `audit_log`, swallows errors so audit failure never breaks callers
+- **`GET /api/audit?workspaceId=&action=&before=&limit=`** — paginated workspace-scoped audit log; action prefix filter; cursor pagination via `before=` ISO timestamp; joined with user name/email
+- **Audit events wired** — member.add / member.role_change / member.remove / invite.create / invite.accept / plugin.install / plugin.enable / plugin.disable / plugin.uninstall
+- **Per-workspace Redis rate limiting** (`apps/api/src/middleware/workspace-rate-limit.ts`) — INCR+EXPIRE sliding window; limit from `workspace.settings.rateLimit.requestsPerHour` (default 1000); limit cached 60s in Redis; degrades gracefully if Redis unavailable; `X-Workspace-RateLimit-Limit` + `X-Workspace-RateLimit-Remaining` response headers
+- **Rate limit applied** to `/api/tasks` (alongside IP limiter) and `/api/plugins`
+- **Shared Redis client** (`apps/api/src/redis-client.ts`) — singleton matching pkce-store pattern; handles concurrent connect race
+- **E2E tests (+5)** — plugins MISSING_WORKSPACE, INVALID_MANIFEST, 404; audit MISSING_WORKSPACE, items array (42/42 passing)
+
+---
+
 ## [0.9.0-dev] — 2026-03-04 (Phase 12 — Plugin runtime)
 
 ### Added

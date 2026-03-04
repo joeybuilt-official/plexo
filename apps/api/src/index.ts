@@ -23,12 +23,14 @@ import { cronRouter } from './routes/cron.js'
 import { usersRouter } from './routes/users.js'
 import { membersRouter, invitesRouter } from './routes/members.js'
 import { pluginsRouter } from './routes/plugins.js'
+import { auditRouter } from './routes/audit.js'
 
 
 import { debugRouter } from './routes/debug.js'
 import { chatRouter } from './routes/chat.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
+import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
 
 const app: Express = express()
@@ -56,7 +58,7 @@ const v1 = express.Router()
 v1.use('/sse', sseRouter)
 v1.use('/auth', authLimiter, authRouter)
 v1.use('/oauth', oauthRouter)
-v1.use('/tasks', taskCreationLimiter, tasksRouter)
+v1.use('/tasks', taskCreationLimiter, workspaceRateLimit, tasksRouter)
 v1.use('/sprints', sprintsRouter)
 v1.use('/sprints', sprintRunnerRouter)
 v1.use('/dashboard', dashboardRouter)
@@ -73,7 +75,8 @@ v1.use('/cron', cronRouter)
 v1.use('/users', usersRouter)
 v1.use('/workspaces/:id/members', membersRouter)
 v1.use('/invites', invitesRouter)
-v1.use('/plugins', pluginsRouter)
+v1.use('/plugins', workspaceRateLimit, pluginsRouter)
+v1.use('/audit', auditRouter)
 
 v1.use('/debug', debugRouter)
 v1.use('/chat', chatRouter)

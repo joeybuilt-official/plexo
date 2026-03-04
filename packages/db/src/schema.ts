@@ -539,3 +539,24 @@ export const workspaceInvites = pgTable('workspace_invites', {
     uniqueIndex('workspace_invites_token_idx').on(table.token),
     index('workspace_invites_workspace_idx').on(table.workspaceId),
 ])
+
+// ── Phase 13 — Audit log ──────────────────────────────────────────────────────
+
+export const auditLog = pgTable('audit_log', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => users.id),  // null for system events
+    action: text('action').notNull(),                    // e.g. 'member.add', 'plugin.install', 'task.create'
+    resource: text('resource').notNull(),                // table name or resource type
+    resourceId: text('resource_id'),                     // optional target entity ID
+    metadata: jsonb('metadata').default('{}').notNull(), // extra context (role, email, etc.)
+    ip: text('ip'),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('audit_log_workspace_idx').on(table.workspaceId),
+    index('audit_log_action_idx').on(table.action),
+    index('audit_log_created_idx').on(table.createdAt),
+])
+

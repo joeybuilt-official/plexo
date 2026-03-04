@@ -14,7 +14,7 @@ import { Router, type Router as RouterType } from 'express'
 import { db, eq, and } from '@plexo/db'
 import { plugins, workspaces } from '@plexo/db'
 import { logger } from '../logger.js'
-import type { PluginManifest } from '@plexo/sdk'
+import { audit } from '../audit.js'
 
 export const pluginsRouter: RouterType = Router()
 
@@ -66,7 +66,7 @@ pluginsRouter.get('/:id', async (req, res) => {
 pluginsRouter.post('/', async (req, res) => {
     const { workspaceId, manifest, settings = {} } = req.body as {
         workspaceId?: string
-        manifest?: Partial<PluginManifest>
+        manifest?: { name?: string; version?: string; type?: string;[k: string]: unknown }
         settings?: Record<string, unknown>
     }
 
@@ -107,6 +107,7 @@ pluginsRouter.post('/', async (req, res) => {
         }
 
         logger.info({ id: inserted.id, name: manifest.name }, 'Plugin installed')
+        audit(req, { workspaceId, action: 'plugin.install', resource: 'plugins', resourceId: inserted.id, metadata: { name: manifest.name, version: manifest.version, type: manifest.type } })
         res.status(201).json(inserted)
     } catch (err) {
         logger.error({ err }, 'POST /api/plugins failed')
@@ -137,6 +138,9 @@ pluginsRouter.patch('/:id', async (req, res) => {
 
         await db.update(plugins).set(update).where(eq(plugins.id, req.params.id))
         logger.info({ id: req.params.id, update }, 'Plugin updated')
+        if (typeof enabled === 'boolean') {
+            audit(req, { workspaceId: existing.workspaceId, action: enabled ? 'plugin.enable' : 'plugin.disable', resource: 'plugins', resourceId: req.params.id, metadata: { name: existing.name } })
+        }
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err }, 'PATCH /api/plugins/:id failed')
@@ -148,7 +152,7 @@ pluginsRouter.patch('/:id', async (req, res) => {
 
 pluginsRouter.delete('/:id', async (req, res) => {
     try {
-        const [existing] = await db.select({ id: plugins.id }).from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
+        const [existing] = await db.select({ id: plugins.id, workspaceId: plugins.workspaceId, name: plugins.name }).from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
         if (!existing) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Plugin not found' } })
             return
@@ -156,6 +160,7 @@ pluginsRouter.delete('/:id', async (req, res) => {
 
         await db.delete(plugins).where(eq(plugins.id, req.params.id))
         logger.info({ id: req.params.id }, 'Plugin uninstalled')
+        audit(req, { workspaceId: existing.workspaceId, action: 'plugin.uninstall', resource: 'plugins', resourceId: req.params.id, metadata: { name: existing.name } })
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err }, 'DELETE /api/plugins/:id failed')

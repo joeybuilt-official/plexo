@@ -14,6 +14,7 @@ import { db, eq, and, desc } from '@plexo/db'
 import { workspaceMembers, workspaceInvites, users, workspaces } from '@plexo/db'
 import { randomBytes } from 'crypto'
 import { logger } from '../logger.js'
+import { audit } from '../audit.js'
 
 export const membersRouter: RouterType = Router({ mergeParams: true })
 export const invitesRouter: RouterType = Router({ mergeParams: true })
@@ -79,6 +80,7 @@ membersRouter.post('/', async (req, res) => {
         })
 
         logger.info({ workspaceId, userId: user.id, role }, 'Member added')
+        audit(req, { workspaceId, action: 'member.add', resource: 'workspace_members', resourceId: user.id, metadata: { role, email } })
         res.status(201).json({ ok: true, userId: user.id })
     } catch (err) {
         logger.error({ err }, 'POST members failed')
@@ -108,6 +110,7 @@ membersRouter.patch('/:userId', async (req, res) => {
             .set({ role: role as MemberRole })
             .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
 
+        audit(req, { workspaceId, action: 'member.role_change', resource: 'workspace_members', resourceId: userId, metadata: { role } })
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err }, 'PATCH member failed')
@@ -134,6 +137,7 @@ membersRouter.delete('/:userId', async (req, res) => {
             .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
 
         logger.info({ workspaceId, userId }, 'Member removed')
+        audit(req, { workspaceId, action: 'member.remove', resource: 'workspace_members', resourceId: userId })
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err }, 'DELETE member failed')
@@ -177,6 +181,7 @@ membersRouter.post('/invite', async (req, res) => {
         const inviteUrl = `${publicUrl}/invite/${token}`
 
         logger.info({ workspaceId, token, role }, 'Invite created')
+        audit(req, { workspaceId, userId: invitedByUserId, action: 'invite.create', resource: 'workspace_invites', resourceId: token, metadata: { role, email: email ?? null } })
         res.status(201).json({ token, inviteUrl, expiresAt })
     } catch (err) {
         logger.error({ err }, 'POST invite failed')
@@ -279,6 +284,7 @@ invitesRouter.post('/:token/accept', async (req, res) => {
             .where(eq(workspaceInvites.token, token))
 
         logger.info({ token, userId, workspaceId: invite.workspaceId }, 'Invite accepted')
+        audit(req, { workspaceId: invite.workspaceId, userId, action: 'invite.accept', resource: 'workspace_invites', resourceId: token, metadata: { role: invite.role } })
         res.json({ ok: true, workspaceId: invite.workspaceId })
     } catch (err) {
         logger.error({ err }, 'POST invite/accept failed')

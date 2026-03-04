@@ -7,14 +7,15 @@
  *
  * Tool naming: plugin__{pluginName}__{toolName}  e.g. plugin__jira__create_issue
  *
- * Phase 12: tools stub-execute in main process.
- * Phase 13: move to isolated worker_threads sandbox.
+ * Phase 13: plugin tool execution runs in an isolated worker_threads sandbox
+ * with a 10-second timeout. Permission set from manifest.permissions[].
  */
 import { tool } from 'ai'
 import { z } from 'zod'
 import { db, eq, and } from '@plexo/db'
 import { plugins } from '@plexo/db'
 import type { ToolSet } from '../connections/bridge.js'
+import { runInSandbox } from './pool.js'
 import pino from 'pino'
 
 const logger = pino({ name: 'plugin-bridge' })
@@ -33,6 +34,7 @@ interface PluginManifest {
     name: string
     version: string
     type: string
+    permissions?: string[]
     tools?: PluginToolDef[]
 }
 
@@ -57,6 +59,8 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
         for (const plugin of enabledPlugins) {
             const manifest = plugin.manifest as PluginManifest
             const rawTools = manifest.tools ?? []
+            const permissions = manifest.permissions ?? []
+            const settings = plugin.settings as Record<string, unknown>
 
             for (const toolDef of rawTools) {
                 const toolKey = `plugin__${plugin.name}__${toolDef.name}`
@@ -78,7 +82,6 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
                     zodShape[key] = required.has(key) ? base : base.optional()
                 }
 
-                // Use z.record as a catch-all when no typed params declared
                 const inputSchema = Object.keys(zodShape).length > 0
                     ? z.object(zodShape)
                     : z.object({}).passthrough()
@@ -91,14 +94,33 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
                     description: `[Plugin: ${pluginName} v${pluginVersion}] ${toolDef.description}`,
                     inputSchema,
                     execute: async (args) => {
-                        logger.warn({ plugin: pluginName, tool: toolName, args }, 'Plugin tool called (stub)')
-                        return {
-                            plugin: pluginName,
-                            tool: toolName,
-                            status: 'stub',
-                            message: `Plugin tool ${toolName} called but no handler registered. Install the plugin handler package to enable execution.`,
-                            args,
+                        const sandboxResult = await runInSandbox({
+                            pluginName,
+                            toolName,
+                            args: args as Record<string, unknown>,
+                            permissions,
+                            settings,
+                        })
+
+                        if (!sandboxResult.ok) {
+                            logger.warn(
+                                { plugin: pluginName, tool: toolName, error: sandboxResult.error, timedOut: sandboxResult.timedOut },
+                                'Plugin sandbox execution failed',
+                            )
+                            return {
+                                plugin: pluginName,
+                                tool: toolName,
+                                status: sandboxResult.timedOut ? 'timeout' : 'error',
+                                error: sandboxResult.error,
+                                durationMs: sandboxResult.durationMs,
+                            }
                         }
+
+                        logger.info(
+                            { plugin: pluginName, tool: toolName, durationMs: sandboxResult.durationMs },
+                            'Plugin tool executed in sandbox',
+                        )
+                        return sandboxResult.result
                     },
                 })
             }

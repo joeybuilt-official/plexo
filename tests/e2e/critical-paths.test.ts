@@ -348,3 +348,53 @@ test.describe('Members API', () => {
     expect(body.error.code).toBe('MISSING_USER')
   })
 })
+
+// ── Plugins API ───────────────────────────────────────────────────────────────
+
+test.describe('Plugins API', () => {
+  test('GET /api/plugins requires workspaceId', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/plugins`)
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('MISSING_WORKSPACE')
+  })
+
+  test('POST /api/plugins validates manifest fields', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/plugins`, {
+      data: { workspaceId: '00000000-0000-0000-0000-000000000001', manifest: {} },
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('INVALID_MANIFEST')
+  })
+
+  test('GET /api/plugins/:id returns 404 for unknown id', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/plugins/00000000-0000-0000-0000-000000000099`)
+    expect(res.status()).toBe(404)
+  })
+})
+
+// ── Audit API ─────────────────────────────────────────────────────────────────
+
+test.describe('Audit API', () => {
+  test('GET /api/audit requires workspaceId', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/audit`)
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('MISSING_WORKSPACE')
+  })
+
+  test('GET /api/audit returns items array for real workspace', async ({ request }) => {
+    const wsRes = await request.get(`${API_URL}/api/workspaces`)
+    if (!wsRes.ok) return
+    const wsData = await wsRes.json() as { items: { id: string }[] }
+    if (!wsData.items?.length) return
+    const wsId = wsData.items[0].id
+
+    const res = await request.get(`${API_URL}/api/audit?workspaceId=${wsId}`)
+    expect(res.status()).toBe(200)
+    const body = await res.json() as { items: unknown[]; hasMore: boolean }
+    expect(Array.isArray(body.items)).toBe(true)
+  })
+})
+
