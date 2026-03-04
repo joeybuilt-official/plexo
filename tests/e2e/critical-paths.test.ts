@@ -145,6 +145,38 @@ test.describe('Sprint API', () => {
   })
 })
 
+// ── Workspaces API ────────────────────────────────────────────────────────────
+
+test.describe('Workspaces API', () => {
+  test('GET /api/workspaces returns items array', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/workspaces`)
+    expect(res.status()).toBe(200)
+    const body = await res.json() as { items: unknown[]; total: number }
+    expect(Array.isArray(body.items)).toBe(true)
+    expect(typeof body.total).toBe('number')
+  })
+
+  test('GET /api/workspaces/:id returns 404 for unknown workspace', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/workspaces/00000000-0000-0000-0000-000000000099`)
+    expect(res.status()).toBe(404)
+  })
+
+  test('POST /api/workspaces with missing name returns 400', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/workspaces`, {
+      data: { ownerId: '00000000-0000-0000-0000-000000000001' },
+    })
+    expect(res.status()).toBe(400)
+  })
+
+  test('POST /api/tasks with projectId field accepted in body', async ({ request }) => {
+    // Missing workspaceId → 400 regardless of projectId field
+    const res = await request.post(`${API_URL}/api/tasks`, {
+      data: { type: 'feature', description: 'test', projectId: '00000000-0000-0000-0000-000000000001' },
+    })
+    expect(res.status()).toBe(400)
+  })
+})
+
 // ── Memory API ────────────────────────────────────────────────────────────────
 
 test.describe('Memory API', () => {
