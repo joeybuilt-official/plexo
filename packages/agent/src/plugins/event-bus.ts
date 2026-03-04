@@ -35,6 +35,8 @@ export const TOPICS = {
     EXTENSION_CRASHED: 'sys.extension.crashed',
     WORKSPACE_MEMBER_ADDED: 'plexo.workspace.member_added',
     WORKSPACE_MEMBER_REMOVED: 'plexo.workspace.member_removed',
+    OWD_PENDING: 'plexo.owd.pending',
+    OWD_RESOLVED: 'plexo.owd.resolved',
 } as const
 
 export type StandardTopic = typeof TOPICS[keyof typeof TOPICS]

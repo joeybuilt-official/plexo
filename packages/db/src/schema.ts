@@ -61,6 +61,7 @@ export const taskSourceEnum = pgEnum('task_source', [
     'cron',
     'dashboard',
     'api',
+    'extension',
 ])
 
 export const sprintStatusEnum = pgEnum('sprint_status', [

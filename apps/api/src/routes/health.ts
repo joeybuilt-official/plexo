@@ -2,6 +2,7 @@ import { Router, type Router as RouterType } from 'express'
 import { db, sql } from '@plexo/db'
 import { createClient } from 'redis'
 import { logger } from '../logger.js'
+import { workerStats } from '@plexo/agent/persistent-pool'
 
 export const healthRouter: RouterType = Router()
 
@@ -84,6 +85,7 @@ healthRouter.get('/', async (_req, res) => {
             complianceLevel: 'full',
             specVersion: '0.2.0',
             host: 'plexo',
+            workers: workerStats(),
         },
     })
 })

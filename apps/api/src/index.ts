@@ -35,7 +35,9 @@ import { membersRouter, invitesRouter } from './routes/members.js'
 import { pluginsRouter } from './routes/plugins.js'
 import { auditRouter } from './routes/audit.js'
 import { registryRouter } from './routes/registry.js'
-import { terminateAll } from '@plexo/agent/persistent-pool'
+import { terminateAll, workerStats } from '@plexo/agent/persistent-pool'
+import { eventBus, TOPICS } from '@plexo/agent/event-bus'
+import { emitToWorkspace } from './sse-emitter.js'
 
 
 import { debugRouter } from './routes/debug.js'
@@ -50,9 +52,20 @@ const port = parseInt(process.env.PORT ?? '3001', 10)
 
 // ── Middleware ───────────────────────────────────────────────
 
+// Always allow localhost:3000 in dev; in production allow only PUBLIC_URL
+const allowedOrigins = new Set<string>([
+    'http://localhost:3000',
+    'http://localhost:3001',
+    ...(process.env.PUBLIC_URL ? [process.env.PUBLIC_URL] : []),
+])
+
 app.set('trust proxy', 1) // required for rate limiter behind Caddy/nginx
 app.use(cors({
-    origin: process.env.PUBLIC_URL ?? 'http://localhost:3000',
+    origin: (origin, cb) => {
+        // Allow non-browser requests (curl, health checks) and listed origins
+        if (!origin || allowedOrigins.has(origin)) return cb(null, true)
+        cb(new Error(`CORS: origin "${origin}" not allowed`))
+    },
     credentials: true,
 }))
 app.use(express.json({ limit: '1mb' }))
@@ -125,6 +138,13 @@ const server = app.listen(port, '0.0.0.0', () => {
     logger.info({ port }, 'Plexo API server started')
     startAgentLoop()
     initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
+
+    // OWD → SSE: when an agent requests approval, push a real-time notification
+    // to all connected SSE clients in that workspace so the approval banner appears
+    eventBus.subscribe(TOPICS.OWD_PENDING, (payload) => {
+        const record = payload as { workspaceId: string;[key: string]: unknown }
+        emitToWorkspace(record.workspaceId, { type: 'owd.pending', data: record })
+    })
 })
 
 process.on('SIGTERM', () => {

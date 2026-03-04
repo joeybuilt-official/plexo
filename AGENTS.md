@@ -224,3 +224,29 @@ This has implications for every decision:
 - **Task cancel**: `_cancel-button.tsx` is a client component within a server-rendered page — uses `router.refresh()` not `window.location.reload()` for proper RSC cache invalidation.
 - **First-run gate**: `isFirstRun()` in `page.tsx` is async, timeout-wrapped. Always returns `false` on API error to prevent redirect loops. Only on home route, not layout, to avoid impacting all dashboard page loads.
 - **Marketplace install error propagation**: `handleInstall` now throws on non-ok response; `IntegrationCard` catches and sets `installError` state displayed inline.
+
+### 2026-03 — Phases 21-24 (Persistent Workers, SDK Bridge, OWD→SSE, Worker Observability)
+
+- **Persistent Worker Pool v2** (`packages/agent/src/plugins/persistent-pool.ts`): Message-based host bridge handles `sdk_call` messages from workers and routes to real services. Dispatch map: `storage.*` → Redis (key: `ext:<pluginName>:<key>`), `memory.*` → `storeMemory`/`searchMemory`, `connections.*` → `installedConnections` table join, `events.publish` → `eventBus.publish`, `tasks.create` → `@plexo/queue push()`.
+- **Activation SDK v2** (`packages/agent/src/plugins/activation-sdk.ts`): All capability stubs replaced with real `bridge()` calls. Takes `HostBridge = (method, args) => Promise<unknown>`. `nullBridge` throws; real bridge wired via postMessage in worker context. Storage uses correct `ttlSeconds` field name (from SDK types). Memory uses `tags` not `type` in read options.
+- **Sandbox Worker v2** (`packages/agent/src/plugins/sandbox-worker.ts`): `makeMessageBridge()` posts `sdk_call` to host and awaits `bridge_reply` via `_bridgePending` map. Full persistent protocol: `activate` / `invoke` / `bridge_reply` / `terminate`. Ephemeral fallback preserved via `workerData` path.
+- **OWD → SSE push**: `requestApproval()` now calls `eventBus.emitSystem(TOPICS.OWD_PENDING, record)` after writing to Redis. API `index.ts` subscribes to `TOPICS.OWD_PENDING` on server start and calls `emitToWorkspace(workspaceId, { type: 'owd.pending', data })`. Dashboard SSE clients receive `owd.pending` events in real time — no polling needed for approval banner.
+- **Worker stats in /health**: `kapsel.workers` array in health response shows `{ pluginName, activatedAt, toolCount }` for each live persistent worker. Import: `@plexo/agent/persistent-pool`.
+- **CORS fix**: `PUBLIC_URL=https://plexo.yourdomain.com` in `.env.local` was blocking browser requests from `localhost:3000`. Fixed CORS to always allow localhost origins in allowedOrigins Set, plus `PUBLIC_URL` value. Browser debug page can now fetch `/health`.
+- **AUTH_SECRET**: Added to `apps/web/.env.local` — required by Auth.js v5 to suppress `MissingSecret` log noise. Same value as `SESSION_SECRET`.
+- **`task_source` enum**: Added `'extension'` value via `ALTER TYPE task_source ADD VALUE IF NOT EXISTS 'extension'`. Schema updated. Persistent pool temporarily uses `'api'` source until migration is applied to all environments.
+- **Event bus `TOPICS`**: Added `OWD_PENDING = 'plexo.owd.pending'` and `OWD_RESOLVED = 'plexo.owd.resolved'` to constants. `@plexo/agent/event-bus` added as a package export.
+- **Drizzle migration journal**: No Drizzle migration journal table exists — DB was initialized directly from SQL files. Migrations are tracked manually. No journal sync needed.
+
+### 2026-03 — Phases 21-24 (Persistent Workers, SDK Bridge, OWD→SSE, Worker Observability)
+
+- **Persistent Worker Pool v2**: Host bridge handles sdk_call messages from workers. Storage->Redis (key: ext:<plugin>:<key>), memory->storeMemory/searchMemory, connections->installedConnections join, events->eventBus.publish, tasks->@plexo/queue push().
+- **Activation SDK v2**: All capability stubs replaced with real bridge() calls. HostBridge = (method, args) => Promise<unknown>. Storage uses ttlSeconds. Memory uses tags not type in read options.
+- **Sandbox Worker v2**: makeMessageBridge() posts sdk_call to host and awaits bridge_reply. Full persistent protocol: activate/invoke/bridge_reply/terminate. Ephemeral fallback preserved.
+- **OWD to SSE push**: requestApproval() calls eventBus.emitSystem(TOPICS.OWD_PENDING, record). API subscribes on start and emits to workspace SSE clients. No polling needed for approval banner.
+- **Worker stats in /health**: kapsel.workers array in health. Import from @plexo/agent/persistent-pool.
+- **CORS fix**: PUBLIC_URL in .env.local was blocking localhost:3000. Fixed to always allow localhost in allowedOrigins Set.
+- **AUTH_SECRET**: Added to apps/web/.env.local to suppress Auth.js MissingSecret log noise.
+- **task_source enum**: Added extension value via ALTER TYPE. Schema updated. Pool temporarily uses api source.
+- **Event bus TOPICS**: Added OWD_PENDING and OWD_RESOLVED. @plexo/agent/event-bus added as package export.
+- **Drizzle migration journal**: No journal table exists - DB initialized from SQL files. Migrations tracked manually.

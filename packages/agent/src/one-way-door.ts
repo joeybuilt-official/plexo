@@ -19,6 +19,7 @@
 import { createClient, type RedisClientType } from 'redis'
 import { randomBytes } from 'node:crypto'
 import pino from 'pino'
+import { eventBus, TOPICS } from './plugins/event-bus.js'
 
 const logger = pino({ name: 'one-way-door' })
 
@@ -73,6 +74,10 @@ export async function requestApproval(params: {
 
     await redis.setEx(key(id), OWD_TTL_SECONDS, JSON.stringify(record))
     logger.info({ id, operation: params.operation, workspaceId: params.workspaceId }, 'OWD pending')
+
+    // Notify the dashboard in real time — API SSE layer subscribes to this topic
+    eventBus.emitSystem(TOPICS.OWD_PENDING, record)
+
     return record
 }
 

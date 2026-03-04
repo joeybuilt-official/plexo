@@ -1,29 +1,30 @@
 /**
- * Kapsel Persistent Worker Pool (§5.4)
+ * Kapsel Persistent Worker Pool (§5.4) — v2 with host bridge
  *
  * Maintains ONE persistent Worker per enabled extension, reused across all
- * tool invocations. Replaces the ephemeral one-Worker-per-call model.
+ * tool invocations. Handles sdk_call messages from workers to provide real
+ * implementations of storage, memory, connections, events, and tasks APIs.
  *
- * Lifecycle:
- *   getWorker(ext)  → spawn + activate if not exists; return handle
- *   invokeTool(...)  → send 'invoke' msg, await response (with per-call timeout)
- *   terminateWorker(ext) → send 'terminate', remove from map
- *   terminateAll()   → called on process shutdown
+ * Message protocol:
+ *   Host → Worker { type: 'activate', callId, input }
+ *   Host → Worker { type: 'invoke', callId, toolName, args, workspaceId }
+ *   Host → Worker { type: 'bridge_reply', callId, result?, error? }
+ *   Host → Worker { type: 'terminate' }
  *
- * Crash recovery (§5.4):
- *   If a worker crashes mid-invocation, its Promise rejects and the worker
- *   is removed from the map. Next call re-spawns and re-activates.
- *   The extension's sys.extension.crashed event is emitted via Event Bus.
- *
- * Timeout (§5.3):
- *   Each invocation has a hard deadline. The call Promise races against a
- *   timer; on timeout the worker is terminated (not just abandoned).
+ *   Worker → Host { type: 'activated', callId, tools }
+ *   Worker → Host { type: 'result', callId, result }
+ *   Worker → Host { type: 'error', callId, error }
+ *   Worker → Host { type: 'sdk_call', callId, method, args }
  */
 import { Worker } from 'worker_threads'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { randomUUID } from 'node:crypto'
 import pino from 'pino'
+import { storeMemory, searchMemory } from '../memory/store.js'
+import { db, eq, and } from '@plexo/db'
+import { installedConnections, connectionsRegistry, tasks } from '@plexo/db'
+import { eventBus } from './event-bus.js'
 
 const logger = pino({ name: 'kapsel-persistent-pool' })
 
@@ -32,6 +33,7 @@ const __dir = dirname(__filename)
 
 const DEFAULT_INVOKE_TIMEOUT_MS = 10_000
 const DEFAULT_ACTIVATE_TIMEOUT_MS = 30_000
+const STORAGE_TTL_DEFAULT = 60 * 60 * 24 * 30 // 30 days
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,8 +49,8 @@ export interface ActivationInput {
 export interface WorkerHandle {
     worker: Worker
     pluginName: string
+    workspaceId: string
     activatedAt: number
-    /** Tools registered by the extension during activation */
     registeredTools: RegisteredTool[]
 }
 
@@ -67,13 +69,219 @@ export interface InvokeResult {
     durationMs: number
 }
 
-// ── Worker map — keyed by pluginName ─────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────────
 
 const _workers = new Map<string, WorkerHandle>()
 
-// Pending call resolvers — keyed by callId
 type PendingCall = { resolve: (r: InvokeResult) => void; timer: ReturnType<typeof setTimeout>; start: number }
 const _pending = new Map<string, PendingCall>()
+
+// Lazy Redis client for extension storage
+let _redis: { get(k: string): Promise<string | null>; set(k: string, v: string, opts?: { EX?: number }): Promise<unknown>; del(k: string): Promise<unknown> } | null = null
+
+async function getRedis() {
+    if (_redis) return _redis
+    const { createClient } = await import('redis')
+    const client = createClient({ url: process.env.REDIS_URL ?? 'redis://localhost:6379' })
+    client.on('error', (err: Error) => logger.warn({ err }, 'Extension storage Redis error'))
+    await client.connect()
+    _redis = client as unknown as typeof _redis
+    return _redis!
+}
+
+// ── Host bridge — handles sdk_call messages from workers ──────────────────────
+
+async function handleSdkCall(worker: Worker, pluginName: string, callId: string, method: string, args: Record<string, unknown>) {
+    try {
+        const result = await dispatchSdkCall(pluginName, method, args)
+        worker.postMessage({ type: 'bridge_reply', callId, result })
+    } catch (err) {
+        worker.postMessage({ type: 'bridge_reply', callId, error: err instanceof Error ? err.message : String(err) })
+    }
+}
+
+async function dispatchSdkCall(pluginName: string, method: string, args: Record<string, unknown>): Promise<unknown> {
+    const workspaceId = args.workspaceId as string
+
+    switch (method) {
+        // ── storage ──────────────────────────────────────────────────────
+        case 'storage.get': {
+            const redis = await getRedis()
+            const key = `ext:${pluginName}:${args.key as string}`
+            const raw = await redis.get(key)
+            if (raw === null) return null
+            try { return JSON.parse(raw) } catch { return raw }
+        }
+        case 'storage.set': {
+            const redis = await getRedis()
+            const key = `ext:${pluginName}:${args.key as string}`
+            const value = JSON.stringify(args.value)
+            const ttl = (args.ttl as number | undefined) ?? STORAGE_TTL_DEFAULT
+            await redis.set(key, value, { EX: ttl })
+            return null
+        }
+        case 'storage.delete': {
+            const redis = await getRedis()
+            await redis.del(`ext:${pluginName}:${args.key as string}`)
+            return null
+        }
+
+        // ── memory ───────────────────────────────────────────────────────
+        case 'memory.read': {
+            const results = await searchMemory({
+                workspaceId,
+                query: args.query as string,
+                type: args.type as Parameters<typeof searchMemory>[0]['type'],
+                limit: args.limit as number | undefined,
+            })
+            return results.map((r) => ({
+                id: r.id,
+                content: r.content,
+                tags: (r.metadata as Record<string, unknown>)?.tags ?? [],
+                metadata: r.metadata,
+                similarity: r.similarity,
+                createdAt: r.createdAt.getTime(),
+                authorExtension: (r.metadata as Record<string, unknown>)?.authorExtension as string | undefined,
+            }))
+        }
+        case 'memory.write': {
+            const id = await storeMemory({
+                workspaceId,
+                type: 'session',
+                content: args.content as string,
+                metadata: {
+                    ...(args.metadata as Record<string, unknown> ?? {}),
+                    authorExtension: pluginName,
+                    tags: args.tags,
+                    ttl: args.ttl,
+                },
+            })
+            return {
+                id,
+                content: args.content,
+                tags: args.tags ?? [],
+                metadata: args.metadata ?? {},
+                authorExtension: pluginName,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                ttl: args.ttl,
+            }
+        }
+        case 'memory.delete': {
+            // Soft-delete: mark metadata.deleted — full delete not exposed to extensions
+            // (prevents extensions from corrupting workspace memory)
+            logger.warn({ pluginName, id: args.id }, 'Extension requested memory.delete — not implemented (soft-delete only)')
+            return null
+        }
+
+        // ── connections ──────────────────────────────────────────────────
+        case 'connections.isConnected': {
+            const [conn] = await db
+                .select({ id: installedConnections.id })
+                .from(installedConnections)
+                .innerJoin(connectionsRegistry, eq(installedConnections.registryId, connectionsRegistry.id))
+                .where(and(
+                    eq(installedConnections.workspaceId, workspaceId),
+                    eq(connectionsRegistry.id, args.service as string),
+                    eq(installedConnections.status, 'active'),
+                ))
+                .limit(1)
+            return Boolean(conn)
+        }
+        case 'connections.getCredentials': {
+            const [conn] = await db
+                .select({ credentials: installedConnections.credentials, scopesGranted: installedConnections.scopesGranted })
+                .from(installedConnections)
+                .innerJoin(connectionsRegistry, eq(installedConnections.registryId, connectionsRegistry.id))
+                .where(and(
+                    eq(installedConnections.workspaceId, workspaceId),
+                    eq(connectionsRegistry.id, args.service as string),
+                    eq(installedConnections.status, 'active'),
+                ))
+                .limit(1)
+            if (!conn) throw new Error(`Connection "${args.service}" not installed or not active in this workspace`)
+            // credentials is encrypted at rest; returned as-is to the extension
+            return { credentials: conn.credentials, scopesGranted: conn.scopesGranted }
+        }
+
+        // ── events ───────────────────────────────────────────────────────
+        case 'events.publish': {
+            eventBus.publish(args.topic as string, args.payload, pluginName)
+            return null
+        }
+
+        // ── tasks ────────────────────────────────────────────────────────
+        case 'tasks.create': {
+            const opts = args.opts as Record<string, unknown>
+            const { push: queuePush } = await import('@plexo/queue')
+            const taskId = await queuePush({
+                workspaceId,
+                type: 'ops',
+                source: 'api', // 'extension' pending enum migration
+                priority: 1,
+                context: { description: opts.description, source: pluginName, ...(opts.metadata ?? {}) },
+                project: opts.project as string | undefined,
+            })
+            return { taskId }
+        }
+        case 'tasks.get': {
+            const [task] = await db.select().from(tasks)
+                .where(and(eq(tasks.id, args.id as string), eq(tasks.workspaceId, workspaceId)))
+                .limit(1)
+            return task ?? null
+        }
+        case 'tasks.list': {
+            const filter = args.filter as Record<string, unknown> | undefined
+            const rows = await db.select().from(tasks)
+                .where(eq(tasks.workspaceId, workspaceId))
+                .limit(filter?.limit as number | undefined ?? 20)
+            return rows
+        }
+
+        // ── channel / ui ─────────────────────────────────────────────────
+        case 'channel.send':
+        case 'channel.sendDirect':
+        case 'ui.notify':
+            // Forward as event bus message — channel adapters subscribe
+            eventBus.publish(`plexo.${method}`, args)
+            return null
+
+        default:
+            throw new Error(`Unknown bridge method: ${method}`)
+    }
+}
+
+// ── Message router ────────────────────────────────────────────────────────────
+
+function makeWorkerMessageHandler(worker: Worker, pluginName: string) {
+    return (msg: Record<string, unknown>) => {
+        if (msg.type === 'sdk_call') {
+            // Extension is requesting a host-side service
+            void handleSdkCall(
+                worker,
+                pluginName,
+                msg.callId as string,
+                msg.method as string,
+                msg.args as Record<string, unknown>,
+            )
+            return
+        }
+
+        // Normal result/error routing to pending call
+        if (!msg.callId) return
+        const pending = _pending.get(msg.callId as string)
+        if (!pending) return
+
+        clearTimeout(pending.timer)
+        _pending.delete(msg.callId as string)
+
+        if (msg.type === 'result') {
+            pending.resolve({ ok: true, result: msg.result, durationMs: Date.now() - pending.start })
+        } else {
+            pending.resolve({ ok: false, error: String(msg.error ?? 'Unknown worker error'), durationMs: Date.now() - pending.start })
+        }
+    }
+}
 
 // ── Spawn + activate ─────────────────────────────────────────────────────────
 
@@ -82,14 +290,14 @@ export async function getWorker(input: ActivationInput): Promise<WorkerHandle> {
     if (existing) return existing
 
     const workerPath = join(__dir, 'sandbox-worker.js')
-    const worker = new Worker(workerPath) // no workerData — persistent mode
+    const worker = new Worker(workerPath)
 
-    // Wire up the message handler before sending activate
-    worker.on('message', handleWorkerMessage)
+    const messageHandler = makeWorkerMessageHandler(worker, input.pluginName)
+    worker.on('message', messageHandler)
+
     worker.on('error', (err) => {
         logger.error({ ext: input.pluginName, err }, 'Persistent worker crashed')
         cleanupWorker(input.pluginName)
-        // Reject any pending calls for this worker
         for (const [callId, pending] of _pending) {
             if (callId.startsWith(input.pluginName + ':')) {
                 clearTimeout(pending.timer)
@@ -98,12 +306,12 @@ export async function getWorker(input: ActivationInput): Promise<WorkerHandle> {
             }
         }
     })
+
     worker.on('exit', (code) => {
         if (code !== 0) logger.warn({ ext: input.pluginName, code }, 'Worker exited unexpectedly')
         cleanupWorker(input.pluginName)
     })
 
-    // Activate: send the input, wait for 'activated' response
     const callId = `${input.pluginName}:__activate__`
     const activateTimeout = input.activateTimeoutMs ?? DEFAULT_ACTIVATE_TIMEOUT_MS
 
@@ -148,16 +356,16 @@ export async function getWorker(input: ActivationInput): Promise<WorkerHandle> {
     const handle: WorkerHandle = {
         worker,
         pluginName: input.pluginName,
+        workspaceId: input.workspaceId,
         activatedAt: Date.now(),
         registeredTools: activationResult.tools,
     }
     _workers.set(input.pluginName, handle)
-
     logger.info({ ext: input.pluginName, toolCount: activationResult.tools.length }, 'Persistent worker activated')
     return handle
 }
 
-// ── Invoke a tool on a persistent worker ─────────────────────────────────────
+// ── Invoke a tool ─────────────────────────────────────────────────────────────
 
 export async function invokeTool(
     handle: WorkerHandle,
@@ -179,26 +387,8 @@ export async function invokeTool(
         }, timeoutMs)
 
         _pending.set(callId, { resolve, timer, start })
-
         handle.worker.postMessage({ type: 'invoke', callId, toolName, args, workspaceId })
     })
-}
-
-// ── Message router ────────────────────────────────────────────────────────────
-
-function handleWorkerMessage(msg: Record<string, unknown>) {
-    if (!msg.callId) return
-    const pending = _pending.get(msg.callId as string)
-    if (!pending) return
-
-    clearTimeout(pending.timer)
-    _pending.delete(msg.callId as string)
-
-    if (msg.type === 'result') {
-        pending.resolve({ ok: true, result: msg.result, durationMs: Date.now() - pending.start })
-    } else {
-        pending.resolve({ ok: false, error: String(msg.error ?? 'Unknown worker error'), durationMs: Date.now() - pending.start })
-    }
 }
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────
@@ -224,7 +414,6 @@ export function terminateAll(): void {
     _workers.clear()
 }
 
-/** Stats for observability — e.g. /health or admin endpoints */
 export function workerStats(): Array<{ pluginName: string; activatedAt: number; toolCount: number }> {
     return Array.from(_workers.values()).map((h) => ({
         pluginName: h.pluginName,

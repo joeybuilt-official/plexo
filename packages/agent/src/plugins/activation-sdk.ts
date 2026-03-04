@@ -1,12 +1,16 @@
 /**
- * Kapsel Activation SDK
+ * Kapsel Activation SDK — v2 with host bridge
  *
  * A host-side implementation of KapselSDK passed to extension activate() calls.
- * Captures registerTool() registrations during activation, then the bridge
- * converts them into Vercel AI SDK tools.
+ * For capabilities that require host-side services (storage, memory, connections),
+ * the SDK delegates to a `HostBridge` — a function that sends a message to the
+ * host and awaits its response.
  *
- * This runs INSIDE the sandbox worker — the extension's activate() is called
- * with this SDK instance. The sdk.host info identifies Plexo as the host.
+ * When running in a persistent worker (§5.4):
+ *   bridge = (method, args) => postMessage + await reply
+ *
+ * When running in the host process directly:
+ *   bridge = (method, args) => call service functions directly
  *
  * Capability enforcement: every sdk.* call checks the declared capabilities[]
  * from the manifest before proceeding (§4).
@@ -20,14 +24,27 @@ export interface ActivationResult {
 }
 
 /**
+ * Bridge function — the SDK calls this to invoke host-side services.
+ * In worker context: implemented via postMessage + reply listener.
+ * In direct context: implemented via direct function call.
+ */
+export type HostBridge = (method: string, args: Record<string, unknown>) => Promise<unknown>
+
+/** No-op bridge — used when capabilities aren't wired (testing, etc.) */
+export const nullBridge: HostBridge = async (method) => {
+    throw new Error(`Host bridge not configured — ${method} unavailable in this context`)
+}
+
+/**
  * Create a host-side SDK instance for use during extension activation.
- * workspaceId and requestId are required for InvokeContext.
+ * Pass a `bridge` to enable storage/memory/connections capabilities.
  */
 export function createActivationSDK(
     extensionName: string,
     capabilities: string[],
     settings: Record<string, unknown>,
     workspaceId: string,
+    bridge: HostBridge = nullBridge,
 ): { sdk: KapselSDK; getResult: () => ActivationResult } {
     const capSet = new Set(capabilities)
     const registered: ActivationResult = { tools: [], schedules: [], widgets: [] }
@@ -61,97 +78,113 @@ export function createActivationSDK(
         },
 
         memory: {
-            async read(_query, _opts) {
+            async read(query, opts) {
                 requireCap('memory:read')
-                // TODO Phase 14: delegate to memory API
-                return []
+                return bridge('memory.read', {
+                    workspaceId,
+                    query,
+                    tags: opts?.tags,
+                    limit: opts?.limit,
+                }) as Promise<Awaited<ReturnType<KapselSDK['memory']['read']>>>
             },
             async write(entry) {
                 requireCap('memory:write')
-                // TODO Phase 14: delegate to memory API
-                return {
-                    id: crypto.randomUUID(),
+                return bridge('memory.write', {
+                    workspaceId,
                     content: entry.content,
                     tags: entry.tags,
-                    authorExtension: extensionName as `@${string}/${string}`,
-                    metadata: entry.metadata,
-                    createdAt: Date.now(),
-                    updatedAt: Date.now(),
+                    metadata: { ...entry.metadata, authorExtension: extensionName },
                     ttl: entry.ttl,
-                }
+                }) as Promise<Awaited<ReturnType<KapselSDK['memory']['write']>>>
             },
-            async delete(_id) {
+            async delete(id) {
                 requireCap('memory:delete')
+                await bridge('memory.delete', { workspaceId, id })
             },
         },
 
         connections: {
             async getCredentials(service: string) {
                 requireCap(`connections:${service}`)
-                // TODO Phase 14: resolve from installedConnections table
-                throw new Error(`Connection "${service}" not yet resolved in this sandbox context`)
+                return bridge('connections.getCredentials', { workspaceId, service }) as
+                    Promise<Awaited<ReturnType<KapselSDK['connections']['getCredentials']>>>
             },
             async isConnected(service: string) {
                 requireCap(`connections:${service}`)
-                return false
+                const result = await bridge('connections.isConnected', { workspaceId, service })
+                return Boolean(result)
             },
         },
 
         channel: {
             async send(_msg) {
                 requireCap('channel:send')
+                await bridge('channel.send', { workspaceId, msg: _msg })
             },
             async sendDirect(_channelId, _msg) {
                 requireCap('channel:send-direct')
+                await bridge('channel.sendDirect', { workspaceId, channelId: _channelId, msg: _msg })
             },
         },
 
         tasks: {
-            async create(_opts) {
+            async create(opts) {
                 requireCap('tasks:create')
-                return { taskId: '' }
+                return bridge('tasks.create', { workspaceId, opts }) as
+                    Promise<Awaited<ReturnType<KapselSDK['tasks']['create']>>>
             },
-            async get(_id) {
+            async get(id) {
                 requireCap('tasks:read')
-                return null
+                return bridge('tasks.get', { workspaceId, id }) as
+                    Promise<Awaited<ReturnType<KapselSDK['tasks']['get']>>>
             },
-            async list(_filter) {
+            async list(filter) {
                 requireCap('tasks:read')
-                return []
+                return bridge('tasks.list', { workspaceId, filter }) as
+                    Promise<Awaited<ReturnType<KapselSDK['tasks']['list']>>>
             },
         },
 
         events: {
             subscribe(_topic, _handler) {
                 requireCap('events:subscribe')
+                // Subscription in persistent worker is handled via event-bus directly by the host
+                // Extensions that need event subscriptions declare them in their manifest
             },
-            async publish(topic, _payload) {
+            async publish(topic, payload) {
                 requireCap('events:publish')
-                // Enforce namespace — extensions can only publish to ext.<scope>.*
-                const extensionScope = extensionName.replace(/^@/, '').split('/')[0] ?? 'ext'
-                if (!topic.startsWith(`ext.${extensionScope}.`)) {
-                    throw new Error(`CAPABILITY_DENIED: extension may only publish to ext.${extensionScope}.* namespace`)
+                const scope = extensionName.replace(/^@/, '').replace('/', '_')
+                if (!topic.startsWith(`ext.${scope}.`)) {
+                    throw new Error(`CAPABILITY_DENIED: extension may only publish to ext.${scope}.* namespace`)
                 }
+                await bridge('events.publish', { topic, payload, extensionName })
             },
         },
 
         storage: {
             async get(key) {
                 requireCap('storage:read')
-                return (settings[key] as string | undefined) ?? null
+                // Check settings snapshot first (immutable at activation time)
+                if (Object.prototype.hasOwnProperty.call(settings, key)) {
+                    return settings[key] as string | null
+                }
+                const result = await bridge('storage.get', { extensionName, key }) as string | null
+                return result
             },
-            async set(_key, _value, _opts) {
+            async set(key, value, opts) {
                 requireCap('storage:write')
-                // TODO Phase 14: persist to Redis with extension-scoped key
+                await bridge('storage.set', { extensionName, key, value, ttl: opts?.ttlSeconds })
             },
-            async delete(_key) {
+            async delete(key) {
                 requireCap('storage:write')
+                await bridge('storage.delete', { extensionName, key })
             },
         },
 
         ui: {
-            async notify(_msg, _level) {
+            async notify(msg, level) {
                 requireCap('ui:notify')
+                await bridge('ui.notify', { workspaceId, msg, level })
             },
         },
     }
