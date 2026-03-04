@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
     LayoutDashboard,
     MessageSquare,
@@ -22,6 +22,7 @@ import {
     Terminal,
     ChevronDown,
     ChevronRight,
+    ShieldAlert,
 } from 'lucide-react'
 
 interface NavItem {
@@ -56,6 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
             { label: 'Tasks', href: '/tasks', icon: CheckSquare },
             { label: 'Projects', href: '/sprints', icon: FolderOpen },
             { label: 'Cron Jobs', href: '/cron', icon: Clock },
+            { label: 'Approvals', href: '/approvals', icon: ShieldAlert },
         ],
     },
     {
@@ -119,6 +121,26 @@ export function Sidebar() {
         NAV_GROUPS.forEach((g) => { init[g.label] = !g.defaultOpen })
         return init
     })
+    const [pendingApprovals, setPendingApprovals] = useState(0)
+
+    // Polling for pending approvals count
+    const fetchPending = useCallback(async () => {
+        const wsId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
+        const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+        if (!wsId) return
+        try {
+            const res = await fetch(`${api}/api/approvals?workspaceId=${wsId}`, { cache: 'no-store' })
+            if (!res.ok) return
+            const data = await res.json() as { total?: number }
+            setPendingApprovals(data.total ?? 0)
+        } catch { /* ignore */ }
+    }, [])
+
+    useEffect(() => {
+        void fetchPending()
+        const iv = setInterval(() => void fetchPending(), 10_000)
+        return () => clearInterval(iv)
+    }, [fetchPending])
 
     // Load persisted collapse state after mount
     useEffect(() => {
@@ -195,7 +217,12 @@ export function Sidebar() {
                                                         : 'text-zinc-600 group-hover:text-zinc-400'
                                                         }`}
                                                 />
-                                                {label}
+                                                <span className="flex-1 truncate">{label}</span>
+                                                {href === '/approvals' && pendingApprovals > 0 && (
+                                                    <span className="shrink-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                                                        {pendingApprovals}
+                                                    </span>
+                                                )}
                                             </Link>
                                         )
                                     })}
