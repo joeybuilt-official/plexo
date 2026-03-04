@@ -12,6 +12,7 @@ import {
     ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useWorkspace } from '@web/context/workspace'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,6 @@ interface Task {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 const POLL_MS = 15_000
 const ACTIVITY_POLL_MS = 10_000
 const CHANNEL_POLL_MS = 30_000
@@ -94,6 +94,8 @@ function timeAgo(iso: string): string {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function LiveDashboard() {
+    const { workspaceId: ctxWorkspaceId } = useWorkspace()
+    const WS_ID = ctxWorkspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [summary, setSummary] = useState<DashboardSummary | null>(null)
     const [tasks, setTasks] = useState<Task[]>([])
     const [channels, setChannels] = useState<ChannelHealth[]>([])

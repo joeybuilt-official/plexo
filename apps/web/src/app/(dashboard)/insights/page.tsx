@@ -11,9 +11,9 @@ import {
     ChevronDown,
     ChevronUp,
 } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
 interface ImprovementEntry {
     id: string
@@ -48,6 +48,8 @@ function timeAgo(iso: string) {
 }
 
 export default function InsightsPage() {
+    const { workspaceId } = useWorkspace()
+    const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [improvements, setImprovements] = useState<ImprovementEntry[]>([])
     const [preferences, setPreferences] = useState<Record<string, unknown>>({})
     const [loading, setLoading] = useState(false)

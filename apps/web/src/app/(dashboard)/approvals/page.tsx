@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { ShieldAlert, CheckCircle, XCircle, Clock, RefreshCw, AlertTriangle } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
 
 interface Approval {
     id: string
@@ -24,7 +25,6 @@ const RISK_CONFIG = {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
 function timeAgo(iso: string): string {
     const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -34,6 +34,8 @@ function timeAgo(iso: string): string {
 }
 
 export default function ApprovalsPage() {
+    const { workspaceId } = useWorkspace()
+    const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [items, setItems] = useState<Approval[]>([])
     const [loading, setLoading] = useState(true)
     const [acting, setActing] = useState<string | null>(null)

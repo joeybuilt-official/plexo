@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
+import { useWorkspace } from '@web/context/workspace'
 
 export function QuickSend() {
+    const { workspaceId: ctxWorkspaceId } = useWorkspace()
     const [text, setText] = useState('')
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
     const [taskId, setTaskId] = useState<string | null>(null)
@@ -14,16 +17,7 @@ export function QuickSend() {
         setStatus('sending')
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-
-            // Resolve workspaceId — env var preferred, else fetch first available workspace
-            let workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
-            if (!workspaceId || workspaceId === 'demo') {
-                const wsRes = await fetch(`${apiUrl}/api/workspaces?limit=1`)
-                if (wsRes.ok) {
-                    const wsData = await wsRes.json() as { items?: { id: string }[] }
-                    workspaceId = wsData.items?.[0]?.id
-                }
-            }
+            const workspaceId = ctxWorkspaceId || process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
 
             if (!workspaceId) throw new Error('No workspace found')
 
@@ -80,7 +74,10 @@ export function QuickSend() {
             </form>
             {status === 'sent' && taskId && (
                 <p className="mt-2 text-[11px] text-emerald-500">
-                    ✓ Task queued ({taskId.slice(0, 8)}…) — agent will pick it up shortly.
+                    ✓ Task queued —{' '}
+                    <Link href={`/tasks/${taskId}`} className="underline hover:text-emerald-400 transition-colors">
+                        view {taskId.slice(0, 8)}…
+                    </Link>
                 </p>
             )}
             {status === 'error' && (

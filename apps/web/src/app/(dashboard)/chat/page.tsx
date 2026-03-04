@@ -13,9 +13,9 @@ import {
     Loader2,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useWorkspace } from '@web/context/workspace'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,6 +57,8 @@ function StatusChip({ status }: { status: Message['status'] }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function ChatPage() {
+    const { workspaceId } = useWorkspace()
+    const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [sending, setSending] = useState(false)

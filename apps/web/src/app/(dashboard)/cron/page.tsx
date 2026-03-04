@@ -14,9 +14,9 @@ import {
     AlertCircle,
     Zap,
 } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,8 @@ function StatusIcon({ status }: { status: CronJob['lastRunStatus'] }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CronPage() {
+    const { workspaceId } = useWorkspace()
+    const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [jobs, setJobs] = useState<CronJob[]>([])
     const [loading, setLoading] = useState(true)
     const [adding, setAdding] = useState(false)

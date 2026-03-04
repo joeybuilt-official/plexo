@@ -14,9 +14,9 @@ import {
     Sparkles,
     User,
 } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -81,6 +81,8 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AgentSettingsPage() {
+    const { workspaceId: ctxWorkspaceId } = useWorkspace()
+    const WS_ID = ctxWorkspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null)
     const [settings, setSettings] = useState<WorkspaceSettings>({})
     const [workspaceName, setWorkspaceName] = useState('')

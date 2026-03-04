@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useWorkspace } from '@web/context/workspace'
 import {
     CheckCircle2,
     AlertCircle,
@@ -181,7 +182,8 @@ export default function AIProvidersPage() {
     const API_BASE = typeof window !== 'undefined'
         ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001')
         : 'http://localhost:3001'
-    const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
+    const { workspaceId: ctxWorkspaceId } = useWorkspace()
+    const WS_ID = ctxWorkspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
 
     // Load persisted config on mount
     useEffect(() => {

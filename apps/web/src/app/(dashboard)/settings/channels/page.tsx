@@ -18,9 +18,9 @@ import {
     Copy,
     Globe,
 } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -212,6 +212,8 @@ function TelegramWizard({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ChannelsPage() {
+    const { workspaceId } = useWorkspace()
+    const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [channels, setChannels] = useState<Channel[]>([])
     const [loading, setLoading] = useState(true)
     const [selected, setSelected] = useState<Channel | null>(null)

@@ -19,9 +19,9 @@ import {
     Cpu,
     Play,
 } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,9 +82,9 @@ function ServiceBadge({ name, health }: { name: string; health: ServiceHealth })
     )
 }
 
-function RouteRow({ check, result }: { check: RouteCheck; result: { ok: boolean; status: number; latencyMs: number } | null }) {
-    const url = check.requiresWorkspace && WS_ID
-        ? `${API_BASE}${check.route}?workspaceId=${WS_ID}`
+function RouteRow({ check, result, wsId }: { check: RouteCheck; result: { ok: boolean; status: number; latencyMs: number } | null; wsId: string }) {
+    const url = check.requiresWorkspace && wsId
+        ? `${API_BASE}${check.route}?workspaceId=${wsId}`
         : `${API_BASE}${check.route}`
 
     return (
@@ -128,6 +128,8 @@ function CopyButton({ value }: { value: string }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DebugPage() {
+    const { workspaceId } = useWorkspace()
+    const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [health, setHealth] = useState<HealthPayload | null>(null)
     const [healthLoading, setHealthLoading] = useState(true)
     const [routeResults, setRouteResults] = useState<Record<string, { ok: boolean; status: number; latencyMs: number }>>({})
@@ -388,6 +390,7 @@ export default function DebugPage() {
                                 key={check.route}
                                 check={check}
                                 result={routeResults[check.route] ?? null}
+                                wsId={WS_ID}
                             />
                         ))}
                     </tbody>

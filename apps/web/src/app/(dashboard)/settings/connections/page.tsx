@@ -21,6 +21,7 @@ import {
     Wrench,
     LayoutDashboard,
 } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,6 @@ interface ConnectedItem extends RegistryItem {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
 function categoryColor(cat: string): string {
     const map: Record<string, string> = {
@@ -102,6 +102,8 @@ const ALL_CATEGORIES = ['All', 'Code', 'Communication', 'Productivity', 'Finance
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ConnectionsPage() {
+    const { workspaceId } = useWorkspace()
+    const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [registry, setRegistry] = useState<RegistryItem[]>([])
     const [installed, setInstalled] = useState<InstalledConnection[]>([])
     const [selected, setSelected] = useState<RegistryItem | null>(null)
