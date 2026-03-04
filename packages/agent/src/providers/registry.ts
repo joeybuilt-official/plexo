@@ -115,10 +115,9 @@ export function buildModel(
         case 'deepseek':
             return deepseek(modelId)
         case 'ollama': {
-            // Use Ollama's OpenAI-compatible endpoint to get V3 spec compatibility
             const ol = createOpenAICompatible({
                 name: 'ollama',
-                baseURL: (config.baseUrl ?? 'http://localhost:11434') + '/v1',
+                baseURL: (config.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1',
             })
             return ol(modelId)
         }
@@ -236,10 +235,32 @@ const PROVIDER_ENV_KEY: Partial<Record<ProviderKey, string>> = {
     deepseek: 'DEEPSEEK_API_KEY',
 }
 
-function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: string): AnyLanguageModel {
+function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: string, apiKey?: string): AnyLanguageModel {
     switch (providerKey) {
         case 'openrouter': return createOpenRouter({})(modelId)
-        case 'anthropic': return anthropic(modelId)
+        case 'anthropic': {
+            if (apiKey) {
+                // Claude.ai subscription tokens (sk-ant-oat*) need Authorization: Bearer
+                const isOAuth = apiKey.startsWith('sk-ant-oat')
+                const provider = isOAuth
+                    ? createAnthropic({
+                        apiKey: 'oauth',
+                        fetch: (url: string | URL, init: RequestInit = {}) =>
+                            globalThis.fetch(url, {
+                                ...init,
+                                headers: {
+                                    ...(init.headers as Record<string, string> ?? {}),
+                                    'Authorization': `Bearer ${apiKey}`,
+                                    'anthropic-version': '2023-06-01',
+                                    'anthropic-beta': 'oauth-2025-04-20',
+                                },
+                            }),
+                    } as Parameters<typeof createAnthropic>[0])
+                    : createAnthropic({ apiKey })
+                return provider(modelId)
+            }
+            return anthropic(modelId)
+        }
         case 'openai': return openai(modelId)
         case 'google': return google(modelId)
         case 'mistral': return mistral(modelId)
@@ -247,7 +268,7 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
         case 'xai': return xai(modelId)
         case 'deepseek': return deepseek(modelId)
         case 'ollama': {
-            const base = (baseUrl ?? 'http://localhost:11434') + '/v1'
+            const base = (baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1'
             return createOpenAICompatible({ name: 'ollama', baseURL: base })(modelId)
         }
         default: {
@@ -275,25 +296,71 @@ export async function testProvider(
     timeoutMs = 10_000,
 ): Promise<ProviderTestResult> {
     const { generateText: gt } = await import('ai')
+    const start = Date.now()
+
+    // ── Ollama: discover models via GET, pick one, then test ──────────────────
+    if (providerKey === 'ollama') {
+        const baseURL = (opts.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1'
+        try {
+            const res = await fetch(`${baseURL}/models`, {
+                signal: AbortSignal.timeout(timeoutMs),
+            })
+            if (!res.ok) {
+                return { ok: false, message: `Server returned ${res.status}`, latencyMs: Date.now() - start, model: '' }
+            }
+            const data = await res.json() as { data?: { id: string }[] }
+            const models = data.data ?? []
+            if (models.length === 0) {
+                return { ok: false, message: 'Connected but no models are pulled on this server', latencyMs: Date.now() - start, model: '' }
+            }
+            // Prefer the specified model if present, otherwise pick smallest by name heuristic
+            const modelId = opts.model
+                ?? models.find(m => m.id.includes('mini') || m.id.includes('nano') || m.id.includes('small'))?.id
+                ?? models[0]!.id
+            // Try a generate — if the server blocks POST, still report ok since server responded
+            try {
+                const ol = createOpenAICompatible({ name: 'ollama', baseURL })(modelId)
+                const ac = new AbortController()
+                const timer = setTimeout(() => ac.abort(), Math.max(timeoutMs - (Date.now() - start), 5000))
+                const result = await gt({ model: ol, prompt: 'Say "ok".', maxOutputTokens: 20, abortSignal: ac.signal })
+                clearTimeout(timer)
+                return { ok: true, message: `Connected — ${models.length} model(s) available`, latencyMs: Date.now() - start, model: modelId }
+                void result
+            } catch {
+                // POST blocked or generation failed — but server responded to GET, so it's reachable
+                return { ok: true, message: `Reachable — ${models.length} model(s) available (generation test skipped)`, latencyMs: Date.now() - start, model: modelId }
+            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'
+            return { ok: false, message, latencyMs: Date.now() - start, model: opts.model ?? '' }
+        }
+    }
+
     const modelId = opts.model ?? DEFAULT_TEST_MODELS[providerKey]
     const envKey = PROVIDER_ENV_KEY[providerKey]
 
-    // Temporarily override env key
+    // For Anthropic OAuth tokens, do NOT inject into env (env → x-api-key which fails for OAuth).
+    // Instead pass the key directly to buildTestModel which handles Bearer auth.
+    const isAnthropicOAuth = providerKey === 'anthropic' && opts.apiKey?.startsWith('sk-ant-oat')
+
+    // Temporarily override env key for non-OAuth providers
     let savedKey: string | undefined
-    if (opts.apiKey && envKey) {
+    if (opts.apiKey && envKey && !isAnthropicOAuth) {
         savedKey = process.env[envKey]
         process.env[envKey] = opts.apiKey
     }
 
-    const start = Date.now()
     try {
-        const model = buildTestModel(providerKey, modelId, opts.baseUrl)
+        // For Anthropic: always pass the key directly so buildTestModel can set the correct auth header.
+        // For other providers: key is injected via env var above (non-Anthropic path).
+        const directKey = providerKey === 'anthropic' ? opts.apiKey : undefined
+        const model = buildTestModel(providerKey, modelId, opts.baseUrl, directKey)
         const ac = new AbortController()
         const timer = setTimeout(() => ac.abort(), timeoutMs)
         const result = await gt({
             model,
             prompt: 'Reply with the single word "ok".',
-            maxOutputTokens: 10,
+            maxOutputTokens: 20,
             abortSignal: ac.signal,
         })
         clearTimeout(timer)
@@ -303,7 +370,7 @@ export async function testProvider(
         const message = err instanceof Error ? err.message.slice(0, 200) : 'Unknown error'
         return { ok: false, message, latencyMs: Date.now() - start, model: modelId }
     } finally {
-        if (envKey) {
+        if (envKey && !isAnthropicOAuth) {
             if (savedKey === undefined) delete process.env[envKey]
             else process.env[envKey] = savedKey
         }

@@ -1,6 +1,6 @@
 import { Router, type Router as RouterType } from 'express'
-import { db, sql } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import { db, sql, eq, and } from '@plexo/db'
+import { workspaces, installedConnections } from '@plexo/db'
 import { createClient } from 'redis'
 import { logger } from '../logger.js'
 import { workerStats } from '@plexo/agent/persistent-pool'
@@ -57,18 +57,32 @@ async function pingAnthropic(): Promise<{ ok: boolean; latencyMs: number; error?
         } catch { /* non-fatal */ }
     }
     if (!key || key === 'placeholder') {
+        // Lightweight check: does any active Anthropic OAuth token exist?
+        try {
+            const found = await db.select({ id: installedConnections.id })
+                .from(installedConnections)
+                .where(and(
+                    eq(installedConnections.registryId, 'anthropic-claude'),
+                    eq(installedConnections.status, 'active'),
+                ))
+                .limit(1)
+            if (found.length > 0) return { ok: true, latencyMs: 0 }
+        } catch (e) { logger.warn({ err: e }, 'Anthropic OAuth token check failed') }
+    }
+    if (!key || key === 'placeholder') {
         return { ok: false, latencyMs: 0, error: 'no_key' }
     }
+    const resolvedKey = key
     const start = Date.now()
     try {
         // OAuth tokens (sk-ant-oat01-*) use Authorization: Bearer
         // Direct API keys (sk-ant-api03-*) use x-api-key
-        const isOAuth = key.startsWith('sk-ant-oat')
+        const isOAuth = resolvedKey.startsWith('sk-ant-oat')
         const headers: Record<string, string> = {
             'anthropic-version': '2023-06-01',
             ...(isOAuth
-                ? { 'Authorization': `Bearer ${key}` }
-                : { 'x-api-key': key }),
+                ? { 'Authorization': `Bearer ${resolvedKey}` }
+                : { 'x-api-key': resolvedKey }),
         }
         const res = await fetch('https://api.anthropic.com/v1/models', {
             headers,

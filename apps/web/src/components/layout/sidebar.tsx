@@ -379,6 +379,7 @@ export function Sidebar() {
 
             {/* Footer */}
             <div className="border-t border-zinc-800/50 px-3 py-3">
+                {/* User */}
                 <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5">
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-medium text-zinc-400">
                         A

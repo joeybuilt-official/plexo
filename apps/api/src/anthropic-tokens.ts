@@ -30,15 +30,23 @@ let _registryBootstrapped = false
 
 async function ensureRegistryEntry(): Promise<void> {
     if (_registryBootstrapped) return
-    await db.insert(connectionsRegistry).values({
-        id: ANTHROPIC_REGISTRY_ID,
-        name: 'Anthropic Claude',
-        description: 'Anthropic Claude API — API key or Claude.ai OAuth subscription',
-        category: 'ai',
-        logoUrl: 'https://anthropic.com/favicon.ico',
-        authType: 'oauth2',
-        isCore: true,
-    }).onConflictDoNothing()
+    // Check if the row already exists before attempting a write —
+    // avoids lock contention with concurrent reads when the row is already seeded.
+    const existing = await db.select({ id: connectionsRegistry.id })
+        .from(connectionsRegistry)
+        .where(eq(connectionsRegistry.id, ANTHROPIC_REGISTRY_ID))
+        .limit(1)
+    if (existing.length === 0) {
+        await db.insert(connectionsRegistry).values({
+            id: ANTHROPIC_REGISTRY_ID,
+            name: 'Anthropic Claude',
+            description: 'Anthropic Claude API — API key or Claude.ai OAuth subscription',
+            category: 'ai',
+            logoUrl: 'https://anthropic.com/favicon.ico',
+            authType: 'oauth2',
+            isCore: true,
+        }).onConflictDoNothing()
+    }
     _registryBootstrapped = true
 }
 

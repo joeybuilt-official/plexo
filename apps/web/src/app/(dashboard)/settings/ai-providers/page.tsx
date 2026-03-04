@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useWorkspace } from '@web/context/workspace'
 import {
     CheckCircle2,
@@ -8,12 +8,12 @@ import {
     Circle,
     ChevronDown,
     ChevronRight,
-    Cpu,
+    ExternalLink,
     TestTube,
     Save,
     Star,
-    GripVertical,
     RefreshCw,
+    Zap,
 } from 'lucide-react'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -46,15 +46,30 @@ interface ProviderConfig {
     badge?: string
     badgeColor?: string
     requiresKey: boolean
+    supportsOAuth?: boolean   // providers that accept Claude.ai subscription tokens
     staticModels?: string[]
 }
 
 interface ProviderState {
     apiKey: string
+    oauthToken: string        // Claude.ai subscription token (sk-ant-oat01-*)
     baseUrl: string
     selectedModel: string
     status: ProviderStatus
     testResult: string | null
+}
+
+// ── Provider API key links ───────────────────────────────────────────────────
+
+const PROVIDER_LINKS: Partial<Record<ProviderKey, { label: string; url: string }>> = {
+    openrouter: { label: 'Get API key', url: 'https://openrouter.ai/keys' },
+    anthropic: { label: 'Get API key', url: 'https://console.anthropic.com/account/keys' },
+    openai: { label: 'Get API key', url: 'https://platform.openai.com/api-keys' },
+    google: { label: 'Get API key', url: 'https://aistudio.google.com/app/apikey' },
+    groq: { label: 'Get API key', url: 'https://console.groq.com/keys' },
+    mistral: { label: 'Get API key', url: 'https://console.mistral.ai/api-keys/' },
+    deepseek: { label: 'Get API key', url: 'https://platform.deepseek.com/api_keys' },
+    xai: { label: 'Get API key', url: 'https://console.x.ai/' },
 }
 
 // ── Provider definitions ─────────────────────────────────────────────────────
@@ -73,6 +88,7 @@ const PROVIDERS: ProviderConfig[] = [
         name: 'Anthropic',
         description: 'Claude Sonnet, Haiku, Opus models',
         requiresKey: true,
+        supportsOAuth: true,
         staticModels: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5', 'claude-opus-4-6', 'claude-sonnet-4-6'],
     },
     {
@@ -162,6 +178,7 @@ export default function AIProvidersPage() {
         () => Object.fromEntries(
             PROVIDERS.map((p) => [p.key, {
                 apiKey: '',
+                oauthToken: '',
                 baseUrl: p.key === 'ollama' ? 'http://localhost:11434' : '',
                 selectedModel: '',
                 status: 'unconfigured' as ProviderStatus,
@@ -236,16 +253,54 @@ export default function AIProvidersPage() {
         }))
     }
 
+    const oauthPopupRef = useRef<Window | null>(null)
+
+    const handleClaudeOAuth = useCallback(() => {
+        if (!WS_ID) return
+        const url = `${API_BASE}/api/oauth/anthropic/start?workspaceId=${WS_ID}`
+        const popup = window.open(url, 'claude-oauth', 'width=600,height=700,left=200,top=100')
+        oauthPopupRef.current = popup
+
+        function onMessage(e: MessageEvent) {
+            if (e.data?.type !== 'oauth_callback' || e.data?.provider !== 'anthropic') return
+            window.removeEventListener('message', onMessage)
+            if (e.data.ok) {
+                updateState('anthropic', {
+                    status: 'configured',
+                    testResult: '✓ Connected via Claude.ai subscription — tokens stored securely.',
+                })
+            } else {
+                updateState('anthropic', {
+                    status: 'untested',
+                    testResult: `✗ Claude.ai OAuth failed: ${e.data.error ?? 'unknown error'}`,
+                })
+            }
+        }
+        window.addEventListener('message', onMessage)
+
+        // Cleanup if popup is closed without completing
+        const poll = setInterval(() => {
+            if (popup?.closed) {
+                clearInterval(poll)
+                window.removeEventListener('message', onMessage)
+            }
+        }, 500)
+    }, [WS_ID, API_BASE])
+
     async function handleTest() {
         setTesting(true)
         updateState(selectedProvider, { testResult: null })
         try {
+            // For Anthropic: prefer the OAuth token if set, otherwise use the API key
+            const effectiveKey = selected.supportsOAuth && state.oauthToken
+                ? state.oauthToken
+                : state.apiKey
             const res = await fetch(`${API_BASE}/api/settings/ai-providers/test`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     provider: selectedProvider,
-                    apiKey: state.apiKey,
+                    apiKey: effectiveKey,
                     baseUrl: state.baseUrl,
                     model: state.selectedModel || selected.staticModels?.[0] || 'default',
                 }),
@@ -279,7 +334,7 @@ export default function AIProvidersPage() {
             // Persist provider config to workspace settings, including API keys.
             // Keys are stored in workspace JSONB settings (local dev only).
             // In production, prefer ANTHROPIC_API_KEY env var.
-            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string }> = {}
+            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string; oauthToken?: string }> = {}
             for (const p of PROVIDERS) {
                 const s = providerStates[p.key]
                 if (s.status !== 'unconfigured') {
@@ -288,6 +343,7 @@ export default function AIProvidersPage() {
                         selectedModel: s.selectedModel,
                         baseUrl: s.baseUrl,
                         ...(s.apiKey ? { apiKey: s.apiKey } : {}),
+                        ...(s.oauthToken ? { oauthToken: s.oauthToken } : {}),
                     }
                 }
             }
@@ -424,17 +480,88 @@ export default function AIProvidersPage() {
                     {/* Credential fields */}
                     <div className="flex flex-col gap-4">
                         {selected.requiresKey ? (
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-sm font-medium text-zinc-300">API Key</label>
-                                <input
-                                    type="password"
-                                    value={state.apiKey}
-                                    onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
-                                    placeholder="sk-••••••••"
-                                    autoComplete="new-password"
-                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-                                />
-                                <p className="text-xs text-zinc-600">Write-only — existing value not shown. Leave blank to keep current.</p>
+                            <div className="flex flex-col gap-4">
+
+                                {/* Claude OAuth — prominent inline connect button */}
+                                {selected.supportsOAuth && (
+                                    <div className="flex flex-col gap-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15">
+                                                <Zap className="h-4 w-4 text-violet-400" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-medium text-zinc-200">Connect with Claude.ai</p>
+                                                <p className="mt-0.5 text-xs text-zinc-500">
+                                                    Use your Claude Pro or Max subscription instead of a paid API key.
+                                                    Tokens are stored securely and refreshed automatically.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={handleClaudeOAuth}
+                                            disabled={!WS_ID}
+                                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-500 transition-colors disabled:opacity-40"
+                                        >
+                                            <Zap className="h-3.5 w-3.5" />
+                                            Connect with Claude.ai
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* API key field */}
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-medium text-zinc-300">
+                                            {selected.supportsOAuth ? 'API Key' : 'API Key'}
+                                        </label>
+                                        {PROVIDER_LINKS[selectedProvider] && (
+                                            <a
+                                                href={PROVIDER_LINKS[selectedProvider]!.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                            >
+                                                {PROVIDER_LINKS[selectedProvider]!.label}
+                                                <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </div>
+                                    <input
+                                        type="password"
+                                        value={state.apiKey}
+                                        onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
+                                        placeholder={selected.supportsOAuth ? 'sk-ant-api03-•••••••• (permanent API key)' : 'sk-••••••••'}
+                                        autoComplete="new-password"
+                                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                    />
+                                    <p className="text-xs text-zinc-600">
+                                        {selected.supportsOAuth
+                                            ? 'Permanent API key from console.anthropic.com. Write-only — leave blank to keep current.'
+                                            : 'Write-only — existing value not shown. Leave blank to keep current.'}
+                                    </p>
+                                </div>
+
+                                {/* OAuth token manual paste (Anthropic only) */}
+                                {selected.supportsOAuth && (
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-sm font-medium text-zinc-300">Claude.ai OAuth Token</label>
+                                            <span className="text-[10px] font-semibold rounded px-1.5 py-0.5 bg-violet-500/15 text-violet-400 border border-violet-500/30">manual paste</span>
+                                        </div>
+                                        <input
+                                            type="password"
+                                            value={state.oauthToken}
+                                            onChange={(e) => updateState(selectedProvider, { oauthToken: e.target.value })}
+                                            placeholder="sk-ant-oat01-•••••••• (if not using the button above)"
+                                            autoComplete="new-password"
+                                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                        />
+                                        <p className="text-xs text-zinc-600">
+                                            Use the button above if possible — tokens expire after 1hr and need manual re-entry.
+                                            Uses <code className="text-zinc-500">Authorization: Bearer</code>. Takes priority over API key if set.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="flex flex-col gap-1.5">
@@ -498,84 +625,96 @@ export default function AIProvidersPage() {
                             </div>
                         )}
                     </div>
-
-                    {/* Fallback chain */}
-                    {configuredProviders.length > 0 && (
-                        <div className="mt-6">
-                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                                Fallback chain
-                            </h3>
-                            <p className="mb-3 text-xs text-zinc-600">
-                                If the primary provider fails, Plexo tries these in order. Use ↑↓ to reorder.
-                            </p>
-                            <div className="flex flex-col gap-1.5">
-                                {configuredProviders.map((p, idx) => (
-                                    <div key={p.key} className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-                                        <div className="flex flex-col gap-0.5">
-                                            <button
-                                                onClick={() => moveFallback(p.key, -1)}
-                                                disabled={idx === 0}
-                                                className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none"
-                                                aria-label="Move up"
-                                            >▲</button>
-                                            <button
-                                                onClick={() => moveFallback(p.key, 1)}
-                                                disabled={idx === configuredProviders.length - 1}
-                                                className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none"
-                                                aria-label="Move down"
-                                            >▼</button>
-                                        </div>
-                                        <StatusDot status={providerStates[p.key].status} />
-                                        <span className="text-sm text-zinc-300">{p.name}</span>
-                                        {primaryProvider === p.key && (
-                                            <span className="ml-auto text-xs text-indigo-400">primary</span>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Model routing — collapsible advanced section */}
-                    <div className="mt-6">
-                        <button
-                            onClick={() => setShowRouting((v) => !v)}
-                            className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-400 transition-colors"
-                        >
-                            {showRouting ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                            Model Routing (Advanced)
-                        </button>
-                        {showRouting && (
-                            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b border-zinc-800">
-                                            <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Task type</th>
-                                            <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Model</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(Object.entries(TASK_LABELS) as [TaskType, string][]).map(([taskType, label]) => (
-                                            <tr key={taskType} className="border-b border-zinc-800/50 last:border-0">
-                                                <td className="px-4 py-2.5 text-zinc-400">{label}</td>
-                                                <td className="px-4 py-2.5">
-                                                    <input
-                                                        type="text"
-                                                        value={modelRouting[taskType]}
-                                                        onChange={(e) => setModelRouting((prev) => ({ ...prev, [taskType]: e.target.value }))}
-                                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
-                                                        placeholder={DEFAULT_MODELS[taskType]}
-                                                    />
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
                 </div>
             </div>
+
+            {/* ── Global Routing ─────────────────────────────────── */}
+            {configuredProviders.length > 0 && (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <h2 className="text-sm font-semibold text-zinc-200">Fallback Chain</h2>
+                            <p className="mt-0.5 text-xs text-zinc-500">
+                                If the primary provider fails, Plexo tries these in order — across all task types.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setShowRouting((v) => !v)}
+                            className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-400 transition-colors shrink-0"
+                        >
+                            {showRouting ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                            Model routing
+                        </button>
+                    </div>
+
+                    {/* Provider priority row */}
+                    <div className="mt-4 flex items-center gap-2 flex-wrap">
+                        {configuredProviders.map((p, idx) => (
+                            <div
+                                key={p.key}
+                                className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${primaryProvider === p.key
+                                    ? 'border-indigo-500/40 bg-indigo-500/8'
+                                    : 'border-zinc-700 bg-zinc-900/60'
+                                    }`}
+                            >
+                                <span className="text-xs text-zinc-600 font-mono w-4 text-center">{idx + 1}</span>
+                                <StatusDot status={providerStates[p.key].status} />
+                                <span className="text-sm text-zinc-300">{p.name}</span>
+                                {primaryProvider === p.key && (
+                                    <span className="text-[10px] text-indigo-400 font-medium">primary</span>
+                                )}
+                                <div className="flex gap-0.5 ml-1">
+                                    <button
+                                        onClick={() => moveFallback(p.key, -1)}
+                                        disabled={idx === 0}
+                                        className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none px-0.5"
+                                        aria-label="Move up"
+                                    >◀</button>
+                                    <button
+                                        onClick={() => moveFallback(p.key, 1)}
+                                        disabled={idx === configuredProviders.length - 1}
+                                        className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none px-0.5"
+                                        aria-label="Move down"
+                                    >▶</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Model routing — collapsible */}
+                    {showRouting && (
+                        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                            <div className="px-4 py-2.5 border-b border-zinc-800">
+                                <p className="text-xs text-zinc-500">Map each task type to a specific model. Leave blank to use the primary provider's default.</p>
+                            </div>
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-zinc-800">
+                                        <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Task type</th>
+                                        <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Model</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(Object.entries(TASK_LABELS) as [TaskType, string][]).map(([taskType, label]) => (
+                                        <tr key={taskType} className="border-b border-zinc-800/50 last:border-0">
+                                            <td className="px-4 py-2.5 text-zinc-400">{label}</td>
+                                            <td className="px-4 py-2.5">
+                                                <input
+                                                    type="text"
+                                                    value={modelRouting[taskType]}
+                                                    onChange={(e) => setModelRouting((prev) => ({ ...prev, [taskType]: e.target.value }))}
+                                                    className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                                    placeholder={DEFAULT_MODELS[taskType]}
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     )
 }

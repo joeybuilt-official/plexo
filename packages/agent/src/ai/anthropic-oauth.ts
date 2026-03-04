@@ -126,6 +126,14 @@ export async function resolveAnthropicHeaders(
     onRefresh?: (updated: AnthropicCredential) => Promise<void>,
 ): Promise<Record<string, string>> {
     if (credential.type === 'api_key') {
+        // Claude.ai subscription tokens (sk-ant-oat*) use Authorization: Bearer, not x-api-key
+        if (credential.apiKey.startsWith('sk-ant-oat')) {
+            return {
+                'Authorization': `Bearer ${credential.apiKey}`,
+                'anthropic-version': '2023-06-01',
+                'anthropic-beta': 'oauth-2025-04-20',
+            }
+        }
         return {
             'x-api-key': credential.apiKey,
             'anthropic-version': '2023-06-01',

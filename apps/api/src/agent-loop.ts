@@ -1,12 +1,13 @@
 import { claimTask, completeTask, blockTask } from '@plexo/queue'
 import { db, eq } from '@plexo/db'
-import { tasks, workspaces, installedConnections } from '@plexo/db'
+import { tasks, workspaces } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
-import type { WorkspaceAISettings } from '@plexo/agent/providers'
+import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from './logger.js'
 import { emit } from './sse-emitter.js'
+import { getAnthropicTokens } from './anthropic-tokens.js'
 
 const POLL_INTERVAL_MS = 2_000
 const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
@@ -15,57 +16,79 @@ let running = true
 let activeAbort: AbortController | null = null
 
 /**
- * Resolve the Anthropic credential for a workspace.
- * Priority:
- *   1. ANTHROPIC_API_KEY env var (server-level override)
- *   2. workspace.settings.aiProviders.providers.anthropic.apiKey (set via UI)
- *   3. installedConnections table (future OAuth flow)
+ * Load workspace AI settings and resolve the first usable credential.
+ * Checks the full fallback chain (primary → fallbacks) so that if Anthropic
+ * isn't configured but OpenAI is, the task proceeds and withFallback() in
+ * the executor handles provider selection.
  */
-async function resolveCredential(workspaceId: string): Promise<AnthropicCredential | null> {
-    // 1. Env var override
-    const envKey = process.env.ANTHROPIC_API_KEY
-    if (envKey && envKey !== 'placeholder') {
-        return { type: 'api_key', apiKey: envKey }
-    }
+async function loadWorkspaceAISettings(workspaceId: string): Promise<{
+    credential: AnthropicCredential | null
+    aiSettings: WorkspaceAISettings | null
+}> {
+    let aiSettings: WorkspaceAISettings | null = null
+    let providers: Record<string, { apiKey?: string; oauthToken?: string; baseUrl?: string; defaultModel?: string }> = {}
 
-    // 2. Workspace settings (saved by AI Providers UI)
     try {
         const [ws] = await db.select({ settings: workspaces.settings })
             .from(workspaces)
             .where(eq(workspaces.id, workspaceId))
             .limit(1)
-        const settings = ws?.settings as {
+        const s = ws?.settings as {
             aiProviders?: {
-                providers?: Record<string, { apiKey?: string; status?: string }>
+                primaryProvider?: string
+                fallbackChain?: string[]
+                providers?: Record<string, { apiKey?: string; oauthToken?: string; baseUrl?: string; defaultModel?: string }>
             }
         } | null
-        const providers = settings?.aiProviders?.providers ?? {}
-        // Check anthropic first, then any provider with an api key
-        const providerOrder = ['anthropic', ...Object.keys(providers).filter(k => k !== 'anthropic')]
-        for (const p of providerOrder) {
-            const key = providers[p]?.apiKey
-            if (key) return { type: 'api_key', apiKey: key }
+        if (s?.aiProviders) {
+            const ap = s.aiProviders
+            providers = ap.providers ?? {}
+            aiSettings = {
+                primaryProvider: (ap.primaryProvider ?? 'anthropic') as ProviderKey,
+                fallbackChain: (ap.fallbackChain ?? []) as ProviderKey[],
+                providers: Object.fromEntries(
+                    Object.entries(providers).map(([k, v]) => [k, {
+                        provider: k as ProviderKey,
+                        apiKey: v.apiKey,
+                        baseUrl: v.baseUrl,
+                        defaultModel: v.defaultModel,
+                    }])
+                ) as WorkspaceAISettings['providers'],
+            }
         }
     } catch (err) {
-        logger.warn({ err }, 'Failed to read AI key from workspace settings')
+        logger.warn({ err }, 'Failed to load workspace AI settings')
     }
 
-    // 3. installedConnections table
+    // 1. Env var override (Anthropic direct key only)
+    const envKey = process.env.ANTHROPIC_API_KEY
+    if (envKey && envKey !== 'placeholder' && !envKey.startsWith('sk-ant-oat')) {
+        return { credential: { type: 'api_key', apiKey: envKey }, aiSettings }
+    }
+
+    // 2. Walk the fallback chain — any provider with a configured key unblocks execution
+    const chain = [aiSettings?.primaryProvider, ...(aiSettings?.fallbackChain ?? [])].filter(Boolean) as string[]
+    for (const providerKey of chain) {
+        const p = providers[providerKey]
+        if (!p) continue
+        if (providerKey === 'anthropic') {
+            if (p.oauthToken) return { credential: { type: 'api_key', apiKey: p.oauthToken }, aiSettings }
+            if (p.apiKey && p.apiKey !== 'placeholder') return { credential: { type: 'api_key', apiKey: p.apiKey }, aiSettings }
+        } else if (p.apiKey && p.apiKey !== 'placeholder') {
+            // Non-Anthropic key — credential acts as a gate sentinel; withFallback() in the executor picks the actual model
+            return { credential: { type: 'api_key', apiKey: p.apiKey }, aiSettings }
+        }
+    }
+
+    // 3. Installed OAuth token (Claude.ai subscription)
     try {
-        const rows = await db
-            .select({ credentials: installedConnections.credentials })
-            .from(installedConnections)
-            .where(eq(installedConnections.workspaceId, workspaceId))
-        for (const row of rows) {
-            const creds = row.credentials as Record<string, string> | null
-            const key = creds?.api_key ?? creds?.apiKey ?? creds?.ANTHROPIC_API_KEY
-            if (key) return { type: 'api_key', apiKey: key }
+        const tokens = await getAnthropicTokens(workspaceId)
+        if (tokens?.accessToken) {
+            return { credential: { type: 'api_key', apiKey: tokens.accessToken }, aiSettings }
         }
-    } catch (err) {
-        logger.warn({ err }, 'Failed to load credentials from installedConnections')
-    }
+    } catch { /* non-fatal */ }
 
-    return null
+    return { credential: null, aiSettings }
 }
 
 async function processOneTask(): Promise<boolean> {
@@ -75,7 +98,7 @@ async function processOneTask(): Promise<boolean> {
     logger.info({ taskId: task.id, type: task.type }, 'Task claimed')
     emit({ type: 'task_started', taskId: task.id, taskType: task.type })
 
-    const credential = await resolveCredential(task.workspaceId)
+    const { credential, aiSettings } = await loadWorkspaceAISettings(task.workspaceId)
     if (!credential) {
         await blockTask(task.id, 'No AI credential configured for workspace')
         emit({ type: 'task_blocked', taskId: task.id, reason: 'No AI credential' })
@@ -91,12 +114,11 @@ async function processOneTask(): Promise<boolean> {
         workspaceId: task.workspaceId,
         userId: 'system',
         credential,
-        tokenBudget: Math.floor((API_COST_CEILING * 1_000_000) / 15), // rough token budget from cost ceiling
+        tokenBudget: Math.floor((API_COST_CEILING * 1_000_000) / 15),
         signal: abort.signal,
     }
 
     try {
-        // Update DB status to running
         await db.update(tasks)
             .set({ status: 'running', claimedAt: new Date() })
             .where(eq(tasks.id, task.id))
@@ -104,19 +126,17 @@ async function processOneTask(): Promise<boolean> {
         const taskContext = task.context as Record<string, unknown>
         const description = (taskContext.description as string) ?? JSON.stringify(taskContext)
 
-        // Plan
         emit({ type: 'task_planning', taskId: task.id })
         const plan = await planTask(ctx, description, taskContext)
         logger.info({ taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore }, 'Plan ready')
         emit({ type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
 
-        // Confirm one-way doors — Phase 2: auto-approve unless user set confirm threshold
         if (plan.oneWayDoors.length > 0) {
             logger.warn({ taskId: task.id, doors: plan.oneWayDoors.length }, 'One-way doors detected — auto-approving in Phase 2')
         }
 
-        // Execute
-        const result = await executeTask(ctx, plan)
+        // Pass workspace AI settings so executeTask uses the configured provider fallback chain
+        const result = await executeTask(ctx, plan, aiSettings ?? undefined)
         logger.info({ taskId: task.id, ok: result.ok, cost: result.totalCostUsd }, 'Task executed')
 
         await completeTask(task.id, {
@@ -160,7 +180,6 @@ export function startAgentLoop(): void {
         }
     }
 
-    // Run without blocking the event loop
     poll().catch((err) => logger.fatal({ err }, 'Agent loop crashed'))
 }
 

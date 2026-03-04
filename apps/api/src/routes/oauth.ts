@@ -27,6 +27,11 @@ function generatePKCE(): { verifier: string; challenge: string } {
 
 // ── GET /api/oauth/anthropic/start?workspaceId= ──────────────────────────────
 
+// Anthropic's OAuth server only allows http://127.0.0.1:{port}/callback
+// as the redirect_uri (same pattern as Claude Code). We register that,
+// then alias /callback → /api/oauth/anthropic/callback on our server.
+const ANTHROPIC_REDIRECT_URI = `http://localhost:${process.env.PORT ?? 3001}/oauth/callback`
+
 oauthRouter.get('/anthropic/start', async (req, res) => {
     const workspaceId = req.query.workspaceId as string
     if (!workspaceId) {
@@ -36,13 +41,12 @@ oauthRouter.get('/anthropic/start', async (req, res) => {
 
     const { verifier, challenge } = generatePKCE()
     const state = base64url(randomBytes(16))
-    const redirectUri = `${process.env.PUBLIC_URL}/api/oauth/anthropic/callback`
 
     try {
         await storePkce(state, {
             codeVerifier: verifier,
             workspaceId,
-            redirectUri,
+            redirectUri: ANTHROPIC_REDIRECT_URI,
             createdAt: Date.now(),
         })
     } catch (err) {
@@ -51,8 +55,8 @@ oauthRouter.get('/anthropic/start', async (req, res) => {
         return
     }
 
-    const url = buildAnthropicAuthUrl({ redirectUri, state, codeChallenge: challenge })
-    res.json({ url, state })
+    const url = buildAnthropicAuthUrl({ redirectUri: ANTHROPIC_REDIRECT_URI, state, codeChallenge: challenge })
+    res.redirect(url)
 })
 
 // ── GET /api/oauth/anthropic/callback?code=...&state=... ─────────────────────
@@ -94,16 +98,15 @@ oauthRouter.get('/anthropic/callback', async (req, res) => {
 
         logger.info({ workspaceId: pending.workspaceId }, 'Anthropic OAuth tokens stored (encrypted)')
 
-        // Don't return raw tokens — they're persisted in DB now
-        res.json({
-            success: true,
+        res.send(popupCloseScript({
+            ok: true,
+            provider: 'anthropic',
             workspaceId: pending.workspaceId,
             credentialType: 'oauth_token',
-            expiresIn: tokens.expires_in,
-        })
+        }))
     } catch (err) {
         logger.error({ err }, 'Anthropic OAuth exchange failed')
-        res.status(502).json({ error: 'OAuth token exchange failed' })
+        res.send(popupCloseScript({ ok: false, provider: 'anthropic', error: 'exchange_failed' }))
     }
 })
 
@@ -178,7 +181,7 @@ oauthRouter.get('/:provider/start', async (req, res) => {
     }
 
     const state = base64url(randomBytes(16))
-    const redirectUri = `${process.env.PUBLIC_URL ?? 'http://localhost:3001'}/api/oauth/${provider}/callback`
+    const redirectUri = `${process.env.API_PUBLIC_URL ?? 'http://localhost:3001'}/api/oauth/${provider}/callback`
 
     try {
         await storePkce(state, {
@@ -326,6 +329,42 @@ function popupCloseScript(payload: Record<string, unknown>): string {
         setTimeout(() => window.close(), 300)
     </script><p style="font-family:sans-serif;color:#aaa;text-align:center;margin-top:40vh">${payload.ok ? 'Connected! Closing…' : 'Error: ' + String(payload.error)}</p></body></html>`
 }
+
+// ── POST /api/oauth/anthropic/import-cli ────────────────────────────────────
+// Dev-only: reads ~/.claude/.credentials.json (written by Claude Code CLI)
+// and loads the stored OAuth tokens directly into Plexo's credential store.
+// Only works when the file exists on the server's local filesystem.
+
+oauthRouter.post('/anthropic/import-cli', async (req, res) => {
+    const { workspaceId } = req.body as { workspaceId?: string }
+    if (!workspaceId) {
+        res.status(400).json({ error: 'workspaceId required' })
+        return
+    }
+    try {
+        const { readFileSync } = await import('node:fs')
+        const home = process.env.HOME ?? '/root'
+        const raw = JSON.parse(readFileSync(`${home}/.claude/.credentials.json`, 'utf8'))
+        const oauth = raw?.claudeAiOauth
+        if (!oauth?.accessToken) {
+            res.status(404).json({ error: 'No claudeAiOauth.accessToken found in ~/.claude/.credentials.json' })
+            return
+        }
+        const expiresIn = Math.max(0, Math.floor((oauth.expiresAt - Date.now()) / 1000))
+        await storeAnthropicTokens(workspaceId, {
+            access_token: oauth.accessToken,
+            refresh_token: oauth.refreshToken,
+            expires_in: expiresIn,
+            token_type: 'Bearer',
+        })
+        logger.info({ workspaceId, expiresIn }, 'Anthropic OAuth token imported from Claude Code CLI')
+        res.json({ ok: true, expiresIn, tokenPrefix: String(oauth.accessToken).slice(0, 20) + '…' })
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        logger.error({ err }, 'CLI token import failed')
+        res.status(500).json({ error: msg })
+    }
+})
 
 // ── GET /api/oauth/anthropic/info ────────────────────────────────────────────
 
