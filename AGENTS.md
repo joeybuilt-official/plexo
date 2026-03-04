@@ -178,3 +178,13 @@ This has implications for every decision:
 - **Workspace resolver pattern**: `getWorkspaceId()` in `apps/web/src/lib/workspace.ts` — React `cache()` deduplicates within a render pass. All server components should import from here, NOT use raw env vars. Three different env var names were previously inconsistent across files (`DEV_WORKSPACE_ID`, `DEFAULT_WORKSPACE_ID`, `NEXT_PUBLIC_DEFAULT_WORKSPACE`). Server components use `DEV_WORKSPACE_ID` fallback; client components use `NEXT_PUBLIC_DEFAULT_WORKSPACE`.
 - **workspaces API**: Added `?ownerId=` filter param. Owner is the `uuid workspace.owner_id` FK to `users.id`. Session `user.id` maps to this.
 - **Debug page**: Uses only `NEXT_PUBLIC_*` vars (client component). Route checks run in parallel with `Promise.all`. SSE connection opened on mount for stream diagnostics.
+
+### 2026-03 — Phase 10 (Live Dashboard + Debug + Connections Tools)
+
+- **LiveDashboard**: Client component polling `/api/dashboard/summary` every 15s and `/api/dashboard/activity` every 10s. SSE via EventSource for real-time task/agent events. Manual refresh + last-updated timestamp. Replaces server-rendered DashboardCards + TaskFeed in page.tsx.
+- **Debug page enhancements**: Added Runtime Snapshot panel (GET /api/debug/snapshot — queue depth, sprint_tasks, work_ledger 7d, process info) and RPC Console (POST /api/debug/rpc — allowlisted: ping, queue.stats, memory.list, memory.run_improvement, agent.status).
+- **debug.ts route**: `sprint_tasks.status` enum values are `queued/running/complete/blocked/failed` (NOT `in_progress`). `work_ledger` uses `completed_at` not `created_at`. `tokens_in/tokens_out` are nullable so use COALESCE.
+- **tsx watch + stdin**: Do NOT start `tsx watch` via `&` without `< /dev/null`. If stdin is a pipe, tsx reads Enter keys from subsequent shell commands and hot-restarts mid-request. Always use `cmd < /dev/null > logfile 2>&1 &`.
+- **Connections Tools tab**: Per-tool enable/disable toggles backed by `enabled_tools jsonb` column in `installed_connections`. Migration 0004 applies ADD COLUMN IF NOT EXISTS. Applied directly via psql because Drizzle journal only tracks 0000 and 0001.
+- **web .env.local**: `NEXT_PUBLIC_DEFAULT_WORKSPACE` and `DEV_WORKSPACE_ID` set to the dev workspace UUID. Required for LiveDashboard and other client components to make API calls.
+- **API restart protocol**: `kill -9 <pid>` then restart with `cmd < /dev/null >> logfile 2>&1 &`. Wait 5s, verify with `curl -sm4 http://localhost:3001/health`. Do not use pnpm from within a background job (EBADF on stdin).

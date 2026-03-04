@@ -12,6 +12,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [0.7.0-dev] — 2026-03-04 (Phase 10 — Live Dashboard + Debug + Connections Tools)
+
+### Added
+- **LiveDashboard** client component — SSE + polling (15s summary, 10s activity), manual refresh, last-updated timestamp. Dashboard page now uses `LiveDashboard` instead of static server components
+- **Runtime Snapshot** panel in debug page — `GET /api/debug/snapshot` returns queue depth, sprint task counts, work ledger 7d stats, SSE client count, process info
+- **RPC Console** in debug page — `POST /api/debug/rpc` with allowlisted methods: `ping`, `queue.stats`, `memory.list`, `memory.run_improvement`, `agent.status`
+- **Connections Tools tab** — per-tool enable/disable toggles backed by `enabled_tools jsonb` column in `installed_connections` (migration 0004)
+- `PUT /api/connections/installed/:id/tools` — save enabled tools list per connection
+
+### Changed
+- Dashboard page converted from server component to `LiveDashboard` client component
+- Debug page adds Runtime Snapshot + RPC Console panels
+- Connections page: Overview/Tools/Config tabbed detail panel
+
+---
+
 ## [0.6.0] — 2026-03-03 (Phase 6 — Memory + Self-Improvement)
 
 ### Added
