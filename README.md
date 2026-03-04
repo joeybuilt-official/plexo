@@ -4,17 +4,17 @@
 
 **An AI agent that works for you, 24/7, on your own server.**
 
-Plexo runs a persistent agent that handles real work autonomously — and interrupts only when a real decision is needed. It communicates through channels you already use: Telegram, Slack, Discord. It learns from every task it completes.
+Plexo runs a persistent agent that handles real work autonomously — and interrupts only when a real decision is needed. It communicates through channels you already use: Telegram, Slack, Discord. It learns from every task it completes. It is extensible via the **Kapsel** plugin standard.
 
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-orange.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-15%20complete-brightgreen)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Phase](https://img.shields.io/badge/phase-25%20complete-brightgreen)](https://github.com/dustin-olenslager/plexo#roadmap)
 [![Kapsel](https://img.shields.io/badge/Kapsel-Full%20compliant-6C47FF)](https://github.com/joeybuilt-official/kapsel)
 
-[**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Kapsel Extension SDK](packages/sdk/) · [Architecture](docs/architecture.md)
+[**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Kapsel SDK](packages/sdk/) · [Kapsel Protocol →](https://github.com/joeybuilt-official/kapsel) · [Architecture](docs/architecture.md)
 
 </div>
 
@@ -40,7 +40,7 @@ A founder monitoring Stripe and generating weekly reports, an operator managing 
 | **Business ops** | Monitor Stripe, PostHog, Linear — generate reports, track KPIs, send scheduled updates |
 | **Research** | Sourced answers, topic tracking, document synthesis, structured option comparisons |
 | **Online tasks** | Web interaction, form automation, data collection, API-driven workflows |
-| **Personal automation** | Recurring scheduled tasks, monitoring with notifications, custom workflows via plugins |
+| **Personal automation** | Recurring scheduled tasks, monitoring with notifications, custom workflows via extensions |
 
 ---
 
@@ -49,7 +49,7 @@ A founder monitoring Stripe and generating weekly reports, an operator managing 
 ```bash
 git clone https://github.com/dustin-olenslager/plexo
 cd plexo
-cp .env.example .env   # fill in 5 values
+cp .env.example .env.local   # fill in 5 values
 docker compose -f docker/compose.yml up -d
 ```
 
@@ -63,7 +63,7 @@ DATABASE_URL=postgresql://...     # or leave blank to use the bundled Postgres
 REDIS_URL=redis://...             # or leave blank to use the bundled Redis
 ANTHROPIC_API_KEY=sk-ant-...      # or connect via Claude.ai OAuth — no API key needed
 PUBLIC_URL=https://your-domain    # where Plexo is reachable from the internet
-SECRET=any-random-string          # for signing sessions
+SESSION_SECRET=any-random-string  # generate: openssl rand -hex 64
 ```
 
 </details>
@@ -88,7 +88,7 @@ Plexo supports both:
 | **Web** | Next.js 15 App Router, Tailwind CSS | Server components, streaming, proven at scale |
 | **API** | Express 5 | Async middleware native, vast ecosystem, simple mental model |
 | **Database** | PostgreSQL 16 + pgvector 0.8.2, Drizzle ORM | Vector search native, no binary deps, SQL-native |
-| **Cache / queue** | Redis (Valkey-compatible) | PKCE state, task queue, session cache |
+| **Cache / queue** | Redis (Valkey-compatible) | PKCE state, task queue, session cache, extension storage |
 | **Auth** | Auth.js v5 (NextAuth) | Credential + OAuth providers, session management |
 | **AI** | Vercel AI SDK — Anthropic, OpenAI, Google, Mistral, Groq, xAI, DeepSeek, Ollama, OpenRouter | Unified API, structured output, provider fallback chains |
 | **Build** | pnpm workspaces + Turborepo | Incremental builds, workspace dependency graph |
@@ -102,17 +102,17 @@ Plexo supports both:
 ```
 plexo/
 ├── apps/
-│   ├── api/          Express 5 — agent loop, task/sprint APIs, channel adapters, SSE
-│   └── web/          Next.js 15 — dashboard, auth, settings
+│   ├── api/          Express 5 — agent loop, task/sprint APIs, channel adapters, SSE, registry
+│   └── web/          Next.js 15 — dashboard, auth, settings, approvals UI
 ├── packages/
-│   ├── agent/        Planner + Executor, provider registry, tool dispatch
+│   ├── agent/        Planner + Executor, provider registry, persistent worker pool, event bus
 │   ├── db/           Drizzle schema, migrations, lazy client
 │   ├── queue/        Task queue (push/list/complete/block/cancel)
-│   └── sdk/          Public plugin API (stable interface — semver enforced)
+│   └── sdk/          Public Kapsel plugin API (stable interface — semver enforced)
 ├── plugins/
 │   └── core/         Built-in tools (read_file, write_file, shell, task_complete)
 ├── docker/           Compose files, Caddy config
-├── docs/             Architecture, plugin SDK guide
+├── docs/             Architecture, plugin SDK guide, deployment
 └── tests/
     ├── unit/         Vitest unit tests (no network, no DB)
     └── integration/  Vitest integration tests (real Postgres)
@@ -130,22 +130,114 @@ User message
         └─▶ Executor (AI SDK generateText + tools)
               ├─▶ read_file      read any file in scope
               ├─▶ write_file     write/patch files
-              ├─▶ shell          run commands (sandboxed in Phase 4)
+              ├─▶ shell          run commands (sandboxed)
+              ├─▶ [extension tools loaded from persistent workers]
               └─▶ task_complete  persist outcome, score quality, notify channel
 ```
 
 Safety limits (hardcoded, not configurable):
 
 | Limit | Default |
-|-------|---------|
+|-------|---------| 
 | Max steps per task | 50 |
 | Wall clock time | 30 minutes |
 | Consecutive tool calls | 10 |
 | API cost ceiling | $10 / task (env override) |
 | No credentials in logs | Always |
-| No force-push / delete without confirmation | Always |
+| One-way door approval required | Schema migrations, public API changes, destructive ops |
 
-One-way door operations (schema migrations, public API changes, destructive shell commands) require explicit approval via channel or dashboard before execution.
+One-way door operations require explicit approval via channel or dashboard before execution. The approval request appears in real time via SSE — no polling required.
+
+---
+
+## Kapsel — the extension standard powering Plexo
+
+[**Kapsel**](https://github.com/joeybuilt-official/kapsel) is an open protocol for building AI agent extensions. It defines how an extension activates, what capabilities it can request, how it communicates with its host, and how it is packaged and distributed.
+
+Think of it as the **App Store model for AI agents** — but open, self-hostable, and host-agnostic. An extension written once for Kapsel runs on any compliant host, not just Plexo.
+
+**What makes Kapsel different:**
+
+- **Capability-gated** — extensions declare exactly what they need (`storage:write`, `memory:read`, `connections:github`). The host enforces it. No extension gets access it didn't ask for.
+- **Sandboxed by design** — extensions never import host internals. They get a typed SDK handle, nothing else. All host-side work happens in the host process; the extension just calls `sdk.*`.
+- **Persistent workers** — one worker thread per extension, activated once, reused across all tool calls. No cold-start overhead on every invocation.
+- **Cross-host portable** — the `kapsel.json` manifest and `activate(sdk)` entrypoint are the spec. Extensions don't care whether they're running in Plexo or any other compliant host.
+
+Plexo ships with `@plexo/sdk` — a full Kapsel host implementation bundled directly in the repo. Plexo is **Kapsel Full compliant** at spec v0.2.0.
+
+→ [Read the Kapsel Protocol Spec](https://github.com/joeybuilt-official/kapsel) · [Browse the Plexo SDK](packages/sdk/)
+
+---
+
+## Kapsel Extension System
+
+Plexo is **Kapsel Full compliant** (spec v0.2.0). Extensions run in isolated persistent worker threads and communicate with the host through a capability-gated SDK.
+
+```ts
+// kapsel.json
+{
+  "name": "@acme/stripe-reporter",
+  "version": "1.0.0",
+  "kapselVersion": "^0.2.0",
+  "capabilities": ["storage:read", "storage:write", "memory:write"]
+}
+
+// index.ts
+import type { KapselSDK } from '@plexo/sdk'
+
+export async function activate(sdk: KapselSDK) {
+  sdk.registerTool({
+    name: 'stripe_report',
+    description: 'Generate a Stripe MRR report',
+    parameters: { ... },
+    handler: async ({ from, to }, ctx) => {
+      const apiKey = await sdk.storage.get('stripe_key')
+      const data = await fetchStripe(apiKey, from, to)
+      await sdk.memory.write({ content: `MRR report ${from}→${to}: ${data.mrr}` })
+      return data
+    },
+  })
+}
+```
+
+**What extensions can do:**
+
+| Capability | Token | What it enables |
+|---|---|---|
+| Storage | `storage:read` / `storage:write` | Per-extension Redis key-value store, 30-day TTL |
+| Memory | `memory:read` / `memory:write` | Read/write workspace semantic memory (pgvector) |
+| Connections | `connections:<service>` | Access credentials for installed OAuth connections |
+| Tasks | `tasks:create` / `tasks:read` | Create and monitor tasks in the workspace queue |
+| Events | `events:publish` / `events:subscribe` | Publish to `ext.<scope>.*` namespace on the event bus |
+| UI | `ui:notify` | Push notifications to dashboard SSE clients |
+
+**Sandbox isolation:** Every extension runs in its own persistent `worker_threads` Worker. The worker activates once and handles all subsequent tool calls — no per-call spawning overhead. Crashes are caught, the worker is respawned, and `sys.extension.crashed` is emitted on the event bus.
+
+**Install an extension:**
+
+```bash
+POST /api/v1/plugins
+{
+  "source": "local",
+  "path": "/path/to/extension",
+  "enabled": true
+}
+```
+
+---
+
+## Kapsel Registry
+
+The internal registry lets workspaces publish and discover extensions.
+
+```
+GET    /api/v1/registry              Search extensions (query, tag, publisher)
+GET    /api/v1/registry/:name        Extension detail + full manifest
+POST   /api/v1/registry              Publish or update an extension (requires auth)
+DELETE /api/v1/registry/:name        Deprecate (hides from search, preserves history)
+```
+
+Published extensions are validated against the Kapsel manifest schema and a SHA-256 checksum is auto-generated. Publisher ownership is enforced — only the original publisher can update or deprecate.
 
 ---
 
@@ -153,11 +245,11 @@ One-way door operations (schema migrations, public API changes, destructive shel
 
 | Channel | Status | Notes |
 |---------|--------|-------|
-| **Telegram** | ✅ Phase 3 | Webhook, secret validation, message→task, chat reply |
-| **Slack** | ✅ Phase 4 | Events API, HMAC signature verification, message→task, thread reply |
-| **Discord** | ✅ Phase 5 | Interactions API, Ed25519 signature verification, /task slash command |
-| **Dashboard** | ✅ Phase 3 | QuickSend widget, task feed, live cards |
-| **API** | ✅ Phase 3 | REST — `POST /api/tasks` |
+| **Telegram** | ✅ | Webhook, secret validation, message→task, chat reply |
+| **Slack** | ✅ | Events API, HMAC signature verification, message→task, thread reply |
+| **Discord** | ✅ | Interactions API, Ed25519 verification, /task slash command |
+| **Dashboard** | ✅ | QuickSend widget, task feed, live cards, real-time OWD approval banner |
+| **API** | ✅ | REST — `POST /api/tasks` |
 
 ---
 
@@ -166,65 +258,48 @@ One-way door operations (schema migrations, public API changes, destructive shel
 All routes require a valid `workspaceId` UUID.
 
 ```
-GET    /health                               Postgres + Redis latency, version, uptime
-GET    /api/tasks                            List tasks (paginated, filter by status/type/projectId)
-POST   /api/tasks                            Create task (optional projectId)
-GET    /api/tasks/:id                        Task detail + execution steps
-DELETE /api/tasks/:id                        Cancel task
-GET    /api/tasks/stats/summary              Counts by status + cost totals
-GET    /api/sprints                          List sprints
-POST   /api/sprints                          Create sprint
-GET    /api/sprints/:id                      Sprint detail + linked tasks
-PATCH  /api/sprints/:id                      Update status
-GET    /api/dashboard/summary                All dashboard card data (one request)
-GET    /api/dashboard/activity               Recent task feed
-GET    /api/workspaces                       List workspaces
-POST   /api/workspaces                       Create workspace
-GET    /api/workspaces/:id                   Workspace detail + settings
-PATCH  /api/workspaces/:id                   Update workspace (deep-merges settings)
-POST   /api/channels/discord/interactions    Discord Interactions (slash commands, ping verification)
-GET    /api/channels/discord/info            Discord adapter status + supported commands
-GET    /api/channels/telegram/info           Telegram adapter status
-POST   /api/channels/slack/events            Slack Events API (URL challenge + message events)
-GET    /api/channels/slack/info              Slack adapter status
-GET    /api/approvals                        List pending one-way door decisions (workspaceId)
-GET    /api/approvals/:id                    Get decision by ID
-POST   /api/approvals/:id/approve            Approve a destructive operation
-POST   /api/approvals/:id/reject             Reject a destructive operation
-GET    /api/oauth/anthropic/start            Begin Anthropic OAuth PKCE flow
-GET    /api/oauth/anthropic/callback         Exchange code, store tokens (encrypted)
-GET    /api/oauth/anthropic/info             OAuth app metadata
-GET    /api/sse                              Server-Sent Events (real-time task progress + OWD events)
-POST   /api/auth/register                    Register user + workspace
-POST   /api/auth/login                       Verify credentials
-GET    /api/memory/search                    Semantic memory search (pgvector + ILIKE fallback)
-GET    /api/memory/preferences               Workspace learned preferences
-GET    /api/memory/improvements              Agent self-improvement proposals
-POST   /api/memory/improvements/run          Trigger self-improvement cycle
-GET    /api/connections                      List installed service connections
+GET    /health                               Postgres + Redis latency, version, uptime, active workers
+GET    /api/v1/tasks                         List tasks (paginated, filter by status/type/projectId)
+POST   /api/v1/tasks                         Create task
+GET    /api/v1/tasks/:id                     Task detail + execution steps
+DELETE /api/v1/tasks/:id                     Cancel task
+GET    /api/v1/tasks/stats/summary           Counts by status + cost totals
+GET    /api/v1/sprints                       List sprints/projects
+POST   /api/v1/sprints                       Create sprint
+GET    /api/v1/sprints/:id                   Sprint detail + linked tasks
+PATCH  /api/v1/sprints/:id                   Update status
+GET    /api/v1/dashboard/summary             All dashboard card data (one request)
+GET    /api/v1/dashboard/activity            Recent task feed
+GET    /api/v1/workspaces                    List workspaces
+POST   /api/v1/workspaces                    Create workspace
+PATCH  /api/v1/workspaces/:id                Update workspace (deep-merges settings)
+GET    /api/v1/workspaces/:id/members        List members
+POST   /api/v1/workspaces/:id/members        Add member
+PATCH  /api/v1/workspaces/:id/members/:mid   Change role
+DELETE /api/v1/workspaces/:id/members/:mid   Remove member
+POST   /api/v1/invites                       Create invite link
+POST   /api/v1/invites/:token/accept         Accept invite
+GET    /api/v1/approvals                     List pending one-way door decisions
+POST   /api/v1/approvals/:id/approve         Approve a destructive operation
+POST   /api/v1/approvals/:id/reject          Reject
+GET    /api/v1/plugins                       List installed extensions
+POST   /api/v1/plugins                       Install extension
+PATCH  /api/v1/plugins/:id                   Enable/disable
+DELETE /api/v1/plugins/:id                   Uninstall (terminates persistent worker)
+GET    /api/v1/registry                      Search public extension registry
+GET    /api/v1/registry/:name                Extension detail
+POST   /api/v1/registry                      Publish extension (auth required)
+DELETE /api/v1/registry/:name                Deprecate extension (auth required)
+GET    /api/v1/memory/search                 Semantic memory search (pgvector + ILIKE fallback)
+GET    /api/v1/memory/preferences            Workspace learned preferences
+GET    /api/v1/connections                   List installed service connections
+GET    /api/v1/audit                         Audit log (paginated)
+GET    /api/v1/oauth/anthropic/start         Begin Anthropic OAuth PKCE flow
+GET    /api/v1/oauth/anthropic/callback      Exchange code, store tokens
+GET    /api/sse                              Server-Sent Events (task progress, OWD approvals, extension events)
+POST   /api/v1/auth/register                 Register user + workspace
+POST   /api/v1/auth/login                    Verify credentials
 ```
-
----
-
-## Plugin system
-
-Plugins extend the agent's tool set without touching core. They are isolated Node.js modules that import only from `@plexo/sdk` — never from `packages/db` or `packages/agent`.
-
-```ts
-import { defineTool } from '@plexo/sdk'
-
-export default defineTool({
-  name: 'stripe_report',
-  description: 'Generate a Stripe revenue report for a date range',
-  schema: z.object({ from: z.string(), to: z.string() }),
-  execute: async ({ from, to }) => {
-    // ...
-    return { summary, csv }
-  },
-})
-```
-
-Plugins are loaded at runtime from the `plugins/` directory. No restart needed after adding a plugin.
 
 ---
 
@@ -245,7 +320,7 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 
 ### ✅ Phase 1 — Foundation
 - [x] pnpm workspace monorepo, Turborepo pipeline
-- [x] PostgreSQL 16 + pgvector schema (20 tables)
+- [x] PostgreSQL 16 + pgvector schema (20+ tables)
 - [x] Drizzle ORM + migrations
 - [x] Next.js 15 App Router shell — login, register, dashboard
 - [x] Docker Compose stack (Postgres, Redis, Caddy, API, Web)
@@ -274,7 +349,7 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 ### ✅ Phase 4 — Channels + one-way doors
 - [x] Slack channel adapter — Events API, HMAC signature verification
 - [x] One-way door service — Redis-backed approval flow
-- [x] OWD REST API — list/get/approve/reject, SSE events on resolution
+- [x] OWD REST API — list/get/approve/reject
 - [x] Anthropic OAuth tokens encrypted at rest (AES-256-GCM, workspace-scoped key derivation)
 - [x] Playwright E2E tests
 - [x] Cost write-back — `api_cost_tracking` weekly upsert, 80% ceiling alert flag
@@ -284,8 +359,6 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 - [x] Sprint planner — decomposes repo+request into ≤8 parallel tasks (topological wave execution)
 - [x] Conflict detection — static (scope overlap) + dynamic (GitHub compare post-execution)
 - [x] Sprint runner — wave orchestration, branch creation, task dispatch, PR creation
-- [x] Sprint API — `POST /:id/run`, `GET /:id/tasks`, `GET /:id/conflicts`
-- [x] Sprint list + detail pages
 - [x] Discord adapter — Interactions API, Ed25519 verification, /task slash command
 
 ### ✅ Phase 6 — Memory + self-improvement
@@ -293,120 +366,91 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 - [x] Workspace preference learning — confidence-weighted upsert, inference from task outcomes
 - [x] Self-improvement loop — scans `work_ledger`, stores proposals in `agent_improvement_log`
 - [x] Executor hook — records every outcome, infers preferences (non-blocking)
-- [x] Memory API — `/api/memory/*`
-- [x] Insights page — preferences grid + improvement log
 
 ### ✅ Phase 7 — Production hardening
 - [x] Rate limiting — 300/15min general, 20/15min auth, 60/15min task creation
 - [x] API versioning — `/api/v1/` canonical, `/api/` backward-compat aliases
 - [x] BSL 1.1 license (→ Apache 2.0 on 2030-03-03)
-- [x] Full CHANGELOG
 - [x] Setup wizard — `/setup`, 5-step browser onboarding
-- [x] Tasks page — filterable list, auto-refresh
-- [x] Task detail page — meta grid, execution trace with tool calls
-- [x] Conversations page — date-grouped channel activity feed
-- [x] Logs page — tabular work_ledger view with quality/cost columns
-- [x] Settings page — workspace, agent model/budget, API key management
-- [x] k6 smoke test
+- [x] Full task/sprint/settings/memory/logs/debug pages
 
-### ✅ Phase 8 — Multi-provider AI + navigation
-- [x] **Vercel AI SDK migration** — unified `generateObject` / `generateText` / tool API across all providers
-- [x] **Provider registry** — `buildModel`, `resolveModel`, `withFallback` — fallback chains with retryable error detection
-- [x] **9 providers supported** — Anthropic, OpenAI, Google, Mistral, Groq, xAI, DeepSeek, Ollama (via OpenAI-compat), OpenRouter
-- [x] **Grouped sidebar** — collapsible sections (Chat · Control · Agent · Settings · System), state persisted to localStorage
-- [x] **AI Providers settings page** — two-panel UI, provider cards, API key config, test connection, primary selection, fallback chain, model routing per task type
-- [x] **`POST /api/settings/ai-providers/test`** — Express handler via `testProvider()` in registry, proxied through Next.js route
-- [x] **Connections browser** — two-panel UI backed by real `/api/connections/registry` + `/api/connections/installed`, OAuth2 popup flow, API key config, disconnect
-- [x] **SSE-driven dashboard refresh** — `DashboardRefresher` client component calls `router.refresh()` on task events, falls back to 15s polling
-- [x] **Workspace resolver** — `getWorkspaceId()` server util resolves from NextAuth session via `/api/workspaces?ownerId=...`, React `cache()` deduped
-- [x] **Insights page real data** — uses `getWorkspaceId()`, renders preferences grid + improvement log from live API
-- [x] **Debug page** — health endpoint with service latencies, SSE stream monitor + live event feed, route diagnostic table, client-side env panel
-- [x] **New routes** — `/settings/ai-providers`, `/settings/connections`, `/settings/channels`, `/settings/agent`, `/settings/users`, `/debug`, `/projects`, `/cron`
+### ✅ Phase 8 — Multi-provider AI
+- [x] Vercel AI SDK migration — unified API across all providers
+- [x] Provider registry — `buildModel`, `resolveModel`, `withFallback` — fallback chains
+- [x] 9 providers — Anthropic, OpenAI, Google, Mistral, Groq, xAI, DeepSeek, Ollama, OpenRouter
+- [x] AI Providers settings page — provider cards, test connection, fallback chain config
 
-### ✅ Phase 9 — Settings completion + API surface
-- [x] **Channels settings** — two-panel UI: type picker (Telegram/Slack/Discord/WhatsApp/Signal/Matrix), per-adapter config fields, enable/disable toggle, delete — backed by `GET/POST/PATCH/DELETE /api/channels`
-- [x] **Cron jobs page** — table with enable/disable, manual trigger, delete; add form with schedule preset chips — backed by `GET/POST/PATCH/DELETE /api/cron` + `POST /api/cron/:id/trigger`
-- [x] **Agent settings** — live agent status banner (model, task, session count), model override, system prompt addition, execution limits (max steps/tokens), weekly cost ceiling, quality auto-approve threshold, safe mode toggle — saves to `workspace.settings` JSONB via `PATCH /api/workspaces/:id`
-- [x] **Users settings** — two-panel with avatar initials, role badge, name/role editing backed by `GET/PATCH /api/users`
-- [x] **Projects route** — sidebar "Projects" links directly to `/sprints` (canonical); placeholder redirect removed
-- [x] **New API routes** — `GET/POST/PATCH/DELETE /api/channels`, `GET/POST/PATCH/DELETE /api/cron`, `POST /api/cron/:id/trigger`, `GET/PATCH /api/users`, `PATCH /api/workspaces/:id`
-- [x] All placeholder pages eliminated — every sidebar route now renders real content
+### ✅ Phase 9-11 — Settings, connections, membership
+- [x] Channels, Cron, Agent, Users settings pages
+- [x] Workspace membership + invite system
+- [x] Connections browser — OAuth2 popup flow, per-tool enable/disable
 
-### ✅ Phase 10 — Workspace management + navigation polish
-- [x] **Workspace switcher** — sidebar header replaced with popover; lists all workspaces, active checkmark, switch via localStorage, full page reload
-- [x] **Multi-workspace create** — inline form in sidebar + Settings > Workspace; `POST /api/workspaces` endpoint
-- [x] **Settings > Workspace** — canonical location for name, ID, cost ceiling + full workspace list with switch buttons
-- [x] **Sidebar multi-select fix** — segment-boundary `isActive`; `exact` flag prevents `/settings` shadowing sub-routes
-- [x] **Task → project relationship** — `tasks.project_id` FK → `sprints.id`, migration 0006, queue + API + UI updated
-- [x] **Discord icon** — stable CDN URL, `onError` fallback on all connection logos
-- [x] **Settings dedup** — Workspace section removed from Settings > Agent
+### ✅ Phase 12-13 — Plugin runtime (Kapsel)
+- [x] Plugin install/enable/disable/uninstall API
+- [x] Plugin tool bridge — sandbox via `worker_threads`, builds Vercel AI SDK ToolSet
+- [x] Audit log — `audit_log` table, `GET /api/audit`
+- [x] Workspace rate limit — Redis sliding-window, configurable per workspace
 
-### ✅ Phase 11 — Workspace membership + invites
-- [x] `workspace_members` + `workspace_invites` tables (migration 0007)
-- [x] `POST /api/members` — add member by user ID + role
-- [x] `PATCH /api/members/:id` — change role
-- [x] `DELETE /api/members/:id` — remove member
-- [x] `POST /api/members/invites` — create invite link
-- [x] `POST /api/members/invites/:token/accept` — accept invite
-
-### ✅ Phase 12 — Plugin runtime (Kapsel)
-- [x] `POST /api/plugins` — install extension (validates `kapsel.json`, §3.3)
-- [x] `PATCH /api/plugins/:id` — enable/disable extension (triggers lifecycle hooks)
-- [x] `DELETE /api/plugins/:id` — uninstall
-- [x] Plugin tool bridge — loads enabled extensions, activates in sandbox worker, builds Vercel AI SDK ToolSet
-
-### ✅ Phase 13 — Sandbox + audit log + workspace rate limit
-- [x] Plugin sandbox: `worker_threads` with 10s timeout, auto-terminate (§5)
-- [x] Audit log: `audit_log` table (migration 0008), `GET /api/audit`, calls on all mutation routes
-- [x] Workspace rate limit: Redis sliding-window, 1000 req/hr default, configurable via workspace settings
-
-### ✅ Phase 14 — Kapsel standard adoption
-- [x] `@plexo/sdk` fully rewritten to Kapsel Protocol Spec v0.2.0 (Full compliance declared)
-- [x] `plugin_type` enum migrated to Kapsel types: `agent|skill|channel|tool|mcp-server`
-- [x] `plugins.manifest` → `plugins.kapsel_manifest`; `entry` + `kapsel_version` columns added
+### ✅ Phase 14-15 — Kapsel standard + self-improvement
+- [x] `@plexo/sdk` fully rewritten to Kapsel Protocol Spec v0.2.0 (Full compliance)
 - [x] Manifest validation (§3.3) + `minHostLevel` enforcement (§11.4) on install
-- [x] Activation-model tool discovery: extensions call `sdk.registerTool()` in sandbox
+- [x] Activation-model tool discovery — extensions call `sdk.registerTool()` in sandbox
 - [x] Host-side `KapselSDK` with capability enforcement at every call (§4)
-- [x] `/health` declares `kapsel: { complianceLevel: 'full', specVersion: '0.2.0' }` (§14.4)
+- [x] Prompt improvement proposals with A/B variant assignment and auto-promotion
 
-### ✅ Phase 15 — Recursive self-improvement + A/B variants
-- [x] Prompt improvement proposals stored in `agent_improvement_log` (LLM-generated diffs)
-- [x] A/B variant assignment: 80% control / 20% challenger per task invocation
-- [x] Quality tracking per variant in `improvement_log.metadata`
-- [x] Auto-promotion: challenger auto-applied when `median(B) > median(A) + 0.05` after ≥ 20 samples
-- [x] Challenger discard after 30 losing samples, fresh analysis triggered
-- [x] `POST /api/memory/improvements/run` — trigger pattern analysis
-- [x] `POST /api/memory/improvements/prompt` — trigger prompt improvement cycle
-- [x] `POST /api/memory/improvements/:id/apply` — manual approval + apply
+### ✅ Phase 16-17 — Production deployment
+- [x] Production Dockerfile — multi-stage build, non-root user, health check
+- [x] `docker/compose.prod.yml` — all services wired, Caddy TLS, `.env` injection
+- [x] `docs/deployment.md` — self-host guide, DNS, Anthropic OAuth, backup strategy
+
+### ✅ Phase 18-20 — Event Bus, OWD gate, deploy docs
+- [x] Event Bus — in-process EventEmitter + Redis pub/sub fan-out for multi-container deployments
+- [x] Namespace enforcement — extensions publish to `ext.<scope>.*` only; host to `plexo.*`; system to `sys.*`
+- [x] OWD executor gate — agent pauses, writes to Redis, waits for dashboard approval before destructive ops
+- [x] `std_topics` + `extensionTopic()` helper
+
+### ✅ Phase 21-23 — Persistent workers, Event Bus fan-out, Registry
+- [x] **Persistent Worker Pool** — one long-lived Worker per extension, reused across invocations (§5.4)
+- [x] Crash recovery — removes from pool, emits `sys.extension.crashed`, re-spawns on next call
+- [x] Per-call hard timeout — terminates the worker on breach, not just the Promise
+- [x] **Event Bus v2** — Redis pub/sub fan-out with loop protection; dynamic import on startup
+- [x] **Kapsel Registry** (§12) — search, detail, publish (with manifest validation + SHA-256 checksum), deprecate
+- [x] `kapsel_registry` table + SQL migration
+
+### ✅ Phase 24-25 — SDK bridge, OWD→SSE, observability
+- [x] **SDK host bridge** — all capability stubs real: storage→Redis, memory→pgvector, connections→DB, tasks→queue, events→event bus
+- [x] Message-based protocol — workers post `sdk_call`; host handles and replies `bridge_reply`; no host imports in worker
+- [x] **OWD → SSE push** — `requestApproval()` emits `plexo.owd.pending`; API subscribes and forwards to workspace SSE clients; approval banner appears in real time
+- [x] **Worker stats in `/health`** — `kapsel.workers[]` shows active persistent workers with tool counts
+- [x] CORS hardened — always allows `localhost:3000/3001` in dev regardless of `PUBLIC_URL`
 
 ### 🔲 Backlog
-- [ ] Phase 16 — Production deployment (Dockerfile, env validation, Coolify manifests)
-- [ ] Kapsel extension marketplace — install from registry, signed packages
-- [ ] Kapsel registry implementation (§12) — publish, discover, deprecate
-- [ ] Full Event Bus (§7.4) — topic namespace enforcement, multi-agent routing
-- [ ] Agent one-way door protocol (§8.4) — approval gate before irreversible actions
-- [ ] Persistent sandbox workers (§5.4) — one worker per enabled extension, reused across calls
+- [ ] External Kapsel Marketplace — separate hosted service; Plexo instances pull from it
+- [ ] `task_source: 'extension'` fully propagated — pending enum migration in all environments
+- [ ] Webchat widget refinements
+- [ ] MCP server protocol adapter (extensions that expose MCP servers)
 
 ---
 
 ## Health
 
-The `/health` endpoint reports live service status and Kapsel compliance declaration.
+The `/health` endpoint reports live service status, Kapsel compliance, and active persistent worker count.
 
 ```json
 {
   "status": "ok",
   "services": {
-    "postgres": { "ok": true, "latencyMs": 2 },
-    "redis":    { "ok": true, "latencyMs": 2 },
+    "postgres": { "ok": true, "latencyMs": 1 },
+    "redis":    { "ok": true, "latencyMs": 1 },
     "anthropic": { "ok": false, "latencyMs": 0 }
   },
   "version": "0.1.0",
-  "uptime": 42,
+  "uptime": 864,
   "kapsel": {
     "complianceLevel": "full",
     "specVersion": "0.2.0",
-    "host": "plexo"
+    "host": "plexo",
+    "workers": []
   }
 }
 ```
@@ -420,9 +464,8 @@ Anthropic is marked non-critical — the agent degrades to queue-only mode if th
 ```bash
 pnpm install
 docker compose -f docker/compose.dev.yml up -d   # Postgres + Redis
-cp .env.example .env.local                       # fill in DATABASE_URL, REDIS_URL
-pnpm db:migrate
-pnpm dev                                         # all apps in watch mode
+cp .env.example .env.local                        # fill in DATABASE_URL, REDIS_URL, SESSION_SECRET
+pnpm dev                                          # all apps in watch mode
 ```
 
 ```bash
