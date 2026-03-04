@@ -63,8 +63,9 @@ async function fetchTask(id: string): Promise<{ task: TaskDetail; steps: TaskSte
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export default async function LogDetailPage({ params }: { params: { id: string } }) {
-    const result = await fetchTask(params.id)
+export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params
+    const result = await fetchTask(id)
 
     if (!result) {
         return (
@@ -74,7 +75,7 @@ export default async function LogDetailPage({ params }: { params: { id: string }
                 </Link>
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-6 py-12 text-center">
                     <p className="text-sm text-zinc-400 font-medium mb-1">Task not found</p>
-                    <p className="text-xs text-zinc-600 font-mono">{params.id}</p>
+                    <p className="text-xs text-zinc-600 font-mono">{id}</p>
                 </div>
             </div>
         )
