@@ -26,6 +26,7 @@ import { runInSandbox } from './pool.js'
 import pino from 'pino'
 import type { KapselManifest, JSONSchema } from '@plexo/sdk'
 import type { ToolRegistration } from '@plexo/sdk'
+import { eventBus, TOPICS } from './event-bus.js'
 
 const logger = pino({ name: 'kapsel-bridge' })
 
@@ -96,6 +97,12 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
                     { ext: ext.name, error: activationResult.error },
                     'Kapsel extension activation failed — skipping',
                 )
+                eventBus.emitSystem(TOPICS.EXTENSION_CRASHED, {
+                    extension: ext.name,
+                    error: activationResult.error,
+                    timedOut: activationResult.timedOut,
+                    workspaceId,
+                })
                 continue
             }
 
@@ -154,6 +161,12 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
             }
 
             logger.info({ ext: ext.name, toolCount: registeredTools.length }, 'Kapsel extension activated')
+            eventBus.emitSystem(TOPICS.EXTENSION_ACTIVATED, {
+                extension: ext.name,
+                version: ext.version,
+                toolCount: registeredTools.length,
+                workspaceId,
+            })
         }
     } catch (err) {
         logger.error({ err, workspaceId }, 'loadPluginTools failed — continuing without plugin tools')

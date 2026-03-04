@@ -331,6 +331,10 @@ export interface StepResult {
 export interface ExecutionResult {
     taskId: string
     ok: boolean
+    /** Short-circuit error message (OWD gate, cost ceiling, etc.) */
+    error?: string
+    /** Machine-readable code: OWD_REJECTED | OWD_TIMEOUT | COST_CEILING | etc. */
+    errorCode?: string
     steps: StepResult[]
     outcomeSummary: string
     qualityScore: number

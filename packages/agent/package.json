@@ -18,6 +18,7 @@
         "./memory/preferences": "./src/memory/preferences.ts",
         "./memory/self-improvement": "./src/memory/self-improvement.ts",
         "./memory/prompt-improvement": "./src/memory/prompt-improvement.ts",
+        "./one-way-door": "./src/one-way-door.ts",
         "./providers/registry": "./src/providers/registry.ts"
     },
     "scripts": {
@@ -43,6 +44,7 @@
         "bcrypt": "^5.1",
         "ollama-ai-provider": "^1.2.0",
         "pino": "^9",
+        "redis": "^4",
         "ulid": "^2.3",
         "zod": "^3.24"
     },

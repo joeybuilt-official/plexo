@@ -1,5 +1,5 @@
 import { Router, type Router as RouterType } from 'express'
-import { listPending, getDecision, resolveDecision } from '../one-way-door.js'
+import { listPending, getDecision, resolveDecision } from '@plexo/agent/one-way-door'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { logger } from '../logger.js'
 

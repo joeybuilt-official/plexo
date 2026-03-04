@@ -1,27 +1,28 @@
 /**
- * One-way door service.
+ * One-Way Door service — agent package
  *
- * A "one-way door" operation is a destructive, irreversible, or externally
- * observable action that the agent cannot undo:
- *   - Database schema changes (migrations, DROP, ALTER)
+ * A one-way door is any irreversible or externally visible action:
+ *   - Database schema changes (DROP, ALTER, migrations)
  *   - Public API contract changes
  *   - Force-push / branch deletion
- *   - External API calls with side effects (email send, payment, DNS change)
+ *   - External API calls with side effects (email, payment, DNS)
  *   - File deletion
  *
  * Flow:
- * 1. Executor calls `requestApproval()` — returns a pending record ID
- * 2. An SSE event notifies the dashboard (and configured channels)
- * 3. User approves/rejects via dashboard button or channel reply
- * 4. Executor polls `isPending()` until approved, rejected, or timed out
+ * 1. Executor calls requestApproval() — creates a pending record in Redis
+ * 2. SSE route in the API pushes an event to the dashboard
+ * 3. Operator approves/rejects via dashboard or channel reply
+ * 4. Executor polls waitForDecision() until decision or timeout
  *
- * Storage: Redis with TTL. Key: `owd:{pendingId}`, value: JSON (PendingDecision)
+ * Storage: Redis, key `owd:{id}`, TTL 1 hour.
  */
 import { createClient, type RedisClientType } from 'redis'
 import { randomBytes } from 'node:crypto'
-import { logger } from './logger.js'
+import pino from 'pino'
 
-const OWD_TTL_SECONDS = 3600 // 1 hour — auto-reject if no response
+const logger = pino({ name: 'one-way-door' })
+
+const OWD_TTL_SECONDS = 3600
 
 export type OWDDecision = 'pending' | 'approved' | 'rejected'
 
@@ -53,8 +54,6 @@ function key(id: string): string {
     return `owd:${id}`
 }
 
-// ── Request approval ──────────────────────────────────────────────────────────
-
 export async function requestApproval(params: {
     taskId: string
     workspaceId: string
@@ -73,12 +72,9 @@ export async function requestApproval(params: {
     }
 
     await redis.setEx(key(id), OWD_TTL_SECONDS, JSON.stringify(record))
-    logger.info({ id, operation: params.operation, workspaceId: params.workspaceId }, 'One-way door pending')
-
+    logger.info({ id, operation: params.operation, workspaceId: params.workspaceId }, 'OWD pending')
     return record
 }
-
-// ── Check status ──────────────────────────────────────────────────────────────
 
 export async function getDecision(id: string): Promise<PendingDecision | null> {
     const redis = await getRedis()
@@ -87,28 +83,22 @@ export async function getDecision(id: string): Promise<PendingDecision | null> {
     return JSON.parse(raw) as PendingDecision
 }
 
-/**
- * Poll until decision is made or timeout. Used by the executor.
- * Executor should call `requestApproval` then `waitForDecision`.
- */
 export async function waitForDecision(
     id: string,
-    timeoutMs = 30 * 60 * 1000, // 30 minutes
+    timeoutMs = 30 * 60 * 1000,
 ): Promise<'approved' | 'rejected' | 'timeout'> {
     const deadline = Date.now() + timeoutMs
-    const POLL_INTERVAL_MS = 3000
+    const POLL_MS = 3000
 
     while (Date.now() < deadline) {
         const record = await getDecision(id)
-        if (!record) return 'timeout' // TTL expired or deleted
+        if (!record) return 'timeout'
         if (record.decision === 'approved') return 'approved'
         if (record.decision === 'rejected') return 'rejected'
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+        await new Promise((r) => setTimeout(r, POLL_MS))
     }
     return 'timeout'
 }
-
-// ── Resolve (approve/reject) — called by API route ───────────────────────────
 
 export async function resolveDecision(
     id: string,
@@ -126,21 +116,17 @@ export async function resolveDecision(
         decidedBy,
     }
 
-    // Keep for another 10 minutes after decision so executor can pick it up
     await redis.setEx(key(id), 600, JSON.stringify(updated))
-    logger.info({ id, decision, decidedBy }, 'One-way door resolved')
-
+    logger.info({ id, decision, decidedBy }, 'OWD resolved')
     return updated
 }
-
-// ── List pending for workspace ────────────────────────────────────────────────
 
 export async function listPending(workspaceId: string): Promise<PendingDecision[]> {
     const redis = await getRedis()
     const keys = await redis.keys('owd:*')
 
-    const decisions = await Promise.all(
-        keys.map(async (k) => {
+    const decisions: Array<PendingDecision | null> = await Promise.all(
+        keys.map(async (k: string) => {
             const raw = await redis.get(k)
             return raw ? (JSON.parse(raw) as PendingDecision) : null
         }),

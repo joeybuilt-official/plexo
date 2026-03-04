@@ -1,4 +1,12 @@
-import 'dotenv/config'
+import { config as dotenvConfig } from 'dotenv'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dir = dirname(fileURLToPath(import.meta.url))
+// src/ → api/ → apps/ → monorepo root (three levels)
+const monorepoRoot = resolve(__dir, '../../../')
+dotenvConfig({ path: resolve(monorepoRoot, '.env'), override: false })
+dotenvConfig({ path: resolve(monorepoRoot, '.env.local'), override: true })
 import { validateEnv } from './env.js'
 validateEnv()
 import express, { type Express } from 'express'

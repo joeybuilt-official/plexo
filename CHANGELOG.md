@@ -12,6 +12,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.3.0-dev] — 2026-03-04 (Phases 18-20 — Event Bus, OWD Gate, Deploy)
+
+### Added
+- `packages/agent/src/plugins/event-bus.ts` — Kapsel Event Bus (§7); singleton EventEmitter with wildcard topic matching, namespace enforcement for extension publishes (`ext.<scope>.*` only), lifecycle TOPICS constants
+- `packages/agent/src/one-way-door.ts` — OWD service moved from api to agent package (canonical location); `requestApproval`, `waitForDecision`, `resolveDecision`, `listPending`
+- `docs/deploy.md` — generic self-hosted deployment guide (any VPS, any cloud provider)
+
+### Changed
+- `executor/index.ts` — OWD approval gate (§8.4): checks `plan.oneWayDoors` before executing; pauses up to 30 min for operator decision; returns `OWD_REJECTED` / `OWD_TIMEOUT` errorCode on non-approval
+- `plugins/bridge.ts` — emits `sys.extension.activated` and `sys.extension.crashed` via Event Bus on each activation attempt
+- `apps/api/src/routes/approvals.ts` — now imports OWD functions from `@plexo/agent/one-way-door`
+- `types.ts` `ExecutionResult` — added optional `error` and `errorCode` fields for gate short-circuit returns
+- `apps/api/src/index.ts` — dotenv loads `.env` then `.env.local` relative to monorepo root (supports local dev)
+- `packages/agent/package.json` — added `redis@^4` dep + `./one-way-door` subpath export
+
+### Removed
+- `apps/api/src/one-way-door.ts` — deleted; canonical version in `@plexo/agent`
+- `docs/coolify-deploy.md` — replaced with platform-agnostic `docs/deploy.md`
+
 ## [1.2.0-dev] — 2026-03-04 (Phase 17 — Production deployment hardening)
 
 ### Added

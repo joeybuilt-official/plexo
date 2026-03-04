@@ -9,6 +9,7 @@ import { loadConnectionTools } from '../connections/bridge.js'
 import { loadPluginTools } from '../plugins/bridge.js'
 import { assignVariant, recordVariantOutcome } from '../memory/ab-variants.js'
 import { getPromptOverrides } from '../memory/prompt-improvement.js'
+import { requestApproval, waitForDecision } from '../one-way-door.js'
 
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
@@ -137,6 +138,63 @@ export async function executeTask(
     let totalCost = 0
     let finalSummary = ''
     let finalQuality = 0.5
+
+    // ── One-Way Door gate (§8.4 approval protocol) ───────────────────────────
+    // If the plan flags irreversible operations, request approval before running.
+    const owdList = plan.oneWayDoors ?? []
+    if (owdList.length > 0) {
+        try {
+            const owdDescriptions = owdList.map((d) => `• [${d.type}] ${d.description}`).join('\n')
+            const approval = await requestApproval({
+                taskId: ctx.taskId,
+                workspaceId: ctx.workspaceId,
+                operation: owdList[0]?.type ?? 'unknown',
+                description: `This task requires approval for ${owdList.length} irreversible operation(s):\n${owdDescriptions}`,
+                riskLevel: owdList.some((d) => d.type === 'data_write' || d.type === 'schema_migration') ? 'high' : 'medium',
+            })
+
+            // Pause — notify via SSE will come from the SSE route watching Redis
+            const decision = await waitForDecision(approval.id, 30 * 60 * 1000) // 30 min
+
+            if (decision === 'rejected') {
+                return {
+                    taskId: ctx.taskId,
+                    ok: false,
+                    error: 'Task rejected by operator (one-way door gate)',
+                    errorCode: 'OWD_REJECTED',
+                    steps: [],
+                    outcomeSummary: '',
+                    qualityScore: 0,
+                    totalDurationMs: Date.now() - startTime,
+                    totalTokensIn: 0,
+                    totalTokensOut: 0,
+                    totalCostUsd: 0,
+                }
+            }
+
+            if (decision === 'timeout') {
+                return {
+                    taskId: ctx.taskId,
+                    ok: false,
+                    error: 'Task approval timed out (one-way door gate) — resubmit to retry',
+                    errorCode: 'OWD_TIMEOUT',
+                    steps: [],
+                    outcomeSummary: '',
+                    qualityScore: 0,
+                    totalDurationMs: Date.now() - startTime,
+                    totalTokensIn: 0,
+                    totalTokensOut: 0,
+                    totalCostUsd: 0,
+                }
+            }
+            // approved — fall through to execution
+        } catch (owdErr) {
+            // OWD service unavailable — log and continue (non-blocking in dev)
+            import('pino').then(({ default: pino }) =>
+                pino({ name: 'executor' }).warn({ err: owdErr }, 'OWD gate failed non-fatally — proceeding'),
+            ).catch(() => { })
+        }
+    }
 
     // Load workspace personality settings (non-fatal)
     let agentName = 'Plexo'
