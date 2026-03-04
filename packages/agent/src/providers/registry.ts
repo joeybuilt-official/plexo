@@ -1,4 +1,4 @@
-import { anthropic } from '@ai-sdk/anthropic'
+import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
 import { openai } from '@ai-sdk/openai'
 import { google } from '@ai-sdk/google'
 import { mistral } from '@ai-sdk/mistral'
@@ -80,8 +80,28 @@ export function buildModel(
             const or = createOpenRouter({ apiKey: config.apiKey! })
             return or(modelId)
         }
-        case 'anthropic':
+        case 'anthropic': {
+            if (config.apiKey) {
+                // OAuth tokens (sk-ant-oat*) need Authorization: Bearer; API keys use x-api-key
+                const isOAuth = config.apiKey.startsWith('sk-ant-oat')
+                const provider = isOAuth
+                    ? createAnthropic({
+                        apiKey: 'oauth',
+                        fetch: (url: string | URL, init: RequestInit = {}) =>
+                            globalThis.fetch(url, {
+                                ...init,
+                                headers: {
+                                    ...(init.headers as Record<string, string> ?? {}),
+                                    'Authorization': `Bearer ${config.apiKey}`,
+                                    'anthropic-version': '2023-06-01',
+                                },
+                            }),
+                    } as Parameters<typeof createAnthropic>[0])
+                    : createAnthropic({ apiKey: config.apiKey })
+                return provider(modelId)
+            }
             return anthropic(modelId)
+        }
         case 'openai':
             return openai(modelId)
         case 'google':

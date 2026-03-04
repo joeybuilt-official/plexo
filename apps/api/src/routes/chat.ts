@@ -96,17 +96,28 @@ chatRouter.get('/reply/:taskId', async (req, res) => {
                 return
             }
 
-            if (task.status === 'complete' || task.status === 'cancelled') {
+            if (task.status === 'complete') {
                 res.json({
                     taskId,
                     status: task.status,
-                    reply: task.outcomeSummary ?? 'Task complete.',
+                    reply: task.outcomeSummary ?? 'Done.',
+                })
+                return
+            }
+
+            if (task.status === 'failed' || task.status === 'cancelled' || task.status === 'blocked') {
+                res.json({
+                    taskId,
+                    status: task.status,
+                    reply: task.status === 'blocked'
+                        ? 'Agent is not configured yet. Please set up an AI provider in Settings.'
+                        : 'Task could not be completed. Please try again.',
                 })
                 return
             }
 
             if (Date.now() >= deadline) {
-                res.json({ taskId, status: 'pending', reply: null })
+                res.json({ taskId, status: 'pending', reply: "I'm still working on it — check back shortly." })
                 return
             }
 

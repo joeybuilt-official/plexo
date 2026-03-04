@@ -4,6 +4,7 @@ import { tasks, workspaces, installedConnections } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
+import type { WorkspaceAISettings } from '@plexo/agent/providers'
 import { logger } from './logger.js'
 import { emit } from './sse-emitter.js'
 

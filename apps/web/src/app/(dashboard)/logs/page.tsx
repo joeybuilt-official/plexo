@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { ChevronRight, RefreshCw } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
+import { RefreshButton } from './refresh-button'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -89,13 +90,7 @@ export default async function LogsPage() {
                     <h1 className="text-xl font-bold text-zinc-50">Logs</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">Agent work ledger — {logs.length} entries</p>
                 </div>
-                <a
-                    href="/logs"
-                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
-                >
-                    <RefreshCw size={12} />
-                    Refresh
-                </a>
+                <RefreshButton />
             </div>
 
             {logs.length === 0 ? (

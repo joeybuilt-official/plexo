@@ -39,7 +39,7 @@ async function pingRedis(): Promise<{ ok: boolean; latencyMs: number }> {
     }
 }
 
-async function pingAnthropic(): Promise<{ ok: boolean; latencyMs: number }> {
+async function pingAnthropic(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
     // Check env var first, then fall back to any workspace's stored key
     let key = process.env.ANTHROPIC_API_KEY
     if (!key || key === 'placeholder') {
@@ -50,27 +50,39 @@ async function pingAnthropic(): Promise<{ ok: boolean; latencyMs: number }> {
                     aiProviders?: { providers?: Record<string, { apiKey?: string }> }
                 } | null)?.aiProviders?.providers ?? {}
                 for (const p of Object.values(providers)) {
-                    if (p.apiKey) { key = p.apiKey; break }
+                    if (p.apiKey && p.apiKey !== 'placeholder') { key = p.apiKey; break }
                 }
                 if (key) break
             }
         } catch { /* non-fatal */ }
     }
     if (!key || key === 'placeholder') {
-        return { ok: false, latencyMs: 0 }
+        return { ok: false, latencyMs: 0, error: 'no_key' }
     }
     const start = Date.now()
     try {
+        // OAuth tokens (sk-ant-oat01-*) use Authorization: Bearer
+        // Direct API keys (sk-ant-api03-*) use x-api-key
+        const isOAuth = key.startsWith('sk-ant-oat')
+        const headers: Record<string, string> = {
+            'anthropic-version': '2023-06-01',
+            ...(isOAuth
+                ? { 'Authorization': `Bearer ${key}` }
+                : { 'x-api-key': key }),
+        }
         const res = await fetch('https://api.anthropic.com/v1/models', {
-            headers: {
-                'x-api-key': key,
-                'anthropic-version': '2023-06-01',
-            },
+            headers,
             signal: AbortSignal.timeout(5000),
         })
-        return { ok: res.ok, latencyMs: Date.now() - start }
-    } catch {
-        return { ok: false, latencyMs: Date.now() - start }
+        if (!res.ok) {
+            const body = await res.text().catch(() => '')
+            logger.warn({ status: res.status, body: body.slice(0, 200) }, 'Anthropic ping non-ok')
+            return { ok: false, latencyMs: Date.now() - start, error: `http_${res.status}` }
+        }
+        return { ok: true, latencyMs: Date.now() - start }
+    } catch (err) {
+        logger.warn({ err }, 'Anthropic ping failed')
+        return { ok: false, latencyMs: Date.now() - start, error: 'network_error' }
     }
 }
 

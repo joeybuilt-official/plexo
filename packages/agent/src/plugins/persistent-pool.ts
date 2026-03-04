@@ -217,7 +217,7 @@ async function dispatchSdkCall(pluginName: string, method: string, args: Record<
             const taskId = await queuePush({
                 workspaceId,
                 type: 'ops',
-                source: 'api', // 'extension' pending enum migration
+                source: 'extension',
                 priority: 1,
                 context: { description: opts.description, source: pluginName, ...(opts.metadata ?? {}) },
                 project: opts.project as string | undefined,
