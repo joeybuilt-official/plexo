@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { Check, ChevronRight, ChevronDown, Loader2, ExternalLink, AlertCircle, ShieldCheck, X } from 'lucide-react'
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+
 type Step = 'welcome' | 'workspace' | 'anthropic' | 'test' | 'telemetry' | 'done'
 
 const STEPS: Step[] = ['welcome', 'workspace', 'anthropic', 'test', 'telemetry', 'done']
@@ -15,8 +17,8 @@ function StepIndicator({ current }: { current: Step }) {
             {STEPS.slice(0, -1).map((s, i) => (
                 <div key={s} className="flex items-center gap-2">
                     <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${i < idx ? 'bg-indigo-600 text-white' :
-                            i === idx ? 'border-2 border-indigo-500 text-indigo-400' :
-                                'border border-zinc-700 text-zinc-600'
+                        i === idx ? 'border-2 border-indigo-500 text-indigo-400' :
+                            'border border-zinc-700 text-zinc-600'
                         }`}>
                         {i < idx ? <Check className="h-3.5 w-3.5" /> : i + 1}
                     </div>
@@ -47,7 +49,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
     async function save() {
         setSaving(true)
         try {
-            await fetch('/api/telemetry', {
+            await fetch(`${API_BASE}/api/telemetry`, {
                 method: 'POST',
                 headers: {
                     'content-type': 'application/json',
