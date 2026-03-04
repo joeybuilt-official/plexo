@@ -260,7 +260,7 @@ test.describe('Dashboard', () => {
     if (/login|signin/.test(url)) return
 
     // Dashboard is accessible — confirm live data cards render
-    await expect(page.getByText('Dashboard')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     await expect(page.getByText('Agent Status')).toBeVisible()
     await expect(page.getByText('API Cost')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Tasks', exact: true }).first()).toBeVisible()
