@@ -13,6 +13,7 @@ tasksRouter.get('/', async (req, res) => {
         workspaceId,
         status,
         type,
+        projectId,
         limit = '25',
         cursor,
     } = req.query as Record<string, string>
@@ -33,6 +34,7 @@ tasksRouter.get('/', async (req, res) => {
             workspaceId,
             status: status ?? undefined,
             type: type ?? undefined,
+            projectId: projectId ?? undefined,
             limit: Math.min(parseInt(limit, 10) || 25, 100),
             cursor: cursor ?? undefined,
         })
@@ -51,12 +53,13 @@ tasksRouter.get('/', async (req, res) => {
 // ── POST /api/tasks ──────────────────────────────────────────────────────────
 
 tasksRouter.post('/', async (req, res) => {
-    const { workspaceId, type, source = 'api', context = {}, priority } = req.body as {
+    const { workspaceId, type, source = 'api', context = {}, priority, projectId } = req.body as {
         workspaceId: string
         type: string
         source?: string
         context?: Record<string, unknown>
         priority?: number
+        projectId?: string   // optional FK → sprints.id
     }
 
     if (!workspaceId || !type) {
@@ -71,6 +74,7 @@ tasksRouter.post('/', async (req, res) => {
             source: source as Parameters<typeof push>[0]['source'],
             context,
             priority,
+            projectId,
         })
         res.status(201).json({ id })
     } catch (err) {

@@ -237,6 +237,10 @@ export const tasks = pgTable('tasks', {
     priority: integer('priority').default(1).notNull(),
     source: taskSourceEnum('source').notNull(),
     project: text('project'),
+    // projectId links this task to the sprint/project that spawned it.
+    // Null for standalone tasks (chat, cron, API). ON DELETE SET NULL so
+    // deleting a sprint doesn't cascade-delete the task history.
+    projectId: text('project_id').references((): any => sprints.id, { onDelete: 'set null' }), // eslint-disable-line @typescript-eslint/no-explicit-any
     parentId: text('parent_id').references((): any => tasks.id), // eslint-disable-line @typescript-eslint/no-explicit-any -- self-ref
     context: jsonb('context').notNull(),
     qualityScore: real('quality_score'),
@@ -252,6 +256,7 @@ export const tasks = pgTable('tasks', {
 }, (table) => [
     index('tasks_workspace_status_idx').on(table.workspaceId, table.status),
     index('tasks_workspace_project_idx').on(table.workspaceId, table.project),
+    index('tasks_project_id_idx').on(table.projectId),
 ])
 
 export const taskSteps = pgTable('task_steps', {

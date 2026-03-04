@@ -11,6 +11,7 @@ export interface PushParams {
     context: Record<string, unknown>
     priority?: number
     project?: string
+    projectId?: string   // FK → sprints.id — the project this task belongs to
     parentId?: string
     status?: 'queued' | 'claimed' | 'running' | 'complete' | 'blocked' | 'cancelled'
 }
@@ -29,6 +30,7 @@ export interface ListFilter {
     type?: string
     source?: string
     project?: string
+    projectId?: string   // filter by sprint/project FK
     limit?: number
     cursor?: string
 }
@@ -45,6 +47,7 @@ export async function push(params: PushParams): Promise<string> {
         priority: params.priority ?? 1,
         source: params.source,
         project: params.project ?? null,
+        projectId: params.projectId ?? null,
         parentId: params.parentId ?? null,
         context: params.context,
     })
@@ -113,6 +116,9 @@ export async function list(filter: ListFilter = {}): Promise<(typeof tasks.$infe
     }
     if (filter.project) {
         conditions.push(eq(tasks.project, filter.project))
+    }
+    if (filter.projectId) {
+        conditions.push(eq(tasks.projectId, filter.projectId))
     }
 
     const query = db.select().from(tasks)

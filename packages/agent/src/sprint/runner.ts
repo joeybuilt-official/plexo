@@ -100,6 +100,7 @@ export async function runSprint(opts: SprintRunOptions): Promise<void> {
                     type: 'coding',
                     source: 'api',
                     priority: st.priority,
+                    projectId: sprintId,          // FK → sprints.id
                     context: {
                         description: st.description,
                         sprintId,

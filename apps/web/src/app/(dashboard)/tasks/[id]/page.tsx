@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { CheckCircle, Clock, XCircle, Loader2, ChevronLeft, Terminal } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, Loader2, ChevronLeft, Terminal, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
 import { CancelButton } from './_cancel-button'
 
@@ -20,6 +20,8 @@ interface Task {
     type: string
     status: string
     source: string
+    project: string | null
+    projectId: string | null   // FK → sprints.id
     context: Record<string, unknown>
     outcomeSummary: string | null
     qualityScore: number | null
@@ -63,11 +65,20 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                     <Link href="/tasks" className="text-zinc-500 hover:text-zinc-300 transition-colors">
                         <ChevronLeft className="h-4 w-4" />
                     </Link>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         {icon}
                         <h1 className="text-lg font-bold text-zinc-50 font-mono">{task.id.slice(0, 8)}…</h1>
                         <span className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] capitalize text-zinc-400">{task.type}</span>
                         <span className="rounded bg-zinc-800/50 px-2 py-0.5 text-[10px] text-zinc-500">{task.source}</span>
+                        {task.projectId && (
+                            <Link
+                                href={`/sprints/${task.projectId}`}
+                                className="flex items-center gap-1 rounded bg-indigo-900/30 border border-indigo-800/30 px-2 py-0.5 text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                            >
+                                <FolderOpen className="h-2.5 w-2.5" />
+                                {task.project ?? task.projectId.slice(0, 8)}
+                            </Link>
+                        )}
                     </div>
                 </div>
                 {(task.status === 'pending' || task.status === 'running') && (
