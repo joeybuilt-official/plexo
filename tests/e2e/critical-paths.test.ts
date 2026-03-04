@@ -178,6 +178,57 @@ test.describe('Memory API', () => {
   })
 })
 
+// ── Chat API ──────────────────────────────────────────────────────────────────
+
+test.describe('Chat API', () => {
+  test('POST /api/chat/message missing workspaceId returns 400', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/chat/message`, {
+      data: { message: 'hello' },
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('INVALID_WORKSPACE')
+  })
+
+  test('POST /api/chat/message missing message returns 400', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/chat/message`, {
+      data: { workspaceId: '00000000-0000-0000-0000-000000000001' },
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('MISSING_MESSAGE')
+  })
+
+  test('GET /api/chat/widget.js returns JavaScript', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/chat/widget.js`)
+    expect(res.status()).toBe(200)
+    expect(res.headers()['content-type']).toContain('javascript')
+    const body = await res.text()
+    expect(body).toContain('plexo-widget-btn')
+  })
+})
+
+// ── Cron API ──────────────────────────────────────────────────────────────────
+
+test.describe('Cron NLP API', () => {
+  test('POST /api/cron/parse-nl with valid text returns cron expression', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/cron/parse-nl`, {
+      data: { text: 'every day at midnight' },
+    })
+    expect(res.status()).toBe(200)
+    const body = await res.json() as { cron: string; description: string }
+    expect(typeof body.cron).toBe('string')
+    expect(body.cron.split(' ')).toHaveLength(5)
+  })
+
+  test('POST /api/cron/parse-nl missing text returns 400', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/cron/parse-nl`, {
+      data: {},
+    })
+    expect(res.status()).toBe(400)
+  })
+})
+
 // ── Browser tests (require Next.js on :3000) ──────────────────────────────────
 
 test.describe('Login', () => {
