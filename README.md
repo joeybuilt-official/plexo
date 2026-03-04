@@ -11,9 +11,10 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-8%20complete-brightgreen)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Phase](https://img.shields.io/badge/phase-15%20complete-brightgreen)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Kapsel](https://img.shields.io/badge/Kapsel-Full%20compliant-6C47FF)](https://github.com/joeybuilt-official/kapsel)
 
-[**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
+[**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Kapsel Extension SDK](packages/sdk/) · [Architecture](docs/architecture.md)
 
 </div>
 
@@ -340,18 +341,57 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 - [x] **Discord icon** — stable CDN URL, `onError` fallback on all connection logos
 - [x] **Settings dedup** — Workspace section removed from Settings > Agent
 
-### 🔲 Backlog
-- [ ] Sandbox tools in isolated Docker containers
-- [ ] Multi-workspace RBAC + workspace membership table
-- [ ] Plugin marketplace — install from registry, sandboxed, signed
-- [ ] Recursive self-improvement — agent proposes + tests its own prompt changes
+### ✅ Phase 11 — Workspace membership + invites
+- [x] `workspace_members` + `workspace_invites` tables (migration 0007)
+- [x] `POST /api/members` — add member by user ID + role
+- [x] `PATCH /api/members/:id` — change role
+- [x] `DELETE /api/members/:id` — remove member
+- [x] `POST /api/members/invites` — create invite link
+- [x] `POST /api/members/invites/:token/accept` — accept invite
 
+### ✅ Phase 12 — Plugin runtime (Kapsel)
+- [x] `POST /api/plugins` — install extension (validates `kapsel.json`, §3.3)
+- [x] `PATCH /api/plugins/:id` — enable/disable extension (triggers lifecycle hooks)
+- [x] `DELETE /api/plugins/:id` — uninstall
+- [x] Plugin tool bridge — loads enabled extensions, activates in sandbox worker, builds Vercel AI SDK ToolSet
+
+### ✅ Phase 13 — Sandbox + audit log + workspace rate limit
+- [x] Plugin sandbox: `worker_threads` with 10s timeout, auto-terminate (§5)
+- [x] Audit log: `audit_log` table (migration 0008), `GET /api/audit`, calls on all mutation routes
+- [x] Workspace rate limit: Redis sliding-window, 1000 req/hr default, configurable via workspace settings
+
+### ✅ Phase 14 — Kapsel standard adoption
+- [x] `@plexo/sdk` fully rewritten to Kapsel Protocol Spec v0.2.0 (Full compliance declared)
+- [x] `plugin_type` enum migrated to Kapsel types: `agent|skill|channel|tool|mcp-server`
+- [x] `plugins.manifest` → `plugins.kapsel_manifest`; `entry` + `kapsel_version` columns added
+- [x] Manifest validation (§3.3) + `minHostLevel` enforcement (§11.4) on install
+- [x] Activation-model tool discovery: extensions call `sdk.registerTool()` in sandbox
+- [x] Host-side `KapselSDK` with capability enforcement at every call (§4)
+- [x] `/health` declares `kapsel: { complianceLevel: 'full', specVersion: '0.2.0' }` (§14.4)
+
+### ✅ Phase 15 — Recursive self-improvement + A/B variants
+- [x] Prompt improvement proposals stored in `agent_improvement_log` (LLM-generated diffs)
+- [x] A/B variant assignment: 80% control / 20% challenger per task invocation
+- [x] Quality tracking per variant in `improvement_log.metadata`
+- [x] Auto-promotion: challenger auto-applied when `median(B) > median(A) + 0.05` after ≥ 20 samples
+- [x] Challenger discard after 30 losing samples, fresh analysis triggered
+- [x] `POST /api/memory/improvements/run` — trigger pattern analysis
+- [x] `POST /api/memory/improvements/prompt` — trigger prompt improvement cycle
+- [x] `POST /api/memory/improvements/:id/apply` — manual approval + apply
+
+### 🔲 Backlog
+- [ ] Phase 16 — Production deployment (Dockerfile, env validation, Coolify manifests)
+- [ ] Kapsel extension marketplace — install from registry, signed packages
+- [ ] Kapsel registry implementation (§12) — publish, discover, deprecate
+- [ ] Full Event Bus (§7.4) — topic namespace enforcement, multi-agent routing
+- [ ] Agent one-way door protocol (§8.4) — approval gate before irreversible actions
+- [ ] Persistent sandbox workers (§5.4) — one worker per enabled extension, reused across calls
 
 ---
 
 ## Health
 
-The `/health` endpoint reports live service status.
+The `/health` endpoint reports live service status and Kapsel compliance declaration.
 
 ```json
 {
@@ -362,7 +402,12 @@ The `/health` endpoint reports live service status.
     "anthropic": { "ok": false, "latencyMs": 0 }
   },
   "version": "0.1.0",
-  "uptime": 42
+  "uptime": 42,
+  "kapsel": {
+    "complianceLevel": "full",
+    "specVersion": "0.2.0",
+    "host": "plexo"
+  }
 }
 ```
 
