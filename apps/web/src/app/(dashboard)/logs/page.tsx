@@ -61,7 +61,9 @@ export default async function LogsPage() {
                             {logs.map((log) => (
                                 <tr key={log.id} className="border-b border-zinc-800/50 hover:bg-zinc-900/40 transition-colors">
                                     <td className="px-3 py-2.5 text-zinc-500 whitespace-nowrap">
-                                        {new Date(log.completedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        {log.completedAt
+                                            ? new Date(log.completedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                            : <span className="text-zinc-700">—</span>}
                                     </td>
                                     <td className="px-3 py-2.5">
                                         {log.taskId ? (
@@ -91,7 +93,7 @@ export default async function LogsPage() {
                                             : <span className="text-zinc-700">—</span>}
                                     </td>
                                     <td className="px-3 py-2.5 text-zinc-500 whitespace-nowrap">
-                                        {log.wallClockMs !== null ? `${(log.wallClockMs / 1000).toFixed(1)}s` : '—'}
+                                        {log.wallClockMs != null && !isNaN(log.wallClockMs) ? `${(log.wallClockMs / 1000).toFixed(1)}s` : <span className="text-zinc-700">—</span>}
                                     </td>
                                     <td className="px-3 py-2.5">
                                         {log.calibration ? (
