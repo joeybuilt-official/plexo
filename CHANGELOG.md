@@ -12,6 +12,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [0.7.0-dev] — 2026-03-04 (Phase 7B/C/D — Personality, Control Room, Webchat, NLP Cron)
+
+### Added
+- **Agent personality system prompt** — executor fetches workspace `agentName` and `agentPersona` from DB; injects them into the system prompt dynamically
+- **Sprint control room** (`/sprints/[id]`) — live client page with SSE, worker grid, per-tab views (workers/tasks/features delivered), velocity metric cards (elapsed, cost, throughput), wall-clock timer, live active-worker banner
+- **Sprint velocity metrics** on `/sprints` list — total projects, completed count, success rate, avg tasks/sprint, total spend
+- **Webchat widget** — `POST /api/chat/message` queues a task, `GET /api/chat/reply/:taskId` long-polls for agent reply, `GET /api/chat/widget.js` serves embeddable vanilla JS bubble widget
+- **Webchat embed snippet** on `/settings/channels` page — shows copyable `<script>` tag with workspace ID
+- **NLP-to-cron parser** — `POST /api/cron/parse-nl` converts plain English schedules to cron expressions (deterministic, no AI call). UI in `/cron` add form fills schedule field from natural language input with Enter-to-parse and green confirmation
+
+### Changed
+- Sprint card shows wall clock time alongside cost
+- Sprint list page is now a clean server component rewrite (removed duplicate declarations from earlier partial edit)
+
+---
+
 ## [0.7.0-dev] — 2026-03-04 (Phase 10 — Live Dashboard + Debug + Connections Tools)
 
 ### Added

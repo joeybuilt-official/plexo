@@ -11,6 +11,8 @@ import {
     DollarSign,
     Shield,
     Settings,
+    Sparkles,
+    User,
 } from 'lucide-react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -31,9 +33,14 @@ interface WorkspaceSettings {
     maxStepsPerTask?: number
     maxTokensPerTask?: number
     costCeilingUsd?: number
-    autoApproveThreshold?: number  // quality score below which OWD is required
-    safeMode?: boolean             // require OWD approval for all file writes
-    systemPromptExtra?: string     // appended to default system prompt
+    autoApproveThreshold?: number
+    safeMode?: boolean
+    systemPromptExtra?: string
+    // Personality
+    agentName?: string
+    agentTagline?: string
+    agentAvatar?: string   // emoji
+    agentPersona?: string  // free-text soul/persona description
 }
 
 // ── Section component ─────────────────────────────────────────────────────────
@@ -194,6 +201,63 @@ export default function AgentSettingsPage() {
                 </div>
             ) : (
                 <div className="flex flex-col gap-4">
+                    {/* Personality */}
+                    <Section title="Personality" icon={Sparkles}>
+                        <div className="flex items-start gap-4">
+                            {/* Avatar picker */}
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-medium text-zinc-300">Avatar</label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {['🤖','🧠','⚡','🦾','🌟','👾','🔱','🦊','🐉','🔮'].map((emoji) => (
+                                        <button
+                                            key={emoji}
+                                            onClick={() => updateSetting('agentAvatar', emoji)}
+                                            className={`h-9 w-9 rounded-lg text-lg transition-all ${
+                                                (settings.agentAvatar ?? '🤖') === emoji
+                                                ? 'bg-indigo-600/30 ring-1 ring-indigo-500'
+                                                : 'bg-zinc-800 hover:bg-zinc-700'
+                                            }`}
+                                        >{emoji}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            {/* Preview */}
+                            <div className="flex flex-col items-center gap-1.5 ml-auto">
+                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-3xl shadow-lg shadow-indigo-500/20">
+                                    {settings.agentAvatar ?? '🤖'}
+                                </div>
+                                <span className="text-xs text-zinc-500 font-medium">{settings.agentName || 'Plexo'}</span>
+                                {settings.agentTagline && <span className="text-[10px] text-zinc-600 italic max-w-[100px] text-center truncate">{settings.agentTagline}</span>}
+                            </div>
+                        </div>
+                        <Field label="Agent name" description="How the agent refers to itself in messages.">
+                            <Input
+                                value={settings.agentName ?? ''}
+                                onChange={(e) => updateSetting('agentName', e.target.value || undefined)}
+                                placeholder="Plexo"
+                            />
+                        </Field>
+                        <Field label="Tagline" description="Short descriptor shown under the agent name (optional).">
+                            <Input
+                                value={settings.agentTagline ?? ''}
+                                onChange={(e) => updateSetting('agentTagline', e.target.value || undefined)}
+                                placeholder="Your autonomous ops agent"
+                            />
+                        </Field>
+                        <Field
+                            label="Persona / soul"
+                            description="Character text injected at the top of the system prompt. Sets the agent's tone, personality, and expertise emphasis."
+                        >
+                            <textarea
+                                value={settings.agentPersona ?? ''}
+                                onChange={(e) => updateSetting('agentPersona', e.target.value || undefined)}
+                                rows={3}
+                                placeholder="You are a calm, methodical senior engineer. You prefer to verify before acting. You ask clarifying questions rather than making assumptions."
+                                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 resize-none"
+                            />
+                        </Field>
+                    </Section>
+
                     {/* Workspace */}
                     <Section title="Workspace" icon={Settings}>
                         <Field label="Workspace name">

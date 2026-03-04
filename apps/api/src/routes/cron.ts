@@ -2,6 +2,7 @@
  * Cron jobs API
  *
  * GET    /api/cron?workspaceId=    List cron jobs
+ * POST   /api/cron/parse-nl       Parse natural language → cron expression
  * POST   /api/cron                 Create cron job
  * PATCH  /api/cron/:id             Update (schedule, enabled, name)
  * DELETE /api/cron/:id             Delete
@@ -21,6 +22,76 @@ function isValidCron(expr: string): boolean {
     const parts = expr.trim().split(/\s+/)
     return parts.length >= 5 && parts.length <= 6
 }
+
+// Natural language → cron (deterministic, no AI call)
+function parseNl(text: string): { cron: string; description: string } | null {
+    const t = text.toLowerCase().trim()
+    const pad = (n: number) => String(n).padStart(2, '0')
+
+    // daily at HH(:MM)? (am|pm)?
+    const dailyAt = t.match(/(?:every\s+day|daily)\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/)
+    if (dailyAt) {
+        let h = parseInt(dailyAt[1]!)
+        const m = parseInt(dailyAt[2] ?? '0')
+        if (dailyAt[3] === 'pm' && h < 12) h += 12
+        if (dailyAt[3] === 'am' && h === 12) h = 0
+        return { cron: `${m} ${h} * * *`, description: `Daily at ${h}:${pad(m)}` }
+    }
+
+    // every N minutes
+    const evMin = t.match(/every\s+(\d+)\s*min(?:ute)?s?/)
+    if (evMin) { const n = +evMin[1]!; return { cron: `*/${n} * * * *`, description: `Every ${n} minutes` } }
+
+    // every N hours
+    const evHr = t.match(/every\s+(\d+)\s*hour(?:s)?/)
+    if (evHr) { const n = +evHr[1]!; return { cron: `0 */${n} * * *`, description: `Every ${n} hours` } }
+
+    // weekday at HH
+    const dmap: Record<string, number> = { sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tuesday: 2, wed: 3, wednesday: 3, thu: 4, thursday: 4, fri: 5, friday: 5, sat: 6, saturday: 6 }
+    for (const [day, num] of Object.entries(dmap)) {
+        const dm = t.match(new RegExp(`(?:every\\s+)?${day}s?\\s+(?:at\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?`))
+        if (dm) {
+            let h = parseInt(dm[1]!)
+            const m = parseInt(dm[2] ?? '0')
+            if (dm[3] === 'pm' && h < 12) h += 12
+            if (dm[3] === 'am' && h === 12) h = 0
+            return { cron: `${m} ${h} * * ${num}`, description: `Every ${day} at ${h}:${pad(m)}` }
+        }
+    }
+
+    // Shorthands
+    if (/every\s*5\s*min/.test(t)) return { cron: '*/5 * * * *', description: 'Every 5 minutes' }
+    if (/every\s*15\s*min/.test(t)) return { cron: '*/15 * * * *', description: 'Every 15 minutes' }
+    if (/every\s*30\s*min|half.*hour/.test(t)) return { cron: '*/30 * * * *', description: 'Every 30 minutes' }
+    if (/hourly|every\s+hour/.test(t)) return { cron: '0 * * * *', description: 'Every hour' }
+    if (/every\s*6\s*h/.test(t)) return { cron: '0 */6 * * *', description: 'Every 6 hours' }
+    if (/every\s*12\s*h/.test(t)) return { cron: '0 */12 * * *', description: 'Every 12 hours' }
+    if (/midnight/.test(t)) return { cron: '0 0 * * *', description: 'Daily at midnight' }
+    if (/noon/.test(t)) return { cron: '0 12 * * *', description: 'Daily at noon' }
+    if (/daily|every\s+day/.test(t)) return { cron: '0 0 * * *', description: 'Daily at midnight' }
+    if (/weekly|every\s+week/.test(t)) return { cron: '0 9 * * 1', description: 'Weekly Mon 9am' }
+    if (/monthly|every\s+month/.test(t)) return { cron: '0 0 1 * *', description: 'Monthly on the 1st' }
+
+    // Raw cron passthrough
+    if (isValidCron(t)) return { cron: t, description: 'Custom schedule' }
+    return null
+}
+
+// ── POST /api/cron/parse-nl ───────────────────────────────────────────────────
+
+cronRouter.post('/parse-nl', (req, res) => {
+    const { text } = req.body as { text?: string }
+    if (!text) {
+        res.status(400).json({ error: { code: 'MISSING_TEXT', message: 'text required' } })
+        return
+    }
+    const result = parseNl(text)
+    if (!result) {
+        res.status(422).json({ error: { code: 'PARSE_FAILED', message: 'Could not parse schedule from text' } })
+        return
+    }
+    res.json(result)
+})
 
 // ── GET /api/cron ─────────────────────────────────────────────────────────────
 

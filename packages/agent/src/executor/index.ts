@@ -5,6 +5,7 @@ import { taskSteps } from '@plexo/db'
 import { withFallback } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
+import { loadConnectionTools } from '../connections/bridge.js'
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 
@@ -133,7 +134,24 @@ export async function executeTask(
     let finalSummary = ''
     let finalQuality = 0.5
 
-    const systemPrompt = `You are Plexo, an autonomous AI agent executing a task.
+    // Load workspace personality settings (non-fatal)
+    let agentName = 'Plexo'
+    let personaPrefix = ''
+    let systemPromptExtra = ''
+    try {
+        const { workspaces } = await import('@plexo/db')
+        const { db: dbInst, eq: eqFn } = await import('@plexo/db')
+        const [ws] = await dbInst.select({ settings: workspaces.settings }).from(workspaces)
+            .where(eqFn(workspaces.id, ctx.workspaceId)).limit(1)
+        if (ws?.settings) {
+            const s = ws.settings as Record<string, unknown>
+            if (typeof s.agentName === 'string' && s.agentName) agentName = s.agentName
+            if (typeof s.agentPersona === 'string' && s.agentPersona) personaPrefix = s.agentPersona + '\n\n'
+            if (typeof s.systemPromptExtra === 'string' && s.systemPromptExtra) systemPromptExtra = '\n\n' + s.systemPromptExtra
+        }
+    } catch { /* non-fatal */ }
+
+    const systemPrompt = `${personaPrefix}You are ${agentName}, an autonomous AI agent executing a task.
 
 Task goal: ${plan.goal}
 
@@ -141,7 +159,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 - Use tools to make progress. Read before writing.
 - When you have completed all steps, call task_complete.
 - Be conservative. If something seems wrong, stop and report it.
-- NEVER output credentials, secrets, or tokens in any tool call or message.`
+- NEVER output credentials, secrets, or tokens in any tool call or message.${systemPromptExtra}`
 
     const planSummary = plan.steps
         .map((s) => `Step ${s.stepNumber}: ${s.description}`)
@@ -155,12 +173,16 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 
     const stepStart = Date.now()
 
+    // Load connection-backed tools for this workspace (non-fatal if fails)
+    const connectionTools = await loadConnectionTools(ctx.workspaceId)
+    const allTools = { ...buildTools(ctx), ...connectionTools }
+
     const genResult = await withFallback(settings, 'codeGeneration', async (model) => {
         return generateText({
             model,
             system: systemPrompt,
             messages: [{ role: 'user', content: userMessage }],
-            tools: buildTools(ctx),
+            tools: allTools,
             stopWhen: stepCountIs(SAFETY_LIMITS.maxConsecutiveToolCalls),
             abortSignal: ctx.signal,
         })

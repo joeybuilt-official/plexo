@@ -188,3 +188,11 @@ This has implications for every decision:
 - **Connections Tools tab**: Per-tool enable/disable toggles backed by `enabled_tools jsonb` column in `installed_connections`. Migration 0004 applies ADD COLUMN IF NOT EXISTS. Applied directly via psql because Drizzle journal only tracks 0000 and 0001.
 - **web .env.local**: `NEXT_PUBLIC_DEFAULT_WORKSPACE` and `DEV_WORKSPACE_ID` set to the dev workspace UUID. Required for LiveDashboard and other client components to make API calls.
 - **API restart protocol**: `kill -9 <pid>` then restart with `cmd < /dev/null >> logfile 2>&1 &`. Wait 5s, verify with `curl -sm4 http://localhost:3001/health`. Do not use pnpm from within a background job (EBADF on stdin).
+
+### 2026-03 — Phase 7B/C/D (Personality, Control Room, Webchat, NLP Cron)
+
+- **Agent personality**: `workspaces.settings` JSONB holds `agentName`, `agentPersona`, `agentTagline`, `agentAvatar`. Executor (`packages/agent/src/executor/index.ts`) dynamic-imports from `@plexo/db` to read these at task start. Non-fatal try/catch — falls back to 'Plexo' name and empty persona prefix.
+- **Sprint control room** (`/sprints/[id]/page.tsx`): Full client component with SSE + 5s polling when sprint is active. Three tabs: workers (card grid), tasks (table), features (list). Six metric cards. Wall-clock timer runs locally when sprint is active.
+- **Webchat**: `apps/api/src/routes/chat.ts` — POST `/api/chat/message` creates a `type:'online'` task with `source:'dashboard'`; uses `ulid()` for ID since `tasks.id` has no DB default. GET `/api/chat/reply/:taskId` long-polls up to 25s. GET `/api/chat/widget.js` returns a self-contained JS bundle injected via `<script>` tag with `data-workspace` attribute.
+- **NLP cron**: `parseNl()` is a deterministic rule-based parser in `apps/api/src/routes/cron.ts` — no AI call, handles "every Monday at 9am", "daily at midnight", "every 5 minutes", etc. Registered before parameterized routes so `/parse-nl` is not mistaken for `/:id`.
+- **Route ordering**: In Express, `cronRouter.post('/parse-nl', ...)` MUST be registered before `cronRouter.patch('/:id', ...)` etc. — already correct in current file.

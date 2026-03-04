@@ -64,6 +64,9 @@ export default function CronPage() {
     const [adding, setAdding] = useState(false)
     const [newName, setNewName] = useState('')
     const [newSchedule, setNewSchedule] = useState('')
+    const [nlText, setNlText] = useState('')
+    const [nlParsed, setNlParsed] = useState<{ cron: string; description: string } | null>(null)
+    const [nlParsing, setNlParsing] = useState(false)
     const [saving, setSaving] = useState(false)
     const [triggering, setTriggering] = useState<string | null>(null)
     const [toggling, setToggling] = useState<string | null>(null)
@@ -85,6 +88,29 @@ export default function CronPage() {
     }, [])
 
     useEffect(() => { void fetchJobs() }, [fetchJobs])
+
+    async function handleParseNl() {
+        if (!nlText.trim()) return
+        setNlParsing(true)
+        setNlParsed(null)
+        try {
+            const res = await fetch(`${API_BASE}/api/cron/parse-nl`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: nlText }),
+            })
+            if (res.ok) {
+                const d = await res.json() as { cron: string; description: string }
+                setNlParsed(d)
+                setNewSchedule(d.cron)
+            } else {
+                setNlParsed(null)
+                setMessage({ ok: false, text: 'Could not parse that schedule — try e.g. "every day at 9am"' })
+            }
+        } finally {
+            setNlParsing(false)
+        }
+    }
 
     async function handleAdd() {
         if (!newName.trim() || !newSchedule.trim()) return
@@ -190,6 +216,36 @@ export default function CronPage() {
             {adding && (
                 <div className="rounded-xl border border-indigo-500/30 bg-zinc-900/60 p-4 flex flex-col gap-4">
                     <h2 className="text-sm font-semibold text-zinc-200">New scheduled job</h2>
+
+                    {/* NLP schedule builder */}
+                    <div className="flex flex-col gap-2">
+                        <label className="text-xs font-medium text-zinc-400">Describe the schedule in plain English</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={nlText}
+                                onChange={(e) => setNlText(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') void handleParseNl() }}
+                                placeholder='e.g. "every Monday at 9am" or "daily at midnight"'
+                                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                            />
+                            <button
+                                onClick={() => void handleParseNl()}
+                                disabled={nlParsing || !nlText.trim()}
+                                className="flex items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-600/20 px-3 py-2 text-xs font-medium text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-50 transition-colors"
+                            >
+                                {nlParsing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                                Parse
+                            </button>
+                        </div>
+                        {nlParsed && (
+                            <div className="flex items-center gap-2 text-xs text-emerald-400">
+                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                                Parsed: <code className="font-mono">{nlParsed.cron}</code> — {nlParsed.description}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                         <div className="flex flex-col gap-1.5">
                             <label className="text-xs font-medium text-zinc-400">Job name</label>
@@ -219,8 +275,8 @@ export default function CronPage() {
                                 key={p.value}
                                 onClick={() => setNewSchedule(p.value)}
                                 className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${newSchedule === p.value
-                                        ? 'border-indigo-500/50 bg-indigo-600/20 text-indigo-300'
-                                        : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                                    ? 'border-indigo-500/50 bg-indigo-600/20 text-indigo-300'
+                                    : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'
                                     }`}
                             >
                                 {p.label}

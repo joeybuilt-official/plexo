@@ -15,6 +15,8 @@ import {
     CheckCircle2,
     Clock,
     ChevronRight,
+    Copy,
+    Globe,
 } from 'lucide-react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -160,6 +162,29 @@ export default function ChannelsPage() {
 
     return (
         <div className="flex flex-col gap-6 h-full">
+            {/* Webchat embed snippet */}
+            {WS_ID && (
+                <div className="rounded-xl border border-indigo-500/20 bg-indigo-950/10 p-4 flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-indigo-400" />
+                        <h2 className="text-sm font-semibold text-indigo-300">Webchat widget</h2>
+                        <span className="ml-auto text-[11px] text-indigo-500">Paste this snippet into any website to add a chat bubble</span>
+                    </div>
+                    <div className="relative group">
+                        <pre className="rounded-lg bg-zinc-950 border border-zinc-800 p-3 text-[11px] font-mono text-zinc-400 overflow-x-auto whitespace-pre-wrap break-all">{`<script src="${API_BASE}/api/chat/widget.js"
+        data-workspace="${WS_ID}"
+        data-site-name="My Site"
+></script>`}</pre>
+                        <button
+                            onClick={() => void navigator.clipboard.writeText(`<script src="${API_BASE}/api/chat/widget.js" data-workspace="${WS_ID}" data-site-name="My Site"></script>`)}
+                            className="absolute top-2 right-2 rounded p-1 bg-zinc-800 text-zinc-500 hover:text-zinc-200 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Copy"
+                        >
+                            <Copy className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                </div>
+            )}
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
