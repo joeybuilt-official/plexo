@@ -1,17 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, ChevronRight, Loader2, ExternalLink, AlertCircle } from 'lucide-react'
+import { Check, ChevronRight, ChevronDown, Loader2, ExternalLink, AlertCircle, ShieldCheck, X } from 'lucide-react'
 
-type Step = 'welcome' | 'workspace' | 'anthropic' | 'test' | 'done'
+type Step = 'welcome' | 'workspace' | 'anthropic' | 'test' | 'telemetry' | 'done'
 
-const STEPS: Step[] = ['welcome', 'workspace', 'anthropic', 'test', 'done']
+const STEPS: Step[] = ['welcome', 'workspace', 'anthropic', 'test', 'telemetry', 'done']
+const STEP_LABELS = ['Welcome', 'Workspace', 'Anthropic', 'Test', 'Privacy', 'Done']
 
 function StepIndicator({ current }: { current: Step }) {
-    const labels = ['Welcome', 'Workspace', 'Anthropic', 'Test', 'Done']
     const idx = STEPS.indexOf(current)
     return (
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex items-center gap-2 mb-8 flex-wrap">
             {STEPS.slice(0, -1).map((s, i) => (
                 <div key={s} className="flex items-center gap-2">
                     <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${i < idx ? 'bg-indigo-600 text-white' :
@@ -20,10 +20,152 @@ function StepIndicator({ current }: { current: Step }) {
                         }`}>
                         {i < idx ? <Check className="h-3.5 w-3.5" /> : i + 1}
                     </div>
-                    <span className={`text-xs ${i === idx ? 'text-zinc-200 font-medium' : 'text-zinc-600'}`}>{labels[i]}</span>
+                    <span className={`text-xs ${i === idx ? 'text-zinc-200 font-medium' : 'text-zinc-600'}`}>
+                        {STEP_LABELS[i]}
+                    </span>
                     {i < STEPS.length - 2 && <ChevronRight className="h-3 w-3 text-zinc-700" />}
                 </div>
             ))}
+        </div>
+    )
+}
+
+const COLLECT_ROWS = [
+    ['Error type and stack trace', 'Task content or goals'],
+    ['Which step failed (PLAN / CONFIRM / EXECUTE / VERIFY)', 'Workspace or user names'],
+    ['Task category (coding, research, ops — not the task itself)', 'Channel handles or credentials'],
+    ['Plugin name if a plugin crashed', 'File paths containing your data'],
+    ['Plexo version + Node version', 'Tool call arguments'],
+    ['Anonymous instance ID (random UUID, generated at install)', 'Memory entries or outputs'],
+]
+
+function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null; onComplete: () => void }) {
+    const [enabled, setEnabled] = useState(false)
+    const [expanded, setExpanded] = useState(false)
+    const [saving, setSaving] = useState(false)
+
+    async function save() {
+        setSaving(true)
+        try {
+            await fetch('/api/telemetry', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+                },
+                body: JSON.stringify({ enabled }),
+            })
+        } catch {
+            // Non-fatal — user preference is stored optimistically
+        } finally {
+            setSaving(false)
+            onComplete()
+        }
+    }
+
+    return (
+        <div className="flex flex-col gap-6">
+            <div>
+                <div className="flex items-center gap-2 mb-1">
+                    <ShieldCheck className="h-5 w-5 text-indigo-400" />
+                    <h2 className="text-lg font-bold text-zinc-50">Help us fix bugs faster</h2>
+                </div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                    Plexo is self-hosted — your data stays on your machine. This is optional, anonymous crash
+                    reporting that helps us identify where things break.
+                </p>
+                <p className="mt-3 text-sm text-zinc-400 leading-relaxed">
+                    If you enable this, when Plexo encounters an error, a sanitized report is sent to our
+                    servers. No task content, no credentials, no file paths, no workspace names — ever. The
+                    stripping happens on your machine before anything leaves.
+                </p>
+                <p className="mt-3 text-sm text-zinc-400 leading-relaxed">
+                    You can change this at any time in{' '}
+                    <span className="text-zinc-300 font-medium">Settings → Privacy</span>.
+                </p>
+            </div>
+
+            {/* Toggle */}
+            <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3.5">
+                <span className="text-sm font-medium text-zinc-200">
+                    {enabled ? 'Sending anonymous crash reports' : 'Crash reporting disabled'}
+                </span>
+                <button
+                    id="setup-telemetry-toggle"
+                    role="switch"
+                    aria-checked={enabled}
+                    onClick={() => setEnabled(v => !v)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${enabled ? 'bg-indigo-600' : 'bg-zinc-700'
+                        }`}
+                >
+                    <span className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform duration-200 ${enabled ? 'translate-x-5' : 'translate-x-1'
+                        }`} />
+                </button>
+            </div>
+
+            {/* What we collect — expandable */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+                <button
+                    id="setup-telemetry-details-toggle"
+                    onClick={() => setExpanded(v => !v)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-zinc-300 hover:text-zinc-100 transition-colors"
+                >
+                    <span>What we collect</span>
+                    <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                <div className={`grid transition-all duration-300 ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                    <div className="overflow-hidden">
+                        <div className="px-4 pb-4">
+                            <div className="grid grid-cols-2 gap-x-4 text-xs">
+                                <div className="mb-2 border-b border-zinc-800 pb-2">
+                                    <span className="font-semibold text-zinc-300">We collect</span>
+                                </div>
+                                <div className="mb-2 border-b border-zinc-800 pb-2">
+                                    <span className="font-semibold text-zinc-300">We never collect</span>
+                                </div>
+                                {COLLECT_ROWS.map(([yes, no]) => (
+                                    <>
+                                        <div key={`yes-${yes}`} className="flex items-start gap-2 py-1.5 border-b border-zinc-800/50">
+                                            <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-emerald-400" />
+                                            <span className="text-zinc-400">{yes}</span>
+                                        </div>
+                                        <div key={`no-${no}`} className="flex items-start gap-2 py-1.5 border-b border-zinc-800/50">
+                                            <X className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-400" />
+                                            <span className="text-zinc-400">{no}</span>
+                                        </div>
+                                    </>
+                                ))}
+                            </div>
+                            <p className="mt-3 text-[11px] text-zinc-600 leading-relaxed">
+                                All sanitization runs locally. You can inspect the{' '}
+                                <code className="font-mono text-zinc-500">sanitize()</code> function in{' '}
+                                <code className="font-mono text-zinc-500">packages/api/src/telemetry/sanitize.ts</code>.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+                <button
+                    id="setup-telemetry-skip"
+                    onClick={onComplete}
+                    className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
+                >
+                    Skip for now
+                </button>
+                <button
+                    id="setup-telemetry-save"
+                    onClick={() => void save()}
+                    disabled={saving}
+                    className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                    {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {saving ? 'Saving…' : 'Save and continue'}
+                </button>
+            </div>
         </div>
     )
 }
@@ -38,7 +180,7 @@ export default function SetupPage() {
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const apiBase = '/api' // goes through Next.js rewrite → Express
+    const apiBase = '/api'
 
     async function createWorkspace() {
         setSaving(true)
@@ -68,7 +210,7 @@ export default function SetupPage() {
         setSaving(true)
         setError(null)
         try {
-            const res = await fetch(`${apiBase}/connections/install`, {
+            await fetch(`${apiBase}/connections/install`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -77,13 +219,8 @@ export default function SetupPage() {
                     credentials: { api_key: anthropicKey.trim() },
                 }),
             })
-            // Anthropic may not be in registry — that's OK, proceed anyway
-            if (!res.ok && res.status !== 404) {
-                // Non-fatal: we can still set env-level key
-            }
             setStep('test')
         } catch {
-            // Non-fatal
             setStep('test')
         } finally {
             setSaving(false)
@@ -95,7 +232,6 @@ export default function SetupPage() {
         setTesting(true)
         setTestResult(null)
         try {
-            // Submit a simple ping task
             const res = await fetch(`${apiBase}/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -118,7 +254,6 @@ export default function SetupPage() {
     return (
         <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
             <div className="w-full max-w-lg">
-                {/* Logo */}
                 <div className="mb-8 flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-lg shadow-indigo-500/20">
                         P
@@ -148,6 +283,7 @@ export default function SetupPage() {
                                 ))}
                             </ul>
                             <button
+                                id="setup-get-started"
                                 onClick={() => setStep('workspace')}
                                 className="mt-2 w-full rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
                             >
@@ -182,6 +318,7 @@ export default function SetupPage() {
                                 </div>
                             )}
                             <button
+                                id="setup-create-workspace"
                                 onClick={() => void createWorkspace()}
                                 disabled={!workspaceName.trim() || saving}
                                 className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
@@ -224,12 +361,14 @@ export default function SetupPage() {
                             </div>
                             <div className="flex gap-3">
                                 <button
+                                    id="setup-anthropic-skip"
                                     onClick={() => setStep('test')}
                                     className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
                                 >
                                     Skip for now
                                 </button>
                                 <button
+                                    id="setup-anthropic-save"
                                     onClick={() => void saveAnthropicKey()}
                                     disabled={!anthropicKey.trim() || saving}
                                     className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
@@ -265,6 +404,7 @@ export default function SetupPage() {
                             )}
                             <div className="flex gap-3">
                                 <button
+                                    id="setup-run-test"
                                     onClick={() => void runTest()}
                                     disabled={testing}
                                     className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors flex items-center justify-center gap-2"
@@ -273,13 +413,19 @@ export default function SetupPage() {
                                     {testing ? 'Sending…' : 'Run test task'}
                                 </button>
                                 <button
-                                    onClick={() => setStep('done')}
+                                    id="setup-test-continue"
+                                    onClick={() => setStep('telemetry')}
                                     className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
                                 >
-                                    {testResult === 'ok' ? 'Go to dashboard →' : 'Skip to dashboard'}
+                                    {testResult === 'ok' ? 'Continue →' : 'Skip'}
                                 </button>
                             </div>
                         </div>
+                    )}
+
+                    {/* ── Telemetry ── */}
+                    {step === 'telemetry' && (
+                        <TelemetryStep workspaceId={workspaceId} onComplete={() => setStep('done')} />
                     )}
 
                     {/* ── Done ── */}
@@ -293,6 +439,7 @@ export default function SetupPage() {
                                 <p className="mt-1 text-sm text-zinc-500">Your workspace is ready. Head to the dashboard to submit tasks.</p>
                             </div>
                             <a
+                                id="setup-open-dashboard"
                                 href="/"
                                 className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors block"
                             >

@@ -23,6 +23,7 @@ import {
     ChevronDown,
     ChevronRight,
     ShieldAlert,
+    ShieldCheck,
     ChevronsUpDown,
     Plus,
     Check,
@@ -85,6 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
             { label: 'Agent', href: '/settings/agent', icon: Bot },
             { label: 'Workspace', href: '/settings', icon: SettingsIcon, exact: true },
             { label: 'Users', href: '/settings/users', icon: Users },
+            { label: 'Privacy', href: '/settings/privacy', icon: ShieldCheck },
         ],
     },
     {

@@ -35,6 +35,8 @@ import { membersRouter, invitesRouter } from './routes/members.js'
 import { pluginsRouter } from './routes/plugins.js'
 import { auditRouter } from './routes/audit.js'
 import { registryRouter } from './routes/registry.js'
+import { telemetryRouter } from './telemetry/router.js'
+import { configureTelemetry } from './telemetry/posthog.js'
 import { terminateAll, workerStats } from '@plexo/agent/persistent-pool'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
@@ -103,6 +105,7 @@ v1.use('/invites', invitesRouter)
 v1.use('/plugins', workspaceRateLimit, pluginsRouter)
 v1.use('/registry', registryRouter)
 v1.use('/audit', auditRouter)
+v1.use('/telemetry', telemetryRouter)
 
 v1.use('/debug', debugRouter)
 v1.use('/chat', chatRouter)
@@ -136,6 +139,13 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 const server = app.listen(port, '0.0.0.0', () => {
     logger.info({ port }, 'Plexo API server started')
+    // Init telemetry — off by default; config loaded from workspace settings if available
+    configureTelemetry({
+        enabled: false,
+        instanceId: process.env.PLEXO_INSTANCE_ID ?? crypto.randomUUID(),
+        plexoVersion: process.env.npm_package_version ?? '0.1.0',
+        redisUrl: process.env.REDIS_URL,
+    })
     startAgentLoop()
     initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
 
