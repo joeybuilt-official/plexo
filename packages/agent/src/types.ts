@@ -313,7 +313,10 @@ export interface ExecutionContext {
     workspaceId: string
     userId: string
     credential: AnthropicCredential
+    /** Max output tokens for generateText. 0 = no cap. */
     tokenBudget: number
+    /** Max USD this task may spend. null = inherit workspace default. */
+    taskCostCeilingUsd: number | null
     signal: AbortSignal
 }
 

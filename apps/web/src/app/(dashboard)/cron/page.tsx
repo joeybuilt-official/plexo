@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
     Clock,
     Plus,
@@ -15,6 +15,8 @@ import {
     Zap,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
+import type { FilterDimension } from '@web/components/list-toolbar'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -31,7 +33,7 @@ interface CronJob {
     createdAt: string
 }
 
-// ── Cron expression presets ───────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const PRESETS = [
     { label: 'Every 5 minutes', value: '*/5 * * * *' },
@@ -41,6 +43,11 @@ const PRESETS = [
     { label: 'Daily at midnight', value: '0 0 * * *' },
     { label: 'Weekly (Mon 9am)', value: '0 9 * * 1' },
 ]
+
+// Module-level constant for useListFilter initialiser
+const FILTER_KEYS = ['enabled'] as const
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function timeAgo(iso: string): string {
     const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -56,11 +63,12 @@ function StatusIcon({ status }: { status: CronJob['lastRunStatus'] }) {
     return <Clock className="h-4 w-4 text-zinc-600" />
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CronPage() {
     const { workspaceId } = useWorkspace()
     const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
+
     const [jobs, setJobs] = useState<CronJob[]>([])
     const [loading, setLoading] = useState(true)
     const [adding, setAdding] = useState(false)
@@ -75,11 +83,16 @@ export default function CronPage() {
     const [deleting, setDeleting] = useState<string | null>(null)
     const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
+    // ── Filter state (shared standard) ────────────────────────────────────────
+    const lf = useListFilter(FILTER_KEYS, 'newest')
+    const { search, filterValues, hasFilters } = lf
+
+    // ── Data loading ──────────────────────────────────────────────────────────
     const fetchJobs = useCallback(async () => {
         if (!WS_ID) return
         setLoading(true)
         try {
-            const res = await fetch(`${API_BASE}/api/cron?workspaceId=${WS_ID}`)
+            const res = await fetch(`${API_BASE}/api/v1/cron?workspaceId=${WS_ID}`)
             if (res.ok) {
                 const data = await res.json() as { items: CronJob[] }
                 setJobs(data.items ?? [])
@@ -87,16 +100,70 @@ export default function CronPage() {
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [WS_ID])
 
     useEffect(() => { void fetchJobs() }, [fetchJobs])
+
+    // ── Filter dimensions ─────────────────────────────────────────────────────
+    const dimensions = useMemo((): FilterDimension[] => [
+        {
+            key: 'enabled',
+            label: 'State',
+            options: [
+                { value: 'true', label: 'Enabled' },
+                { value: 'false', label: 'Disabled' },
+            ],
+        },
+    ], [])
+
+    // ── Client-side filtering ─────────────────────────────────────────────────
+    const displayed = useMemo(() => {
+        const q = search.trim().toLowerCase()
+        let result = jobs.filter((job) => {
+            if (filterValues.enabled === 'true' && !job.enabled) return false
+            if (filterValues.enabled === 'false' && job.enabled) return false
+            if (q) {
+                return (
+                    job.name.toLowerCase().includes(q) ||
+                    job.schedule.toLowerCase().includes(q)
+                )
+            }
+            return true
+        })
+
+        result = [...result].sort((a, b) => {
+            if (lf.sort === 'oldest') {
+                return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            }
+            if (lf.sort === 'name_asc') {
+                return a.name.localeCompare(b.name)
+            }
+            if (lf.sort === 'name_desc') {
+                return b.name.localeCompare(a.name)
+            }
+            if (lf.sort === 'enabled_first') {
+                return (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0)
+            }
+            if (lf.sort === 'disabled_first') {
+                return (a.enabled ? 1 : 0) - (b.enabled ? 1 : 0)
+            }
+            if (lf.sort === 'failures_desc') {
+                return b.consecutiveFailures - a.consecutiveFailures
+            }
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        })
+
+        return result
+    }, [jobs, search, filterValues.enabled, lf.sort])
+
+    // ── Mutations ─────────────────────────────────────────────────────────────
 
     async function handleParseNl() {
         if (!nlText.trim()) return
         setNlParsing(true)
         setNlParsed(null)
         try {
-            const res = await fetch(`${API_BASE}/api/cron/parse-nl`, {
+            const res = await fetch(`${API_BASE}/api/v1/cron/parse-nl`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: nlText }),
@@ -119,7 +186,7 @@ export default function CronPage() {
         setSaving(true)
         setMessage(null)
         try {
-            const res = await fetch(`${API_BASE}/api/cron`, {
+            const res = await fetch(`${API_BASE}/api/v1/cron`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID, name: newName, schedule: newSchedule }),
@@ -142,7 +209,7 @@ export default function CronPage() {
     async function handleToggle(job: CronJob) {
         setToggling(job.id)
         try {
-            await fetch(`${API_BASE}/api/cron/${job.id}`, {
+            await fetch(`${API_BASE}/api/v1/cron/${job.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID, enabled: !job.enabled }),
@@ -157,7 +224,7 @@ export default function CronPage() {
         setTriggering(job.id)
         setMessage(null)
         try {
-            const res = await fetch(`${API_BASE}/api/cron/${job.id}/trigger`, {
+            const res = await fetch(`${API_BASE}/api/v1/cron/${job.id}/trigger`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID }),
@@ -173,13 +240,14 @@ export default function CronPage() {
     async function handleDelete(id: string) {
         setDeleting(id)
         try {
-            await fetch(`${API_BASE}/api/cron/${id}?workspaceId=${WS_ID}`, { method: 'DELETE' })
+            await fetch(`${API_BASE}/api/v1/cron/${id}?workspaceId=${WS_ID}`, { method: 'DELETE' })
             setJobs((p) => p.filter((j) => j.id !== id))
         } finally {
             setDeleting(null)
         }
     }
 
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="flex flex-col gap-6">
             {/* Header */}
@@ -187,7 +255,9 @@ export default function CronPage() {
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Scheduled Jobs</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">
-                        Recurring tasks the agent runs on a cron schedule.
+                        {loading
+                            ? '…'
+                            : `${displayed.length}${displayed.length !== jobs.length ? ` of ${jobs.length}` : ''} job${jobs.length === 1 ? '' : 's'}`}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -219,7 +289,6 @@ export default function CronPage() {
                 <div className="rounded-xl border border-indigo-500/30 bg-zinc-900/60 p-4 flex flex-col gap-4">
                     <h2 className="text-sm font-semibold text-zinc-200">New scheduled job</h2>
 
-                    {/* NLP schedule builder */}
                     <div className="flex flex-col gap-2">
                         <label className="text-xs font-medium text-zinc-400">Describe the schedule in plain English</label>
                         <div className="flex gap-2">
@@ -270,7 +339,7 @@ export default function CronPage() {
                             />
                         </div>
                     </div>
-                    {/* Presets */}
+
                     <div className="flex flex-wrap gap-1.5">
                         {PRESETS.map((p) => (
                             <button
@@ -285,6 +354,7 @@ export default function CronPage() {
                             </button>
                         ))}
                     </div>
+
                     <div className="flex gap-2">
                         <button
                             onClick={() => void handleAdd()}
@@ -304,6 +374,22 @@ export default function CronPage() {
                 </div>
             )}
 
+            {/* Search + filter toolbar */}
+            <ListToolbar
+                hook={lf}
+                placeholder="Search by name or schedule…"
+                dimensions={dimensions}
+                sortOptions={[
+                    { label: 'Newest first', value: 'newest' },
+                    { label: 'Oldest first', value: 'oldest' },
+                    { label: 'Name: A → Z', value: 'name_asc' },
+                    { label: 'Name: Z → A', value: 'name_desc' },
+                    { label: 'Enabled first', value: 'enabled_first' },
+                    { label: 'Disabled first', value: 'disabled_first' },
+                    { label: 'Most failures', value: 'failures_desc' },
+                ]}
+            />
+
             {/* Job table */}
             {loading ? (
                 <div className="flex items-center gap-2 py-8 text-sm text-zinc-600">
@@ -313,6 +399,16 @@ export default function CronPage() {
                 <div className="flex flex-col items-center justify-center py-16 gap-3 rounded-xl border border-dashed border-zinc-800">
                     <Clock className="h-8 w-8 text-zinc-700" />
                     <p className="text-sm text-zinc-600">No scheduled jobs — add one above</p>
+                </div>
+            ) : displayed.length === 0 ? (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center">
+                    <p className="text-sm text-zinc-500">No jobs match your filters</p>
+                    <button
+                        onClick={lf.clearAll}
+                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto"
+                    >
+                        Clear filters
+                    </button>
                 </div>
             ) : (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
@@ -325,7 +421,7 @@ export default function CronPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {jobs.map((job) => (
+                            {displayed.map((job) => (
                                 <tr key={job.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors">
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
@@ -360,8 +456,7 @@ export default function CronPage() {
                                             >
                                                 {triggering === job.id
                                                     ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                                    : <Play className="h-3.5 w-3.5" />
-                                                }
+                                                    : <Play className="h-3.5 w-3.5" />}
                                             </button>
                                             <button
                                                 onClick={() => void handleToggle(job)}
@@ -373,8 +468,7 @@ export default function CronPage() {
                                                     ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                                                     : job.enabled
                                                         ? <ToggleRight className="h-4 w-4 text-emerald-400" />
-                                                        : <ToggleLeft className="h-4 w-4" />
-                                                }
+                                                        : <ToggleLeft className="h-4 w-4" />}
                                             </button>
                                             <button
                                                 onClick={() => void handleDelete(job.id)}
@@ -384,8 +478,7 @@ export default function CronPage() {
                                             >
                                                 {deleting === job.id
                                                     ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                                    : <Trash2 className="h-3.5 w-3.5" />
-                                                }
+                                                    : <Trash2 className="h-3.5 w-3.5" />}
                                             </button>
                                         </div>
                                     </td>

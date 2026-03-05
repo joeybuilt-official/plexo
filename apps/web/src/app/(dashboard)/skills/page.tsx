@@ -14,6 +14,7 @@ import {
     Info,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -156,12 +157,15 @@ export default function SkillsPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
+    const lf = useListFilter([], 'name_asc')
+    const { search, clearAll } = lf
+
     const fetchPlugins = useCallback(async () => {
         if (!WS_ID) return
         setLoading(true)
         setError(null)
         try {
-            const res = await fetch(`${API_BASE}/api/plugins?workspaceId=${WS_ID}`)
+            const res = await fetch(`${API_BASE}/api/v1/plugins?workspaceId=${WS_ID}`)
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
             const data = await res.json() as { items: Plugin[] }
             setPlugins(data.items)
@@ -175,7 +179,7 @@ export default function SkillsPage() {
     useEffect(() => { void fetchPlugins() }, [fetchPlugins])
 
     async function handleToggle(id: string, enabled: boolean) {
-        const res = await fetch(`${API_BASE}/api/plugins/${id}`, {
+        const res = await fetch(`${API_BASE}/api/v1/plugins/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled }),
@@ -189,21 +193,38 @@ export default function SkillsPage() {
         (p) => p.type === 'skill' || (p.kapselManifest?.skills ?? []).length > 0
     )
 
+    const filteredPlugins = skillPlugins.filter((p) => {
+        if (!search.trim()) return true
+        const q = search.toLowerCase()
+        return (
+            p.name.toLowerCase().includes(q) ||
+            p.kapselManifest?.description?.toLowerCase().includes(q) ||
+            (p.kapselManifest?.skills ?? []).some(s => s.name.toLowerCase().includes(q) || s.description?.toLowerCase().includes(q))
+        )
+    }).sort((a, b) => {
+        if (lf.sort === 'name_desc') return b.name.localeCompare(a.name)
+        if (lf.sort === 'enabled_first') return (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0)
+        if (lf.sort === 'disabled_first') return (a.enabled ? 1 : 0) - (b.enabled ? 1 : 0)
+        return a.name.localeCompare(b.name)
+    })
+
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 max-w-4xl">
             <div className="flex items-start justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-zinc-50">Skills</h1>
+                    <h1 className="text-xl font-bold tracking-tight text-zinc-50">Skills</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">
                         Kapsel skill extensions — autonomous capabilities the agent can invoke
                     </p>
                 </div>
                 <button
                     onClick={() => void fetchPlugins()}
-                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
+                    disabled={loading}
+                    title="Refresh"
+                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors disabled:opacity-40"
                 >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Refresh
+                    <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">Refresh</span>
                 </button>
             </div>
 
@@ -226,6 +247,18 @@ export default function SkillsPage() {
                 </div>
             )}
 
+            <ListToolbar
+                hook={lf}
+                placeholder="Search skills..."
+                dimensions={[]}
+                sortOptions={[
+                    { label: 'Name: A → Z', value: 'name_asc' },
+                    { label: 'Name: Z → A', value: 'name_desc' },
+                    { label: 'Enabled first', value: 'enabled_first' },
+                    { label: 'Disabled first', value: 'disabled_first' },
+                ]}
+            />
+
             {loading ? (
                 <div className="flex items-center justify-center py-16">
                     <RefreshCw className="h-5 w-5 text-zinc-600 animate-spin" />
@@ -240,12 +273,19 @@ export default function SkillsPage() {
                         </p>
                     </div>
                 </div>
+            ) : filteredPlugins.length === 0 ? (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center">
+                    <p className="text-sm text-zinc-500">No results match your filters.</p>
+                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto">
+                        Clear search
+                    </button>
+                </div>
             ) : (
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between mb-1">
                         <p className="text-xs text-zinc-600">{skillPlugins.filter((p) => p.enabled).length} / {skillPlugins.length} enabled</p>
                     </div>
-                    {skillPlugins.map((p) => (
+                    {filteredPlugins.map((p) => (
                         <SkillCard key={p.id} plugin={p} onToggle={handleToggle} />
                     ))}
                 </div>

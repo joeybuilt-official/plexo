@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Check, ChevronRight, ChevronDown, Loader2, ExternalLink, AlertCircle, ShieldCheck, X } from 'lucide-react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -49,7 +50,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
     async function save() {
         setSaving(true)
         try {
-            await fetch(`${API_BASE}/api/telemetry`, {
+            await fetch(`${API_BASE}/api/v1/telemetry`, {
                 method: 'POST',
                 headers: {
                     'content-type': 'application/json',
@@ -440,13 +441,13 @@ export default function SetupPage() {
                                 <h2 className="text-lg font-bold text-zinc-50">You&apos;re all set!</h2>
                                 <p className="mt-1 text-sm text-zinc-500">Your workspace is ready. Head to the dashboard to submit tasks.</p>
                             </div>
-                            <a
+                            <Link
                                 id="setup-open-dashboard"
                                 href="/"
                                 className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors block"
                             >
                                 Open dashboard →
-                            </a>
+                            </Link>
                         </div>
                     )}
                 </div>

@@ -14,7 +14,7 @@ export function CancelButton({ taskId }: { taskId: string }) {
         if (!confirm('Cancel this task? The agent will stop after the current step.')) return
         setCancelling(true)
         try {
-            await fetch(`${apiBase}/api/tasks/${taskId}`, { method: 'DELETE' })
+            await fetch(`${apiBase}/api/v1/tasks/${taskId}`, { method: 'DELETE' })
             setDone(true)
             router.refresh()
         } finally {

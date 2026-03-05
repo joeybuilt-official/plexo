@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { CheckCircle, XCircle, Clock, RefreshCw, Shield } from 'lucide-react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -27,7 +28,7 @@ export default function InvitePage() {
     useEffect(() => {
         async function load() {
             try {
-                const res = await fetch(`${API_BASE}/api/invites/${token}`)
+                const res = await fetch(`${API_BASE}/api/v1/invites/${token}`)
                 if (res.ok) {
                     setInfo(await res.json() as InviteInfo)
                     setStatus('ready')
@@ -48,7 +49,7 @@ export default function InvitePage() {
         setStatus('accepting')
         try {
             // Resolve current user — fetch first user as fallback until auth is wired
-            const usersRes = await fetch(`${API_BASE}/api/users`)
+            const usersRes = await fetch(`${API_BASE}/api/v1/users`)
             const usersData = await usersRes.json() as { items: { id: string }[] }
             const userId = usersData.items?.[0]?.id
             if (!userId) {
@@ -57,7 +58,7 @@ export default function InvitePage() {
                 return
             }
 
-            const res = await fetch(`${API_BASE}/api/invites/${token}/accept`, {
+            const res = await fetch(`${API_BASE}/api/v1/invites/${token}/accept`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId }),
@@ -96,7 +97,7 @@ export default function InvitePage() {
                 {status === 'ready' && info && (
                     <>
                         <div className="text-center flex flex-col gap-1">
-                            <p className="text-sm text-zinc-500">You've been invited to join</p>
+                            <p className="text-sm text-zinc-500">You&apos;ve been invited to join</p>
                             <h1 className="text-xl font-bold text-zinc-50">{info.workspaceName}</h1>
                             <div className="mx-auto mt-2 inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1 text-xs text-zinc-400">
                                 <Shield className="h-3 w-3" />
@@ -135,7 +136,7 @@ export default function InvitePage() {
                     <div className="flex flex-col items-center gap-3 py-4 text-center">
                         <CheckCircle className="h-8 w-8 text-emerald-400" />
                         <div>
-                            <p className="text-base font-semibold text-zinc-100">You're in!</p>
+                            <p className="text-base font-semibold text-zinc-100">You&apos;re in!</p>
                             <p className="text-sm text-zinc-500 mt-1">Redirecting to your workspace…</p>
                         </div>
                     </div>
@@ -148,9 +149,9 @@ export default function InvitePage() {
                             <p className="text-base font-semibold text-zinc-100">Invite invalid</p>
                             <p className="text-sm text-zinc-500 mt-1">{errorMsg}</p>
                         </div>
-                        <a href="/" className="mt-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
+                        <Link href="/" className="mt-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
                             Go to dashboard →
-                        </a>
+                        </Link>
                     </div>
                 )}
             </div>

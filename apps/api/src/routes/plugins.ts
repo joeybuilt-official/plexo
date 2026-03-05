@@ -169,17 +169,22 @@ pluginsRouter.post('/', async (req, res) => {
 // ── PATCH /api/plugins/:id ────────────────────────────────────────────────────
 
 pluginsRouter.patch('/:id', async (req, res) => {
-    const { enabled, settings } = req.body as { enabled?: boolean; settings?: Record<string, unknown> }
+    const { enabled, settings, workspaceId } = req.body as { enabled?: boolean; settings?: Record<string, unknown>; workspaceId?: string }
 
     if (!UUID_RE.test(req.params.id)) {
         res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
         return
     }
 
+    if (!workspaceId) {
+        res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
+        return
+    }
+
     try {
         const [existing] = await db.select().from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
-        if (!existing) {
-            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found' } })
+        if (!existing || existing.workspaceId !== workspaceId) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found in workspace' } })
             return
         }
 
@@ -218,10 +223,18 @@ pluginsRouter.patch('/:id', async (req, res) => {
 // ── DELETE /api/plugins/:id ───────────────────────────────────────────────────
 
 pluginsRouter.delete('/:id', async (req, res) => {
+    const { workspaceId } = req.query as { workspaceId?: string }
+
     if (!UUID_RE.test(req.params.id)) {
         res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
         return
     }
+
+    if (!workspaceId) {
+        res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId query required' } })
+        return
+    }
+
     try {
         const [existing] = await db
             .select({ id: plugins.id, workspaceId: plugins.workspaceId, name: plugins.name, kapselVersion: plugins.kapselVersion })
@@ -229,8 +242,8 @@ pluginsRouter.delete('/:id', async (req, res) => {
             .where(eq(plugins.id, req.params.id))
             .limit(1)
 
-        if (!existing) {
-            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found' } })
+        if (!existing || existing.workspaceId !== workspaceId) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found in workspace' } })
             return
         }
 

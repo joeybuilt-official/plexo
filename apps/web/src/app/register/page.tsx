@@ -19,7 +19,7 @@ export default function RegisterPage() {
 
         // Phase 1 stub — real registration against DB in Phase 2
         try {
-            const res = await fetch('/api/auth/register', {
+            const res = await fetch('/api/v1/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, email, password }),

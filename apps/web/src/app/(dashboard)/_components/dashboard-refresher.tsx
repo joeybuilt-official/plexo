@@ -33,7 +33,7 @@ export function DashboardRefresher() {
                 return
             }
 
-            const url = `${apiBase}/api/sse?workspaceId=${encodeURIComponent(workspaceId)}`
+            const url = `${apiBase}/api/v1/sse?workspaceId=${encodeURIComponent(workspaceId)}`
             const es = new EventSource(url)
             sseRef.current = es
 
@@ -47,16 +47,26 @@ export function DashboardRefresher() {
             }
 
             // Refresh on any task lifecycle event
-            const REFRESH_EVENTS = [
-                'task:started',
-                'task:completed',
-                'task:failed',
-                'task:cancelled',
-                'task:step',
-                'sprint:updated',
-            ]
-            for (const ev of REFRESH_EVENTS) {
-                es.addEventListener(ev, () => router.refresh())
+            const REFRESH_EVENTS = new Set([
+                'task_started',
+                'task_complete',
+                'task_failed',
+                'task_cancelled',
+                'task_planned',
+                'task_queued',
+                'task_queued_via_telegram',
+                'task_queued_via_slack',
+                'sprint_updated',
+            ])
+            es.onmessage = (e) => {
+                try {
+                    const payload = JSON.parse(e.data as string) as { type: string }
+                    if (REFRESH_EVENTS.has(payload.type)) {
+                        router.refresh()
+                    }
+                } catch {
+                    // Ignore malformed JSON
+                }
             }
 
             es.onerror = () => {

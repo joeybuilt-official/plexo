@@ -7,7 +7,7 @@ const API_BASE = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
  * Resolve the primary workspace ID for the current session.
  *
  * Resolution order:
- * 1. Session user.id → fetch first workspace from /api/workspaces?userId=...
+ * 1. Session user.id → fetch first workspace from /api/v1/workspaces?userId=...
  * 2. DEV_WORKSPACE_ID env var (local dev without auth)
  * 3. Returns null if neither is available
  *
@@ -20,7 +20,7 @@ export const getWorkspaceId = cache(async (): Promise<string | null> => {
         const userId = session?.user?.id
         if (userId) {
             const res = await fetch(
-                `${API_BASE}/api/workspaces?ownerId=${encodeURIComponent(userId)}&limit=1`,
+                `${API_BASE}/api/v1/workspaces?ownerId=${encodeURIComponent(userId)}&limit=1`,
                 { cache: 'no-store' },
             )
             if (res.ok) {

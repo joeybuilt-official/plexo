@@ -237,6 +237,17 @@ This has implications for every decision:
 - **`task_source` enum**: Added `'extension'` value via `ALTER TYPE task_source ADD VALUE IF NOT EXISTS 'extension'`. Schema updated. Persistent pool temporarily uses `'api'` source until migration is applied to all environments.
 - **Event bus `TOPICS`**: Added `OWD_PENDING = 'plexo.owd.pending'` and `OWD_RESOLVED = 'plexo.owd.resolved'` to constants. `@plexo/agent/event-bus` added as a package export.
 - **Drizzle migration journal**: No Drizzle migration journal table exists — DB was initialized directly from SQL files. Migrations are tracked manually. No journal sync needed.
+- **Migration drift → 500 on `db.select()`**: When a schema column exists in Drizzle types but not in the DB (unapplied migration), `db.select().from(table)` throws a Postgres "column does not exist" error caught as a 500. The symptom is a working `/health` (uses raw SQL COALESCE) but 500 on any route using broad `db.select()`. Fix: apply the missing SQL manually via `docker exec -i <postgres-container> psql -U plexo -d plexo`. Verify with `information_schema.columns`. Migrations `0012_token_budgets.sql` (cost_ceiling_usd, token_budget on tasks; cost_ceiling_usd on sprints) and `0013_mcp_tokens.sql` (mcp_tokens table) were applied this way on 2026-03-05.
+
+### 2026-03 — AI provider credential encryption
+
+- **Root cause**: `workspaces.settings.aiProviders.providers[*].apiKey` was stored as plaintext JSONB. `GET /api/workspaces/:id` returned it unredacted.
+- **Fix**: New route file `apps/api/src/routes/ai-provider-creds.ts` — `GET /workspaces/:id/ai-providers` returns redacted blob (sentinel `__configured__` in place of key values); `PUT /workspaces/:id/ai-providers` encrypts plaintext values via `encrypt(key, workspaceId)` (AES-256-GCM, workspace-scoped) before writing to DB.
+- **Sentinel merge**: On PUT, if an incoming provider's apiKey or oauthToken is the sentinel string, the existing encrypted value is preserved rather than overwritten. This means the UI can omit sending previously-saved keys and they survive a save.
+- **Agent-loop**: `loadWorkspaceAISettings()` now calls `loadDecryptedAIProviders(workspaceId)` instead of reading `workspaces.settings` directly. Keys arrive already decrypted.
+- **Health check**: `pingAnthropic()` likewise routes through `loadDecryptedAIProviders` — no more plaintext DB read.
+- **Workspace GET**: `GET /api/workspaces/:id` strips `aiProviders` from the settings object before responding. Credentials only flow through the `/ai-providers` sub-route.
+- **UI**: AI Providers settings page now loads from `GET /ai-providers` and saves to `PUT /ai-providers`. After a successful save, key input fields are cleared (server holds the encrypted value; no need to re-display it).
 
 ### 2026-03 — Security hardening pass (all routes)
 
@@ -247,3 +258,18 @@ This has implications for every decision:
 - **`oauth.ts` TS2353**: Removed stray `token_type: 'Bearer'` field from `storeAnthropicTokens()` call — not in the function's input type.
 - **Anthropic OAuth token (sk-ant-oat01-*)**: These are Claude.ai/Claude Code session tokens, NOT Anthropic API credentials. They are NOT authorized against `api.anthropic.com`. `testProvider()` now short-circuits immediately with a clear explanation when an `sk-ant-oat` token is passed, instead of silently failing with "invalid x-api-key". Users must either use the OAuth popup flow ("Connect with Claude.ai" button) or a real API key from console.anthropic.com (`sk-ant-api03-*`).
 - **`behavior.ts`**: UUID validation on workspaceId/ruleId path params, allowlist on `type` field, format enforcement on `key` (alphanumeric/underscore, max 80 chars), length cap on `label` (max 200 chars). This was the only route missing the UUID pattern that all other routes already followed.
+
+### 2026-03 — Merged Agent + Behavior settings pages
+
+- **`cost_ceiling_usd` missing column**: Migration `0012_token_budgets.sql` existed but hadn't run. Applied manually with `DATABASE_URL=... pnpm tsx src/migrate.ts` in `packages/db`. Fixed `GET /api/tasks`, `/api/sprints`, `/api/dashboard/activity` all returning 500.
+- **Merged settings pages**: `/settings/agent` now contains 4 tabs — Identity, Behavior, Limits, History. The standalone `/settings/behavior` route now redirects to `/settings/agent?tab=behavior`.
+- **Fixed bug — agentPersona + systemPromptExtra**: These fields were fetched in the old Behavior page but never rendered (no JSX input). Now surfaced in the Behavior tab as two plain textareas ("Who is this agent?" and "What should the agent know about your stack?").
+- **Fixed bug — delete rule button invisible**: `opacity-0 group-hover:opacity-100` on the trash icon requires `group` class on the parent — the parent div now has `className="group ..."`.
+- **Sidebar**: Removed the `Behavior` nav entry since it's now a tab under Agent.
+- **UX simplification**: Behavior tab shows Persona + Context textareas first (average user path). Advanced layered rules are collapsed inside an accordion below. Inheritance view remains available for power users.
+- **Limits tab improvements**: Replaced the raw `0.7` auto-approve threshold float with a human-readable dropdown (Auto-approve / Ask when uncertain / Always ask). Weekly spend cap shows `$` prefix and "per week" suffix. All fields now have plain-English descriptions.
+
+### 2026-03 — Local Instance Flashing (Multiple Agents)
+
+- **Root Cause**: Running multiple terminal agents executing `pnpm dev` or `tsx watch` concurrently spawns duplicate Next.js / API servers. These fight over port 3000 and Hot Module Replacement (HMR) WebSockets, causing constant `[Fast Refresh]` loops and UI flashing (e.g., the sidebar/nav rapidly appearing and disappearing).
+- **Resolution**: Ran `killall -9 node tsx turbo next pnpm` to cleanly tear down all servers, then executed a single `pnpm dev` process. Next.js HMR stabilized (settling at ~600ms per build-up) without infinite refresh loops.

@@ -18,8 +18,8 @@
  * task with `type: 'coding'` and sprint context in its context payload.
  */
 import pino from 'pino'
-import { db, eq, inArray } from '@plexo/db'
-import { sprints, sprintTasks } from '@plexo/db'
+import { db, eq, inArray, and, isNotNull, sql } from '@plexo/db'
+import { sprints, sprintTasks, tasks } from '@plexo/db'
 import { push as pushTask } from '@plexo/queue'
 import { planSprint, type PlanResult } from './planner.js'
 import { detectStaticConflicts, detectDynamicConflicts } from './conflicts.js'
@@ -33,146 +33,267 @@ const TASK_TIMEOUT_MS = 30 * 60 * 1000 // 30 min per task
 export interface SprintRunOptions {
     sprintId: string
     workspaceId: string
-    repo: string          // e.g. "owner/repo"
+    repo?: string         // required only for 'code' category
+    category?: string     // defaults to 'code'
     request: string       // the user's request
-    baseBranch?: string   // default: repo's default branch
+    baseBranch?: string   // default: repo's default branch (code only)
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 export async function runSprint(opts: SprintRunOptions): Promise<void> {
-    const { sprintId, workspaceId, repo } = opts
-    const [owner, repoName] = repo.split('/')
-    if (!owner || !repoName) throw new Error(`Invalid repo format: ${repo} — expected "owner/repo"`)
+    const { sprintId, workspaceId, category = 'code' } = opts
 
-    logger.info({ sprintId, repo }, 'Sprint run started')
-
-    // Mark running
+    logger.info({ sprintId, category }, 'Sprint run started')
     await db.update(sprints).set({ status: 'running' }).where(eq(sprints.id, sprintId))
 
+    // Load the sprint row once to get project-level cost ceiling and per-task defaults
+    const [sprintRow] = await db
+        .select({ costCeilingUsd: sprints.costCeilingUsd, metadata: sprints.metadata })
+        .from(sprints).where(eq(sprints.id, sprintId)).limit(1)
+
+    const projectCostCeiling = sprintRow?.costCeilingUsd ?? null
+    const metadata = (sprintRow?.metadata as Record<string, unknown>) ?? {}
+    const perTaskCostCeiling = metadata.perTaskCostCeiling ? Number(metadata.perTaskCostCeiling) : null
+    const perTaskTokenBudget = metadata.perTaskTokenBudget ? Number(metadata.perTaskTokenBudget) : null
+
     try {
-        const github = buildGitHubClient(owner, repoName)
-        const baseBranch = opts.baseBranch ?? await github.getDefaultBranch()
-        const baseSha = (await github.getBranch(baseBranch)).sha
-
-        // Enumerate top-level files for planner context
-        let contextFiles: string[] = []
-        try {
-            const files = await github.listFiles('', baseBranch)
-            contextFiles = files.map((f) => f.path)
-        } catch { /* non-fatal */ }
-
-        // Plan
-        const plan: PlanResult = await planSprint({
-            sprintId,
-            workspaceId,
-            repo,
-            request: opts.request,
-            contextFiles,
-        })
-
-        // Static conflict warning (pre-execution)
-        const staticConflicts = detectStaticConflicts(
-            plan.tasks.map((t) => ({ id: t.dbId, scope: t.scope })),
-        )
-        if (staticConflicts.length > 0) {
-            logger.warn({ sprintId, staticConflicts }, 'Static scope conflicts detected — tasks will run but may conflict')
+        if (category === 'code') {
+            await runCodeSprint(opts, sprintId, workspaceId, { projectCostCeiling, perTaskCostCeiling, perTaskTokenBudget })
+        } else {
+            await runGenericSprint(opts, sprintId, workspaceId, category, { projectCostCeiling, perTaskCostCeiling, perTaskTokenBudget })
         }
-
-        // Execute waves
-        for (const wave of plan.executionOrder) {
-            const waveTasks = plan.tasks.filter((t) => wave.includes(t.id))
-
-            logger.info({ sprintId, wave, taskCount: waveTasks.length }, 'Executing sprint wave')
-
-            // Create branches and enqueue tasks in parallel
-            await Promise.all(waveTasks.map(async (st) => {
-                // Create branch from base
-                try {
-                    await github.createBranch(st.branch, baseSha)
-                } catch (err) {
-                    logger.warn({ err, branch: st.branch }, 'Branch create failed — may already exist')
-                }
-
-                // Enqueue as a regular coding task with sprint context
-                const taskId = await pushTask({
-                    workspaceId,
-                    type: 'coding',
-                    source: 'api',
-                    priority: st.priority,
-                    projectId: sprintId,          // FK → sprints.id
-                    context: {
-                        description: st.description,
-                        sprintId,
-                        sprintTaskId: st.dbId,
-                        branch: st.branch,
-                        scope: st.scope,
-                        acceptance: st.acceptance,
-                        repo,
-                        baseBranch,
-                    },
-                })
-
-                // Link the queue task to sprint_task
-                await db.update(sprintTasks)
-                    .set({ status: 'running', handoff: { taskId } })
-                    .where(eq(sprintTasks.id, st.dbId))
-            }))
-
-            // Wait for all tasks in wave to complete or fail
-            await waitForWave(waveTasks.map((t) => t.dbId))
-
-            // Create PRs for completed tasks
-            const completed = await db.select().from(sprintTasks)
-                .where(inArray(sprintTasks.id, waveTasks.map((t) => t.dbId)))
-
-            for (const st of completed) {
-                if (st.status === 'complete') {
-                    try {
-                        const pr = await github.createPR({
-                            title: `[Sprint ${sprintId.slice(0, 8)}] ${st.description}`,
-                            body: `**Sprint:** ${sprintId}\n**Scope:** ${(st.scope as string[]).join(', ')}\n\n**Acceptance:** ${st.acceptance}`,
-                            head: st.branch,
-                            base: baseBranch,
-                            draft: true, // Draft until conflict check passes
-                        })
-                        await db.update(sprintTasks)
-                            .set({ handoff: { ...(st.handoff as object ?? {}), prNumber: pr.number, prUrl: pr.html_url } })
-                            .where(eq(sprintTasks.id, st.id))
-                    } catch (err) {
-                        logger.warn({ err, branch: st.branch }, 'PR creation failed')
-                    }
-                }
-            }
-        }
-
-        // Dynamic conflict detection
-        const conflicts = await detectDynamicConflicts(sprintId, owner, repoName, baseBranch)
-
-        // Tally results
-        const finalTasks = await db.select().from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
-        const completedCount = finalTasks.filter((t) => t.status === 'complete').length
-        const failedCount = finalTasks.filter((t) => t.status === 'failed').length
-
-        const sprintStatus: 'complete' | 'finalizing' | 'failed' = failedCount > 0
-            ? (completedCount > 0 ? 'finalizing' : 'failed')
-            : 'complete'
-
-        await db.update(sprints).set({
-            status: sprintStatus,
-            completedTasks: completedCount,
-            failedTasks: failedCount,
-            conflictCount: conflicts.length,
-            completedAt: new Date(),
-        }).where(eq(sprints.id, sprintId))
-
-        logger.info({ sprintId, sprintStatus, completedCount, failedCount, conflictCount: conflicts.length }, 'Sprint complete')
-
     } catch (err) {
         logger.error({ err, sprintId }, 'Sprint runner fatal error')
         await db.update(sprints).set({ status: 'failed' }).where(eq(sprints.id, sprintId))
         throw err
     }
+}
+
+interface SprintBudget {
+    projectCostCeiling: number | null
+    perTaskCostCeiling: number | null
+    perTaskTokenBudget: number | null
+}
+
+async function checkProjectBudget(sprintId: string, ceiling: number | null): Promise<void> {
+    if (ceiling == null) return
+    const rows = await db
+        .select({ total: sql<number>`COALESCE(SUM(cost_usd), 0)` })
+        .from(tasks)
+        .where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
+    const spent = rows[0]?.total ?? 0
+    if (spent >= ceiling) {
+        throw new Error(`Project cost ceiling reached: $${spent.toFixed(4)} >= $${ceiling.toFixed(2)}`)
+    }
+}
+
+// ── Code sprint (GitHub workflow) ─────────────────────────────────────────────
+
+async function runCodeSprint(
+    opts: SprintRunOptions,
+    sprintId: string,
+    workspaceId: string,
+    budget: SprintBudget,
+): Promise<void> {
+    const repo = opts.repo
+    if (!repo) throw new Error('repo is required for code category')
+
+    const [owner, repoName] = repo.split('/')
+    if (!owner || !repoName) throw new Error(`Invalid repo format: ${repo} — expected "owner/repo"`)
+
+    const github = buildGitHubClient(owner, repoName)
+    const baseBranch = opts.baseBranch ?? await github.getDefaultBranch()
+    const baseSha = (await github.getBranch(baseBranch)).sha
+
+    let contextFiles: string[] = []
+    try {
+        const files = await github.listFiles('', baseBranch)
+        contextFiles = files.map((f) => f.path)
+    } catch { /* non-fatal */ }
+
+    const plan: PlanResult = await planSprint({
+        sprintId,
+        workspaceId,
+        repo,
+        request: opts.request,
+        contextFiles,
+        category: 'code',
+    })
+
+    const staticConflicts = detectStaticConflicts(
+        plan.tasks.map((t) => ({ id: t.dbId, scope: t.scope })),
+    )
+    if (staticConflicts.length > 0) {
+        logger.warn({ sprintId, staticConflicts }, 'Static scope conflicts detected')
+    }
+
+    for (const wave of plan.executionOrder) {
+        const waveTasks = plan.tasks.filter((t) => wave.includes(t.id))
+        logger.info({ sprintId, wave, taskCount: waveTasks.length }, 'Executing sprint wave')
+
+        // Project budget gate: block wave if project ceiling already exhausted
+        await checkProjectBudget(sprintId, budget.projectCostCeiling)
+
+        await Promise.all(waveTasks.map(async (st) => {
+            try { await github.createBranch(st.branch, baseSha) } catch (err) {
+                logger.warn({ err, branch: st.branch }, 'Branch create failed — may already exist')
+            }
+
+            const taskId = await pushTask({
+                workspaceId,
+                type: 'coding',
+                source: 'api',
+                priority: st.priority,
+                projectId: sprintId,
+                // Propagate per-task budget ceilings from project settings
+                costCeilingUsd: budget.perTaskCostCeiling ?? undefined,
+                tokenBudget: budget.perTaskTokenBudget ?? undefined,
+                context: {
+                    description: st.description,
+                    sprintId,
+                    sprintTaskId: st.dbId,
+                    branch: st.branch,
+                    scope: st.scope,
+                    acceptance: st.acceptance,
+                    repo,
+                    baseBranch,
+                },
+            })
+
+            await db.update(sprintTasks)
+                .set({ status: 'running', handoff: { taskId } })
+                .where(eq(sprintTasks.id, st.dbId))
+        }))
+
+        await waitForWave(waveTasks.map((t) => t.dbId))
+
+        const completed = await db.select().from(sprintTasks)
+            .where(inArray(sprintTasks.id, waveTasks.map((t) => t.dbId)))
+
+        for (const st of completed) {
+            if (st.status === 'complete') {
+                try {
+                    const pr = await github.createPR({
+                        title: `[Sprint ${sprintId.slice(0, 8)}] ${st.description}`,
+                        body: `**Sprint:** ${sprintId}\n**Scope:** ${(st.scope as string[]).join(', ')}\n\n**Acceptance:** ${st.acceptance}`,
+                        head: st.branch,
+                        base: baseBranch,
+                        draft: true,
+                    })
+                    await db.update(sprintTasks)
+                        .set({ handoff: { ...(st.handoff as object ?? {}), prNumber: pr.number, prUrl: pr.html_url } })
+                        .where(eq(sprintTasks.id, st.id))
+                } catch (err) {
+                    logger.warn({ err, branch: st.branch }, 'PR creation failed')
+                }
+            }
+        }
+    }
+
+    const conflicts = await detectDynamicConflicts(sprintId, owner, repoName, baseBranch)
+    const finalTasks = await db.select().from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
+    const completedCount = finalTasks.filter((t) => t.status === 'complete').length
+    const failedCount = finalTasks.filter((t) => t.status === 'failed').length
+    const sprintStatus: 'complete' | 'finalizing' | 'failed' = failedCount > 0
+        ? (completedCount > 0 ? 'finalizing' : 'failed')
+        : 'complete'
+
+    // Aggregate actual project spend from completed tasks
+    const [spendRow] = await db
+        .select({ total: sql<number>`COALESCE(SUM(cost_usd), 0)` })
+        .from(tasks)
+        .where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
+    const totalCostUsd = spendRow?.total ?? 0
+
+    await db.update(sprints).set({
+        status: sprintStatus,
+        completedTasks: completedCount,
+        failedTasks: failedCount,
+        conflictCount: conflicts.length,
+        costUsd: totalCostUsd,
+        completedAt: new Date(),
+    }).where(eq(sprints.id, sprintId))
+
+    logger.info({ sprintId, sprintStatus, completedCount, failedCount }, 'Code sprint complete')
+}
+
+// ── Generic sprint (no GitHub — research, writing, ops, data, marketing, general) ────
+
+async function runGenericSprint(
+    opts: SprintRunOptions,
+    sprintId: string,
+    workspaceId: string,
+    category: string,
+    budget: SprintBudget,
+): Promise<void> {
+    const plan: PlanResult = await planSprint({
+        sprintId,
+        workspaceId,
+        repo: undefined,
+        request: opts.request,
+        contextFiles: [],
+        category,
+    })
+
+    for (const wave of plan.executionOrder) {
+        const waveTasks = plan.tasks.filter((t) => wave.includes(t.id))
+        logger.info({ sprintId, wave, taskCount: waveTasks.length, category }, 'Executing generic wave')
+
+        // Project budget gate
+        await checkProjectBudget(sprintId, budget.projectCostCeiling)
+
+        await Promise.all(waveTasks.map(async (st) => {
+            const taskId = await pushTask({
+                workspaceId,
+                type: 'research',  // uses the research executor path for non-code
+                source: 'api',
+                priority: st.priority,
+                projectId: sprintId,
+                costCeilingUsd: budget.perTaskCostCeiling ?? undefined,
+                tokenBudget: budget.perTaskTokenBudget ?? undefined,
+                context: {
+                    description: st.description,
+                    sprintId,
+                    sprintTaskId: st.dbId,
+                    category,
+                    scope: st.scope,
+                    acceptance: st.acceptance,
+                    branch: st.branch, // used as finding/asset/action ID
+                },
+            })
+
+            await db.update(sprintTasks)
+                .set({ status: 'running', handoff: { taskId } })
+                .where(eq(sprintTasks.id, st.dbId))
+        }))
+
+        await waitForWave(waveTasks.map((t) => t.dbId))
+    }
+
+    const finalTasks = await db.select().from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
+    const completedCount = finalTasks.filter((t) => t.status === 'complete').length
+    const failedCount = finalTasks.filter((t) => t.status === 'failed').length
+    const sprintStatus: 'complete' | 'finalizing' | 'failed' = failedCount > 0
+        ? (completedCount > 0 ? 'finalizing' : 'failed')
+        : 'complete'
+
+    // Aggregate actual project spend from completed tasks
+    const [spendRow] = await db
+        .select({ total: sql<number>`COALESCE(SUM(cost_usd), 0)` })
+        .from(tasks)
+        .where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
+    const totalCostUsd = spendRow?.total ?? 0
+
+    await db.update(sprints).set({
+        status: sprintStatus,
+        completedTasks: completedCount,
+        failedTasks: failedCount,
+        costUsd: totalCostUsd,
+        completedAt: new Date(),
+    }).where(eq(sprints.id, sprintId))
+
+    logger.info({ sprintId, sprintStatus, completedCount, failedCount, category }, 'Generic sprint complete')
 }
 
 // ── Poll helpers ──────────────────────────────────────────────────────────────

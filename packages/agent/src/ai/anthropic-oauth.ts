@@ -25,7 +25,7 @@ export const ANTHROPIC_OAUTH = {
     authorizationUrl: 'https://claude.ai/oauth/authorize',
     tokenUrl: 'https://api.anthropic.com/oauth/token',
     /** Scopes required for API access via subscription — matches claude setup-token */
-    scopes: ['user:profile', 'user:inference', 'user:sessions:claude_code'],
+    scopes: ['user:inference'],
     /** Access tokens expire after 1 hour */
     accessTokenTtlMs: 60 * 60 * 1000,
 } as const
@@ -44,6 +44,7 @@ export function buildAnthropicAuthUrl(params: {
     codeChallenge: string
 }): string {
     const url = new URL(ANTHROPIC_OAUTH.authorizationUrl)
+    url.searchParams.set('code', 'true')
     url.searchParams.set('client_id', ANTHROPIC_OAUTH.clientId)
     url.searchParams.set('response_type', 'code')
     url.searchParams.set('redirect_uri', params.redirectUri)

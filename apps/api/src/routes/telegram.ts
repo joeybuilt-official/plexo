@@ -11,16 +11,19 @@
  */
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
-import { pushTask } from '@plexo/queue'
+import { pushTask, completeTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
 import { db, eq } from '@plexo/db'
-import { channels } from '@plexo/db'
+import { channels, sprints } from '@plexo/db'
+import { ulid } from 'ulid'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 
 export const telegramRouter: RouterType = Router()
+
+const pendingActions = new Map<string, { workspaceId: string, intent: 'TASK' | 'PROJECT', description: string, from?: string, messageId?: number }>()
 
 const TELEGRAM_API = 'https://api.telegram.org/bot'
 
@@ -134,18 +137,22 @@ async function resolveWorkspace(chatId: string): Promise<string | null> {
 // ── Intent classification ────────────────────────────────────────────────────
 
 const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
-Decide if the user's message is a TASK REQUEST or CONVERSATION.
+Decide if the user's message is a TASK, PROJECT, or CONVERSATION.
 
-TASK: requires autonomous execution — create, write, fix, research, build, deploy, analyze, automate, schedule, etc.
-CONVERSATION: greetings, status checks, questions about you, small talk, thanks, clarifications.
+TASK: The user is explicitly asking to start a clear, immediate, actionable task. Or the user is confirming (e.g. "yes", "do it") a previous proposal to create a task.
+PROJECT: The user is explicitly asking to start a large, multi-step goal requiring planning (e.g., "Build a new features"). Or the user is confirming a proposal to create a project.
+CONVERSATION: Vague requests, troubleshooting, requests needing clarification, greetings, checks, small talk, or rejecting proposals.
 
-Reply with ONLY one word: TASK or CONVERSATION.`
+Reply with ONLY one word: TASK, PROJECT, or CONVERSATION.`
 
-async function classifyIntent(workspaceId: string, text: string): Promise<'TASK' | 'CONVERSATION'> {
-    const result = await chatWithAI(workspaceId, [{ role: 'user', content: text }], CLASSIFY_SYSTEM)
+async function classifyIntent(workspaceId: string, history: ChatMessage[]): Promise<'TASK' | 'PROJECT' | 'CONVERSATION'> {
+    const result = await chatWithAI(workspaceId, history, CLASSIFY_SYSTEM)
     // On AI error, default to CONVERSATION so the error path handles it
     if (result.error) return 'CONVERSATION'
-    return result.text?.trim().toUpperCase().startsWith('TASK') ? 'TASK' : 'CONVERSATION'
+    const resText = result.text?.trim().toUpperCase() ?? ''
+    if (resText.startsWith('TASK')) return 'TASK'
+    else if (resText.startsWith('PROJECT')) return 'PROJECT'
+    return 'CONVERSATION'
 }
 
 // Per-chat conversation history (last 20 messages, in-memory)
@@ -169,9 +176,110 @@ interface TelegramUpdate {
         date: number
         text?: string
     }
-}
+    callback_query?: {
+        id: string
+        from: { id: number; username?: string; first_name?: string }
+        message?: { message_id: number; chat: { id: number; type: string } }
+        data: string
+    }
+}async function handleUpdate(update: TelegramUpdate): Promise<void> {
+    // Check for callback_query (inline buttons)
+    if (update.callback_query) {
+        const cb = update.callback_query
+        const chatId = String(cb.message?.chat.id)
+        const data = cb.data
+        if (data.startsWith('confirm_') || data.startsWith('cancel_')) {
+            const isConfirm = data.startsWith('confirm_')
+            const actionId = data.split('_')[1]
+            if (!actionId) return
+            const action = pendingActions.get(actionId)
 
-async function handleUpdate(update: TelegramUpdate): Promise<void> {
+            if (!action) {
+                await sendMessage(chatId, '❌ This action has expired or was already handled.')
+                return
+            }
+            pendingActions.delete(actionId)
+
+            // Remove the inline keyboard (clean up)
+            if (_botToken && cb.message) {
+                await fetch(`${TELEGRAM_API}${_botToken}/editMessageReplyMarkup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        message_id: cb.message.message_id,
+                        reply_markup: { inline_keyboard: [] }
+                    }),
+                })
+            }
+
+            if (!isConfirm) {
+                await sendMessage(chatId, 'Action cancelled.')
+                return
+            }
+
+            // Execute the action
+            if (action.intent === 'TASK') {
+                try {
+                    const taskId = await pushTask({
+                        workspaceId: action.workspaceId,
+                        type: 'automation',
+                        source: 'telegram',
+                        context: {
+                            description: action.description,
+                            channel: 'telegram',
+                            chatId,
+                            from: action.from ?? 'Unknown',
+                            messageId: action.messageId,
+                        },
+                        priority: 2,
+                    })
+
+                    await sendMessage(chatId, `⏳ Queueing Task… _(${taskId.slice(0, 8)})_`)
+
+                    const unsub = onAgentEvent((event) => {
+                        if (event.taskId !== taskId) return
+                        if (event.type === 'task_complete') {
+                            unsub()
+                            const result = (event.result as string | undefined) ?? 'Done.'
+                            sendMessage(chatId, `✅ ${result}`).catch(() => null)
+                            addToHistory(chatId, 'assistant', result)
+                        } else if (event.type === 'task_failed' || event.type === 'task_blocked') {
+                            unsub()
+                            const reason = (event.reason as string | undefined) ?? 'Unknown error'
+                            sendMessage(chatId, `❌ ${reason}`).catch(() => null)
+                        }
+                    })
+                    setTimeout(() => unsub(), 5 * 60 * 1000)
+
+                    emitToWorkspace(action.workspaceId, { type: 'task_queued_via_telegram', taskId, chatId, text: action.description.slice(0, 200) })
+                } catch (err) {
+                    logger.error({ err, chatId }, 'Failed to queue Telegram task')
+                    await sendMessage(chatId, '❌ Failed to queue task. Please try again.')
+                }
+            } else if (action.intent === 'PROJECT') {
+                try {
+                    const id = ulid()
+                    const [sprint] = await db.insert(sprints).values({
+                        id,
+                        workspaceId: action.workspaceId,
+                        request: action.description,
+                        category: 'general',
+                        status: 'planning',
+                        metadata: {},
+                    }).returning()
+                    await sendMessage(chatId, `✅ Project created: _${sprint!.id}_. You can view it in the dashboard.`)
+                } catch (err) {
+                    logger.error({ err, chatId }, 'Failed to create Telegram project')
+                    await sendMessage(chatId, '❌ Failed to create project. Please try again.')
+                }
+            }
+            return
+        }
+    }
+
+    // Regular text message
+
     const msg = update.message
     if (!msg?.text) return
 
@@ -202,17 +310,21 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
 
     addToHistory(chatId, 'user', text)
     await sendTyping(chatId)
+    const history = chatHistory.get(chatId) ?? []
 
     // Classify: is this a task or just conversation?
-    const intent = await classifyIntent(workspaceId, text)
+    const intent = await classifyIntent(workspaceId, history)
+
 
     if (intent === 'CONVERSATION') {
-        const history = chatHistory.get(chatId) ?? []
         const result = await chatWithAI(
             workspaceId,
             history,
             'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
-            + 'If the user describes something they want done, ask them to confirm so you can execute it as a task.'
+            + 'If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. '
+            + 'If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. '
+            + 'If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. '
+            + 'Only agree to start a task or project when the scope is clear.'
         )
         // Log internal errors server-side; expose only neutral message to user
         if (result.error) {
@@ -224,13 +336,25 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
         return
     }
 
-    // Task — queue and reply when done
-    logger.info({ chatId, workspaceId, text: text.slice(0, 80) }, 'Telegram task queued')
+    // TASK or PROJECT: Send inline keyboard
+    const actionId = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+    pendingActions.set(actionId, {
+        workspaceId,
+        intent,
+        description: text,
+        from: msg.from.username ?? msg.from.first_name ?? String(msg.from.id),
+        messageId: msg.message_id
+    })
+
+    const replyText = `Ready to create a **${intent === 'TASK' ? 'Task' : 'Project'}**.\n\nDescription: _${text.slice(0, 100)}${text.length > 100 ? '...' : ''}_\n\nProceed?`
+
+    // Log the query as a conversation interaction so it's not lost if the user cancels
     try {
         const taskId = await pushTask({
             workspaceId,
-            type: 'automation',
+            type: 'online',
             source: 'telegram',
+            status: 'complete',
             context: {
                 description: text,
                 channel: 'telegram',
@@ -240,29 +364,36 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
             },
             priority: 2,
         })
-
-        await sendMessage(chatId, `⏳ On it… _(${taskId.slice(0, 8)})_`)
-
-        const unsub = onAgentEvent((event) => {
-            if (event.taskId !== taskId) return
-            if (event.type === 'task_complete') {
-                unsub()
-                const result = (event.result as string | undefined) ?? 'Done.'
-                sendMessage(chatId, `✅ ${result}`).catch(() => null)
-                addToHistory(chatId, 'assistant', result)
-            } else if (event.type === 'task_failed' || event.type === 'task_blocked') {
-                unsub()
-                const reason = (event.reason as string | undefined) ?? 'Unknown error'
-                sendMessage(chatId, `❌ ${reason}`).catch(() => null)
-            }
+        await completeTask(taskId, {
+            qualityScore: 1,
+            outcomeSummary: replyText,
+            tokensIn: 0,
+            tokensOut: 0,
+            costUsd: 0,
         })
-        setTimeout(() => unsub(), 5 * 60 * 1000)
-
-        emitToWorkspace(workspaceId, { type: 'task_queued_via_telegram', taskId, chatId, text: text.slice(0, 200) })
+        emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'telegram' })
     } catch (err) {
-        logger.error({ err, chatId }, 'Failed to queue Telegram task')
-        await sendMessage(chatId, '❌ Failed to queue task. Please try again.')
+        logger.error({ err, chatId }, 'Failed to log Telegram interaction to DB')
     }
+
+    if (_botToken) {
+        await fetch(`${TELEGRAM_API}${_botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                text: replyText,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [[
+                        { text: `✅ Confirm`, callback_data: `confirm_${actionId}` },
+                        { text: '❌ Cancel', callback_data: `cancel_${actionId}` }
+                    ]]
+                }
+            }),
+        })
+    }
+
 }
 
 // ── Webhook handler (production) ─────────────────────────────────────────────

@@ -27,7 +27,9 @@ import { sprintRunnerRouter } from './routes/sprint-runner.js'
 import { memoryRouter } from './routes/memory.js'
 import { connectionsRouter } from './routes/connections.js'
 import { workspacesRouter } from './routes/workspaces.js'
+import { apiKeysRouter } from './routes/api-keys.js'
 import { aiProvidersRouter } from './routes/ai-providers.js'
+import { aiProviderCredsRouter } from './routes/ai-provider-creds.js'
 import { channelsRouter } from './routes/channels.js'
 import { cronRouter } from './routes/cron.js'
 import { usersRouter } from './routes/users.js'
@@ -109,6 +111,8 @@ v1.use('/channels/discord', discordRouter)
 v1.use('/memory', memoryRouter)
 v1.use('/connections', connectionsRouter)
 v1.use('/workspaces', workspacesRouter)
+v1.use('/workspaces/:workspaceId/api-keys', apiKeysRouter)
+v1.use('/workspaces/:id/ai-providers', aiProviderCredsRouter)
 v1.use('/settings/ai-providers', aiProvidersRouter)
 v1.use('/channels', channelsRouter)
 v1.use('/cron', cronRouter)
@@ -130,10 +134,6 @@ v1.get('/agent/status', (_req, res) => {
 
 // Canonical versioned prefix
 app.use('/api/v1', v1)
-
-// Legacy aliases — preserve backward compat while clients migrate
-// TODO: Remove /api/* aliases at v2
-app.use('/api', v1)
 
 // ── Error Handler ────────────────────────────────────────────
 

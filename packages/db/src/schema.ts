@@ -249,6 +249,10 @@ export const tasks = pgTable('tasks', {
     tokensIn: integer('tokens_in'),
     tokensOut: integer('tokens_out'),
     costUsd: real('cost_usd'),
+    /** Max USD this task may spend. null = use workspace default. */
+    costCeilingUsd: real('cost_ceiling_usd'),
+    /** Max output tokens. null = no per-task token cap. Maps to generateText maxTokens. */
+    tokenBudget: integer('token_budget'),
     promptVersion: text('prompt_version'),
     outcomeSummary: text('outcome_summary'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
@@ -281,7 +285,9 @@ export const sprints = pgTable('sprints', {
     workspaceId: uuid('workspace_id')
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),
-    repo: text('repo').notNull(),
+    repo: text('repo'),  // null for non-code projects
+    category: text('category').notNull().default('code'), // code | research | writing | ops | data | marketing | general
+    metadata: jsonb('metadata').notNull().default('{}'), // category-specific structured fields
     request: text('request').notNull(),
     status: sprintStatusEnum('status').default('planning').notNull(),
     totalTasks: integer('total_tasks').default(0).notNull(),
@@ -291,6 +297,8 @@ export const sprints = pgTable('sprints', {
     qualityScore: real('quality_score'),
     totalTokens: integer('total_tokens'),
     costUsd: real('cost_usd'),
+    /** Max USD the entire project (all tasks combined) may spend. null = unlimited within workspace ceiling. */
+    costCeilingUsd: real('cost_ceiling_usd'),
     wallClockMs: integer('wall_clock_ms'),
     plannerIterations: integer('planner_iterations').default(0).notNull(),
     featuresCompleted: jsonb('features_completed').default('[]').notNull(),
@@ -673,6 +681,29 @@ export const behaviorGroups = pgTable('behavior_groups', {
     color: text('color').notNull().default('zinc'),
     displayOrder: integer('display_order').notNull().default(0),
 })
+
+// ── MCP Tokens ──────────────────────────────────────────────────────────────
+// Hashed API tokens for MCP transport. Raw value shown once on creation.
+// SHA-256 with per-token random salt. type='mcp' required for MCP transport.
+
+export const mcpTokens = pgTable('mcp_tokens', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    tokenHash: text('token_hash').notNull(),   // SHA-256(raw + salt)
+    tokenSalt: text('token_salt').notNull(),   // random 32-byte hex
+    scopes: text('scopes').array().notNull().default(sql`'{}'`),
+    type: text('type').notNull().default('mcp'),
+    revoked: boolean('revoked').notNull().default(false),
+    expiresAt: timestamp('expires_at', { mode: 'date' }),
+    lastUsedAt: timestamp('last_used_at', { mode: 'date' }),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('mcp_tokens_workspace_idx').on(table.workspaceId),
+    index('mcp_tokens_hash_idx').on(table.tokenHash),
+])
 
 /**
  * behavior_snapshots — version history, one per task/sprint start or manual preview.

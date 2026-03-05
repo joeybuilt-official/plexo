@@ -18,7 +18,7 @@ async function fetchRecent(workspaceId: string): Promise<Task[]> {
     const apiUrl = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
     try {
         const res = await fetch(
-            `${apiUrl}/api/dashboard/activity?workspaceId=${encodeURIComponent(workspaceId)}&limit=8`,
+            `${apiUrl}/api/v1/dashboard/activity?workspaceId=${encodeURIComponent(workspaceId)}&limit=8`,
             { cache: 'no-store' },
         )
         if (!res.ok) return []

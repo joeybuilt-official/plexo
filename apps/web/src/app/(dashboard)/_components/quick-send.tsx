@@ -21,7 +21,7 @@ export function QuickSend() {
 
             if (!workspaceId) throw new Error('No workspace found')
 
-            const res = await fetch(`${apiUrl}/api/tasks`, {
+            const res = await fetch(`${apiUrl}/api/v1/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

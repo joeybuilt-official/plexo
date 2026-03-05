@@ -106,35 +106,35 @@ export function LiveDashboard() {
     const fetchSummary = useCallback(async () => {
         if (!WS_ID) return
         try {
-            const res = await fetch(`${API_BASE}/api/dashboard/summary?workspaceId=${WS_ID}`)
+            const res = await fetch(`${API_BASE}/api/v1/dashboard/summary?workspaceId=${WS_ID}`)
             if (res.ok) {
                 setSummary(await res.json() as DashboardSummary)
                 setLastUpdated(new Date())
             }
         } catch { /* silent — keep stale data */ }
-    }, [])
+    }, [WS_ID])
 
     const fetchActivity = useCallback(async () => {
         if (!WS_ID) return
         try {
-            const res = await fetch(`${API_BASE}/api/dashboard/activity?workspaceId=${WS_ID}&limit=8`)
+            const res = await fetch(`${API_BASE}/api/v1/dashboard/activity?workspaceId=${WS_ID}&limit=8`)
             if (res.ok) {
                 const d = await res.json() as { items: Task[] }
                 setTasks(d.items)
             }
         } catch { /* silent */ }
-    }, [])
+    }, [WS_ID])
 
     const fetchChannels = useCallback(async () => {
         if (!WS_ID) return
         try {
-            const res = await fetch(`${API_BASE}/api/channels?workspaceId=${WS_ID}`)
+            const res = await fetch(`${API_BASE}/api/v1/channels?workspaceId=${WS_ID}`)
             if (res.ok) {
                 const d = await res.json() as { items: ChannelHealth[] }
                 setChannels(d.items ?? [])
             }
         } catch { /* silent */ }
-    }, [])
+    }, [WS_ID])
 
     const manualRefresh = useCallback(async () => {
         setRefreshing(true)
@@ -170,7 +170,7 @@ export function LiveDashboard() {
     // SSE for real-time task updates
     useEffect(() => {
         if (!WS_ID || typeof window === 'undefined') return
-        const url = `${API_BASE}/api/sse?workspaceId=${WS_ID}`
+        const url = `${API_BASE}/api/v1/sse?workspaceId=${WS_ID}`
         try {
             const es = new EventSource(url)
             esRef.current = es
@@ -179,7 +179,7 @@ export function LiveDashboard() {
                 try {
                     const event = JSON.parse(e.data as string) as { type: string }
                     // Re-fetch on any task or agent event
-                    if (event.type === 'task:update' || event.type === 'agent:status') {
+                    if (event.type.startsWith('task_') || event.type.startsWith('agent_')) {
                         void fetchSummary()
                         void fetchActivity()
                     }

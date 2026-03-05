@@ -15,6 +15,7 @@ import {
     Circle,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -129,15 +130,18 @@ export default function ToolsPage() {
     const [error, setError] = useState<string | null>(null)
     const [savingConn, setSavingConn] = useState<string | null>(null)
 
+    const lf = useListFilter([], 'name_asc')
+    const { search, clearAll } = lf
+
     const fetchAll = useCallback(async () => {
         if (!WS_ID) return
         setLoading(true)
         setError(null)
         try {
             const [plugRes, connRes, regRes] = await Promise.all([
-                fetch(`${API_BASE}/api/plugins?workspaceId=${WS_ID}`),
-                fetch(`${API_BASE}/api/connections/installed?workspaceId=${WS_ID}`),
-                fetch(`${API_BASE}/api/connections/registry`),
+                fetch(`${API_BASE}/api/v1/plugins?workspaceId=${WS_ID}`),
+                fetch(`${API_BASE}/api/v1/connections/installed?workspaceId=${WS_ID}`),
+                fetch(`${API_BASE}/api/v1/connections/registry`),
             ])
             if (plugRes.ok) {
                 const d = await plugRes.json() as { items?: Plugin[] } | Plugin[]
@@ -167,7 +171,7 @@ export default function ToolsPage() {
         const next = current.includes(tool) ? current.filter((t) => t !== tool) : [...current, tool]
         const payload = next.length === allTools.length ? null : next
         try {
-            await fetch(`${API_BASE}/api/connections/installed/${conn.id}/tools`, {
+            await fetch(`${API_BASE}/api/v1/connections/installed/${conn.id}/tools`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID, enabledTools: payload }),
@@ -179,33 +183,50 @@ export default function ToolsPage() {
     }
 
     // Aggregate tools from plugin extensions
-    const pluginSections = plugins
+    const rawPluginSections = plugins
         .filter((p) => p.enabled && (p.kapselManifest?.tools ?? []).length > 0)
         .map((p) => {
             const tools = p.kapselManifest!.tools!
+            let filteredTools = tools
+
+            if (search.trim()) {
+                const q = search.toLowerCase()
+                filteredTools = tools.filter(t => t.name.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q))
+            }
+
             return {
                 key: p.id,
                 label: `${p.name} (plugin)`,
-                enabledCount: tools.length,
+                enabledCount: tools.length, // total enabled in DB, independent of filter for accurate source stat
                 total: tools.length,
-                nodes: tools.map((t) => (
+                filteredCount: filteredTools.length,
+                nodes: filteredTools.map((t) => (
                     <ToolRow key={t.name} tool={t.name} enabled={true} />
                 )),
             }
         })
 
     // Tools from installed connections
-    const connSections = connections.map((conn) => {
+    const rawConnSections = connections.map((conn) => {
         const reg = registry.find((r) => r.id === conn.registryId)
         const allTools = reg?.toolsProvided ?? conn.toolsProvided ?? []
         const enabledTools = conn.enabledTools ?? allTools
         const isSaving = savingConn === conn.id
+
+        let filteredTools = allTools
+
+        if (search.trim()) {
+            const q = search.toLowerCase()
+            filteredTools = allTools.filter((t) => t.toLowerCase().includes(q))
+        }
+
         return {
             key: conn.id,
             label: conn.name,
             enabledCount: enabledTools.length,
             total: allTools.length,
-            nodes: allTools.map((t) => (
+            filteredCount: filteredTools.length,
+            nodes: filteredTools.map((t) => (
                 <div key={t} className={isSaving ? 'opacity-50 pointer-events-none' : ''}>
                     <ToolRow
                         tool={t}
@@ -215,27 +236,39 @@ export default function ToolsPage() {
                 </div>
             )),
         }
-    }).filter((s) => s.total > 0)
+    })
 
-    const allSections = [...connSections, ...pluginSections]
-    const totalEnabled = allSections.reduce((n, s) => n + s.enabledCount, 0)
-    const totalTools = allSections.reduce((n, s) => n + s.total, 0)
+    const connSections = rawConnSections.filter((s) => s.total > 0 && s.filteredCount > 0)
+    const pluginSections = rawPluginSections.filter((s) => s.total > 0 && s.filteredCount > 0)
+
+    const allSections = [...connSections, ...pluginSections].sort((a, b) => {
+        if (lf.sort === 'name_desc') return b.label.localeCompare(a.label)
+        if (lf.sort === 'most_tools') return b.enabledCount - a.enabledCount
+        if (lf.sort === 'least_tools') return a.enabledCount - b.enabledCount
+        return a.label.localeCompare(b.label)
+    })
+    const allSectionsUnfiltered = [...rawConnSections, ...rawPluginSections].filter(s => s.total > 0)
+
+    const totalEnabled = allSectionsUnfiltered.reduce((n, s) => n + s.enabledCount, 0)
+    const totalTools = allSectionsUnfiltered.reduce((n, s) => n + s.total, 0)
 
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 max-w-4xl">
             <div className="flex items-start justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-zinc-50">Tools</h1>
+                    <h1 className="text-xl font-bold tracking-tight text-zinc-50">Tools</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">
                         Agent-accessible tools from integrations and plugin extensions
                     </p>
                 </div>
                 <button
                     onClick={() => void fetchAll()}
-                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
+                    disabled={loading}
+                    title="Refresh"
+                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors disabled:opacity-40"
                 >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Refresh
+                    <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">Refresh</span>
                 </button>
             </div>
 
@@ -255,10 +288,22 @@ export default function ToolsPage() {
                 </div>
             )}
 
+            <ListToolbar
+                hook={lf}
+                placeholder="Search tools..."
+                dimensions={[]}
+                sortOptions={[
+                    { label: 'Source: A → Z', value: 'name_asc' },
+                    { label: 'Source: Z → A', value: 'name_desc' },
+                    { label: 'Most enabled tools', value: 'most_tools' },
+                    { label: 'Least enabled tools', value: 'least_tools' },
+                ]}
+            />
+
             {!loading && totalTools > 0 && (
                 <div className="flex items-center gap-4 text-xs text-zinc-500">
                     <span><span className="text-zinc-300 font-medium">{totalEnabled}</span> / {totalTools} tools enabled</span>
-                    <span><span className="text-zinc-300 font-medium">{allSections.length}</span> sources</span>
+                    <span><span className="text-zinc-300 font-medium">{allSectionsUnfiltered.length}</span> sources</span>
                 </div>
             )}
 
@@ -266,7 +311,7 @@ export default function ToolsPage() {
                 <div className="flex items-center justify-center py-16">
                     <RefreshCw className="h-5 w-5 text-zinc-600 animate-spin" />
                 </div>
-            ) : allSections.length === 0 ? (
+            ) : allSectionsUnfiltered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
                     <WrenchIcon className="h-10 w-10 text-zinc-700" />
                     <div className="text-center">
@@ -278,6 +323,13 @@ export default function ToolsPage() {
                             <a href="/marketplace" className="text-indigo-400 hover:underline">Marketplace</a>.
                         </p>
                     </div>
+                </div>
+            ) : allSections.length === 0 ? (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center">
+                    <p className="text-sm text-zinc-500">No results match your filters.</p>
+                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto">
+                        Clear search
+                    </button>
                 </div>
             ) : (
                 <div className="flex flex-col gap-3">

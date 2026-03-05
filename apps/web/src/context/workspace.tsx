@@ -37,14 +37,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     // Hydrate from localStorage after mount (avoids SSR mismatch)
     useEffect(() => {
         const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored && stored !== workspaceId) setWorkspaceId(stored)
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+        if (stored && stored !== workspaceId) {
+            setTimeout(() => setWorkspaceId(stored), 0)
+        }
+    }, [workspaceId])
 
     // Fetch workspace name whenever id changes
     useEffect(() => {
         if (!workspaceId) return
         const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-        fetch(`${api}/api/workspaces/${workspaceId}`, { cache: 'no-store' })
+        fetch(`${api}/api/v1/workspaces/${workspaceId}`, { cache: 'no-store' })
             .then((r) => r.ok ? r.json() : null)
             .then((d: { name?: string } | null) => { if (d?.name) setWorkspaceName(d.name) })
             .catch(() => { /* non-fatal */ })

@@ -1,6 +1,6 @@
 import { claimTask, completeTask, blockTask } from '@plexo/queue'
 import { db, eq } from '@plexo/db'
-import { tasks, workspaces } from '@plexo/db'
+import { tasks, apiCostTracking, workspaces } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
@@ -8,6 +8,7 @@ import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/re
 import { logger } from './logger.js'
 import { emit } from './sse-emitter.js'
 import { getAnthropicTokens } from './anthropic-tokens.js'
+import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
 
 const POLL_INTERVAL_MS = 2_000
 const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
@@ -35,14 +36,7 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
     let rawProviders: Record<string, any> = {}
 
     try {
-        const [ws] = await db.select({ settings: workspaces.settings })
-            .from(workspaces)
-            .where(eq(workspaces.id, workspaceId))
-            .limit(1)
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const s = ws?.settings as any
-        const ap = s?.aiProviders
+        const ap = await loadDecryptedAIProviders(workspaceId)
 
         if (!ap) {
             logger.warn({ workspaceId }, 'ai-cred: no aiProviders in workspace settings — never saved?')
@@ -190,6 +184,53 @@ async function processOneTask(): Promise<boolean> {
         return true
     }
 
+    // ── Pre-flight: workspace weekly ceiling ──────────────────────────────────
+    // Check before claiming CPU/memory so we fail fast if already over budget.
+    try {
+        const [costRow] = await db
+            .select({ costUsd: apiCostTracking.costUsd, ceilingUsd: apiCostTracking.ceilingUsd })
+            .from(apiCostTracking)
+            .where(eq(apiCostTracking.workspaceId, taskWorkspaceId ?? ''))
+            .limit(1)
+
+        if (costRow && costRow.costUsd >= costRow.ceilingUsd) {
+            await blockTask(task.id, `Workspace weekly cost ceiling reached: $${costRow.costUsd.toFixed(4)} / $${costRow.ceilingUsd.toFixed(2)}`)
+            emit({ type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING' })
+            logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd }, 'Workspace ceiling — task blocked')
+            return true
+        }
+    } catch (costErr) {
+        logger.warn({ costErr }, 'Pre-flight cost check failed non-fatally — continuing')
+    }
+
+    // ── Resolve per-task budget from DB row + workspace defaults ──────────────
+    // Priority: task.cost_ceiling_usd → workspace settings default → null (no cap)
+    // Priority: task.token_budget → workspace settings default → 0 (no cap)
+    const taskRow = await db.select({
+        costCeilingUsd: tasks.costCeilingUsd,
+        tokenBudget: tasks.tokenBudget,
+    }).from(tasks).where(eq(tasks.id, task.id)).limit(1)
+
+    const taskCostCeiling = taskRow[0]?.costCeilingUsd ?? null
+    const taskTokenBudget = taskRow[0]?.tokenBudget ?? null
+
+    // Load workspace-level defaults (stored in workspaces.settings.aiProviders)
+    let wsDefaultCostCeiling: number | null = null
+    let wsDefaultTokenBudget: number | null = null
+    try {
+        const [wsRow] = await db.select({ settings: workspaces.settings })
+            .from(workspaces).where(eq(workspaces.id, taskWorkspaceId ?? '')).limit(1)
+        if (wsRow?.settings) {
+            const s = wsRow.settings as Record<string, unknown>
+            const ap = s.aiProviders as Record<string, unknown> | undefined
+            if (ap?.defaultTaskCostCeiling) wsDefaultCostCeiling = Number(ap.defaultTaskCostCeiling) || null
+            if (ap?.defaultTokenBudget) wsDefaultTokenBudget = Number(ap.defaultTokenBudget) || null
+        }
+    } catch { /* non-fatal */ }
+
+    const resolvedCostCeiling = taskCostCeiling ?? wsDefaultCostCeiling
+    const resolvedTokenBudget = taskTokenBudget ?? wsDefaultTokenBudget ?? 0
+
     const abort = new AbortController()
     activeAbort = abort
 
@@ -198,7 +239,8 @@ async function processOneTask(): Promise<boolean> {
         workspaceId: taskWorkspaceId ?? '',
         userId: 'system',
         credential,
-        tokenBudget: Math.floor((API_COST_CEILING * 1_000_000) / 15),
+        tokenBudget: resolvedTokenBudget,
+        taskCostCeilingUsd: resolvedCostCeiling,
         signal: abort.signal,
     }
 

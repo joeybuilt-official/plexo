@@ -40,9 +40,9 @@ async function fetchMarketplaceData(workspaceId: string) {
 
     const [regRes, instRes, pluginsRes] = await Promise.all([
         fetch(`${apiBase}/api/v1/connections/registry`, { cache: 'no-store' })
-            .catch(() => fetch(`${apiBase}/api/connections/registry`, { cache: 'no-store' })),
+            .catch(() => fetch(`${apiBase}/api/v1/connections/registry`, { cache: 'no-store' })),
         fetch(`${apiBase}/api/v1/connections/installed?workspaceId=${workspaceId}`, { cache: 'no-store' })
-            .catch(() => fetch(`${apiBase}/api/connections/installed?workspaceId=${workspaceId}`, { cache: 'no-store' })),
+            .catch(() => fetch(`${apiBase}/api/v1/connections/installed?workspaceId=${workspaceId}`, { cache: 'no-store' })),
         fetch(`${apiBase}/api/v1/plugins?workspaceId=${workspaceId}`, { cache: 'no-store' }),
     ])
 

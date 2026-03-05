@@ -1,9 +1,11 @@
 import { Router, type Router as RouterType } from 'express'
+import pkg from '../../package.json' with { type: 'json' }
 import { db, sql, eq, and } from '@plexo/db'
 import { workspaces, installedConnections } from '@plexo/db'
 import { createClient } from 'redis'
 import { logger } from '../logger.js'
 import { workerStats } from '@plexo/agent/persistent-pool'
+import { loadDecryptedAIProviders } from './ai-provider-creds.js'
 
 export const healthRouter: RouterType = Router()
 
@@ -44,14 +46,13 @@ async function pingAnthropic(): Promise<{ ok: boolean | null; latencyMs: number;
     let key = process.env.ANTHROPIC_API_KEY
     if (key === 'placeholder' || key?.startsWith('sk-ant-oat')) key = undefined
 
-    // 2. Workspace settings — anthropic provider entry only
+    // 2. Workspace settings — look up first workspace's aiProviders (decrypted)
     if (!key) {
         try {
-            const rows = await db.select({ settings: workspaces.settings }).from(workspaces).limit(5)
+            const rows = await db.select({ id: workspaces.id }).from(workspaces).limit(5)
             for (const row of rows) {
-                const anthropic = (row.settings as {
-                    aiProviders?: { providers?: { anthropic?: { apiKey?: string; oauthToken?: string } } }
-                } | null)?.aiProviders?.providers?.anthropic
+                const ap = await loadDecryptedAIProviders(row.id)
+                const anthropic = ap?.providers?.anthropic
                 if (anthropic?.oauthToken) { key = anthropic.oauthToken; break }
                 if (anthropic?.apiKey && anthropic.apiKey !== 'placeholder') { key = anthropic.apiKey; break }
             }
@@ -121,7 +122,7 @@ healthRouter.get('/', async (_req, res) => {
     res.status(critical ? 200 : 503).json({
         status,
         services,
-        version: process.env.npm_package_version ?? '0.1.0',
+        version: pkg.version ?? '0.1.0',
         uptime: Math.floor(process.uptime()),
         kapsel: {
             complianceLevel: 'full',

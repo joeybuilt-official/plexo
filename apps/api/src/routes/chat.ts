@@ -13,10 +13,12 @@
  *   ></script>
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq } from '@plexo/db'
-import { tasks, workspaces } from '@plexo/db'
-import { logger } from '../logger.js'
+import { db, eq, desc } from '@plexo/db'
+import { workspaces, tasks, taskSteps, sprints } from '@plexo/db'
 import { ulid } from 'ulid'
+import { logger } from '../logger.js'
+import { pushTask, completeTask } from '@plexo/queue'
+import { emitToWorkspace } from '../sse-emitter.js'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
@@ -28,12 +30,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // ── Intent classification ────────────────────────────────────────────────────
 
 const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
-Decide if the user's message is a TASK REQUEST or CONVERSATION.
+Decide if the user's message is a TASK, PROJECT, or CONVERSATION.
 
-TASK: requires autonomous execution — create, write, fix, research, build, deploy, analyze, automate, schedule, etc.
-CONVERSATION: greetings, status checks, questions about you, small talk, thanks, clarifications, simple questions.
+TASK: The user is explicitly asking to start a clear, immediate, actionable task. Or the user is confirming (e.g. "yes", "do it") a previous proposal to create a task.
+PROJECT: The user is explicitly asking to start a large, multi-step goal requiring planning (e.g., "Build a new features"). Or the user is confirming a proposal to create a project.
+CONVERSATION: Vague requests, troubleshooting, requests needing clarification, greetings, checks, small talk, or rejecting proposals.
 
-Reply with ONLY one word: TASK or CONVERSATION.`
+Reply with ONLY one word: TASK, PROJECT, or CONVERSATION.`
 
 // Per-session conversation history (last 20 messages, in-memory)
 const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>()
@@ -87,15 +90,26 @@ chatRouter.post('/message', async (req, res) => {
         const trimmedMsg = message.trim()
 
         // Classify intent
-        let intent: 'TASK' | 'CONVERSATION' = 'CONVERSATION'
+        let intent: 'TASK' | 'PROJECT' | 'CONVERSATION' = 'CONVERSATION'
+        const sid = sessionId ?? 'default'
+        const history = sessionHistory.get(sid) ?? []
+
         try {
+            const messages = [
+                ...history.map(m => ({ role: m.role, content: m.content })),
+                { role: 'user' as const, content: trimmedMsg }
+            ]
+
             const classifyResult = await generateText({
                 model,
                 system: CLASSIFY_SYSTEM,
-                messages: [{ role: 'user', content: trimmedMsg }],
+                messages,
                 abortSignal: AbortSignal.timeout(10_000),
             })
-            intent = classifyResult.text?.trim().toUpperCase().startsWith('TASK') ? 'TASK' : 'CONVERSATION'
+            const text = classifyResult.text?.trim().toUpperCase() ?? ''
+            if (text.startsWith('TASK')) intent = 'TASK'
+            else if (text.startsWith('PROJECT')) intent = 'PROJECT'
+            else intent = 'CONVERSATION'
         } catch {
             // On classification failure, default to CONVERSATION
             intent = 'CONVERSATION'
@@ -104,9 +118,7 @@ chatRouter.post('/message', async (req, res) => {
         logger.info({ workspaceId, intent, message: trimmedMsg.slice(0, 80) }, 'Webchat intent classified')
 
         if (intent === 'CONVERSATION') {
-            // Direct conversational reply — no task queue
-            const sid = sessionId ?? 'default'
-            const history = sessionHistory.get(sid) ?? []
+            // Direct conversational reply — no task queue yet (Projects and Tasks need consultative clarification if unclear)
             history.push({ role: 'user', content: trimmedMsg })
             if (history.length > 20) history.splice(0, history.length - 20)
             sessionHistory.set(sid, history)
@@ -116,7 +128,10 @@ chatRouter.post('/message', async (req, res) => {
                 const result = await generateText({
                     model,
                     system: 'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
-                        + 'If the user describes something they want done, ask them to confirm so you can execute it as a task.',
+                        + 'If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. '
+                        + 'If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. '
+                        + 'If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. '
+                        + 'Only agree to start a task or project when the scope is clear.',
                     messages: history.map(m => ({ role: m.role, content: m.content })),
                     abortSignal: AbortSignal.timeout(30_000),
                 })
@@ -124,6 +139,29 @@ chatRouter.post('/message', async (req, res) => {
                 history.push({ role: 'assistant', content: replyText })
                 if (history.length > 20) history.splice(0, history.length - 20)
                 sessionHistory.set(sid, history)
+
+                // Log as a completed task so it appears in the Conversations list
+                const taskId = await pushTask({
+                    workspaceId,
+                    type: 'online',
+                    source: 'dashboard',
+                    status: 'complete',
+                    context: {
+                        description: trimmedMsg,
+                        message: trimmedMsg,
+                        sessionId: sessionId ?? null,
+                        channel: 'web',
+                    },
+                    priority: 2,
+                })
+                await completeTask(taskId, {
+                    qualityScore: 1,
+                    outcomeSummary: replyText,
+                    tokensIn: 0,
+                    tokensOut: 0,
+                    costUsd: 0,
+                })
+                emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'dashboard' })
 
                 res.json({ status: 'complete', reply: replyText })
             } catch (err) {
@@ -133,29 +171,99 @@ chatRouter.post('/message', async (req, res) => {
             return
         }
 
-        // TASK — queue for the agent
-        const taskId = ulid()
-        await db.insert(tasks).values({
-            id: taskId,
-            workspaceId,
-            type: 'online',
-            status: 'queued',
-            priority: 5,
-            source: 'dashboard',
-            context: {
-                description: trimmedMsg,
-                message: trimmedMsg,
-                sessionId: sessionId ?? null,
-                channel: 'webchat',
-                respondVia: 'task_outcome',
-            },
-        })
+        // TASK or PROJECT — Ask for confirmation via UI
+        // Log the query as a conversation interaction so it's not lost if the user cancels
+        try {
+            const taskId = await pushTask({
+                workspaceId,
+                type: 'online',
+                source: 'dashboard',
+                status: 'complete',
+                context: {
+                    description: trimmedMsg,
+                    message: trimmedMsg,
+                    sessionId: sessionId ?? null,
+                    channel: 'web',
+                },
+                priority: 2,
+            })
+            const replyText = intent === 'TASK'
+                ? 'I can execute this as an automated task. Do you want me to proceed?'
+                : 'I can create a project to track this larger goal. Do you want me to set that up?'
+            await completeTask(taskId, {
+                qualityScore: 1,
+                outcomeSummary: replyText,
+                tokensIn: 0,
+                tokensOut: 0,
+                costUsd: 0,
+            })
+            emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'dashboard' })
+        } catch (err) {
+            logger.error({ err, workspaceId }, 'Failed to log Webchat interaction to DB')
+        }
 
-        logger.info({ workspaceId, taskId }, 'Webchat task queued')
-        res.status(202).json({ taskId, status: 'queued' })
+        res.json({
+            status: 'confirm_action',
+            intent,
+            description: trimmedMsg,
+        })
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/message failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to queue message' } })
+    }
+})
+
+// ── POST /api/chat/execute-action ──────────────────────────────────────────────
+chatRouter.post('/execute-action', async (req, res) => {
+    const { workspaceId, intent, description, sessionId } = req.body as {
+        workspaceId?: string
+        intent?: 'TASK' | 'PROJECT'
+        description?: string
+        sessionId?: string
+    }
+
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+    if (!intent || !description) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'intent and description required' } })
+        return
+    }
+
+    try {
+        if (intent === 'TASK') {
+            const taskId = await pushTask({
+                workspaceId,
+                type: 'automation',
+                source: 'dashboard',
+                context: {
+                    description: description,
+                    message: description,
+                    sessionId: sessionId ?? null,
+                    channel: 'web',
+                },
+                priority: 2,
+            })
+            logger.info({ workspaceId, taskId }, 'Webchat task explicitly confirmed and queued')
+            emitToWorkspace(workspaceId, { type: 'task_queued', taskId, source: 'dashboard' })
+            res.status(202).json({ taskId, status: 'queued' })
+        } else if (intent === 'PROJECT') {
+            const id = ulid()
+            const [sprint] = await db.insert(sprints).values({
+                id,
+                workspaceId,
+                request: description,
+                category: 'general', // Default category for non-code until specified
+                status: 'planning',
+                metadata: {},
+            }).returning()
+            logger.info({ workspaceId, sprintId: sprint!.id }, 'Webchat project explicitly confirmed and created')
+            res.status(201).json({ sprintId: sprint!.id, status: 'created' })
+        }
+    } catch (err) {
+        logger.error({ err }, 'POST /api/chat/execute-action failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to execute action' } })
     }
 })
 
@@ -217,6 +325,116 @@ chatRouter.get('/reply/:taskId', async (req, res) => {
     }
 
     await poll()
+})
+
+// ── GET /api/chat/reply-stream/:taskId ───────────────────────────────────────
+// SSE stream: fires a `tick` event every 3 s with step count + latest action.
+// Fires a terminal event (`complete`, `blocked`, `cancelled`, `timeout`) then closes.
+// Max duration: 5 min. Used by the web chat UI for live progress updates.
+
+chatRouter.get('/reply-stream/:taskId', async (req, res) => {
+    const { taskId } = req.params
+    const startedAt = Date.now()
+    const MAX_MS = 5 * 60 * 1000
+    const TICK_MS = 3_000
+
+    // SSE headers
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no') // disable nginx buffering
+    res.flushHeaders()
+
+    const send = (event: string, data: unknown) => {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    }
+
+    let intervalId: ReturnType<typeof setInterval> | null = null
+    let closed = false
+
+    const finish = (event: string, data: unknown) => {
+        if (closed) return
+        closed = true
+        if (intervalId) clearInterval(intervalId)
+        send(event, data)
+        res.end()
+    }
+
+    req.on('close', () => {
+        closed = true
+        if (intervalId) clearInterval(intervalId)
+    })
+
+    const tick = async () => {
+        if (closed) return
+        try {
+            const elapsed = Math.round((Date.now() - startedAt) / 1000)
+
+            const [task] = await db.select({
+                status: tasks.status,
+                outcomeSummary: tasks.outcomeSummary,
+            }).from(tasks).where(eq(tasks.id, taskId!)).limit(1)
+
+            if (!task) {
+                finish('error', { code: 'TASK_NOT_FOUND' })
+                return
+            }
+
+            if (task.status === 'complete') {
+                finish('complete', {
+                    taskId,
+                    reply: task.outcomeSummary ?? 'Done.',
+                })
+                return
+            }
+
+            if (task.status === 'blocked' || task.status === 'cancelled') {
+                const reason = task.outcomeSummary ?? ''
+                const isNoCredential = !reason || /credential|no ai/i.test(reason)
+                finish(task.status, {
+                    taskId,
+                    reply: task.status === 'blocked'
+                        ? isNoCredential
+                            ? 'No AI provider configured. Go to Settings → AI Providers.'
+                            : `Agent error: ${reason}`
+                        : 'Task cancelled.',
+                })
+                return
+            }
+
+            if (elapsed * 1000 >= MAX_MS) {
+                finish('timeout', { taskId, reply: 'Task is taking unusually long — check the Tasks page for status.' })
+                return
+            }
+
+            // Still running — fetch latest step for progress detail
+            const [latestStep] = await db.select({
+                stepNumber: taskSteps.stepNumber,
+                outcome: taskSteps.outcome,
+            }).from(taskSteps)
+                .where(eq(taskSteps.taskId, taskId!))
+                .orderBy(desc(taskSteps.stepNumber))
+                .limit(1)
+
+            const stepCount = latestStep?.stepNumber ?? 0
+            const lastAction = latestStep?.outcome?.slice(0, 120) ?? null
+
+            send('tick', {
+                taskId,
+                status: task.status,
+                elapsed,
+                stepCount,
+                lastAction,
+            })
+        } catch (err) {
+            logger.error({ err, taskId }, 'Webchat SSE tick failed')
+            // Don't close on a transient DB error — try again next tick
+        }
+    }
+
+    // Fire immediately then every TICK_MS
+    await tick()
+    intervalId = setInterval(() => { void tick() }, TICK_MS)
 })
 
 // ── GET /api/chat/widget.js ───────────────────────────────────────────────────

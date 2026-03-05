@@ -8,6 +8,7 @@ export const sprintsRouter: RouterType = Router()
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VALID_SPRINT_STATUSES = new Set(['planning', 'running', 'complete', 'failed', 'cancelled'])
+const VALID_CATEGORIES = new Set(['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general'])
 
 // ── GET /api/sprints?workspaceId=&status= ───────────────────────────────────
 
@@ -48,21 +49,38 @@ sprintsRouter.get('/', async (req, res) => {
 // ── POST /api/sprints ────────────────────────────────────────────────────────
 
 sprintsRouter.post('/', async (req, res) => {
-    const { workspaceId, repo, request } = req.body as {
+    const { workspaceId, repo, request, category = 'code', metadata = {}, costCeilingUsd, perTaskCostCeiling, perTaskTokenBudget } = req.body as {
         workspaceId: string
-        repo: string
+        repo?: string
         request: string
+        category?: string
+        metadata?: Record<string, unknown>
+        /** Max USD for the entire project. 0 = reject (nonsensical). null/undefined = no ceiling. */
+        costCeilingUsd?: number
+        /** Max USD per individual task. Propagated into each task at dispatch. */
+        perTaskCostCeiling?: number
+        /** Max output tokens per task. Propagated into each task at dispatch. */
+        perTaskTokenBudget?: number
     }
 
-    if (!workspaceId || !repo || !request) {
-        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'workspaceId, repo, request required' } })
+    if (!workspaceId || !request) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'workspaceId and request are required' } })
         return
     }
     if (!UUID_RE.test(workspaceId)) {
         res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required for workspaceId' } })
         return
     }
-    if (repo.length > 500) {
+    if (category && !VALID_CATEGORIES.has(category)) {
+        res.status(400).json({ error: { code: 'INVALID_CATEGORY', message: `category must be one of: ${[...VALID_CATEGORIES].join(', ')}` } })
+        return
+    }
+    // repo is required only for code category
+    if (category === 'code' && !repo) {
+        res.status(400).json({ error: { code: 'MISSING_REPO', message: 'repo is required for code projects' } })
+        return
+    }
+    if (repo && repo.length > 500) {
         res.status(400).json({ error: { code: 'INVALID_REPO', message: 'repo max 500 chars' } })
         return
     }
@@ -70,15 +88,32 @@ sprintsRouter.post('/', async (req, res) => {
         res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'request max 4000 chars' } })
         return
     }
+    if (costCeilingUsd !== undefined && costCeilingUsd <= 0) {
+        res.status(400).json({ error: { code: 'INVALID_BUDGET', message: 'costCeilingUsd must be > 0' } })
+        return
+    }
+    if (perTaskCostCeiling !== undefined && perTaskCostCeiling <= 0) {
+        res.status(400).json({ error: { code: 'INVALID_BUDGET', message: 'perTaskCostCeiling must be > 0' } })
+        return
+    }
 
     try {
         const id = ulid()
+        // Merge per-task budget defaults into metadata so the sprint runner can propagate them
+        const enrichedMetadata = {
+            ...metadata,
+            ...(perTaskCostCeiling != null ? { perTaskCostCeiling } : {}),
+            ...(perTaskTokenBudget != null ? { perTaskTokenBudget } : {}),
+        }
         const [sprint] = await db.insert(sprints).values({
             id,
             workspaceId,
-            repo,
+            repo: repo ?? null,
             request,
+            category,
+            metadata: enrichedMetadata,
             status: 'planning',
+            costCeilingUsd: costCeilingUsd ?? null,
         }).returning()
 
         res.status(201).json(sprint)

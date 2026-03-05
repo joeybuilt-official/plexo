@@ -43,7 +43,8 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
     runSprint({
         sprintId,
         workspaceId,
-        repo: sprint.repo,
+        repo: sprint.repo ?? undefined,
+        category: sprint.category ?? 'code',
         request: sprint.request,
     }).catch((err: unknown) => {
         logger.error({ err, sprintId }, 'Sprint run failed')
@@ -72,6 +73,7 @@ sprintRunnerRouter.get('/:id/tasks', async (req, res) => {
             sprint: {
                 id: sprint.id,
                 repo: sprint.repo,
+                category: sprint.category ?? 'code',
                 request: sprint.request,
                 status: sprint.status,
                 totalTasks: sprint.totalTasks,
@@ -80,6 +82,9 @@ sprintRunnerRouter.get('/:id/tasks', async (req, res) => {
                 conflictCount: sprint.conflictCount,
                 qualityScore: sprint.qualityScore,
                 costUsd: sprint.costUsd,
+                wallClockMs: sprint.wallClockMs,
+                plannerIterations: sprint.plannerIterations,
+                featuresCompleted: sprint.featuresCompleted ?? [],
                 createdAt: sprint.createdAt,
                 completedAt: sprint.completedAt,
             },
@@ -116,9 +121,9 @@ sprintRunnerRouter.get('/:id/conflicts', async (req, res) => {
             return
         }
 
-        const [owner, repo] = sprint.repo.split('/')
+        const [owner, repo] = (sprint.repo ?? '').split('/')
         if (!owner || !repo || !process.env.GITHUB_TOKEN) {
-            res.json({ conflicts: [], note: 'GitHub integration not configured' })
+            res.json({ conflicts: [], note: 'GitHub integration not configured or not a code project' })
             return
         }
 

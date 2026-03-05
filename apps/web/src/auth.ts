@@ -14,7 +14,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 if (!credentials?.email || !credentials?.password) return null
 
                 const apiUrl = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
-                const res = await fetch(`${apiUrl}/api/auth/verify-password`, {
+                const res = await fetch(`${apiUrl}/api/v1/auth/verify-password`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

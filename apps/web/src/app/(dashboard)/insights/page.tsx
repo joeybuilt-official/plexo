@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
     Brain,
     RefreshCw,
@@ -8,8 +8,6 @@ import {
     Zap,
     Search,
     PlayCircle,
-    ChevronDown,
-    ChevronUp,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
@@ -65,8 +63,8 @@ export default function InsightsPage() {
         setLoading(true)
         try {
             const [impRes, prefRes] = await Promise.all([
-                fetch(`${API_BASE}/api/memory/improvements?workspaceId=${WS_ID}&limit=30`),
-                fetch(`${API_BASE}/api/memory/preferences?workspaceId=${WS_ID}`),
+                fetch(`${API_BASE}/api/v1/memory/improvements?workspaceId=${WS_ID}&limit=30`),
+                fetch(`${API_BASE}/api/v1/memory/preferences?workspaceId=${WS_ID}`),
             ])
             if (impRes.ok) {
                 const d = await impRes.json() as { items: ImprovementEntry[] }
@@ -79,16 +77,16 @@ export default function InsightsPage() {
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [WS_ID])
 
     // Load on first render
-    useState(() => { void load() })
+    useEffect(() => { void load() }, [load])
 
     async function runCycle() {
         setRunning(true)
         setRunMsg(null)
         try {
-            const res = await fetch(`${API_BASE}/api/memory/improvements/run`, {
+            const res = await fetch(`${API_BASE}/api/v1/memory/improvements/run`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID }),
@@ -106,7 +104,7 @@ export default function InsightsPage() {
     async function applyImprovement(id: string) {
         setApplying(id)
         try {
-            const res = await fetch(`${API_BASE}/api/memory/improvements/${id}/apply`, {
+            const res = await fetch(`${API_BASE}/api/v1/memory/improvements/${id}/apply`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID }),
@@ -125,7 +123,7 @@ export default function InsightsPage() {
         setSearching(true)
         setSearchResults(null)
         try {
-            const res = await fetch(`${API_BASE}/api/memory/search?workspaceId=${WS_ID}&q=${encodeURIComponent(searchQ)}&limit=10`)
+            const res = await fetch(`${API_BASE}/api/v1/memory/search?workspaceId=${WS_ID}&q=${encodeURIComponent(searchQ)}&limit=10`)
             if (res.ok) {
                 const data = await res.json() as { items: SearchResult[] }
                 setSearchResults(data.items ?? [])

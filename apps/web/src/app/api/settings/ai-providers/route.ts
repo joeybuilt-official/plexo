@@ -8,7 +8,7 @@ const API_BASE = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
 export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
         const body = await req.text()
-        const upstream = await fetch(`${API_BASE}/api/settings/ai-providers/test`, {
+        const upstream = await fetch(`${API_BASE}/api/v1/settings/ai-providers/test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body,

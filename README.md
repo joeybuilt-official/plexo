@@ -137,28 +137,70 @@ export async function activate(sdk: KapselSDK) {
 }
 ```
 
-### Model Context Protocol (MCP) Server
-Plexo provides a built-in [MCP server](https://modelcontextprotocol.io) (`@plexo/mcp-server`) that allows external agents (like Claude Desktop or Cursor) to interact directly with your Plexo workspace.
-*   **HTTP Transport**: Runs on port `3002` alongside the API layer via `Authorization` header.
-*   **Stdio Transport**: Executable directly via CLI for local fast-fetch assistants.
-*   **Capabilities**: Fetch real-time health, active task queues, cost usage, and trigger workspace-wide evaluations.
+### Bring Plexo into Claude & Cursor (MCP Server)
+Plexo acts as the intelligent backend for your favorite AI tools. By connecting Plexo via the open [Model Context Protocol (MCP)](https://modelcontextprotocol.io), tools like Claude Desktop and Cursor can **read directly from your Plexo workspace**, check on background tasks, view budgets, and query your systems—without you having to manually explain context.
 
-### The CLI (`@plexo/cli`)
-Control Plexo entirely from the terminal or embed it into your CI/CD pipelines.
+Because your Plexo instance is hosted securely (or running locally), your IDE connects to it remotely via an MCP proxy.
 
+**Connecting Claude Desktop:**
+Add this to your `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "plexo": {
+      "command": "npx",
+      "args": ["-y", "@plexo/cli@latest", "mcp-proxy"],
+      "env": {
+        "PLEXO_URL": "http://localhost:3001", 
+        "PLEXO_TOKEN": "your-workspace-token"
+      }
+    }
+  }
+}
+```
+*(Note: If using Managed Cloud, change URL to `https://api.getplexo.com`)*
+*Restart Claude, and it will immediately connect to your Plexo workspace.*
+
+**Connecting Cursor IDE:**
+1. Open Cursor Settings > **Features** > **MCP Servers**.
+2. Click **+ Add New MCP Server**.
+3. Set Name to `Plexo` and Type to `command`.
+4. Command: `npx -y @plexo/cli@latest mcp-proxy`
+5. Click the "Env vars" arrow and add: 
+   - `PLEXO_URL=http://localhost:3001` *(or `https://api.getplexo.com`)*
+   - `PLEXO_TOKEN=your-workspace-token`
+
+---
+
+### The Developer CLI (`@plexo/cli`)
+For engineers, Plexo lives natively in your terminal and CI/CD runners. Anyone in the world can download the CLI, but they must authenticate with an instance URL (either your local machine or the managed cloud) and API key.
+
+**1. Install & Authenticate:**
 ```bash
-# Trigger a task immediately from the terminal
-npx plexo@latest task run "fix the failing tests" --wait
-
-# Or install globally to manage pipelines
 npm install -g @plexo/cli
-plexo sprint start "review changes and update docs" --wait --timeout 2h
+
+# For local development:
+plexo auth login http://localhost:3001
+
+# For Managed Cloud:
+plexo auth login https://api.getplexo.com
 ```
 
-**Commands Available:**
+**2. Trigger workers on-the-fly:**
+```bash
+plexo task run "diagnose the memory leak in production" --wait
+```
+
+**Native CI/CD Integration:**
+Pass the connection details explicitly in your automation pipelines. Plexo yields structured exit codes: `0` (success), `2` (task failed), `3` (blocked for human approval), and `5` (timeout).
+```bash
+PLEXO_URL=http://localhost:3001 PLEXO_TOKEN=sk-xxx \
+  npx @plexo/cli@latest sprint start "review code and run integration tests" --wait --timeout 2h
+```
+
+**Available Commands:**
 `auth`, `task`, `sprint`, `cron`, `connection`, `plugin`, `memory`, `logs`, `status`, `config`
 
-*Exit codes are structured for pipelines:* `0` success · `2` task failed · `3` blocked (OWD approval needed) · `4` auth error · `5` timeout.
 
 ### Complete API Surface
 All endpoints require a valid `workspaceId` UUID, providing enterprise multi-tenant separation out of the box.

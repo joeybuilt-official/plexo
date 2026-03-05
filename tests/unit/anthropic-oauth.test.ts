@@ -26,8 +26,6 @@ describe('Anthropic OAuth', () => {
         })
 
         it('includes required scopes', () => {
-            expect(ANTHROPIC_OAUTH.scopes).toContain('org:create_api_key')
-            expect(ANTHROPIC_OAUTH.scopes).toContain('user:profile')
             expect(ANTHROPIC_OAUTH.scopes).toContain('user:inference')
         })
     })
@@ -63,7 +61,7 @@ describe('Anthropic OAuth', () => {
                 codeChallenge: 'y',
             })
             const scope = new URL(url).searchParams.get('scope')
-            expect(scope).toContain('org:create_api_key')
+            expect(scope).toContain('user:inference')
         })
     })
 

@@ -29,7 +29,7 @@ import {
     Check,
     Zap,
     Wrench,
-    Sparkles,
+    Sparkles as _Sparkles, // kept for potential future use
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
@@ -64,7 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { label: 'Overview', href: '/', icon: LayoutDashboard },
             { label: 'Tasks', href: '/tasks', icon: CheckSquare },
-            { label: 'Projects', href: '/sprints', icon: FolderOpen },
+            { label: 'Projects', href: '/projects', icon: FolderOpen },
             { label: 'Cron Jobs', href: '/cron', icon: Clock },
             { label: 'Approvals', href: '/approvals', icon: ShieldAlert },
         ],
@@ -89,7 +89,6 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { label: 'AI Providers', href: '/settings/ai-providers', icon: Cpu },
             { label: 'Agent', href: '/settings/agent', icon: Bot },
-            { label: 'Behavior', href: '/settings/behavior', icon: Sparkles },
             { label: 'Workspace', href: '/settings', icon: SettingsIcon, exact: true },
             { label: 'Users', href: '/settings/users', icon: Users },
             { label: 'Privacy', href: '/settings/privacy', icon: ShieldCheck },
@@ -133,7 +132,9 @@ interface WorkspaceSummary {
     name: string
 }
 
-const VERSION = 'v0.7'
+import pkg from '../../../package.json'
+
+const VERSION = `v${pkg.version}`
 
 function WorkspaceSwitcher() {
     const { workspaceId, workspaceName, setWorkspace } = useWorkspace()
@@ -147,7 +148,7 @@ function WorkspaceSwitcher() {
     // Fetch workspace list when dropdown opens
     useEffect(() => {
         if (!open) return
-        fetch(`${API}/api/workspaces`, { cache: 'no-store' })
+        fetch(`${API}/api/v1/workspaces`, { cache: 'no-store' })
             .then((r) => r.ok ? r.json() : { items: [] })
             .then((d: unknown) => setList(Array.isArray(d) ? d : ((d as { items?: WorkspaceSummary[] }).items ?? [])))
             .catch(() => { /* non-fatal */ })
@@ -166,10 +167,10 @@ function WorkspaceSwitcher() {
     async function handleCreate() {
         if (!newName.trim()) return
         // Need the current user's id as ownerId — read from the first workspace as a proxy
-        const ownerRes = await fetch(`${API}/api/workspaces/${workspaceId}`)
+        const ownerRes = await fetch(`${API}/api/v1/workspaces/${workspaceId}`)
         const ownerData = await (ownerRes.ok ? ownerRes.json() : {}) as { ownerId?: string }
         const ownerId = ownerData.ownerId ?? workspaceId  // fallback to workspace id if unknown
-        const res = await fetch(`${API}/api/workspaces`, {
+        const res = await fetch(`${API}/api/v1/workspaces`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: newName.trim(), ownerId }),
@@ -281,7 +282,7 @@ export function Sidebar() {
         const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
         if (!wsId) return
         try {
-            const res = await fetch(`${api}/api/approvals?workspaceId=${wsId}`, { cache: 'no-store' })
+            const res = await fetch(`${api}/api/v1/approvals?workspaceId=${wsId}`, { cache: 'no-store' })
             if (!res.ok) return
             const data = await res.json() as { total?: number }
             setPendingApprovals(data.total ?? 0)
@@ -296,7 +297,8 @@ export function Sidebar() {
 
     // Load persisted collapse state after mount
     useEffect(() => {
-        setCollapsed(loadCollapsedState(NAV_GROUPS))
+        const state = loadCollapsedState(NAV_GROUPS)
+        setTimeout(() => setCollapsed(state), 0)
     }, [])
 
     function toggleGroup(label: string) {
@@ -380,16 +382,21 @@ export function Sidebar() {
             </nav>
 
             {/* Footer */}
-            <div className="border-t border-zinc-800/50 px-3 py-3">
+            <div className="flex flex-col border-t border-zinc-800/50 p-2">
                 {/* User */}
-                <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-medium text-zinc-400">
+                <button className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-zinc-900/80 transition-colors">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-[11px] font-semibold text-zinc-300 ring-1 ring-inset ring-zinc-700/50">
                         A
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-zinc-300">Admin</p>
-                        <p className="truncate text-[10px] text-zinc-600">admin@plexo.dev</p>
+                        <p className="truncate text-xs font-medium text-zinc-200">Admin</p>
+                        <p className="truncate text-[10px] text-zinc-500">admin@plexo.dev</p>
                     </div>
+                </button>
+                <div className="mt-1 px-2.5 pb-1">
+                    <span className="text-[9px] font-medium text-zinc-700">
+                        &copy; 2026 Joeybuilt LLC
+                    </span>
                 </div>
             </div>
         </aside>

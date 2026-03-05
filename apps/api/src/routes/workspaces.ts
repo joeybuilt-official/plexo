@@ -49,7 +49,10 @@ workspacesRouter.get('/:id', async (req, res) => {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })
             return
         }
-        res.json(ws)
+        // Strip aiProviders from settings — credentials are only served (redacted) via
+        // GET /api/workspaces/:id/ai-providers to prevent plaintext key exposure.
+        const { aiProviders: _omitted, ...safeSettings } = (ws.settings ?? {}) as Record<string, unknown>
+        res.json({ ...ws, settings: safeSettings })
     } catch (err) {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get workspace' } })
     }

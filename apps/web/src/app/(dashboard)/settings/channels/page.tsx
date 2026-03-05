@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
     MessageSquare,
     Send,
@@ -19,6 +19,10 @@ import {
     Globe,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
+import type { FilterDimension } from '@web/components/list-toolbar'
+
+const FILTER_KEYS = ['type', 'status'] as const
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -228,11 +232,14 @@ export default function ChannelsPage() {
     const [deleting, setDeleting] = useState<string | null>(null)
     const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
+    const lf = useListFilter(FILTER_KEYS, 'newest')
+    const { search, filterValues, clearAll } = lf
+
     const fetchChannels = useCallback(async () => {
         if (!WS_ID) return
         setLoading(true)
         try {
-            const res = await fetch(`${API_BASE}/api/channels?workspaceId=${WS_ID}`)
+            const res = await fetch(`${API_BASE}/api/v1/channels?workspaceId=${WS_ID}`)
             if (res.ok) {
                 const data = await res.json() as { items: Channel[] }
                 setChannels(data.items ?? [])
@@ -252,7 +259,7 @@ export default function ChannelsPage() {
     async function handleToggle(ch: Channel) {
         setToggling(ch.id)
         try {
-            await fetch(`${API_BASE}/api/channels/${ch.id}`, {
+            await fetch(`${API_BASE}/api/v1/channels/${ch.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID, enabled: !ch.enabled }),
@@ -267,7 +274,7 @@ export default function ChannelsPage() {
     async function handleDelete(id: string) {
         setDeleting(id)
         try {
-            await fetch(`${API_BASE}/api/channels/${id}?workspaceId=${WS_ID}`, { method: 'DELETE' })
+            await fetch(`${API_BASE}/api/v1/channels/${id}?workspaceId=${WS_ID}`, { method: 'DELETE' })
             setChannels((prev) => prev.filter((c) => c.id !== id))
             if (selected?.id === id) setSelected(null)
         } finally {
@@ -280,7 +287,7 @@ export default function ChannelsPage() {
         setSaving(true)
         setMessage(null)
         try {
-            const res = await fetch(`${API_BASE}/api/channels`, {
+            const res = await fetch(`${API_BASE}/api/v1/channels`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -303,6 +310,59 @@ export default function ChannelsPage() {
         }
     }
 
+    const availableTypes = useMemo(() => new Set(channels.map((c) => c.type)), [channels])
+
+    const displayed = useMemo(() => {
+        let res = channels
+        const q = search.trim().toLowerCase()
+        if (filterValues.type) {
+            res = res.filter((c) => c.type === filterValues.type)
+        }
+        if (filterValues.status) {
+            if (filterValues.status === 'active') res = res.filter((c) => c.enabled)
+            else if (filterValues.status === 'disabled') res = res.filter((c) => !c.enabled)
+            else if (filterValues.status === 'error') res = res.filter((c) => c.errorCount > 0)
+        }
+        if (q) {
+            res = res.filter(
+                (c) =>
+                    c.name.toLowerCase().includes(q) ||
+                    CHANNEL_META[c.type].label.toLowerCase().includes(q)
+            )
+        }
+        res = [...res].sort((a, b) => {
+            if (lf.sort === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            if (lf.sort === 'errors') return b.errorCount - a.errorCount
+            // newest
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        })
+        return res
+    }, [channels, search, filterValues.type, filterValues.status, lf.sort])
+
+    const dimensions = useMemo(
+        (): FilterDimension[] => [
+            {
+                key: 'status',
+                label: 'Status',
+                options: [
+                    { value: 'active', label: 'Active', dimmed: !channels.some((c) => c.enabled) },
+                    { value: 'disabled', label: 'Disabled', dimmed: !channels.some((c) => !c.enabled) },
+                    { value: 'error', label: 'Error', dimmed: !channels.some((c) => c.errorCount > 0) },
+                ],
+            },
+            {
+                key: 'type',
+                label: 'Type',
+                options: AVAILABLE_TYPES.map((t) => ({
+                    value: t,
+                    label: CHANNEL_META[t].label,
+                    dimmed: !availableTypes.has(t),
+                })),
+            },
+        ],
+        [channels, availableTypes]
+    )
+
     const meta = selected ? CHANNEL_META[selected.type] : null
 
     return (
@@ -316,12 +376,12 @@ export default function ChannelsPage() {
                         <span className="ml-auto text-[11px] text-indigo-500">Paste this snippet into any website to add a chat bubble</span>
                     </div>
                     <div className="relative group">
-                        <pre className="rounded-lg bg-zinc-950 border border-zinc-800 p-3 text-[11px] font-mono text-zinc-400 overflow-x-auto whitespace-pre-wrap break-all">{`<script src="${API_BASE}/api/chat/widget.js"
+                        <pre className="rounded-lg bg-zinc-950 border border-zinc-800 p-3 text-[11px] font-mono text-zinc-400 overflow-x-auto whitespace-pre-wrap break-all">{`<script src="${API_BASE}/api/v1/chat/widget.js"
         data-workspace="${WS_ID}"
         data-site-name="My Site"
 ></script>`}</pre>
                         <button
-                            onClick={() => void navigator.clipboard.writeText(`<script src="${API_BASE}/api/chat/widget.js" data-workspace="${WS_ID}" data-site-name="My Site"></script>`)}
+                            onClick={() => void navigator.clipboard.writeText(`<script src="${API_BASE}/api/v1/chat/widget.js" data-workspace="${WS_ID}" data-site-name="My Site"></script>`)}
                             className="absolute top-2 right-2 rounded p-1 bg-zinc-800 text-zinc-500 hover:text-zinc-200 transition-colors opacity-0 group-hover:opacity-100"
                             title="Copy"
                         >
@@ -356,6 +416,18 @@ export default function ChannelsPage() {
                 </div>
             </div>
 
+            {/* ListToolbar */}
+            <ListToolbar
+                hook={lf}
+                placeholder="Search channels by name or type…"
+                dimensions={dimensions}
+                sortOptions={[
+                    { label: 'Newest first', value: 'newest' },
+                    { label: 'Oldest first', value: 'oldest' },
+                    { label: 'Most errors', value: 'errors' },
+                ]}
+            />
+
             {/* Two-panel */}
             <div className="flex gap-4 flex-1 min-h-0">
                 {/* Left — channel list */}
@@ -364,12 +436,20 @@ export default function ChannelsPage() {
                         <div className="flex items-center justify-center py-12 text-sm text-zinc-600">
                             <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Loading…
                         </div>
-                    ) : channels.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600">
+                    ) : displayed.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600 text-center px-4">
                             <Webhook className="h-6 w-6 text-zinc-700" />
-                            No channels configured
+                            {lf.hasFilters ? 'No channels match your filters' : 'No channels configured'}
+                            {lf.hasFilters && (
+                                <button
+                                    onClick={clearAll}
+                                    className="mt-2 text-xs text-indigo-400 hover:text-indigo-300"
+                                >
+                                    Clear filters
+                                </button>
+                            )}
                         </div>
-                    ) : channels.map((ch) => {
+                    ) : displayed.map((ch) => {
                         const m = CHANNEL_META[ch.type]
                         const Icon = m.icon
                         const active = selected?.id === ch.id

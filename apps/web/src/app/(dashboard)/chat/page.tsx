@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
     Send,
@@ -16,9 +16,18 @@ import {
     MicOff,
     Volume2,
     VolumeX,
+    ImageIcon,
+    Video,
+    Wrench,
+    BrainCircuit,
+    Type,
+    FileUp,
+    Sparkles,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
+import { getModelCapabilities, recommendModelForInput, checkAttachmentPrompt } from '@web/lib/models'
+import { CapabilityList } from '@web/components/capabilities'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -29,7 +38,9 @@ interface Message {
     role: 'user' | 'agent'
     content: string
     taskId?: string
-    status?: 'queued' | 'running' | 'complete' | 'failed' | 'pending'
+    status?: 'queued' | 'running' | 'complete' | 'failed' | 'pending' | 'confirm_action'
+    intent?: 'TASK' | 'PROJECT'
+    actionDescription?: string
     at: number
 }
 
@@ -212,16 +223,38 @@ function useTTS() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function ChatPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center py-16 text-zinc-600">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
+            </div>
+        }>
+            <ChatContent />
+        </Suspense>
+    )
+}
+
+function ChatContent() {
     const { workspaceId } = useWorkspace()
     const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [sending, setSending] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [agentModel, setAgentModel] = useState<string | null>(null)
     const bottomRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const sessionId = useRef(`session-${Date.now()}`)
     const searchParams = useSearchParams()
+
+    // Fetch the active agent model
+    useEffect(() => {
+        if (!WS_ID) return
+        void fetch(`${API}/api/v1/agent/status`)
+            .then(res => res.json())
+            .then(data => setAgentModel((data as { currentModel?: string | null }).currentModel || null))
+            .catch(() => { })
+    }, [WS_ID])
 
     // Scroll to bottom on new messages
     useEffect(() => {
@@ -234,7 +267,7 @@ export default function ChatPage() {
         if (!contextTaskId || messages.length > 0) return
         async function loadContext() {
             try {
-                const res = await fetch(`${API}/api/chat/reply/${contextTaskId}`)
+                const res = await fetch(`${API}/api/v1/chat/reply/${contextTaskId}`)
                 if (!res.ok) return
                 const data = await res.json() as { status: string; reply: string | null }
                 if (data.reply) {
@@ -266,43 +299,100 @@ export default function ChatPage() {
 
     const voice = useSpeechInput(handleVoiceResult)
 
-    // Poll for pending agent replies
-    const pollReply = useCallback(async (taskId: string, msgId: string) => {
-        const deadline = Date.now() + 60_000
-        const poll = async (): Promise<void> => {
-            try {
-                const res = await fetch(`${API}/api/chat/reply/${taskId}`)
-                if (!res.ok) {
+    // Stream live progress from the agent via SSE
+    const pollReply = useCallback(async (taskId: string, msgId: string): Promise<void> => {
+        return new Promise((resolve) => {
+            const url = `${API}/api/v1/chat/reply-stream/${taskId}`
+            const es = new EventSource(url)
+
+            const cleanup = () => es.close()
+
+            // Progress tick — update the bubble in place
+            es.addEventListener('tick', (e) => {
+                try {
+                    const d = JSON.parse(e.data) as {
+                        status: string
+                        elapsed: number
+                        stepCount: number
+                        lastAction: string | null
+                    }
+                    const elapsed = d.elapsed < 60
+                        ? `${d.elapsed}s`
+                        : `${Math.floor(d.elapsed / 60)}m ${d.elapsed % 60}s`
+                    const lines: string[] = [`Working… (${elapsed})`]
+                    if (d.stepCount > 0) lines.push(`Step ${d.stepCount}`)
+                    if (d.lastAction) lines.push(d.lastAction)
                     setMessages((prev) => prev.map((m) =>
-                        m.id === msgId ? { ...m, status: 'failed', content: 'Failed to get response.' } : m
+                        m.id === msgId ? { ...m, status: 'running', content: lines.join(' · ') } : m
                     ))
-                    return
-                }
-                const data = await res.json() as { status: string; reply: string | null }
-                if (data.status === 'complete' || data.reply) {
-                    const reply = data.reply ?? 'Done.'
+                } catch { /* ignore parse errors */ }
+            })
+
+            // Terminal events
+            const onTerminal = (e: MessageEvent, status: 'complete' | 'failed') => {
+                try {
+                    const d = JSON.parse(e.data) as { reply?: string }
+                    const reply = d.reply ?? (status === 'complete' ? 'Done.' : 'Something went wrong.')
                     setMessages((prev) => prev.map((m) =>
-                        m.id === msgId ? { ...m, status: 'complete', content: reply } : m
+                        m.id === msgId ? { ...m, status, content: reply } : m
                     ))
-                    tts.speak(reply)
-                    return
-                }
-                if (Date.now() >= deadline) {
-                    setMessages((prev) => prev.map((m) =>
-                        m.id === msgId ? { ...m, status: 'pending', content: 'Agent is still working. Check back soon.' } : m
-                    ))
-                    return
-                }
-                await new Promise<void>((r) => setTimeout(r, 500))
-                await poll()
-            } catch {
-                setMessages((prev) => prev.map((m) =>
-                    m.id === msgId ? { ...m, status: 'failed', content: 'Connection error.' } : m
-                ))
+                    if (status === 'complete') tts.speak(reply)
+                } catch { /* ignore */ }
+                cleanup()
+                resolve()
             }
-        }
-        await poll()
+
+            es.addEventListener('complete', (e) => onTerminal(e, 'complete'))
+            es.addEventListener('blocked', (e) => onTerminal(e, 'failed'))
+            es.addEventListener('cancelled', (e) => onTerminal(e, 'failed'))
+            es.addEventListener('timeout', (e) => onTerminal(e, 'failed'))
+
+            es.onerror = () => {
+                setMessages((prev) => prev.map((m) =>
+                    m.id === msgId ? { ...m, status: 'pending', content: 'Lost connection. Check the Tasks page for status.' } : m
+                ))
+                cleanup()
+                resolve()
+            }
+        })
     }, [tts])
+
+
+    async function executeConfirmedAction(msgId: string, intent: 'TASK' | 'PROJECT', description: string) {
+        setMessages((prev) => prev.map((m) =>
+            m.id === msgId ? { ...m, status: 'queued', content: '', intent: undefined, actionDescription: undefined } : m
+        ))
+        try {
+            const res = await fetch(`${API}/api/v1/chat/execute-action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceId: WS_ID, intent, description, sessionId: sessionId.current }),
+            })
+            if (!res.ok) throw new Error('Failed to execute')
+            const data = await res.json() as { taskId?: string; sprintId?: string; status?: string }
+            if (data.taskId) {
+                setMessages((prev) => prev.map((m) =>
+                    m.id === msgId ? { ...m, taskId: data.taskId, status: 'running' } : m
+                ))
+                await pollReply(data.taskId, msgId)
+            } else if (data.sprintId) {
+                setMessages((prev) => prev.map((m) =>
+                    m.id === msgId ? { ...m, status: 'complete', content: '' } : m
+                ))
+                window.location.href = `/projects/${data.sprintId}`
+            }
+        } catch {
+            setMessages((prev) => prev.map((m) =>
+                m.id === msgId ? { ...m, status: 'failed', content: 'Failed to start action.', intent: undefined, actionDescription: undefined } : m
+            ))
+        }
+    }
+
+    function cancelAction(msgId: string) {
+        setMessages((prev) => prev.map((m) =>
+            m.id === msgId ? { ...m, status: 'complete', content: 'Action cancelled.', intent: undefined, actionDescription: undefined } : m
+        ))
+    }
 
     async function sendMessageWith(text: string) {
         if (!text.trim() || sending) return
@@ -333,7 +423,7 @@ export default function ChatPage() {
         setMessages((prev) => [...prev, userMsg, pendingMsg])
 
         try {
-            const res = await fetch(`${API}/api/chat/message`, {
+            const res = await fetch(`${API}/api/v1/chat/message`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID, message: text, sessionId: sessionId.current }),
@@ -347,7 +437,21 @@ export default function ChatPage() {
                 return
             }
 
-            const data = await res.json() as { taskId?: string; status?: string; reply?: string }
+            const data = await res.json() as { taskId?: string; status?: string; reply?: string; intent?: string; description?: string }
+
+            // Action needs confirmation
+            if (data.status === 'confirm_action' && data.intent && data.description) {
+                setMessages((prev) => prev.map((m) =>
+                    m.id === pendingId ? {
+                        ...m,
+                        status: 'confirm_action',
+                        content: 'Please confirm creation of this ' + data.intent!.toLowerCase() + ':',
+                        intent: data.intent as 'TASK' | 'PROJECT',
+                        actionDescription: data.description
+                    } : m
+                ))
+                return
+            }
 
             // Direct conversational reply — no polling needed
             if (data.status === 'complete' && data.reply) {
@@ -396,13 +500,28 @@ export default function ChatPage() {
 
     const isListening = voice.status === 'listening'
 
+    const modelToUse = agentModel ?? 'claude-sonnet-4-5'
+    const caps = getModelCapabilities(modelToUse)
+    const suggestion = recommendModelForInput(input, modelToUse)
+    const wantsAttachment = checkAttachmentPrompt(input)
+
     return (
         <div className="flex flex-col h-[calc(100vh-100px)]">
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-zinc-800 shrink-0">
                 <div>
-                    <h1 className="text-xl font-bold text-zinc-50">Chat</h1>
-                    <p className="text-sm text-zinc-500 mt-0.5">Talk directly with your agent</p>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-xl font-bold text-zinc-50">Chat</h1>
+                        {agentModel && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-mono font-medium text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full">
+                                    {agentModel}
+                                </span>
+                                <CapabilityList caps={caps} />
+                            </div>
+                        )}
+                    </div>
+                    <p className="text-sm text-zinc-500 mt-1">Talk directly with your agent</p>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* TTS toggle */}
@@ -512,19 +631,45 @@ export default function ChatPage() {
                                     ? 'bg-red-950/30 border border-red-800/40 text-red-300 rounded-tl-md'
                                     : 'bg-zinc-800 text-zinc-200 rounded-tl-md'
                                 }`}>
-                                {msg.status === 'queued' || msg.status === 'running' ? (
+                                {msg.status === 'queued' ? (
                                     <div className="flex items-center gap-2">
                                         <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500" />
-                                        <span className="text-zinc-500 text-sm italic">
-                                            {msg.status === 'queued' ? 'Queued…' : 'Working…'}
+                                        <span className="text-zinc-500 text-sm italic">Queued…</span>
+                                    </div>
+                                ) : msg.status === 'running' ? (
+                                    <div className="flex items-start gap-2">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400 shrink-0 mt-0.5" />
+                                        <span className="text-zinc-400 text-sm italic">
+                                            {msg.content || 'Working…'}
                                         </span>
                                     </div>
+
                                 ) : msg.status === 'failed' ? (
                                     <div className="flex items-center gap-1.5">
                                         <XCircle className="h-3.5 w-3.5 shrink-0" />
                                         {msg.content || 'Failed.'}
                                     </div>
+                                ) : msg.status === 'confirm_action' && msg.intent ? (
+                                    <div className="flex flex-col gap-2">
+                                        <span className="font-semibold text-zinc-100">{msg.content}</span>
+                                        <span className="text-sm text-zinc-300 italic">&quot;{msg.actionDescription}&quot;</span>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <button
+                                                onClick={() => executeConfirmedAction(msg.id, msg.intent!, msg.actionDescription!)}
+                                                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                                            >
+                                                Confirm {msg.intent === 'TASK' ? 'Task' : 'Project'}
+                                            </button>
+                                            <button
+                                                onClick={() => cancelAction(msg.id)}
+                                                className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
                                 ) : (
+
                                     <span className="whitespace-pre-wrap">{msg.content}</span>
                                 )}
                             </div>
@@ -564,6 +709,38 @@ export default function ChatPage() {
                     <VoiceWaveform active level={voice.level} />
                     <span className="text-xs text-indigo-400 font-medium animate-pulse">Listening…</span>
                     <VoiceWaveform active level={voice.level} />
+                </div>
+            )}
+
+            {/* Real-time Input Ingestion Helpers */}
+            {(suggestion || wantsAttachment) && !sending && !isListening && (
+                <div className="shrink-0 flex flex-col gap-2 mb-3 px-2">
+                    {suggestion && (
+                        <div className="flex items-start gap-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-300 shadow-sm shadow-indigo-500/5 transition-all">
+                            <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-indigo-400" />
+                            <div className="flex-1">
+                                <span className="font-semibold block text-indigo-200">Suggested Model: {suggestion.suggestedModel}</span>
+                                <span className="text-indigo-400/80 text-xs mt-0.5 block">{suggestion.reason}</span>
+                            </div>
+                            <Link href="/settings/ai-providers" className="whitespace-nowrap rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors">
+                                Change model →
+                            </Link>
+                        </div>
+                    )}
+                    {wantsAttachment && (
+                        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300 shadow-sm shadow-amber-500/5 transition-all">
+                            <FileUp className="h-4 w-4 shrink-0 text-amber-400" />
+                            <span className="flex-1 text-amber-500/90 text-xs font-medium">
+                                Did you forget an attachment? We noticed you mentioned a file or image in your prompt.
+                            </span>
+                            <button className="whitespace-nowrap rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-400 transition-colors shadow-sm"
+                                onClick={() => document.getElementById('file-upload-invisible')?.click()}
+                            >
+                                Attach file
+                            </button>
+                            <input type="file" id="file-upload-invisible" className="hidden" />
+                        </div>
+                    )}
                 </div>
             )}
 

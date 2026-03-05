@@ -3,6 +3,7 @@ import { db, desc, eq, and, sql } from '@plexo/db'
 import { tasks, taskSteps } from '@plexo/db'
 import { push, list } from '@plexo/queue'
 import { logger } from '../logger.js'
+import { emitToWorkspace } from '../sse-emitter.js'
 
 export const tasksRouter: RouterType = Router()
 
@@ -103,6 +104,7 @@ tasksRouter.post('/', async (req, res) => {
             priority,
             projectId,
         })
+        emitToWorkspace(workspaceId, { type: 'task_queued', taskId: id, source })
         res.status(201).json({ id })
     } catch (err) {
         logger.error({ err }, 'POST /api/tasks failed')
@@ -148,6 +150,46 @@ tasksRouter.delete('/:id', async (req, res) => {
     } catch (err) {
         logger.error({ err }, 'DELETE /api/tasks/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel task' } })
+    }
+})
+
+// ── POST /api/tasks/:id/retry ─────────────────────────────────────────────────
+// Re-queues a blocked task with its original context. Cancels the original.
+
+tasksRouter.post('/:id/retry', async (req, res) => {
+    const { id } = req.params
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid task id' } })
+        return
+    }
+    try {
+        const [task] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1)
+        if (!task) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
+            return
+        }
+        if (task.status !== 'blocked') {
+            res.status(400).json({ error: { code: 'NOT_BLOCKED', message: 'Only blocked tasks can be retried' } })
+            return
+        }
+
+        // Re-queue with same parameters
+        const newId = await push({
+            workspaceId: task.workspaceId,
+            type: task.type as Parameters<typeof push>[0]['type'],
+            source: (task.source ?? 'api') as Parameters<typeof push>[0]['source'],
+            context: (task.context as Record<string, unknown>) ?? {},
+            projectId: task.projectId ?? undefined,
+        })
+
+        // Cancel the blocked original
+        await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, id))
+
+        logger.info({ originalId: id, newId }, 'Task retried')
+        res.status(201).json({ id: newId })
+    } catch (err) {
+        logger.error({ err }, 'POST /api/tasks/:id/retry failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to retry task' } })
     }
 })
 

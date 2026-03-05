@@ -21,8 +21,12 @@ import { Router, type Router as RouterType } from 'express'
 import { createVerify } from 'crypto'
 import { db, eq } from '@plexo/db'
 import { installedConnections } from '@plexo/db'
-import { push as pushTask } from '@plexo/queue'
+import { push as pushTask, completeTask } from '@plexo/queue'
 import { logger } from '../logger.js'
+import { generateText } from 'ai'
+import { buildModel } from '@plexo/agent/providers/registry'
+import { loadWorkspaceAISettings } from '../agent-loop.js'
+import { emitToWorkspace } from '../sse-emitter.js'
 import type { Request, Response } from 'express'
 
 export const discordRouter: RouterType = Router()
@@ -113,6 +117,64 @@ async function sendFollowUp(
     )
 }
 
+// ── AI helpers (provider-agnostic) ──────────────────────────────────────────
+
+interface ChatMessage { role: 'user' | 'assistant'; content: string }
+
+interface AiResult {
+    text: string | null
+    error: string | null
+}
+
+async function chatWithAI(workspaceId: string, messages: ChatMessage[], system?: string): Promise<AiResult> {
+    const { credential, aiSettings } = await loadWorkspaceAISettings(workspaceId)
+    if (!credential || !aiSettings) return { text: null, error: 'no_credential' }
+
+    const providerKey = aiSettings.primaryProvider
+    const config = aiSettings.providers[providerKey]
+    if (!config) return { text: null, error: `no config for provider ${providerKey}` }
+
+    try {
+        const model = buildModel(providerKey, config, 'summarization', aiSettings)
+        const result = await generateText({
+            model,
+            system: system ?? 'You are Plexo, an AI agent assistant.',
+            messages: messages.map(m => ({ role: m.role, content: m.content })),
+            abortSignal: AbortSignal.timeout(30_000),
+        })
+        return { text: result.text ?? null, error: null }
+    } catch (err) {
+        return { text: null, error: err instanceof Error ? err.message : String(err) }
+    }
+}
+
+const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
+Decide if the user's message is a TASK, PROJECT, or CONVERSATION.
+
+TASK: Clear, specific, actionable request that can be executed autonomously IMMEDIATELY (e.g., "Deploy the web app", "Sort the files"). Requires no further clarification.
+PROJECT: A large, multi-step goal requiring planning (e.g., "Build a new features", "Implement auth").
+CONVERSATION: Vague requests, requests for help/troubleshooting ("I need help troubleshooting", "How do I..."), queries needing clarification, greetings, checks, small talk.
+
+Reply with ONLY one word: TASK, PROJECT, or CONVERSATION.`
+
+async function classifyIntent(workspaceId: string, history: ChatMessage[]): Promise<'TASK' | 'PROJECT' | 'CONVERSATION'> {
+    const result = await chatWithAI(workspaceId, history, CLASSIFY_SYSTEM)
+    if (result.error) return 'CONVERSATION'
+    const resText = result.text?.trim().toUpperCase() ?? ''
+    if (resText.startsWith('TASK')) return 'TASK'
+    else if (resText.startsWith('PROJECT')) return 'PROJECT'
+    return 'CONVERSATION'
+}
+
+const chatHistory = new Map<string, ChatMessage[]>()
+
+function addToHistory(threadId: string, role: 'user' | 'assistant', content: string): void {
+    const hist = chatHistory.get(threadId) ?? []
+    hist.push({ role, content })
+    if (hist.length > 20) hist.splice(0, hist.length - 20)
+    chatHistory.set(threadId, hist)
+}
+
 // ── POST /api/channels/discord/interactions ───────────────────────────────────
 
 discordRouter.post('/interactions', async (req: Request, res: Response) => {
@@ -160,6 +222,60 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
 
             // Defer reply immediately (must respond within 3s)
             res.json({ type: INTERACTION_RESPONSE_TYPE_DEFERRED_CHANNEL_MESSAGE })
+
+            const threadId = interaction.channel_id ?? interaction.user?.id ?? 'default'
+            addToHistory(threadId, 'user', description)
+            const history = chatHistory.get(threadId) ?? []
+
+            const intent = await classifyIntent(workspaceId, history)
+
+            if (intent === 'CONVERSATION' || intent === 'PROJECT') {
+                const result = await chatWithAI(
+                    workspaceId,
+                    history,
+                    'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
+                    + 'If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. '
+                    + 'If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. '
+                    + 'If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. '
+                    + 'Only agree to start a task or project when the scope is clear.'
+                )
+
+                if (result.error) {
+                    logger.warn({ threadId, workspaceId, error: result.error }, 'AI error during Discord conversation')
+                }
+                const replyText = result.text ?? "I'm having a bit of trouble right now — please try again in a moment."
+                addToHistory(threadId, 'assistant', replyText)
+                await sendFollowUp(interaction.application_id, interaction.token, replyText)
+
+                try {
+                    const taskId = await pushTask({
+                        workspaceId,
+                        type: 'online',
+                        source: 'discord',
+                        status: 'complete',
+                        context: {
+                            description,
+                            channel: 'discord',
+                            guildId: interaction.guild_id,
+                            channelId: interaction.channel_id,
+                            userId: user?.id,
+                            username,
+                        },
+                        priority: 2,
+                    })
+                    await completeTask(taskId, {
+                        qualityScore: 1,
+                        outcomeSummary: replyText,
+                        tokensIn: 0,
+                        tokensOut: 0,
+                        costUsd: 0,
+                    })
+                    emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'discord' })
+                } catch (err) {
+                    logger.error({ err }, 'Failed to log Discord conversation to DB')
+                }
+                return
+            }
 
             // Queue task async
             try {

@@ -45,7 +45,7 @@ async function fetchSummary(workspaceId: string): Promise<DashboardSummary | nul
     const apiUrl = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
     try {
         const res = await fetch(
-            `${apiUrl}/api/dashboard/summary?workspaceId=${encodeURIComponent(workspaceId)}`,
+            `${apiUrl}/api/v1/dashboard/summary?workspaceId=${encodeURIComponent(workspaceId)}`,
             { cache: 'no-store' },
         )
         if (!res.ok) return null

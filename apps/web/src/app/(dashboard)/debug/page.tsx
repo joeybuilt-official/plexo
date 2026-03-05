@@ -47,12 +47,12 @@ interface RouteCheck {
 
 const ROUTE_CHECKS: RouteCheck[] = [
     { route: '/health', label: 'Health endpoint' },
-    { route: '/api/workspaces', label: 'Workspaces list' },
-    { route: '/api/connections/registry', label: 'Connections registry' },
-    { route: '/api/dashboard/summary', label: 'Dashboard summary', requiresWorkspace: true },
-    { route: '/api/memory/preferences', label: 'Memory preferences', requiresWorkspace: true },
-    { route: '/api/tasks', label: 'Tasks list', requiresWorkspace: true },
-    { route: '/api/agent/status', label: 'Agent status' },
+    { route: '/api/v1/workspaces', label: 'Workspaces list' },
+    { route: '/api/v1/connections/registry', label: 'Connections registry' },
+    { route: '/api/v1/dashboard/summary', label: 'Dashboard summary', requiresWorkspace: true },
+    { route: '/api/v1/memory/preferences', label: 'Memory preferences', requiresWorkspace: true },
+    { route: '/api/v1/tasks', label: 'Tasks list', requiresWorkspace: true },
+    { route: '/api/v1/agent/status', label: 'Agent status' },
 ]
 
 // ── Components ────────────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ export default function DebugPage() {
     const fetchSnapshot = useCallback(async () => {
         setSnapshotLoading(true)
         try {
-            const res = await fetch(`${API_BASE}/api/debug/snapshot`)
+            const res = await fetch(`${API_BASE}/api/v1/debug/snapshot`)
             if (res.ok) setSnapshot(await res.json() as Record<string, unknown>)
         } finally {
             setSnapshotLoading(false)
@@ -200,7 +200,7 @@ export default function DebugPage() {
             if (rpcParams.trim()) {
                 try { params = JSON.parse(rpcParams) as Record<string, unknown> } catch { /* ignore bad JSON */ }
             }
-            const res = await fetch(`${API_BASE}/api/debug/rpc`, {
+            const res = await fetch(`${API_BASE}/api/v1/debug/rpc`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ method: rpcMethod, params }),
@@ -223,7 +223,7 @@ export default function DebugPage() {
             setSseStatus('error')
             return
         }
-        const es = new EventSource(`${API_BASE}/api/sse?workspaceId=${WS_ID}`)
+        const es = new EventSource(`${API_BASE}/api/v1/sse?workspaceId=${WS_ID}`)
         setSseStatus('connecting')
         es.onopen = () => setSseStatus('open')
         es.onerror = () => setSseStatus('error')
@@ -288,7 +288,7 @@ export default function DebugPage() {
                     </button>
                 </div>
                 {!snapshot ? (
-                    <p className="text-xs text-zinc-600">Click Fetch to load runtime state from /api/debug/snapshot</p>
+                    <p className="text-xs text-zinc-600">Click Fetch to load runtime state from /api/v1/debug/snapshot</p>
                 ) : (
                     <pre className="rounded-lg bg-zinc-950 p-3 text-[11px] font-mono text-zinc-400 overflow-auto max-h-56 whitespace-pre-wrap">{JSON.stringify(snapshot, null, 2)}</pre>
                 )}

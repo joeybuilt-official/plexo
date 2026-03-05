@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { Package, Puzzle, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, RefreshCw } from 'lucide-react'
+import { useState, useTransition, useMemo } from 'react'
+import { Package, Puzzle, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, RefreshCw, Layers } from 'lucide-react'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
+import type { FilterDimension } from '@web/components/list-toolbar'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -297,18 +299,54 @@ function IntegrationsTab({
     workspaceId: string
 }) {
     const [installed, setInstalled] = useState(initialInstalled)
-    const [category, setCategory] = useState<string | null>(null)
-    const [search, setSearch] = useState('')
 
-    const categories = [...new Set(registry.map((r) => r.category))]
-    const filtered = registry.filter((item) => {
-        const matchesCat = !category || item.category === category
-        const matchesSearch = !search || item.name.toLowerCase().includes(search.toLowerCase())
-        return matchesCat && matchesSearch
-    })
+    const lf = useListFilter(['category'], 'name_asc')
+
+    const filtered = useMemo(() => {
+        let out = [...registry]
+
+        if (lf.filterValues.category) {
+            out = out.filter((r) => r.category === lf.filterValues.category)
+        }
+
+        if (lf.search.trim()) {
+            const q = lf.search.toLowerCase()
+            out = out.filter((r) =>
+                r.name.toLowerCase().includes(q) ||
+                (r.description || '').toLowerCase().includes(q)
+            )
+        }
+
+        out.sort((a, b) => {
+            if (lf.sort === 'name_desc') return b.name.localeCompare(a.name)
+            if (lf.sort === 'installed_first') {
+                const aInst = installed.some((i) => i.registryId === a.id) ? 1 : 0
+                const bInst = installed.some((i) => i.registryId === b.id) ? 1 : 0
+                return bInst - aInst || a.name.localeCompare(b.name)
+            }
+            return a.name.localeCompare(b.name)
+        })
+
+        return out
+    }, [registry, installed, lf.search, lf.filterValues.category, lf.sort])
+
+    const availableCategories = useMemo(() => new Set(registry.map(r => r.category)), [registry])
+
+    const dimensions = useMemo((): FilterDimension[] => [
+        {
+            key: 'category',
+            label: 'Category',
+            options: Array.from(availableCategories).sort().map((cat) => ({
+                value: cat,
+                label: CATEGORY_LABELS[cat] ?? cat,
+                icon: <Layers className="h-3 w-3 mr-1 shrink-0 text-zinc-500" />,
+                dimmed: !availableCategories.has(cat),
+            })),
+        },
+    ], [availableCategories])
 
     async function handleInstall(item: RegistryItem, creds: Record<string, string>) {
-        const res = await fetch(`${API_BASE}/api/connections/install`, {
+        const res = await fetch(`${API_BASE}/api/v1/connections/install`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ workspaceId, registryId: item.id, credentials: creds }),
@@ -323,39 +361,22 @@ function IntegrationsTab({
     }
 
     async function handleUninstall(id: string) {
-        await fetch(`${API_BASE}/api/connections/installed/${id}?workspaceId=${workspaceId}`, { method: 'DELETE' })
+        await fetch(`${API_BASE}/api/v1/connections/installed/${id}?workspaceId=${workspaceId}`, { method: 'DELETE' })
         setInstalled((prev) => prev.filter((i) => i.id !== id))
     }
 
     return (
         <div className="flex flex-col gap-5">
-            {/* Search + filter */}
-            <div className="flex flex-wrap gap-2">
-                <input
-                    type="text"
-                    placeholder="Search integrations…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="flex-1 min-w-48 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
-                />
-                <div className="flex flex-wrap gap-1.5">
-                    <button
-                        onClick={() => setCategory(null)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${!category ? 'bg-indigo-600 text-white' : 'border border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}
-                    >
-                        All
-                    </button>
-                    {categories.map((cat) => (
-                        <button
-                            key={cat}
-                            onClick={() => setCategory(cat === category ? null : cat)}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${category === cat ? 'bg-indigo-600 text-white' : 'border border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}
-                        >
-                            {CATEGORY_LABELS[cat] ?? cat}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <ListToolbar
+                hook={lf}
+                placeholder="Search integrations…"
+                dimensions={dimensions}
+                sortOptions={[
+                    { label: 'Name: A → Z', value: 'name_asc' },
+                    { label: 'Name: Z → A', value: 'name_desc' },
+                    { label: 'Installed first', value: 'installed_first' },
+                ]}
+            />
 
             <div className="flex items-center gap-4 text-xs text-zinc-500">
                 <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" />{installed.length} connected</span>
@@ -390,16 +411,59 @@ function ExtensionsTab({
     const [plugins, setPlugins] = useState<KapselPlugin[]>(
         Array.isArray(initialPlugins) ? initialPlugins : []
     )
-    const [typeFilter, setTypeFilter] = useState<string | null>(null)
 
-    const types = [...new Set(plugins.map((p) => p.type))]
-    const filtered = typeFilter ? plugins.filter((p) => p.type === typeFilter) : plugins
+    const lf = useListFilter(['type'], 'name_asc')
+
+    const filtered = useMemo(() => {
+        let out = [...plugins]
+
+        if (lf.filterValues.type) {
+            out = out.filter((p) => p.type === lf.filterValues.type)
+        }
+
+        if (lf.search.trim()) {
+            const q = lf.search.toLowerCase()
+            out = out.filter((p) =>
+                p.name.toLowerCase().includes(q) ||
+                p.displayName.toLowerCase().includes(q) ||
+                (p.description || '').toLowerCase().includes(q)
+            )
+        }
+
+        out.sort((a, b) => {
+            if (lf.sort === 'name_desc') return b.displayName.localeCompare(a.displayName)
+            if (lf.sort === 'enabled_first') {
+                return (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0) || a.displayName.localeCompare(b.displayName)
+            }
+            if (lf.sort === 'disabled_first') {
+                return (a.enabled ? 1 : 0) - (b.enabled ? 1 : 0) || a.displayName.localeCompare(b.displayName)
+            }
+            return a.displayName.localeCompare(b.displayName)
+        })
+
+        return out
+    }, [plugins, lf.search, lf.filterValues.type, lf.sort])
+
+    const availableTypes = useMemo(() => new Set(plugins.map(p => p.type)), [plugins])
+
+    const dimensions = useMemo((): FilterDimension[] => [
+        {
+            key: 'type',
+            label: 'Extension Type',
+            options: Array.from(availableTypes).sort().map((t) => ({
+                value: t,
+                label: PLUGIN_TYPE_LABELS[t] ?? t,
+                icon: <Puzzle className="h-3 w-3 mr-1 shrink-0 text-zinc-500" />,
+                dimmed: !availableTypes.has(t),
+            })),
+        },
+    ], [availableTypes])
 
     async function handleToggle(id: string, enabled: boolean) {
         const res = await fetch(`${API_BASE}/api/v1/plugins/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled }),
+            body: JSON.stringify({ enabled, workspaceId }),
         })
         if (res.ok) {
             setPlugins((prev) => prev.map((p) => p.id === id ? { ...p, enabled } : p))
@@ -437,23 +501,17 @@ function ExtensionsTab({
 
     return (
         <div className="flex flex-col gap-5">
-            <div className="flex flex-wrap gap-1.5">
-                <button
-                    onClick={() => setTypeFilter(null)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${!typeFilter ? 'bg-indigo-600 text-white' : 'border border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}
-                >
-                    All types
-                </button>
-                {types.map((type) => (
-                    <button
-                        key={type}
-                        onClick={() => setTypeFilter(type === typeFilter ? null : type)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${typeFilter === type ? 'bg-indigo-600 text-white' : 'border border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}
-                    >
-                        {PLUGIN_TYPE_LABELS[type] ?? type}
-                    </button>
-                ))}
-            </div>
+            <ListToolbar
+                hook={lf}
+                placeholder="Search extensions…"
+                dimensions={dimensions}
+                sortOptions={[
+                    { label: 'Name: A → Z', value: 'name_asc' },
+                    { label: 'Name: Z → A', value: 'name_desc' },
+                    { label: 'Enabled first', value: 'enabled_first' },
+                    { label: 'Disabled first', value: 'disabled_first' },
+                ]}
+            />
 
             <div className="flex items-center gap-4 text-xs text-zinc-500">
                 <span>{plugins.length} installed</span>

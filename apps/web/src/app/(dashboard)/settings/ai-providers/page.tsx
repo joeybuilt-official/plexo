@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useWorkspace } from '@web/context/workspace'
 import {
     CheckCircle2,
@@ -15,6 +15,12 @@ import {
     RefreshCw,
     Zap,
 } from 'lucide-react'
+import { getModelCapabilities } from '@web/lib/models'
+import { CapabilityList } from '@web/components/capabilities'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
+import type { FilterDimension } from '@web/components/list-toolbar'
+
+const FILTER_KEYS = ['status', 'type'] as const
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -197,6 +203,8 @@ export default function AIProvidersPage() {
         { ...DEFAULT_MODELS }
     )
     const [fallbackOrder, setFallbackOrder] = useState<ProviderKey[]>(PROVIDERS.map((p) => p.key))
+    const [wsDefaultCostCeiling, setWsDefaultCostCeiling] = useState('')
+    const [wsDefaultTokenBudget, setWsDefaultTokenBudget] = useState('')
 
     const API_BASE = typeof window !== 'undefined'
         ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001')
@@ -206,6 +214,9 @@ export default function AIProvidersPage() {
     // Track which workspace we've already loaded — prevents double-fetch
     const loadedForRef = useRef<string | null>(null)
 
+    const lf = useListFilter(FILTER_KEYS, 'default')
+    const { search, filterValues, clearAll } = lf
+
     // WS_ID is async from useWorkspace() context — deps [WS_ID] ensures we reload
     // when it resolves. loadedForRef prevents redundant re-fetches for same workspace.
     useEffect(() => {
@@ -213,33 +224,37 @@ export default function AIProvidersPage() {
         loadedForRef.current = WS_ID
         void (async () => {
             try {
-                const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`)
+                const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/ai-providers`)
                 if (!res.ok) return
-                const ws = await res.json() as {
-                    settings?: {
-                        aiProviders?: {
-                            primary?: ProviderKey
-                            primaryProvider?: ProviderKey
-                            modelRouting?: Record<TaskType, string>
-                            fallbackOrder?: ProviderKey[]
-                            fallbackChain?: ProviderKey[]
-                            providers?: Record<ProviderKey, {
-                                status: ProviderStatus
-                                selectedModel: string
-                                baseUrl: string
-                                apiKey?: string
-                                oauthToken?: string
-                            }>
-                        }
+                const data = await res.json() as {
+                    aiProviders?: {
+                        primary?: ProviderKey
+                        primaryProvider?: ProviderKey
+                        modelRouting?: Record<TaskType, string>
+                        fallbackOrder?: ProviderKey[]
+                        fallbackChain?: ProviderKey[]
+                        providers?: Record<ProviderKey, {
+                            status: ProviderStatus
+                            selectedModel: string
+                            baseUrl: string
+                            // apiKey / oauthToken will be '__configured__' sentinel if set
+                            apiKey?: string
+                            oauthToken?: string
+                        }>
                     }
                 }
-                const aiCfg = ws.settings?.aiProviders
+                const aiCfg = data.aiProviders
                 if (!aiCfg) return
                 const primary = aiCfg.primary ?? aiCfg.primaryProvider
                 if (primary) setPrimaryProvider(primary)
                 if (aiCfg.modelRouting) setModelRouting((prev) => ({ ...prev, ...aiCfg.modelRouting }))
                 const order = aiCfg.fallbackOrder ?? aiCfg.fallbackChain
                 if (order?.length) setFallbackOrder(order)
+                // Load workspace budget defaults
+                const rawData = data as Record<string, unknown>
+                const rawAp = rawData.aiProviders as Record<string, unknown> | undefined
+                if (rawAp?.defaultTaskCostCeiling) setWsDefaultCostCeiling(String(rawAp.defaultTaskCostCeiling))
+                if (rawAp?.defaultTokenBudget) setWsDefaultTokenBudget(String(rawAp.defaultTokenBudget))
                 if (aiCfg.providers) {
                     setProviderStates((prev) => {
                         const next = { ...prev }
@@ -251,9 +266,9 @@ export default function AIProvidersPage() {
                                     status: v.status,
                                     selectedModel: v.selectedModel ?? '',
                                     baseUrl: v.baseUrl ?? next[pk].baseUrl,
-                                    // Restore credentials so Test Connection and re-saves work correctly
-                                    ...(v.apiKey ? { apiKey: v.apiKey } : {}),
-                                    ...(v.oauthToken ? { oauthToken: v.oauthToken } : {}),
+                                    // Sentinel means configured — keep input empty so placeholder shows
+                                    apiKey: '',
+                                    oauthToken: '',
                                 }
                             }
                         }
@@ -265,7 +280,7 @@ export default function AIProvidersPage() {
             }
         })()
         // WS_ID is async from useWorkspace() — run again when it resolves
-    }, [WS_ID])
+    }, [WS_ID, API_BASE])
 
     const selected = PROVIDERS.find((p) => p.key === selectedProvider)!
     const state = providerStates[selectedProvider]
@@ -281,7 +296,7 @@ export default function AIProvidersPage() {
 
     const handleClaudeOAuth = useCallback(() => {
         if (!WS_ID) return
-        const url = `${API_BASE}/api/oauth/anthropic/start?workspaceId=${WS_ID}`
+        const url = `${API_BASE}/api/v1/oauth/anthropic/start?workspaceId=${WS_ID}`
         const popup = window.open(url, 'claude-oauth', 'width=600,height=700,left=200,top=100')
         oauthPopupRef.current = popup
 
@@ -319,7 +334,7 @@ export default function AIProvidersPage() {
             const effectiveKey = selected.supportsOAuth && state.oauthToken
                 ? state.oauthToken
                 : state.apiKey
-            const res = await fetch(`${API_BASE}/api/settings/ai-providers/test`, {
+            const res = await fetch(`${API_BASE}/api/v1/settings/ai-providers/test`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -327,6 +342,7 @@ export default function AIProvidersPage() {
                     apiKey: effectiveKey,
                     baseUrl: state.baseUrl,
                     model: state.selectedModel || selected.staticModels?.[0] || 'default',
+                    workspaceId: WS_ID,
                 }),
             })
             const data = await res.json() as { ok: boolean; message: string; latencyMs?: number; model?: string }
@@ -340,7 +356,7 @@ export default function AIProvidersPage() {
                 // For Ollama: also fetch the model list so the dropdown is populated
                 if (selectedProvider === 'ollama') {
                     try {
-                        const modelsRes = await fetch(`${API_BASE}/api/settings/ai-providers/models?provider=ollama&baseUrl=${encodeURIComponent(state.baseUrl || 'http://localhost:11434')}`)
+                        const modelsRes = await fetch(`${API_BASE}/api/v1/settings/ai-providers/models?provider=ollama&baseUrl=${encodeURIComponent(state.baseUrl || 'http://localhost:11434')}`)
                         if (modelsRes.ok) {
                             const modelsData = await modelsRes.json() as { ok: boolean; models?: string[] }
                             if (modelsData.ok && modelsData.models?.length) {
@@ -386,26 +402,26 @@ export default function AIProvidersPage() {
                         status: effectiveStatus,
                         selectedModel: s.selectedModel.trim(),
                         baseUrl: s.baseUrl.trim(),
-                        // Always trim keys — a stray space breaks auth silently
+                        // Only include credential values when user has entered something new
+                        // Empty string means "don't change" — server will keep existing encrypted value
                         ...(s.apiKey?.trim() ? { apiKey: s.apiKey.trim() } : {}),
                         ...(s.oauthToken?.trim() ? { oauthToken: s.oauthToken.trim() } : {}),
                     }
                 }
             }
-            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`, {
-                method: 'PATCH',
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/ai-providers`, {
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    settings: {
-                        aiProviders: {
-                            primary: primaryProvider,
-                            primaryProvider: primaryProvider,
-                            modelRouting,
-                            providers: providersConfig,
-                            fallbackOrder,
-                            fallbackChain: fallbackOrder,
-                        },
-                    },
+                    primary: primaryProvider,
+                    primaryProvider: primaryProvider,
+                    modelRouting,
+                    providers: providersConfig,
+                    fallbackOrder,
+                    fallbackChain: fallbackOrder,
+                    // Workspace-level task budget defaults
+                    ...(parseFloat(wsDefaultCostCeiling) > 0 ? { defaultTaskCostCeiling: parseFloat(wsDefaultCostCeiling) } : {}),
+                    ...(parseInt(wsDefaultTokenBudget, 10) > 0 ? { defaultTokenBudget: parseInt(wsDefaultTokenBudget, 10) } : {}),
                 }),
             })
             if (res.ok) {
@@ -416,6 +432,14 @@ export default function AIProvidersPage() {
                     }
                 }
                 setSaved(true)
+                // Clear key inputs after successful save — server has them encrypted
+                setProviderStates((prev) => {
+                    const cleared = { ...prev }
+                    for (const p of PROVIDERS) {
+                        cleared[p.key] = { ...cleared[p.key], apiKey: '', oauthToken: '' }
+                    }
+                    return cleared
+                })
                 setTimeout(() => setSaved(false), 2500)
             }
         } finally {
@@ -457,6 +481,64 @@ export default function AIProvidersPage() {
         }))
     }
 
+    const displayedProviders = useMemo((): ProviderConfig[] => {
+        let res = PROVIDERS
+        const q = search.trim().toLowerCase()
+        if (filterValues.status) {
+            res = res.filter((p) => providerStates[p.key].status === filterValues.status)
+        }
+        if (filterValues.type) {
+            res = res.filter((p) => (filterValues.type === 'local' ? !p.requiresKey : p.requiresKey))
+        }
+        if (q) {
+            res = res.filter((p) =>
+                p.name.toLowerCase().includes(q) ||
+                p.description.toLowerCase().includes(q)
+            )
+        }
+
+        res = [...res].sort((a, b) => {
+            if (lf.sort === 'name_asc') return a.name.localeCompare(b.name)
+            if (lf.sort === 'name_desc') return b.name.localeCompare(a.name)
+
+            // default
+            const aStatus = providerStates[a.key].status
+            const bStatus = providerStates[b.key].status
+
+            // primary first
+            if (primaryProvider === a.key) return -1
+            if (primaryProvider === b.key) return 1
+
+            const statusOrder = { 'configured': 0, 'untested': 1, 'unconfigured': 2 }
+            return statusOrder[aStatus] - statusOrder[bStatus]
+        })
+
+        return res
+    }, [search, filterValues.status, filterValues.type, lf.sort, providerStates, primaryProvider])
+
+    const dimensions = useMemo(
+        (): FilterDimension[] => [
+            {
+                key: 'status',
+                label: 'Status',
+                options: [
+                    { value: 'configured', label: 'Configured', dimmed: !PROVIDERS.some((p) => providerStates[p.key].status === 'configured') },
+                    { value: 'untested', label: 'Untested', dimmed: !PROVIDERS.some((p) => providerStates[p.key].status === 'untested') },
+                    { value: 'unconfigured', label: 'Unconfigured', dimmed: !PROVIDERS.some((p) => providerStates[p.key].status === 'unconfigured') },
+                ],
+            },
+            {
+                key: 'type',
+                label: 'Type',
+                options: [
+                    { value: 'cloud', label: 'Cloud' },
+                    { value: 'local', label: 'Local' },
+                ],
+            },
+        ],
+        [providerStates]
+    )
+
     return (
         <div className="flex flex-col gap-6 h-full">
             {/* Header */}
@@ -474,11 +556,34 @@ export default function AIProvidersPage() {
                 <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-xs text-red-400">NEXT_PUBLIC_DEFAULT_WORKSPACE not set — changes will not be persisted.</div>
             )}
 
+            <ListToolbar
+                hook={lf}
+                placeholder="Search AI providers…"
+                dimensions={dimensions}
+                sortOptions={[
+                    { label: 'Priority (Configured first)', value: 'default' },
+                    { label: 'Name (A-Z)', value: 'name_asc' },
+                    { label: 'Name (Z-A)', value: 'name_desc' },
+                ]}
+            />
+
             {/* Two-panel layout */}
-            <div className="flex gap-4 flex-1 min-h-0">
+            <div className="flex gap-4 flex-1 min-h-0 pt-2">
                 {/* Left panel — provider grid */}
                 <div className="w-[280px] shrink-0 flex flex-col gap-2 overflow-y-auto">
-                    {PROVIDERS.map((p) => {
+                    {displayedProviders.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600 text-center px-4">
+                            {lf.hasFilters ? 'No providers match your filters' : 'No providers found'}
+                            {lf.hasFilters && (
+                                <button
+                                    onClick={clearAll}
+                                    className="mt-2 text-xs text-indigo-400 hover:text-indigo-300"
+                                >
+                                    Clear filters
+                                </button>
+                            )}
+                        </div>
+                    ) : displayedProviders.map((p: ProviderConfig) => {
                         const pState = providerStates[p.key]
                         const active = p.key === selectedProvider
                         return (
@@ -605,8 +710,8 @@ export default function AIProvidersPage() {
                                     />
                                     <p className="text-xs text-zinc-600">
                                         {selected.supportsOAuth
-                                            ? 'Permanent API key from console.anthropic.com. Stored in workspace settings.'
-                                            : 'Stored in workspace settings. Shown masked — re-enter to change.'}
+                                            ? 'Permanent API key from console.anthropic.com. Encrypted at rest (AES-256-GCM).'
+                                            : 'Encrypted at rest (AES-256-GCM). Leave blank to keep the existing key.'}
                                     </p>
                                 </div>
 
@@ -649,7 +754,7 @@ export default function AIProvidersPage() {
 
                         {/* Model selector — static list for cloud providers, dynamic for local */}
                         {(selected.staticModels || state.dynamicModels.length > 0) && (
-                            <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-zinc-300">Default model</label>
                                 <select
                                     value={state.selectedModel}
@@ -661,6 +766,11 @@ export default function AIProvidersPage() {
                                         <option key={m} value={m}>{m}</option>
                                     ))}
                                 </select>
+                                {state.selectedModel && (
+                                    <div className="mt-1">
+                                        <CapabilityList caps={getModelCapabilities(state.selectedModel)} />
+                                    </div>
+                                )}
                                 {state.dynamicModels.length > 0 && !selected.staticModels && (
                                     <p className="text-xs text-zinc-600">{state.dynamicModels.length} models available from your Ollama instance.</p>
                                 )}
@@ -789,7 +899,7 @@ export default function AIProvidersPage() {
                     {showRouting && (
                         <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
                             <div className="px-4 py-2.5 border-b border-zinc-800">
-                                <p className="text-xs text-zinc-500">Map each task type to a specific model. Leave blank to use the primary provider's default.</p>
+                                <p className="text-xs text-zinc-500">Map each task type to a specific model. Leave blank to use the primary provider&apos;s default.</p>
                             </div>
                             <table className="w-full text-sm">
                                 <thead>
@@ -819,6 +929,61 @@ export default function AIProvidersPage() {
                     )}
                 </div>
             )}
+
+            {/* ── Cost Defaults ──────────────────────────────────────────── */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+                <div className="mb-4">
+                    <h2 className="text-sm font-semibold text-zinc-200">Cost Defaults</h2>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                        Workspace-level fallbacks applied when a task or project has no explicit budget set.
+                        Projects and tasks can override these individually.
+                    </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                        <label htmlFor="ws-cost-ceiling" className="text-xs font-medium text-zinc-400">Default task cost ceiling (USD)</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-sm">$</span>
+                            <input
+                                id="ws-cost-ceiling"
+                                type="number"
+                                min="0.01"
+                                step="0.10"
+                                placeholder="e.g. 0.50"
+                                value={wsDefaultCostCeiling}
+                                onChange={(e) => setWsDefaultCostCeiling(e.target.value)}
+                                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 pl-7 pr-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                            />
+                        </div>
+                        <p className="text-[11px] text-zinc-600">Applied to standalone tasks (chat/Telegram) with no explicit ceiling.</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <label htmlFor="ws-token-budget" className="text-xs font-medium text-zinc-400">Default token budget (output tokens)</label>
+                        <input
+                            id="ws-token-budget"
+                            type="number"
+                            min="256"
+                            step="512"
+                            placeholder="e.g. 8192"
+                            value={wsDefaultTokenBudget}
+                            onChange={(e) => setWsDefaultTokenBudget(e.target.value)}
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                        />
+                        <p className="text-[11px] text-zinc-600">Max output tokens per LLM call. 0 = no cap (model default).</p>
+                    </div>
+                </div>
+                <p className="mt-3 text-[11px] text-zinc-600">
+                    Ceiling hierarchy: task explicit › project default › workspace default (this page) › workspace weekly ceiling.
+                </p>
+                <button
+                    onClick={() => void handleSave()}
+                    disabled={saving}
+                    className="mt-4 flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                >
+                    <Save className="h-3.5 w-3.5" />
+                    {saving ? 'Saving…' : saved ? 'Saved' : 'Save defaults'}
+                </button>
+            </div>
         </div>
     )
 }

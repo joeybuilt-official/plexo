@@ -101,7 +101,7 @@ function PayloadModal({ open, onClose, enabled }: { open: boolean; onClose: () =
     useEffect(() => {
         if (!open) return
         setLoading(true)
-        fetch(`${API_BASE}/api/telemetry/payload`)
+        fetch(`${API_BASE}/api/v1/telemetry/payload`)
             .then(r => r.json() as Promise<{ payload: LastPayload | null }>)
             .then(d => setPayload(d.payload))
             .catch(() => setPayload(null))
@@ -188,7 +188,7 @@ export default function PrivacyPage() {
         if (!workspaceId) return          // wait until context resolves
         setLoading(true)
         try {
-            const r = await fetch(`${API_BASE}/api/telemetry`, {
+            const r = await fetch(`${API_BASE}/api/v1/telemetry`, {
                 headers: { 'x-workspace-id': workspaceId },
             })
             if (r.ok) setConfig(await r.json() as TelemetryConfig)
@@ -197,7 +197,7 @@ export default function PrivacyPage() {
         }
         // Try to get last report timestamp from last payload
         try {
-            const r2 = await fetch(`${API_BASE}/api/telemetry/payload`)
+            const r2 = await fetch(`${API_BASE}/api/v1/telemetry/payload`)
             const d = await r2.json() as { payload: (LastPayload & { timestamp?: string }) | null }
             setLastSentAt(d.payload?.timestamp ?? null)
         } catch { /* optional */ }
@@ -210,7 +210,7 @@ export default function PrivacyPage() {
         setConfig(c => ({ ...c, enabled: next }))
         setSaving(true)
         try {
-            await fetch(`${API_BASE}/api/telemetry`, {
+            await fetch(`${API_BASE}/api/v1/telemetry`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ enabled: next }),
@@ -229,7 +229,7 @@ export default function PrivacyPage() {
     async function regenerateId() {
         setRegenerating(true)
         try {
-            const r = await fetch(`${API_BASE}/api/telemetry/regenerate-id`, { method: 'POST', headers })
+            const r = await fetch(`${API_BASE}/api/v1/telemetry/regenerate-id`, { method: 'POST', headers })
             if (r.ok) {
                 const d = await r.json() as { instanceId: string }
                 setConfig(c => ({ ...c, instanceId: d.instanceId }))

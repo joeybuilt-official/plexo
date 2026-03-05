@@ -9,6 +9,7 @@ import { db, eq } from '@plexo/db'
 import { sprints, sprintTasks } from '@plexo/db'
 import { resolveModelFromEnv } from '../providers/registry.js'
 import { MODEL_ROUTING } from '../constants.js'
+import { categoryPlannerPrompt } from './categories.js'
 
 const logger = pino({ name: 'sprint-planner' })
 
@@ -52,46 +53,36 @@ const SprintPlanSchema = z.object({
     parallelism_note: z.string().optional(),
 })
 
-// ── System prompt ─────────────────────────────────────────────────────────────
-
-const PLANNER_SYSTEM = `You are a sprint planning system. Given a repository name and a feature/change request, decompose the work into independent tasks that can be executed in parallel by separate AI agents.
-
-Rules:
-- Each task MUST be independently executable without knowledge of the others
-- Each task has a "scope" — list of file paths or directories it will touch
-- Minimize scope overlap between parallel tasks (overlaps = conflicts)
-- Each task needs an acceptance criterion that can be verified programmatically
-- Tasks that share scope must be marked as dependencies in depends_on
-- Branch names use the format: sprint/{sprintId}/{short-slug}
-- Maximum 8 tasks per sprint`
-
-// ── Planner ──────────────────────────────────────────────────────────────────
+// ── Planner ───────────────────────────────────────────────────────────────────
 
 export async function planSprint(params: {
     sprintId: string
     workspaceId: string
-    repo: string
+    repo?: string          // undefined for non-code categories
     request: string
     contextFiles?: string[]
+    category?: string      // defaults to 'code'
 }): Promise<PlanResult> {
-    const { sprintId, workspaceId, repo, request, contextFiles = [] } = params
+    const { sprintId, workspaceId, repo, request, contextFiles = [], category = 'code' } = params
 
-    logger.info({ sprintId, repo }, 'Sprint planning started')
+    logger.info({ sprintId, repo, category }, 'Sprint planning started')
 
     const model = resolveModelFromEnv(MODEL_ROUTING.planning)
 
+    const systemPrompt = categoryPlannerPrompt(category)
+
     const userMessage = [
-        `Repository: ${repo}`,
+        repo ? `Repository: ${repo}` : null,
         `Request: ${request}`,
-        contextFiles.length > 0 ? `\nKey files in repo:\n${contextFiles.slice(0, 50).join('\n')}` : '',
-    ].filter(Boolean).join('\n')
+        contextFiles.length > 0 ? `\nKey files:\n${contextFiles.slice(0, 50).join('\n')}` : null,
+    ].filter((s): s is string => s !== null).join('\n')
 
     let rawPlan: SprintPlan
     try {
         const result = await generateObject({
             model,
             schema: SprintPlanSchema,
-            system: PLANNER_SYSTEM,
+            system: systemPrompt,
             prompt: userMessage,
         })
         rawPlan = result.object

@@ -6,6 +6,7 @@
  */
 import { Router, type Router as RouterType } from 'express'
 import { testProvider, type ProviderKey } from '@plexo/agent/providers/registry'
+import { loadDecryptedAIProviders } from './ai-provider-creds.js'
 import { logger } from '../logger.js'
 
 export const aiProvidersRouter: RouterType = Router()
@@ -16,11 +17,12 @@ const VALID_PROVIDERS = new Set<string>([
 ])
 
 aiProvidersRouter.post('/test', async (req, res) => {
-    const { provider, apiKey, baseUrl, model } = req.body as {
+    const { provider, apiKey, baseUrl, model, workspaceId } = req.body as {
         provider?: string
         apiKey?: string
         baseUrl?: string
         model?: string
+        workspaceId?: string
     }
 
     if (!provider || !VALID_PROVIDERS.has(provider)) {
@@ -28,8 +30,21 @@ aiProvidersRouter.post('/test', async (req, res) => {
         return
     }
 
+    let effectiveKey = apiKey
+    if (!effectiveKey && workspaceId) {
+        try {
+            const decrypted = await loadDecryptedAIProviders(workspaceId)
+            const entry = decrypted?.providers?.[provider]
+            if (entry) {
+                effectiveKey = entry.oauthToken || entry.apiKey
+            }
+        } catch (err) {
+            logger.error({ err, workspaceId, provider }, 'Failed to load stored provider key for test')
+        }
+    }
+
     try {
-        const result = await testProvider(provider as ProviderKey, { apiKey, baseUrl, model })
+        const result = await testProvider(provider as ProviderKey, { apiKey: effectiveKey, baseUrl, model })
         logger.info({ provider, model: result.model, ok: result.ok, latencyMs: result.latencyMs }, 'AI provider test')
         res.json(result)
     } catch (err: unknown) {

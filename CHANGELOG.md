@@ -9,6 +9,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - BSL 1.1 license (converts to Apache 2.0 on 2030-03-03)
 - Commercial context + ZeroClaw parity gate in AGENTS.md
 - `.agents-local.md` gitignored for private operational notes
+- **Multi-category projects** — new project creation supports Code, Research, Writing, Ops, Data, Marketing, and General project types with category-appropriate terminology, form fields, and planner prompts
+  - `sprints` table: `repo` now nullable; `category` (text, default 'code') and `metadata` (jsonb, default '{}') columns added
+  - New project page redesigned with visual category picker and progressive disclosure of category-specific fields
+  - Sprint planner and runner are category-aware; non-code projects skip the GitHub branch/PR workflow
+  - Project list and detail pages show category badges and use category-specific unit labels
+
+### Changed
+- **Intent Classification** — `chat` and `telegram` router classifiers now distinguish `PROJECT` intents along with `TASK` and `CONVERSATION`.
+- **Conversation Context in Routing** — Intent classifiers in webchat and Telegram now analyze full session history to properly route follow-up confirmations.
+- **Consultative Agent Prompt** — The conversational system prompt now prevents aggressive task creation by explicitly probing vague requests (e.g., troubleshooting) for more details first.
+
+---
+
+## [1.5.0-dev] — 2026-03-05 (Phase 29 — Settings Consolidation & MCP Server)
+
+### Added
+- **MCP Server (`@plexo/mcp-server`)** — Exposes `plexo_health` and `plexo_workspace_info` tools to external MCP clients (Cursor, Claude Desktop) via HTTP (port 3002) and stdio transports.
+- **Documentation Images** — Extracted and embedded automated screenshots of the main application views (Dashboard, Tasks, Projects, Conversations, Approvals, Agent Settings) into the README.
+
+### Changed
+- **Settings UI Consolidation** — Merged previously separate Agent and Behavior settings pages into a unified, tabbed interface at `/settings/agent` containing Identity, Behavior, Limits, and History.
+- **Rule Engine UX** — Transformed the advanced behavior configuration into a collapsible rule engine UI with clear differentiation between platform, workspace, and project-level overrides.
+- **Limit Configuration UX** — Replaced raw numeric input fields for API cost ceilings and auto-approval thresholds with user-friendly drop-down selectors and natural language descriptions.
 
 ---
 

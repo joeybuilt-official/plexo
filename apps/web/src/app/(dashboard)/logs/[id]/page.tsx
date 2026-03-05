@@ -52,7 +52,7 @@ function elapsed(start: string | null, end: string | null): string {
 async function fetchTask(id: string): Promise<{ task: TaskDetail; steps: TaskStep[] } | null> {
     const INTERNAL = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
     try {
-        const res = await fetch(`${INTERNAL}/api/tasks/${encodeURIComponent(id)}`, { cache: 'no-store' })
+        const res = await fetch(`${INTERNAL}/api/v1/tasks/${encodeURIComponent(id)}`, { cache: 'no-store' })
         if (!res.ok) return null
         const data = await res.json() as { task?: TaskDetail; steps?: TaskStep[] }
         if (!data.task) return null

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
     Users,
     RefreshCw,
@@ -8,17 +8,11 @@ import {
     ShieldCheck,
     Mail,
     Clock,
-    Link2,
-    Copy,
-    Check,
-    AlertCircle,
-    UserPlus,
-    Trash2,
-    Crown,
-    Eye,
-    X,
+    Link2, Copy, Check, AlertCircle, UserPlus, Trash2, Crown, Eye, X
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
+import type { FilterDimension } from '@web/components/list-toolbar'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -76,6 +70,8 @@ function RoleBadge({ role }: { role: MemberRole }) {
     )
 }
 
+const FILTER_KEYS = ['role'] as const
+
 // ── Invite panel ──────────────────────────────────────────────────────────────
 
 function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
@@ -91,11 +87,11 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
         setError(null)
         try {
             // Use first available user as invitedByUserId (placeholder until auth is wired)
-            const usersRes = await fetch(`${API_BASE}/api/users`)
+            const usersRes = await fetch(`${API_BASE}/api/v1/users`)
             const usersData = await usersRes.json() as { items: { id: string }[] }
             const fallbackUserId = usersData.items?.[0]?.id ?? '00000000-0000-0000-0000-000000000001'
 
-            const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/members/invite`, {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${workspaceId}/members/invite`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email || undefined, role, invitedByUserId: fallbackUserId }),
@@ -220,11 +216,14 @@ export default function UsersPage() {
     const [error, setError] = useState<string | null>(null)
     const [showInvite, setShowInvite] = useState(false)
 
+    const lf = useListFilter(FILTER_KEYS, 'joined_desc')
+    const { search, filterValues, clearAll } = lf
+
     const fetchMembers = useCallback(async () => {
         if (!WS_ID) return
         setLoading(true)
         try {
-            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}/members`)
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/members`)
             if (res.ok) {
                 const data = await res.json() as { items: Member[] }
                 setMembers(data.items ?? [])
@@ -248,7 +247,7 @@ export default function UsersPage() {
         setSaving(true)
         setError(null)
         try {
-            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}/members/${selected.userId}`, {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/members/${selected.userId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: editRole }),
@@ -272,7 +271,7 @@ export default function UsersPage() {
         if (!confirm(`Remove ${selected.name ?? selected.email} from this workspace?`)) return
         setRemoving(true)
         try {
-            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}/members/${selected.userId}`, { method: 'DELETE' })
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/members/${selected.userId}`, { method: 'DELETE' })
             if (res.ok) {
                 setMembers((prev) => prev.filter((m) => m.userId !== selected.userId))
                 setSelected(null)
@@ -284,6 +283,46 @@ export default function UsersPage() {
             setRemoving(false)
         }
     }
+
+    const displayed = useMemo(() => {
+        let res = members
+        const q = search.trim().toLowerCase()
+        if (filterValues.role) {
+            res = res.filter((m) => m.role === filterValues.role)
+        }
+        if (q) {
+            res = res.filter(
+                (m) =>
+                    (m.name?.toLowerCase().includes(q) ?? false) ||
+                    m.email.toLowerCase().includes(q)
+            )
+        }
+        res = [...res].sort((a, b) => {
+            if (lf.sort === 'joined_asc') return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
+            if (lf.sort === 'name_asc') return (a.name || a.email).localeCompare(b.name || b.email)
+            if (lf.sort === 'name_desc') return (b.name || b.email).localeCompare(a.name || a.email)
+            // joined_desc
+            return new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+        })
+        return res
+    }, [members, search, filterValues.role, lf.sort])
+
+    const availableRoles = useMemo(() => new Set(members.map((m) => m.role)), [members])
+
+    const dimensions = useMemo(
+        (): FilterDimension[] => [
+            {
+                key: 'role',
+                label: 'Role',
+                options: (['owner', 'admin', 'member', 'viewer'] as MemberRole[]).map((r) => ({
+                    value: r,
+                    label: r,
+                    dimmed: !availableRoles.has(r),
+                })),
+            },
+        ],
+        [availableRoles]
+    )
 
     const ownerCount = members.filter((m) => m.role === 'owner').length
 
@@ -326,6 +365,19 @@ export default function UsersPage() {
             {/* Invite panel */}
             {showInvite && <InvitePanel workspaceId={WS_ID} onClose={() => setShowInvite(false)} />}
 
+            {/* ListToolbar */}
+            <ListToolbar
+                hook={lf}
+                placeholder="Search members by name or email…"
+                dimensions={dimensions}
+                sortOptions={[
+                    { label: 'Newest joined', value: 'joined_desc' },
+                    { label: 'Oldest joined', value: 'joined_asc' },
+                    { label: 'Name (A-Z)', value: 'name_asc' },
+                    { label: 'Name (Z-A)', value: 'name_desc' },
+                ]}
+            />
+
             {/* Two-panel layout */}
             <div className="flex gap-4 flex-1 min-h-0">
                 {/* Left — member list */}
@@ -334,12 +386,20 @@ export default function UsersPage() {
                         <div className="flex items-center justify-center py-12 text-sm text-zinc-600">
                             <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Loading…
                         </div>
-                    ) : members.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600">
+                    ) : displayed.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600 text-center px-4">
                             <Users className="h-6 w-6 text-zinc-700" />
-                            No members yet
+                            {lf.hasFilters ? 'No members match your filters' : 'No members yet'}
+                            {lf.hasFilters && (
+                                <button
+                                    onClick={clearAll}
+                                    className="mt-2 text-xs text-indigo-400 hover:text-indigo-300"
+                                >
+                                    Clear filters
+                                </button>
+                            )}
                         </div>
-                    ) : members.map((m) => {
+                    ) : displayed.map((m) => {
                         const active = selected?.userId === m.userId
                         return (
                             <button

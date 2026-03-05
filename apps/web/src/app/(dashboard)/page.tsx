@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { LiveDashboard } from './_components/live-dashboard'
+import { CommandCenter } from './_components/command-center'
+import { SystemHealth } from './_components/system-health'
 import { QuickSend } from './_components/quick-send'
 
 export const dynamic = 'force-dynamic'
@@ -8,7 +9,7 @@ export const revalidate = 0
 async function isFirstRun(): Promise<boolean> {
     const apiBase = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
     try {
-        const res = await fetch(`${apiBase}/api/workspaces`, { cache: 'no-store', signal: AbortSignal.timeout(2000) })
+        const res = await fetch(`${apiBase}/api/v1/workspaces`, { cache: 'no-store', signal: AbortSignal.timeout(2000) })
         if (!res.ok) return false
         const data = await res.json() as { items?: unknown[] }
         return (data.items?.length ?? 0) === 0
@@ -28,12 +29,17 @@ export default async function HomePage() {
                 <p className="mt-1 text-sm text-zinc-500">Your AI agent — live</p>
             </div>
 
-            {/* Live dashboard: cards + task feed, SSE-connected */}
-            <LiveDashboard />
+            {/* User-focused overview: projects, tasks, blockers, approvals */}
+            <CommandCenter />
 
             {/* Quick Send */}
             <div className="mt-6">
                 <QuickSend />
+            </div>
+
+            {/* System Health — collapsible, below the user-focused overview */}
+            <div className="mt-6">
+                <SystemHealth />
             </div>
 
             {/* Version */}

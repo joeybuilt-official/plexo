@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Settings as SettingsIcon, Key, Zap, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn } from 'lucide-react'
+import { Key, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn, Server, Terminal, Puzzle, Copy, Activity, Trash2 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
 interface Section {
@@ -12,9 +12,40 @@ interface Section {
 
 const SECTIONS: Section[] = [
     { id: 'workspace', label: 'Workspace', icon: Globe },
-    { id: 'agent', label: 'Agent', icon: Zap },
     { id: 'api-keys', label: 'API Keys', icon: Key },
+    { id: 'api', label: 'REST API', icon: Server },
+    { id: 'cli', label: 'CLI', icon: Terminal },
+    { id: 'mcp', label: 'MCP', icon: Puzzle },
+    { id: 'system', label: 'System', icon: Activity },
 ]
+function CodeSnippet({ label, code }: { label?: string; code: string }) {
+    const [copied, setCopied] = useState(false)
+
+    const handleCopy = () => {
+        void navigator.clipboard.writeText(code)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+    }
+
+    return (
+        <div className="flex flex-col gap-1.5">
+            {label && <p className="text-[11px] uppercase tracking-widest text-zinc-600 font-medium">{label}</p>}
+            <div className="relative group">
+                <code className="block rounded-lg bg-zinc-950 border border-zinc-800/80 p-3 pr-10 text-[11px] font-mono text-zinc-300 whitespace-pre overflow-x-auto leading-relaxed max-h-[400px]">
+                    {code}
+                </code>
+                <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="absolute right-2 top-2 p-1.5 rounded-md bg-zinc-800/80 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-white hover:bg-zinc-700"
+                    title="Copy code"
+                >
+                    {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+            </div>
+        </div>
+    )
+}
 
 function Field({ label, id, description, children }: { label: string; id: string; description?: string; children: React.ReactNode }) {
     return (
@@ -35,14 +66,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     )
 }
 
-function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-    return (
-        <select
-            {...props}
-            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-        />
-    )
-}
+
 
 function SaveButton({ saved, saving }: { saved: boolean; saving: boolean }) {
     return (
@@ -85,11 +109,6 @@ export default function SettingsPage() {
     const [newWsName, setNewWsName] = useState('')
     const [creating, setCreating] = useState(false)
 
-    // Agent settings state
-    const [tokenBudget, setTokenBudget] = useState('50000')
-    const [defaultModel, setDefaultModel] = useState('claude-opus-4-5')
-    const [maxRetries, setMaxRetries] = useState('3')
-
     const loadWorkspaceList = useCallback(async () => {
         setWsListLoading(true)
         try {
@@ -110,14 +129,44 @@ export default function SettingsPage() {
             if (data.name) setWorkspaceName(data.name)
             const s = data.settings ?? {}
             if (typeof s.costCeilingUsdWeekly === 'number') setCostCeiling(String(s.costCeilingUsdWeekly))
-            if (typeof s.defaultModel === 'string') setDefaultModel(s.defaultModel)
-            if (typeof s.tokenBudgetPerTask === 'number') setTokenBudget(String(s.tokenBudgetPerTask))
-            if (typeof s.maxRetries === 'number') setMaxRetries(String(s.maxRetries))
         } catch { /* non-fatal */ }
     }, [API_BASE, WS_ID])
 
     useEffect(() => { void loadWorkspace() }, [loadWorkspace])
     useEffect(() => { if (active === 'workspace') void loadWorkspaceList() }, [active, loadWorkspaceList])
+
+    // Health state
+    const [health, setHealth] = useState<{ version?: string; uptime?: number; status?: string } | null>(null)
+    useEffect(() => {
+        if (active !== 'system') return
+        fetch(`${API_BASE}/health`)
+            .then(res => res.json())
+            .then(data => setHealth(data))
+            .catch(() => { })
+    }, [active, API_BASE])
+
+    // Instance API Keys State
+    const [apiKeys, setApiKeys] = useState<{ id: string; name: string; createdAt: string; token?: string }[]>([])
+    const [keysLoading, setKeysLoading] = useState(false)
+    const [creatingApiKey, setCreatingApiKey] = useState(false)
+    const [newApiKeyName, setNewApiKeyName] = useState('')
+    const [creatingKey, setCreatingKey] = useState(false)
+
+    const loadApiKeys = useCallback(async () => {
+        if (!WS_ID) return
+        setKeysLoading(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/api-keys`)
+            if (res.ok) {
+                const data = await res.json() as { items?: { id: string; name: string; createdAt: string }[] }
+                setApiKeys(data.items ?? [])
+            }
+        } catch { /* non-fatal */ } finally { setKeysLoading(false) }
+    }, [API_BASE, WS_ID])
+
+    useEffect(() => {
+        if (active === 'api-keys' || active === 'system') void loadApiKeys()
+    }, [active, loadApiKeys])
 
     // API key state (write-only — never read back)
     const [anthropicKey, setAnthropicKey] = useState('')
@@ -145,16 +194,41 @@ export default function SettingsPage() {
         } catch { /* non-fatal */ } finally { setCreating(false) }
     }
 
+    async function handleCreateApiKey() {
+        if (!newApiKeyName.trim()) return
+        setCreatingKey(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/api-keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newApiKeyName.trim(), scopes: [] }),
+            })
+            if (res.ok) {
+                const created = await res.json() as { id: string; name: string; createdAt: string; token: string }
+                setApiKeys(prev => [created, ...prev])
+                setNewApiKeyName('')
+                setCreatingApiKey(false)
+            }
+        } catch { /* non-fatal */ } finally { setCreatingKey(false) }
+    }
+
+    async function handleRevokeApiKey(id: string) {
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/api-keys/${id}`, { method: 'DELETE' })
+            if (res.ok) {
+                setApiKeys(prev => prev.filter(k => k.id !== id))
+            }
+        } catch { /* non-fatal */ }
+    }
+
     async function handleSave(e: React.FormEvent) {
         e.preventDefault()
         setSaving(true)
         setSaveError(null)
         try {
-            if (active === 'workspace' || active === 'agent') {
+            if (active === 'workspace') {
                 // Merge changes into workspace settings
-                const payload = active === 'workspace'
-                    ? { name: workspaceName, settings: { costCeilingUsdWeekly: parseFloat(costCeiling) || 10 } }
-                    : { settings: { defaultModel, tokenBudgetPerTask: parseInt(tokenBudget) || 50000, maxRetries: parseInt(maxRetries) || 3 } }
+                const payload = { name: workspaceName, settings: { costCeilingUsdWeekly: parseFloat(costCeiling) || 10 } }
                 const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
@@ -326,37 +400,6 @@ export default function SettingsPage() {
                     </div>
                 )}
 
-                {active === 'agent' && (
-                    <div className="flex flex-col gap-6">
-                        <div>
-                            <h2 className="text-lg font-bold text-zinc-50">Agent</h2>
-                            <p className="mt-0.5 text-sm text-zinc-500">Execution behaviour and model settings</p>
-                        </div>
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-5">
-                            <Field id="model" label="Default model" description="Model used for task execution. Higher tier = better quality, higher cost.">
-                                <Select id="model" value={defaultModel} onChange={(e) => setDefaultModel(e.target.value)}>
-                                    <option value="claude-haiku-4-5">Claude Haiku 4.5 (fast, cheap)</option>
-                                    <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (balanced)</option>
-                                    <option value="claude-opus-4-5">Claude Opus 4.5 (best quality)</option>
-                                </Select>
-                            </Field>
-                            <Field id="token-budget" label="Token budget per task" description="Maximum tokens the agent may use in a single task execution.">
-                                <Input id="token-budget" type="number" min="1000" step="1000" value={tokenBudget} onChange={(e) => setTokenBudget(e.target.value)} />
-                            </Field>
-                            <Field id="max-retries" label="Max retries on failure" description="Number of times the agent retries a failed step before marking the task as failed.">
-                                <Select id="max-retries" value={maxRetries} onChange={(e) => setMaxRetries(e.target.value)}>
-                                    {['0', '1', '2', '3', '5'].map((v) => (
-                                        <option key={v} value={v}>{v}</option>
-                                    ))}
-                                </Select>
-                            </Field>
-                        </div>
-                        <div className="flex justify-end">
-                            <SaveButton saved={saved} saving={saving} />
-                        </div>
-                    </div>
-                )}
-
                 {active === 'api-keys' && (
                     <div className="flex flex-col gap-6">
                         <div>
@@ -389,6 +432,230 @@ OPENROUTER_API_KEY=sk-or-v1-…
 GROQ_API_KEY=gsk_…`}
                                 </code>
                                 <p className="mt-2 text-[10px] text-zinc-700">Set these in <code className="text-zinc-600">.env.local</code> or your deployment environment.</p>
+                            </div>
+                        </div>
+
+                        {/* Instance API Keys */}
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2.5 mb-1">
+                                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-pink-500/10 text-pink-400">
+                                        <Key className="h-3.5 w-3.5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-zinc-200">Instance API Keys</h3>
+                                        <p className="text-[11px] text-zinc-500">Create keys to access the Plexo API programmatically</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setCreatingApiKey((v) => !v)}
+                                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-[12px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    New API Key
+                                </button>
+                            </div>
+
+                            {creatingApiKey && (
+                                <div className="flex items-center gap-2 rounded-xl border border-indigo-800/40 bg-indigo-950/20 px-4 py-3 mt-1">
+                                    <input
+                                        autoFocus
+                                        value={newApiKeyName}
+                                        onChange={(e) => setNewApiKeyName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') { e.preventDefault(); void handleCreateApiKey() }
+                                            if (e.key === 'Escape') { setCreatingApiKey(false); setNewApiKeyName('') }
+                                        }}
+                                        placeholder="API Key Name (e.g. CLI Token)"
+                                        className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleCreateApiKey()}
+                                        disabled={creatingKey || !newApiKeyName.trim()}
+                                        className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                                    >
+                                        {creatingKey ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                        Create
+                                    </button>
+                                    <button type="button" onClick={() => { setCreatingApiKey(false); setNewApiKeyName('') }} className="text-zinc-600 hover:text-zinc-300 text-sm transition-colors">Cancel</button>
+                                </div>
+                            )}
+
+                            <div className="rounded-xl border border-zinc-800 overflow-hidden mt-1">
+                                {keysLoading ? (
+                                    <div className="flex items-center justify-center py-6">
+                                        <Loader2 className="h-4 w-4 animate-spin text-zinc-600" />
+                                    </div>
+                                ) : apiKeys.length === 0 ? (
+                                    <p className="px-4 py-6 text-sm text-zinc-600 text-center">No API keys found</p>
+                                ) : (
+                                    <div className="flex flex-col">
+                                        {apiKeys.map((key) => (
+                                            <div key={key.id} className="flex flex-col border-b border-zinc-800/50 last:border-0">
+                                                <div className="flex items-center justify-between px-4 py-3 bg-zinc-900/20 hover:bg-zinc-900/40 transition-colors">
+                                                    <div>
+                                                        <p className="text-sm font-medium text-zinc-200">{key.name}</p>
+                                                        <p className="text-[10px] text-zinc-500">Created {new Date(key.createdAt).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleRevokeApiKey(key.id)}
+                                                        className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                        title="Revoke and delete key"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                                {key.token && (
+                                                    <div className="px-4 pb-4 pt-1">
+                                                        <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/20 px-3 py-2.5 mb-2">
+                                                            <div className="flex items-start gap-2">
+                                                                <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500 mt-0.5" />
+                                                                <p className="text-xs text-yellow-500 font-medium">Please copy your API key now. You won&apos;t be able to see it again!</p>
+                                                            </div>
+                                                        </div>
+                                                        <CodeSnippet code={key.token} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                    </div>
+                )}
+
+                {active === 'api' && (
+                    <div className="flex flex-col gap-6">
+                        <div>
+                            <h2 className="text-lg font-bold text-zinc-50">REST API</h2>
+                            <p className="mt-0.5 text-sm text-zinc-500">Interact programmatically with this Plexo instance.</p>
+                        </div>
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-4">
+                            <div className="flex items-center gap-2.5 mb-1">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+                                    <Server className="h-3.5 w-3.5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-zinc-200">REST API Configuration</h3>
+                                    <p className="text-[11px] text-zinc-500">Base configuration and authentication</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-4">
+                                <CodeSnippet label="Base URL" code={API_BASE} />
+                                <CodeSnippet
+                                    label="Authentication (cURL Example)"
+                                    code={`curl -X GET ${API_BASE}/api/v1/workspaces \\
+  -H "Authorization: Bearer YOUR_PLEXO_API_KEY"`}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {active === 'cli' && (
+                    <div className="flex flex-col gap-6">
+                        <div>
+                            <h2 className="text-lg font-bold text-zinc-50">Command Line Interface</h2>
+                            <p className="mt-0.5 text-sm text-zinc-500">Manage tasks and workspaces from your terminal.</p>
+                        </div>
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-4">
+                            <div className="flex items-center gap-2.5 mb-1">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                                    <Terminal className="h-3.5 w-3.5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-zinc-200">Plexo CLI</h3>
+                                    <p className="text-[11px] text-zinc-500">Global installation and login command</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-4">
+                                <CodeSnippet label="Install Node Package" code={`npm install -g @plexo/cli`} />
+                                <CodeSnippet label="Authenticate with Instance" code={`plexo login --url ${API_BASE}`} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {active === 'mcp' && (
+                    <div className="flex flex-col gap-6">
+                        <div>
+                            <h2 className="text-lg font-bold text-zinc-50">Model Context Protocol</h2>
+                            <p className="mt-0.5 text-sm text-zinc-500">Connect Cursor, Claude Desktop, or Windsurf directly to this instance.</p>
+                        </div>
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-4">
+                            <div className="flex items-center gap-2.5 mb-1">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-500/10 text-orange-400">
+                                    <Puzzle className="h-3.5 w-3.5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-zinc-200">MCP Configuration</h3>
+                                    <p className="text-[11px] text-zinc-500">Using the npx runtime</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-3">
+                                <p className="text-xs text-zinc-400 leading-relaxed">
+                                    Add the following snippet to your <code className="text-zinc-200 font-mono text-[10px] bg-zinc-800 px-1 py-0.5 rounded">claude_desktop_config.json</code> or your IDE&apos;s MCP configuration settings.
+                                </p>
+                                <CodeSnippet
+                                    label="Configuration JSON"
+                                    code={`"mcpServers": {
+  "plexo": {
+    "command": "npx",
+    "args": ["-y", "@plexo/mcp"],
+    "env": {
+      "PLEXO_URL": "${API_BASE}",
+      "PLEXO_API_KEY": "YOUR_PLEXO_API_KEY",
+      "PLEXO_WORKSPACE_ID": "${WS_ID}"
+    }
+  }
+}`}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {active === 'system' && (
+                    <div className="flex flex-col gap-6">
+                        <div>
+                            <h2 className="text-lg font-bold text-zinc-50">System</h2>
+                            <p className="mt-0.5 text-sm text-zinc-500">Monitor your Plexo instance health and operational status.</p>
+                        </div>
+
+                        {/* Instance Health */}
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-4">
+                            <div className="flex items-center gap-2.5 mb-1">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+                                    <Activity className="h-3.5 w-3.5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-zinc-200">Instance Status</h3>
+                                    <p className="text-[11px] text-zinc-500">Real-time health of the Plexo backend</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/50 p-3">
+                                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Status</p>
+                                    <div className="flex items-center gap-2">
+                                        <div className={`flex h-2 w-2 items-center justify-center rounded-full ${health?.status === 'ok' ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+                                            <div className={`h-1.5 w-1.5 rounded-full ${health?.status === 'ok' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                        </div>
+                                        <span className="text-xs font-medium text-zinc-200">{health?.status === 'ok' ? 'Healthy' : health?.status ? 'Degraded' : 'Unknown'}</span>
+                                    </div>
+                                </div>
+                                <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/50 p-3">
+                                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Version</p>
+                                    <p className="text-xs font-mono text-zinc-200">{health?.version || '...'}</p>
+                                </div>
+                                <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/50 p-3">
+                                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Uptime</p>
+                                    <p className="text-xs font-mono text-zinc-200">{health?.uptime ? `${Math.floor(health.uptime / 60)}m` : '...'}</p>
+                                </div>
                             </div>
                         </div>
                     </div>

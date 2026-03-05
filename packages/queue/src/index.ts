@@ -14,6 +14,10 @@ export interface PushParams {
     projectId?: string   // FK → sprints.id — the project this task belongs to
     parentId?: string
     status?: 'queued' | 'claimed' | 'running' | 'complete' | 'blocked' | 'cancelled'
+    /** Max USD this task may spend. null = inherit workspace default. */
+    costCeilingUsd?: number
+    /** Max output tokens. 0 = no cap. */
+    tokenBudget?: number
 }
 
 export interface CompleteParams {
@@ -50,6 +54,8 @@ export async function push(params: PushParams): Promise<string> {
         projectId: params.projectId ?? null,
         parentId: params.parentId ?? null,
         context: params.context,
+        costCeilingUsd: params.costCeilingUsd ?? null,
+        tokenBudget: params.tokenBudget ?? null,
     })
     return id
 }

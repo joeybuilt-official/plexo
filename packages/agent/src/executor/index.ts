@@ -257,12 +257,24 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
     const pluginTools = await loadPluginTools(ctx.workspaceId)
     const allTools = { ...buildTools(ctx), ...connectionTools, ...pluginTools }
 
+    // Per-task pre-flight: block if already at task ceiling from prior retries
+    if (ctx.taskCostCeilingUsd != null && totalCost >= ctx.taskCostCeilingUsd) {
+        throw new PlexoError(
+            `Task cost ceiling reached: $${totalCost.toFixed(4)} >= $${ctx.taskCostCeilingUsd.toFixed(4)}`,
+            'TASK_COST_CEILING',
+            'system',
+            429,
+        )
+    }
+
     const genResult = await withFallback(settings, 'codeGeneration', async (model) => {
         return generateText({
             model,
             system: systemPrompt,
             messages: [{ role: 'user', content: userMessage }],
             tools: allTools,
+            // tokenBudget > 0: cap output tokens. 0 or null = no per-task cap.
+            ...(ctx.tokenBudget && ctx.tokenBudget > 0 ? { maxTokens: ctx.tokenBudget } : {}),
             stopWhen: stepCountIs(SAFETY_LIMITS.maxConsecutiveToolCalls),
             abortSignal: ctx.signal,
         })
@@ -278,10 +290,20 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
     totalTokensOut += tokensOut
     totalCost += costUsd
 
-    // Check cost ceiling
+    // Per-task cost ceiling check (mid-run, after accumulation)
+    if (ctx.taskCostCeilingUsd != null && totalCost >= ctx.taskCostCeilingUsd) {
+        throw new PlexoError(
+            `Task cost ceiling reached: $${totalCost.toFixed(4)} >= $${ctx.taskCostCeilingUsd.toFixed(4)}`,
+            'TASK_COST_CEILING',
+            'system',
+            429,
+        )
+    }
+
+    // Workspace weekly ceiling check
     if (totalCost > (Number(process.env.API_COST_CEILING_USD) || 10)) {
         throw new PlexoError(
-            `Cost ceiling reached: $${totalCost.toFixed(4)}`,
+            `Workspace weekly cost ceiling reached: $${totalCost.toFixed(4)}`,
             'COST_CEILING_REACHED',
             'system',
             429,

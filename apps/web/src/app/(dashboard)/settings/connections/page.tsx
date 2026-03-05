@@ -22,6 +22,10 @@ import {
     LayoutDashboard,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
+import type { FilterDimension } from '@web/components/list-toolbar'
+
+const FILTER_KEYS = ['category', 'status'] as const
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -107,9 +111,10 @@ export default function IntegrationsPage() {
     const [registry, setRegistry] = useState<RegistryItem[]>([])
     const [installed, setInstalled] = useState<InstalledConnection[]>([])
     const [selected, setSelected] = useState<RegistryItem | null>(null)
-    const [category, setCategory] = useState('All')
-    const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(true)
+
+    const lf = useListFilter(FILTER_KEYS, 'default')
+    const { search, filterValues, clearAll } = lf
     const [installing, setInstalling] = useState(false)
     const [disconnecting, setDisconnecting] = useState(false)
     const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
@@ -121,8 +126,8 @@ export default function IntegrationsPage() {
         setLoading(true)
         try {
             const [regRes, instRes] = await Promise.all([
-                fetch(`${API_BASE}/api/connections/registry`),
-                WS_ID ? fetch(`${API_BASE}/api/connections/installed?workspaceId=${WS_ID}`) : Promise.resolve(null),
+                fetch(`${API_BASE}/api/v1/connections/registry`),
+                WS_ID ? fetch(`${API_BASE}/api/v1/connections/installed?workspaceId=${WS_ID}`) : Promise.resolve(null),
             ])
             if (regRes.ok) {
                 const d = await regRes.json() as { items: RegistryItem[] }
@@ -167,7 +172,7 @@ export default function IntegrationsPage() {
         // null means all enabled — normalise back if all are checked
         const payload: string[] | null = next.length === allTools.length ? null : next
         try {
-            await fetch(`${API_BASE}/api/connections/installed/${connectedItem.id}/tools`, {
+            await fetch(`${API_BASE}/api/v1/connections/installed/${connectedItem.id}/tools`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID, enabledTools: payload }),
@@ -185,7 +190,7 @@ export default function IntegrationsPage() {
 
         // OAuth2 providers: open a popup to the provider OAuth start URL
         if (selected.authType === 'oauth2') {
-            const oauthUrl = `${API_BASE}/api/oauth/${selected.id}/start?workspaceId=${WS_ID}`
+            const oauthUrl = `${API_BASE}/api/v1/oauth/${selected.id}/start?workspaceId=${WS_ID}`
             const popup = window.open(oauthUrl, 'plexo_oauth', 'width=600,height=700,left=200,top=100')
             if (!popup) {
                 setError('Popup blocked — please allow popups for this site.')
@@ -224,7 +229,7 @@ export default function IntegrationsPage() {
         // API key / webhook: send credentials directly
         setInstalling(true)
         try {
-            const res = await fetch(`${API_BASE}/api/connections/install`, {
+            const res = await fetch(`${API_BASE}/api/v1/connections/install`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -250,7 +255,7 @@ export default function IntegrationsPage() {
         if (!connectedItem || !WS_ID) return
         setDisconnecting(true)
         try {
-            await fetch(`${API_BASE}/api/connections/installed/${connectedItem.id}?workspaceId=${WS_ID}`, {
+            await fetch(`${API_BASE}/api/v1/connections/installed/${connectedItem.id}?workspaceId=${WS_ID}`, {
                 method: 'DELETE',
             })
             setInstalled((prev) => prev.filter((i) => i.id !== connectedItem.id))
@@ -261,20 +266,50 @@ export default function IntegrationsPage() {
     }
 
     const filtered = registry.filter((r) => {
-        const matchCat = category === 'All' || r.category.toLowerCase() === category.toLowerCase()
+        const matchCat = !filterValues.category || filterValues.category === 'all' || r.category.toLowerCase() === filterValues.category.toLowerCase()
+        const matchStatus = (() => {
+            if (!filterValues.status) return true
+            const isInstalled = installed.some((i) => i.registryId === r.id)
+            if (filterValues.status === 'connected') return isInstalled
+            if (filterValues.status === 'unconnected') return !isInstalled
+            return true
+        })()
         const matchSearch = !search ||
             r.name.toLowerCase().includes(search.toLowerCase()) ||
             r.description.toLowerCase().includes(search.toLowerCase()) ||
             r.category.toLowerCase().includes(search.toLowerCase())
-        return matchCat && matchSearch
+        return matchCat && matchStatus && matchSearch
     })
 
     // Connected items first, then alphabetical
     const sorted = [...filtered].sort((a, b) => {
+        if (lf.sort === 'name_asc') return a.name.localeCompare(b.name)
+        if (lf.sort === 'name_desc') return b.name.localeCompare(a.name)
+
         const aConnected = installed.some((i) => i.registryId === a.id) ? 0 : 1
         const bConnected = installed.some((i) => i.registryId === b.id) ? 0 : 1
         return aConnected - bConnected || a.name.localeCompare(b.name)
     })
+
+    const dimensions: FilterDimension[] = [
+        {
+            key: 'category',
+            label: 'Category',
+            options: ALL_CATEGORIES.slice(1).map((cat) => ({
+                value: cat.toLowerCase(),
+                label: cat,
+                dimmed: !registry.some(r => r.category.toLowerCase() === cat.toLowerCase())
+            }))
+        },
+        {
+            key: 'status',
+            label: 'Status',
+            options: [
+                { value: 'connected', label: 'Connected', dimmed: installed.length === 0 },
+                { value: 'unconnected', label: 'Unconnected', dimmed: installed.length === registry.length },
+            ]
+        }
+    ]
 
     return (
         <div className="flex flex-col gap-4 h-full">
@@ -293,39 +328,22 @@ export default function IntegrationsPage() {
                 </div>
             )}
 
-            {/* Category tabs */}
-            <div className="flex gap-1 flex-wrap">
-                {ALL_CATEGORIES.map((cat) => (
-                    <button
-                        key={cat}
-                        onClick={() => setCategory(cat)}
-                        className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${category === cat
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-                            }`}
-                    >
-                        {cat}
-                    </button>
-                ))}
-            </div>
+            <ListToolbar
+                hook={lf}
+                placeholder="Search connections…"
+                dimensions={dimensions}
+                sortOptions={[
+                    { label: 'Priority (Connected first)', value: 'default' },
+                    { label: 'Name (A-Z)', value: 'name_asc' },
+                    { label: 'Name (Z-A)', value: 'name_desc' },
+                ]}
+            />
 
             {/* Two-panel layout */}
-            <div className="flex gap-4 flex-1 min-h-0">
+            <div className="flex gap-4 flex-1 min-h-0 pt-2">
 
                 {/* Left panel — list */}
                 <div className="w-[260px] shrink-0 flex flex-col gap-2">
-                    {/* Search */}
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600" />
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search…"
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 pl-8 pr-3 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-700 focus:border-indigo-500 focus:outline-none"
-                        />
-                    </div>
-
                     {/* List */}
                     <div className="flex-1 overflow-y-auto flex flex-col gap-1">
                         {loading ? (

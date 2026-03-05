@@ -14,8 +14,16 @@ import {
     DollarSign,
     TrendingUp,
     ExternalLink,
+    Code2,
+    Search,
+    PenLine,
+    Server,
+    BarChart2,
+    Megaphone,
+    Sparkles,
 } from 'lucide-react'
 import Link from 'next/link'
+import { getCategoryDef } from '@web/lib/project-categories'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,7 +43,8 @@ interface SprintTaskItem {
 interface SprintDetail {
     sprint: {
         id: string
-        repo: string
+        repo: string | null
+        category: string
         request: string
         status: string
         totalTasks: number
@@ -127,6 +136,21 @@ function WorkerCard({ task }: { task: SprintTaskItem }) {
     )
 }
 
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+    Code2, Search, PenLine, Server, BarChart2, Megaphone, Sparkles,
+}
+
+function CategoryBadge({ category }: { category: string }) {
+    const def = getCategoryDef(category)
+    const Icon = CATEGORY_ICONS[def.icon] ?? Sparkles
+    return (
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ring-zinc-700/60 bg-zinc-800/60 text-zinc-400">
+            <Icon className="h-2.5 w-2.5" />
+            {def.label}
+        </span>
+    )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function SprintControlRoom() {
@@ -143,7 +167,7 @@ export default function SprintControlRoom() {
 
     const fetchData = useCallback(async () => {
         try {
-            const res = await fetch(`${API}/api/sprints/${sprintId}/tasks`, { cache: 'no-store' })
+            const res = await fetch(`${API}/api/v1/sprints/${sprintId}/tasks`, { cache: 'no-store' })
             if (res.status === 404) { setNotFound(true); return }
             if (!res.ok) return
             const d = await res.json() as SprintDetail
@@ -182,12 +206,12 @@ export default function SprintControlRoom() {
 
     // SSE for live task updates
     useEffect(() => {
-        const es = new EventSource(`${API}/api/sse?workspaceId=sprint-${sprintId}`)
+        const es = new EventSource(`${API}/api/v1/sse?workspaceId=sprint-${sprintId}`)
         esRef.current = es
         es.onmessage = (e) => {
             try {
                 const ev = JSON.parse(e.data as string) as { type: string }
-                if (ev.type === 'sprint:update' || ev.type === 'task:update') void fetchData()
+                if (ev.type.startsWith('sprint_') || ev.type.startsWith('task_')) void fetchData()
             } catch { /* ignore */ }
         }
         es.onerror = () => { es.close(); esRef.current = null }
@@ -204,13 +228,15 @@ export default function SprintControlRoom() {
     if (notFound) return (
         <div className="flex flex-col items-center gap-4 py-16">
             <p className="text-zinc-400">Sprint not found</p>
-            <Link href="/sprints" className="text-sm text-indigo-400 hover:text-indigo-300">← Back to Projects</Link>
+            <Link href="/projects" className="text-sm text-indigo-400 hover:text-indigo-300">← Back to Projects</Link>
         </div>
     )
 
     if (!data) return null
 
     const { sprint, tasks } = data
+    const def = getCategoryDef(sprint.category ?? 'code')
+    const isCode = sprint.category === 'code' || !sprint.category
     const progressPct = sprint.totalTasks > 0
         ? Math.round((sprint.completedTasks / sprint.totalTasks) * 100)
         : 0
@@ -235,16 +261,21 @@ export default function SprintControlRoom() {
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => router.push('/sprints')}
+                            onClick={() => router.push('/projects')}
                             className="text-zinc-500 hover:text-zinc-300 transition-colors"
                             aria-label="Back"
                         >
                             <ArrowLeft className="h-4 w-4" />
                         </button>
-                        <h1 className="text-xl font-bold text-zinc-50">Sprint Control Room</h1>
+                        <h1 className="text-xl font-bold text-zinc-50">
+                            {def.runLabel} Control Room
+                        </h1>
                         <StatusBadge status={sprint.status} />
+                        <CategoryBadge category={sprint.category ?? 'code'} />
                     </div>
-                    <p className="pl-6 text-sm font-mono text-zinc-500">{sprint.repo}</p>
+                    {isCode && sprint.repo && (
+                        <p className="pl-6 text-sm font-mono text-zinc-500">{sprint.repo}</p>
+                    )}
                 </div>
                 <button
                     onClick={() => void fetchData()}
@@ -323,16 +354,16 @@ export default function SprintControlRoom() {
             <div className="flex flex-col gap-4">
                 <div className="flex gap-1 border-b border-zinc-800">
                     {([
-                        { id: 'workers', label: `Workers (${tasks.length})` },
-                        { id: 'tasks', label: `All tasks` },
+                        { id: 'workers', label: `${def.unitPlural} (${tasks.length})` },
+                        { id: 'tasks', label: `All ${def.unitPlural.toLowerCase()}` },
                         { id: 'features', label: `Delivered (${sprint.featuresCompleted.length})` },
                     ] as const).map(({ id, label }) => (
                         <button
                             key={id}
                             onClick={() => setTab(id)}
                             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === id
-                                    ? 'border-indigo-500 text-zinc-100'
-                                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                                ? 'border-indigo-500 text-zinc-100'
+                                : 'border-transparent text-zinc-500 hover:text-zinc-300'
                                 }`}
                         >{label}</button>
                     ))}
@@ -341,7 +372,7 @@ export default function SprintControlRoom() {
                 {tab === 'workers' && (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {tasks.length === 0 ? (
-                            <p className="col-span-full text-center py-8 text-sm text-zinc-600">No tasks yet — sprint is planning.</p>
+                            <p className="col-span-full text-center py-8 text-sm text-zinc-600">No {def.unitPlural.toLowerCase()} yet — project is planning.</p>
                         ) : (
                             tasks.map((t) => <WorkerCard key={t.id} task={t} />)
                         )}
@@ -357,10 +388,10 @@ export default function SprintControlRoom() {
                                 <thead>
                                     <tr className="border-b border-zinc-800 text-left">
                                         <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">#</th>
-                                        <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">Task</th>
-                                        <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">Branch</th>
+                                        <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">{def.unitSingular}</th>
+                                        {isCode && <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">Branch</th>}
                                         <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">Status</th>
-                                        <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">PR</th>
+                                        {isCode && <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">PR</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-zinc-800/50">
@@ -375,22 +406,26 @@ export default function SprintControlRoom() {
                                                     ))}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-2.5 font-mono text-[11px] text-zinc-500 max-w-[140px]">
-                                                <span className="truncate block">{t.branch}</span>
-                                            </td>
+                                            {isCode && (
+                                                <td className="px-4 py-2.5 font-mono text-[11px] text-zinc-500 max-w-[140px]">
+                                                    <span className="truncate block">{t.branch}</span>
+                                                </td>
+                                            )}
                                             <td className="px-4 py-2.5"><StatusBadge status={t.status} /></td>
-                                            <td className="px-4 py-2.5">
-                                                {t.handoff?.prUrl ? (
-                                                    <a
-                                                        href={t.handoff.prUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
-                                                    >
-                                                        #{t.handoff.prNumber} <ExternalLink className="h-3 w-3" />
-                                                    </a>
-                                                ) : <span className="text-zinc-700">—</span>}
-                                            </td>
+                                            {isCode && (
+                                                <td className="px-4 py-2.5">
+                                                    {t.handoff?.prUrl ? (
+                                                        <a
+                                                            href={t.handoff.prUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                                                        >
+                                                            #{t.handoff.prNumber} <ExternalLink className="h-3 w-3" />
+                                                        </a>
+                                                    ) : <span className="text-zinc-700">—</span>}
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>

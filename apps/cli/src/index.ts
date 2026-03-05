@@ -6,6 +6,7 @@
  * PLEXO_HOST / PLEXO_TOKEN / PLEXO_WORKSPACE env vars for CI/CD
  */
 import { Command } from 'commander'
+import pkg from '../package.json' with { type: 'json' }
 import { registerAuth } from './commands/auth.js'
 import { registerTask } from './commands/task.js'
 import { registerSprint } from './commands/sprint.js'
@@ -20,7 +21,7 @@ import { registerConfig } from './commands/config.js'
 const program = new Command()
     .name('plexo')
     .description('Plexo CLI — control your AI agent from the terminal')
-    .version('1.0.0')
+    .version(pkg.version)
     .option('--profile <name>', 'Config profile to use')
     .option('--verbose', 'Show request/response details')
     .option('--quiet', 'Suppress all output except errors and final result')
