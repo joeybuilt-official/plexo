@@ -1,8 +1,8 @@
 import { Router, type Router as RouterType } from 'express'
 import bcrypt from 'bcrypt'
 import { z } from 'zod'
-import { db, eq } from '@plexo/db'
-import { users, workspaces } from '@plexo/db'
+import { db, eq, sql } from '@plexo/db'
+import { users } from '@plexo/db'
 import { logger } from '../logger.js'
 
 export const authRouter: RouterType = Router()
@@ -14,11 +14,21 @@ const RegisterSchema = z.object({
 })
 
 // POST /api/auth/register
+// Open only when no users exist (first-run); closed thereafter.
 authRouter.post('/register', async (req, res) => {
     const parse = RegisterSchema.safeParse(req.body)
     if (!parse.success) {
         res.status(400).json({
             error: { code: 'VALIDATION_ERROR', issues: parse.error.issues },
+        })
+        return
+    }
+
+    // First-run gate: only allow registration when no users exist yet
+    const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(users)
+    if (Number(count) > 0) {
+        res.status(403).json({
+            error: { code: 'REGISTRATION_CLOSED', message: 'Registration is closed. Contact your administrator.' },
         })
         return
     }
@@ -37,7 +47,7 @@ authRouter.post('/register', async (req, res) => {
         email,
         name,
         passwordHash,
-        role: 'member',
+        role: 'admin',  // first user is always admin
     }).returning({ id: users.id, email: users.email })
 
     const user = inserted[0]
@@ -46,15 +56,15 @@ authRouter.post('/register', async (req, res) => {
         return
     }
 
-    // Create default workspace for the new user
-    await db.insert(workspaces).values({
-        name: `${name}'s workspace`,
-        ownerId: user.id,
-        settings: {},
-    })
-
-    logger.info({ userId: user.id }, 'User registered')
+    logger.info({ userId: user.id }, 'First user registered (admin)')
     res.status(201).json({ id: user.id, email: user.email })
+})
+
+// GET /api/auth/setup-status — returns whether initial setup is needed
+authRouter.get('/setup-status', async (_req, res) => {
+    const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(users)
+    const needsSetup = Number(count) === 0
+    res.json({ needsSetup })
 })
 
 // POST /api/auth/verify-password — used by Auth.js credentials provider
