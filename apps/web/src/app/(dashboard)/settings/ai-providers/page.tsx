@@ -55,6 +55,7 @@ interface ProviderState {
     oauthToken: string        // Claude.ai subscription token (sk-ant-oat01-*)
     baseUrl: string
     selectedModel: string
+    dynamicModels: string[]   // fetched from local provider (e.g. Ollama /api/tags)
     status: ProviderStatus
     testResult: string | null
 }
@@ -181,10 +182,11 @@ export default function AIProvidersPage() {
                 oauthToken: '',
                 baseUrl: p.key === 'ollama' ? 'http://localhost:11434' : '',
                 selectedModel: '',
+                dynamicModels: [] as string[],
                 status: 'unconfigured' as ProviderStatus,
                 testResult: null,
             }])
-        ) as Record<ProviderKey, ProviderState>
+        ) as unknown as Record<ProviderKey, ProviderState>
     )
     const [testing, setTesting] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -335,6 +337,21 @@ export default function AIProvidersPage() {
                     ...(data.model ? { selectedModel: data.model } : {}),
                 }
                 updateState(selectedProvider, patch)
+                // For Ollama: also fetch the model list so the dropdown is populated
+                if (selectedProvider === 'ollama') {
+                    try {
+                        const modelsRes = await fetch(`${API_BASE}/api/settings/ai-providers/models?provider=ollama&baseUrl=${encodeURIComponent(state.baseUrl || 'http://localhost:11434')}`)
+                        if (modelsRes.ok) {
+                            const modelsData = await modelsRes.json() as { ok: boolean; models?: string[] }
+                            if (modelsData.ok && modelsData.models?.length) {
+                                const firstModel = modelsData.models[0]!
+                                patch.dynamicModels = modelsData.models
+                                if (!patch.selectedModel) patch.selectedModel = firstModel
+                                updateState(selectedProvider, { dynamicModels: modelsData.models, selectedModel: patch.selectedModel })
+                            }
+                        }
+                    } catch { /* non-fatal */ }
+                }
                 // Auto-save with the new state explicitly — avoids React setState timing issue
                 await handleSave({ [selectedProvider]: patch } as Partial<Record<ProviderKey, Partial<ProviderState>>>)
             } else {
@@ -629,8 +646,8 @@ export default function AIProvidersPage() {
                             </div>
                         )}
 
-                        {/* Model selector (static list) */}
-                        {selected.staticModels && (
+                        {/* Model selector — static list for cloud providers, dynamic for local */}
+                        {(selected.staticModels || state.dynamicModels.length > 0) && (
                             <div className="flex flex-col gap-1.5">
                                 <label className="text-sm font-medium text-zinc-300">Default model</label>
                                 <select
@@ -639,10 +656,13 @@ export default function AIProvidersPage() {
                                     className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
                                 >
                                     <option value="">Use task routing defaults</option>
-                                    {selected.staticModels.map((m) => (
+                                    {(selected.staticModels ?? state.dynamicModels).map((m) => (
                                         <option key={m} value={m}>{m}</option>
                                     ))}
                                 </select>
+                                {state.dynamicModels.length > 0 && !selected.staticModels && (
+                                    <p className="text-xs text-zinc-600">{state.dynamicModels.length} models available from your Ollama instance.</p>
+                                )}
                             </div>
                         )}
 

@@ -127,18 +127,23 @@ async function loadWorkspaceAISettings(workspaceId: string): Promise<{
         const baseUrl = p.baseUrl as string | undefined
         const status = p.status as string | undefined
 
+        // Basic validity checks — expired OAuth tokens look valid but aren't.
+        // A token with spaces, wrong prefix, or under 20 chars is rejected so we fall through.
+        const isValidOAuthToken = (t: string) => t.startsWith('sk-ant-oat') && t.length > 20 && !t.includes(' ')
+        const isValidApiKey = (k: string) => k !== 'placeholder' && k.length > 10 && !k.includes(' ')
+
         if (providerKey === 'anthropic') {
-            if (oauthToken) {
+            if (oauthToken && isValidOAuthToken(oauthToken)) {
                 logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ anthropic OAuth token found')
                 return withPrimary('anthropic', { type: 'api_key', apiKey: oauthToken })
             }
-            if (apiKey && apiKey !== 'placeholder') {
+            if (apiKey && isValidApiKey(apiKey)) {
                 logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ anthropic API key found')
                 return withPrimary('anthropic', { type: 'api_key', apiKey })
             }
-            logger.debug({ workspaceId, providerKey, status }, 'ai-cred: anthropic — no key/token, skip')
+            logger.debug({ workspaceId, providerKey, status, hasOAuth: !!oauthToken, hasKey: !!apiKey }, 'ai-cred: anthropic — no valid key/token, skip')
         } else {
-            if (apiKey && apiKey !== 'placeholder') {
+            if (apiKey && isValidApiKey(apiKey)) {
                 logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ API key found')
                 return withPrimary(providerKey, { type: 'api_key', apiKey })
             }

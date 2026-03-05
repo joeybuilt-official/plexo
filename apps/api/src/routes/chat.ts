@@ -106,12 +106,20 @@ chatRouter.get('/reply/:taskId', async (req, res) => {
             }
 
             if (task.status === 'cancelled' || task.status === 'blocked') {
+                // Use the actual block/cancel reason so users see the real error,
+                // not the generic "not configured" message which is misleading for
+                // auth failures, execution errors, etc.
+                const blockReason = (task as Record<string, unknown>).blockedReason as string | undefined
+                    ?? (task as Record<string, unknown>).outcomeSummary as string | undefined
+                const isNoCredential = !blockReason || blockReason.toLowerCase().includes('credential') || blockReason.toLowerCase().includes('no ai')
                 res.json({
                     taskId,
                     status: task.status,
                     reply: task.status === 'blocked'
-                        ? 'Agent is not configured yet. Please set up an AI provider in Settings.'
-                        : 'Task could not be completed. Please try again.',
+                        ? isNoCredential
+                            ? 'No AI provider configured. Add your API key in Settings → AI Providers.'
+                            : `Agent encountered an error: ${blockReason}`
+                        : 'Task cancelled.',
                 })
                 return
             }
