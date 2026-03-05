@@ -125,6 +125,25 @@ chatRouter.post('/message', async (req, res) => {
                 if (history.length > 20) history.splice(0, history.length - 20)
                 sessionHistory.set(sid, history)
 
+                // Persist as a completed task so it appears in Conversations
+                const chatTaskId = ulid()
+                await db.insert(tasks).values({
+                    id: chatTaskId,
+                    workspaceId,
+                    type: 'online',
+                    status: 'complete',
+                    priority: 1,
+                    source: 'dashboard',
+                    context: {
+                        message: trimmedMsg,
+                        reply: replyText,
+                        sessionId: sid,
+                        channel: 'webchat',
+                    },
+                    outcomeSummary: replyText,
+                    completedAt: new Date(),
+                })
+
                 res.json({ status: 'complete', reply: replyText })
             } catch (err) {
                 logger.error({ err, workspaceId }, 'Webchat conversational reply failed')
