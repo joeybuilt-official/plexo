@@ -15,10 +15,14 @@ COPY packages/sdk/package.json          packages/sdk/
 
 RUN pnpm install --frozen-lockfile --filter @plexo/api...
 
-# ── Build ─────────────────────────────────────────────────────────────────────
-FROM base AS builder
+# ── Runtime image ─────────────────────────────────────────────────────────────
+FROM base AS runner
 WORKDIR /app
 
+RUN addgroup --system --gid 1001 plexo && \
+    adduser  --system --uid 1001 --ingroup plexo plexo
+
+# Workspace manifests (needed for pnpm workspace resolution)
 COPY --from=deps /app/node_modules              ./node_modules
 COPY --from=deps /app/apps/api/node_modules     ./apps/api/node_modules
 COPY --from=deps /app/packages/agent/node_modules  ./packages/agent/node_modules
@@ -26,6 +30,7 @@ COPY --from=deps /app/packages/db/node_modules     ./packages/db/node_modules
 COPY --from=deps /app/packages/queue/node_modules  ./packages/queue/node_modules
 COPY --from=deps /app/packages/sdk/node_modules    ./packages/sdk/node_modules
 
+# Source files
 COPY tsconfig.base.json ./
 COPY apps/api        ./apps/api
 COPY packages/agent  ./packages/agent
@@ -33,29 +38,13 @@ COPY packages/db     ./packages/db
 COPY packages/queue  ./packages/queue
 COPY packages/sdk    ./packages/sdk
 
-RUN pnpm --filter @plexo/db build
-RUN pnpm --filter @plexo/queue build
-RUN pnpm --filter @plexo/sdk build
-RUN pnpm --filter @plexo/agent build
-RUN pnpm --filter @plexo/api build
-
-# ── Runtime image ─────────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
-WORKDIR /app
-
-RUN addgroup --system --gid 1001 plexo && \
-    adduser  --system --uid 1001 --ingroup plexo plexo
-
-# Runtime code — only what the process needs
-COPY --from=builder --chown=plexo:plexo /app/apps/api/dist         ./dist
-COPY --from=builder --chown=plexo:plexo /app/node_modules          ./node_modules
-COPY --from=builder --chown=plexo:plexo /app/apps/api/package.json ./package.json
-
 # Drizzle migrations — run via migrate service (compose.yml) before api starts
-COPY --from=builder --chown=plexo:plexo /app/packages/db/drizzle   ./drizzle
-COPY --chown=plexo:plexo docker/migrate.sh /migrate.sh
+COPY docker/migrate.sh /migrate.sh
 RUN chmod +x /migrate.sh
+
+RUN chown -R plexo:plexo /app
 
 USER plexo
 EXPOSE 3001
-CMD ["node", "dist/index.js"]
+
+CMD ["node", "--import", "tsx/esm", "apps/api/src/index.ts"]
