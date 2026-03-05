@@ -57,7 +57,9 @@ async function loadWorkspaceAISettings(workspaceId: string): Promise<{
                     Object.entries(providers).map(([k, v]) => [k, {
                         provider: k as ProviderKey,
                         apiKey: (v as any).apiKey,
+                        oauthToken: (v as any).oauthToken,
                         baseUrl: (v as any).baseUrl,
+                        status: (v as any).status,
                         // frontend saves as 'selectedModel' not 'defaultModel'
                         model: (v as any).selectedModel ?? (v as any).defaultModel,
                     }])
@@ -74,17 +76,25 @@ async function loadWorkspaceAISettings(workspaceId: string): Promise<{
         return { credential: { type: 'api_key', apiKey: envKey }, aiSettings }
     }
 
-    // 2. Walk the fallback chain — any provider with a configured key unblocks execution
+    // 2. Walk the fallback chain — first usable provider unblocks execution
     const chain = [aiSettings?.primaryProvider, ...(aiSettings?.fallbackChain ?? [])].filter(Boolean) as string[]
     for (const providerKey of chain) {
-        const p = providers[providerKey]
+        const p = providers[providerKey] as Record<string, unknown> | undefined
         if (!p) continue
+        const apiKey = p.apiKey as string | undefined
+        const oauthToken = p.oauthToken as string | undefined
+        const baseUrl = p.baseUrl as string | undefined
+        const status = p.status as string | undefined
+
         if (providerKey === 'anthropic') {
-            if (p.oauthToken) return { credential: { type: 'api_key', apiKey: p.oauthToken }, aiSettings }
-            if (p.apiKey && p.apiKey !== 'placeholder') return { credential: { type: 'api_key', apiKey: p.apiKey }, aiSettings }
-        } else if (p.apiKey && p.apiKey !== 'placeholder') {
-            // Non-Anthropic key — credential acts as a gate sentinel; withFallback() in the executor picks the actual model
-            return { credential: { type: 'api_key', apiKey: p.apiKey }, aiSettings }
+            if (oauthToken) return { credential: { type: 'api_key', apiKey: oauthToken }, aiSettings }
+            if (apiKey && apiKey !== 'placeholder') return { credential: { type: 'api_key', apiKey }, aiSettings }
+        } else if (apiKey && apiKey !== 'placeholder') {
+            // Keyed provider — credential is the gate sentinel; withFallback() picks the actual model
+            return { credential: { type: 'api_key', apiKey }, aiSettings }
+        } else if (status === 'configured' || baseUrl) {
+            // Keyless provider (Ollama, local) — configured via baseUrl, no key needed
+            return { credential: { type: 'api_key', apiKey: 'local' }, aiSettings }
         }
     }
 
