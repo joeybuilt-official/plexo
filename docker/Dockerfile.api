@@ -40,6 +40,7 @@ COPY packages/sdk    ./packages/sdk
 
 # Drizzle migrations — run via migrate service (compose.yml) before api starts
 COPY docker/migrate.sh /migrate.sh
+COPY docker/migrate.mjs /app/migrate.mjs
 RUN chmod +x /migrate.sh
 
 RUN chown -R plexo:plexo /app
