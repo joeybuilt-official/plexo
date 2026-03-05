@@ -38,3 +38,23 @@ aiProvidersRouter.post('/test', async (req, res) => {
         res.json({ ok: false, message, latencyMs: 0, model: model ?? '' })
     }
 })
+
+/** GET /api/settings/ai-providers/models?provider=ollama&baseUrl=... */
+aiProvidersRouter.get('/models', async (req, res) => {
+    const { provider, baseUrl } = req.query as { provider?: string; baseUrl?: string }
+    if (provider !== 'ollama') {
+        res.status(400).json({ ok: false, message: 'Only ollama supports dynamic model listing' })
+        return
+    }
+    const base = (baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '')
+    try {
+        const r = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(5000) })
+        if (!r.ok) { res.status(502).json({ ok: false, message: `Ollama returned ${r.status}` }); return }
+        const data = await r.json() as { models?: { name: string }[] }
+        const models = (data.models ?? []).map((m) => m.name)
+        res.json({ ok: true, models })
+    } catch (err) {
+        const message = err instanceof Error ? err.message.slice(0, 200) : 'Failed to list models'
+        res.json({ ok: false, models: [], message })
+    }
+})

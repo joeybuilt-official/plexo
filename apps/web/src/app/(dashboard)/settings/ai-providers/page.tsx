@@ -258,8 +258,8 @@ export default function AIProvidersPage() {
                 setLoadError('Could not load saved provider config')
             }
         })()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+        // WS_ID is async from useWorkspace() — run again when it resolves
+    }, [WS_ID])
 
     const selected = PROVIDERS.find((p) => p.key === selectedProvider)!
     const state = providerStates[selectedProvider]
@@ -578,6 +578,7 @@ export default function AIProvidersPage() {
                                         type="password"
                                         value={state.apiKey}
                                         onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
+                                        onKeyDown={(e) => e.key === 'Enter' && void handleSave()}
                                         placeholder={selected.supportsOAuth ? 'sk-ant-api03-•••••••• (permanent API key)' : 'sk-••••••••'}
                                         autoComplete="new-password"
                                         className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
@@ -600,6 +601,7 @@ export default function AIProvidersPage() {
                                             type="password"
                                             value={state.oauthToken}
                                             onChange={(e) => updateState(selectedProvider, { oauthToken: e.target.value })}
+                                            onKeyDown={(e) => e.key === 'Enter' && void handleSave()}
                                             placeholder="sk-ant-oat01-•••••••• (if not using the button above)"
                                             autoComplete="new-password"
                                             className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
@@ -618,6 +620,7 @@ export default function AIProvidersPage() {
                                     type="text"
                                     value={state.baseUrl}
                                     onChange={(e) => updateState(selectedProvider, { baseUrl: e.target.value })}
+                                    onKeyDown={(e) => e.key === 'Enter' && void handleSave()}
                                     placeholder="http://localhost:11434"
                                     className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
                                 />
