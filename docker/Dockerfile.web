@@ -26,4 +26,5 @@ COPY --from=builder --chown=plexo:plexo /app/apps/web/.next/static ./apps/web/.n
 COPY --from=builder --chown=plexo:plexo /app/apps/web/public ./apps/web/public
 USER plexo
 EXPOSE 3000
+ENV HOSTNAME=0.0.0.0
 CMD ["node", "apps/web/server.js"]
