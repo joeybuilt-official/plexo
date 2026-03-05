@@ -25,87 +25,136 @@ async function loadWorkspaceAISettings(workspaceId: string): Promise<{
     credential: AnthropicCredential | null
     aiSettings: WorkspaceAISettings | null
 }> {
-    if (!workspaceId) return { credential: null, aiSettings: null }
+    if (!workspaceId) {
+        logger.warn('loadWorkspaceAISettings called with no workspaceId')
+        return { credential: null, aiSettings: null }
+    }
 
     let aiSettings: WorkspaceAISettings | null = null
-    let providers: Record<string, { apiKey?: string; oauthToken?: string; baseUrl?: string; defaultModel?: string }> = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let rawProviders: Record<string, any> = {}
 
     try {
         const [ws] = await db.select({ settings: workspaces.settings })
             .from(workspaces)
             .where(eq(workspaces.id, workspaceId))
             .limit(1)
-        const s = ws?.settings as {
-            aiProviders?: {
-                primaryProvider?: string
-                fallbackChain?: string[]
-                providers?: Record<string, { apiKey?: string; oauthToken?: string; baseUrl?: string; defaultModel?: string }>
-            }
-        } | null
-        if (s?.aiProviders) {
-            const ap = s.aiProviders as Record<string, unknown> & {
-                providers?: Record<string, { apiKey?: string; oauthToken?: string; baseUrl?: string; selectedModel?: string; defaultModel?: string }>
-            }
-            providers = (ap.providers ?? {}) as typeof providers
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const s = ws?.settings as any
+        const ap = s?.aiProviders
+
+        if (!ap) {
+            logger.warn({ workspaceId }, 'ai-cred: no aiProviders in workspace settings — never saved?')
+        } else {
+            rawProviders = ap.providers ?? {}
+            const providerKeys = Object.keys(rawProviders)
+            // Log what's actually in the DB without exposing key values
+            const providerSummary = Object.fromEntries(
+                providerKeys.map((k) => {
+                    const p = rawProviders[k]
+                    return [k, {
+                        status: p.status ?? 'missing',
+                        hasApiKey: !!(p.apiKey),
+                        hasOAuthToken: !!(p.oauthToken),
+                        hasBaseUrl: !!(p.baseUrl),
+                        selectedModel: p.selectedModel ?? p.defaultModel ?? null,
+                    }]
+                })
+            )
+            logger.info({
+                workspaceId,
+                primary: ap.primary ?? ap.primaryProvider ?? '(none)',
+                fallbackOrder: ap.fallbackOrder ?? ap.fallbackChain ?? [],
+                providers: providerSummary,
+            }, 'ai-cred: workspace AI settings loaded from DB')
+
             aiSettings = {
-                // frontend saves as 'primary' not 'primaryProvider'
-                primaryProvider: ((ap.primary ?? ap.primaryProvider) as ProviderKey | undefined ?? 'anthropic'),
-                // frontend saves as 'fallbackOrder' not 'fallbackChain'
-                fallbackChain: ((ap.fallbackOrder ?? ap.fallbackChain) as ProviderKey[] | undefined ?? []),
+                primaryProvider: (ap.primary ?? ap.primaryProvider ?? 'anthropic') as ProviderKey,
+                fallbackChain: (ap.fallbackOrder ?? ap.fallbackChain ?? []) as ProviderKey[],
                 providers: Object.fromEntries(
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- provider config shape varies between frontend save and internal type
-                    Object.entries(providers).map(([k, v]) => [k, {
-                        provider: k as ProviderKey,
-                        apiKey: (v as any).apiKey,
-                        oauthToken: (v as any).oauthToken,
-                        baseUrl: (v as any).baseUrl,
-                        status: (v as any).status,
-                        // frontend saves as 'selectedModel' not 'defaultModel'
-                        model: (v as any).selectedModel ?? (v as any).defaultModel,
-                    }])
+                    providerKeys.map((k) => {
+                        const p = rawProviders[k]
+                        return [k, {
+                            provider: k as ProviderKey,
+                            apiKey: p.apiKey,
+                            oauthToken: p.oauthToken,
+                            baseUrl: p.baseUrl,
+                            status: p.status,
+                            model: p.selectedModel ?? p.defaultModel,
+                        }]
+                    })
                 ) as WorkspaceAISettings['providers'],
             }
         }
     } catch (err) {
-        logger.warn({ err }, 'Failed to load workspace AI settings')
+        logger.error({ err, workspaceId }, 'ai-cred: failed to load workspace settings from DB')
     }
 
-    // 1. Env var override (Anthropic direct key only)
+    // 1. Env var override (Anthropic direct key only, not OAuth tokens)
     const envKey = process.env.ANTHROPIC_API_KEY
     if (envKey && envKey !== 'placeholder' && !envKey.startsWith('sk-ant-oat')) {
+        logger.info({ workspaceId }, 'ai-cred: using ANTHROPIC_API_KEY env var override')
         return { credential: { type: 'api_key', apiKey: envKey }, aiSettings }
     }
 
-    // 2. Walk the fallback chain — first usable provider unblocks execution
-    const chain = [aiSettings?.primaryProvider, ...(aiSettings?.fallbackChain ?? [])].filter(Boolean) as string[]
+    // 2. Walk the full provider chain — first one with a usable credential wins.
+    //    The credential returned here is just a gate; withFallback() in the executor
+    //    handles picking the actual model per-call.
+    const primaryProvider = aiSettings?.primaryProvider ?? 'anthropic'
+    const fallbackChain = aiSettings?.fallbackChain ?? []
+    const chain = [primaryProvider, ...fallbackChain.filter((p) => p !== primaryProvider)]
+
+    logger.info({ workspaceId, chain }, 'ai-cred: walking provider chain')
+
     for (const providerKey of chain) {
-        const p = providers[providerKey] as Record<string, unknown> | undefined
-        if (!p) continue
+        const p = rawProviders[providerKey]
+        if (!p) {
+            logger.debug({ workspaceId, providerKey }, 'ai-cred: provider not in DB — skip')
+            continue
+        }
+
         const apiKey = p.apiKey as string | undefined
         const oauthToken = p.oauthToken as string | undefined
         const baseUrl = p.baseUrl as string | undefined
         const status = p.status as string | undefined
 
         if (providerKey === 'anthropic') {
-            if (oauthToken) return { credential: { type: 'api_key', apiKey: oauthToken }, aiSettings }
-            if (apiKey && apiKey !== 'placeholder') return { credential: { type: 'api_key', apiKey }, aiSettings }
-        } else if (apiKey && apiKey !== 'placeholder') {
-            // Keyed provider — credential is the gate sentinel; withFallback() picks the actual model
-            return { credential: { type: 'api_key', apiKey }, aiSettings }
-        } else if (status === 'configured' || baseUrl) {
-            // Keyless provider (Ollama, local) — configured via baseUrl, no key needed
-            return { credential: { type: 'api_key', apiKey: 'local' }, aiSettings }
+            if (oauthToken) {
+                logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ anthropic OAuth token found')
+                return { credential: { type: 'api_key', apiKey: oauthToken }, aiSettings }
+            }
+            if (apiKey && apiKey !== 'placeholder') {
+                logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ anthropic API key found')
+                return { credential: { type: 'api_key', apiKey }, aiSettings }
+            }
+            logger.debug({ workspaceId, providerKey, status }, 'ai-cred: anthropic — no key/token, skip')
+        } else {
+            if (apiKey && apiKey !== 'placeholder') {
+                logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ API key found')
+                return { credential: { type: 'api_key', apiKey }, aiSettings }
+            }
+            if (status === 'configured' || baseUrl) {
+                // Keyless local provider (Ollama, etc.)
+                logger.info({ workspaceId, providerKey, baseUrl }, 'ai-cred: ✓ keyless provider (configured/baseUrl)')
+                return { credential: { type: 'api_key', apiKey: 'local' }, aiSettings }
+            }
+            logger.debug({ workspaceId, providerKey, status, hasApiKey: !!apiKey }, 'ai-cred: no usable credential, skip')
         }
     }
 
-    // 3. Installed OAuth token (Claude.ai subscription)
+    // 3. Installed OAuth token from the OAuth flow (fallback for anthropic)
     try {
         const tokens = await getAnthropicTokens(workspaceId)
         if (tokens?.accessToken) {
+            logger.info({ workspaceId }, 'ai-cred: ✓ installed Anthropic OAuth token found')
             return { credential: { type: 'api_key', apiKey: tokens.accessToken }, aiSettings }
         }
-    } catch { /* non-fatal */ }
+    } catch (err) {
+        logger.warn({ err, workspaceId }, 'ai-cred: getAnthropicTokens failed')
+    }
 
+    logger.warn({ workspaceId, chain }, 'ai-cred: ✗ no usable credential found in any provider — task will be blocked')
     return { credential: null, aiSettings }
 }
 
