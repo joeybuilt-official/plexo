@@ -1,4 +1,6 @@
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
+import { db, eq, sql } from '@plexo/db'
+import { modelsKnowledge } from '@plexo/db'
 import { openai, createOpenAI } from '@ai-sdk/openai'
 import { google } from '@ai-sdk/google'
 import { mistral } from '@ai-sdk/mistral'
@@ -226,6 +228,24 @@ export async function withFallback<T>(
             return await fn(model)
         } catch (err) {
             lastError = err
+
+            // Self-calibration logic: Penalize reliability on logic/parse errors
+            if (err instanceof Error) {
+                const msg = err.message.toLowerCase()
+                if (msg.includes('logicerror') || msg.includes('jsonparseerror') || msg.includes('typevalidationerror')) {
+                    const failedModelId = config.model
+                    if (failedModelId) {
+                        try {
+                            await db.update(modelsKnowledge)
+                                .set({ reliabilityScore: sql`GREATEST(0, ${modelsKnowledge.reliabilityScore} - 0.05)` })
+                                .where(eq(modelsKnowledge.modelId, failedModelId))
+                        } catch (dbErr) {
+                            // Log or ignore db errors during calibration
+                        }
+                    }
+                }
+            }
+
             if (!isRetryableProviderError(err)) throw err
         }
     }
@@ -241,7 +261,10 @@ function isRetryableProviderError(err: unknown): boolean {
         msg.includes('503') ||
         msg.includes('529') ||
         msg.includes('overloaded') ||
-        msg.includes('too many requests')
+        msg.includes('too many requests') ||
+        msg.includes('typevalidationerror') ||
+        msg.includes('jsonparseerror') ||
+        msg.includes('logicerror')
     )
 }
 

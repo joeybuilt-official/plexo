@@ -4,7 +4,7 @@ import { db, sql } from '@plexo/db'
 import { taskSteps } from '@plexo/db'
 import { withFallback } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
-import { PlexoError } from '../errors.js'
+import { PlexoError, LogicError } from '../errors.js'
 import { loadConnectionTools } from '../connections/bridge.js'
 import { loadPluginTools } from '../plugins/bridge.js'
 import { assignVariant, recordVariantOutcome } from '../memory/ab-variants.js'
@@ -13,6 +13,7 @@ import { requestApproval, waitForDecision } from '../one-way-door.js'
 
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
+import { judgeQuality } from './quality-judge.js'
 
 // ── Tool dispatcher — Phase 2 stubs ──────────────────────────────────────────
 // Each tool runs locally for now. Phase 3 moves to sandboxed worker containers.
@@ -268,16 +269,55 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
     }
 
     const genResult = await withFallback(settings, 'codeGeneration', async (model) => {
-        return generateText({
-            model,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: userMessage }],
-            tools: allTools,
-            // tokenBudget > 0: cap output tokens. 0 or null = no per-task cap.
-            ...(ctx.tokenBudget && ctx.tokenBudget > 0 ? { maxTokens: ctx.tokenBudget } : {}),
-            stopWhen: stepCountIs(SAFETY_LIMITS.maxConsecutiveToolCalls),
-            abortSignal: ctx.signal,
-        })
+        let messages: any[] = [{ role: 'user', content: userMessage }]
+        let retries = 0
+        let accumulatedUsage = { inputTokens: 0, outputTokens: 0 }
+        let accumulatedSteps: any[] = []
+        let lastResult: any
+
+        while (retries < 3) {
+            const result = await generateText({
+                model,
+                system: systemPrompt,
+                messages,
+                tools: allTools,
+                // tokenBudget > 0: cap output tokens. 0 or null = no per-task cap.
+                ...(ctx.tokenBudget && ctx.tokenBudget > 0 ? { maxTokens: ctx.tokenBudget } : {}),
+                stopWhen: stepCountIs(SAFETY_LIMITS.maxConsecutiveToolCalls),
+                abortSignal: ctx.signal,
+            })
+
+            const inToks = result.usage.inputTokens ?? 0
+            const outToks = result.usage.outputTokens ?? 0
+            accumulatedUsage.inputTokens += inToks
+            accumulatedUsage.outputTokens += outToks
+            accumulatedSteps = accumulatedSteps.concat(result.steps)
+
+            const hasComplete = result.steps.some(s => s.toolCalls.some(tc => tc.toolName === 'task_complete'))
+            if (hasComplete) {
+                lastResult = result
+                break
+            }
+
+            retries++
+            if (retries >= 3) {
+                throw new LogicError('Model failed to complete the task: retry limit exhausted without calling task_complete.')
+            }
+
+            messages = messages.concat(result.response.messages)
+            messages.push({
+                role: 'user',
+                content: 'Evaluator Error: You stopped without finalizing the task. Please reflect on your previous steps and errors, then continue to complete the objective.'
+            })
+        }
+
+        // Return a mock result combining the accumulated usage and steps
+        return {
+            ...lastResult,
+            usage: accumulatedUsage,
+            steps: accumulatedSteps,
+            text: lastResult?.text ?? '',
+        }
     })
 
     // AI SDK v6: usage.inputTokens / usage.outputTokens
@@ -317,7 +357,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         for (const tc of step.toolCalls) {
             // TypedToolCall has .input in v6; DynamicToolCall also has .input
             const input = (tc as { input: unknown }).input as Record<string, unknown>
-            const toolResult = step.toolResults.find((r) => r.toolCallId === tc.toolCallId)
+            const toolResult = step.toolResults.find((r: any) => r.toolCallId === tc.toolCallId)
             // TypedToolResult / DynamicToolResult have .output in v6
             const output = toolResult
                 ? String((toolResult as { output: unknown }).output ?? '')
@@ -374,12 +414,23 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         throw new PlexoError('Wall clock limit exceeded', 'WALL_CLOCK_EXCEEDED', 'system', 500)
     }
 
+    // Independent quality judge — decoupled from self-assessment to prevent reward hacking.
+    // Runs non-blocking post-execution; replaces finalQuality if successful.
+    // Falls back to self-reported score on any failure.
+    const verifiedQuality = await judgeQuality({
+        taskType: ctx.taskType ?? 'coding',
+        goal: plan.goal,
+        deliverableSummary: finalSummary,
+        toolsUsed: toolCallRecords.map((t) => t.tool),
+        selfScore: finalQuality,
+    }).catch(() => finalQuality)
+
     const executionResult: ExecutionResult = {
         taskId: ctx.taskId,
         ok: true,
         steps: stepResults,
         outcomeSummary: finalSummary,
-        qualityScore: finalQuality,
+        qualityScore: verifiedQuality,
         totalTokensIn,
         totalTokensOut,
         totalCostUsd: totalCost,
@@ -423,7 +474,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
             .filter(Boolean),
     )
     const memOutcome: 'success' | 'partial' | 'failure' = executionResult.ok
-        ? finalQuality >= 0.7
+        ? verifiedQuality >= 0.7
             ? 'success'
             : 'partial'
         : 'failure'
@@ -433,10 +484,10 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
             recordTaskMemory({
                 workspaceId: ctx.workspaceId,
                 taskId: ctx.taskId,
-                description: ctx.taskId,
+                description: plan.goal,
                 outcome: memOutcome,
                 toolsUsed,
-                qualityScore: finalQuality,
+                qualityScore: verifiedQuality,
                 durationMs: executionResult.totalDurationMs,
             }),
         ),
@@ -445,7 +496,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
                 workspaceId: ctx.workspaceId,
                 toolsUsed,
                 filesWritten,
-                qualityScore: finalQuality,
+                qualityScore: verifiedQuality,
                 outcome: memOutcome,
             }),
         ),
@@ -455,7 +506,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
             taskId: ctx.taskId,
             variant: variantAssignment.variant,
             challengerId: variantAssignment.challengerId,
-            qualityScore: finalQuality,
+            qualityScore: verifiedQuality,
         }),
     ]).catch(() => { /* memory errors are never fatal */ })
 

@@ -24,3 +24,10 @@ export class NotImplementedError extends PlexoError {
         this.name = 'NotImplementedError'
     }
 }
+
+export class LogicError extends PlexoError {
+    constructor(message: string) {
+        super(message, 'LOGIC_ERROR', 'system', 500)
+        this.name = 'LogicError'
+    }
+}

@@ -727,3 +727,19 @@ export const behaviorSnapshots = pgTable('behavior_snapshots', {
     index('behavior_snapshots_workspace_idx').on(table.workspaceId),
     index('behavior_snapshots_created_idx').on(table.createdAt),
 ])
+
+// ── Models Knowledge Base (Automated Routing) ──────────────────────────────────
+export const modelsKnowledge = pgTable('models_knowledge', {
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull(),
+    modelId: text('model_id').notNull(),
+    contextWindow: integer('context_window').default(128000).notNull(),
+    costPerMIn: real('cost_per_m_in').notNull(),
+    costPerMOut: real('cost_per_m_out').notNull(),
+    strengths: jsonb('strengths').$type<string[]>().default([]).notNull(),
+    reliabilityScore: real('reliability_score').default(1.0).notNull(),
+    lastSyncedAt: timestamp('last_synced_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('models_knowledge_provider_idx').on(table.provider),
+    index('models_knowledge_model_idx').on(table.modelId),
+])

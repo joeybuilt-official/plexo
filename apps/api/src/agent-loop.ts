@@ -239,6 +239,7 @@ async function processOneTask(): Promise<boolean> {
         workspaceId: taskWorkspaceId ?? '',
         userId: 'system',
         credential,
+        taskType: task.type as import('@plexo/agent/types').TaskType ?? 'coding',
         tokenBudget: resolvedTokenBudget,
         taskCostCeilingUsd: resolvedCostCeiling,
         signal: abort.signal,

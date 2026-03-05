@@ -13,8 +13,8 @@
  *   ></script>
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, desc } from '@plexo/db'
-import { workspaces, tasks, taskSteps, sprints } from '@plexo/db'
+import { db, eq, desc, sql } from '@plexo/db'
+import { workspaces, tasks, taskSteps, sprints, modelsKnowledge } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 import { pushTask, completeTask } from '@plexo/queue'
@@ -36,7 +36,14 @@ TASK: The user is explicitly asking to start a clear, immediate, actionable task
 PROJECT: The user is explicitly asking to start a large, multi-step goal requiring planning (e.g., "Build a new features"). Or the user is confirming a proposal to create a project.
 CONVERSATION: Vague requests, troubleshooting, requests needing clarification, greetings, checks, small talk, or rejecting proposals.
 
-Reply with ONLY one word: TASK, PROJECT, or CONVERSATION.`
+Also determine the complexity: SIMPLE or COMPLEX.
+COMPLEX means the task requires reasoning, complex coding, architecture, or multi-step logic.
+SIMPLE means it's a routine task, summary, reading, file editing, or basic query.
+
+Reply with EXACTLY two words separated by a space:
+[INTENT] [COMPLEXITY]
+Example: TASK COMPLEX
+Example: CONVERSATION SIMPLE`
 
 // Per-session conversation history (last 20 messages, in-memory)
 const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>()
@@ -94,6 +101,8 @@ chatRouter.post('/message', async (req, res) => {
         const sid = sessionId ?? 'default'
         const history = sessionHistory.get(sid) ?? []
 
+        let isComplex = false
+
         try {
             const messages = [
                 ...history.map(m => ({ role: m.role, content: m.content })),
@@ -107,12 +116,43 @@ chatRouter.post('/message', async (req, res) => {
                 abortSignal: AbortSignal.timeout(10_000),
             })
             const text = classifyResult.text?.trim().toUpperCase() ?? ''
-            if (text.startsWith('TASK')) intent = 'TASK'
-            else if (text.startsWith('PROJECT')) intent = 'PROJECT'
+            const parts = text.split(/\s+/)
+            if (parts[0]?.startsWith('TASK')) intent = 'TASK'
+            else if (parts[0]?.startsWith('PROJECT')) intent = 'PROJECT'
             else intent = 'CONVERSATION'
+
+            if (parts[1]?.startsWith('COMPLEX')) isComplex = true
         } catch {
             // On classification failure, default to CONVERSATION
             intent = 'CONVERSATION'
+        }
+
+        // Consultative routing: Check for recommended model
+        let recommendedSwitch = ''
+        if (isComplex && (intent === 'TASK' || intent === 'PROJECT')) {
+            const currentModelId = config.model ?? 'default'
+
+            // Check if current is reasoning capable using knowledge base
+            const [kbEntry] = await db.select().from(modelsKnowledge)
+                .where(eq(modelsKnowledge.modelId, currentModelId))
+                .limit(1)
+
+            const hasReasoning = kbEntry?.strengths?.includes('reasoning') ||
+                currentModelId.includes('sonnet') ||
+                currentModelId.includes('gpt-4') ||
+                currentModelId.includes('o1')
+
+            if (!hasReasoning) {
+                // Find a reasoning model in DB from the same provider if possible, or OpenRouter
+                const [betterMatch] = await db.select().from(modelsKnowledge)
+                    .where(sql`${modelsKnowledge.strengths} ? 'reasoning'`)
+                    .orderBy(desc(modelsKnowledge.reliabilityScore))
+                    .limit(1)
+
+                if (betterMatch && betterMatch.modelId !== currentModelId) {
+                    recommendedSwitch = `\n\nFor this complex task, I recommend switching from your default ${currentModelId} to ${betterMatch.modelId} for better logic and reasoning.`
+                }
+            }
         }
 
         logger.info({ workspaceId, intent, message: trimmedMsg.slice(0, 80) }, 'Webchat intent classified')
@@ -188,8 +228,8 @@ chatRouter.post('/message', async (req, res) => {
                 priority: 2,
             })
             const replyText = intent === 'TASK'
-                ? 'I can execute this as an automated task. Do you want me to proceed?'
-                : 'I can create a project to track this larger goal. Do you want me to set that up?'
+                ? 'I can execute this as an automated task. Do you want me to proceed?' + recommendedSwitch
+                : 'I can create a project to track this larger goal. Do you want me to set that up?' + recommendedSwitch
             await completeTask(taskId, {
                 qualityScore: 1,
                 outcomeSummary: replyText,

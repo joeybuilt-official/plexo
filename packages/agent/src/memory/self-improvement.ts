@@ -50,7 +50,7 @@ export async function runSelfImprovementCycle(params: {
     const since = new Date()
     since.setDate(since.getDate() - lookbackDays)
 
-    const ledgerRows = await db.select({
+    const rawLedger = await db.select({
         taskId: workLedger.taskId,
         type: workLedger.type,
         qualityScore: workLedger.qualityScore,
@@ -64,12 +64,25 @@ export async function runSelfImprovementCycle(params: {
     }).from(workLedger)
         .where(eq(workLedger.workspaceId, workspaceId))
         .orderBy(desc(workLedger.completedAt))
-        .limit(50)
+        .limit(200)
 
-    if (ledgerRows.length < 3) {
+    if (rawLedger.length < 3) {
         logger.info({ workspaceId }, 'Not enough ledger data for improvement analysis — skipping')
         return { proposals: 0, applied: 0 }
     }
+
+    // Stratify by task type (max 8 per type) to prevent pattern analysis from
+    // overfitting to whichever type dominated the recent history.
+    const byType = new Map<string, typeof rawLedger>()
+    for (const r of rawLedger) {
+        const t = r.type ?? 'unknown'
+        const list = byType.get(t) ?? []
+        if (list.length < 8) {
+            list.push(r)
+            byType.set(t, list)
+        }
+    }
+    const ledgerRows = Array.from(byType.values()).flat()
 
     const model = resolveModelFromEnv('claude-haiku-4-5')
 
@@ -113,13 +126,14 @@ export async function runSelfImprovementCycle(params: {
         )
       `)
 
-            // Auto-apply simple tool_preference patterns to workspace preferences
+            // Auto-apply tool_preference patterns only above a meaningful confidence floor.
+            // 0.55 is coin-flip — raise to 0.75 (requires consistent signal across samples).
             if (proposal.pattern_type === 'tool_preference' && proposal.proposed_change) {
                 await learnPreference({
                     workspaceId,
                     key: 'tool_preference_note',
                     value: proposal.proposed_change,
-                    observationConfidence: 0.55,
+                    observationConfidence: 0.75,
                 })
                 applied++
             }

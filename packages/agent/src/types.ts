@@ -313,6 +313,8 @@ export interface ExecutionContext {
     workspaceId: string
     userId: string
     credential: AnthropicCredential
+    /** Task type — used by the quality judge to select the correct rubric. */
+    taskType: TaskType
     /** Max output tokens for generateText. 0 = no cap. */
     tokenBudget: number
     /** Max USD this task may spend. null = inherit workspace default. */

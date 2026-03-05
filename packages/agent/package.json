@@ -22,6 +22,7 @@
         "./persistent-pool": "./src/plugins/persistent-pool.ts",
         "./event-bus": "./src/plugins/event-bus.ts",
         "./providers/registry": "./src/providers/registry.ts",
+        "./providers/knowledge": "./src/providers/knowledge.ts",
         "./behavior/types": "./src/behavior/types.ts",
         "./behavior/resolver": "./src/behavior/resolver.ts",
         "./behavior/compiler": "./src/behavior/compiler.ts"

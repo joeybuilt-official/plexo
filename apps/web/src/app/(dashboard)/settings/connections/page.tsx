@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect, useCallback } from 'react'
 import {
     Link2,
@@ -13,13 +15,14 @@ import {
     AlertCircle,
     RefreshCw,
     Trash2,
-    ChevronRight,
-    Search,
     ToggleLeft,
     ToggleRight,
     Settings,
     Wrench,
     LayoutDashboard,
+    Copy,
+    Check,
+    Code2,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
@@ -39,6 +42,8 @@ interface SetupField {
     type: 'text' | 'password' | 'url'
     required?: boolean
     placeholder?: string
+    /** If set, shown as a "Create token →" deep link in the connect UI */
+    tokenUrl?: string
 }
 
 interface RegistryItem {
@@ -54,6 +59,8 @@ interface RegistryItem {
     cardsProvided: string[]
     isCore: boolean
     docUrl: string | null
+    /** npm package for the MCP server, e.g. '@modelcontextprotocol/server-github' */
+    mcpPackage?: string | null
 }
 
 interface InstalledConnection {
@@ -93,6 +100,37 @@ function AuthIcon({ type }: { type: AuthType }) {
     if (type === 'api_key') return <Key className="h-3.5 w-3.5 text-amber-400" />
     if (type === 'webhook') return <Webhook className="h-3.5 w-3.5 text-violet-400" />
     return null
+}
+
+function AuthBadge({ type }: { type: AuthType }) {
+    const map: Record<AuthType, { label: string; cls: string }> = {
+        oauth2: { label: 'OAuth2', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+        api_key: { label: 'API Key / PAT', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+        webhook: { label: 'Webhook', cls: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
+        none: { label: 'No Auth', cls: 'bg-zinc-700/30 text-zinc-500 border-zinc-700/30' },
+    }
+    const { label, cls } = map[type]
+    return (
+        <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>
+            <AuthIcon type={type} />
+            {label}
+        </span>
+    )
+}
+
+function CopySnippet({ code }: { code: string }) {
+    const [copied, setCopied] = useState(false)
+    return (
+        <div className="relative group">
+            <pre className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-[11px] font-mono text-zinc-400 overflow-x-auto whitespace-pre leading-relaxed pr-9">{code}</pre>
+            <button
+                onClick={() => { void navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                className="absolute right-2 top-2 p-1.5 rounded-md bg-zinc-800 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-zinc-200"
+            >
+                {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+            </button>
+        </div>
+    )
 }
 
 function StatusDot({ status }: { status: ConnectionStatus }) {
@@ -415,18 +453,22 @@ export default function IntegrationsPage() {
                                     </div>
                                 )}
                                 <div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                         <h2 className="text-base font-semibold text-zinc-100">{selected.name}</h2>
                                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide ${categoryColor(selected.category)}`}>
                                             {selected.category}
                                         </span>
+                                        <AuthBadge type={selected.authType} />
+                                        {selected.mcpPackage && (
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-400">
+                                                <Code2 className="h-2.5 w-2.5" />
+                                                MCP
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-0.5">
-                                        <AuthIcon type={selected.authType} />
-                                        <span className="text-xs text-zinc-500 capitalize">{selected.authType.replace('_', ' ')}</span>
                                         {isConnected && (
                                             <>
-                                                <span className="text-zinc-700">·</span>
                                                 <StatusDot status={connectedItem!.status} />
                                                 <span className="text-xs text-emerald-400">Connected</span>
                                             </>
@@ -533,9 +575,22 @@ export default function IntegrationsPage() {
                                             <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Configuration</h3>
                                             {selected.setupFields.map((field) => (
                                                 <div key={field.key} className="flex flex-col gap-1">
-                                                    <label className="text-sm font-medium text-zinc-300">
-                                                        {field.label} {field.required && <span className="text-red-500">*</span>}
-                                                    </label>
+                                                    <div className="flex items-center justify-between">
+                                                        <label className="text-sm font-medium text-zinc-300">
+                                                            {field.label} {field.required && <span className="text-red-500">*</span>}
+                                                        </label>
+                                                        {field.tokenUrl && (
+                                                            <a
+                                                                href={field.tokenUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                                                            >
+                                                                <ExternalLink className="h-3 w-3" />
+                                                                Create token
+                                                            </a>
+                                                        )}
+                                                    </div>
                                                     <input
                                                         type={field.type === 'password' ? 'password' : 'text'}
                                                         value={fieldValues[field.key] ?? ''}
@@ -553,6 +608,16 @@ export default function IntegrationsPage() {
                                         <div className="rounded-lg border border-blue-800/40 bg-blue-950/20 px-3 py-3 text-xs text-blue-400">
                                             <p className="font-semibold mb-1">OAuth2 — secure redirect flow</p>
                                             <p className="text-blue-400">Clicking Connect will open a popup to authenticate with {selected.name}. Requires <code className="text-blue-300">{selected.id.toUpperCase().replace('-', '_')}_CLIENT_ID</code> set in the API environment.</p>
+                                        </div>
+                                    )}
+
+                                    {/* API key note: Plexo manages the MCP config */}
+                                    {!isConnected && selected.authType === 'api_key' && selected.mcpPackage && (
+                                        <div className="rounded-lg border border-rose-800/30 bg-rose-950/20 px-3 py-3 flex flex-col gap-1.5">
+                                            <p className="text-xs font-semibold text-rose-400 flex items-center gap-1.5"><Code2 className="h-3.5 w-3.5" /> Plexo manages the MCP connection</p>
+                                            <p className="text-[11px] text-rose-400/70 leading-relaxed">
+                                                After you save your token, Plexo automatically adds <code className="text-rose-300">{selected.mcpPackage}</code> to the agent&apos;s MCP runtime. No manual config editing required.
+                                            </p>
                                         </div>
                                     )}
 
@@ -626,6 +691,27 @@ export default function IntegrationsPage() {
                                             : `${enabledTools.length} / ${allTools.length} tools enabled`
                                         }
                                     </p>
+
+                                    {/* MCP config preview */}
+                                    {selected.mcpPackage && (
+                                        <div className="mt-3 flex flex-col gap-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <Code2 className="h-3.5 w-3.5 text-rose-400" />
+                                                <p className="text-xs font-semibold text-zinc-400">Managed MCP config</p>
+                                                <span className="text-[10px] text-zinc-600">— Plexo writes this for you</span>
+                                            </div>
+                                            <CopySnippet code={JSON.stringify({
+                                                [selected.id]: {
+                                                    command: 'npx',
+                                                    args: ['-y', selected.mcpPackage, 'stdio'],
+                                                    env: {
+                                                        [`${selected.id.toUpperCase().replace(/-/g, '_')}_PERSONAL_ACCESS_TOKEN`]: '*** stored securely ***',
+                                                    }
+                                                }
+                                            }, null, 2)} />
+                                            <p className="text-[10px] text-zinc-700">The actual token is stored encrypted in the database and injected at agent runtime. It is never written to disk.</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

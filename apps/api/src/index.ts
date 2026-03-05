@@ -51,6 +51,7 @@ import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
+import { runCronJobs } from './cron.js'
 
 const app: Express = express()
 const port = parseInt(process.env.PORT ?? '3001', 10)
@@ -162,6 +163,10 @@ const server = app.listen(port, '0.0.0.0', () => {
     })
     startAgentLoop()
     initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
+
+    // Background Sync
+    runCronJobs()
+    setInterval(() => { void runCronJobs() }, 24 * 60 * 60 * 1000)
 
     // OWD → SSE: when an agent requests approval, push a real-time notification
     // to all connected SSE clients in that workspace so the approval banner appears

@@ -43,8 +43,9 @@ export async function assignVariant(workspaceId: string): Promise<VariantAssignm
     const challengers = await db.execute<{
         id: string
         proposed_change: string
+        metadata: unknown
     }>(sql`
-        SELECT id, proposed_change FROM agent_improvement_log
+        SELECT id, proposed_change, metadata FROM agent_improvement_log
         WHERE workspace_id = ${workspaceId}::uuid
           AND pattern_type = 'prompt_patch'
           AND applied = false
@@ -59,8 +60,26 @@ export async function assignVariant(workspaceId: string): Promise<VariantAssignm
         return { variant: 'A', challengerId: null, overrides: control }
     }
 
-    // 80/20 split
-    const useChallenger = Math.random() < 0.20
+    // Multi-Armed Bandit (UCB) assignment
+    const meta = challenger.metadata as { variants?: { v: string; q: number }[] } | null
+    const variants = meta?.variants ?? []
+
+    const aScores = variants.filter((v) => v.v === 'A').map((v) => v.q)
+    const bScores = variants.filter((v) => v.v === 'B').map((v) => v.q)
+    const totalSamples = aScores.length + bScores.length
+
+    let useChallenger = false
+    if (aScores.length === 0 || bScores.length === 0) {
+        // Force exploration of both initially
+        useChallenger = bScores.length <= aScores.length
+    } else {
+        const meanA = aScores.reduce((a, b) => a + b, 0) / aScores.length
+        const meanB = bScores.reduce((a, b) => a + b, 0) / bScores.length
+        const c = 0.3 // exploration coefficient
+        const ucbA = meanA + c * Math.sqrt(Math.log(totalSamples) / aScores.length)
+        const ucbB = meanB + c * Math.sqrt(Math.log(totalSamples) / bScores.length)
+        useChallenger = ucbB > ucbA
+    }
 
     if (!useChallenger) {
         return { variant: 'A', challengerId: challenger.id, overrides: control }
@@ -122,23 +141,29 @@ async function evaluateVariant(workspaceId: string, challengerId: string): Promi
     const aScores = variants.filter((v) => v.v === 'A').map((v) => v.q)
     const bScores = variants.filter((v) => v.v === 'B').map((v) => v.q)
 
-    if (bScores.length < 20) return   // not enough data
+    // Require a minimum baseline of evidence
+    if (bScores.length < 20 || aScores.length < 5) return
 
-    const medianA = median(aScores.length > 0 ? aScores : [0.5])  // control baseline if no A samples yet
-    const medianB = median(bScores)
+    const stats = welchsTTest(aScores, bScores)
 
-    logger.info({ challengerId, medianA, medianB, bSamples: bScores.length }, 'A/B evaluation')
+    logger.info({
+        challengerId,
+        meanA: stats.meanA,
+        meanB: stats.meanB,
+        pValue: stats.pValue,
+        bSamples: bScores.length
+    }, 'A/B statistical evaluation (Welch t-test)')
 
-    if (medianB > medianA + 0.05) {
-        // B wins — auto-promote
-        logger.info({ challengerId, medianA, medianB }, 'Challenger prompt wins — auto-promoting')
+    // 95% confidence interval for B being significantly better than A
+    if (stats.meanB > stats.meanA && stats.pValue < 0.05) {
+        logger.info({ challengerId, pValue: stats.pValue, meanA: stats.meanA, meanB: stats.meanB }, 'Challenger prompt wins — auto-promoting')
         await autoPromote(workspaceId, challengerId)
         return
     }
 
-    if (bScores.length >= 30) {
-        // B lost with enough data — discard and flag for re-analysis
-        logger.info({ challengerId }, 'Challenger prompt lost after 30 samples — discarding')
+    // Discard if we've gathered enough evidence and it's still not winning
+    if (bScores.length >= 40) {
+        logger.info({ challengerId, pValue: stats.pValue }, 'Challenger prompt lost after 40 samples — discarding')
         await db.execute(sql`
             UPDATE agent_improvement_log
             SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"discarded": true}'::jsonb
@@ -182,11 +207,31 @@ async function autoPromote(workspaceId: string, challengerId: string): Promise<v
     }
 }
 
-function median(values: number[]): number {
-    if (values.length === 0) return 0
-    const sorted = [...values].sort((a, b) => a - b)
-    const mid = Math.floor(sorted.length / 2)
-    return sorted.length % 2 === 0
-        ? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
-        : (sorted[mid] ?? 0)
+function welchsTTest(a: number[], b: number[]): { pValue: number, tStat: number, meanA: number, meanB: number } {
+    const meanA = a.reduce((sum, val) => sum + val, 0) / a.length
+    const meanB = b.reduce((sum, val) => sum + val, 0) / b.length
+
+    // Sample variances
+    const varA = a.reduce((sum, val) => sum + Math.pow(val - meanA, 2), 0) / (a.length - 1)
+    const varB = b.reduce((sum, val) => sum + Math.pow(val - meanB, 2), 0) / (b.length - 1)
+
+    if (varA === 0 && varB === 0) {
+        return { pValue: meanA < meanB ? 0 : 1, tStat: 0, meanA, meanB }
+    }
+
+    const seA = varA / a.length
+    const seB = varB / b.length
+    const tStat = (meanB - meanA) / Math.sqrt(seA + seB)
+
+    // Normal approximation for p-value (sufficient for N >= 20)
+    // One-tailed test (is B strictly > A?)
+    const pValue = 1 - normalCdf(tStat)
+    return { pValue, tStat, meanA, meanB }
+}
+
+function normalCdf(x: number): number {
+    const t = 1 / (1 + 0.2316419 * Math.abs(x))
+    const d = 0.3989423 * Math.exp(-x * x / 2)
+    const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))))
+    return x > 0 ? 1 - p : p
 }

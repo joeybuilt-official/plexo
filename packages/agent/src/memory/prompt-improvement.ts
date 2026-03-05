@@ -71,7 +71,7 @@ export async function proposePromptImprovements(params: {
     const since = new Date()
     since.setDate(since.getDate() - lookbackDays)
 
-    const samples = await db.select({
+    const rawSamples = await db.select({
         taskId: workLedger.taskId,
         type: workLedger.type,
         qualityScore: workLedger.qualityScore,
@@ -82,13 +82,26 @@ export async function proposePromptImprovements(params: {
     }).from(workLedger)
         .where(eq(workLedger.workspaceId, workspaceId))
         .orderBy(desc(workLedger.completedAt))
-        .limit(30)
+        .limit(200)
 
-    if (samples.length < minSamples) {
-        logger.info({ workspaceId, samples: samples.length, minSamples }, 'Not enough samples for prompt analysis')
+    if (rawSamples.length < minSamples) {
+        logger.info({ workspaceId, samples: rawSamples.length, minSamples }, 'Not enough samples for prompt analysis')
         return []
     }
 
+    // Stratify by task type (up to 10 per type to ensure diversity)
+    const byType = new Map<string, typeof rawSamples>()
+    for (const s of rawSamples) {
+        const t = s.type ?? 'unknown'
+        const list = byType.get(t) ?? []
+        if (list.length < 10) {
+            list.push(s)
+            byType.set(t, list)
+        }
+    }
+    const samples = Array.from(byType.values()).flat()
+
+    // Within the stratified sample, segregate
     const lowQuality = samples.filter((s) => (s.qualityScore ?? 1) < 0.7 || s.calibration === 'over')
     const highQuality = samples.filter((s) => (s.qualityScore ?? 0) >= 0.8)
 

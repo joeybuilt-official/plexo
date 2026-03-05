@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { ChevronRight, RefreshCw, CircleDashed, Terminal } from 'lucide-react'

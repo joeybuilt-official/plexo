@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useTransition, useMemo } from 'react'
 import { Package, Puzzle, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, RefreshCw, Layers } from 'lucide-react'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'

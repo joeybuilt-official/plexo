@@ -12,8 +12,44 @@
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, and } from '@plexo/db'
 import { connectionsRegistry, installedConnections } from '@plexo/db'
-import { encrypt } from '../crypto.js'
+import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
+
+/**
+ * Maps connections registry IDs → MCP server binding metadata.
+ * command / args are used to produce the mcpServers JSON block.
+ * envKey is the env var name the MCP server expects for the credential.
+ */
+const MCP_BINDINGS: Record<string, { mcpPackage: string; envKey: string }> = {
+    github: {
+        mcpPackage: '@modelcontextprotocol/server-github',
+        envKey: 'GITHUB_PERSONAL_ACCESS_TOKEN',
+    },
+    gitlab: {
+        mcpPackage: '@modelcontextprotocol/server-gitlab',
+        envKey: 'GITLAB_PERSONAL_ACCESS_TOKEN',
+    },
+    slack: {
+        mcpPackage: '@modelcontextprotocol/server-slack',
+        envKey: 'SLACK_BOT_TOKEN',
+    },
+    notion: {
+        mcpPackage: '@modelcontextprotocol/server-notion',
+        envKey: 'NOTION_API_TOKEN',
+    },
+    linear: {
+        mcpPackage: '@linear/mcp',
+        envKey: 'LINEAR_API_KEY',
+    },
+    jira: {
+        mcpPackage: '@mcp-atlassian/jira',
+        envKey: 'JIRA_API_TOKEN',
+    },
+    'google-drive': {
+        mcpPackage: '@modelcontextprotocol/server-gdrive',
+        envKey: 'GDRIVE_ACCESS_TOKEN',
+    },
+}
 
 export const connectionsRouter: RouterType = Router()
 
@@ -24,12 +60,18 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 connectionsRouter.get('/registry', async (_req, res) => {
     try {
         const items = await db.select().from(connectionsRegistry)
-        res.json({ items, total: items.length })
+        // Augment each item with mcpPackage so the frontend can show MCP indicators
+        const augmented = items.map(item => ({
+            ...item,
+            mcpPackage: MCP_BINDINGS[item.id]?.mcpPackage ?? null,
+        }))
+        res.json({ items: augmented, total: augmented.length })
     } catch (err: unknown) {
         logger.error({ err }, 'GET /api/connections/registry failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to load registry' } })
     }
 })
+
 
 // ── GET /api/connections/registry/:id ────────────────────────────────────────
 
@@ -221,4 +263,76 @@ connectionsRouter.delete('/installed/:id', async (req, res) => {
         logger.error({ err, id }, 'DELETE /api/connections/installed/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Uninstall failed' } })
     }
+})
+
+// ── GET /api/connections/mcp-config ──────────────────────────────────────────
+// Returns the combined mcpServers JSON block for all connected MCP-capable
+// integrations. The `preview` query param (= '1') redacts token values.
+// At agent boot the engine calls this with preview=0 to get live credentials.
+
+connectionsRouter.get('/mcp-config', async (req, res) => {
+    const { workspaceId, preview } = req.query as Record<string, string>
+
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+
+    const isPreview = preview === '1' || preview === 'true'
+
+    try {
+        const rows = await db.select({
+            registryId: installedConnections.registryId,
+            credentials: installedConnections.credentials,
+            status: installedConnections.status,
+        }).from(installedConnections)
+            .where(eq(installedConnections.workspaceId, workspaceId))
+
+        const mcpServers: Record<string, unknown> = {}
+
+        for (const row of rows) {
+            const binding = MCP_BINDINGS[row.registryId]
+            if (!binding) continue  // no MCP server mapping for this integration
+            if (row.status !== 'active') continue
+
+            let tokenValue = '*** stored securely ***'
+
+            if (!isPreview) {
+                try {
+                    const raw = row.credentials as Record<string, unknown>
+                    if (raw.encrypted) {
+                        const decrypted = decrypt(raw.encrypted as string, workspaceId)
+                        const creds = JSON.parse(decrypted) as Record<string, string>
+                        // Find first non-empty credential value
+                        tokenValue = Object.values(creds).find(v => v) ?? ''
+                    }
+                } catch (decryptErr) {
+                    logger.warn({ err: decryptErr, registryId: row.registryId }, 'Failed to decrypt credentials for MCP config')
+                    continue
+                }
+            }
+
+            mcpServers[row.registryId] = {
+                command: 'npx',
+                args: ['-y', binding.mcpPackage, 'stdio'],
+                env: {
+                    [binding.envKey]: tokenValue,
+                },
+            }
+        }
+
+        res.json({ mcpServers, count: Object.keys(mcpServers).length })
+    } catch (err: unknown) {
+        logger.error({ err }, 'GET /api/connections/mcp-config failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to generate MCP config' } })
+    }
+})
+
+// ── GET /api/connections/registry — augmented with mcpPackage ─────────────────
+// The base registry route is on connectionsRouter but we need to enrich items
+// with the mcpPackage field from MCP_BINDINGS so the UI can display it.
+// This shadow-patches the registry response in-process.
+
+connectionsRouter.get('/registry-mcp-meta', (_req, res) => {
+    res.json({ bindings: MCP_BINDINGS })
 })
