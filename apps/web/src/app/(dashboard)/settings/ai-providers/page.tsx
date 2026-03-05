@@ -101,9 +101,9 @@ const PROVIDERS: ProviderConfig[] = [
     {
         key: 'google',
         name: 'Google Gemini',
-        description: 'Gemini 2.0, Flash, Pro models',
+        description: 'Gemini 2.5, 2.0, 1.5 models',
         requiresKey: true,
-        staticModels: ['gemini-2.0-flash', 'gemini-2.0-pro', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+        staticModels: ['gemini-2.5-pro-exp-03-25', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'],
     },
     {
         key: 'groq',
@@ -406,7 +406,7 @@ export default function AIProvidersPage() {
             const swap = idx + dir
             if (swap < 0 || swap >= visible.length) return prev
             const next = [...visible]
-            ;[next[idx], next[swap]] = [next[swap]!, next[idx]!]
+                ;[next[idx], next[swap]] = [next[swap]!, next[idx]!]
             return [...next, ...hidden]
         })
     }
@@ -684,8 +684,8 @@ export default function AIProvidersPage() {
                             <div
                                 key={p.key}
                                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${primaryProvider === p.key
-                                        ? 'border-indigo-500/40 bg-indigo-500/8'
-                                        : 'border-zinc-700 bg-zinc-900/60'
+                                    ? 'border-indigo-500/40 bg-indigo-500/8'
+                                    : 'border-zinc-700 bg-zinc-900/60'
                                     }`}
                             >
                                 <span className="text-xs text-zinc-600 font-mono w-4 text-center">{idx + 1}</span>
