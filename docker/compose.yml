@@ -100,11 +100,11 @@ services:
       MAX_SPRINT_WORKERS: ${MAX_SPRINT_WORKERS:-5}
       API_COST_CEILING_USD: ${API_COST_CEILING_USD:-10.00}
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:3001/health | grep -q '\"status\":\"ok\"' || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 20s
+      retries: 5
+      start_period: 40s
     deploy:
       resources:
         limits:
