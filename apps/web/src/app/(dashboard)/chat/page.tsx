@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
     Send,
     RefreshCw,
@@ -220,11 +221,36 @@ export default function ChatPage() {
     const bottomRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const sessionId = useRef(`session-${Date.now()}`)
+    const searchParams = useSearchParams()
 
     // Scroll to bottom on new messages
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
+
+    // Load context from ?context=<taskId> (continue conversation from Conversations page)
+    useEffect(() => {
+        const contextTaskId = searchParams.get('context')
+        if (!contextTaskId || messages.length > 0) return
+        async function loadContext() {
+            try {
+                const res = await fetch(`${API}/api/chat/reply/${contextTaskId}`)
+                if (!res.ok) return
+                const data = await res.json() as { status: string; reply: string | null }
+                if (data.reply) {
+                    setMessages([{
+                        id: `ctx-${Date.now()}`,
+                        role: 'agent',
+                        content: `*Previous conversation:*\n\n${data.reply}`,
+                        status: 'complete',
+                        at: Date.now(),
+                    }])
+                }
+            } catch { /* ignore */ }
+        }
+        void loadContext()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const tts = useTTS()
 
