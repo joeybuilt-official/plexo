@@ -460,6 +460,7 @@ export const installedConnections = pgTable('installed_connections', {
     errorDetail: text('error_detail'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
+    uniqueIndex('installed_connections_workspace_registry_uq').on(table.workspaceId, table.registryId),
     index('installed_connections_workspace_idx').on(table.workspaceId),
 ])
 

@@ -39,25 +39,27 @@ async function pingRedis(): Promise<{ ok: boolean; latencyMs: number }> {
     }
 }
 
-async function pingAnthropic(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
-    // Check env var first, then fall back to any workspace's stored key
+async function pingAnthropic(): Promise<{ ok: boolean | null; latencyMs: number; error?: string }> {
+    // 1. Env var override (direct API key only — not an OAuth token)
     let key = process.env.ANTHROPIC_API_KEY
-    if (!key || key === 'placeholder') {
+    if (key === 'placeholder' || key?.startsWith('sk-ant-oat')) key = undefined
+
+    // 2. Workspace settings — anthropic provider entry only
+    if (!key) {
         try {
             const rows = await db.select({ settings: workspaces.settings }).from(workspaces).limit(5)
             for (const row of rows) {
-                const providers = (row.settings as {
-                    aiProviders?: { providers?: Record<string, { apiKey?: string }> }
-                } | null)?.aiProviders?.providers ?? {}
-                for (const p of Object.values(providers)) {
-                    if (p.apiKey && p.apiKey !== 'placeholder') { key = p.apiKey; break }
-                }
-                if (key) break
+                const anthropic = (row.settings as {
+                    aiProviders?: { providers?: { anthropic?: { apiKey?: string; oauthToken?: string } } }
+                } | null)?.aiProviders?.providers?.anthropic
+                if (anthropic?.oauthToken) { key = anthropic.oauthToken; break }
+                if (anthropic?.apiKey && anthropic.apiKey !== 'placeholder') { key = anthropic.apiKey; break }
             }
         } catch { /* non-fatal */ }
     }
-    if (!key || key === 'placeholder') {
-        // Lightweight check: does any active Anthropic OAuth token exist?
+
+    // 3. Installed OAuth connection (active Claude.ai token)
+    if (!key) {
         try {
             const found = await db.select({ id: installedConnections.id })
                 .from(installedConnections)
@@ -66,23 +68,20 @@ async function pingAnthropic(): Promise<{ ok: boolean; latencyMs: number; error?
                     eq(installedConnections.status, 'active'),
                 ))
                 .limit(1)
+            // Can't test the token here without decrypting — treat presence as ok
             if (found.length > 0) return { ok: true, latencyMs: 0 }
         } catch (e) { logger.warn({ err: e }, 'Anthropic OAuth token check failed') }
     }
-    if (!key || key === 'placeholder') {
-        return { ok: false, latencyMs: 0, error: 'no_key' }
-    }
-    const resolvedKey = key
+
+    // Not configured at all — report null so UI shows "—" not "✗"
+    if (!key) return { ok: null, latencyMs: 0, error: 'not_configured' }
+
     const start = Date.now()
     try {
-        // OAuth tokens (sk-ant-oat01-*) use Authorization: Bearer
-        // Direct API keys (sk-ant-api03-*) use x-api-key
-        const isOAuth = resolvedKey.startsWith('sk-ant-oat')
+        const isOAuth = key.startsWith('sk-ant-oat')
         const headers: Record<string, string> = {
             'anthropic-version': '2023-06-01',
-            ...(isOAuth
-                ? { 'Authorization': `Bearer ${resolvedKey}` }
-                : { 'x-api-key': resolvedKey }),
+            ...(isOAuth ? { 'Authorization': `Bearer ${key}` } : { 'x-api-key': key }),
         }
         const res = await fetch('https://api.anthropic.com/v1/models', {
             headers,
@@ -99,6 +98,7 @@ async function pingAnthropic(): Promise<{ ok: boolean; latencyMs: number; error?
         return { ok: false, latencyMs: Date.now() - start, error: 'network_error' }
     }
 }
+
 
 healthRouter.get('/', async (_req, res) => {
     const [postgres, redis, anthropic] = await Promise.allSettled([

@@ -25,6 +25,8 @@ async function loadWorkspaceAISettings(workspaceId: string): Promise<{
     credential: AnthropicCredential | null
     aiSettings: WorkspaceAISettings | null
 }> {
+    if (!workspaceId) return { credential: null, aiSettings: null }
+
     let aiSettings: WorkspaceAISettings | null = null
     let providers: Record<string, { apiKey?: string; oauthToken?: string; baseUrl?: string; defaultModel?: string }> = {}
 
