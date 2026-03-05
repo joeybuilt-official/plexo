@@ -11,6 +11,10 @@ import {
     XCircle,
     AlertCircle,
     Loader2,
+    Mic,
+    MicOff,
+    Volume2,
+    VolumeX,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
@@ -54,6 +58,156 @@ function StatusChip({ status }: { status: Message['status'] }) {
     )
 }
 
+// ── Voice waveform bars (animated when listening) ──────────────────────────
+
+function VoiceWaveform({ active, level }: { active: boolean; level: number }) {
+    const bars = [0.4, 0.7, 1.0, 0.85, 0.6, 0.9, 0.5, 0.75, 0.45, 0.8, 0.55, 0.65]
+    return (
+        <div className="flex items-center justify-center gap-[3px] h-5">
+            {bars.map((base, i) => (
+                <div
+                    key={i}
+                    className="w-[3px] rounded-full bg-indigo-400 transition-all"
+                    style={{
+                        height: active
+                            ? `${Math.max(3, Math.min(20, base * level * 20 + 3))}px`
+                            : '4px',
+                        opacity: active ? 0.9 : 0.3,
+                        transitionDuration: `${80 + i * 20}ms`,
+                    }}
+                />
+            ))}
+        </div>
+    )
+}
+
+// ── Hook: Speech Recognition ──────────────────────────────────────────────
+
+type SpeechStatus = 'idle' | 'listening' | 'processing'
+
+function useSpeechInput(onResult: (text: string) => void) {
+    const [status, setStatus] = useState<SpeechStatus>('idle')
+    const [level, setLevel] = useState(0)
+    const [supported, setSupported] = useState(false)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recRef = useRef<any>(null)
+    const analyserRef = useRef<AnalyserNode | null>(null)
+    const animFrameRef = useRef<number>(0)
+    const streamRef = useRef<MediaStream | null>(null)
+
+    useEffect(() => {
+        setSupported(
+            typeof window !== 'undefined' &&
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ('SpeechRecognition' in window || 'webkitSpeechRecognition' in (window as any))
+        )
+    }, [])
+
+    const stop = useCallback(() => {
+        recRef.current?.stop()
+        recRef.current = null
+        cancelAnimationFrame(animFrameRef.current)
+        streamRef.current?.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+        analyserRef.current = null
+        setLevel(0)
+        setStatus('idle')
+    }, [])
+
+    const start = useCallback(async () => {
+        if (!supported || status !== 'idle') return
+
+        // Start audio analyser for visual level
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            streamRef.current = stream
+            const ctx = new AudioContext()
+            const source = ctx.createMediaStreamSource(stream)
+            const analyser = ctx.createAnalyser()
+            analyser.fftSize = 256
+            source.connect(analyser)
+            analyserRef.current = analyser
+
+            const data = new Uint8Array(analyser.frequencyBinCount)
+            const tick = () => {
+                analyser.getByteFrequencyData(data)
+                const avg = data.reduce((a, b) => a + b, 0) / data.length
+                setLevel(avg / 128)
+                animFrameRef.current = requestAnimationFrame(tick)
+            }
+            tick()
+        } catch {
+            // Mic access denied — still try recognition without waveform
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rec = new SR() as any
+        rec.continuous = false
+        rec.interimResults = false
+        rec.lang = 'en-US'
+
+        rec.onstart = () => setStatus('listening')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rec.onresult = (e: any) => {
+            const text = e.results[0]?.[0]?.transcript ?? ''
+            if (text.trim()) onResult(text.trim())
+        }
+        rec.onend = () => {
+            setStatus('idle')
+            cancelAnimationFrame(animFrameRef.current)
+            streamRef.current?.getTracks().forEach(t => t.stop())
+            setLevel(0)
+        }
+        rec.onerror = () => stop()
+
+        recRef.current = rec
+        rec.start()
+    }, [supported, status, onResult, stop])
+
+    return { status, level, supported, start, stop }
+}
+
+// ── Hook: Text-to-Speech ──────────────────────────────────────────────────
+
+function useTTS() {
+    const [speaking, setSpeaking] = useState(false)
+    const [enabled, setEnabled] = useState(true)
+    const utterRef = useRef<SpeechSynthesisUtterance | null>(null)
+
+    const speak = useCallback((text: string) => {
+        if (!enabled || typeof window === 'undefined' || !window.speechSynthesis) return
+        window.speechSynthesis.cancel()
+        const utterance = new SpeechSynthesisUtterance(text)
+        utterance.rate = 1.05
+        utterance.pitch = 1.0
+        // Prefer a natural-sounding voice
+        const voices = window.speechSynthesis.getVoices()
+        const preferred = voices.find(v =>
+            v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Natural')
+        ) ?? voices[0]
+        if (preferred) utterance.voice = preferred
+        utterRef.current = utterance
+        utterance.onstart = () => setSpeaking(true)
+        utterance.onend = () => setSpeaking(false)
+        utterance.onerror = () => setSpeaking(false)
+        window.speechSynthesis.speak(utterance)
+    }, [enabled])
+
+    const stop = useCallback(() => {
+        window.speechSynthesis?.cancel()
+        setSpeaking(false)
+    }, [])
+
+    const toggle = useCallback(() => {
+        if (speaking) stop()
+        setEnabled(e => !e)
+    }, [speaking, stop])
+
+    return { speaking, enabled, speak, stop, toggle }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function ChatPage() {
@@ -72,6 +226,20 @@ export default function ChatPage() {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
+    const tts = useTTS()
+
+    const handleVoiceResult = useCallback((text: string) => {
+        setInput(text)
+        // Auto-send after brief delay so user can see what was captured
+        setTimeout(() => {
+            setInput('')
+            void sendMessageWith(text)
+        }, 300)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    const voice = useSpeechInput(handleVoiceResult)
+
     // Poll for pending agent replies
     const pollReply = useCallback(async (taskId: string, msgId: string) => {
         const deadline = Date.now() + 60_000
@@ -86,9 +254,11 @@ export default function ChatPage() {
                 }
                 const data = await res.json() as { status: string; reply: string | null }
                 if (data.status === 'complete' || data.reply) {
+                    const reply = data.reply ?? 'Done.'
                     setMessages((prev) => prev.map((m) =>
-                        m.id === msgId ? { ...m, status: 'complete', content: data.reply ?? 'Done.' } : m
+                        m.id === msgId ? { ...m, status: 'complete', content: reply } : m
                     ))
+                    tts.speak(reply)
                     return
                 }
                 if (Date.now() >= deadline) {
@@ -97,7 +267,6 @@ export default function ChatPage() {
                     ))
                     return
                 }
-                // The backend long-polls up to 25s, so we just re-invoke after a brief gap
                 await new Promise<void>((r) => setTimeout(r, 500))
                 await poll()
             } catch {
@@ -107,17 +276,15 @@ export default function ChatPage() {
             }
         }
         await poll()
-    }, [])
+    }, [tts])
 
-    async function sendMessage() {
-        const text = input.trim()
-        if (!text || sending) return
+    async function sendMessageWith(text: string) {
+        if (!text.trim() || sending) return
         if (!WS_ID) {
             setError('No workspace configured. Set NEXT_PUBLIC_DEFAULT_WORKSPACE in .env.local.')
             return
         }
 
-        setInput('')
         setError(null)
         setSending(true)
 
@@ -170,12 +337,21 @@ export default function ChatPage() {
         }
     }
 
+    async function sendMessage() {
+        const text = input.trim()
+        if (!text) return
+        setInput('')
+        await sendMessageWith(text)
+    }
+
     function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             void sendMessage()
         }
     }
+
+    const isListening = voice.status === 'listening'
 
     return (
         <div className="flex flex-col h-[calc(100vh-100px)]">
@@ -185,10 +361,27 @@ export default function ChatPage() {
                     <h1 className="text-xl font-bold text-zinc-50">Chat</h1>
                     <p className="text-sm text-zinc-500 mt-0.5">Talk directly with your agent</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                    {/* TTS toggle */}
+                    <button
+                        id="tts-toggle"
+                        onClick={tts.toggle}
+                        title={tts.enabled ? 'Voice responses on' : 'Voice responses off'}
+                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${tts.enabled
+                            ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20'
+                            : 'text-zinc-600 hover:text-zinc-400 border border-transparent'
+                            }`}
+                    >
+                        {tts.enabled
+                            ? <Volume2 className="h-3.5 w-3.5" />
+                            : <VolumeX className="h-3.5 w-3.5" />
+                        }
+                        <span>Voice</span>
+                    </button>
+
                     {messages.length > 0 && (
                         <button
-                            onClick={() => setMessages([])}
+                            onClick={() => { setMessages([]); tts.stop() }}
                             className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
                         >
                             Clear
@@ -207,29 +400,48 @@ export default function ChatPage() {
             <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 min-h-0">
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-                        <div className="h-14 w-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                            <Bot className="h-7 w-7 text-white" />
+                        {/* Idle agent orb */}
+                        <div className={`relative h-16 w-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center transition-all duration-300 ${isListening ? 'scale-110 shadow-[0_0_32px_rgba(99,102,241,0.5)]' : ''
+                            }`}>
+                            <Bot className="h-8 w-8 text-white" />
+                            {isListening && (
+                                <div className="absolute inset-0 rounded-full border-2 border-indigo-400 animate-ping opacity-40" />
+                            )}
                         </div>
                         <div>
-                            <p className="text-base font-semibold text-zinc-300">Your agent is ready</p>
-                            <p className="text-sm text-zinc-600 mt-1">Ask anything — debugging, code review, research, tasks.</p>
+                            <p className="text-base font-semibold text-zinc-300">
+                                {isListening ? 'Listening…' : 'Your agent is ready'}
+                            </p>
+                            <p className="text-sm text-zinc-600 mt-1">
+                                {isListening
+                                    ? 'Speak now — I\'ll send when you\'re done'
+                                    : 'Ask anything — or tap the mic to speak'
+                                }
+                            </p>
                         </div>
-                        <div className="flex flex-wrap justify-center gap-2 max-w-md">
-                            {[
-                                'Summarize recent task activity',
-                                'What tools do you have?',
-                                'Review my last failed task',
-                                'What is in my memory store?',
-                            ].map((suggestion) => (
-                                <button
-                                    key={suggestion}
-                                    onClick={() => { setInput(suggestion); inputRef.current?.focus() }}
-                                    className="rounded-full border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-indigo-500/50 hover:text-zinc-200 transition-colors"
-                                >
-                                    {suggestion}
-                                </button>
-                            ))}
-                        </div>
+                        {!isListening && (
+                            <div className="flex flex-wrap justify-center gap-2 max-w-md">
+                                {[
+                                    'Summarize recent task activity',
+                                    'What tools do you have?',
+                                    'Review my last failed task',
+                                    'What is in my memory store?',
+                                ].map((suggestion) => (
+                                    <button
+                                        key={suggestion}
+                                        onClick={() => { setInput(suggestion); inputRef.current?.focus() }}
+                                        className="rounded-full border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-indigo-500/50 hover:text-zinc-200 transition-colors"
+                                    >
+                                        {suggestion}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        {isListening && (
+                            <div className="mt-2">
+                                <VoiceWaveform active={isListening} level={voice.level} />
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -240,8 +452,8 @@ export default function ChatPage() {
                     >
                         {/* Avatar */}
                         <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${msg.role === 'user'
-                                ? 'bg-zinc-700'
-                                : 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                            ? 'bg-zinc-700'
+                            : 'bg-gradient-to-br from-indigo-500 to-purple-600'
                             }`}>
                             {msg.role === 'user'
                                 ? <User className="h-4 w-4 text-zinc-300" />
@@ -252,10 +464,10 @@ export default function ChatPage() {
                         {/* Bubble */}
                         <div className={`flex flex-col gap-1 max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                             <div className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
-                                    ? 'bg-indigo-600 text-white rounded-tr-md'
-                                    : msg.status === 'failed'
-                                        ? 'bg-red-950/30 border border-red-800/40 text-red-300 rounded-tl-md'
-                                        : 'bg-zinc-800 text-zinc-200 rounded-tl-md'
+                                ? 'bg-indigo-600 text-white rounded-tr-md'
+                                : msg.status === 'failed'
+                                    ? 'bg-red-950/30 border border-red-800/40 text-red-300 rounded-tl-md'
+                                    : 'bg-zinc-800 text-zinc-200 rounded-tl-md'
                                 }`}>
                                 {msg.status === 'queued' || msg.status === 'running' ? (
                                     <div className="flex items-center gap-2">
@@ -303,22 +515,53 @@ export default function ChatPage() {
                 </div>
             )}
 
-            {/* Input */}
-            <div className="shrink-0 flex gap-3 items-end pt-3 border-t border-zinc-800">
+            {/* Voice listening indicator above input */}
+            {isListening && messages.length > 0 && (
+                <div className="shrink-0 flex items-center justify-center gap-3 py-2 mb-1">
+                    <VoiceWaveform active level={voice.level} />
+                    <span className="text-xs text-indigo-400 font-medium animate-pulse">Listening…</span>
+                    <VoiceWaveform active level={voice.level} />
+                </div>
+            )}
+
+            {/* Input row */}
+            <div className="shrink-0 flex gap-2 items-end pt-3 border-t border-zinc-800">
+                {/* Mic button */}
+                {voice.supported && (
+                    <button
+                        id="voice-input-btn"
+                        onClick={() => isListening ? voice.stop() : void voice.start()}
+                        disabled={sending}
+                        title={isListening ? 'Stop recording' : 'Voice input'}
+                        className={`shrink-0 rounded-xl p-3 transition-all duration-200 ${isListening
+                            ? 'bg-red-500/20 border border-red-500/40 text-red-400 shadow-[0_0_16px_rgba(239,68,68,0.3)] animate-pulse'
+                            : 'border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 bg-zinc-900'
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                        aria-label={isListening ? 'Stop recording' : 'Start voice input'}
+                    >
+                        {isListening
+                            ? <MicOff className="h-4 w-4" />
+                            : <Mic className="h-4 w-4" />
+                        }
+                    </button>
+                )}
+
                 <textarea
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Message your agent… (Enter to send, Shift+Enter for newline)"
+                    placeholder={isListening ? 'Listening…' : 'Message your agent… (Enter to send, Shift+Enter for newline)'}
                     rows={1}
-                    disabled={sending}
+                    disabled={sending || isListening}
                     className="flex-1 resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
                     style={{ minHeight: '48px' }}
                 />
+
                 <button
+                    id="send-btn"
                     onClick={() => void sendMessage()}
-                    disabled={sending || !input.trim()}
+                    disabled={sending || !input.trim() || isListening}
                     className="shrink-0 rounded-xl bg-indigo-600 p-3 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     aria-label="Send"
                 >
