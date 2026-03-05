@@ -338,6 +338,51 @@ export async function testProvider(
         }
     }
 
+    // ── Google: waterfall through model candidates until one works ────────────
+    // Users may have keys with different model access depending on their project / billing tier.
+    const GOOGLE_MODEL_PRIORITY = [
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-flash-002',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-pro-002',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+    ]
+
+    if (providerKey === 'google') {
+        const envKey = PROVIDER_ENV_KEY.google
+        let savedKey: string | undefined
+        if (opts.apiKey && envKey) {
+            savedKey = process.env[envKey]
+            process.env[envKey] = opts.apiKey
+        }
+        const candidates = opts.model ? [opts.model, ...GOOGLE_MODEL_PRIORITY.filter(m => m !== opts.model)] : GOOGLE_MODEL_PRIORITY
+        const errors: string[] = []
+        try {
+            for (const candidate of candidates) {
+                try {
+                    const model = buildTestModel('google', candidate, opts.baseUrl)
+                    const ac = new AbortController()
+                    const timer = setTimeout(() => ac.abort(), timeoutMs)
+                    const result = await gt({ model, prompt: 'Reply with the single word "ok".', maxOutputTokens: 20, abortSignal: ac.signal })
+                    clearTimeout(timer)
+                    if (result.text.trim().length > 0) {
+                        return { ok: true, message: `Connected — using ${candidate}`, latencyMs: Date.now() - start, model: candidate }
+                    }
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message.slice(0, 120) : 'error'
+                    errors.push(`${candidate}: ${msg}`)
+                }
+            }
+            return { ok: false, message: `No compatible model found. Tried: ${candidates.slice(0, 3).join(', ')}`, latencyMs: Date.now() - start, model: '' }
+        } finally {
+            if (envKey) {
+                if (savedKey === undefined) delete process.env[envKey]
+                else process.env[envKey] = savedKey
+            }
+        }
+    }
+
     const modelId = opts.model ?? DEFAULT_TEST_MODELS[providerKey]
     const envKey = PROVIDER_ENV_KEY[providerKey]
 

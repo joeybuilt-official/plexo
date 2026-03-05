@@ -327,12 +327,16 @@ export default function AIProvidersPage() {
                     model: state.selectedModel || selected.staticModels?.[0] || 'default',
                 }),
             })
-            const data = await res.json() as { ok: boolean; message: string; latencyMs?: number }
+            const data = await res.json() as { ok: boolean; message: string; latencyMs?: number; model?: string }
             if (data.ok) {
                 updateState(selectedProvider, {
                     status: 'configured',
                     testResult: `✓ ${data.message}${data.latencyMs ? ` in ${data.latencyMs}ms` : ''}`,
+                    // Auto-select whichever model the backend confirmed works
+                    ...(data.model ? { selectedModel: data.model } : {}),
                 })
+                // Save immediately so the user doesn't have to click Save manually
+                await handleSave()
             } else {
                 updateState(selectedProvider, {
                     status: 'untested',
