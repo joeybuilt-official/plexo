@@ -15,6 +15,7 @@
         "@plexo/db": "workspace:*",
         "@plexo/queue": "workspace:*",
         "@plexo/sdk": "workspace:*",
+        "ai": "^6.0.111",
         "bcrypt": "^5.1",
         "cors": "^2.8",
         "dotenv": "^16",

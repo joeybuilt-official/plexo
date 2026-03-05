@@ -15,12 +15,14 @@ import { pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
 import { db, eq } from '@plexo/db'
-import { channels, workspaces, installedConnections } from '@plexo/db'
+import { channels, workspaces } from '@plexo/db'
+import { generateText } from 'ai'
+import { buildModel } from '@plexo/agent/providers/registry'
+import type { WorkspaceAISettings, ProviderKey, AIProviderConfig } from '@plexo/agent/providers/registry'
 
 export const telegramRouter: RouterType = Router()
 
 const TELEGRAM_API = 'https://api.telegram.org/bot'
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 
 let _botToken: string | null = null
 let _webhookSecret: string | null = null
@@ -62,124 +64,110 @@ async function deleteWebhook(): Promise<void> {
     await fetch(`${TELEGRAM_API}${_botToken}/deleteWebhook`, { method: 'POST' }).catch(() => null)
 }
 
-// ── AI helpers ───────────────────────────────────────────────────────────────
+// ── AI helpers (provider-agnostic) ───────────────────────────────────────────
 
-import { getAnthropicTokens } from '../anthropic-tokens.js'
-
-// An OAuth access token from Anthropic — cannot be used with x-api-key header
-const ANTHROPIC_OAUTH_PREFIX = 'sk-ant-oat'
-
-interface ResolvedCredential {
-    apiKey: string | null       // permanent API key — use x-api-key header
-    bearerToken: string | null  // OAuth access token — use Authorization: Bearer header
-}
-
-async function resolveCredential(workspaceId: string): Promise<ResolvedCredential> {
-    const nil: ResolvedCredential = { apiKey: null, bearerToken: null }
-
-    // 1. Env var — always a proper API key
-    const envKey = process.env.ANTHROPIC_API_KEY
-    if (envKey && !envKey.startsWith(ANTHROPIC_OAUTH_PREFIX)) {
-        return { apiKey: envKey, bearerToken: null }
-    }
-
-    // 2. Workspace settings — may have an API key OR mistakenly an OAuth token
+/**
+ * Load workspace AI settings from DB — same logic as agent-loop's loadWorkspaceAISettings
+ * but returns the resolved settings + provider config for direct use.
+ */
+async function loadWorkspaceAI(workspaceId: string): Promise<{
+    aiSettings: WorkspaceAISettings | null
+    providerKey: ProviderKey | null
+    config: AIProviderConfig | null
+}> {
+    const nil = { aiSettings: null, providerKey: null, config: null }
     try {
-        const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
-            .where(eq(workspaces.id, workspaceId)).limit(1)
-        const providers = (ws?.settings as {
-            aiProviders?: { providers?: Record<string, { apiKey?: string }> }
-        } | null)?.aiProviders?.providers ?? {}
+        const [ws] = await db.select({ settings: workspaces.settings })
+            .from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const s = ws?.settings as any
+        const ap = s?.aiProviders
+        if (!ap) return nil
 
-        for (const providerKey of ['anthropic', ...Object.keys(providers)]) {
-            const k = providers[providerKey]?.apiKey
-            if (!k) continue
-            if (k.startsWith(ANTHROPIC_OAUTH_PREFIX)) {
-                // OAuth token stored in wrong place — fall through to proper token store
-                break
+        const rawProviders = ap.providers ?? {}
+        const providerKeys = Object.keys(rawProviders)
+
+        const aiSettings: WorkspaceAISettings = {
+            primaryProvider: (ap.primary ?? ap.primaryProvider ?? 'anthropic') as ProviderKey,
+            fallbackChain: (ap.fallbackOrder ?? ap.fallbackChain ?? []) as ProviderKey[],
+            providers: Object.fromEntries(
+                providerKeys.map((k) => {
+                    const p = rawProviders[k]
+                    return [k, {
+                        provider: k as ProviderKey,
+                        apiKey: p.apiKey,
+                        oauthToken: p.oauthToken,
+                        baseUrl: p.baseUrl,
+                        status: p.status,
+                        model: p.selectedModel ?? p.defaultModel,
+                    }]
+                })
+            ) as WorkspaceAISettings['providers'],
+        }
+
+        // Walk chain to find first usable provider
+        const chain = [aiSettings.primaryProvider, ...aiSettings.fallbackChain.filter(p => p !== aiSettings.primaryProvider)]
+        for (const pk of chain) {
+            const p = rawProviders[pk]
+            if (!p) continue
+            const apiKey = p.apiKey as string | undefined
+            const oauthToken = p.oauthToken as string | undefined
+            const baseUrl = p.baseUrl as string | undefined
+            const status = p.status as string | undefined
+
+            const isValidKey = (k: string) => k !== 'placeholder' && k.length > 10 && !k.includes(' ')
+            const isValidOAuth = (t: string) => t.startsWith('sk-ant-oat') && t.length > 20 && !t.includes(' ')
+
+            if (pk === 'anthropic') {
+                if ((oauthToken && isValidOAuth(oauthToken)) || (apiKey && isValidKey(apiKey))) {
+                    const key = (oauthToken && isValidOAuth(oauthToken)) ? oauthToken : apiKey!
+                    return { aiSettings: { ...aiSettings, primaryProvider: pk }, providerKey: pk, config: { provider: pk, apiKey: key, model: p.selectedModel ?? p.defaultModel } }
+                }
+            } else {
+                if (apiKey && isValidKey(apiKey)) {
+                    return { aiSettings: { ...aiSettings, primaryProvider: pk }, providerKey: pk, config: { provider: pk, apiKey, baseUrl, model: p.selectedModel ?? p.defaultModel } }
+                }
+                if (status === 'configured' || baseUrl) {
+                    return { aiSettings: { ...aiSettings, primaryProvider: pk }, providerKey: pk, config: { provider: pk, apiKey: 'local', baseUrl, model: p.selectedModel ?? p.defaultModel } }
+                }
             }
-            return { apiKey: k, bearerToken: null }
         }
-    } catch { /* ignore */ }
-
-    // 3. Proper Anthropic OAuth token store (encrypted in installed_connections)
-    try {
-        const tokens = await getAnthropicTokens(workspaceId)
-        if (tokens?.accessToken) {
-            return { apiKey: null, bearerToken: tokens.accessToken }
-        }
-    } catch { /* ignore */ }
-
-    // 4. Installed connections — other providers' API keys
-    try {
-        const rows = await db.select({ credentials: installedConnections.credentials })
-            .from(installedConnections).where(eq(installedConnections.workspaceId, workspaceId))
-        for (const row of rows) {
-            const creds = row.credentials as Record<string, string> | null
-            const k = creds?.api_key ?? creds?.apiKey
-            if (k && !k.startsWith(ANTHROPIC_OAUTH_PREFIX)) return { apiKey: k, bearerToken: null }
-        }
-    } catch { /* ignore */ }
-
+    } catch (err) {
+        logger.error({ err, workspaceId }, 'Telegram: failed to load workspace AI settings')
+    }
     return nil
 }
 
-// Keep old resolveApiKey signature for backward compat — returns null if only OAuth available
-async function resolveApiKey(workspaceId: string): Promise<string | null> {
-    const cred = await resolveCredential(workspaceId)
-    return cred.apiKey ?? null
-}
-
 interface ChatMessage { role: 'user' | 'assistant'; content: string }
-
 
 interface AiResult {
     text: string | null
     error: string | null
 }
 
-async function chatWithAI(cred: ResolvedCredential, messages: ChatMessage[], system?: string): Promise<AiResult> {
-    if (!cred.apiKey && !cred.bearerToken) {
+/**
+ * Provider-agnostic chat — uses the workspace's configured provider via ai-sdk.
+ */
+async function chatWithAI(workspaceId: string, messages: ChatMessage[], system?: string): Promise<AiResult> {
+    const { aiSettings, providerKey, config } = await loadWorkspaceAI(workspaceId)
+    if (!aiSettings || !providerKey || !config) {
         return { text: null, error: 'no_credential' }
     }
+
     try {
-        const authHeaders: Record<string, string> = cred.bearerToken
-            ? { 'Authorization': `Bearer ${cred.bearerToken}`, 'anthropic-beta': 'oauth-2025-04-20' }
-            : { 'x-api-key': cred.apiKey! }
-
-        const res = await fetch(ANTHROPIC_URL, {
-            method: 'POST',
-            headers: {
-                ...authHeaders,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-5',
-                max_tokens: 1024,
-                system: system ?? 'You are Plexo, an AI agent assistant.',
-                messages,
-            }),
-            signal: AbortSignal.timeout(30_000),
+        const model = buildModel(providerKey, config, 'summarization', aiSettings)
+        const result = await generateText({
+            model,
+            system: system ?? 'You are Plexo, an AI agent assistant.',
+            messages: messages.map(m => ({ role: m.role, content: m.content })),
+            maxTokens: 1024,
+            abortSignal: AbortSignal.timeout(30_000),
         })
-
-        if (!res.ok) {
-            let reason = `http_${res.status}`
-            try {
-                const errBody = await res.json() as { error?: { type?: string; message?: string } }
-                if (errBody.error?.message) reason = errBody.error.message
-                else if (errBody.error?.type) reason = errBody.error.type
-            } catch { /* ignore */ }
-            logger.warn({ status: res.status, reason, authType: cred.bearerToken ? 'oauth' : 'api_key' }, 'AI chat call returned non-2xx')
-            return { text: null, error: reason }
-        }
-
-        const data = await res.json() as { content?: Array<{ text: string }> }
-        const text = data.content?.[0]?.text ?? null
-        return { text, error: null }
+        return { text: result.text ?? null, error: null }
     } catch (err) {
-        logger.warn({ err }, 'AI chat call failed')
-        return { text: null, error: 'network_error' }
+        const msg = err instanceof Error ? err.message : String(err)
+        logger.warn({ err, workspaceId, providerKey }, 'Telegram AI chat call failed')
+        return { text: null, error: msg }
     }
 }
 
@@ -215,8 +203,8 @@ CONVERSATION: greetings, status checks, questions about you, small talk, thanks,
 
 Reply with ONLY one word: TASK or CONVERSATION.`
 
-async function classifyIntent(cred: ResolvedCredential, text: string): Promise<'TASK' | 'CONVERSATION'> {
-    const result = await chatWithAI(cred, [{ role: 'user', content: text }], CLASSIFY_SYSTEM)
+async function classifyIntent(workspaceId: string, text: string): Promise<'TASK' | 'CONVERSATION'> {
+    const result = await chatWithAI(workspaceId, [{ role: 'user', content: text }], CLASSIFY_SYSTEM)
     // On AI error, default to CONVERSATION so the error path handles it
     if (result.error) return 'CONVERSATION'
     return result.text?.trim().toUpperCase().startsWith('TASK') ? 'TASK' : 'CONVERSATION'
@@ -267,8 +255,9 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
         return
     }
 
-    const cred = await resolveCredential(workspaceId)
-    if (!cred.apiKey && !cred.bearerToken) {
+    // Check if workspace has any AI provider configured
+    const { providerKey } = await loadWorkspaceAI(workspaceId)
+    if (!providerKey) {
         await sendMessage(chatId, '⚠️ No AI provider configured. Add your API key in Settings → AI Providers.')
         return
     }
@@ -277,12 +266,12 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
     await sendTyping(chatId)
 
     // Classify: is this a task or just conversation?
-    const intent = await classifyIntent(cred, text)
+    const intent = await classifyIntent(workspaceId, text)
 
     if (intent === 'CONVERSATION') {
         const history = chatHistory.get(chatId) ?? []
         const result = await chatWithAI(
-            cred,
+            workspaceId,
             history,
             'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
             + 'If the user describes something they want done, ask them to confirm so you can execute it as a task.'

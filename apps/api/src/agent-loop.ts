@@ -208,7 +208,9 @@ async function processOneTask(): Promise<boolean> {
             .where(eq(tasks.id, task.id))
 
         const taskContext = task.context as Record<string, unknown>
-        const description = (taskContext.description as string) ?? JSON.stringify(taskContext)
+        const description = (taskContext.description as string)
+            ?? (taskContext.message as string)
+            ?? JSON.stringify(taskContext)
 
         emit({ type: 'task_planning', taskId: task.id })
         const plan = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
