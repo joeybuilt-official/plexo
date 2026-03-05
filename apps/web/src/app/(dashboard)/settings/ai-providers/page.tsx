@@ -329,14 +329,14 @@ export default function AIProvidersPage() {
             })
             const data = await res.json() as { ok: boolean; message: string; latencyMs?: number; model?: string }
             if (data.ok) {
-                updateState(selectedProvider, {
+                const patch: Partial<ProviderState> = {
                     status: 'configured',
                     testResult: `✓ ${data.message}${data.latencyMs ? ` in ${data.latencyMs}ms` : ''}`,
-                    // Auto-select whichever model the backend confirmed works
                     ...(data.model ? { selectedModel: data.model } : {}),
-                })
-                // Save immediately so the user doesn't have to click Save manually
-                await handleSave()
+                }
+                updateState(selectedProvider, patch)
+                // Auto-save with the new state explicitly — avoids React setState timing issue
+                await handleSave({ [selectedProvider]: patch } as Partial<Record<ProviderKey, Partial<ProviderState>>>)
             } else {
                 updateState(selectedProvider, {
                     status: 'untested',
@@ -353,22 +353,17 @@ export default function AIProvidersPage() {
         }
     }
 
-    async function handleSave() {
+    async function handleSave(stateOverrides?: Partial<Record<ProviderKey, Partial<ProviderState>>>) {
         if (!WS_ID) return
         setSaving(true)
         try {
-            // Persist provider config to workspace settings, including API keys.
-            // Keys are stored in workspace JSONB settings (local dev only).
-            // In production, prefer ANTHROPIC_API_KEY env var.
             const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string; oauthToken?: string }> = {}
             for (const p of PROVIDERS) {
-                const s = providerStates[p.key]
-                // Include any provider that has a credential (regardless of test status)
-                // OR that was already confirmed as configured/untested.
+                // Merge current state with any overrides (e.g. from successful test result)
+                const s = { ...providerStates[p.key], ...(stateOverrides?.[p.key] ?? {}) }
                 const hasCredential = !!(s.apiKey || s.oauthToken)
                 const hasStatus = s.status !== 'unconfigured'
                 if (hasCredential || hasStatus) {
-                    // Promote unconfigured-but-keyed providers to 'untested' before writing
                     const effectiveStatus = s.status === 'unconfigured' && hasCredential ? 'untested' : s.status
                     providersConfig[p.key] = {
                         status: effectiveStatus,
@@ -386,19 +381,18 @@ export default function AIProvidersPage() {
                     settings: {
                         aiProviders: {
                             primary: primaryProvider,
-                            primaryProvider: primaryProvider,  // canonical name read by agent-loop
+                            primaryProvider: primaryProvider,
                             modelRouting,
                             providers: providersConfig,
                             fallbackOrder,
-                            fallbackChain: fallbackOrder,      // canonical name read by agent-loop
+                            fallbackChain: fallbackOrder,
                         },
                     },
                 }),
             })
             if (res.ok) {
-                // Update UI state to reflect promoted statuses
                 for (const p of PROVIDERS) {
-                    const s = providerStates[p.key]
+                    const s = { ...providerStates[p.key], ...(stateOverrides?.[p.key] ?? {}) }
                     if (s.status === 'unconfigured' && (s.apiKey || s.oauthToken)) {
                         updateState(p.key, { status: 'untested' })
                     }
@@ -666,7 +660,7 @@ export default function AIProvidersPage() {
                                 {testing ? 'Testing…' : 'Test connection'}
                             </button>
                             <button
-                                onClick={handleSave}
+                                onClick={() => void handleSave()}
                                 disabled={saving}
                                 className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
                             >

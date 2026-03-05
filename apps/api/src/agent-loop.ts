@@ -99,13 +99,21 @@ async function loadWorkspaceAISettings(workspaceId: string): Promise<{
     }
 
     // 2. Walk the full provider chain — first one with a usable credential wins.
-    //    The credential returned here is just a gate; withFallback() in the executor
-    //    handles picking the actual model per-call.
+    //    IMPORTANT: also update aiSettings.primaryProvider to match the winning provider
+    //    so resolveModel() builds the correct model, not the un-keyed primary.
     const primaryProvider = aiSettings?.primaryProvider ?? 'anthropic'
     const fallbackChain = aiSettings?.fallbackChain ?? []
     const chain = [primaryProvider, ...fallbackChain.filter((p) => p !== primaryProvider)]
 
     logger.info({ workspaceId, chain }, 'ai-cred: walking provider chain')
+
+    function withPrimary(key: string, credential: AnthropicCredential): { credential: AnthropicCredential; aiSettings: WorkspaceAISettings | null } {
+        if (aiSettings && aiSettings.primaryProvider !== key) {
+            logger.info({ workspaceId, from: aiSettings.primaryProvider, to: key }, 'ai-cred: pinning primaryProvider to working provider')
+            aiSettings = { ...aiSettings, primaryProvider: key as ProviderKey }
+        }
+        return { credential, aiSettings }
+    }
 
     for (const providerKey of chain) {
         const p = rawProviders[providerKey]
@@ -122,22 +130,21 @@ async function loadWorkspaceAISettings(workspaceId: string): Promise<{
         if (providerKey === 'anthropic') {
             if (oauthToken) {
                 logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ anthropic OAuth token found')
-                return { credential: { type: 'api_key', apiKey: oauthToken }, aiSettings }
+                return withPrimary('anthropic', { type: 'api_key', apiKey: oauthToken })
             }
             if (apiKey && apiKey !== 'placeholder') {
                 logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ anthropic API key found')
-                return { credential: { type: 'api_key', apiKey }, aiSettings }
+                return withPrimary('anthropic', { type: 'api_key', apiKey })
             }
             logger.debug({ workspaceId, providerKey, status }, 'ai-cred: anthropic — no key/token, skip')
         } else {
             if (apiKey && apiKey !== 'placeholder') {
                 logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ API key found')
-                return { credential: { type: 'api_key', apiKey }, aiSettings }
+                return withPrimary(providerKey, { type: 'api_key', apiKey })
             }
             if (status === 'configured' || baseUrl) {
-                // Keyless local provider (Ollama, etc.)
                 logger.info({ workspaceId, providerKey, baseUrl }, 'ai-cred: ✓ keyless provider (configured/baseUrl)')
-                return { credential: { type: 'api_key', apiKey: 'local' }, aiSettings }
+                return withPrimary(providerKey, { type: 'api_key', apiKey: 'local' })
             }
             logger.debug({ workspaceId, providerKey, status, hasApiKey: !!apiKey }, 'ai-cred: no usable credential, skip')
         }
@@ -148,7 +155,7 @@ async function loadWorkspaceAISettings(workspaceId: string): Promise<{
         const tokens = await getAnthropicTokens(workspaceId)
         if (tokens?.accessToken) {
             logger.info({ workspaceId }, 'ai-cred: ✓ installed Anthropic OAuth token found')
-            return { credential: { type: 'api_key', apiKey: tokens.accessToken }, aiSettings }
+            return withPrimary('anthropic', { type: 'api_key', apiKey: tokens.accessToken })
         }
     } catch (err) {
         logger.warn({ err, workspaceId }, 'ai-cred: getAnthropicTokens failed')
