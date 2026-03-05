@@ -115,7 +115,11 @@ export function registerTelegramChat(chatId: string, workspaceId: string): void 
 
 async function resolveWorkspace(chatId: string): Promise<string | null> {
     if (CHAT_TO_WORKSPACE.has(chatId)) return CHAT_TO_WORKSPACE.get(chatId)!
-    if (process.env.DEFAULT_WORKSPACE_ID) return process.env.DEFAULT_WORKSPACE_ID
+    const defaultWs = process.env.DEFAULT_WORKSPACE_ID ?? process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
+    if (defaultWs) {
+        CHAT_TO_WORKSPACE.set(chatId, defaultWs)
+        return defaultWs
+    }
     try {
         const [ch] = await db.select({ workspaceId: channels.workspaceId })
             .from(channels).where(eq(channels.type, 'telegram')).limit(1)
