@@ -28,9 +28,8 @@ function generatePKCE(): { verifier: string; challenge: string } {
 // ── GET /api/oauth/anthropic/start?workspaceId= ──────────────────────────────
 
 // Anthropic's OAuth server only allows http://127.0.0.1:{port}/callback
-// as the redirect_uri (same pattern as Claude Code). We register that,
-// then alias /callback → /api/oauth/anthropic/callback on our server.
-const ANTHROPIC_REDIRECT_URI = `http://localhost:${process.env.PORT ?? 3001}/oauth/callback`
+// as the redirect_uri (same pattern as Claude Code). Must be 127.0.0.1 NOT localhost.
+const ANTHROPIC_REDIRECT_URI = `http://127.0.0.1:${process.env.PORT ?? 3001}/callback`
 
 oauthRouter.get('/anthropic/start', async (req, res) => {
     const workspaceId = req.query.workspaceId as string
