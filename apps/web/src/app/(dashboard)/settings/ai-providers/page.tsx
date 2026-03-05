@@ -101,9 +101,9 @@ const PROVIDERS: ProviderConfig[] = [
     {
         key: 'google',
         name: 'Google Gemini',
-        description: 'Gemini 2.5, 2.0, 1.5 models',
+        description: 'Gemini 1.5, 2.0 models',
         requiresKey: true,
-        staticModels: ['gemini-2.5-pro-exp-03-25', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+        staticModels: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-lite', 'gemini-2.0-flash-exp'],
     },
     {
         key: 'groq',
