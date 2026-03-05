@@ -19,6 +19,8 @@ import {
     ChevronRight,
     Copy,
     Globe,
+    Link2,
+    Puzzle,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
@@ -27,6 +29,20 @@ import type { FilterDimension } from '@web/components/list-toolbar'
 const FILTER_KEYS = ['type', 'status'] as const
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+
+/** Channel type → connections registry ID (for cross-referencing) */
+const CHANNEL_TO_REGISTRY: Record<string, string> = {
+    telegram: 'telegram',
+    slack: 'slack',
+    discord: 'discord',
+}
+
+interface InstalledSummary {
+    id: string
+    registryId: string
+    name: string
+    status: string
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -233,6 +249,7 @@ export default function ChannelsPage() {
     const [toggling, setToggling] = useState<string | null>(null)
     const [deleting, setDeleting] = useState<string | null>(null)
     const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+    const [installedConnections, setInstalledConnections] = useState<InstalledSummary[]>([])
 
     const lf = useListFilter(FILTER_KEYS, 'newest')
     const { search, filterValues, clearAll } = lf
@@ -241,10 +258,17 @@ export default function ChannelsPage() {
         if (!WS_ID) return
         setLoading(true)
         try {
-            const res = await fetch(`${API_BASE}/api/v1/channels?workspaceId=${WS_ID}`)
-            if (res.ok) {
-                const data = await res.json() as { items: Channel[] }
+            const [chRes, instRes] = await Promise.all([
+                fetch(`${API_BASE}/api/v1/channels?workspaceId=${WS_ID}`),
+                fetch(`${API_BASE}/api/v1/connections/installed?workspaceId=${WS_ID}`),
+            ])
+            if (chRes.ok) {
+                const data = await chRes.json() as { items: Channel[] }
                 setChannels(data.items ?? [])
+            }
+            if (instRes.ok) {
+                const data = await instRes.json() as { items: InstalledSummary[] }
+                setInstalledConnections(data.items ?? [])
             }
         } finally {
             setLoading(false)
@@ -455,6 +479,10 @@ export default function ChannelsPage() {
                         const m = CHANNEL_META[ch.type]
                         const Icon = m.icon
                         const active = selected?.id === ch.id
+                        const linkedRegistryId = CHANNEL_TO_REGISTRY[ch.type]
+                        const linkedIntegration = linkedRegistryId
+                            ? installedConnections.find((i) => i.registryId === linkedRegistryId)
+                            : undefined
                         return (
                             <button
                                 key={ch.id}
@@ -471,6 +499,11 @@ export default function ChannelsPage() {
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         {ch.errorCount > 0 && <AlertCircle className="h-3.5 w-3.5 text-red-400" />}
+                                        {linkedIntegration && (
+                                            <span title={`Integration: ${linkedIntegration.name}`}>
+                                                <Puzzle className="h-3 w-3 text-violet-400" />
+                                            </span>
+                                        )}
                                         {ch.enabled
                                             ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                                             : <div className="h-2 w-2 rounded-full bg-zinc-600" />
@@ -659,6 +692,34 @@ export default function ChannelsPage() {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Integration cross-reference */}
+                            {(() => {
+                                const linkedRegistryId = CHANNEL_TO_REGISTRY[selected.type]
+                                const linkedIntegration = linkedRegistryId
+                                    ? installedConnections.find((i) => i.registryId === linkedRegistryId)
+                                    : undefined
+                                if (!linkedIntegration) return null
+                                return (
+                                    <div className="rounded-lg border border-violet-800/30 bg-violet-950/20 px-3 py-3 flex flex-col gap-1.5">
+                                        <p className="text-xs font-semibold text-violet-400 flex items-center gap-1.5">
+                                            <Puzzle className="h-3.5 w-3.5" />
+                                            Integration linked
+                                        </p>
+                                        <p className="text-[11px] text-violet-400/70 leading-relaxed">
+                                            This channel shares a service with the <strong className="text-violet-300">{linkedIntegration.name}</strong> integration ({linkedIntegration.status}).
+                                            Both use the same platform but serve different roles — the channel routes inbound messages, the integration exposes agent tools.
+                                        </p>
+                                        <a
+                                            href="/settings/connections"
+                                            className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors mt-0.5"
+                                        >
+                                            <Link2 className="h-3 w-3" />
+                                            Manage in Integrations →
+                                        </a>
+                                    </div>
+                                )
+                            })()}
 
                             {selected.errorCount > 0 && (
                                 <div className="rounded-lg border border-red-800/40 bg-red-950/20 px-3 py-2.5 flex items-center gap-2 text-sm text-red-400">

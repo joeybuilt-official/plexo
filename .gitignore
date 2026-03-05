@@ -29,6 +29,12 @@ Thumbs.db
 .idea/
 .agents-local.md
 
+# One-off scaffold/patch scripts
+fix_api_routes.js
+update_chat.js
+update_chat_page.js
+update_telegram.js
+
 # Playwright
 playwright-report/
 test-results/

@@ -9,6 +9,7 @@ import {
     AlertTriangle,
     Zap,
     MessageSquare,
+    Users,
 } from 'lucide-react'
 import Link from 'next/link'
 import { CancelButton } from './_cancel-button'
@@ -176,6 +177,70 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                     )
                 })}
             </div>
+
+            {/* Quality judge breakdown */}
+            {(() => {
+                const judge = (task.context as Record<string, unknown>)?._judge as {
+                    mode?: string
+                    selfScore?: number
+                    judgeCount?: number
+                    dissenters?: string[]
+                    models?: string[]
+                } | undefined
+                if (!judge || judge.mode === 'fallback') return null
+                const selfPct = judge.selfScore != null ? Math.round(judge.selfScore * 100) : null
+                const verPct = task.qualityScore != null ? Math.round(task.qualityScore * 100) : null
+                const delta = selfPct != null && verPct != null ? verPct - selfPct : null
+                return (
+                    <div className="rounded-xl border border-indigo-800/30 bg-indigo-950/20 p-4 flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
+                            <Users className="h-3.5 w-3.5 text-indigo-400" />
+                            <span className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider">
+                                Quality ensemble
+                            </span>
+                            <span className="ml-auto text-[10px] text-indigo-400/60 capitalize">
+                                {judge.mode?.replace('+', ' + ')}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-zinc-600">Self-assessed</span>
+                                <span className="text-sm font-semibold text-zinc-300">{selfPct != null ? `${selfPct}%` : '—'}</span>
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-zinc-600">Verified</span>
+                                <span className="text-sm font-semibold text-emerald-400">{verPct != null ? `${verPct}%` : '—'}</span>
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-zinc-600">Delta</span>
+                                <span className={`text-sm font-semibold ${delta == null ? 'text-zinc-500'
+                                        : delta > 0 ? 'text-emerald-400'
+                                            : delta < 0 ? 'text-rose-400'
+                                                : 'text-zinc-400'
+                                    }`}>
+                                    {delta != null ? `${delta > 0 ? '+' : ''}${delta}pp` : '—'}
+                                </span>
+                            </div>
+                        </div>
+                        {judge.models && judge.models.length > 0 && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-zinc-600">{judge.judgeCount} judge{judge.judgeCount !== 1 ? 's' : ''}</span>
+                                <div className="flex flex-wrap gap-1">
+                                    {judge.models.map((m) => (
+                                        <span key={m} className={`rounded px-1.5 py-0.5 text-[10px] font-mono ${(judge.dissenters ?? []).includes(m)
+                                                ? 'bg-rose-900/30 text-rose-400'
+                                                : 'bg-zinc-800 text-zinc-400'
+                                            }`}>{m}</span>
+                                    ))}
+                                </div>
+                                {(judge.dissenters?.length ?? 0) > 0 && (
+                                    <p className="text-[10px] text-rose-400/70">Red = dissented · cloud arbitrator called</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )
+            })()}
 
             {/* Context — human-readable fields only */}
             {contextItems.length > 0 && (

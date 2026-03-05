@@ -9,7 +9,7 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/dustin-olenslager/plexo
+git clone https://github.com/joeybuilt-official/plexo
 cd plexo
 cp .env.example .env
 ```

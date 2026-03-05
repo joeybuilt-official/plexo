@@ -14,6 +14,7 @@ import { requestApproval, waitForDecision } from '../one-way-door.js'
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { judgeQuality } from './quality-judge.js'
+import type { JudgeMeta } from './quality-judge.js'
 
 // ── Tool dispatcher — Phase 2 stubs ──────────────────────────────────────────
 // Each tool runs locally for now. Phase 3 moves to sandboxed worker containers.
@@ -417,15 +418,19 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
     // Independent quality judge — decoupled from self-assessment to prevent reward hacking.
     // Runs non-blocking post-execution; replaces finalQuality if successful.
     // Falls back to self-reported score on any failure.
-    const verifiedQuality = await judgeQuality({
+    const judgeResult = await judgeQuality({
         taskType: ctx.taskType ?? 'coding',
         goal: plan.goal,
         deliverableSummary: finalSummary,
         toolsUsed: toolCallRecords.map((t) => t.tool),
         selfScore: finalQuality,
-    }).catch(() => finalQuality)
+        aiSettings,
+    }).catch(() => ({ score: finalQuality, meta: { mode: 'fallback' as const, selfScore: finalQuality, judgeCount: 0, dissenters: [], models: [] } }))
 
-    const executionResult: ExecutionResult = {
+    const verifiedQuality = judgeResult.score
+    const judgeMeta: JudgeMeta = judgeResult.meta
+
+    const executionResult: ExecutionResult & { judgeMeta?: JudgeMeta } = {
         taskId: ctx.taskId,
         ok: true,
         steps: stepResults,
@@ -435,6 +440,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         totalTokensOut,
         totalCostUsd: totalCost,
         totalDurationMs: Date.now() - startTime,
+        judgeMeta,
     }
 
     // Write cost to api_cost_tracking (weekly accumulation)

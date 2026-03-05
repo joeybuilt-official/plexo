@@ -18,7 +18,7 @@ Plexo ships as a Docker Compose stack. You need a Linux server with Docker insta
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/dustin-olenslager/plexo
+git clone https://github.com/joeybuilt-official/plexo
 cd plexo
 
 # 2. Configure environment

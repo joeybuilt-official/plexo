@@ -1,5 +1,5 @@
 import { claimTask, completeTask, blockTask } from '@plexo/queue'
-import { db, eq } from '@plexo/db'
+import { db, eq, sql } from '@plexo/db'
 import { tasks, apiCostTracking, workspaces } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
@@ -275,6 +275,14 @@ async function processOneTask(): Promise<boolean> {
             tokensOut: result.totalTokensOut,
             costUsd: result.totalCostUsd,
         })
+
+        // Persist judge metadata into context JSONB so the task detail UI can display it.
+        const extResult = result as typeof result & { judgeMeta?: Record<string, unknown> }
+        if (extResult.judgeMeta) {
+            await db.update(tasks).set({
+                context: sql`context || ${JSON.stringify({ _judge: extResult.judgeMeta })}::jsonb`,
+            }).where(eq(tasks.id, task.id))
+        }
 
         emit({
             type: 'task_complete',

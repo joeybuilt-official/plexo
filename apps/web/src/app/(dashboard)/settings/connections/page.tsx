@@ -23,12 +23,21 @@ import {
     Copy,
     Check,
     Code2,
+    Link,
+    MessageSquare,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 import type { FilterDimension } from '@web/components/list-toolbar'
 
 const FILTER_KEYS = ['category', 'status'] as const
+
+interface ChannelSummary {
+    id: string
+    type: string
+    name: string
+    enabled: boolean
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,6 +90,17 @@ interface ConnectedItem extends RegistryItem {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+
+/** Channel type → integration registry ID mapping */
+const CHANNEL_TO_REGISTRY: Record<string, string> = {
+    telegram: 'telegram',
+    slack: 'slack',
+    discord: 'discord',
+    github: 'github',
+    linear: 'linear',
+    jira: 'jira',
+    notion: 'notion',
+}
 
 function categoryColor(cat: string): string {
     const map: Record<string, string> = {
@@ -150,6 +170,7 @@ export default function IntegrationsPage() {
     const [installed, setInstalled] = useState<InstalledConnection[]>([])
     const [selected, setSelected] = useState<RegistryItem | null>(null)
     const [loading, setLoading] = useState(true)
+    const [channels, setChannels] = useState<ChannelSummary[]>([])
 
     const lf = useListFilter(FILTER_KEYS, 'default')
     const { search, filterValues, clearAll } = lf
@@ -163,9 +184,10 @@ export default function IntegrationsPage() {
     const fetchData = useCallback(async () => {
         setLoading(true)
         try {
-            const [regRes, instRes] = await Promise.all([
+            const [regRes, instRes, chanRes] = await Promise.all([
                 fetch(`${API_BASE}/api/v1/connections/registry`),
                 WS_ID ? fetch(`${API_BASE}/api/v1/connections/installed?workspaceId=${WS_ID}`) : Promise.resolve(null),
+                WS_ID ? fetch(`${API_BASE}/api/v1/channels?workspaceId=${WS_ID}`) : Promise.resolve(null),
             ])
             if (regRes.ok) {
                 const d = await regRes.json() as { items: RegistryItem[] }
@@ -175,6 +197,10 @@ export default function IntegrationsPage() {
             if (instRes?.ok) {
                 const d = await instRes.json() as { items: InstalledConnection[] }
                 setInstalled(d.items)
+            }
+            if (chanRes?.ok) {
+                const d = await chanRes.json() as { items: ChannelSummary[] }
+                setChannels(d.items ?? [])
             }
         } catch {
             setError('Failed to load connections')
@@ -190,6 +216,11 @@ export default function IntegrationsPage() {
         : null
 
     const isConnected = connectedItem !== null
+
+    /** Channels that correspond to the currently selected integration */
+    const linkedChannels = selected
+        ? channels.filter((ch) => CHANNEL_TO_REGISTRY[ch.type] === selected.id)
+        : []
 
     // Tools that are enabled for this connection (null = all)
     const enabledTools: string[] | null = connectedItem?.enabledTools ?? null
@@ -394,6 +425,8 @@ export default function IntegrationsPage() {
                             sorted.map((r) => {
                                 const inst = installed.find((i) => i.registryId === r.id)
                                 const active = r.id === selected?.id
+                                const linkedChs = channels.filter((ch) => CHANNEL_TO_REGISTRY[ch.type] === r.id)
+                                const hasActiveChannel = linkedChs.some((ch) => ch.enabled)
                                 return (
                                     <button
                                         key={r.id}
@@ -429,6 +462,11 @@ export default function IntegrationsPage() {
                                             </div>
                                             <div className="flex items-center gap-1.5 shrink-0">
                                                 <AuthIcon type={r.authType} />
+                                                {hasActiveChannel && (
+                                                    <span title={`Channel: ${linkedChs.map(c => c.name).join(', ')}`}>
+                                                        <MessageSquare className="h-3 w-3 text-teal-400" />
+                                                    </span>
+                                                )}
                                                 {inst ? <StatusDot status={inst.status} /> : <Circle className="h-3 w-3 text-zinc-700" />}
                                             </div>
                                         </div>
@@ -608,6 +646,33 @@ export default function IntegrationsPage() {
                                         <div className="rounded-lg border border-blue-800/40 bg-blue-950/20 px-3 py-3 text-xs text-blue-400">
                                             <p className="font-semibold mb-1">OAuth2 — secure redirect flow</p>
                                             <p className="text-blue-400">Clicking Connect will open a popup to authenticate with {selected.name}. Requires <code className="text-blue-300">{selected.id.toUpperCase().replace('-', '_')}_CLIENT_ID</code> set in the API environment.</p>
+                                        </div>
+                                    )}
+
+                                    {/* Channel cross-reference */}
+                                    {linkedChannels.length > 0 && (
+                                        <div className="rounded-lg border border-teal-800/30 bg-teal-950/20 px-3 py-3 flex flex-col gap-1.5">
+                                            <p className="text-xs font-semibold text-teal-400 flex items-center gap-1.5">
+                                                <MessageSquare className="h-3.5 w-3.5" />
+                                                {linkedChannels.length === 1 ? 'Channel adapter active' : `${linkedChannels.length} channel adapters active`}
+                                            </p>
+                                            <div className="flex flex-col gap-1">
+                                                {linkedChannels.map((ch) => (
+                                                    <div key={ch.id} className="flex items-center justify-between">
+                                                        <span className="text-[11px] text-teal-400/70">{ch.name}</span>
+                                                        <span className={`text-[10px] font-medium ${ch.enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                                                            {ch.enabled ? 'enabled' : 'disabled'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <a
+                                                href="/settings/channels"
+                                                className="flex items-center gap-1 text-[11px] text-teal-400 hover:text-teal-300 transition-colors mt-0.5"
+                                            >
+                                                <Link className="h-3 w-3" />
+                                                Manage in Channels →
+                                            </a>
                                         </div>
                                     )}
 

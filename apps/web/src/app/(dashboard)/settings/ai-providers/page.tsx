@@ -16,6 +16,7 @@ import {
     Star,
     RefreshCw,
     Zap,
+    Users,
 } from 'lucide-react'
 import { getModelCapabilities } from '@web/lib/models'
 import { CapabilityList } from '@web/components/capabilities'
@@ -742,19 +743,25 @@ export default function AIProvidersPage() {
                             </div>
                         ) : (
                             <div className="flex flex-col gap-1.5">
-                                <label className="text-sm font-medium text-zinc-300">Base URL</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-medium text-zinc-300">Base URL</label>
+                                    <span className="text-[10px] text-zinc-600">Local or remote — any reachable Ollama instance</span>
+                                </div>
                                 <input
                                     type="text"
                                     value={state.baseUrl}
                                     onChange={(e) => updateState(selectedProvider, { baseUrl: e.target.value })}
                                     onKeyDown={(e) => e.key === 'Enter' && void handleSave()}
-                                    placeholder="http://localhost:11434"
+                                    placeholder="http://your-server:11434  or  https://ollama.example.com"
                                     className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
                                 />
+                                <p className="text-xs text-zinc-600">
+                                    Plexo will call <code className="text-zinc-500">/api/tags</code> to discover models and <code className="text-zinc-500">/v1</code> for inference.
+                                    No API key required — network connectivity is sufficient.
+                                </p>
                             </div>
                         )}
 
-                        {/* Model selector — static list for cloud providers, dynamic for local */}
                         {(selected.staticModels || state.dynamicModels.length > 0) && (
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-zinc-300">Default model</label>
@@ -775,6 +782,34 @@ export default function AIProvidersPage() {
                                 )}
                                 {state.dynamicModels.length > 0 && !selected.staticModels && (
                                     <p className="text-xs text-zinc-600">{state.dynamicModels.length} models available from your Ollama instance.</p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Ensemble quality judge badge — Ollama only */}
+                        {selectedProvider === 'ollama' && state.status === 'configured' && state.dynamicModels.length > 0 && (
+                            <div className="rounded-lg border border-indigo-800/30 bg-indigo-950/20 px-3 py-3 flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2">
+                                    <Users className="h-3.5 w-3.5 text-indigo-400" />
+                                    <p className="text-xs font-semibold text-indigo-400">Used for quality ensemble</p>
+                                    <span className="ml-auto text-[10px] rounded px-1.5 py-0.5 bg-indigo-900/40 text-indigo-400">
+                                        up to {Math.min(3, state.dynamicModels.length)} judges
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-zinc-600 leading-relaxed">
+                                    After each task, Plexo runs the deliverable through {Math.min(3, state.dynamicModels.length)} local model
+                                    {Math.min(3, state.dynamicModels.length) !== 1 ? 's' : ''} in
+                                    parallel and aggregates a consensus quality score. If judges disagree, a cloud model arbitrates.
+                                </p>
+                                {state.dynamicModels.slice(0, 5).length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                        {state.dynamicModels.slice(0, 5).map((m) => (
+                                            <span key={m} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">{m}</span>
+                                        ))}
+                                        {state.dynamicModels.length > 5 && (
+                                            <span className="text-[10px] text-zinc-600">+{state.dynamicModels.length - 5} more</span>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         )}
