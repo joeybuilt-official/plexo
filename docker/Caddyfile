@@ -1,10 +1,17 @@
 {$PUBLIC_DOMAIN} {
-  # Dashboard
-  handle {
+  # SSE — disable buffering (must be before generic /api/* catch)
+  handle /api/sse {
+    reverse_proxy api:3001 {
+      flush_interval -1
+    }
+  }
+
+  # Auth.js callback routes — served by web
+  handle /api/auth/* {
     reverse_proxy web:3000
   }
 
-  # API — /api/* and /health
+  # API backend
   handle /api/* {
     reverse_proxy api:3001
   }
@@ -12,15 +19,8 @@
     reverse_proxy api:3001
   }
 
-  # SSE — disable buffering
-  handle /api/sse {
-    reverse_proxy api:3001 {
-      flush_interval -1
-    }
-  }
-
-  # Auth.js callback routes
-  handle /api/auth/* {
+  # Dashboard — catch-all (must be last)
+  handle {
     reverse_proxy web:3000
   }
 
