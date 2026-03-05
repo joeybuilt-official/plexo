@@ -39,6 +39,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         signIn: '/login',
     },
     callbacks: {
+        authorized({ auth }) {
+            return !!auth
+        },
         async jwt({ token, user }) {
             if (user) {
                 token.id = user.id

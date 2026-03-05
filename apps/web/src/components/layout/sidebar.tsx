@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSession, signOut } from 'next-auth/react'
 import {
     LayoutDashboard,
     MessageSquare,
@@ -268,6 +269,7 @@ function WorkspaceSwitcher() {
 
 export function Sidebar() {
     const pathname = usePathname()
+    const { data: session } = useSession()
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
         // SSR safe — defaultOpen values only
         const init: Record<string, boolean> = {}
@@ -384,13 +386,16 @@ export function Sidebar() {
             {/* Footer */}
             <div className="flex flex-col border-t border-zinc-800/50 p-2">
                 {/* User */}
-                <button className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-zinc-900/80 transition-colors">
+                <button
+                    className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-zinc-900/80 transition-colors"
+                    onClick={() => void signOut({ callbackUrl: '/login' })}
+                >
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-[11px] font-semibold text-zinc-300 ring-1 ring-inset ring-zinc-700/50">
-                        A
+                        {(session?.user?.name ?? session?.user?.email ?? 'U').slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-zinc-200">Admin</p>
-                        <p className="truncate text-[10px] text-zinc-500">admin@plexo.dev</p>
+                        <p className="truncate text-xs font-medium text-zinc-200">{session?.user?.name ?? 'User'}</p>
+                        <p className="truncate text-[10px] text-zinc-500">{session?.user?.email ?? ''}</p>
                     </div>
                 </button>
                 <div className="mt-1 px-2.5 pb-1">
