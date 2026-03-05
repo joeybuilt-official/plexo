@@ -217,7 +217,7 @@ const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
     openrouter: 'anthropic/claude-haiku-4-5',
     anthropic: 'claude-haiku-4-5',
     openai: 'gpt-4o-mini',
-    google: 'gemini-1.5-flash',
+    google: 'gemini-1.5-flash-002',
     mistral: 'mistral-small-latest',
     groq: 'llama-3.1-8b-instant',
     xai: 'grok-2',
