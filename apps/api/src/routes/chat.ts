@@ -1,7 +1,9 @@
 /**
  * Webchat API
  *
- * POST /api/chat/message  — Accept a user message, queue a task, return taskId
+ * POST /api/chat/message  — Accept a user message, classify intent:
+ *   CONVERSATION → direct AI reply (no task queued)
+ *   TASK → queue a task, return taskId for polling
  * GET  /api/chat/reply/:taskId — Poll for agent reply (returns when complete)
  * GET  /api/chat/widget.js — Serve the embeddable chat widget script
  *
@@ -15,10 +17,26 @@ import { db, eq } from '@plexo/db'
 import { tasks, workspaces } from '@plexo/db'
 import { logger } from '../logger.js'
 import { ulid } from 'ulid'
+import { generateText } from 'ai'
+import { buildModel } from '@plexo/agent/providers/registry'
+import { loadWorkspaceAISettings } from '../agent-loop.js'
 
 export const chatRouter: RouterType = Router()
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// ── Intent classification ────────────────────────────────────────────────────
+
+const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
+Decide if the user's message is a TASK REQUEST or CONVERSATION.
+
+TASK: requires autonomous execution — create, write, fix, research, build, deploy, analyze, automate, schedule, etc.
+CONVERSATION: greetings, status checks, questions about you, small talk, thanks, clarifications, simple questions.
+
+Reply with ONLY one word: TASK or CONVERSATION.`
+
+// Per-session conversation history (last 20 messages, in-memory)
+const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>()
 
 // ── POST /api/chat/message ────────────────────────────────────────────────────
 
@@ -51,7 +69,70 @@ chatRouter.post('/message', async (req, res) => {
             return
         }
 
-        // Create a task for the agent to process
+        // Load AI settings
+        const { credential, aiSettings } = await loadWorkspaceAISettings(workspaceId)
+        if (!credential || !aiSettings) {
+            res.status(503).json({ error: { code: 'NO_AI_PROVIDER', message: 'No AI provider configured. Go to Settings → AI Providers.' } })
+            return
+        }
+
+        const providerKey = aiSettings.primaryProvider
+        const config = aiSettings.providers[providerKey]
+        if (!config) {
+            res.status(503).json({ error: { code: 'NO_AI_PROVIDER', message: `No config for provider ${providerKey}` } })
+            return
+        }
+
+        const model = buildModel(providerKey, config, 'summarization', aiSettings)
+        const trimmedMsg = message.trim()
+
+        // Classify intent
+        let intent: 'TASK' | 'CONVERSATION' = 'CONVERSATION'
+        try {
+            const classifyResult = await generateText({
+                model,
+                system: CLASSIFY_SYSTEM,
+                messages: [{ role: 'user', content: trimmedMsg }],
+                abortSignal: AbortSignal.timeout(10_000),
+            })
+            intent = classifyResult.text?.trim().toUpperCase().startsWith('TASK') ? 'TASK' : 'CONVERSATION'
+        } catch {
+            // On classification failure, default to CONVERSATION
+            intent = 'CONVERSATION'
+        }
+
+        logger.info({ workspaceId, intent, message: trimmedMsg.slice(0, 80) }, 'Webchat intent classified')
+
+        if (intent === 'CONVERSATION') {
+            // Direct conversational reply — no task queue
+            const sid = sessionId ?? 'default'
+            const history = sessionHistory.get(sid) ?? []
+            history.push({ role: 'user', content: trimmedMsg })
+            if (history.length > 20) history.splice(0, history.length - 20)
+            sessionHistory.set(sid, history)
+
+            try {
+                const result = await generateText({
+                    model,
+                    system: 'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
+                        + 'If the user describes something they want done, ask them to confirm so you can execute it as a task.',
+                    messages: history.map(m => ({ role: m.role, content: m.content })),
+                    abortSignal: AbortSignal.timeout(30_000),
+                })
+                const replyText = result.text ?? "I'm having a bit of trouble right now — please try again in a moment."
+                history.push({ role: 'assistant', content: replyText })
+                if (history.length > 20) history.splice(0, history.length - 20)
+                sessionHistory.set(sid, history)
+
+                res.json({ status: 'complete', reply: replyText })
+            } catch (err) {
+                logger.error({ err, workspaceId }, 'Webchat conversational reply failed')
+                res.json({ status: 'complete', reply: "I'm having a bit of trouble right now — please try again in a moment." })
+            }
+            return
+        }
+
+        // TASK — queue for the agent
         const taskId = ulid()
         await db.insert(tasks).values({
             id: taskId,
@@ -61,14 +142,15 @@ chatRouter.post('/message', async (req, res) => {
             priority: 5,
             source: 'dashboard',
             context: {
-                message: message.trim(),
+                description: trimmedMsg,
+                message: trimmedMsg,
                 sessionId: sessionId ?? null,
                 channel: 'webchat',
                 respondVia: 'task_outcome',
             },
         })
 
-        logger.info({ workspaceId, taskId }, 'Webchat message queued')
+        logger.info({ workspaceId, taskId }, 'Webchat task queued')
         res.status(202).json({ taskId, status: 'queued' })
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/message failed')

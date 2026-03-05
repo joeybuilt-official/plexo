@@ -321,12 +321,29 @@ export default function ChatPage() {
                 return
             }
 
-            const { taskId } = await res.json() as { taskId: string }
-            setMessages((prev) => prev.map((m) =>
-                m.id === pendingId ? { ...m, taskId, status: 'running' } : m
-            ))
+            const data = await res.json() as { taskId?: string; status?: string; reply?: string }
 
-            await pollReply(taskId, pendingId)
+            // Direct conversational reply — no polling needed
+            if (data.status === 'complete' && data.reply) {
+                setMessages((prev) => prev.map((m) =>
+                    m.id === pendingId ? { ...m, status: 'complete', content: data.reply! } : m
+                ))
+                return
+            }
+
+            // Task queued — poll for reply
+            if (data.taskId) {
+                setMessages((prev) => prev.map((m) =>
+                    m.id === pendingId ? { ...m, taskId: data.taskId!, status: 'running' } : m
+                ))
+                await pollReply(data.taskId, pendingId)
+                return
+            }
+
+            // Unexpected response
+            setMessages((prev) => prev.map((m) =>
+                m.id === pendingId ? { ...m, status: 'failed', content: 'Unexpected response from server.' } : m
+            ))
         } catch {
             setMessages((prev) => prev.map((m) =>
                 m.id === pendingId ? { ...m, status: 'failed', content: 'Network error.' } : m
