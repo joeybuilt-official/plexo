@@ -54,9 +54,18 @@ async function fetchMarketplaceData(workspaceId: string) {
         ? ((await instRes.json()) as { items: InstalledItem[] }).items
         : []
 
-    const plugins: KapselPlugin[] = pluginsRes.ok
-        ? ((await pluginsRes.json()) as KapselPlugin[])
+    const rawPlugins = pluginsRes.ok
+        ? await pluginsRes.json() as unknown
         : []
+
+    // API may return bare array, { items: [...] }, or { plugins: [...] }
+    const plugins: KapselPlugin[] = Array.isArray(rawPlugins)
+        ? (rawPlugins as KapselPlugin[])
+        : Array.isArray((rawPlugins as { items?: unknown }).items)
+            ? ((rawPlugins as { items: KapselPlugin[] }).items)
+            : Array.isArray((rawPlugins as { plugins?: unknown }).plugins)
+                ? ((rawPlugins as { plugins: KapselPlugin[] }).plugins)
+                : []
 
     return { registry, installed, plugins }
 }

@@ -140,8 +140,9 @@ export default function ToolsPage() {
                 fetch(`${API_BASE}/api/connections/registry`),
             ])
             if (plugRes.ok) {
-                const d = await plugRes.json() as { items: Plugin[] }
-                setPlugins(d.items)
+                const d = await plugRes.json() as { items?: Plugin[] } | Plugin[]
+                const items = Array.isArray(d) ? d : (d.items ?? [])
+                setPlugins(items)
             }
             if (connRes.ok) {
                 const d = await connRes.json() as { items: InstalledConnection[] }
@@ -226,7 +227,7 @@ export default function ToolsPage() {
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Tools</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">
-                        Agent-accessible tools from connections and plugin extensions
+                        Agent-accessible tools from integrations and plugin extensions
                     </p>
                 </div>
                 <button
@@ -272,7 +273,7 @@ export default function ToolsPage() {
                         <p className="text-sm font-medium text-zinc-500">No tools available</p>
                         <p className="text-xs text-zinc-600 mt-1">
                             Connect services in{' '}
-                            <a href="/settings/connections" className="text-indigo-400 hover:underline">Connections</a>{' '}
+                            <a href="/settings/connections" className="text-indigo-400 hover:underline">Integrations</a>{' '}
                             or install Kapsel plugins from the{' '}
                             <a href="/marketplace" className="text-indigo-400 hover:underline">Marketplace</a>.
                         </p>

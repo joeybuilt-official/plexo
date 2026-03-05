@@ -28,11 +28,20 @@ async function getGroups() {
 
 export const behaviorRouter: IRouter = Router({ mergeParams: true })
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const VALID_TYPES = new Set(['safety_constraint', 'operational_rule', 'communication_style', 'domain_knowledge', 'persona_trait', 'tool_preference', 'quality_gate'])
+
+function badId(res: Response, param = 'workspaceId') {
+    res.status(400).json({ error: { code: 'INVALID_ID', message: `${param} must be a valid UUID` } })
+}
+
 // ── GET / — workspace rules (optionally filtered by projectId) ───────────────
 
 behaviorRouter.get('/', async (req: Request, res: Response) => {
     const workspaceId = req.params['workspaceId'] as string
+    if (!UUID_RE.test(workspaceId)) return void badId(res)
     const projectId = (req.query['projectId'] as string | undefined) ?? null
+    if (projectId && !UUID_RE.test(projectId)) return void badId(res, 'projectId')
 
     try {
         let rows
@@ -79,7 +88,9 @@ behaviorRouter.get('/groups', async (_req: Request, res: Response) => {
 
 behaviorRouter.get('/resolve', async (req: Request, res: Response) => {
     const workspaceId = req.params['workspaceId'] as string
+    if (!UUID_RE.test(workspaceId)) return void badId(res)
     const projectId = (req.query['projectId'] as string | undefined) ?? null
+    if (projectId && !UUID_RE.test(projectId)) return void badId(res, 'projectId')
 
     try {
         const resolveBehavior = await getResolver()
@@ -95,6 +106,7 @@ behaviorRouter.get('/resolve', async (req: Request, res: Response) => {
 
 behaviorRouter.get('/snapshots', async (req: Request, res: Response) => {
     const workspaceId = req.params['workspaceId'] as string
+    if (!UUID_RE.test(workspaceId)) return void badId(res)
     const limit = Math.min(parseInt((req.query['limit'] as string) ?? '20'), 50)
 
     try {
@@ -121,9 +133,10 @@ behaviorRouter.get('/snapshots', async (req: Request, res: Response) => {
 
 behaviorRouter.post('/rules', async (req: Request, res: Response) => {
     const workspaceId = req.params['workspaceId'] as string
+    if (!UUID_RE.test(workspaceId)) return void badId(res)
     const { projectId, type, key, label, description, value, tags } = req.body as {
         projectId?: string | null
-        type: 'safety_constraint' | 'operational_rule' | 'communication_style' | 'domain_knowledge' | 'persona_trait' | 'tool_preference' | 'quality_gate'
+        type: string
         key: string
         label: string
         description?: string
@@ -135,12 +148,25 @@ behaviorRouter.post('/rules', async (req: Request, res: Response) => {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'type, key, label, value required' } })
         return
     }
+    if (!VALID_TYPES.has(type)) {
+        res.status(400).json({ error: { code: 'INVALID_TYPE', message: `type must be one of: ${[...VALID_TYPES].join(', ')}` } })
+        return
+    }
+    if (key.length > 80 || !/^[a-z0-9_]+$/.test(key)) {
+        res.status(400).json({ error: { code: 'INVALID_KEY', message: 'key must be lowercase alphanumeric/underscore, max 80 chars' } })
+        return
+    }
+    if (label.length > 200) {
+        res.status(400).json({ error: { code: 'INVALID_LABEL', message: 'label max 200 chars' } })
+        return
+    }
+    if (projectId && !UUID_RE.test(projectId)) return void badId(res, 'projectId')
 
     try {
         const [rule] = await db.insert(behaviorRules).values({
             workspaceId,
             projectId: projectId ?? null,
-            type,
+            type: type as 'safety_constraint' | 'operational_rule' | 'communication_style' | 'domain_knowledge' | 'persona_trait' | 'tool_preference' | 'quality_gate',
             key,
             label,
             description: description ?? '',
@@ -160,6 +186,8 @@ behaviorRouter.post('/rules', async (req: Request, res: Response) => {
 behaviorRouter.patch('/rules/:ruleId', async (req: Request, res: Response) => {
     const workspaceId = req.params['workspaceId'] as string
     const ruleId = req.params['ruleId'] as string
+    if (!UUID_RE.test(workspaceId)) return void badId(res)
+    if (!UUID_RE.test(ruleId)) return void badId(res, 'ruleId')
     const { label, description, value, tags } = req.body as {
         label?: string
         description?: string
@@ -204,6 +232,8 @@ behaviorRouter.patch('/rules/:ruleId', async (req: Request, res: Response) => {
 behaviorRouter.delete('/rules/:ruleId', async (req: Request, res: Response) => {
     const workspaceId = req.params['workspaceId'] as string
     const ruleId = req.params['ruleId'] as string
+    if (!UUID_RE.test(workspaceId)) return void badId(res)
+    if (!UUID_RE.test(ruleId)) return void badId(res, 'ruleId')
 
     try {
         const [existing] = await db.select().from(behaviorRules).where(

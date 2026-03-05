@@ -387,7 +387,9 @@ function ExtensionsTab({
     plugins: KapselPlugin[]
     workspaceId: string
 }) {
-    const [plugins, setPlugins] = useState(initialPlugins)
+    const [plugins, setPlugins] = useState<KapselPlugin[]>(
+        Array.isArray(initialPlugins) ? initialPlugins : []
+    )
     const [typeFilter, setTypeFilter] = useState<string | null>(null)
 
     const types = [...new Set(plugins.map((p) => p.type))]
@@ -505,8 +507,8 @@ export default function MarketplaceClient({
                 <button
                     onClick={() => setTab('integrations')}
                     className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'integrations'
-                            ? 'border-indigo-500 text-indigo-400'
-                            : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                        ? 'border-indigo-500 text-indigo-400'
+                        : 'border-transparent text-zinc-500 hover:text-zinc-300'
                         }`}
                 >
                     <Package className="h-3.5 w-3.5" />
@@ -518,8 +520,8 @@ export default function MarketplaceClient({
                 <button
                     onClick={() => setTab('extensions')}
                     className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'extensions'
-                            ? 'border-indigo-500 text-indigo-400'
-                            : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                        ? 'border-indigo-500 text-indigo-400'
+                        : 'border-transparent text-zinc-500 hover:text-zinc-300'
                         }`}
                 >
                     <Puzzle className="h-3.5 w-3.5" />
