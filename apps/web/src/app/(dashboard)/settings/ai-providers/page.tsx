@@ -354,9 +354,11 @@ export default function AIProvidersPage() {
                     settings: {
                         aiProviders: {
                             primary: primaryProvider,
+                            primaryProvider: primaryProvider,  // canonical name read by agent-loop
                             modelRouting,
                             providers: providersConfig,
                             fallbackOrder,
+                            fallbackChain: fallbackOrder,      // canonical name read by agent-loop
                         },
                     },
                 }),
@@ -380,12 +382,17 @@ export default function AIProvidersPage() {
 
     function moveFallback(key: ProviderKey, dir: -1 | 1) {
         setFallbackOrder((prev) => {
-            const idx = prev.indexOf(key)
-            const next = [...prev]
+            // Partition into configured (visible) and unconfigured (hidden) groups.
+            // Only reorder within the visible set so the buttons always do something visible.
+            const configured = prev.filter((k) => providerStates[k].status !== 'unconfigured')
+            const unconfigured = prev.filter((k) => providerStates[k].status === 'unconfigured')
+            const idx = configured.indexOf(key)
+            if (idx === -1) return prev
             const swap = idx + dir
-            if (swap < 0 || swap >= next.length) return prev
+            if (swap < 0 || swap >= configured.length) return prev
+            const next = [...configured]
                 ;[next[idx], next[swap]] = [next[swap]!, next[idx]!]
-            return next
+            return [...next, ...unconfigured]
         })
     }
 

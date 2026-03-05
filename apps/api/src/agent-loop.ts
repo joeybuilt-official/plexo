@@ -43,17 +43,23 @@ async function loadWorkspaceAISettings(workspaceId: string): Promise<{
             }
         } | null
         if (s?.aiProviders) {
-            const ap = s.aiProviders
-            providers = ap.providers ?? {}
+            const ap = s.aiProviders as Record<string, unknown> & {
+                providers?: Record<string, { apiKey?: string; oauthToken?: string; baseUrl?: string; selectedModel?: string; defaultModel?: string }>
+            }
+            providers = (ap.providers ?? {}) as typeof providers
             aiSettings = {
-                primaryProvider: (ap.primaryProvider ?? 'anthropic') as ProviderKey,
-                fallbackChain: (ap.fallbackChain ?? []) as ProviderKey[],
+                // frontend saves as 'primary' not 'primaryProvider'
+                primaryProvider: ((ap.primary ?? ap.primaryProvider) as ProviderKey | undefined ?? 'anthropic'),
+                // frontend saves as 'fallbackOrder' not 'fallbackChain'
+                fallbackChain: ((ap.fallbackOrder ?? ap.fallbackChain) as ProviderKey[] | undefined ?? []),
                 providers: Object.fromEntries(
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- provider config shape varies between frontend save and internal type
                     Object.entries(providers).map(([k, v]) => [k, {
                         provider: k as ProviderKey,
-                        apiKey: v.apiKey,
-                        baseUrl: v.baseUrl,
-                        defaultModel: v.defaultModel,
+                        apiKey: (v as any).apiKey,
+                        baseUrl: (v as any).baseUrl,
+                        // frontend saves as 'selectedModel' not 'defaultModel'
+                        model: (v as any).selectedModel ?? (v as any).defaultModel,
                     }])
                 ) as WorkspaceAISettings['providers'],
             }
