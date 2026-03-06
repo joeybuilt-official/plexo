@@ -16,7 +16,6 @@ import {
     Star,
     RefreshCw,
     Users,
-    Key,
     X,
 } from 'lucide-react'
 import { getModelCapabilities } from '@web/lib/models'
@@ -56,8 +55,6 @@ interface ProviderConfig {
     badge?: string
     badgeColor?: string
     requiresKey: boolean
-    /** Anthropic: accepts both sk-ant-api03-* (paid) and sk-ant-oat01-* (Max/Pro subscription) */
-    supportsSubscriptionToken?: boolean
     staticModels?: string[]
 }
 
@@ -97,9 +94,8 @@ const PROVIDERS: ProviderConfig[] = [
     {
         key: 'anthropic',
         name: 'Anthropic',
-        description: 'Claude Sonnet, Haiku, Opus — API key or Max/Pro subscription token',
+        description: 'Claude Sonnet, Haiku, Opus — API key required (sk-ant-api03-*)',
         requiresKey: true,
-        supportsSubscriptionToken: true,
         staticModels: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5', 'claude-opus-4-6', 'claude-sonnet-4-6'],
     },
     {
@@ -626,28 +622,25 @@ export default function AIProvidersPage() {
                         {selected.requiresKey ? (
                             <div className="flex flex-col gap-4">
 
-                                {/* Max/Pro subscription token callout — Anthropic only */}
-                                {selected.supportsSubscriptionToken && editingKey[selectedProvider] && (
-                                    <div className="flex flex-col gap-2 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                                {/* Anthropic-specific: subscription token policy notice */}
+                                {selectedProvider === 'anthropic' && editingKey[selectedProvider] && (
+                                    <div className="flex flex-col gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
                                         <div className="flex items-start gap-3">
-                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15">
-                                                <Key className="h-4 w-4 text-violet-400" />
-                                            </div>
+                                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
                                             <div>
-                                                <p className="text-sm font-medium text-zinc-200">Have a Claude Max or Pro subscription?</p>
-                                                <p className="mt-0.5 text-xs text-zinc-500">
-                                                    Get a long-lived token from the Claude CLI — paste it in the field below.
-                                                    It works exactly like an API key and uses your subscription credits.
+                                                <p className="text-sm font-medium text-amber-300">API key required — subscription tokens are blocked</p>
+                                                <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
+                                                    As of January 2026, Anthropic blocks OAuth tokens (<code className="text-zinc-400">sk-ant-oat01-*</code>) obtained
+                                                    from Claude Free, Pro, or Max subscriptions from being used in third-party tools.
+                                                    This is enforced server-side and violates their ToS. Attempting to use one will result in a 405 error.
+                                                </p>
+                                                <p className="mt-1.5 text-xs text-zinc-500 leading-relaxed">
+                                                    Use a paid API key (<code className="text-zinc-400">sk-ant-api03-*</code>) from{' '}
+                                                    <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">console.anthropic.com</a>.
+                                                    These bill per token.
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 font-mono text-xs text-zinc-400">
-                                            <span className="text-zinc-600">$ </span>npx @anthropic-ai/claude-code setup-token
-                                        </div>
-                                        <p className="text-[11px] text-zinc-600 leading-relaxed">
-                                            Run the command above, complete the browser login, then copy the <code className="text-zinc-500">sk-ant-oat01-…</code> token it prints and paste it below.
-                                            Tokens are long-lived and encrypted at rest.
-                                        </p>
                                     </div>
                                 )}
 
@@ -729,10 +722,7 @@ export default function AIProvidersPage() {
                                                     value={state.apiKey}
                                                     onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
                                                     onKeyDown={(e) => e.key === 'Enter' && void handleTest()}
-                                                    placeholder={selected.supportsSubscriptionToken
-                                                        ? 'sk-ant-api03-•••• or sk-ant-oat01-•••• (Max/Pro subscription token)'
-                                                        : 'sk-••••••••'
-                                                    }
+                                                    placeholder="sk-ant-api03-••••••••"
                                                     autoFocus
                                                     autoComplete="new-password"
                                                     className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
@@ -754,9 +744,7 @@ export default function AIProvidersPage() {
                                     )}
 
                                     <p className="text-xs text-zinc-600">
-                                        {selected.supportsSubscriptionToken
-                                            ? 'Accepts a paid API key (sk-ant-api03-*) or a Max/Pro subscription token (sk-ant-oat01-*). Encrypted at rest (AES-256-GCM).'
-                                            : 'Encrypted at rest (AES-256-GCM). Leave blank to keep the existing key.'}
+                                        Encrypted at rest (AES-256-GCM). Leave blank to keep the existing key.
                                     </p>
                                 </div>
                             </div>
