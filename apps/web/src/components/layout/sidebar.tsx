@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { signOut } from 'next-auth/react'
 import {
     LayoutDashboard,
     MessageSquare,
@@ -29,6 +30,7 @@ import {
     Check,
     Zap,
     Wrench,
+    LogOut,
     Sparkles as _Sparkles, // kept for potential future use
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
@@ -387,23 +389,8 @@ export function Sidebar({ user }: { user?: SessionUser }) {
             </nav>
 
             {/* Footer */}
-            <div className="flex flex-col border-t border-zinc-800/50 p-2">
-                {/* User */}
-                <button
-                    className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-zinc-900/80 transition-colors"
-                    onClick={() => {
-                        // redirect to login page — proper signout handled server-side via auth route
-                        window.location.href = '/api/auth/signout'
-                    }}
-                >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-[11px] font-semibold text-zinc-300 ring-1 ring-inset ring-zinc-700/50">
-                        {(user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-zinc-200">{user?.name ?? 'User'}</p>
-                        <p className="truncate text-[10px] text-zinc-500">{user?.email ?? ''}</p>
-                    </div>
-                </button>
+            <div className="relative flex flex-col border-t border-zinc-800/50 p-2">
+                <UserFooter user={user} />
                 <div className="mt-1 px-2.5 pb-1">
                     <span className="text-[9px] font-medium text-zinc-700">
                         &copy; 2026 Joeybuilt LLC
@@ -411,5 +398,73 @@ export function Sidebar({ user }: { user?: SessionUser }) {
                 </div>
             </div>
         </aside>
+    )
+}
+
+function UserFooter({ user }: { user?: SessionUser }) {
+    const [open, setOpen] = useState(false)
+    const ref = useRef<HTMLDivElement>(null)
+
+    // Close on outside click
+    useEffect(() => {
+        if (!open) return
+        function handler(e: MouseEvent) {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [open])
+
+    const initials = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase()
+
+    return (
+        <div ref={ref} className="relative">
+            <button
+                onClick={() => setOpen((o) => !o)}
+                className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-zinc-900/80 transition-colors"
+            >
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-[11px] font-semibold text-zinc-300 ring-1 ring-inset ring-zinc-700/50">
+                    {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-zinc-200">{user?.name ?? 'User'}</p>
+                    <p className="truncate text-[10px] text-zinc-500">{user?.email ?? ''}</p>
+                </div>
+            </button>
+
+            {open && (
+                <div className="absolute bottom-[calc(100%+4px)] left-0 z-50 w-full rounded-xl border border-zinc-700/60 bg-zinc-900 shadow-2xl shadow-black/40 overflow-hidden">
+                    {/* Identity header */}
+                    <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-zinc-800">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-xs font-semibold text-zinc-300 ring-1 ring-inset ring-zinc-700/50">
+                            {initials}
+                        </div>
+                        <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-zinc-100">{user?.name ?? 'User'}</p>
+                            <p className="truncate text-[10px] text-zinc-500">{user?.email ?? ''}</p>
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="p-1">
+                        <Link
+                            href="/settings"
+                            onClick={() => setOpen(false)}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+                        >
+                            <SettingsIcon className="h-3.5 w-3.5" />
+                            Settings
+                        </Link>
+                        <button
+                            onClick={() => void signOut({ callbackUrl: '/login' })}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
+                        >
+                            <LogOut className="h-3.5 w-3.5" />
+                            Sign out
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
     )
 }
