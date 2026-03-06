@@ -2,7 +2,7 @@ import { Router, type Router as RouterType } from 'express'
 import bcrypt from 'bcrypt'
 import { z } from 'zod'
 import { db, eq, sql, and } from '@plexo/db'
-import { users, accounts, workspaces } from '@plexo/db'
+import { users, accounts, workspaces, workspaceMembers } from '@plexo/db'
 import { logger } from '../logger.js'
 
 export const authRouter: RouterType = Router()
@@ -192,6 +192,13 @@ authRouter.post('/workspace', async (req, res) => {
             ownerId: resolvedOwnerId,
             settings: {},
         }).returning({ workspaceId: workspaces.id })
+
+        // Seed the owner as a member so the Members page shows them immediately
+        await db.insert(workspaceMembers).values({
+            workspaceId: ws!.workspaceId,
+            userId: resolvedOwnerId,
+            role: 'owner',
+        }).onConflictDoNothing()
 
         logger.info({ name: name.trim(), ownerId: resolvedOwnerId }, 'Workspace created')
         res.status(201).json({ workspaceId: ws!.workspaceId, name: name.trim() })
