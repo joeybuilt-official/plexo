@@ -86,10 +86,25 @@ const PROVIDERS: ProviderConfig[] = [
     {
         key: 'openrouter',
         name: 'OpenRouter',
-        description: '200+ models via single API key',
+        description: '200+ models via single API key — free tier available, no credits required',
         badge: 'RECOMMENDED',
         badgeColor: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
         requiresKey: true,
+        staticModels: [
+            // Free tier (no credits needed — ~50 req/day)
+            'meta-llama/llama-3.3-70b-instruct:free',
+            'deepseek/deepseek-r1:free',
+            'deepseek/deepseek-chat-v3-0324:free',
+            'google/gemma-3-27b-it:free',
+            'mistralai/mistral-7b-instruct:free',
+            // Paid models (requires credits)
+            'openai/gpt-4o',
+            'openai/gpt-4o-mini',
+            'anthropic/claude-sonnet-4-5',
+            'anthropic/claude-haiku-4-5',
+            'google/gemini-2.5-flash',
+            'meta-llama/llama-3.3-70b-instruct',
+        ],
     },
     {
         key: 'anthropic',
@@ -621,6 +636,28 @@ export default function AIProvidersPage() {
                     <div className="flex flex-col gap-4">
                         {selected.requiresKey ? (
                             <div className="flex flex-col gap-4">
+
+                                {/* OpenRouter-specific: free tier notice */}
+                                {selectedProvider === 'openrouter' && editingKey[selectedProvider] && (
+                                    <div className="flex flex-col gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                                        <div className="flex items-start gap-3">
+                                            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                                            <div>
+                                                <p className="text-sm font-medium text-emerald-300">Free tier available — no credits required</p>
+                                                <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
+                                                    OpenRouter blocks accounts with no purchase history from paid models (402 error).
+                                                    Free models with the <code className="text-zinc-400">:free</code> suffix work with any key, no credit card needed.
+                                                    Plexo defaults to <code className="text-zinc-400">meta-llama/llama-3.3-70b-instruct:free</code> which supports tool calling.
+                                                </p>
+                                                <p className="mt-1.5 text-xs text-zinc-500">
+                                                    Free limit: ~50 req/day. Rises to 1,000/day once you have $10+ in credits.
+                                                    Get a key at{' '}
+                                                    <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">openrouter.ai/keys</a>.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Anthropic-specific: subscription token policy notice */}
                                 {selectedProvider === 'anthropic' && editingKey[selectedProvider] && (

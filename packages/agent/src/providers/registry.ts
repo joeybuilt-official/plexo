@@ -90,7 +90,9 @@ const PROVIDER_DEFAULT_MODELS: Partial<Record<ProviderKey, string>> = {
     xai: 'grok-3-mini',
     deepseek: 'deepseek-chat',
     ollama: 'llama3.2',
-    openrouter: 'anthropic/claude-haiku-4-5',
+    // Free tier default — works with any key, no credits required.
+    // Supports tool calling. Switch to a paid model once credits are loaded.
+    openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
 }
 
 export function buildModel(
@@ -275,7 +277,9 @@ function isRetryableProviderError(err: unknown): boolean {
 // ── Default smoke-test model IDs per provider ─────────────────────────────────
 
 const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
-    openrouter: 'openai/gpt-4o-mini',
+    // Must use :free suffix — OpenRouter 402s on accounts with no purchase history
+    // when a paid endpoint is requested. llama-3.3-70b-instruct:free supports tool calling.
+    openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
     anthropic: 'claude-haiku-4-5',
     openai: 'gpt-4o-mini',
     google: 'gemini-2.5-flash',
@@ -300,7 +304,10 @@ const PROVIDER_ENV_KEY: Partial<Record<ProviderKey, string>> = {
 
 function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: string, apiKey?: string): AnyLanguageModel {
     switch (providerKey) {
-        case 'openrouter': return createOpenRouter({})(modelId)
+        case 'openrouter': {
+            if (!apiKey) throw new Error('OpenRouter requires an API key')
+            return createOpenRouter({ apiKey })(modelId)
+        }
         case 'anthropic': {
             if (apiKey) {
                 // Claude.ai subscription tokens (sk-ant-oat*) need Authorization: Bearer
@@ -439,6 +446,55 @@ export async function testProvider(
                 if (savedKey === undefined) delete process.env[envKey]
                 else process.env[envKey] = savedKey
             }
+        }
+    }
+
+    // ── OpenRouter: test with a :free model first, surface credit errors clearly ──
+    if (providerKey === 'openrouter') {
+        if (!opts.apiKey) {
+            return { ok: false, message: 'OpenRouter requires an API key. Get one at openrouter.ai/keys.', latencyMs: 0, model: '' }
+        }
+        // Always test with the free model — avoids 402 on zero-credit accounts.
+        // If the user has specified a model explicitly, test that too, but fall back to free.
+        const freeModel = 'meta-llama/llama-3.3-70b-instruct:free'
+        const candidates = opts.model && opts.model !== freeModel
+            ? [opts.model, freeModel]
+            : [freeModel]
+
+        const errors: string[] = []
+        for (const candidate of candidates) {
+            try {
+                const model = buildTestModel('openrouter', candidate, undefined, opts.apiKey)
+                const ac = new AbortController()
+                const timer = setTimeout(() => ac.abort(), timeoutMs)
+                const result = await gt({ model, prompt: 'Reply with the single word "ok".', maxOutputTokens: 20, abortSignal: ac.signal })
+                clearTimeout(timer)
+                if (result.text.trim().length > 0) {
+                    const isFallback = candidate === freeModel && opts.model && opts.model !== freeModel
+                    const msg = isFallback
+                        ? `Connected via ${freeModel} (free tier). Your selected model "${opts.model}" may require credits.`
+                        : `Connected — using ${candidate}`
+                    return { ok: true, message: msg, latencyMs: Date.now() - start, model: candidate }
+                }
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err)
+                const lower = msg.toLowerCase()
+                if (lower.includes('402') || lower.includes('insufficient credits') || lower.includes('never purchased')) {
+                    errors.push(`${candidate}: No credits — add funds at openrouter.ai/credits, or use a :free model`)
+                } else if (lower.includes('401') || lower.includes('invalid api key') || lower.includes('no api key')) {
+                    return { ok: false, message: 'Invalid API key. Check openrouter.ai/keys.', latencyMs: Date.now() - start, model: candidate }
+                } else {
+                    errors.push(`${candidate}: ${msg.slice(0, 120)}`)
+                }
+            }
+        }
+        // All candidates failed — return most useful error
+        const creditError = errors.find(e => e.includes('No credits'))
+        return {
+            ok: false,
+            message: creditError ?? errors[0] ?? 'Connection failed',
+            latencyMs: Date.now() - start,
+            model: candidates[0]!
         }
     }
 
