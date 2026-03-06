@@ -113,7 +113,7 @@ export default function NewProjectPage() {
     // Track whether the category was just selected (for animation)
     const [didSelect, setDidSelect] = useState(false)
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+    const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
     const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '00000000-0000-0000-0000-000000000000'
 
     const def = category ? CATEGORIES.find((c) => c.id === category) : null

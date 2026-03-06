@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight, ChevronDown, Loader2, ExternalLink, AlertCircle, ShieldCheck, X } from 'lucide-react'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
 const STEPS = ['welcome', 'workspace', 'model', 'test', 'telemetry', 'done'] as const
 type Step = typeof STEPS[number]

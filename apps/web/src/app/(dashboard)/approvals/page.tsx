@@ -44,7 +44,7 @@ const RISK_CONFIG = {
 
 const RISK_ORDER: Record<Approval['riskLevel'], number> = { low: 0, medium: 1, high: 2, critical: 3 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
 const FILTER_KEYS = ['risk', 'decision'] as const
 

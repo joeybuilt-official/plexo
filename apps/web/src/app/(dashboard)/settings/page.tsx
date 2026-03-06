@@ -94,7 +94,7 @@ export default function SettingsPage() {
     const [saved, setSaved] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+    const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
     // Active workspace ID — prefer context (localStorage), fall back to env
     const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
 

@@ -28,7 +28,7 @@ import type { FilterDimension } from '@web/components/list-toolbar'
 
 const FILTER_KEYS = ['type', 'status'] as const
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
 /** Channel type → connections registry ID (for cross-referencing) */
 const CHANNEL_TO_REGISTRY: Record<string, string> = {

@@ -148,7 +148,7 @@ function WorkspaceSwitcher() {
     const [creating, setCreating] = useState(false)
     const [newName, setNewName] = useState('')
     const ref = useRef<HTMLDivElement>(null)
-    const API = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+    const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
     // Fetch workspace list when dropdown opens
     useEffect(() => {
@@ -284,7 +284,7 @@ export function Sidebar({ user }: { user?: SessionUser }) {
     // Polling for pending approvals count
     const fetchPending = useCallback(async () => {
         const wsId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
-        const api = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+        const api = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
         if (!wsId) return
         try {
             const res = await fetch(`${api}/api/v1/approvals?workspaceId=${wsId}`, { cache: 'no-store' })

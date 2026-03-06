@@ -65,7 +65,7 @@ interface SprintDetail {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const API = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string; label: string }> = {
     queued: { bg: 'bg-zinc-700/50', text: 'text-zinc-300', dot: 'bg-zinc-500', label: 'Queued' },

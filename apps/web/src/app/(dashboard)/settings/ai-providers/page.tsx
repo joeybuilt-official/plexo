@@ -209,7 +209,7 @@ export default function AIProvidersPage() {
     const [wsDefaultTokenBudget, setWsDefaultTokenBudget] = useState('')
 
     const API_BASE = typeof window !== 'undefined'
-        ? (process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001'))
+        ? ((typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')))
         : 'http://localhost:3001'
     const { workspaceId: ctxWorkspaceId } = useWorkspace()
     const WS_ID = ctxWorkspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')

@@ -31,7 +31,7 @@ import { useWorkspace } from '@web/context/workspace'
 import { getModelCapabilities, recommendModelForInput, checkAttachmentPrompt } from '@web/lib/models'
 import { CapabilityList } from '@web/components/capabilities'
 
-const API = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

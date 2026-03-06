@@ -46,7 +46,7 @@ export function BlockedActions({ taskId, outcomeSummary }: {
     outcomeSummary: string | null
 }) {
     const router = useRouter()
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+    const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
     const [retrying, setRetrying] = useState(false)
     const [dismissing, setDismissing] = useState(false)

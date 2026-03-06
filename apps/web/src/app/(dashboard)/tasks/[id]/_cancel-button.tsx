@@ -8,7 +8,7 @@ export function CancelButton({ taskId }: { taskId: string }) {
     const [cancelling, setCancelling] = useState(false)
     const [done, setDone] = useState(false)
     const router = useRouter()
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+    const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
     async function handleCancel() {
         if (!confirm('Cancel this task? The agent will stop after the current step.')) return

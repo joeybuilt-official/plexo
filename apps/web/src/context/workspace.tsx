@@ -45,7 +45,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     // Fetch workspace name whenever id changes
     useEffect(() => {
         if (!workspaceId) return
-        const api = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+        const api = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
         fetch(`${api}/api/v1/workspaces/${workspaceId}`, { cache: 'no-store' })
             .then((r) => r.ok ? r.json() : null)
             .then((d: { name?: string } | null) => { if (d?.name) setWorkspaceName(d.name) })

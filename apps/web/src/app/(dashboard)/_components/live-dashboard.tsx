@@ -75,7 +75,7 @@ interface Task {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 const POLL_MS = 15_000
 const ACTIVITY_POLL_MS = 10_000
 const CHANNEL_POLL_MS = 30_000

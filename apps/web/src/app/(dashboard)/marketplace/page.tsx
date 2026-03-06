@@ -36,7 +36,7 @@ interface KapselPlugin {
 }
 
 async function fetchMarketplaceData(workspaceId: string) {
-    const apiBase = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+    const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
     const [regRes, instRes, pluginsRes] = await Promise.all([
         fetch(`${apiBase}/api/v1/connections/registry`, { cache: 'no-store' })

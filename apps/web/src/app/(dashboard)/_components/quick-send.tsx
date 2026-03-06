@@ -16,7 +16,7 @@ export function QuickSend() {
 
         setStatus('sending')
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+            const apiUrl = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
             const workspaceId = ctxWorkspaceId || process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
 
             if (!workspaceId) throw new Error('No workspace found')

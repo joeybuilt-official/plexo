@@ -31,7 +31,7 @@ interface UpdateLog {
     step?: string
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'
+const API_URL = (typeof window !== 'undefined' ? '/api' : (process.env.INTERNAL_API_URL || 'http://localhost:3001/api'))
 
 export function UpdateModal() {
     const [open, setOpen] = useState(false)

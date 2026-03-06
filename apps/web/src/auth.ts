@@ -38,6 +38,8 @@ export const authConfig: NextAuthConfig = {
                     if (res.ok) {
                         const dbUser = await res.json() as { id: string }
                         token.id = dbUser.id
+                    } else if (res.status === 403) {
+                        throw new Error('AccessDenied: Registration is closed')
                     } else {
                         if (user) token.id = user.id
                     }

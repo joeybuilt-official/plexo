@@ -143,7 +143,7 @@ export default function ProjectsPage() {
     const [refreshing, setRefreshing] = useState(false)
 
     const workspaceId = ctxWorkspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+    const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
     // ── Filter state (shared standard) ────────────────────────────────────────
     const lf = useListFilter(FILTER_KEYS, 'newest')

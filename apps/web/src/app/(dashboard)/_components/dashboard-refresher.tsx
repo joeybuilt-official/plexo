@@ -16,7 +16,7 @@ export function DashboardRefresher() {
     const router = useRouter()
     const sseRef = useRef<EventSource | null>(null)
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+    const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
     const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
     useEffect(() => {
