@@ -113,7 +113,7 @@ export function validateEnv(): void {
     if (errors.length > 0) {
         console.error('[env] FATAL — Missing required environment variables:')
         for (const e of errors) console.error(e)
-        console.error('\nSet these in .env (development) or your Coolify environment variables (production).')
+        console.error('\nSet these in .env (root of the repo). See .env.example for descriptions and generation commands.')
         console.error('See .env.example for descriptions and generation commands.')
         process.exit(1)
     }

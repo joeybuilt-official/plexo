@@ -221,23 +221,73 @@ GET    /api/sse                              Real-time broadcast for UI/Bots
 
 ## Self-Host in < 3 Minutes
 
-Plexo is built for trivial orchestration via Docker. 
+Plexo ships as a single `docker compose` stack — Postgres, Valkey, API, Web, and Caddy (auto-TLS).
+
+### Minimum Requirements
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| CPU | 1 vCPU | 2 vCPU |
+| RAM | 2 GB | 4 GB |
+| Disk | 10 GB | 20 GB |
+| OS | Any Linux with Docker ≥24 | Ubuntu 22.04 LTS |
+
+> Caddy handles TLS automatically. **You need a domain pointing at your server before running `compose up`** — Caddy will fail to obtain a cert without DNS resolving to the host.
+
+### 1. Clone and configure
 
 ```bash
 git clone https://github.com/joeybuilt-official/plexo.git
 cd plexo
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-Fill in your `DATABASE_URL`, `REDIS_URL`, and a `SESSION_SECRET` (generate one with `openssl rand -hex 64`).
+Open `.env` and fill in **all required fields** before proceeding:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `POSTGRES_PASSWORD` | ✅ | Strong random password — `openssl rand -hex 32` |
+| `SESSION_SECRET` | ✅ | ≥64 char secret — `openssl rand -hex 64` |
+| `ENCRYPTION_SECRET` | ✅ | 32 char key — `openssl rand -hex 32` |
+| `PUBLIC_URL` | ✅ | Your domain with scheme, e.g. `https://plexo.example.com` |
+| `PUBLIC_DOMAIN` | ✅ | Bare domain for Caddy TLS, e.g. `plexo.example.com` |
+| `ANTHROPIC_API_KEY` | ⚠️ | At least one AI provider key required for agent tasks |
+
+All other variables (channels, OAuth providers, cost limits) are optional and can be configured from the Settings UI after first boot.
+
+### 2. Start the stack
 
 ```bash
 docker compose -f docker/compose.yml up -d
 ```
 
-Navigate to your domain. A clean browser wizard handles the rest: account creation, provider keys, and Kapsel setup. No terminal needed after the containers start.
+Migrations run automatically before the API starts. First boot takes ~60s. Subsequent starts are fast.
 
-*(Note: Don't want to bring your own Anthropc API key? Link your Claude.ai Pro account via PKCE OAuth flow and use your existing allocation.)*
+### 3. Open the dashboard
+
+Navigate to `https://your-domain.com`. Create your admin account on first visit.
+
+*(No Anthropic API key yet? Link your Claude.ai Pro account from Settings → Connections instead.)*
+
+---
+
+### Updating
+
+Plexo checks for new releases automatically. When you're behind, a modal appears in the dashboard with update options.
+
+**Manually (always works):**
+```bash
+cd /path/to/plexo
+git pull
+docker compose -f docker/compose.yml up -d --build
+```
+
+**One-click update (opt-in):** Add to `.env` and uncomment the `volumes` block in `docker/compose.yml`:
+```bash
+DOCKER_SOCKET_ENABLED=true
+COMPOSE_PROJECT_NAME=plexo
+```
+> **Security note:** Mounting the Docker socket grants root-equivalent host access. Only enable this if you understand the tradeoff.
 
 ---
 

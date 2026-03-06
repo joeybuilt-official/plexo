@@ -8,7 +8,7 @@ import {
     Zap, RefreshCw, Save, Check, AlertCircle, Brain, Shield, Sparkles,
     User, Settings2, MessageSquare, BookOpen, Wrench, Target, Lock,
     Plus, Trash2, ChevronDown, Eye, EyeOff, History, Layers,
-    ArrowLeftRight, X, Bot, DollarSign,
+    ArrowLeftRight, X, Bot, DollarSign, Users,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { getModelCapabilities } from '@web/lib/models'
@@ -39,6 +39,10 @@ interface WorkspaceSettings {
     agentTagline?: string
     agentAvatar?: string
     agentPersona?: string
+    /** Max judges from Ollama ensemble (1–5). Default 3. */
+    ensembleSize?: number
+    /** Dissent threshold for cloud arbitration (0–1). Default 0.25. */
+    dissentThreshold?: number
 }
 
 type RuleType = 'safety_constraint' | 'operational_rule' | 'communication_style' | 'domain_knowledge' | 'persona_trait' | 'tool_preference' | 'quality_gate'
@@ -158,12 +162,13 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.E
 
 // ── Tab nav ───────────────────────────────────────────────────────────────────
 
-type Tab = 'identity' | 'behavior' | 'limits' | 'history'
+type Tab = 'identity' | 'behavior' | 'limits' | 'quality' | 'history'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'identity', label: 'Identity', icon: User },
     { id: 'behavior', label: 'Behavior', icon: Sparkles },
     { id: 'limits', label: 'Limits', icon: Shield },
+    { id: 'quality', label: 'Quality', icon: Users },
     { id: 'history', label: 'History', icon: History },
 ]
 
@@ -574,7 +579,7 @@ function AgentSettingsContent() {
     const WS_ID = ctxId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const searchParams = useSearchParams()
 
-    const initialTab = (['identity', 'behavior', 'limits', 'history'].includes(searchParams.get('tab') ?? '')
+    const initialTab = (['identity', 'behavior', 'limits', 'quality', 'history'].includes(searchParams.get('tab') ?? '')
         ? searchParams.get('tab')!
         : 'identity') as Tab
 
@@ -703,7 +708,7 @@ function AgentSettingsContent() {
         }
     }, [WS_ID])
 
-    const showSaveButton = tab === 'identity' || tab === 'limits'
+    const showSaveButton = tab === 'identity' || tab === 'limits' || tab === 'quality'
 
     return (
         <div className="flex flex-col gap-6 max-w-3xl">
@@ -993,6 +998,107 @@ function AgentSettingsContent() {
                     </div>
                 )
             )}
+
+            {/* ── Quality tab ── */}
+            {tab === 'quality' && (
+                <div className="flex flex-col gap-4">
+                    <Section title="Ensemble configuration" icon={Users}>
+                        <p className="text-sm text-zinc-400 leading-relaxed">
+                            When Ollama is configured, Plexo recruits multiple local models to independently
+                            score each task deliverable. Their weighted votes form a consensus quality score,
+                            decoupled from the executing agent's self-assessment.
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <Field label="Ensemble size" description="Max judges recruited from your Ollama instance per task.">
+                                <select
+                                    value={settings.ensembleSize ?? 3}
+                                    onChange={e => updateSetting('ensembleSize', parseInt(e.target.value))}
+                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none w-fit"
+                                >
+                                    {[1, 2, 3, 4, 5].map(n => (
+                                        <option key={n} value={n}>{n} judge{n !== 1 ? 's' : ''}</option>
+                                    ))}
+                                </select>
+                            </Field>
+
+                            <Field label="Dissent threshold" description="Score deviation that triggers cloud arbitration.">
+                                <select
+                                    value={settings.dissentThreshold ?? 0.25}
+                                    onChange={e => updateSetting('dissentThreshold', parseFloat(e.target.value))}
+                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none w-fit"
+                                >
+                                    {[0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50].map(v => (
+                                        <option key={v} value={v}>{Math.round(v * 100)}pp</option>
+                                    ))}
+                                </select>
+                            </Field>
+                        </div>
+
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 flex flex-col gap-3">
+                            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">How it works</p>
+                            <ol className="flex flex-col gap-2 text-xs text-zinc-500 list-none">
+                                <li className="flex items-start gap-2">
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo-400">1</span>
+                                    Task completes → executor calls <code className="text-zinc-400">judgeQuality()</code>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo-400">2</span>
+                                    Ollama <code className="text-zinc-400">/api/tags</code> queried → up to <strong className="text-zinc-400">{settings.ensembleSize ?? 3}</strong> small models recruited
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo-400">3</span>
+                                    All judges score the deliverable in parallel — weighted by their <code className="text-zinc-400">reliabilityScore</code>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-900/50 text-[9px] font-bold text-amber-400">4</span>
+                                    If any judge diverges &gt; <strong className="text-amber-400">{Math.round((settings.dissentThreshold ?? 0.25) * 100)}pp</strong> from consensus → cloud arbitrator resolves
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-900/50 text-[9px] font-bold text-emerald-400">5</span>
+                                    Result stored in task context · each judge's <code className="text-zinc-400">reliabilityScore</code> nudged ±0.5–1% based on agreement
+                                </li>
+                            </ol>
+                        </div>
+
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 flex flex-col gap-2">
+                            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Model preference order</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {['llama3.2', 'llama3.1', 'phi3', 'phi3.5', 'gemma2', 'gemma3', 'mistral', 'qwen2.5', 'deepseek-r1'].map((m) => (
+                                    <span key={m} className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-500">{m}</span>
+                                ))}
+                            </div>
+                            <p className="text-[11px] text-zinc-600">Tried in priority order. First {settings.ensembleSize ?? 3} available win.</p>
+                        </div>
+
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 flex flex-col gap-2">
+                            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Fallback modes</p>
+                            <div className="flex flex-col gap-1.5 text-xs text-zinc-500">
+                                {[
+                                    { mode: 'ensemble', color: 'bg-indigo-900/30 text-indigo-400', label: 'Ollama configured + models available + consensus reached' },
+                                    { mode: 'ensemble+arbitration', color: 'bg-amber-900/30 text-amber-400', label: 'Ensemble ran but judges disagreed — cloud resolved' },
+                                    { mode: 'single', color: 'bg-zinc-800 text-zinc-400', label: 'Ollama not configured — single cheap cloud model judges' },
+                                    { mode: 'fallback', color: 'bg-zinc-800 text-zinc-600', label: 'All judges failed — self-reported score passed through' },
+                                ].map(({ mode, color, label }) => (
+                                    <div key={mode} className="flex items-center gap-2">
+                                        <span className={`rounded px-1.5 py-0.5 ${color} font-mono text-[10px]`}>{mode}</span>
+                                        <span>{label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <a
+                            href="/settings/ai-providers"
+                            className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                        >
+                            <Zap className="h-3.5 w-3.5" />
+                            Configure Ollama in AI Providers →
+                        </a>
+                    </Section>
+                </div>
+            )}
+
 
             {/* ── History tab ── */}
             {tab === 'history' && WS_ID && <HistoryTab workspaceId={WS_ID} />}

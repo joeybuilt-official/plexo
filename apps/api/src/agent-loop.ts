@@ -225,6 +225,14 @@ async function processOneTask(): Promise<boolean> {
             const ap = s.aiProviders as Record<string, unknown> | undefined
             if (ap?.defaultTaskCostCeiling) wsDefaultCostCeiling = Number(ap.defaultTaskCostCeiling) || null
             if (ap?.defaultTokenBudget) wsDefaultTokenBudget = Number(ap.defaultTokenBudget) || null
+
+            // Merge ensemble quality-judge settings into aiSettings if present
+            if (aiSettings) {
+                const ensembleSize = s.ensembleSize != null ? Number(s.ensembleSize) : undefined
+                const dissentThreshold = s.dissentThreshold != null ? Number(s.dissentThreshold) : undefined
+                if (ensembleSize != null && !isNaN(ensembleSize)) aiSettings.ensembleSize = ensembleSize
+                if (dissentThreshold != null && !isNaN(dissentThreshold)) aiSettings.dissentThreshold = dissentThreshold
+            }
         }
     } catch { /* non-fatal */ }
 

@@ -57,6 +57,10 @@ export interface WorkspaceAISettings {
     fallbackChain: ProviderKey[]   // ordered; tried if primary fails
     providers: Partial<Record<ProviderKey, AIProviderConfig>>
     modelOverrides?: Partial<Record<TaskType, string>>
+    /** Max judges recruited from Ollama ensemble (1–5). Default 3. */
+    ensembleSize?: number
+    /** Score deviation from mean that triggers cloud arbitration (0–1). Default 0.25. */
+    dissentThreshold?: number
 }
 
 // Use a broad type that works with generateText — all providers return LanguageModelV2 or V3

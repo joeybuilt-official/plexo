@@ -79,6 +79,43 @@ dashboardRouter.get('/summary', async (req, res) => {
         const running = byStatus['running'] ?? 0
         const queued = byStatus['queued'] ?? 0
 
+        // Ensemble quality coverage — count tasks by judge mode stored in context JSONB
+        const ensembleRows = await db.execute<{ mode: string; count: string; avg_delta: string }>(sql`
+          SELECT
+            context->>'_judge'->>'mode' as mode,
+            COUNT(*) as count,
+            AVG(
+              CASE
+                WHEN (context->'_judge'->>'selfScore')::float IS NOT NULL
+                  AND quality_score IS NOT NULL
+                THEN (quality_score - (context->'_judge'->>'selfScore')::float)
+              END
+            )::text as avg_delta
+          FROM tasks
+          WHERE workspace_id = ${workspaceId}
+            AND status = 'complete'
+            AND context ? '_judge'
+          GROUP BY context->>'_judge'->>'mode'
+        `)
+
+        const byMode: Record<string, number> = {}
+        let avgDelta: number | null = null
+        let totalDeltaSum = 0
+        let totalDeltaCount = 0
+        for (const row of ensembleRows) {
+            if (row.mode) {
+                byMode[row.mode] = parseInt(row.count, 10)
+                if (row.avg_delta != null) {
+                    const d = parseFloat(row.avg_delta)
+                    const cnt = parseInt(row.count, 10)
+                    totalDeltaSum += d * cnt
+                    totalDeltaCount += cnt
+                }
+            }
+        }
+        if (totalDeltaCount > 0) avgDelta = totalDeltaSum / totalDeltaCount
+        const ensembleTotal = Object.values(byMode).reduce((a, b) => a + b, 0)
+
         res.json({
             agent: {
                 status: running > 0 ? 'running' : 'idle',
@@ -101,7 +138,13 @@ dashboardRouter.get('/summary', async (req, res) => {
                 thisWeek: parseInt(stepRows[0]?.count ?? '0', 10),
                 tokensThisWeek: parseInt(stepRows[0]?.tokens ?? '0', 10),
             },
+            ensemble: {
+                total: ensembleTotal,
+                byMode,
+                avgDelta,
+            },
         })
+
     } catch (err) {
         logger.error({ err }, 'GET /api/dashboard/summary failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch dashboard data' } })

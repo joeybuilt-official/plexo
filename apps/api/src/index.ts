@@ -47,6 +47,7 @@ import { emitToWorkspace } from './sse-emitter.js'
 import { debugRouter } from './routes/debug.js'
 import { chatRouter } from './routes/chat.js'
 import { behaviorRouter } from './routes/behavior.js'
+import { systemRouter } from './routes/system.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
@@ -128,6 +129,7 @@ v1.use('/telemetry', telemetryRouter)
 v1.use('/debug', debugRouter)
 v1.use('/chat', chatRouter)
 v1.use('/behavior/:workspaceId', behaviorRouter)
+v1.use('/system', systemRouter)
 
 v1.get('/agent/status', (_req, res) => {
     res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })

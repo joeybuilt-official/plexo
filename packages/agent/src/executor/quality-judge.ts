@@ -4,10 +4,15 @@
  * Two modes:
  *   1. Ensemble: If the workspace has an active Ollama provider configured (local or remote),
  *      runs N parallel local-model judges and aggregates via weighted consensus.
- *      A cloud model arbitrates if judges diverge by > DISSENT_THRESHOLD.
+ *      A cloud model arbitrates if judges diverge by > dissentThreshold.
  *
  *   2. Single-judge (fallback): Uses a single cheap cloud model (haiku or equivalent).
  *      Active when Ollama is not configured or model discovery fails.
+ *
+ * After each ensemble run, each judge's reliabilityScore is nudged:
+ *   - Agrees with consensus (within 0.1)  → +0.005 (slow, positive drift)
+ *   - Dissents from consensus             → -0.01  (penalised, but floored at 0.1)
+ * This creates a self-calibrating system: consistently-accurate models get more weight.
  *
  * Returns a JudgeResult with the composite score AND metadata (mode, judgeCount, dissenters,
  * selfScore) so the UI can surface the full picture. Never a hard dependency — falls back
@@ -20,24 +25,34 @@ import pino from 'pino'
 import { QUALITY_RUBRICS, MODEL_ROUTING } from '../constants.js'
 import { resolveModelFromEnv } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
-import { db, eq } from '@plexo/db'
+import { db, eq, sql } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
 
 const logger = pino({ name: 'quality-judge' })
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Default constants (overridable via WorkspaceAISettings) ───────────────────
 
-/** Max ensemble participants recruited from the Ollama instance. */
-const ENSEMBLE_SIZE = 3
-
-/** Score deviation from ensemble mean that triggers cloud arbitration. */
-const DISSENT_THRESHOLD = 0.25
+const DEFAULT_ENSEMBLE_SIZE = 3
+const DEFAULT_DISSENT_THRESHOLD = 0.25
 
 /** Preferred small models, tried in priority order when populating the ensemble. */
 const PREFERRED_LOCAL_MODELS = [
     'llama3.2', 'llama3.1', 'phi3', 'phi3.5', 'gemma2', 'gemma3',
     'mistral', 'qwen2.5', 'deepseek-r1', 'llava',
 ]
+
+// ── Reliability nudge constants ───────────────────────────────────────────────
+
+/** Score delta within which a judge is considered to agree with consensus. */
+const AGREEMENT_WINDOW = 0.1
+/** Reliability bump when a judge agrees. */
+const RELIABILITY_AGREE_DELTA = 0.005
+/** Reliability penalty when a judge dissents. */
+const RELIABILITY_DISSENT_DELTA = -0.01
+/** Floor so no model gets completely zeroed out. */
+const RELIABILITY_FLOOR = 0.1
+/** Ceiling. */
+const RELIABILITY_CEIL = 2.0
 
 // ── Schemas ────────────────────────────────────────────────────────────────────
 
@@ -61,9 +76,9 @@ export interface JudgeMeta {
     selfScore: number
     /** Total judge invocations that contributed to the score. */
     judgeCount: number
-    /** Model IDs that diverged from consensus by > DISSENT_THRESHOLD. */
+    /** Model IDs that diverged from consensus by > dissentThreshold. */
     dissenters: string[]
-    /** All model IDs that responded (for display in the UI). */
+    /** All model IDs that responded. */
     models: string[]
 }
 
@@ -93,11 +108,7 @@ interface OllamaTagsResponse {
     models: Array<{ name: string }>
 }
 
-/**
- * Discover available models from a remote (or local) Ollama instance.
- * Accepts any form of baseUrl: http://host:11434, http://host:11434/v1, etc.
- */
-async function discoverOllamaModels(baseUrl: string): Promise<string[]> {
+async function discoverOllamaModels(baseUrl: string, ensembleSize: number): Promise<string[]> {
     const root = baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '')
     const resp = await fetch(`${root}/api/tags`, { signal: AbortSignal.timeout(4_000) })
     if (!resp.ok) return []
@@ -108,10 +119,10 @@ async function discoverOllamaModels(baseUrl: string): Promise<string[]> {
     for (const preferred of PREFERRED_LOCAL_MODELS) {
         const match = allModels.find((m) => m.name.startsWith(preferred))
         if (match && !selected.includes(match.name)) selected.push(match.name)
-        if (selected.length >= ENSEMBLE_SIZE) break
+        if (selected.length >= ensembleSize) break
     }
     for (const m of allModels) {
-        if (selected.length >= ENSEMBLE_SIZE) break
+        if (selected.length >= ensembleSize) break
         if (!selected.includes(m.name)) selected.push(m.name)
     }
 
@@ -128,11 +139,44 @@ async function getModelWeight(modelId: string): Promise<number> {
             .from(modelsKnowledge)
             .where(eq(modelsKnowledge.modelId, baseId))
             .limit(1)
-        // Default 1.0 — equal footing until the track record accumulates.
         return row?.score ?? 1.0
     } catch {
         return 1.0
     }
+}
+
+// ── Reliability feedback update ───────────────────────────────────────────────
+
+/**
+ * Nudge each participating model's reliabilityScore based on whether it agreed
+ * or dissented from the ensemble consensus. Uses a small EMA-style adjustment
+ * to avoid sudden swings from any single task.
+ */
+async function updateReliabilityScores(
+    verdicts: VerdictResult[],
+    consensus: number,
+    dissenters: string[],
+): Promise<void> {
+    await Promise.allSettled(
+        verdicts.map(async (v) => {
+            const baseId = v.modelId.split(':')[0] ?? v.modelId
+            const dissented = dissenters.includes(v.modelId)
+            const delta = dissented ? RELIABILITY_DISSENT_DELTA : RELIABILITY_AGREE_DELTA
+            try {
+                await db.execute(sql`
+                    UPDATE models_knowledge
+                    SET reliability_score = GREATEST(
+                        ${RELIABILITY_FLOOR},
+                        LEAST(${RELIABILITY_CEIL}, reliability_score + ${delta})
+                    )
+                    WHERE model_id = ${baseId}
+                `)
+                logger.debug({ model: baseId, delta, consensus: consensus.toFixed(3), dissented }, 'Reliability score nudged')
+            } catch (err) {
+                logger.warn({ err, model: baseId }, 'Failed to update reliability score — skipping')
+            }
+        })
+    )
 }
 
 // ── Prompt builder ────────────────────────────────────────────────────────────
@@ -204,13 +248,14 @@ async function runEnsemble(
     rubric: typeof QUALITY_RUBRICS[keyof typeof QUALITY_RUBRICS],
     baseUrl: string,
     modelNames: string[],
-): Promise<{ score: number; dissenters: string[]; models: string[] }> {
+    dissentThreshold: number,
+): Promise<{ score: number; dissenters: string[]; models: string[]; verdicts: VerdictResult[] }> {
     const { system, prompt } = buildJudgePrompt(params, rubric)
     // Normalise to /v1 — works for local and remote Ollama instances alike.
     const olBase = baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '') + '/v1'
     const ol = createOpenAICompatible({ name: 'ollama-ensemble', baseURL: olBase })
 
-    const verdicts = await Promise.all(
+    const raw = await Promise.all(
         modelNames.map(async (name): Promise<VerdictResult | null> => {
             try {
                 const model = ol(name)
@@ -226,17 +271,17 @@ async function runEnsemble(
         }),
     )
 
-    const valid = verdicts.filter((v): v is VerdictResult => v !== null)
-    if (valid.length === 0) throw new Error('All ensemble judges failed')
+    const verdicts = raw.filter((v): v is VerdictResult => v !== null)
+    if (verdicts.length === 0) throw new Error('All ensemble judges failed')
 
-    const totalWeight = valid.reduce((s, v) => s + v.weight, 0)
-    const weightedMean = valid.reduce((s, v) => s + v.score * v.weight, 0) / totalWeight
-    const dissenters = valid
-        .filter((v) => Math.abs(v.score - weightedMean) > DISSENT_THRESHOLD)
+    const totalWeight = verdicts.reduce((s, v) => s + v.weight, 0)
+    const weightedMean = verdicts.reduce((s, v) => s + v.score * v.weight, 0) / totalWeight
+    const dissenters = verdicts
+        .filter((v) => Math.abs(v.score - weightedMean) > dissentThreshold)
         .map((v) => v.modelId)
 
-    logger.info({ judges: valid.length, weightedMean: weightedMean.toFixed(3), dissenters }, 'Ensemble consensus')
-    return { score: weightedMean, dissenters, models: valid.map((v) => v.modelId) }
+    logger.info({ judges: verdicts.length, weightedMean: weightedMean.toFixed(3), dissenters }, 'Ensemble consensus')
+    return { score: weightedMean, dissenters, models: verdicts.map((v) => v.modelId), verdicts }
 }
 
 // ── Public entry point ────────────────────────────────────────────────────────
@@ -244,6 +289,10 @@ async function runEnsemble(
 export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
     const { taskType, selfScore, aiSettings } = params
     const rubric = QUALITY_RUBRICS[taskType as TaskType] ?? QUALITY_RUBRICS.coding
+
+    // Resolve workspace-configurable parameters, with safe defaults.
+    const ensembleSize = Math.max(1, Math.min(5, aiSettings?.ensembleSize ?? DEFAULT_ENSEMBLE_SIZE))
+    const dissentThreshold = Math.max(0, Math.min(1, aiSettings?.dissentThreshold ?? DEFAULT_DISSENT_THRESHOLD))
 
     const fallback: JudgeResult = {
         score: selfScore,
@@ -254,13 +303,16 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
         const ollamaBase = aiSettings?.providers?.ollama?.baseUrl
 
         if (ollamaBase) {
-            logger.info({ baseUrl: ollamaBase }, 'Attempting ensemble via configured Ollama')
+            logger.info({ baseUrl: ollamaBase, ensembleSize, dissentThreshold }, 'Attempting ensemble via configured Ollama')
             try {
-                const models = await discoverOllamaModels(ollamaBase)
+                const models = await discoverOllamaModels(ollamaBase, ensembleSize)
 
                 if (models.length > 0) {
-                    const { score: ensembleScore, dissenters, models: usedModels } =
-                        await runEnsemble(params, rubric, ollamaBase, models)
+                    const { score: ensembleScore, dissenters, models: usedModels, verdicts } =
+                        await runEnsemble(params, rubric, ollamaBase, models, dissentThreshold)
+
+                    // Async reliability feedback — fire-and-forget, never blocks the score path.
+                    void updateReliabilityScores(verdicts, ensembleScore, dissenters)
 
                     if (dissenters.length > 0) {
                         logger.info({ dissenters, ensembleMean: ensembleScore.toFixed(3) }, 'Dissent detected — cloud arbitration')

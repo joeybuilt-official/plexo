@@ -10,6 +10,7 @@ import {
     GitBranch,
     RefreshCw,
     ArrowRight,
+    Users,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
@@ -44,6 +45,11 @@ interface DashboardSummary {
     steps: {
         thisWeek: number
         tokensThisWeek: number
+    }
+    ensemble?: {
+        total: number
+        byMode: Record<string, number>
+        avgDelta: number | null
     }
 }
 
@@ -283,6 +289,30 @@ export function LiveDashboard() {
             accent: 'from-pink-500 to-rose-600',
             dot: 'bg-zinc-600',
             content: <Link href="/projects" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors">View Projects <ArrowRight className="h-3 w-3" /></Link>,
+        },
+        {
+            id: 'ensemble',
+            title: 'Quality Ensemble',
+            subtitle: summary?.ensemble?.total
+                ? `${summary.ensemble.total} task${summary.ensemble.total !== 1 ? 's' : ''} verified`
+                : 'No data yet',
+            icon: Users,
+            accent: 'from-indigo-500 to-violet-600',
+            dot: (summary?.ensemble?.total ?? 0) > 0 ? 'bg-indigo-400' : 'bg-zinc-600',
+            content: !summary?.ensemble || summary.ensemble.total === 0
+                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors">Configure Ollama <ArrowRight className="h-3 w-3" /></Link>
+                : (() => {
+                    const { byMode, avgDelta } = summary.ensemble
+                    const ensembleCount = (byMode['ensemble'] ?? 0) + (byMode['ensemble+arbitration'] ?? 0)
+                    const singleCount = byMode['single'] ?? 0
+                    const deltaParts: string[] = []
+                    if (ensembleCount > 0) deltaParts.push(`${ensembleCount} ensemble`)
+                    if (singleCount > 0) deltaParts.push(`${singleCount} single`)
+                    const deltaStr = avgDelta != null
+                        ? ` · avg ${avgDelta >= 0 ? '+' : ''}${(avgDelta * 100).toFixed(1)}pp`
+                        : ''
+                    return deltaParts.join(' · ') + deltaStr
+                })(),
         },
     ]
 

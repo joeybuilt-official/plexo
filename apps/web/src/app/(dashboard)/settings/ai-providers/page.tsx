@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useWorkspace } from '@web/context/workspace'
 import {
     CheckCircle2,
@@ -15,8 +15,8 @@ import {
     Save,
     Star,
     RefreshCw,
-    Zap,
     Users,
+    Key,
 } from 'lucide-react'
 import { getModelCapabilities } from '@web/lib/models'
 import { CapabilityList } from '@web/components/capabilities'
@@ -55,13 +55,13 @@ interface ProviderConfig {
     badge?: string
     badgeColor?: string
     requiresKey: boolean
-    supportsOAuth?: boolean   // providers that accept Claude.ai subscription tokens
+    /** Anthropic: accepts both sk-ant-api03-* (paid) and sk-ant-oat01-* (Max/Pro subscription) */
+    supportsSubscriptionToken?: boolean
     staticModels?: string[]
 }
 
 interface ProviderState {
     apiKey: string
-    oauthToken: string        // Claude.ai subscription token (sk-ant-oat01-*)
     baseUrl: string
     selectedModel: string
     dynamicModels: string[]   // fetched from local provider (e.g. Ollama /api/tags)
@@ -96,9 +96,9 @@ const PROVIDERS: ProviderConfig[] = [
     {
         key: 'anthropic',
         name: 'Anthropic',
-        description: 'Claude Sonnet, Haiku, Opus models',
+        description: 'Claude Sonnet, Haiku, Opus — API key or Max/Pro subscription token',
         requiresKey: true,
-        supportsOAuth: true,
+        supportsSubscriptionToken: true,
         staticModels: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5', 'claude-opus-4-6', 'claude-sonnet-4-6'],
     },
     {
@@ -188,7 +188,6 @@ export default function AIProvidersPage() {
         () => Object.fromEntries(
             PROVIDERS.map((p) => [p.key, {
                 apiKey: '',
-                oauthToken: '',
                 baseUrl: p.key === 'ollama' ? 'http://localhost:11434' : '',
                 selectedModel: '',
                 dynamicModels: [] as string[],
@@ -271,7 +270,6 @@ export default function AIProvidersPage() {
                                     baseUrl: v.baseUrl ?? next[pk].baseUrl,
                                     // Sentinel means configured — keep input empty so placeholder shows
                                     apiKey: '',
-                                    oauthToken: '',
                                 }
                             }
                         }
@@ -295,54 +293,18 @@ export default function AIProvidersPage() {
         }))
     }
 
-    const oauthPopupRef = useRef<Window | null>(null)
 
-    const handleClaudeOAuth = useCallback(() => {
-        if (!WS_ID) return
-        const url = `${API_BASE}/api/v1/oauth/anthropic/start?workspaceId=${WS_ID}`
-        const popup = window.open(url, 'claude-oauth', 'width=600,height=700,left=200,top=100')
-        oauthPopupRef.current = popup
-
-        function onMessage(e: MessageEvent) {
-            if (e.data?.type !== 'oauth_callback' || e.data?.provider !== 'anthropic') return
-            window.removeEventListener('message', onMessage)
-            if (e.data.ok) {
-                updateState('anthropic', {
-                    status: 'configured',
-                    testResult: '✓ Connected via Claude.ai subscription — tokens stored securely.',
-                })
-            } else {
-                updateState('anthropic', {
-                    status: 'untested',
-                    testResult: `✗ Claude.ai OAuth failed: ${e.data.error ?? 'unknown error'}`,
-                })
-            }
-        }
-        window.addEventListener('message', onMessage)
-
-        // Cleanup if popup is closed without completing
-        const poll = setInterval(() => {
-            if (popup?.closed) {
-                clearInterval(poll)
-                window.removeEventListener('message', onMessage)
-            }
-        }, 500)
-    }, [WS_ID, API_BASE])
 
     async function handleTest() {
         setTesting(true)
         updateState(selectedProvider, { testResult: null })
         try {
-            // For Anthropic: prefer the OAuth token if set, otherwise use the API key
-            const effectiveKey = selected.supportsOAuth && state.oauthToken
-                ? state.oauthToken
-                : state.apiKey
             const res = await fetch(`${API_BASE}/api/v1/settings/ai-providers/test`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     provider: selectedProvider,
-                    apiKey: effectiveKey,
+                    apiKey: state.apiKey,
                     baseUrl: state.baseUrl,
                     model: state.selectedModel || selected.staticModels?.[0] || 'default',
                     workspaceId: WS_ID,
@@ -393,11 +355,11 @@ export default function AIProvidersPage() {
         if (!WS_ID) return
         setSaving(true)
         try {
-            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string; oauthToken?: string }> = {}
+            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string }> = {}
             for (const p of PROVIDERS) {
                 // Merge current state with any overrides (e.g. from successful test result)
                 const s = { ...providerStates[p.key], ...(stateOverrides?.[p.key] ?? {}) }
-                const hasCredential = !!(s.apiKey || s.oauthToken)
+                const hasCredential = !!s.apiKey
                 const hasStatus = s.status !== 'unconfigured'
                 if (hasCredential || hasStatus) {
                     const effectiveStatus = s.status === 'unconfigured' && hasCredential ? 'untested' : s.status
@@ -405,10 +367,9 @@ export default function AIProvidersPage() {
                         status: effectiveStatus,
                         selectedModel: s.selectedModel.trim(),
                         baseUrl: s.baseUrl.trim(),
-                        // Only include credential values when user has entered something new
+                        // Only include credential value when user has entered something new
                         // Empty string means "don't change" — server will keep existing encrypted value
                         ...(s.apiKey?.trim() ? { apiKey: s.apiKey.trim() } : {}),
-                        ...(s.oauthToken?.trim() ? { oauthToken: s.oauthToken.trim() } : {}),
                     }
                 }
             }
@@ -430,7 +391,7 @@ export default function AIProvidersPage() {
             if (res.ok) {
                 for (const p of PROVIDERS) {
                     const s = { ...providerStates[p.key], ...(stateOverrides?.[p.key] ?? {}) }
-                    if (s.status === 'unconfigured' && (s.apiKey || s.oauthToken)) {
+                    if (s.status === 'unconfigured' && s.apiKey) {
                         updateState(p.key, { status: 'untested' })
                     }
                 }
@@ -439,7 +400,7 @@ export default function AIProvidersPage() {
                 setProviderStates((prev) => {
                     const cleared = { ...prev }
                     for (const p of PROVIDERS) {
-                        cleared[p.key] = { ...cleared[p.key], apiKey: '', oauthToken: '' }
+                        cleared[p.key] = { ...cleared[p.key], apiKey: '' }
                     }
                     return cleared
                 })
@@ -658,38 +619,35 @@ export default function AIProvidersPage() {
                         {selected.requiresKey ? (
                             <div className="flex flex-col gap-4">
 
-                                {/* Claude OAuth — prominent inline connect button */}
-                                {selected.supportsOAuth && (
-                                    <div className="flex flex-col gap-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                                {/* Max/Pro subscription token callout — Anthropic only */}
+                                {selected.supportsSubscriptionToken && (
+                                    <div className="flex flex-col gap-2 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
                                         <div className="flex items-start gap-3">
                                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15">
-                                                <Zap className="h-4 w-4 text-violet-400" />
+                                                <Key className="h-4 w-4 text-violet-400" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-medium text-zinc-200">Connect with Claude.ai</p>
+                                                <p className="text-sm font-medium text-zinc-200">Have a Claude Max or Pro subscription?</p>
                                                 <p className="mt-0.5 text-xs text-zinc-500">
-                                                    Use your Claude Pro or Max subscription instead of a paid API key.
-                                                    Tokens are stored securely and refreshed automatically.
+                                                    Get a long-lived token from the Claude CLI — paste it in the field below.
+                                                    It works exactly like an API key and uses your subscription credits.
                                                 </p>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={handleClaudeOAuth}
-                                            disabled={!WS_ID}
-                                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-500 transition-colors disabled:opacity-40"
-                                        >
-                                            <Zap className="h-3.5 w-3.5" />
-                                            Connect with Claude.ai
-                                        </button>
+                                        <div className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 font-mono text-xs text-zinc-400">
+                                            <span className="text-zinc-600">$ </span>npx @anthropic-ai/claude-code setup-token
+                                        </div>
+                                        <p className="text-[11px] text-zinc-600 leading-relaxed">
+                                            Run the command above, complete the browser login, then copy the <code className="text-zinc-500">sk-ant-oat01-…</code> token it prints and paste it below.
+                                            Tokens are long-lived and encrypted at rest.
+                                        </p>
                                     </div>
                                 )}
 
-                                {/* API key field */}
+                                {/* API key / subscription token field */}
                                 <div className="flex flex-col gap-1.5">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-sm font-medium text-zinc-300">
-                                            {selected.supportsOAuth ? 'API Key' : 'API Key'}
-                                        </label>
+                                        <label className="text-sm font-medium text-zinc-300">API Key</label>
                                         {PROVIDER_LINKS[selectedProvider] && (
                                             <a
                                                 href={PROVIDER_LINKS[selectedProvider]!.url}
@@ -707,39 +665,19 @@ export default function AIProvidersPage() {
                                         value={state.apiKey}
                                         onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
                                         onKeyDown={(e) => e.key === 'Enter' && void handleSave()}
-                                        placeholder={selected.supportsOAuth ? 'sk-ant-api03-•••••••• (permanent API key)' : 'sk-••••••••'}
+                                        placeholder={selected.supportsSubscriptionToken
+                                            ? 'sk-ant-api03-•••• or sk-ant-oat01-•••• (Max/Pro subscription token)'
+                                            : 'sk-••••••••'
+                                        }
                                         autoComplete="new-password"
                                         className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
                                     />
                                     <p className="text-xs text-zinc-600">
-                                        {selected.supportsOAuth
-                                            ? 'Permanent API key from console.anthropic.com. Encrypted at rest (AES-256-GCM).'
+                                        {selected.supportsSubscriptionToken
+                                            ? 'Accepts a paid API key (sk-ant-api03-*) or a Max/Pro subscription token (sk-ant-oat01-*). Encrypted at rest (AES-256-GCM).'
                                             : 'Encrypted at rest (AES-256-GCM). Leave blank to keep the existing key.'}
                                     </p>
                                 </div>
-
-                                {/* OAuth token manual paste (Anthropic only) */}
-                                {selected.supportsOAuth && (
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="flex items-center gap-2">
-                                            <label className="text-sm font-medium text-zinc-300">Claude.ai OAuth Token</label>
-                                            <span className="text-[10px] font-semibold rounded px-1.5 py-0.5 bg-violet-500/15 text-violet-400 border border-violet-500/30">manual paste</span>
-                                        </div>
-                                        <input
-                                            type="password"
-                                            value={state.oauthToken}
-                                            onChange={(e) => updateState(selectedProvider, { oauthToken: e.target.value })}
-                                            onKeyDown={(e) => e.key === 'Enter' && void handleSave()}
-                                            placeholder="sk-ant-oat01-•••••••• (if not using the button above)"
-                                            autoComplete="new-password"
-                                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-                                        />
-                                        <p className="text-xs text-zinc-600">
-                                            Use the button above if possible — tokens expire after 1hr and need manual re-entry.
-                                            Uses <code className="text-zinc-500">Authorization: Bearer</code>. Takes priority over API key if set.
-                                        </p>
-                                    </div>
-                                )}
                             </div>
                         ) : (
                             <div className="flex flex-col gap-1.5">
