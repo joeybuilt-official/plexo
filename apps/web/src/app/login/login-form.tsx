@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Github, Mail, ArrowRight, Loader2, ExternalLink } from 'lucide-react'
 
 interface LoginFormProps {
@@ -59,6 +60,7 @@ export function LoginForm({ githubConfigured }: LoginFormProps) {
                     {githubConfigured ? (
                         <button
                             id="github-signin-btn"
+                            type="button"
                             onClick={() => signIn('github', { callbackUrl: '/' })}
                             className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-zinc-700 bg-zinc-800/50 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-800 hover:text-white"
                         >
@@ -66,7 +68,7 @@ export function LoginForm({ githubConfigured }: LoginFormProps) {
                             Continue with GitHub
                         </button>
                     ) : (
-                        <a
+                        <Link
                             id="github-setup-link"
                             href="/setup/github"
                             className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-500 transition-colors hover:border-zinc-700 hover:text-zinc-400"
@@ -74,7 +76,7 @@ export function LoginForm({ githubConfigured }: LoginFormProps) {
                             <Github className="h-4 w-4" />
                             Continue with GitHub
                             <ExternalLink className="ml-auto h-3 w-3" />
-                        </a>
+                        </Link>
                     )}
 
                     {/* Divider */}
@@ -147,9 +149,9 @@ export function LoginForm({ githubConfigured }: LoginFormProps) {
                 {/* Register link */}
                 <p className="mt-5 text-center text-xs text-zinc-600">
                     Don&apos;t have an account?{' '}
-                    <a href="/register" className="text-indigo-400 hover:text-indigo-300">
+                    <Link href="/register" className="text-indigo-400 hover:text-indigo-300">
                         Create one
-                    </a>
+                    </Link>
                 </p>
             </div>
         </div>
