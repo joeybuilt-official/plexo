@@ -84,7 +84,7 @@ type AnyLanguageModel = any
 /** Per-provider sensible default models — used when no model is explicitly selected. */
 const PROVIDER_DEFAULT_MODELS: Partial<Record<ProviderKey, string>> = {
     openai: 'gpt-4o',
-    google: 'gemini-1.5-flash-002',
+    google: 'gemini-2.5-flash',
     mistral: 'mistral-large-latest',
     groq: 'llama-3.1-8b-instant',
     xai: 'grok-3-mini',
@@ -278,7 +278,7 @@ const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
     openrouter: 'openai/gpt-4o-mini',
     anthropic: 'claude-haiku-4-5',
     openai: 'gpt-4o-mini',
-    google: 'gemini-1.5-flash-002',
+    google: 'gemini-2.5-flash',
     mistral: 'mistral-small-latest',
     groq: 'llama-3.1-8b-instant',
     xai: 'grok-2',
@@ -402,12 +402,10 @@ export async function testProvider(
     // ── Google: waterfall through model candidates until one works ────────────
     // Users may have keys with different model access depending on their project / billing tier.
     const GOOGLE_MODEL_PRIORITY = [
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-flash-002',
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-pro-002',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
+        'gemini-2.5-flash',
+        'gemini-2.5-pro',
+        'gemini-2.5-flash-8b',
+        'gemini-2.0-flash',
     ]
 
     if (providerKey === 'google') {
