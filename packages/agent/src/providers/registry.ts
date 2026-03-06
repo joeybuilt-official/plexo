@@ -91,8 +91,8 @@ const PROVIDER_DEFAULT_MODELS: Partial<Record<ProviderKey, string>> = {
     deepseek: 'deepseek-chat',
     ollama: 'llama3.2',
     // Free tier default — works with any key, no credits required.
-    // Supports tool calling. Switch to a paid model once credits are loaded.
-    openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
+    // deepseek-chat-v3-0324:free is generally available regardless of OR privacy settings.
+    openrouter: 'deepseek/deepseek-chat-v3-0324:free',
 }
 
 export function buildModel(
@@ -278,8 +278,9 @@ function isRetryableProviderError(err: unknown): boolean {
 
 const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
     // Must use :free suffix — OpenRouter 402s on accounts with no purchase history
-    // when a paid endpoint is requested. llama-3.3-70b-instruct:free supports tool calling.
-    openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
+    // when a paid endpoint is requested. Candidates are tried in order (waterfall).
+    // Some fail if user has "Model Training" disabled in OR privacy settings.
+    openrouter: 'deepseek/deepseek-chat-v3-0324:free',
     anthropic: 'claude-haiku-4-5',
     openai: 'gpt-4o-mini',
     google: 'gemini-2.5-flash',
@@ -454,12 +455,19 @@ export async function testProvider(
         if (!opts.apiKey) {
             return { ok: false, message: 'OpenRouter requires an API key. Get one at openrouter.ai/keys.', latencyMs: 0, model: '' }
         }
-        // Always test with the free model — avoids 402 on zero-credit accounts.
-        // If the user has specified a model explicitly, test that too, but fall back to free.
-        const freeModel = 'meta-llama/llama-3.3-70b-instruct:free'
-        const candidates = opts.model && opts.model !== freeModel
-            ? [opts.model, freeModel]
-            : [freeModel]
+        // Waterfall through free models — some fail if user has 'Model Training' disabled
+        // in OpenRouter privacy settings (returns 'No endpoints found matching your data policy').
+        // Try the user's explicit model first (if set), then fall through our known-good list.
+        const FREE_CANDIDATES = [
+            'deepseek/deepseek-chat-v3-0324:free',
+            'meta-llama/llama-3.3-70b-instruct:free',
+            'deepseek/deepseek-r1:free',
+            'mistralai/mistral-small-3.1-24b-instruct:free',
+            'meta-llama/llama-3.2-3b-instruct:free',
+        ]
+        const candidates: string[] = []
+        if (opts.model && !FREE_CANDIDATES.includes(opts.model)) candidates.push(opts.model)
+        for (const m of FREE_CANDIDATES) if (!candidates.includes(m)) candidates.push(m)
 
         const errors: string[] = []
         for (const candidate of candidates) {
@@ -470,9 +478,9 @@ export async function testProvider(
                 const result = await gt({ model, prompt: 'Reply with the single word "ok".', maxOutputTokens: 20, abortSignal: ac.signal })
                 clearTimeout(timer)
                 if (result.text.trim().length > 0) {
-                    const isFallback = candidate === freeModel && opts.model && opts.model !== freeModel
-                    const msg = isFallback
-                        ? `Connected via ${freeModel} (free tier). Your selected model "${opts.model}" may require credits.`
+                    const isUserModel = opts.model === candidate
+                    const msg = (!isUserModel && opts.model)
+                        ? `Connected via ${candidate} (free tier). Your selected model "${opts.model}" may require credits or be unavailable.`
                         : `Connected — using ${candidate}`
                     return { ok: true, message: msg, latencyMs: Date.now() - start, model: candidate }
                 }
@@ -483,6 +491,9 @@ export async function testProvider(
                     errors.push(`${candidate}: No credits — add funds at openrouter.ai/credits, or use a :free model`)
                 } else if (lower.includes('401') || lower.includes('invalid api key') || lower.includes('no api key')) {
                     return { ok: false, message: 'Invalid API key. Check openrouter.ai/keys.', latencyMs: Date.now() - start, model: candidate }
+                } else if (lower.includes('no endpoints found')) {
+                    // Model unavailable or blocked by user's privacy settings — try next
+                    errors.push(`${candidate}: ${msg.slice(0, 80)}`)
                 } else {
                     errors.push(`${candidate}: ${msg.slice(0, 120)}`)
                 }
@@ -490,12 +501,12 @@ export async function testProvider(
         }
         // All candidates failed — return most useful error
         const creditError = errors.find(e => e.includes('No credits'))
-        return {
-            ok: false,
-            message: creditError ?? errors[0] ?? 'Connection failed',
-            latencyMs: Date.now() - start,
-            model: candidates[0]!
-        }
+        const privacyError = errors.every(e => e.includes('No endpoints found'))
+        const message = creditError
+            ? creditError
+            : privacyError
+                ? 'All free models are blocked by your OpenRouter privacy settings. Enable \'Model Training\' at openrouter.ai/settings/privacy, or add credits to use paid models.'
+                : errors[0] ?? 'Connection failed'
     }
 
     const modelId = opts.model ?? DEFAULT_TEST_MODELS[providerKey]
