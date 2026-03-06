@@ -15,6 +15,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
   - Sprint planner and runner are category-aware; non-code projects skip the GitHub branch/PR workflow
   - Project list and detail pages show category badges and use category-specific unit labels
 
+### Fixed
+- **Workspace Creation and Listing** — Fixed an issue where workspaces weren't showing up or couldn't be created on the frontend by updating API endpoints to the properly prefixed `/api/v1/workspaces` paths, and explicitly returning `ownerId` from the workspaces API to prevent foreign key errors on creation.
+
 ### Changed
 - **Intent Classification** — `chat` and `telegram` router classifiers now distinguish `PROJECT` intents along with `TASK` and `CONVERSATION`.
 - **Conversation Context in Routing** — Intent classifiers in webchat and Telegram now analyze full session history to properly route follow-up confirmations.

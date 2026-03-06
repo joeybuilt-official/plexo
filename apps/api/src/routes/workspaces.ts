@@ -17,7 +17,7 @@ workspacesRouter.get('/', async (req, res) => {
 
     try {
         const query = db
-            .select({ id: workspaces.id, name: workspaces.name, createdAt: workspaces.createdAt })
+            .select({ id: workspaces.id, name: workspaces.name, ownerId: workspaces.ownerId, createdAt: workspaces.createdAt })
             .from(workspaces)
 
         const rows = await (ownerId
@@ -40,7 +40,7 @@ workspacesRouter.get('/:id', async (req, res) => {
     }
     try {
         const [ws] = await db
-            .select({ id: workspaces.id, name: workspaces.name, settings: workspaces.settings, createdAt: workspaces.createdAt })
+            .select({ id: workspaces.id, name: workspaces.name, ownerId: workspaces.ownerId, settings: workspaces.settings, createdAt: workspaces.createdAt })
             .from(workspaces)
             .where(eq(workspaces.id, id))
             .limit(1)

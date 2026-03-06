@@ -112,7 +112,7 @@ export default function SettingsPage() {
     const loadWorkspaceList = useCallback(async () => {
         setWsListLoading(true)
         try {
-            const res = await fetch(`${API_BASE}/api/workspaces`, { cache: 'no-store' })
+            const res = await fetch(`${API_BASE}/api/v1/workspaces`, { cache: 'no-store' })
             if (!res.ok) return
             const data = await res.json() as { items?: WorkspaceRow[] }
             setWsList(data.items ?? [])
@@ -123,7 +123,7 @@ export default function SettingsPage() {
     const loadWorkspace = useCallback(async () => {
         if (!WS_ID) return
         try {
-            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`)
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}`)
             if (!res.ok) return
             const data = await res.json() as { name: string; settings?: Record<string, unknown> }
             if (data.name) setWorkspaceName(data.name)
@@ -177,10 +177,10 @@ export default function SettingsPage() {
         setCreating(true)
         try {
             // Get ownerId from current workspace
-            const wsRes = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`)
+            const wsRes = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}`)
             const wsData = await (wsRes.ok ? wsRes.json() : {}) as { ownerId?: string }
             const ownerId = wsData.ownerId ?? WS_ID
-            const res = await fetch(`${API_BASE}/api/workspaces`, {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: newWsName.trim(), ownerId }),
@@ -229,7 +229,7 @@ export default function SettingsPage() {
             if (active === 'workspace') {
                 // Merge changes into workspace settings
                 const payload = { name: workspaceName, settings: { costCeilingUsdWeekly: parseFloat(costCeiling) || 10 } }
-                const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`, {
+                const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
@@ -244,7 +244,7 @@ export default function SettingsPage() {
                 if (anthropicKey.trim()) apiKeys.anthropic = anthropicKey.trim()
                 if (openaiKey.trim()) apiKeys.openai = openaiKey.trim()
                 if (Object.keys(apiKeys).length > 0) {
-                    const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`, {
+                    const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ settings: { apiKeys } }),
