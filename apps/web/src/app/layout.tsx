@@ -1,17 +1,21 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { ThemeProvider } from '@web/components/theme-provider'
+import { PostHogProvider } from '@web/components/posthog-provider'
+import { auth } from '@web/auth'
 
 export const metadata: Metadata = {
   title: 'Plexo',
   description: 'AI agent platform — autonomous work, on your terms',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const session = await auth()
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -29,7 +33,13 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <PostHogProvider
+            userId={session?.user?.id}
+            userEmail={session?.user?.email}
+            userName={session?.user?.name}
+          >
+            {children}
+          </PostHogProvider>
         </ThemeProvider>
       </body>
     </html>
