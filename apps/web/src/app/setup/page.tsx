@@ -20,6 +20,7 @@ const MODELS = [
     { key: 'mistral', name: 'Mistral Large', link: 'https://console.mistral.ai/api-keys/', placeholder: '…' },
     { key: 'xai', name: 'Grok 2 (xAI)', link: 'https://console.x.ai/', placeholder: 'xai-…' },
     { key: 'openrouter', name: 'OpenRouter (200+ models)', link: 'https://openrouter.ai/keys', placeholder: 'sk-or-v1-…' },
+    { key: 'ollama', name: 'Ollama (Local or Remote)', link: 'https://ollama.com', placeholder: 'http://localhost:11434' },
 ]
 
 function StepIndicator({ current }: { current: Step }) {
@@ -234,7 +235,9 @@ export default function SetupPage() {
                     providers: {
                         [selectedProvider]: {
                             status: 'untested',
-                            apiKey: providerCredential.trim()
+                            ...(selectedProvider === 'ollama'
+                                ? { baseUrl: providerCredential.trim() || 'http://localhost:11434' }
+                                : { apiKey: providerCredential.trim() })
                         }
                     }
                 }),
@@ -377,11 +380,11 @@ export default function SetupPage() {
 
                             <div className="flex flex-col gap-1.5">
                                 <label htmlFor="provider-credential" className="text-sm font-medium text-zinc-300">
-                                    API Key
+                                    {selectedProvider === 'ollama' ? 'Base URL' : 'API Key'}
                                 </label>
                                 <input
                                     id="provider-credential"
-                                    type="password"
+                                    type={selectedProvider === 'ollama' ? 'text' : 'password'}
                                     value={providerCredential}
                                     onChange={(e) => setProviderCredential(e.target.value)}
                                     placeholder={MODELS.find(p => p.key === selectedProvider)?.placeholder}
@@ -389,7 +392,7 @@ export default function SetupPage() {
                                     autoComplete="new-password"
                                     autoFocus
                                 />
-                                {MODELS.find(p => p.key === selectedProvider)?.link && (
+                                {MODELS.find(p => p.key === selectedProvider)?.link && selectedProvider !== 'ollama' && (
                                     <a
                                         href={MODELS.find(p => p.key === selectedProvider)?.link}
                                         target="_blank"
