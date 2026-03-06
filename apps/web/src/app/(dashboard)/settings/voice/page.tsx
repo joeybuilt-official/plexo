@@ -18,7 +18,9 @@ import {
     Volume2,
 } from 'lucide-react'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+const API_BASE = typeof window !== 'undefined'
+    ? ''  // browser: relative URL, Caddy proxies /api → API container
+    : (process.env.INTERNAL_API_URL || 'http://localhost:3001') // SSR: direct internal
 const CONFIGURED_SENTINEL = '__configured__'
 
 type TestStatus = 'idle' | 'testing' | 'ok' | 'error'
@@ -165,8 +167,8 @@ export default function VoiceSettingsPage() {
             <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Voice</h1>
                 <p className="mt-1 text-sm text-zinc-500">
-                    Speech-to-text pipeline for chat, Telegram, and future channel integrations.
-                    Completely separate from your AI provider token budget.
+                    Speech-to-text pipeline for any audio source — web chat, messaging channels,
+                    integrations, and future apps. One key, one budget, independent of your LLM providers.
                 </p>
             </div>
 
@@ -338,8 +340,8 @@ export default function VoiceSettingsPage() {
                         },
                         {
                             icon: <Radio className="h-4 w-4 text-indigo-400" />,
-                            title: 'Telegram voice notes',
-                            desc: 'Send a voice message to your Plexo bot. It downloads the audio, transcribes it, then routes the transcript through the same intent classification pipeline as text messages.',
+                            title: 'Channels & integrations',
+                            desc: 'Voice messages sent via Telegram, Slack, Discord, or any future channel are automatically downloaded, transcribed, and routed through the same intent classification pipeline as text. No per-channel configuration needed — one Deepgram key covers everything.',
                         },
                         {
                             icon: <Volume2 className="h-4 w-4 text-indigo-400" />,

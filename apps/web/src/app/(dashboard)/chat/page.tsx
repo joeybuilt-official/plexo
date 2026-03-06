@@ -137,8 +137,7 @@ function useSpeechInput({ workspaceId, onResult, onSetupNeeded }: UseSpeechInput
     // Check if Deepgram is configured for this workspace
     useEffect(() => {
         if (!workspaceId) return
-        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-        fetch(`${apiBase}/api/voice/settings?workspaceId=${workspaceId}`, { signal: AbortSignal.timeout(5000) })
+        fetch(`/api/voice/settings?workspaceId=${workspaceId}`, { signal: AbortSignal.timeout(5000) })
             .then(r => r.ok ? r.json() as Promise<{ configured: boolean }> : null)
             .then(d => setDeepgramConfigured(d?.configured ?? false))
             .catch(() => setDeepgramConfigured(false))
@@ -182,7 +181,6 @@ function useSpeechInput({ workspaceId, onResult, onSetupNeeded }: UseSpeechInput
 
         // Deepgram path
         if (deepgramConfigured) {
-            const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
             let stream: MediaStream
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -212,7 +210,7 @@ function useSpeechInput({ workspaceId, onResult, onSetupNeeded }: UseSpeechInput
                 setLevel(0)
 
                 try {
-                    const r = await fetch(`${apiBase}/api/voice/transcribe?workspaceId=${workspaceId}`, {
+                    const r = await fetch(`/api/voice/transcribe?workspaceId=${workspaceId}`, {
                         method: 'POST',
                         headers: { 'Content-Type': recorder.mimeType || 'audio/webm' },
                         body: blob,
