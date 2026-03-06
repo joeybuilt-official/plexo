@@ -5,6 +5,11 @@ import { PostHogProvider as PHProvider, usePostHog } from 'posthog-js/react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, Suspense } from 'react'
 
+// Defaults point at Plexo's self-hosted instance.
+// Override via env vars; disable entirely with NEXT_PUBLIC_TELEMETRY_DISABLED=true.
+const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? 'phc_NNJrGRLnopoR73cofmbbHEG05S2kSfCz93nQVOJlxQH'
+const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://telemetry.getplexo.com'
+
 function PostHogPageView() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -29,24 +34,24 @@ interface PostHogProviderProps {
 }
 
 export function PostHogProvider({ children, userId, userEmail, userName }: PostHogProviderProps) {
+  // Init once on mount
   useEffect(() => {
-    const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
-    const disabled = process.env.NEXT_PUBLIC_TELEMETRY_DISABLED === 'true'
-    if (!key || disabled) return
-
-    posthog.init(key, {
-      api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+    if (process.env.NEXT_PUBLIC_TELEMETRY_DISABLED === 'true') return
+    posthog.init(POSTHOG_KEY, {
+      api_host: POSTHOG_HOST,
       capture_pageview: false,
       capture_pageleave: true,
       person_profiles: 'identified_only',
     })
+  }, [])
 
-    if (userId) {
-      posthog.identify(userId, {
-        ...(userEmail && { email: userEmail }),
-        ...(userName && { name: userName }),
-      })
-    }
+  // Identify separately so init doesn't re-run on user changes
+  useEffect(() => {
+    if (!userId) return
+    posthog.identify(userId, {
+      ...(userEmail && { email: userEmail }),
+      ...(userName && { name: userName }),
+    })
   }, [userId, userEmail, userName])
 
   return (
