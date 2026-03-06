@@ -275,7 +275,7 @@ function isRetryableProviderError(err: unknown): boolean {
 // ── Default smoke-test model IDs per provider ─────────────────────────────────
 
 const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
-    openrouter: 'anthropic/claude-haiku-4-5',
+    openrouter: 'openai/gpt-4o-mini',
     anthropic: 'claude-haiku-4-5',
     openai: 'gpt-4o-mini',
     google: 'gemini-1.5-flash-002',

@@ -306,7 +306,7 @@ export default function AIProvidersPage() {
                     provider: selectedProvider,
                     apiKey: state.apiKey,
                     baseUrl: state.baseUrl,
-                    model: state.selectedModel || selected.staticModels?.[0] || 'default',
+                    model: state.selectedModel || selected.staticModels?.[0] || undefined,
                     workspaceId: WS_ID,
                 }),
             })
