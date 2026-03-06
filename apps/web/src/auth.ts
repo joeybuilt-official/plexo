@@ -14,9 +14,6 @@ export const authConfig: NextAuthConfig = {
     session: { strategy: 'jwt' },
     pages: { signIn: '/login' },
     callbacks: {
-        authorized({ auth }) {
-            return !!auth
-        },
         async jwt({ token, user, account }) {
             const email = user?.email || (token.email as string | undefined)
             const isUnsynced = token.id && typeof token.id === 'string' && !token.id.includes('-')

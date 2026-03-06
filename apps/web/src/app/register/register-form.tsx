@@ -1,66 +1,90 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { Github, Mail, ArrowRight, Loader2, ExternalLink } from 'lucide-react'
+import { Mail, ArrowRight, Loader2, User } from 'lucide-react'
 
-export function LoginForm() {
+import Link from 'next/link'
+
+export function RegisterForm({ isFirstRun }: { isFirstRun: boolean }) {
     const router = useRouter()
+    const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(false)
 
-    async function handleCredentials(e: React.FormEvent) {
+    async function handleRegister(e: React.FormEvent) {
         e.preventDefault()
         setIsLoading(true)
         setError(null)
 
-        const result = await signIn('credentials', {
-            email,
-            password,
-            redirect: false,
-        })
+        // Phase 1 stub — real registration against DB in Phase 2
+        try {
+            const res = await fetch('/api/v1/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, password }),
+            })
 
-        if (result?.error) {
-            setError('Invalid email or password')
+            if (!res.ok) {
+                const data = await res.json()
+                setError(data.error ?? 'Registration failed')
+                setIsLoading(false)
+                return
+            }
+
+            router.push('/login?registered=true')
+        } catch {
+            setError('An unexpected error occurred')
             setIsLoading(false)
-        } else {
-            router.push('/')
-            router.refresh()
         }
     }
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4">
-            {/* Background pattern */}
-            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-zinc-950 to-zinc-950" />
+            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-violet-900/20 via-zinc-950 to-zinc-950" />
 
             <div className="relative w-full max-w-sm">
-                {/* Logo */}
                 <div className="mb-8 text-center">
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-lg font-bold text-white shadow-lg shadow-indigo-500/25">
                         P
                     </div>
-                    <h1 className="text-lg font-semibold tracking-tight">Sign in to Plexo</h1>
+                    <h1 className="text-lg font-semibold tracking-tight">
+                        {isFirstRun ? 'Setup your admin account' : 'Create your account'}
+                    </h1>
                     <p className="mt-1.5 text-sm text-zinc-500">
-                        Your AI agent is waiting
+                        {isFirstRun ? 'This is a quick first run setup.' : 'Set up your AI agent in minutes'}
                     </p>
                 </div>
 
-                {/* Form card */}
                 <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 shadow-xl backdrop-blur-sm">
-                    <form onSubmit={handleCredentials} className="space-y-3">
+                    <form onSubmit={handleRegister} className="space-y-3">
                         <div>
-                            <label htmlFor="login-email" className="mb-1 block text-xs font-medium text-zinc-400">
+                            <label htmlFor="register-name" className="mb-1 block text-xs font-medium text-zinc-400">
+                                Name
+                            </label>
+                            <div className="relative">
+                                <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
+                                <input
+                                    id="register-name"
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="Your name"
+                                    className="w-full rounded-lg border border-zinc-800 bg-zinc-950 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="register-email" className="mb-1 block text-xs font-medium text-zinc-400">
                                 Email
                             </label>
                             <div className="relative">
                                 <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
                                 <input
-                                    id="login-email"
+                                    id="register-email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -71,19 +95,20 @@ export function LoginForm() {
                             </div>
                         </div>
                         <div>
-                            <label htmlFor="login-password" className="mb-1 block text-xs font-medium text-zinc-400">
+                            <label htmlFor="register-password" className="mb-1 block text-xs font-medium text-zinc-400">
                                 Password
                             </label>
                             <input
-                                id="login-password"
+                                id="register-password"
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••••••"
+                                placeholder="Min 12 characters"
                                 className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
                                 required
                                 minLength={12}
                             />
+                            <p className="mt-1 text-[11px] text-zinc-600">Minimum 12 characters</p>
                         </div>
 
                         {error && (
@@ -101,7 +126,7 @@ export function LoginForm() {
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <>
-                                    Sign In
+                                    Create Account
                                     <ArrowRight className="h-3.5 w-3.5" />
                                 </>
                             )}
@@ -109,11 +134,10 @@ export function LoginForm() {
                     </form>
                 </div>
 
-                {/* Register link */}
                 <p className="mt-5 text-center text-xs text-zinc-600">
-                    Don&apos;t have an account?{' '}
-                    <Link href="/register" className="text-indigo-400 hover:text-indigo-300">
-                        Create one
+                    Already have an account?{' '}
+                    <Link href="/login" className="text-indigo-400 hover:text-indigo-300">
+                        Sign in
                     </Link>
                 </p>
             </div>
