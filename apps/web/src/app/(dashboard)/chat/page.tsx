@@ -43,6 +43,10 @@ interface Message {
     status?: 'queued' | 'running' | 'complete' | 'failed' | 'pending' | 'confirm_action'
     intent?: 'TASK' | 'PROJECT'
     actionDescription?: string
+    // Actionable error fields
+    fixUrl?: string
+    fixLabel?: string
+    technicalDetail?: string
     at: number
 }
 
@@ -439,12 +443,19 @@ function ChatContent() {
                 return
             }
 
-            const data = await res.json() as { taskId?: string; status?: string; reply?: string; intent?: string; description?: string }
+            const data = await res.json() as { taskId?: string; status?: string; reply?: string; intent?: string; description?: string; fixUrl?: string; fixLabel?: string; technicalDetail?: string }
 
-            // Error from AI provider — surface the actual message
+            // Error from AI provider — surface structured, actionable message
             if (data.status === 'error') {
                 setMessages((prev) => prev.map((m) =>
-                    m.id === pendingId ? { ...m, status: 'failed', content: data.reply ?? 'An error occurred.' } : m
+                    m.id === pendingId ? {
+                        ...m,
+                        status: 'failed',
+                        content: data.reply ?? 'An error occurred.',
+                        fixUrl: data.fixUrl,
+                        fixLabel: data.fixLabel,
+                        technicalDetail: data.technicalDetail,
+                    } : m
                 ))
                 return
             }
@@ -655,9 +666,30 @@ function ChatContent() {
                                     </div>
 
                                 ) : msg.status === 'failed' ? (
-                                    <div className="flex items-center gap-1.5">
-                                        <XCircle className="h-3.5 w-3.5 shrink-0" />
-                                        {msg.content || 'Failed.'}
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-start gap-1.5">
+                                            <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                            <span className="leading-snug">{msg.content || 'Failed.'}</span>
+                                        </div>
+                                        {msg.fixUrl && (
+                                            <Link
+                                                href={msg.fixUrl}
+                                                className="inline-flex items-center gap-1 self-start rounded-md bg-red-900/40 border border-red-700/40 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-red-900/60 hover:text-red-200 transition-colors"
+                                            >
+                                                {msg.fixLabel ?? 'Fix this'} →
+                                            </Link>
+                                        )}
+                                        {msg.technicalDetail && (
+                                            <details className="group mt-0.5">
+                                                <summary className="text-[10px] text-red-400/50 cursor-pointer hover:text-red-400/70 list-none flex items-center gap-1">
+                                                    <span className="group-open:hidden">▸ Technical details</span>
+                                                    <span className="hidden group-open:inline">▾ Technical details</span>
+                                                </summary>
+                                                <code className="block mt-1.5 text-[10px] text-red-400/50 font-mono break-all leading-relaxed bg-red-950/30 rounded p-2">
+                                                    {msg.technicalDetail}
+                                                </code>
+                                            </details>
+                                        )}
                                     </div>
                                 ) : msg.status === 'confirm_action' && msg.intent ? (
                                     <div className="flex flex-col gap-2">

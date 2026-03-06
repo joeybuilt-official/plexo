@@ -27,6 +27,53 @@ export const chatRouter: RouterType = Router()
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// ── Error classification ──────────────────────────────────────────────────────
+
+interface ClassifiedError {
+    type: string
+    message: string        // human-readable, safe to show users
+    fixUrl: string         // route inside Plexo that fixes this
+    fixLabel: string       // link label
+    technical: string      // raw error — shown in collapsible details
+}
+
+function classifyAIError(err: unknown): ClassifiedError {
+    const raw = err instanceof Error ? err.message : String(err)
+    const lower = raw.toLowerCase()
+    const technical = raw.slice(0, 300)
+
+    if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('invalid api key') || lower.includes('invalid_api_key') || lower.includes('authentication failed')) {
+        return { type: 'invalid_api_key', message: 'Your API key was rejected. It may be wrong, expired, or for a different provider.', fixUrl: '/settings/ai-providers', fixLabel: 'Update API key', technical }
+    }
+    if (lower.includes('403') || lower.includes('forbidden') || lower.includes('permission denied') || lower.includes('access denied')) {
+        return { type: 'forbidden', message: "Access denied by the provider. Your account may lack access to this model or feature.", fixUrl: '/settings/ai-providers', fixLabel: 'Check provider plan', technical }
+    }
+    if (lower.includes('429') || lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('quota exceeded') || lower.includes('exceeded your current quota')) {
+        return { type: 'rate_limit', message: 'Rate limit or quota reached on your AI provider. Wait a moment or switch to a fallback provider.', fixUrl: '/settings/ai-providers', fixLabel: 'Configure fallback chain', technical }
+    }
+    if (lower.includes('405') || lower.includes('method not allowed')) {
+        return { type: 'method_not_allowed', message: "The provider rejected the request method. This usually means the Base URL is wrong or points to the wrong endpoint.", fixUrl: '/settings/ai-providers', fixLabel: 'Check provider URL', technical }
+    }
+    if ((lower.includes('model') || lower.includes('engine')) && (lower.includes('not found') || lower.includes('does not exist') || lower.includes('invalid model') || lower.includes('no such model'))) {
+        return { type: 'model_not_found', message: "The selected model wasn't found on this provider. It may have been renamed, removed, or your plan doesn't include it.", fixUrl: '/settings/ai-providers', fixLabel: 'Change default model', technical }
+    }
+    if (lower.includes('timeout') || lower.includes('aborted') || lower.includes('etimedout') || lower.includes('econnreset') || lower.includes('econnrefused')) {
+        return { type: 'timeout', message: "The provider didn't respond in time. It may be down, overloaded, or unreachable from your server.", fixUrl: '/settings/ai-providers', fixLabel: 'Check provider or switch', technical }
+    }
+    if (lower.includes('no ai provider') || lower.includes('not configured') || lower.includes('plexo_encryption_key') || lower.includes('encryption_secret')) {
+        return { type: 'no_provider', message: 'No AI provider is configured for this workspace. Add and verify one in Settings → AI Providers.', fixUrl: '/settings/ai-providers', fixLabel: 'Configure AI provider', technical }
+    }
+    if (lower.includes('billing') || lower.includes('payment') || lower.includes('insufficient_quota') || lower.includes('delinquent')) {
+        return { type: 'billing', message: "Your AI provider account has a billing issue. Check your billing status on the provider's dashboard.", fixUrl: '/settings/ai-providers', fixLabel: 'Check provider settings', technical }
+    }
+    if (lower.includes('content') && (lower.includes('filter') || lower.includes('policy') || lower.includes('safety') || lower.includes('moderation'))) {
+        return { type: 'content_policy', message: "The request was blocked by the provider's content policy. Try rephrasing.", fixUrl: '/settings/agent', fixLabel: 'Adjust agent settings', technical }
+    }
+
+    return { type: 'unknown', message: `The AI provider returned an error. ${raw.slice(0, 120)}`, fixUrl: '/settings/ai-providers', fixLabel: 'Check AI Provider settings', technical }
+}
+
+
 // ── Intent classification ────────────────────────────────────────────────────
 
 const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
@@ -178,7 +225,8 @@ chatRouter.post('/message', async (req, res) => {
                 const replyText = result.text
                 if (!replyText) {
                     logger.warn({ workspaceId, providerKey }, 'Webchat conversational reply: empty response from model')
-                    res.json({ status: 'error', reply: 'The model returned an empty response. Try again or check your AI provider settings.' })
+                    const classified = classifyAIError(new Error('Empty response from model — the model returned no text.'))
+                    res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
                     return
                 }
                 history.push({ role: 'assistant', content: replyText })
@@ -210,9 +258,9 @@ chatRouter.post('/message', async (req, res) => {
 
                 res.json({ status: 'complete', reply: replyText })
             } catch (err) {
-                const msg = err instanceof Error ? err.message : String(err)
-                logger.error({ err, workspaceId }, 'Webchat conversational reply failed')
-                res.json({ status: 'error', reply: `AI error: ${msg.slice(0, 300)}` })
+                const classified = classifyAIError(err)
+                logger.error({ err, workspaceId, errorType: classified.type }, 'Webchat conversational reply failed')
+                res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
             }
             return
         }
