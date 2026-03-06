@@ -91,12 +91,12 @@ const PROVIDERS: ProviderConfig[] = [
         badgeColor: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
         requiresKey: true,
         staticModels: [
-            // Free tier (no credits needed — ~50 req/day)
+            // Free tier (no credits needed — ~50 req/day; some require Model Training enabled in OR privacy settings)
+            'deepseek/deepseek-chat-v3-0324:free',
             'meta-llama/llama-3.3-70b-instruct:free',
             'deepseek/deepseek-r1:free',
-            'deepseek/deepseek-chat-v3-0324:free',
-            'google/gemma-3-27b-it:free',
-            'mistralai/mistral-7b-instruct:free',
+            'mistralai/mistral-small-3.1-24b-instruct:free',
+            'meta-llama/llama-3.2-3b-instruct:free',
             // Paid models (requires credits)
             'openai/gpt-4o',
             'openai/gpt-4o-mini',
@@ -646,13 +646,14 @@ export default function AIProvidersPage() {
                                                 <p className="text-sm font-medium text-emerald-300">Free tier available — no credits required</p>
                                                 <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
                                                     OpenRouter blocks accounts with no purchase history from paid models (402 error).
-                                                    Free models with the <code className="text-zinc-400">:free</code> suffix work with any key, no credit card needed.
-                                                    Plexo defaults to <code className="text-zinc-400">meta-llama/llama-3.3-70b-instruct:free</code> which supports tool calling.
+                                                    Free models with the <code className="text-zinc-400">:free</code> suffix work with any key — no credit card needed.
+                                                    Plexo tries multiple free models in order until one works.
                                                 </p>
-                                                <p className="mt-1.5 text-xs text-zinc-500">
-                                                    Free limit: ~50 req/day. Rises to 1,000/day once you have $10+ in credits.
-                                                    Get a key at{' '}
-                                                    <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">openrouter.ai/keys</a>.
+                                                <p className="mt-1.5 text-xs text-zinc-500 leading-relaxed">
+                                                    <strong className="text-zinc-400">Privacy note:</strong> Some free models require{' '}
+                                                    <a href="https://openrouter.ai/settings/privacy" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Model Training</a>
+                                                    {' '}enabled in your OR settings. If all free models fail, enable it or add credits.
+                                                    Free limit: ~50 req/day ($10+ in credits raises it to 1,000/day).
                                                 </p>
                                             </div>
                                         </div>
