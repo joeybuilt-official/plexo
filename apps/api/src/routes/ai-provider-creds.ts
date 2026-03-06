@@ -216,7 +216,7 @@ aiProviderCredsRouter.put('/', async (req, res) => {
 
 /**
  * Read and decrypt the aiProviders blob for a workspace.
- * Returns null if not configured or if PLEXO_ENCRYPTION_KEY is missing.
+ * Returns null if not configured or if ENCRYPTION_SECRET is missing or wrong.
  */
 export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIProvidersBlob | null> {
     try {

@@ -44,6 +44,13 @@ const ENV_SPEC: EnvVar[] = [
         validate: (v) => v.length >= 32,
         validateMsg: 'Must be at least 32 characters',
     },
+    {
+        key: 'ENCRYPTION_SECRET',
+        description: 'AES-256-GCM root key for credential encryption (generate: openssl rand -hex 32)',
+        required: true,
+        validate: (v) => v.length >= 32,
+        validateMsg: 'Must be at least 32 characters — generate with: openssl rand -hex 32',
+    },
     // ── Optional — AI providers (at least one must be present for agent tasks) ─
     {
         key: 'ANTHROPIC_API_KEY',

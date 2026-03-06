@@ -16,6 +16,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
   - Project list and detail pages show category badges and use category-specific unit labels
 
 ### Fixed
+- **ENCRYPTION_SECRET env var mismatch** — `apps/api/src/crypto.ts` and `packages/agent/src/connections/crypto-util.ts` were reading `PLEXO_ENCRYPTION_KEY` but `docker/compose.yml` and `.env.example` both declare `ENCRYPTION_SECRET`. Every `encrypt()` call threw at runtime, silently 500-ing all `PUT /api/workspaces/:id/ai-providers` requests. AI provider credentials were never written to the DB, causing the agent loop and health check to report `not_configured` even after a user saved a valid key in the UI. Fixed by renaming the env var read in both crypto files to `ENCRYPTION_SECRET`.
+- **ENCRYPTION_SECRET not validated at startup** — `apps/api/src/env.ts` did not include `ENCRYPTION_SECRET` in `ENV_SPEC`, so a missing or empty value produced no error or warning at boot. Added as a required field with a 32-character minimum and a generation hint — process now exits on startup if unset.
 - **Workspace Creation and Listing** — Fixed an issue where workspaces weren't showing up or couldn't be created on the frontend by updating API endpoints to the properly prefixed `/api/v1/workspaces` paths, and explicitly returning `ownerId` from the workspaces API to prevent foreign key errors on creation.
 
 ### Changed

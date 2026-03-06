@@ -59,7 +59,17 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 - Container: `docker compose down && docker compose up -d` (image tags for rollback)
 
 ## Known Issues
-*None yet.*
+*None.*
+
+## Bug Post-Mortems
+
+### 2026-03 — ENCRYPTION_SECRET env var mismatch
+
+- **Root cause**: `apps/api/src/crypto.ts` and `packages/agent/src/connections/crypto-util.ts` both read `process.env.PLEXO_ENCRYPTION_KEY`. But `docker/compose.yml` injects the secret as `ENCRYPTION_SECRET` (matching `.env.example`). The names were never aligned. Every `encrypt()` / `decrypt()` call threw `'PLEXO_ENCRYPTION_KEY not set'` at runtime.
+- **Symptom on fresh install**: All `PUT /api/workspaces/:id/ai-providers` requests silently returned 500. AI provider credentials were never persisted. Health check and agent loop reported `not_configured` regardless of what key was entered in the UI. Tasks blocked immediately.
+- **Compounding factor**: `ENCRYPTION_SECRET` was absent from `apps/api/src/env.ts` `ENV_SPEC`, so startup logged no error or warning. The issue was completely invisible until the `/debug` page was checked.
+- **Fix**: Renamed env var read in both crypto files from `PLEXO_ENCRYPTION_KEY` → `ENCRYPTION_SECRET`. Added `ENCRYPTION_SECRET` to `ENV_SPEC` as a required field with a 32-char minimum — process now exits(1) on missing or short value.
+- **Lesson**: Any env var read by application code must have a corresponding entry in `env.ts` ENV_SPEC. Crypto vars are required, not optional.
 
 ## Decisions Log
 | Date | Decision | Rationale |

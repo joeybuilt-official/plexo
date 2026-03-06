@@ -7,8 +7,8 @@ import { createHmac, createDecipheriv } from 'node:crypto'
 const ALGORITHM = 'aes-256-gcm'
 
 function deriveKey(workspaceId: string): Buffer {
-    const rootKey = process.env.PLEXO_ENCRYPTION_KEY
-    if (!rootKey) throw new Error('PLEXO_ENCRYPTION_KEY not set')
+    const rootKey = process.env.ENCRYPTION_SECRET
+    if (!rootKey) throw new Error('ENCRYPTION_SECRET not set — add to .env (see .env.example)')
     return createHmac('sha256', rootKey).update(workspaceId).digest()
 }
 
