@@ -175,6 +175,12 @@ interface TelegramUpdate {
         chat: { id: number; type: string }
         date: number
         text?: string
+        // Voice message (OGG/Opus, max 200 seconds)
+        voice?: { file_id: string; duration: number; mime_type?: string; file_size?: number }
+        // Audio file (MP3, M4A, etc.)
+        audio?: { file_id: string; duration: number; mime_type?: string; file_size?: number; title?: string }
+        // Video note (circular video messages, often used for quick voice-like notes)
+        video_note?: { file_id: string; duration: number; file_size?: number }
     }
     callback_query?: {
         id: string
@@ -182,7 +188,8 @@ interface TelegramUpdate {
         message?: { message_id: number; chat: { id: number; type: string } }
         data: string
     }
-}async function handleUpdate(update: TelegramUpdate): Promise<void> {
+}
+async function handleUpdate(update: TelegramUpdate): Promise<void> {
     // Check for callback_query (inline buttons)
     if (update.callback_query) {
         const cb = update.callback_query
@@ -281,9 +288,96 @@ interface TelegramUpdate {
     // Regular text message
 
     const msg = update.message
-    if (!msg?.text) return
+    if (!msg) return
 
     const chatId = String(msg.chat.id)
+
+    // ── Voice / Audio message handler ────────────────────────────────────────
+    const voiceFile = msg.voice ?? msg.audio ?? msg.video_note
+    if (voiceFile && !msg.text) {
+        const defaultWs = process.env.DEFAULT_WORKSPACE_ID ?? process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
+        const workspaceId = await resolveWorkspace(chatId) ?? defaultWs
+
+        if (!workspaceId) {
+            await sendMessage(chatId, '⚠️ This chat isn\'t linked to a Plexo workspace yet. Connect via Settings → Channels.')
+            return
+        }
+
+        // Check if Deepgram is configured for this workspace
+        const apiBase = `http://localhost:${process.env.PORT ?? 3001}`
+        const settingsRes = await fetch(`${apiBase}/api/voice/settings?workspaceId=${workspaceId}`, {
+            signal: AbortSignal.timeout(5000),
+        }).catch(() => null)
+
+        const voiceSettings = settingsRes?.ok ? await settingsRes.json() as { configured: boolean } : null
+
+        if (!voiceSettings?.configured) {
+            await sendMessage(chatId,
+                '🎙️ To transcribe voice messages, set up Deepgram (free $200 credits) in your Plexo dashboard.\n\n'
+                + 'Go to *Settings → Voice* and add your API key from console.deepgram.com')
+            return
+        }
+
+        // Download the audio file from Telegram
+        await sendTyping(chatId)
+        let transcript: string | null = null
+        try {
+            const fileInfoRes = await fetch(`${TELEGRAM_API}${_botToken}/getFile?file_id=${voiceFile.file_id}`, {
+                signal: AbortSignal.timeout(10_000),
+            })
+            const fileInfo = await fileInfoRes.json() as { ok: boolean; result?: { file_path?: string } }
+            const filePath = fileInfo.result?.file_path
+
+            if (!filePath) throw new Error('Could not get file path from Telegram')
+
+            const audioRes = await fetch(`https://api.telegram.org/file/bot${_botToken}/${filePath}`, {
+                signal: AbortSignal.timeout(30_000),
+            })
+            if (!audioRes.ok) throw new Error(`Telegram file download returned ${audioRes.status}`)
+
+            const audioBuffer = Buffer.from(await audioRes.arrayBuffer())
+            const mimeType = (msg.voice?.mime_type ?? msg.audio?.mime_type ?? 'audio/ogg') as string
+
+            // Send to our transcription endpoint
+            const transcribeRes = await fetch(`${apiBase}/api/voice/transcribe?workspaceId=${workspaceId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': mimeType },
+                body: audioBuffer,
+                signal: AbortSignal.timeout(35_000),
+            })
+
+            const transcribeData = await transcribeRes.json() as { transcript?: string; error?: { message?: string } }
+            transcript = transcribeData.transcript ?? null
+
+            if (!transcript || transcript.trim() === '') {
+                await sendMessage(chatId, '🎙️ I received your voice message but couldn\'t understand the audio. Please try again or send text.')
+                return
+            }
+
+            logger.info({ chatId, workspaceId, chars: transcript.length }, 'Telegram voice message transcribed')
+        } catch (err) {
+            logger.error({ err, chatId, workspaceId }, 'Telegram voice transcription failed')
+            await sendMessage(chatId, '❌ Failed to transcribe your voice message. Please try again or send text.')
+            return
+        }
+
+        // Feed the transcript back through the update as a synthetic text message
+        // so it goes through the same intent classification → task/conversation pipeline
+        const syntheticUpdate: TelegramUpdate = {
+            update_id: update.update_id,
+            message: {
+                ...msg,
+                text: transcript,
+                voice: undefined,
+                audio: undefined,
+                video_note: undefined,
+            },
+        }
+        await handleUpdate(syntheticUpdate)
+        return
+    }
+
+    if (!msg.text) return
     const text = msg.text.trim()
 
     // /start — always welcome response

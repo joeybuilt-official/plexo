@@ -25,6 +25,7 @@ import {
     Type,
     FileUp,
     Sparkles,
+    X,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
@@ -99,16 +100,27 @@ function VoiceWaveform({ active, level }: { active: boolean; level: number }) {
     )
 }
 
-// ── Hook: Speech Recognition ──────────────────────────────────────────────
+// ── Hook: Deepgram-powered voice input ────────────────────────────────────────
+// Falls back to browser SpeechRecognition if Deepgram is not configured.
+// On first use without Deepgram, sets a flag so the UI can show a setup prompt.
 
 type SpeechStatus = 'idle' | 'listening' | 'processing'
 
-function useSpeechInput(onResult: (text: string) => void) {
+interface UseSpeechInputOptions {
+    workspaceId: string
+    onResult: (text: string) => void
+    onSetupNeeded?: () => void
+}
+
+function useSpeechInput({ workspaceId, onResult, onSetupNeeded }: UseSpeechInputOptions) {
     const [status, setStatus] = useState<SpeechStatus>('idle')
     const [level, setLevel] = useState(0)
     const [supported, setSupported] = useState(false)
+    const [deepgramConfigured, setDeepgramConfigured] = useState<boolean | null>(null) // null = unknown
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recRef = useRef<any>(null)
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+    const chunksRef = useRef<BlobPart[]>([])
     const analyserRef = useRef<AnalyserNode | null>(null)
     const animFrameRef = useRef<number>(0)
     const streamRef = useRef<MediaStream | null>(null)
@@ -116,14 +128,28 @@ function useSpeechInput(onResult: (text: string) => void) {
     useEffect(() => {
         setSupported(
             typeof window !== 'undefined' &&
+            (typeof navigator.mediaDevices?.getUserMedia === 'function' ||
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ('SpeechRecognition' in window || 'webkitSpeechRecognition' in (window as any))
+            'SpeechRecognition' in window || 'webkitSpeechRecognition' in (window as any))
         )
     }, [])
 
-    const stop = useCallback(() => {
+    // Check if Deepgram is configured for this workspace
+    useEffect(() => {
+        if (!workspaceId) return
+        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+        fetch(`${apiBase}/api/voice/settings?workspaceId=${workspaceId}`, { signal: AbortSignal.timeout(5000) })
+            .then(r => r.ok ? r.json() as Promise<{ configured: boolean }> : null)
+            .then(d => setDeepgramConfigured(d?.configured ?? false))
+            .catch(() => setDeepgramConfigured(false))
+    }, [workspaceId])
+
+    const stopAll = useCallback(() => {
         recRef.current?.stop()
         recRef.current = null
+        mediaRecorderRef.current?.stop()
+        mediaRecorderRef.current = null
+        chunksRef.current = []
         cancelAnimationFrame(animFrameRef.current)
         streamRef.current?.getTracks().forEach(t => t.stop())
         streamRef.current = null
@@ -132,20 +158,14 @@ function useSpeechInput(onResult: (text: string) => void) {
         setStatus('idle')
     }, [])
 
-    const start = useCallback(async () => {
-        if (!supported || status !== 'idle') return
-
-        // Start audio analyser for visual level
+    const startWaveform = useCallback(async (stream: MediaStream) => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-            streamRef.current = stream
             const ctx = new AudioContext()
             const source = ctx.createMediaStreamSource(stream)
             const analyser = ctx.createAnalyser()
             analyser.fftSize = 256
             source.connect(analyser)
             analyserRef.current = analyser
-
             const data = new Uint8Array(analyser.frequencyBinCount)
             const tick = () => {
                 analyser.getByteFrequencyData(data)
@@ -154,18 +174,83 @@ function useSpeechInput(onResult: (text: string) => void) {
                 animFrameRef.current = requestAnimationFrame(tick)
             }
             tick()
-        } catch {
-            // Mic access denied — still try recognition without waveform
+        } catch { /* non-fatal */ }
+    }, [])
+
+    const start = useCallback(async () => {
+        if (!supported || status !== 'idle') return
+
+        // Deepgram path
+        if (deepgramConfigured) {
+            const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+            let stream: MediaStream
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+                streamRef.current = stream
+            } catch {
+                return // mic access denied
+            }
+            await startWaveform(stream)
+
+            // Pick the best supported MIME type
+            const mimeType = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/ogg;codecs=opus',
+                'audio/ogg',
+                'audio/mp4',
+            ].find(mt => MediaRecorder.isTypeSupported(mt)) ?? ''
+
+            const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {})
+            chunksRef.current = []
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+            recorder.onstop = async () => {
+                const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+                setStatus('processing')
+                cancelAnimationFrame(animFrameRef.current)
+                streamRef.current?.getTracks().forEach(t => t.stop())
+                setLevel(0)
+
+                try {
+                    const r = await fetch(`${apiBase}/api/voice/transcribe?workspaceId=${workspaceId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': recorder.mimeType || 'audio/webm' },
+                        body: blob,
+                        signal: AbortSignal.timeout(30_000),
+                    })
+                    const data = await r.json() as { transcript?: string; error?: { message?: string } }
+                    if (data.transcript?.trim()) onResult(data.transcript.trim())
+                } catch { /* ignore — user can try again */ }
+                setStatus('idle')
+            }
+
+            mediaRecorderRef.current = recorder
+            recorder.start()
+            setStatus('listening')
+            return
         }
+
+        // No Deepgram — show setup prompt then fall back to browser SR
+        if (deepgramConfigured === false) {
+            onSetupNeeded?.()
+            // Small delay so the prompt renders, then start browser SR anyway as immediate fallback
+        }
+
+        // Browser SpeechRecognition fallback
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            streamRef.current = stream
+            await startWaveform(stream)
+        } catch { /* mic access denied — try SR without waveform */ }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
+        if (!SR) { setStatus('idle'); return }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rec = new SR() as any
         rec.continuous = false
         rec.interimResults = false
         rec.lang = 'en-US'
-
         rec.onstart = () => setStatus('listening')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rec.onresult = (e: any) => {
@@ -178,13 +263,20 @@ function useSpeechInput(onResult: (text: string) => void) {
             streamRef.current?.getTracks().forEach(t => t.stop())
             setLevel(0)
         }
-        rec.onerror = () => stop()
-
+        rec.onerror = () => stopAll()
         recRef.current = rec
         rec.start()
-    }, [supported, status, onResult, stop])
+    }, [supported, status, deepgramConfigured, workspaceId, onResult, onSetupNeeded, startWaveform, stopAll])
 
-    return { status, level, supported, start, stop }
+    const stop = useCallback(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop() // triggers onstop → transcription
+        } else {
+            stopAll()
+        }
+    }, [stopAll])
+
+    return { status, level, supported, start, stop, deepgramConfigured }
 }
 
 // ── Hook: Text-to-Speech ──────────────────────────────────────────────────
@@ -248,6 +340,7 @@ function ChatContent() {
     const [sending, setSending] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [agentModel, setAgentModel] = useState<string | null>(null)
+    const [showVoiceSetupPrompt, setShowVoiceSetupPrompt] = useState(false)
     const bottomRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const sessionId = useRef(`session-${Date.now()}`)
@@ -303,7 +396,11 @@ function ChatContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const voice = useSpeechInput(handleVoiceResult)
+    const voice = useSpeechInput({
+        workspaceId: WS_ID,
+        onResult: handleVoiceResult,
+        onSetupNeeded: () => setShowVoiceSetupPrompt(true),
+    })
 
     // Stream live progress from the agent via SSE
     const pollReply = useCallback(async (taskId: string, msgId: string): Promise<void> => {
@@ -519,7 +616,7 @@ function ChatContent() {
         }
     }
 
-    const isListening = voice.status === 'listening'
+    const isListening = voice.status === 'listening' || voice.status === 'processing'
 
     const modelToUse = agentModel ?? 'claude-sonnet-4-5'
     const caps = getModelCapabilities(modelToUse)
@@ -742,6 +839,35 @@ function ChatContent() {
                 <div className="shrink-0 flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-sm text-red-400 mb-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {error}
+                </div>
+            )}
+
+            {/* Voice setup prompt — shown on first click if Deepgram not configured */}
+            {showVoiceSetupPrompt && !voice.deepgramConfigured && (
+                <div className="shrink-0 flex items-start gap-3 mb-2 rounded-xl border border-indigo-500/30 bg-indigo-500/8 px-4 py-3">
+                    <Mic className="h-4 w-4 shrink-0 mt-0.5 text-indigo-400" />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-indigo-200">Get better voice accuracy with Deepgram</p>
+                        <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                            Currently using browser speech recognition. Deepgram&apos;s Nova-3 model is significantly more accurate
+                            and works across all channels including Telegram. Free $200 in credits.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                        <Link
+                            href="/settings/voice"
+                            className="rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors whitespace-nowrap"
+                        >
+                            Set up →
+                        </Link>
+                        <button
+                            onClick={() => setShowVoiceSetupPrompt(false)}
+                            className="rounded-lg p-1.5 text-zinc-600 hover:text-zinc-400 transition-colors"
+                            aria-label="Dismiss"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
                 </div>
             )}
 

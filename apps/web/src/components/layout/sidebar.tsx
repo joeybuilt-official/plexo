@@ -31,6 +31,7 @@ import {
     Zap,
     Wrench,
     LogOut,
+    Mic,
     Sparkles as _Sparkles, // kept for potential future use
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
@@ -95,6 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
         defaultOpen: false,
         items: [
             { label: 'AI Providers', href: '/settings/ai-providers', icon: Cpu },
+            { label: 'Voice', href: '/settings/voice', icon: Mic },
             { label: 'Agent', href: '/settings/agent', icon: Bot },
             { label: 'Workspace', href: '/settings', icon: SettingsIcon, exact: true },
             { label: 'Users', href: '/settings/users', icon: Users },
