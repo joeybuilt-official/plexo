@@ -2,7 +2,7 @@ import { Router, type Router as RouterType } from 'express'
 import bcrypt from 'bcrypt'
 import { z } from 'zod'
 import { db, eq, sql } from '@plexo/db'
-import { users } from '@plexo/db'
+import { users, workspaces } from '@plexo/db'
 import { logger } from '../logger.js'
 
 export const authRouter: RouterType = Router()
@@ -25,8 +25,8 @@ authRouter.post('/register', async (req, res) => {
     }
 
     // First-run gate: only allow registration when no users exist yet
-    const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(users)
-    if (Number(count) > 0) {
+    const rows = await db.select({ count: sql<number>`count(*)` }).from(users)
+    if (Number(rows[0]?.count || 0) > 0) {
         res.status(403).json({
             error: { code: 'REGISTRATION_CLOSED', message: 'Registration is closed. Contact your administrator.' },
         })
@@ -62,8 +62,8 @@ authRouter.post('/register', async (req, res) => {
 
 // GET /api/auth/setup-status — returns whether initial setup is needed
 authRouter.get('/setup-status', async (_req, res) => {
-    const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(users)
-    const needsSetup = Number(count) === 0
+    const rows = await db.select({ count: sql<number>`count(*)` }).from(users)
+    const needsSetup = Number(rows[0]?.count || 0) === 0
     res.json({ needsSetup })
 })
 

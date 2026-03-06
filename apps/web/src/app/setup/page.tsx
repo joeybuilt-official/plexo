@@ -6,10 +6,21 @@ import { Check, ChevronRight, ChevronDown, Loader2, ExternalLink, AlertCircle, S
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
-type Step = 'welcome' | 'workspace' | 'anthropic' | 'test' | 'telemetry' | 'done'
+const STEPS = ['welcome', 'workspace', 'model', 'test', 'telemetry', 'done'] as const
+type Step = typeof STEPS[number]
 
-const STEPS: Step[] = ['welcome', 'workspace', 'anthropic', 'test', 'telemetry', 'done']
-const STEP_LABELS = ['Welcome', 'Workspace', 'Anthropic', 'Test', 'Privacy', 'Done']
+const STEP_LABELS = ['Welcome', 'Workspace', 'AI Model', 'Test', 'Privacy', 'Done']
+
+const MODELS = [
+    { key: 'anthropic', name: 'Claude 3.5 Sonnet (Anthropic)', link: 'https://console.anthropic.com/keys', placeholder: 'sk-ant-api03-…' },
+    { key: 'openai', name: 'GPT-4o (OpenAI)', link: 'https://platform.openai.com/api-keys', placeholder: 'sk-proj-…' },
+    { key: 'google', name: 'Gemini 1.5 Pro (Google)', link: 'https://aistudio.google.com/app/apikey', placeholder: 'AIza…' },
+    { key: 'groq', name: 'Llama 3 / Mixtral (Groq)', link: 'https://console.groq.com/keys', placeholder: 'gsk_…' },
+    { key: 'deepseek', name: 'DeepSeek V3', link: 'https://platform.deepseek.com/api_keys', placeholder: 'sk-…' },
+    { key: 'mistral', name: 'Mistral Large', link: 'https://console.mistral.ai/api-keys/', placeholder: '…' },
+    { key: 'xai', name: 'Grok 2 (xAI)', link: 'https://console.x.ai/', placeholder: 'xai-…' },
+    { key: 'openrouter', name: 'OpenRouter (200+ models)', link: 'https://openrouter.ai/keys', placeholder: 'sk-or-v1-…' },
+]
 
 function StepIndicator({ current }: { current: Step }) {
     const idx = STEPS.indexOf(current)
@@ -176,20 +187,19 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
 export default function SetupPage() {
     const [step, setStep] = useState<Step>('welcome')
     const [workspaceName, setWorkspaceName] = useState('')
-    const [anthropicKey, setAnthropicKey] = useState('')
+    const [selectedProvider, setSelectedProvider] = useState('anthropic')
+    const [providerCredential, setProviderCredential] = useState('')
     const [workspaceId, setWorkspaceId] = useState<string | null>(null)
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<'ok' | 'fail' | null>(null)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const apiBase = '/api'
-
     async function createWorkspace() {
         setSaving(true)
         setError(null)
         try {
-            const res = await fetch(`${apiBase}/auth/workspace`, {
+            const res = await fetch(`${API_BASE}/api/v1/auth/workspace`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: workspaceName.trim() }),
@@ -200,7 +210,7 @@ export default function SetupPage() {
             }
             const data = await res.json() as { workspaceId: string }
             setWorkspaceId(data.workspaceId)
-            setStep('anthropic')
+            setStep('model')
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Unknown error')
         } finally {
@@ -208,18 +218,25 @@ export default function SetupPage() {
         }
     }
 
-    async function saveAnthropicKey() {
+    async function saveProvider() {
         if (!workspaceId) return
         setSaving(true)
         setError(null)
         try {
-            await fetch(`${apiBase}/connections/install`, {
-                method: 'POST',
+            const url = `${API_BASE}/api/v1/workspaces/${workspaceId}/ai-providers`
+
+            await fetch(url, {
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    workspaceId,
-                    registryId: 'anthropic',
-                    credentials: { api_key: anthropicKey.trim() },
+                    primary: selectedProvider,
+                    primaryProvider: selectedProvider,
+                    providers: {
+                        [selectedProvider]: {
+                            status: 'untested',
+                            apiKey: providerCredential.trim()
+                        }
+                    }
                 }),
             })
             setStep('test')
@@ -235,7 +252,7 @@ export default function SetupPage() {
         setTesting(true)
         setTestResult(null)
         try {
-            const res = await fetch(`${apiBase}/tasks`, {
+            const res = await fetch(`${API_BASE}/api/v1/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -256,7 +273,7 @@ export default function SetupPage() {
 
     return (
         <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
-            <div className="w-full max-w-lg">
+            <div className="w-full max-w-xl">
                 <div className="mb-8 flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-lg shadow-indigo-500/20">
                         P
@@ -278,7 +295,7 @@ export default function SetupPage() {
                                 </p>
                             </div>
                             <ul className="flex flex-col gap-2">
-                                {['Create your workspace', 'Connect Anthropic API key', 'Run a test task'].map((item, i) => (
+                                {['Create your workspace', 'Connect an AI Model', 'Run a test task'].map((item, i) => (
                                     <li key={item} className="flex items-center gap-3 text-sm text-zinc-400">
                                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-500">{i + 1}</span>
                                         {item}
@@ -332,48 +349,69 @@ export default function SetupPage() {
                         </div>
                     )}
 
-                    {/* ── Anthropic ── */}
-                    {step === 'anthropic' && (
+                    {/* ── AI Provider ── */}
+                    {step === 'model' && (
                         <div className="flex flex-col gap-5">
                             <div>
-                                <h2 className="text-lg font-bold text-zinc-50">Connect Anthropic</h2>
+                                <h2 className="text-lg font-bold text-zinc-50">Choose an AI Model</h2>
                                 <p className="mt-1 text-sm text-zinc-500">
-                                    Plexo uses Claude for task execution. You need an API key or can use OAuth.
+                                    Plexo needs an AI model to execute tasks.
                                 </p>
                             </div>
+
                             <div className="flex flex-col gap-1.5">
-                                <label htmlFor="anthropic-key" className="text-sm font-medium text-zinc-300">API Key</label>
+                                <label className="text-sm font-medium text-zinc-300">Which LLM would you like to use?</label>
+                                <select
+                                    value={selectedProvider}
+                                    onChange={(e) => {
+                                        setSelectedProvider(e.target.value)
+                                        setProviderCredential('')
+                                    }}
+                                    className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                                >
+                                    {MODELS.map(p => (
+                                        <option key={p.key} value={p.key}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label htmlFor="provider-credential" className="text-sm font-medium text-zinc-300">
+                                    API Key
+                                </label>
                                 <input
-                                    id="anthropic-key"
+                                    id="provider-credential"
                                     type="password"
-                                    value={anthropicKey}
-                                    onChange={(e) => setAnthropicKey(e.target.value)}
-                                    placeholder="sk-ant-api03-…"
+                                    value={providerCredential}
+                                    onChange={(e) => setProviderCredential(e.target.value)}
+                                    placeholder={MODELS.find(p => p.key === selectedProvider)?.placeholder}
                                     className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
                                     autoComplete="new-password"
                                     autoFocus
                                 />
-                                <a
-                                    href="https://console.anthropic.com/keys"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300"
-                                >
-                                    Get a key from console.anthropic.com <ExternalLink className="h-3 w-3" />
-                                </a>
+                                {MODELS.find(p => p.key === selectedProvider)?.link && (
+                                    <a
+                                        href={MODELS.find(p => p.key === selectedProvider)?.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 mt-1"
+                                    >
+                                        Get a key from {new URL(MODELS.find(p => p.key === selectedProvider)?.link || 'https://example.com').hostname.replace('console.', '').replace('platform.', '')} <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                )}
                             </div>
                             <div className="flex gap-3">
                                 <button
-                                    id="setup-anthropic-skip"
+                                    id="setup-provider-skip"
                                     onClick={() => setStep('test')}
                                     className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
                                 >
                                     Skip for now
                                 </button>
                                 <button
-                                    id="setup-anthropic-save"
-                                    onClick={() => void saveAnthropicKey()}
-                                    disabled={!anthropicKey.trim() || saving}
+                                    id="setup-provider-save"
+                                    onClick={() => void saveProvider()}
+                                    disabled={saving}
                                     className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                                 >
                                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
