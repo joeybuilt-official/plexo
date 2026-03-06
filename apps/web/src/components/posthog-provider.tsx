@@ -30,7 +30,11 @@ interface PostHogProviderProps {
 
 export function PostHogProvider({ children, userId, userEmail, userName }: PostHogProviderProps) {
   useEffect(() => {
-    posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
+    const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
+    const disabled = process.env.NEXT_PUBLIC_TELEMETRY_DISABLED === 'true'
+    if (!key || disabled) return
+
+    posthog.init(key, {
       api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
       capture_pageview: false,
       capture_pageleave: true,

@@ -12,7 +12,7 @@ import { sanitize, type RawErrorContext, type TelemetryError } from './sanitize.
 const logger = pino({ name: 'telemetry' })
 
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://telemetry.getplexo.com'
-const POSTHOG_KEY = process.env.POSTHOG_API_KEY ?? 'phc_plexo_self_hosted'
+const POSTHOG_KEY = process.env.POSTHOG_API_KEY ?? 'phc_NNJrGRLnopoR73cofmbbHEG05S2kSfCz93nQVOJlxQH'
 
 // In-memory config — loaded from workspace settings on init
 let _enabled = false
