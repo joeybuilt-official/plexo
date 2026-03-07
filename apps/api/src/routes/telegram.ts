@@ -575,7 +575,7 @@ export async function initTelegramWebhook(): Promise<void> {
     if (publicUrl && !publicUrl.includes('localhost')) {
         const secret = _webhookSecret ?? 'plexo-telegram-prod'
         _webhookSecret = secret
-        await setWebhook(`${publicUrl}/api/channels/telegram/webhook`, secret)
+        await setWebhook(`${publicUrl}/api/v1/channels/telegram/webhook`, secret)
     } else {
         startLongPolling(_botToken).catch(err => logger.error({ err }, 'Telegram polling crashed'))
     }
