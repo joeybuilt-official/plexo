@@ -31,7 +31,13 @@ export default async function DashboardLayout({
         <WorkspaceProvider initialId={workspaceId ?? undefined} initialName={workspaceName}>
             <div className="flex h-screen overflow-hidden">
                 <Sidebar user={session?.user} />
-                <main className="flex-1 overflow-auto bg-zinc-925 p-4 pb-24 md:p-6 md:pb-6 relative z-0">
+                <main 
+                    className="flex-1 overflow-auto bg-zinc-925 relative z-0 p-4 pt-[calc(1rem+var(--safe-top))] pb-[calc(72px+1rem+var(--safe-bottom))] md:p-6 md:pb-[calc(1.5rem+var(--safe-bottom))] md:pt-[calc(1.5rem+var(--safe-top))]"
+                    style={{
+                        '--safe-top': 'env(safe-area-inset-top)',
+                        '--safe-bottom': 'env(safe-area-inset-bottom)'
+                    } as React.CSSProperties}
+                >
                     {/* SSE listener — refreshes server components on task events */}
                     <DashboardRefresher />
                     {/* Version check — opens modal automatically when behind */}

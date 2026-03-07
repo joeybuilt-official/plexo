@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { ThemeProvider } from '@web/components/theme-provider'
 import { PostHogProvider } from '@web/components/posthog-provider'
@@ -7,6 +7,14 @@ import { auth } from '@web/auth'
 export const metadata: Metadata = {
   title: 'Plexo',
   description: 'AI agent platform — autonomous work, on your terms',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
 }
 
 export default async function RootLayout({
