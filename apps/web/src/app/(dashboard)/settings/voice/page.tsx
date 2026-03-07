@@ -61,7 +61,7 @@ export default function VoiceSettingsPage() {
     useEffect(() => {
         if (!workspaceId) return
         setLoading(true)
-        fetch(`${API_BASE}/api/voice/settings?workspaceId=${workspaceId}`)
+        fetch(`${API_BASE}/api/v1/voice/settings?workspaceId=${workspaceId}`)
             .then(r => r.ok ? r.json() as Promise<VoiceSettings> : null)
             .then(data => {
                 if (data) setSettings(data)
@@ -100,7 +100,7 @@ export default function VoiceSettingsPage() {
         try {
             // Save first (if a new key was entered)
             if (key && key !== CONFIGURED_SENTINEL) {
-                const saveRes = await fetch(`${API_BASE}/api/voice/settings`, {
+                const saveRes = await fetch(`${API_BASE}/api/v1/voice/settings`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ workspaceId, apiKey: key }),
@@ -110,7 +110,7 @@ export default function VoiceSettingsPage() {
             }
 
             // Test
-            const testRes = await fetch(`${API_BASE}/api/voice/test`, {
+            const testRes = await fetch(`${API_BASE}/api/v1/voice/test`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -143,7 +143,7 @@ export default function VoiceSettingsPage() {
         if (!confirm('Remove the Deepgram API key? Voice transcription will stop working.')) return
         setSaving(true)
         try {
-            await fetch(`${API_BASE}/api/voice/settings`, {
+            await fetch(`${API_BASE}/api/v1/voice/settings`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId, apiKey: '__CLEAR__' }),
