@@ -27,8 +27,13 @@ const pendingActions = new Map<string, { workspaceId: string, intent: 'TASK' | '
 
 const TELEGRAM_API = 'https://api.telegram.org/bot'
 
-let _botToken: string | null = null
+/** token → workspaceId (for bots loaded from DB) */
+const _botRegistry = new Map<string, string>()
+let _primaryBotToken: string | null = null
 let _webhookSecret: string | null = null
+
+/** The active token for outgoing sends — whichever was last initialised */
+let _botToken: string | null = null
 
 // ── Telegram API helpers ─────────────────────────────────────────────────────
 
@@ -551,32 +556,70 @@ export function stopTelegramPolling(): void { _pollingActive = false }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Register (or re-register) the webhook for a single bot token / workspace pair.
+ * Called at startup (for every DB row) and on channel create/update.
+ */
+export async function registerTelegramChannel(
+    token: string,
+    workspaceId: string,
+): Promise<void> {
+    _botRegistry.set(token, workspaceId)
+    // Also keep CHAT_TO_WORKSPACE pre-seeded for this workspace so the first message
+    // resolves immediately without an extra DB round-trip.
+    // (chat IDs are not known yet — that still happens lazily.)
+    _botToken = token
+
+    _webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET ?? _webhookSecret ?? 'plexo-telegram-prod'
+    const publicUrl = process.env.PUBLIC_URL
+    if (publicUrl && !publicUrl.includes('localhost')) {
+        await setWebhook(`${publicUrl}/api/v1/channels/telegram/webhook`, _webhookSecret)
+        logger.info({ workspaceId, tokenPrefix: token.slice(0, 10) }, 'Telegram webhook registered for channel')
+    } else {
+        // Long-polling only supports one bot; use the first one registered.
+        if (!_primaryBotToken) {
+            _primaryBotToken = token
+            startLongPolling(token).catch(err => logger.error({ err }, 'Telegram polling crashed'))
+        }
+    }
+}
+
 export async function initTelegramWebhook(): Promise<void> {
+    _webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET ?? 'plexo-telegram-prod'
+
     const envToken = process.env.TELEGRAM_BOT_TOKEN
     if (envToken) {
+        // Env-var override — single bot, no workspace mapping needed at init
         _botToken = envToken
-    } else {
-        try {
-            const [ch] = await db.select({ config: channels.config })
-                .from(channels).where(eq(channels.type, 'telegram')).limit(1)
-            const config = ch?.config as { token?: string; bot_token?: string } | null
-            _botToken = config?.token ?? config?.bot_token ?? null
-        } catch { /* non-fatal */ }
-    }
-
-    if (!_botToken) {
-        logger.info('No Telegram bot token found — Telegram adapter disabled')
+        _primaryBotToken = envToken
+        const publicUrl = process.env.PUBLIC_URL
+        if (publicUrl && !publicUrl.includes('localhost')) {
+            await setWebhook(`${publicUrl}/api/v1/channels/telegram/webhook`, _webhookSecret)
+        } else {
+            startLongPolling(envToken).catch(err => logger.error({ err }, 'Telegram polling crashed'))
+        }
         return
     }
 
-    _webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET ?? null
-
-    const publicUrl = process.env.PUBLIC_URL
-    if (publicUrl && !publicUrl.includes('localhost')) {
-        const secret = _webhookSecret ?? 'plexo-telegram-prod'
-        _webhookSecret = secret
-        await setWebhook(`${publicUrl}/api/v1/channels/telegram/webhook`, secret)
-    } else {
-        startLongPolling(_botToken).catch(err => logger.error({ err }, 'Telegram polling crashed'))
+    // Load ALL telegram channels from DB and register each
+    try {
+        const rows = await db
+            .select({ config: channels.config, workspaceId: channels.workspaceId })
+            .from(channels)
+            .where(eq(channels.type, 'telegram'))
+        if (rows.length === 0) {
+            logger.info('No Telegram channels configured — adapter idle')
+            return
+        }
+        for (const row of rows) {
+            const cfg = row.config as { token?: string; bot_token?: string } | null
+            const token = cfg?.token ?? cfg?.bot_token ?? null
+            if (token) {
+                await registerTelegramChannel(token, row.workspaceId)
+            }
+        }
+        logger.info({ count: rows.length }, 'Telegram channels initialised')
+    } catch (err) {
+        logger.error({ err }, 'Telegram init — DB lookup failed')
     }
 }
