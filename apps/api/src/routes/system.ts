@@ -262,38 +262,44 @@ systemRouter.get('/version', async (_req, res) => {
     let releaseUrl: string | null = null
     let publishedAt: string | null = null
     let changelog: string | null = null
-    let updateType: 'release' | 'commit' = 'release'
+    let updateType: 'release' | 'commit' = 'commit'
 
-    if (release) {
-        if (release.type === 'release' && local.type === 'release') {
-            latest = release.version.replace(/^v/, '')
-            const current = local.version.replace(/^v/, '')
-            behind = semverGt(latest, current)
-        } else if (release.type === 'commit' && local.type === 'commit') {
-            behind = local.version !== release.version
-            latest = release.version.slice(0, 7)
-            updateType = 'commit'
-        } else if (release.type === 'release' && local.type === 'commit') {
-            behind = true
-            latest = release.version.replace(/^v/, '')
-        }
+    // ── Release-based check ──────────────────────────────────────────────────
+    if (release && local.type === 'release') {
+        latest = release.version.replace(/^v/, '')
+        behind = semverGt(latest, local.version.replace(/^v/, ''))
         releaseUrl = release.url
         publishedAt = release.date
         changelog = release.message?.slice(0, 2000) ?? null
+        updateType = 'release'
     }
 
-    // Commit-aware: even if on the latest release, check whether main has
-    // newer commits than when this image was built (beta mode).
-    if (!behind && latestCommit && local.buildTime) {
-        const commitDate = new Date(latestCommit.date).getTime()
-        const buildDate = new Date(local.buildTime).getTime()
-        if (commitDate > buildDate) {
-            behind = true
+    // ── Commit-based check ───────────────────────────────────────────────────
+    // Three cases that should detect a new commit on main:
+    //  1. No releases at all — source deployment; compare SHA directly.
+    //  2. On latest release but running from Docker — compare build timestamp.
+    //  3. Running from git source regardless of releases.
+    if (!behind && latestCommit) {
+        if (local.type === 'commit') {
+            // Source checkout: SHA comparison is authoritative
+            behind = local.version !== latestCommit.sha
             latest = latestCommit.shortSha
             releaseUrl = latestCommit.url
             publishedAt = latestCommit.date
             changelog = latestCommit.message
             updateType = 'commit'
+        } else if (local.buildTime) {
+            // Docker image: compare build timestamp to latest commit date
+            const commitDate = new Date(latestCommit.date).getTime()
+            const buildDate = new Date(local.buildTime).getTime()
+            if (commitDate > buildDate) {
+                behind = true
+                latest = latestCommit.shortSha
+                releaseUrl = latestCommit.url
+                publishedAt = latestCommit.date
+                changelog = latestCommit.message
+                updateType = 'commit'
+            }
         }
     }
 
