@@ -964,40 +964,57 @@ export default function AIProvidersPage() {
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
                     <button
                         onClick={() => setShowFallback((v) => !v)}
-                        className="w-full flex items-center justify-between px-5 py-4 hover:bg-zinc-800/30 transition-colors"
+                        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/30 transition-colors"
                     >
-                        <div className="text-left">
-                            <h2 className="text-sm font-semibold text-zinc-200">Fallback Chain</h2>
-                            <p className="mt-0.5 text-xs text-zinc-500">
-                                If the primary provider fails, Plexo tries these in order.
-                            </p>
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <h2 className="text-sm font-semibold text-zinc-200 shrink-0">Fallback Chain</h2>
+                            {/* Inline chain pill strip — always visible */}
+                            <div className="flex items-center gap-1 flex-wrap min-w-0">
+                                {activeChainProviders.map((p, idx) => (
+                                    <div key={p.key} className="flex items-center gap-1">
+                                        {idx > 0 && <span className="text-zinc-700 text-[10px] select-none">›</span>}
+                                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border ${
+                                            primaryProvider === p.key
+                                                ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'
+                                                : 'border-zinc-700/80 bg-zinc-800/80 text-zinc-400'
+                                        }`}>
+                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 shrink-0" />
+                                            {p.name}
+                                        </span>
+                                    </div>
+                                ))}
+                                {warnChainProviders.map((p) => (
+                                    <div key={p.key} className="flex items-center gap-1">
+                                        <span className="text-zinc-700 text-[10px] select-none">›</span>
+                                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border border-zinc-800 text-zinc-600 opacity-50">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500/50 shrink-0" />
+                                            {p.name}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs text-zinc-600">{activeChainProviders.length} active</span>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setShowFallback(true); setShowRouting((v) => !v) }}
+                                className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors px-2 py-1 rounded hover:bg-zinc-800"
+                            >
+                                Model routing
+                                {showRouting ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                            </button>
                             {showFallback ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
                         </div>
                     </button>
                     {showFallback && <div className="px-5 pb-5">
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                        <div />
-                        <button
-                            onClick={() => setShowRouting((v) => !v)}
-                            className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-400 transition-colors shrink-0"
-                        >
-                            {showRouting ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                            Model routing
-                        </button>
-                    </div>
-
-                    {/* Provider priority row */}
-                    <div className="mt-4 flex items-center gap-2 flex-wrap">
-                        {/* Active (configured) providers — full controls */}
+                    {/* Provider priority row — edit controls */}
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
                         {activeChainProviders.map((p, idx) => (
                             <div
                                 key={p.key}
-                                className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${primaryProvider === p.key
-                                    ? 'border-indigo-500/40 bg-indigo-500/8'
-                                    : 'border-zinc-700 bg-zinc-900/60'
+                                className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
+                                    primaryProvider === p.key
+                                        ? 'border-indigo-500/40 bg-indigo-500/8'
+                                        : 'border-zinc-700 bg-zinc-900/60'
                                     }`}
                             >
                                 <span className="text-xs text-zinc-600 font-mono w-4 text-center">{idx + 1}</span>
@@ -1007,52 +1024,20 @@ export default function AIProvidersPage() {
                                     <span className="text-[10px] text-indigo-400 font-medium">primary</span>
                                 )}
                                 <div className="flex gap-0.5 ml-1">
-                                    <button
-                                        onClick={() => moveFallback(p.key, -1)}
-                                        disabled={idx === 0}
-                                        className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none px-0.5"
-                                        aria-label="Move earlier"
-                                    >◀</button>
-                                    <button
-                                        onClick={() => moveFallback(p.key, 1)}
-                                        disabled={idx === activeChainProviders.length - 1}
-                                        className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none px-0.5"
-                                        aria-label="Move later"
-                                    >▶</button>
-                                    <button
-                                        onClick={() => removeFromFallback(p.key)}
-                                        className="ml-1 text-zinc-600 hover:text-red-400 leading-none px-0.5 transition-colors"
-                                        aria-label="Remove from chain"
-                                        title="Remove from chain"
-                                    >×</button>
+                                    <button onClick={() => moveFallback(p.key, -1)} disabled={idx === 0} className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none px-0.5" aria-label="Move earlier">◀</button>
+                                    <button onClick={() => moveFallback(p.key, 1)} disabled={idx === activeChainProviders.length - 1} className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none px-0.5" aria-label="Move later">▶</button>
+                                    <button onClick={() => removeFromFallback(p.key)} className="ml-1 text-zinc-600 hover:text-red-400 leading-none px-0.5 transition-colors" aria-label="Remove from chain" title="Remove from chain">×</button>
                                 </div>
                             </div>
                         ))}
-
-                        {/* Degraded (untested/unconfigured) providers — greyed, clickable, removable */}
                         {warnChainProviders.map((p) => (
-                            <div
-                                key={p.key}
-                                className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 opacity-50"
-                                title={`${p.name} — not tested. Click to configure.`}
-                            >
+                            <div key={p.key} className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 opacity-50" title={`${p.name} — not tested. Click to configure.`}>
                                 <StatusDot status={providerStates[p.key].status} />
-                                <button
-                                    onClick={() => setSelectedProvider(p.key)}
-                                    className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
-                                >
-                                    {p.name}
-                                </button>
-                                <button
-                                    onClick={() => removeFromFallback(p.key)}
-                                    className="ml-1 text-zinc-600 hover:text-red-400 leading-none px-0.5 transition-colors"
-                                    aria-label="Remove from chain"
-                                    title="Remove from chain"
-                                >×</button>
+                                <button onClick={() => setSelectedProvider(p.key)} className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">{p.name}</button>
+                                <button onClick={() => removeFromFallback(p.key)} className="ml-1 text-zinc-600 hover:text-red-400 leading-none px-0.5 transition-colors" aria-label="Remove from chain" title="Remove from chain">×</button>
                             </div>
                         ))}
                     </div>
-
                     {/* Model routing — collapsible */}
                     {showRouting && (
                         <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
@@ -1060,24 +1045,13 @@ export default function AIProvidersPage() {
                                 <p className="text-xs text-zinc-500">Map each task type to a specific model. Leave blank to use the primary provider&apos;s default.</p>
                             </div>
                             <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-zinc-800">
-                                        <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Task type</th>
-                                        <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Model</th>
-                                    </tr>
-                                </thead>
+                                <thead><tr className="border-b border-zinc-800"><th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Task type</th><th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Model</th></tr></thead>
                                 <tbody>
                                     {(Object.entries(TASK_LABELS) as [TaskType, string][]).map(([taskType, label]) => (
                                         <tr key={taskType} className="border-b border-zinc-800/50 last:border-0">
                                             <td className="px-4 py-2.5 text-zinc-400">{label}</td>
                                             <td className="px-4 py-2.5">
-                                                <input
-                                                    type="text"
-                                                    value={modelRouting[taskType]}
-                                                    onChange={(e) => setModelRouting((prev) => ({ ...prev, [taskType]: e.target.value }))}
-                                                    className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
-                                                    placeholder={DEFAULT_MODELS[taskType]}
-                                                />
+                                                <input type="text" value={modelRouting[taskType]} onChange={(e) => setModelRouting((prev) => ({ ...prev, [taskType]: e.target.value }))} className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none" placeholder={DEFAULT_MODELS[taskType]} />
                                             </td>
                                         </tr>
                                     ))}
@@ -1093,20 +1067,45 @@ export default function AIProvidersPage() {
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
                 <button
                     onClick={() => setShowCostDefaults((v) => !v)}
-                    className="w-full flex items-center justify-between px-5 py-4 hover:bg-zinc-800/30 transition-colors"
+                    className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/30 transition-colors"
                 >
-                    <div className="text-left">
-                        <h2 className="text-sm font-semibold text-zinc-200">Cost Defaults</h2>
-                        <p className="mt-0.5 text-xs text-zinc-500">
-                            Workspace-level budget fallbacks for tasks and projects.
-                        </p>
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <h2 className="text-sm font-semibold text-zinc-200 shrink-0">Cost Defaults</h2>
+                        {/* Inline stat summary — always visible */}
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-zinc-600 uppercase tracking-wide font-medium">ceiling</span>
+                                <span className={`text-xs font-mono font-medium ${
+                                    wsDefaultCostCeiling && parseFloat(wsDefaultCostCeiling) > 0
+                                        ? 'text-zinc-300'
+                                        : 'text-zinc-600'
+                                }`}>
+                                    {wsDefaultCostCeiling && parseFloat(wsDefaultCostCeiling) > 0
+                                        ? `$${parseFloat(wsDefaultCostCeiling).toFixed(2)}`
+                                        : '—'}
+                                </span>
+                            </div>
+                            <span className="text-zinc-800 text-[10px]">·</span>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-zinc-600 uppercase tracking-wide font-medium">tokens</span>
+                                <span className={`text-xs font-mono font-medium ${
+                                    wsDefaultTokenBudget && parseInt(wsDefaultTokenBudget, 10) > 0
+                                        ? 'text-zinc-300'
+                                        : 'text-zinc-600'
+                                }`}>
+                                    {wsDefaultTokenBudget && parseInt(wsDefaultTokenBudget, 10) > 0
+                                        ? parseInt(wsDefaultTokenBudget, 10).toLocaleString()
+                                        : '—'}
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    {showCostDefaults ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
+                    {showCostDefaults ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500 shrink-0" />}
                 </button>
                 {showCostDefaults && <div className="px-5 pb-5">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 mt-1">
                     <div className="flex flex-col gap-1.5">
-                        <label htmlFor="ws-cost-ceiling" className="text-xs font-medium text-zinc-400">Default task cost ceiling (USD)</label>
+                        <label htmlFor="ws-cost-ceiling" className="text-xs font-medium text-zinc-400">Cost ceiling per task (USD)</label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-sm">$</span>
                             <input
@@ -1114,22 +1113,22 @@ export default function AIProvidersPage() {
                                 type="number"
                                 min="0.01"
                                 step="0.10"
-                                placeholder="e.g. 0.50"
+                                placeholder="0.50"
                                 value={wsDefaultCostCeiling}
                                 onChange={(e) => setWsDefaultCostCeiling(e.target.value)}
                                 className="w-full rounded-lg border border-zinc-700 bg-zinc-900 pl-7 pr-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
                             />
                         </div>
-                        <p className="text-[11px] text-zinc-600">Applied to standalone tasks (chat/Telegram) with no explicit ceiling.</p>
+                        <p className="text-[11px] text-zinc-600">Chat &amp; channel tasks with no explicit ceiling. Hierarchy: task › project › workspace.</p>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                        <label htmlFor="ws-token-budget" className="text-xs font-medium text-zinc-400">Default token budget (output tokens)</label>
+                        <label htmlFor="ws-token-budget" className="text-xs font-medium text-zinc-400">Token budget per call (output)</label>
                         <input
                             id="ws-token-budget"
                             type="number"
                             min="256"
                             step="512"
-                            placeholder="e.g. 8192"
+                            placeholder="8192"
                             value={wsDefaultTokenBudget}
                             onChange={(e) => setWsDefaultTokenBudget(e.target.value)}
                             className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
@@ -1137,17 +1136,19 @@ export default function AIProvidersPage() {
                         <p className="text-[11px] text-zinc-600">Max output tokens per LLM call. 0 = no cap (model default).</p>
                     </div>
                 </div>
-                <p className="mt-3 text-[11px] text-zinc-600">
-                    Ceiling hierarchy: task explicit › project default › workspace default (this page) › workspace weekly ceiling.
-                </p>
-                <button
-                    onClick={() => void handleSave()}
-                    disabled={saving}
-                    className="mt-4 flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
-                >
-                    <Save className="h-3.5 w-3.5" />
-                    {saving ? 'Saving…' : saved ? 'Saved' : 'Save defaults'}
-                </button>
+                <div className="mt-4 flex items-center justify-between">
+                    <p className="text-[11px] text-zinc-600">
+                        Ceiling hierarchy: task explicit › project › workspace › weekly cap.
+                    </p>
+                    <button
+                        onClick={() => void handleSave()}
+                        disabled={saving}
+                        className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50 shrink-0"
+                    >
+                        <Save className="h-3 w-3" />
+                        {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}
+                    </button>
+                </div>
                 </div>}
             </div>
         </div>
