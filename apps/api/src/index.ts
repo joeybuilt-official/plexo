@@ -53,6 +53,7 @@ import { conversationsRouter } from './routes/conversations.js'
 import { behaviorRouter } from './routes/behavior.js'
 import { systemRouter } from './routes/system.js'
 import { voiceRouter } from './routes/voice.js'
+import { introspectRouter } from './routes/introspect.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
@@ -139,6 +140,7 @@ v1.use('/conversations', conversationsRouter)
 v1.use('/voice', voiceRouter)
 v1.use('/behavior/:workspaceId', behaviorRouter)
 v1.use('/system', systemRouter)
+v1.use('/workspaces/:id/introspect', introspectRouter)
 
 v1.get('/agent/status', (_req, res) => {
     res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })

@@ -368,6 +368,10 @@ async function processOneTask(): Promise<boolean> {
         workspaceSummary,
         sprintGoal,
         sprintName,
+        // Runtime identity — resolved provider/model so executor knows who it is
+        activeProvider: aiSettings?.primaryProvider ?? 'anthropic',
+        activeModel: (aiSettings?.providers as Record<string, { model?: string } | undefined> | undefined)
+            ?.[aiSettings?.primaryProvider ?? 'anthropic']?.model ?? 'claude-sonnet-4-5',
         // Sprint coding context
         sprintWorkDir,
         sprintRepo,

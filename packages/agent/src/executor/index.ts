@@ -145,6 +145,52 @@ function buildTools(ctx: ExecutionContext) {
                 return `Asset saved: ${filePath} (${(input.content as string).length} bytes)`
             },
         }),
+        self_reflect: tool({
+            description: 'Query your own runtime state. Returns your active model, installed connections, available tools, memory statistics, cost position, and safety limits. Call this when asked about your capabilities, identity, architecture, or configuration, or when you need to verify what tools/connections are available before attempting a task.',
+            inputSchema: z.object({
+                focus: z.enum(['all', 'identity', 'tools', 'connections', 'memory', 'cost', 'safety'])
+                    .optional()
+                    .default('all')
+                    .describe('Which section to return. Use "identity" for model/provider info, "tools" for available tools, "connections" for installed integrations, "memory" for memory stats, "cost" for usage/budget, "safety" for safety limits, "all" for everything.'),
+            }),
+            execute: async ({ focus }) => {
+                const { buildIntrospectionSnapshot } = await import('../introspection/index.js')
+                const snapshot = await buildIntrospectionSnapshot(
+                    ctx.workspaceId,
+                    ctx.activeProvider,
+                    ctx.activeModel,
+                )
+                const sections = {
+                    identity: {
+                        agentName: snapshot.agentName,
+                        agentPersona: snapshot.agentPersona,
+                        agentTagline: snapshot.agentTagline,
+                        activeProvider: snapshot.activeProvider,
+                        activeModel: snapshot.activeModel,
+                        primaryProvider: snapshot.primaryProvider,
+                        fallbackChain: snapshot.fallbackChain,
+                        build: snapshot.build,
+                    },
+                    tools: {
+                        builtinTools: snapshot.builtinTools,
+                        connectionTools: snapshot.connections.flatMap((c) => c.tools),
+                        pluginTools: snapshot.plugins.flatMap((p) => p.tools),
+                        all: [
+                            ...snapshot.builtinTools,
+                            ...snapshot.connections.flatMap((c) => c.tools),
+                            ...snapshot.plugins.flatMap((p) => p.tools),
+                        ],
+                    },
+                    connections: snapshot.connections,
+                    memory: snapshot.memory,
+                    cost: snapshot.cost,
+                    safety: snapshot.safety,
+                }
+                if (focus === 'all') return JSON.stringify(snapshot, null, 2)
+                const section = sections[focus as keyof typeof sections]
+                return section ? JSON.stringify(section, null, 2) : JSON.stringify(snapshot, null, 2)
+            },
+        }),
     }
 }
 
@@ -321,7 +367,10 @@ If typecheck fails, fix the errors before pushing — do not push broken code.
 Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch'}.`
         : ''
 
+    const identityLine = `Identity: running on ${ctx.activeProvider ?? 'anthropic'} / ${ctx.activeModel ?? 'claude-sonnet-4-5'}. If asked what model, provider, or system you are, call self_reflect({focus:"identity"}) to get the accurate, live answer rather than guessing.`
+
     const systemPrompt = `${personaPrefix}You are ${agentName}, an autonomous AI agent executing a task.
+${identityLine}
 ${ctx.workspaceName ? `\nWorkspace: ${ctx.workspaceName}` : ''}${ctx.workspaceSummary ? `\nWorkspace purpose: ${ctx.workspaceSummary}` : ''}${ctx.sprintGoal ? `\nActive project goal: ${ctx.sprintGoal}` : ''}${sprintCodingBlock}
 
 Task goal: ${plan.goal}

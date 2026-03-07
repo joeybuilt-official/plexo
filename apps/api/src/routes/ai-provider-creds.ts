@@ -20,6 +20,7 @@ import { db, eq, and } from '@plexo/db'
 import { workspaces, workspaceKeyShares } from '@plexo/db'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
+import { invalidateIntrospectCache } from './introspect.js'
 
 export const aiProviderCredsRouter: RouterType = Router({ mergeParams: true })
 
@@ -216,6 +217,8 @@ aiProviderCredsRouter.put('/', async (req, res) => {
 
         const providerCount = Object.keys(toWrite.providers ?? {}).length
         logger.info({ workspaceId: id, providers: providerCount }, 'AI provider credentials updated (encrypted)')
+        // Invalidate the introspection cache so the Intelligence page shows fresh data
+        void invalidateIntrospectCache(id)
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err, id }, 'PUT ai-providers failed')

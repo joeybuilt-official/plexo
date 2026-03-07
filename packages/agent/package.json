@@ -26,7 +26,8 @@
         "./providers/knowledge": "./src/providers/knowledge.ts",
         "./behavior/types": "./src/behavior/types.ts",
         "./behavior/resolver": "./src/behavior/resolver.ts",
-        "./behavior/compiler": "./src/behavior/compiler.ts"
+        "./behavior/compiler": "./src/behavior/compiler.ts",
+        "./introspection": "./src/introspection/index.ts"
     },
     "scripts": {
         "typecheck": "tsc --noEmit",

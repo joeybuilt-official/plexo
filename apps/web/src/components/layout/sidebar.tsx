@@ -15,6 +15,7 @@ import {
     Radio,
     Store,
     Brain,
+    BrainCircuit,
     Cpu,
     Bot,
     Settings as SettingsIcon,
@@ -96,6 +97,7 @@ const NAV_GROUPS: NavGroup[] = [
         defaultOpen: false,
         items: [
             { label: 'AI Providers', href: '/settings/ai-providers', icon: Cpu },
+            { label: 'Intelligence', href: '/settings/intelligence', icon: BrainCircuit },
             { label: 'Voice', href: '/settings/voice', icon: Mic },
             { label: 'Agent', href: '/settings/agent', icon: Bot },
             { label: 'Workspace', href: '/settings', icon: SettingsIcon, exact: true },

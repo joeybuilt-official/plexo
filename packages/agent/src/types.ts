@@ -356,6 +356,11 @@ export interface ExecutionContext {
     sprintName?: string
     /** Brief description of the workspace purpose */
     workspaceSummary?: string
+    // ── Runtime identity (set by agent-loop after provider resolution) ─────────
+    /** The provider key actually executing this task, e.g. 'anthropic', 'openai' */
+    activeProvider?: string
+    /** The model ID actually in use, e.g. 'claude-sonnet-4-5' */
+    activeModel?: string
     // ── Sprint coding context ─────────────────────────────────────────────────
     /** Absolute path to the cloned repo working directory for coding tasks */
     sprintWorkDir?: string
