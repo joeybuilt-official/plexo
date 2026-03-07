@@ -53,19 +53,22 @@ async function fetchLatestRemote(): Promise<{ type: 'release' | 'commit'; versio
         const cached = await redis.get(VERSION_CACHE_KEY)
         if (cached) return JSON.parse(cached)
 
-        // Try releases first
+        // Try releases first — use list endpoint (includes pre-releases; /releases/latest skips them)
         const releaseRes = await fetch(
-            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
+            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=1`,
             {
                 headers: { 'User-Agent': 'plexo-self-host/1.0', Accept: 'application/vnd.github+json' },
                 signal: AbortSignal.timeout(4000),
             },
         )
         if (releaseRes.ok) {
-            const data = await releaseRes.json() as { tag_name: string; html_url: string; published_at: string; body: string }
-            const result = { type: 'release' as const, version: data.tag_name, url: data.html_url, date: data.published_at, message: data.body }
-            await redis.set(VERSION_CACHE_KEY, JSON.stringify(result), { EX: VERSION_CACHE_TTL })
-            return result
+            const releases = await releaseRes.json() as { tag_name: string; html_url: string; published_at: string; body: string }[]
+            if (releases.length > 0) {
+                const data = releases[0]!
+                const result = { type: 'release' as const, version: data.tag_name, url: data.html_url, date: data.published_at, message: data.body }
+                await redis.set(VERSION_CACHE_KEY, JSON.stringify(result), { EX: VERSION_CACHE_TTL })
+                return result
+            }
         }
 
         // Fall back to main branch commit
