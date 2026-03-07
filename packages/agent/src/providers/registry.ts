@@ -2,11 +2,11 @@ import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
 import { db, eq, sql } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
 import { openai, createOpenAI } from '@ai-sdk/openai'
-import { google } from '@ai-sdk/google'
-import { mistral } from '@ai-sdk/mistral'
-import { groq } from '@ai-sdk/groq'
-import { xai } from '@ai-sdk/xai'
-import { deepseek } from '@ai-sdk/deepseek'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createMistral } from '@ai-sdk/mistral'
+import { createGroq } from '@ai-sdk/groq'
+import { createXai } from '@ai-sdk/xai'
+import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 // Use LanguageModel from the ai package (re-exported from @ai-sdk/provider)
@@ -148,18 +148,36 @@ export function buildModel(
                 : openai
             return (oa as typeof openai)(modelId)
         }
-        case 'google':
-            // google() singleton uses GOOGLE_GENERATIVE_AI_API_KEY env var.
-            // Config-keyed Google support requires createGoogleGenerativeAI — left for a follow-up.
-            return google(modelId)
-        case 'mistral':
-            return mistral(modelId)
-        case 'groq':
-            return groq(modelId)
-        case 'xai':
-            return xai(modelId)
-        case 'deepseek':
-            return deepseek(modelId)
+        case 'google': {
+            const goog = config.apiKey
+                ? createGoogleGenerativeAI({ apiKey: config.apiKey })
+                : createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? '' })
+            return goog(modelId)
+        }
+        case 'mistral': {
+            const mi = config.apiKey
+                ? createMistral({ apiKey: config.apiKey })
+                : createMistral({ apiKey: process.env.MISTRAL_API_KEY ?? '' })
+            return mi(modelId)
+        }
+        case 'groq': {
+            const gr = config.apiKey
+                ? createGroq({ apiKey: config.apiKey })
+                : createGroq({ apiKey: process.env.GROQ_API_KEY ?? '' })
+            return gr(modelId)
+        }
+        case 'xai': {
+            const xa = config.apiKey
+                ? createXai({ apiKey: config.apiKey })
+                : createXai({ apiKey: process.env.XAI_API_KEY ?? '' })
+            return xa(modelId)
+        }
+        case 'deepseek': {
+            const ds = config.apiKey
+                ? createDeepSeek({ apiKey: config.apiKey })
+                : createDeepSeek({ apiKey: process.env.DEEPSEEK_API_KEY ?? '' })
+            return ds(modelId)
+        }
         case 'ollama': {
             const ol = createOpenAICompatible({
                 name: 'ollama',
@@ -282,7 +300,13 @@ function isRetryableProviderError(err: unknown): boolean {
         msg.includes('too many requests') ||
         msg.includes('typevalidationerror') ||
         msg.includes('jsonparseerror') ||
-        msg.includes('logicerror')
+        msg.includes('logicerror') ||
+        // Auth failures from stale/invalid keys — fall through to next provider
+        msg.includes('401') ||
+        msg.includes('invalid api key') ||
+        msg.includes('unauthorized') ||
+        msg.includes('authentication failed') ||
+        msg.includes('invalid_api_key')
     )
 }
 
@@ -345,12 +369,40 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
             }
             return anthropic(modelId)
         }
-        case 'openai': return openai(modelId)
-        case 'google': return google(modelId)
-        case 'mistral': return mistral(modelId)
-        case 'groq': return groq(modelId)
-        case 'xai': return xai(modelId)
-        case 'deepseek': return deepseek(modelId)
+        case 'openai': {
+            const oa = apiKey ? createOpenAI({ apiKey }) : openai
+            return (oa as typeof openai)(modelId)
+        }
+        case 'google': {
+            const goog = apiKey
+                ? createGoogleGenerativeAI({ apiKey })
+                : createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? '' })
+            return goog(modelId)
+        }
+        case 'mistral': {
+            const mi = apiKey
+                ? createMistral({ apiKey })
+                : createMistral({ apiKey: process.env.MISTRAL_API_KEY ?? '' })
+            return mi(modelId)
+        }
+        case 'groq': {
+            const gr = apiKey
+                ? createGroq({ apiKey })
+                : createGroq({ apiKey: process.env.GROQ_API_KEY ?? '' })
+            return gr(modelId)
+        }
+        case 'xai': {
+            const xa = apiKey
+                ? createXai({ apiKey })
+                : createXai({ apiKey: process.env.XAI_API_KEY ?? '' })
+            return xa(modelId)
+        }
+        case 'deepseek': {
+            const ds = apiKey
+                ? createDeepSeek({ apiKey })
+                : createDeepSeek({ apiKey: process.env.DEEPSEEK_API_KEY ?? '' })
+            return ds(modelId)
+        }
         case 'ollama': {
             const base = (baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1'
             return createOpenAICompatible({ name: 'ollama', baseURL: base })(modelId)

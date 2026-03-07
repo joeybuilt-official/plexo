@@ -20,7 +20,7 @@ import { logger } from '../logger.js'
 import { pushTask } from '@plexo/queue'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { generateText } from 'ai'
-import { buildModel } from '@plexo/agent/providers/registry'
+import { withFallback } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 
 // ── Conversation helpers ──────────────────────────────────────────────────────
@@ -178,6 +178,7 @@ chatRouter.post('/message', async (req, res) => {
             return
         }
 
+        // Build model lazily — withFallback will walk the chain if primary fails
         const providerKey = aiSettings.primaryProvider
         const config = aiSettings.providers[providerKey]
         if (!config) {
@@ -185,13 +186,12 @@ chatRouter.post('/message', async (req, res) => {
             return
         }
 
-        const model = buildModel(providerKey, config, 'summarization', aiSettings)
-        const trimmedMsg = message.trim()
 
         // Classify intent — skip if caller forced CONVERSATION (e.g. "Just answer" button)
         let intent: 'TASK' | 'PROJECT' | 'CONVERSATION' = forceConversation ? 'CONVERSATION' : 'CONVERSATION'
         const sid = sessionId ?? 'default'
         const history = sessionHistory.get(sid) ?? []
+        const trimmedMsg = message.trim()
 
         let isComplex = false
         let suggestedCategory = 'general'
@@ -203,12 +203,14 @@ chatRouter.post('/message', async (req, res) => {
                     { role: 'user' as const, content: trimmedMsg }
                 ]
 
-                const classifyResult = await generateText({
-                    model,
-                    system: CLASSIFY_SYSTEM,
-                    messages,
-                    abortSignal: AbortSignal.timeout(10_000),
-                })
+                const classifyResult = await withFallback(aiSettings, 'classification', async (model) =>
+                    generateText({
+                        model,
+                        system: CLASSIFY_SYSTEM,
+                        messages,
+                        abortSignal: AbortSignal.timeout(10_000),
+                    })
+                )
                 const text = classifyResult.text?.trim() ?? ''
                 const upperText = text.toUpperCase()
                 const parts = text.split(/\s+/)
@@ -268,16 +270,18 @@ chatRouter.post('/message', async (req, res) => {
 
             try {
                 logger.info({ workspaceId, providerKey, modelId: config.model }, 'Webchat: generating conversational reply')
-                const result = await generateText({
-                    model,
-                    system: 'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
-                        + 'If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. '
-                        + 'If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. '
-                        + 'If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. '
-                        + 'Only agree to start a task or project when the scope is clear.',
-                    messages: history.map(m => ({ role: m.role, content: m.content })),
-                    abortSignal: AbortSignal.timeout(30_000),
-                })
+                const result = await withFallback(aiSettings, 'summarization', async (model) =>
+                    generateText({
+                        model,
+                        system: 'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
+                            + 'If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. '
+                            + 'If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. '
+                            + 'If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. '
+                            + 'Only agree to start a task or project when the scope is clear.',
+                        messages: history.map(m => ({ role: m.role, content: m.content })),
+                        abortSignal: AbortSignal.timeout(30_000),
+                    })
+                )
                 const replyText = result.text
                 if (!replyText) {
                     logger.warn({ workspaceId, providerKey }, 'Webchat: empty response from model')
