@@ -46,6 +46,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     entrypoint: [ "/bin/sh", "/migrate.sh" ]
     restart: "no"
     depends_on:
@@ -68,6 +70,7 @@ services:
       dockerfile: docker/Dockerfile.api
       args:
         APP_VERSION: ${APP_VERSION:-auto}
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     restart: unless-stopped
     depends_on:
       postgres:
