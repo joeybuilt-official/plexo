@@ -333,7 +333,8 @@ export function Sidebar({ user }: { user?: SessionUser }) {
     }
 
     return (
-        <aside className="flex h-screen w-[220px] shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950">
+        <>
+        <aside className="hidden md:flex h-screen w-[220px] shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950">
             {/* Workspace switcher */}
             <WorkspaceSwitcher />
 
@@ -407,6 +408,32 @@ export function Sidebar({ user }: { user?: SessionUser }) {
                 </div>
             </div>
         </aside>
+
+        {/* Mobile Bottom Tab Bar */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex h-[72px] items-center justify-around border-t border-zinc-800/60 bg-zinc-950/90 backdrop-blur-xl px-1 pb-safe-bottom">
+            {[
+                { label: 'Overview', href: '/', icon: LayoutDashboard, exact: true },
+                { label: 'Chat', href: '/chat', icon: MessagesSquare, exact: false },
+                { label: 'Tasks', href: '/tasks', icon: CheckSquare, exact: false },
+                { label: 'Settings', href: '/settings', icon: SettingsIcon, exact: false },
+            ].map(({ label, href, icon: Icon, exact }) => {
+                const active = isActive(href, exact)
+                return (
+                    <Link
+                        key={href}
+                        href={href}
+                        className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${active ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'
+                            }`}
+                    >
+                        <div className={`flex items-center justify-center rounded-full p-1.5 ${active ? 'bg-indigo-500/10' : 'bg-transparent'}`}>
+                            <Icon className="h-[22px] w-[22px]" />
+                        </div>
+                        <span className="text-[10px] font-medium">{label}</span>
+                    </Link>
+                )
+            })}
+        </nav>
+        </>
     )
 }
 
