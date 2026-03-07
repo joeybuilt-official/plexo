@@ -44,6 +44,7 @@ export function PostHogProvider({ children, userId, userEmail, userName }: PostH
       person_profiles: 'identified_only',
       autocapture: false,
       capture_exceptions: true,
+      persistence: 'localStorage',
     })
   }, [])
 
