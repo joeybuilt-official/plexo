@@ -56,7 +56,8 @@ RUN V="${APP_VERSION}"; \
     echo "$V" > /app/.version && \
     echo "APP_VERSION baked: $V"
 # Bake build timestamp — used for commit-aware update detection
-RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build-time
+ARG SOURCE_COMMIT=unknown
+RUN echo "Commit: $SOURCE_COMMIT" && date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build-time
 ENV APP_VERSION=auto
 
 RUN chown -R plexo:plexo /app
