@@ -41,6 +41,7 @@ type ProviderEntry = {
     defaultModel?: string
     baseUrl?: string
     status?: string
+    enabled?: boolean
     keySource?: { workspaceId: string; workspaceName?: string }
     [key: string]: unknown
 }

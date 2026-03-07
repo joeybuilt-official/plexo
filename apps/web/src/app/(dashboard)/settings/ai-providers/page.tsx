@@ -66,6 +66,7 @@ interface ProviderState {
     selectedModel: string
     dynamicModels: string[]   // fetched from local provider (e.g. Ollama /api/tags)
     status: ProviderStatus
+    enabled: boolean          // false = present but excluded from agent dispatch
     testResult: string | null
 }
 
@@ -291,6 +292,7 @@ export default function AIProvidersPage() {
                 selectedModel: '',
                 dynamicModels: [] as string[],
                 status: 'unconfigured' as ProviderStatus,
+                enabled: true,
                 testResult: null,
             }])
         ) as unknown as Record<ProviderKey, ProviderState>
@@ -389,6 +391,7 @@ export default function AIProvidersPage() {
                         for (const [k, v] of Object.entries(aiCfg.providers!)) {
                             const pk = k as ProviderKey
                             if (next[pk]) {
+                                const rawV = v as typeof v & { enabled?: boolean }
                                 next[pk] = {
                                     ...next[pk],
                                     status: v.status,
@@ -396,6 +399,8 @@ export default function AIProvidersPage() {
                                     baseUrl: v.baseUrl ?? next[pk].baseUrl,
                                     // Sentinel means configured — keep input empty so placeholder shows
                                     apiKey: '',
+                                    // Default true — absence of the field means enabled
+                                    enabled: rawV.enabled !== false,
                                 }
                             }
                         }
@@ -642,7 +647,7 @@ export default function AIProvidersPage() {
         if (!WS_ID) return
         setSaving(true)
         try {
-            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string }> = {}
+            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string; enabled?: boolean }> = {}
             for (const p of PROVIDERS) {
                 // Merge current state with any overrides (e.g. from successful test result)
                 const s = { ...providerStates[p.key], ...(stateOverrides?.[p.key] ?? {}) }
@@ -657,6 +662,8 @@ export default function AIProvidersPage() {
                         // Only include credential value when user has entered something new
                         // Empty string means "don't change" — server will keep existing encrypted value
                         ...(s.apiKey?.trim() ? { apiKey: s.apiKey.trim() } : {}),
+                        // Always persist enabled flag so disabling survives a re-save
+                        enabled: s.enabled !== false,
                     }
                 }
             }
@@ -839,6 +846,7 @@ export default function AIProvidersPage() {
                         const pState = providerStates[p.key]
                         const active = p.key === selectedProvider
                         const modelLabel = pState.selectedModel || null
+                        const isDisabled = pState.status !== 'unconfigured' && !pState.enabled
                         return (
                             <button
                                 key={p.key}
@@ -846,18 +854,21 @@ export default function AIProvidersPage() {
                                 className={`text-left rounded-xl border p-3 transition-all ${active
                                     ? 'border-indigo-500/50 bg-zinc-900 shadow-sm shadow-indigo-500/10'
                                     : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900/70'
-                                    }`}
+                                    } ${isDisabled ? 'opacity-50' : ''}`}
                             >
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-center gap-2.5">
-                                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-xs font-bold text-zinc-300">
+                                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-xs font-bold ${isDisabled ? 'text-zinc-600' : 'text-zinc-300'}`}>
                                             {p.name.slice(0, 2).toUpperCase()}
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-1.5">
-                                                <p className="text-sm font-medium text-zinc-200">{p.name}</p>
-                                                {primaryProvider === p.key && (
+                                                <p className={`text-sm font-medium ${isDisabled ? 'text-zinc-500 line-through decoration-zinc-600' : 'text-zinc-200'}`}>{p.name}</p>
+                                                {primaryProvider === p.key && !isDisabled && (
                                                     <Star className="h-3 w-3 text-indigo-400 fill-indigo-400" />
+                                                )}
+                                                {isDisabled && (
+                                                    <span className="text-[9px] font-semibold tracking-wide rounded px-1 py-px bg-zinc-800 text-zinc-600 border border-zinc-700">DISABLED</span>
                                                 )}
                                             </div>
                                             {p.badge && (
@@ -870,7 +881,7 @@ export default function AIProvidersPage() {
                                     <StatusDot status={pState.status} />
                                 </div>
                                 {modelLabel ? (
-                                    <p className="mt-1.5 text-[10px] font-mono text-zinc-500 pl-10 truncate" title={modelLabel}>{modelLabel}</p>
+                                    <p className={`mt-1.5 text-[10px] font-mono pl-10 truncate ${isDisabled ? 'text-zinc-700' : 'text-zinc-500'}`} title={modelLabel}>{modelLabel}</p>
                                 ) : (
                                     <p className="mt-1.5 text-xs text-zinc-600 pl-10 truncate">{p.description}</p>
                                 )}
@@ -895,16 +906,40 @@ export default function AIProvidersPage() {
                                 </div>
                             </div>
                         </div>
-                        <button
-                            onClick={() => { setPrimaryProvider(selectedProvider); setModelRouting({ ...getDefaultModelsForProvider(selectedProvider) }) }}
-                            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${primaryProvider === selectedProvider
-                                ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-400'
-                                : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
-                                }`}
-                        >
-                            <Star className={`h-3.5 w-3.5 ${primaryProvider === selectedProvider ? 'fill-indigo-400' : ''}`} />
-                            {primaryProvider === selectedProvider ? 'Primary provider' : 'Set as primary'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {/* Enabled toggle — only shown when provider has been configured */}
+                            {state.status !== 'unconfigured' && (
+                                <button
+                                    id={`toggle-enabled-${selectedProvider}`}
+                                    onClick={async () => {
+                                        const next = !state.enabled
+                                        updateState(selectedProvider, { enabled: next })
+                                        await handleSave({ [selectedProvider]: { enabled: next } } as Partial<Record<ProviderKey, Partial<ProviderState>>>)
+                                    }}
+                                    title={state.enabled ? 'Disable this provider' : 'Enable this provider'}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${
+                                        state.enabled ? 'bg-indigo-600' : 'bg-zinc-700'
+                                    }`}
+                                >
+                                    <span
+                                        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
+                                            state.enabled ? 'translate-x-4' : 'translate-x-0.5'
+                                        }`}
+                                    />
+                                </button>
+                            )}
+                            <button
+                                onClick={() => { setPrimaryProvider(selectedProvider); setModelRouting({ ...getDefaultModelsForProvider(selectedProvider) }) }}
+                                disabled={!state.enabled && state.status !== 'unconfigured'}
+                                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${primaryProvider === selectedProvider
+                                    ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-400'
+                                    : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                                    }`}
+                            >
+                                <Star className={`h-3.5 w-3.5 ${primaryProvider === selectedProvider ? 'fill-indigo-400' : ''}`} />
+                                {primaryProvider === selectedProvider ? 'Primary provider' : 'Set as primary'}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Credential fields */}

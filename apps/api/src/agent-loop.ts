@@ -129,6 +129,12 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
             continue
         }
 
+        // Respect user-level enable/disable toggle — skip without treating as error
+        if (p.enabled === false) {
+            logger.info({ workspaceId, providerKey }, 'ai-cred: provider disabled by user — skip')
+            continue
+        }
+
         const apiKey = p.apiKey as string | undefined
         const oauthToken = p.oauthToken as string | undefined
         const baseUrl = p.baseUrl as string | undefined
