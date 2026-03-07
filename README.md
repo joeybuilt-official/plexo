@@ -76,6 +76,16 @@ Plexo is built on a modern, typed, and scalable foundation:
 
 ---
 
+## 🧠 The Intelligent LLM Router
+
+Plexo features an automatic transmission for language models, optimizing for cost, context, and capabilities at runtime without developer intervention.
+
+*   **Four-Mode Model Selection:** Choose your abstraction. Run in **Full Auto** (Plexo arbitrates the best model), drop in your own keys (**BYOK**), connect a self-hosted instance to our managed inference pool (**Mode 3**), or explicitly lock specific models to critical workflows (**Override**).
+*   **Cost vs. Quality Arbitration:** Tasks are dynamically scored and routed based on an up-to-date registry of model context windows, tokens costs, and benchmarked domain strengths. Cheaper models handle basic parsing, while high-tier reasoning models are reserved for complex pathfinding.
+*   **Separation of Keys & State:** The Intelligent LLM router abstracts away the credentials. The executor simply requests a "coding model with 128k context" and the router provisions a connection through deep fallback chains to guarantee uptime.
+
+---
+
 ## 🔌 The Extensibility Moat
 
 A platform's survival depends on its ecosystem. Plexo natively adheres to [**Kapsel**](https://github.com/joeybuilt-official/kapsel), the definitive open standard for AI agent extensions. This is the App Store model for AI—decentralized, host-agnostic, and secure by default.
