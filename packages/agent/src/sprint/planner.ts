@@ -62,12 +62,14 @@ export async function planSprint(params: {
     request: string
     contextFiles?: string[]
     category?: string      // defaults to 'code'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    plannerModel?: any     // pre-resolved model from workspace AI settings
 }): Promise<PlanResult> {
-    const { sprintId, workspaceId, repo, request, contextFiles = [], category = 'code' } = params
+    const { sprintId, workspaceId, repo, request, contextFiles = [], category = 'code', plannerModel } = params
 
     logger.info({ sprintId, repo, category }, 'Sprint planning started')
 
-    const model = resolveModelFromEnv(MODEL_ROUTING.planning)
+    const model = plannerModel ?? resolveModelFromEnv(MODEL_ROUTING.planning)
 
     const systemPrompt = categoryPlannerPrompt(category)
 

@@ -10,6 +10,8 @@ import { db, eq, asc } from '@plexo/db'
 import { sprints, sprintTasks, sprintLogs } from '@plexo/db'
 import { runSprint } from '@plexo/agent/sprint/runner'
 import { detectDynamicConflicts } from '@plexo/agent/sprint/conflicts'
+import { resolveModel } from '@plexo/agent/providers/registry'
+import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { logger } from '../logger.js'
 
 export const sprintRunnerRouter: RouterType = Router()
@@ -39,6 +41,18 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         return
     }
 
+    // Load workspace AI settings so the planner uses the configured provider
+    let plannerModel: ReturnType<typeof resolveModel> | undefined
+    try {
+        const { aiSettings } = await loadWorkspaceAISettings(workspaceId)
+        if (aiSettings) {
+            plannerModel = resolveModel('planning', aiSettings)
+            logger.info({ sprintId, provider: aiSettings.primaryProvider }, 'Sprint planner model resolved')
+        }
+    } catch (err) {
+        logger.warn({ err, sprintId }, 'Could not resolve workspace AI settings — planner will use env fallback')
+    }
+
     // Fire-and-forget — sprint runs async, SSE keeps client updated
     runSprint({
         sprintId,
@@ -46,6 +60,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         repo: sprint.repo ?? undefined,
         category: sprint.category ?? 'code',
         request: sprint.request,
+        plannerModel,
     }).catch((err: unknown) => {
         logger.error({ err, sprintId }, 'Sprint run failed')
     })

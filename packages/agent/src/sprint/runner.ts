@@ -42,6 +42,8 @@ export interface SprintRunOptions {
     category?: string     // defaults to 'code'
     request: string       // the user's request
     baseBranch?: string   // default: repo's default branch (code only)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    plannerModel?: any    // pre-resolved LanguageModel from workspace AI settings
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -157,6 +159,7 @@ async function runCodeSprint(
         request: opts.request,
         contextFiles,
         category: 'code',
+        plannerModel: opts.plannerModel,
     })
 
     await logSprintEvent({
@@ -397,6 +400,7 @@ async function runGenericSprint(
         request: opts.request,
         contextFiles: [],
         category,
+        plannerModel: opts.plannerModel,
     })
 
     await logSprintEvent({

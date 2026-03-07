@@ -118,7 +118,7 @@ const PROVIDERS: ProviderConfig[] = [
         name: 'OpenAI',
         description: 'GPT-4o, o1, o3 models',
         requiresKey: true,
-        staticModels: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o1-mini', 'o3', 'o3-mini'],
+        staticModels: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'o4-mini', 'o3', 'o3-mini', 'o1', 'o1-mini'],
     },
     {
         key: 'google',
