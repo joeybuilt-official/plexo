@@ -1134,15 +1134,13 @@ export default function AIProvidersPage() {
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-center justify-between">
                                     <p className="text-xs font-medium text-zinc-500">Shared with</p>
-                                    {ownWorkspaces.length > 0 && (
-                                        <button
-                                            onClick={() => { setShareModal({ providerKey: selectedProvider }); setShareTargets(new Set()) }}
-                                            className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
-                                        >
-                                            <Share2 className="h-3 w-3" />
-                                            Share with a workspace
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={() => { setShareModal({ providerKey: selectedProvider }); setShareTargets(new Set()) }}
+                                        className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                                    >
+                                        <Share2 className="h-3 w-3" />
+                                        Share with a workspace
+                                    </button>
                                 </div>
                                 {lending.filter((s) => s.providerKey === selectedProvider).length === 0 ? (
                                     <p className="text-[11px] text-zinc-700">Not shared with any workspaces.</p>
@@ -1404,7 +1402,18 @@ export default function AIProvidersPage() {
                     </p>
                     <div className="flex flex-col gap-2 mb-5">
                         {ownWorkspaces.length === 0 ? (
-                            <p className="text-xs text-zinc-600">No other workspaces found.</p>
+                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4 flex flex-col gap-1.5 text-center">
+                                <p className="text-xs text-zinc-400 font-medium">No other workspaces</p>
+                                <p className="text-[11px] text-zinc-600 leading-relaxed">
+                                    Create another workspace first, then return here to share this key with it.
+                                </p>
+                                <a
+                                    href="/settings/workspace"
+                                    className="mt-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                                >
+                                    Go to Workspace settings →
+                                </a>
+                            </div>
                         ) : ownWorkspaces.map((ws) => {
                             const alreadyShared = lending.some((s) => s.providerKey === shareModal?.providerKey && s.targetWorkspace?.id === ws.id)
                             const checked = shareTargets.has(ws.id)
