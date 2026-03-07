@@ -752,6 +752,23 @@ export const behaviorSnapshots = pgTable('behavior_snapshots', {
     index('behavior_snapshots_created_idx').on(table.createdAt),
 ])
 
+// ── Sprint Logs (Real-time activity feed) ───────────────────────────────────────
+
+export const sprintLogs = pgTable('sprint_logs', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    sprintId: text('sprint_id')
+        .notNull()
+        .references(() => sprints.id, { onDelete: 'cascade' }),
+    level: text('level').notNull().default('info'), // info | warn | error
+    event: text('event').notNull(), // planning_start | task_queued | wave_start | task_running | task_complete | task_failed | sprint_complete | sprint_failed | conflict_detected | pr_created | budget_check
+    message: text('message').notNull(),
+    metadata: jsonb('metadata').default('{}').notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('sprint_logs_sprint_idx').on(table.sprintId, table.createdAt),
+    index('sprint_logs_sprint_level_idx').on(table.sprintId, table.level),
+])
+
 // ── Models Knowledge Base (Automated Routing) ──────────────────────────────────
 export const modelsKnowledge = pgTable('models_knowledge', {
     id: text('id').primaryKey(),

@@ -6,8 +6,8 @@
  * GET  /api/sprints/:id/conflicts  Conflict report for a sprint
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq } from '@plexo/db'
-import { sprints, sprintTasks } from '@plexo/db'
+import { db, eq, asc } from '@plexo/db'
+import { sprints, sprintTasks, sprintLogs } from '@plexo/db'
 import { runSprint } from '@plexo/agent/sprint/runner'
 import { detectDynamicConflicts } from '@plexo/agent/sprint/conflicts'
 import { logger } from '../logger.js'
@@ -132,5 +132,27 @@ sprintRunnerRouter.get('/:id/conflicts', async (req, res) => {
     } catch (err) {
         logger.error({ err, sprintId }, 'GET /api/sprints/:id/conflicts failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Conflict detection failed' } })
+    }
+})
+
+// ── GET /api/sprints/:id/logs ─────────────────────────────────────────────────
+// Returns the activity log for a sprint, newest-first or oldest-first.
+// Used by the Control Room "Activity Log" tab.
+
+sprintRunnerRouter.get('/:id/logs', async (req, res) => {
+    const { id: sprintId } = req.params
+    const { limit = '200', after } = req.query as Record<string, string>
+
+    try {
+        const query = db.select().from(sprintLogs)
+            .where(eq(sprintLogs.sprintId, sprintId))
+            .orderBy(asc(sprintLogs.createdAt))
+            .limit(Math.min(parseInt(limit, 10) || 200, 500))
+
+        const rows = await query
+        res.json({ logs: rows, total: rows.length })
+    } catch (err) {
+        logger.error({ err, sprintId }, 'GET /api/sprints/:id/logs failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch sprint logs' } })
     }
 })

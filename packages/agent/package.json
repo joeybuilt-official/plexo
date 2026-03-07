@@ -12,6 +12,7 @@
         "./ai/anthropic-oauth": "./src/ai/anthropic-oauth.ts",
         "./sprint/planner": "./src/sprint/planner.ts",
         "./sprint/runner": "./src/sprint/runner.ts",
+        "./sprint/logger": "./src/sprint/logger.ts",
         "./sprint/conflicts": "./src/sprint/conflicts.ts",
         "./github/client": "./src/github/client.ts",
         "./memory/store": "./src/memory/store.ts",

@@ -41,3 +41,15 @@
 .card-glow:hover {
   box-shadow: 0 0 0 1px theme(--color-zinc-700), 0 0 20px -5px theme(--color-indigo-500 / 15%);
 }
+
+/* Activity log entry animation */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
