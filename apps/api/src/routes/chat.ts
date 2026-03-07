@@ -187,6 +187,31 @@ chatRouter.post('/message', async (req, res) => {
         }
 
 
+        // Load workspace persona + identity for system prompt
+        let agentName = 'Plexo'
+        let agentPersona = ''
+        let agentTagline = ''
+        try {
+            const [wsRow] = await db
+                .select({ name: workspaces.name, settings: workspaces.settings })
+                .from(workspaces)
+                .where(eq(workspaces.id, workspaceId))
+                .limit(1)
+            if (wsRow) {
+                const s = (wsRow.settings ?? {}) as Record<string, unknown>
+                if (typeof s.agentName === 'string' && s.agentName) agentName = s.agentName
+                if (typeof s.agentPersona === 'string' && s.agentPersona) agentPersona = s.agentPersona
+                if (typeof s.agentTagline === 'string' && s.agentTagline) agentTagline = s.agentTagline
+            }
+        } catch { /* non-fatal */ }
+
+        // Resolve the actual active model ID for identity injection
+        const resolvedModel = config.model ?? 'your configured model'
+        const resolvedProvider = String(providerKey)
+        const identityLine = `Your identity: you are running on provider "${resolvedProvider}", model "${resolvedModel}". If asked what model or system you are, answer truthfully with this information — do not guess or claim to be a different model.`
+        const personaPrefix = agentPersona ? agentPersona + '\n\n' : ''
+        const taglineHint = agentTagline ? ` (${agentTagline})` : ''
+
         // Classify intent — skip if caller forced CONVERSATION (e.g. "Just answer" button)
         let intent: 'TASK' | 'PROJECT' | 'CONVERSATION' = forceConversation ? 'CONVERSATION' : 'CONVERSATION'
         const sid = sessionId ?? 'default'
@@ -273,11 +298,9 @@ chatRouter.post('/message', async (req, res) => {
                 const result = await withFallback(aiSettings, 'summarization', async (model) =>
                     generateText({
                         model,
-                        system: 'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
-                            + 'If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. '
-                            + 'If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. '
-                            + 'If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. '
-                            + 'Only agree to start a task or project when the scope is clear.',
+                        system: `${personaPrefix}You are ${agentName}${taglineHint}, an AI agent. ${identityLine}
+
+Keep replies concise and friendly. If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. Only agree to start a task or project when the scope is clear.`,
                         messages: history.map(m => ({ role: m.role, content: m.content })),
                         abortSignal: AbortSignal.timeout(30_000),
                     })
