@@ -125,8 +125,8 @@ export default function InsightsPage() {
         try {
             const res = await fetch(`${API_BASE}/api/v1/memory/search?workspaceId=${WS_ID}&q=${encodeURIComponent(searchQ)}&limit=10`)
             if (res.ok) {
-                const data = await res.json() as { items: SearchResult[] }
-                setSearchResults(data.items ?? [])
+                const data = await res.json() as { results: SearchResult[] }
+                setSearchResults(data.results ?? [])
             }
         } finally {
             setSearching(false)

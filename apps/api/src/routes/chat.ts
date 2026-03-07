@@ -23,6 +23,7 @@ import { generateText } from 'ai'
 import { withFallback, resolveModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { runSprint } from '@plexo/agent/sprint/runner'
+import { storeMemory } from '@plexo/agent/memory/store'
 
 // ── Conversation helpers ──────────────────────────────────────────────────────
 
@@ -324,6 +325,14 @@ Keep replies concise and friendly. If the user proposes a single distinct action
                 try {
                     await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: replyText, status: 'complete', intent })
                 } catch { /* non-fatal */ }
+
+                // Write to semantic memory so this chat exchange is retrievable
+                storeMemory({
+                    workspaceId,
+                    type: 'session',
+                    content: `User: ${trimmedMsg}\nAssistant: ${replyText}`,
+                    metadata: { source: 'chat', sessionId: sessionId ?? null, intent },
+                }).catch(() => { /* never fatal */ })
 
                 res.json({ status: 'complete', reply: replyText })
             } catch (err) {
