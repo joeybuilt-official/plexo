@@ -40,7 +40,7 @@ type ProviderKey =
     | 'ollama'
     | 'ollama_cloud'
 
-type ProviderStatus = 'configured' | 'untested' | 'unconfigured'
+type ProviderStatus = 'configured' | 'untested' | 'unconfigured' | 'borrowed'
 
 type TaskType =
     | 'planning'
@@ -274,6 +274,7 @@ function getDefaultModelsForProvider(providerKey: ProviderKey): Record<TaskType,
 function StatusDot({ status }: { status: ProviderStatus }) {
     if (status === 'configured') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
     if (status === 'untested') return <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
+    if (status === 'borrowed') return <Link2 className="h-3.5 w-3.5 text-indigo-400" />
     return <Circle className="h-3.5 w-3.5 text-zinc-600" />
 }
 
@@ -400,8 +401,8 @@ export default function AIProvidersPage() {
                         }
                         return next
                     })
-                    // Auto-fetch Ollama local models if previously configured
-                    if (ollamaEntry?.status === 'configured') {
+                    // Auto-fetch Ollama local models if configured or borrowed
+                    if (ollamaEntry?.status === 'configured' || ollamaEntry?.status === 'borrowed') {
                         const ollamaBase = ollamaEntry.baseUrl ?? 'http://localhost:11434'
                         void (async () => {
                             try {
@@ -759,7 +760,7 @@ export default function AIProvidersPage() {
             if (primaryProvider === a.key) return -1
             if (primaryProvider === b.key) return 1
 
-            const statusOrder = { 'configured': 0, 'untested': 1, 'unconfigured': 2 }
+            const statusOrder: Record<ProviderStatus, number> = { 'configured': 0, 'borrowed': 0, 'untested': 1, 'unconfigured': 2 }
             return statusOrder[aStatus] - statusOrder[bStatus]
         })
 
@@ -1089,32 +1090,42 @@ export default function AIProvidersPage() {
                                         <label className="text-sm font-medium text-zinc-300">Base URL</label>
                                         <span className="text-[10px] text-zinc-600">Local or remote — any reachable Ollama instance</span>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={state.baseUrl}
-                                            onChange={(e) => updateState(selectedProvider, { baseUrl: e.target.value, dynamicModels: [], status: 'unconfigured' })}
-                                            onKeyDown={(e) => e.key === 'Enter' && void handleConnect()}
-                                            placeholder="http://localhost:11434"
-                                            className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-                                        />
-                                        {state.dynamicModels.length === 0 && (
-                                            <button
-                                                onClick={() => void handleConnect()}
-                                                disabled={connecting || !state.baseUrl}
-                                                className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-50 shrink-0"
-                                            >
-                                                {connecting
-                                                    ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Connecting…</>
-                                                    : 'Connect'
-                                                }
-                                            </button>
-                                        )}
-                                    </div>
-                                    <p className="text-xs text-zinc-600">
-                                        Plexo will call <code className="text-zinc-500">/api/tags</code> to discover models and <code className="text-zinc-500">/v1</code> for inference.
-                                        No API key required — network connectivity is sufficient.
-                                    </p>
+                                    {state.status === 'borrowed' ? (
+                                        /* Read-only URL for borrowed providers */
+                                        <div className="flex items-center gap-2 rounded-lg border border-indigo-800/30 bg-indigo-950/10 px-3 py-2">
+                                            <span className="flex-1 text-sm font-mono text-zinc-300">{state.baseUrl || 'http://localhost:11434'}</span>
+                                            <span className="text-[10px] text-indigo-400">from source workspace</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={state.baseUrl}
+                                                onChange={(e) => updateState(selectedProvider, { baseUrl: e.target.value, dynamicModels: [], status: 'unconfigured' })}
+                                                onKeyDown={(e) => e.key === 'Enter' && void handleConnect()}
+                                                placeholder="http://localhost:11434"
+                                                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                            />
+                                            {state.dynamicModels.length === 0 && (
+                                                <button
+                                                    onClick={() => void handleConnect()}
+                                                    disabled={connecting || !state.baseUrl}
+                                                    className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-50 shrink-0"
+                                                >
+                                                    {connecting
+                                                        ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Connecting…</>
+                                                        : 'Connect'
+                                                    }
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                    {state.status !== 'borrowed' && (
+                                        <p className="text-xs text-zinc-600">
+                                            Plexo will call <code className="text-zinc-500">/api/tags</code> to discover models and <code className="text-zinc-500">/v1</code> for inference.
+                                            No API key required — network connectivity is sufficient.
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -1145,8 +1156,8 @@ export default function AIProvidersPage() {
                             </div>
                         )}
 
-                        {/* Ensemble quality judge badge — Ollama only */}
-                        {selectedProvider === 'ollama' && state.status === 'configured' && state.dynamicModels.length > 0 && (
+                        {/* Ensemble quality judge badge — Ollama only (configured or borrowed) */}
+                        {selectedProvider === 'ollama' && (state.status === 'configured' || state.status === 'borrowed') && state.dynamicModels.length > 0 && (
                             <div className="rounded-lg border border-indigo-800/30 bg-indigo-950/20 px-3 py-3 flex flex-col gap-1.5">
                                 <div className="flex items-center gap-2">
                                     <Users className="h-3.5 w-3.5 text-indigo-400" />

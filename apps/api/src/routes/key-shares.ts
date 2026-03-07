@@ -146,21 +146,32 @@ keySharesRouter.post('/', async (req, res) => {
             grantedBy: srcWs.ownerId,  // using owner as granting user (Phase 1; Phase 2 uses session user)
         }).onConflictDoNothing()
 
-        // Update the target workspace's aiProviders settings to add the keySource reference
-        const [tgtWsSettings] = await db.select({ settings: workspaces.settings })
-            .from(workspaces).where(eq(workspaces.id, targetWorkspaceId)).limit(1)
+        // Update the target workspace's aiProviders settings to add the keySource reference.
+        // Also copy non-sensitive config (baseUrl, selectedModel, dynamicModels) from the
+        // source so the borrowing workspace shows the correct URL and ensemble info.
+        const [[tgtWsSettings], [srcWsSettings]] = await Promise.all([
+            db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, targetWorkspaceId)).limit(1),
+            db.select({ settings: workspaces.settings, name: workspaces.name }).from(workspaces).where(eq(workspaces.id, sourceWsId)).limit(1),
+        ])
 
         if (tgtWsSettings) {
             const settings = (tgtWsSettings.settings ?? {}) as Record<string, unknown>
             const aiProviders = (settings.aiProviders ?? {}) as Record<string, unknown>
             const providers = (aiProviders.providers ?? {}) as Record<string, unknown>
-            const [srcWsName] = await db.select({ name: workspaces.name }).from(workspaces)
-                .where(eq(workspaces.id, sourceWsId)).limit(1)
+
+            // Pull safe (non-secret) fields from source provider config
+            const srcAiProviders = ((srcWsSettings?.settings as Record<string, unknown> | undefined)?.aiProviders ?? {}) as Record<string, unknown>
+            const srcProviders = (srcAiProviders.providers ?? {}) as Record<string, Record<string, unknown>>
+            const srcEntry = srcProviders[providerKey] ?? {}
 
             providers[providerKey] = {
                 ...(providers[providerKey] as Record<string, unknown> ?? {}),
+                // Copy display-safe config from source
+                ...(srcEntry.baseUrl ? { baseUrl: srcEntry.baseUrl } : {}),
+                ...(srcEntry.selectedModel ? { selectedModel: srcEntry.selectedModel } : {}),
+                ...(Array.isArray(srcEntry.dynamicModels) && (srcEntry.dynamicModels as unknown[]).length > 0 ? { dynamicModels: srcEntry.dynamicModels } : {}),
                 status: 'borrowed',
-                keySource: { workspaceId: sourceWsId, workspaceName: srcWsName?.name ?? sourceWsId },
+                keySource: { workspaceId: sourceWsId, workspaceName: srcWsSettings?.name ?? sourceWsId },
             }
 
             await db.update(workspaces).set({
