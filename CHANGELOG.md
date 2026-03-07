@@ -373,3 +373,4 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Express 5 API server, Next.js 15 dashboard
 - Docker Compose: Postgres 16 + pgvector, Valkey, Caddy
 - AGENTS.md, .env.example, docs stubs
+
