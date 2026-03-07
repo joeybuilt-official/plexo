@@ -30,6 +30,7 @@ import { workspacesRouter } from './routes/workspaces.js'
 import { apiKeysRouter } from './routes/api-keys.js'
 import { aiProvidersRouter } from './routes/ai-providers.js'
 import { aiProviderCredsRouter } from './routes/ai-provider-creds.js'
+import { keySharesRouter } from './routes/key-shares.js'
 import { channelsRouter } from './routes/channels.js'
 import { cronRouter } from './routes/cron.js'
 import { usersRouter } from './routes/users.js'
@@ -118,6 +119,7 @@ v1.use('/connections', connectionsRouter)
 v1.use('/workspaces', workspacesRouter)
 v1.use('/workspaces/:workspaceId/api-keys', apiKeysRouter)
 v1.use('/workspaces/:id/ai-providers', aiProviderCredsRouter)
+v1.use('/workspaces/:id/key-shares', keySharesRouter)
 v1.use('/settings/ai-providers', aiProvidersRouter)
 v1.use('/channels', channelsRouter)
 v1.use('/cron', cronRouter)
@@ -176,7 +178,8 @@ const server = app.listen(port, '0.0.0.0', () => {
     setInterval(() => { void runCronJobs() }, 24 * 60 * 60 * 1000)
 
     // Wire sprint activity logger → SSE emitter so runner events stream to Control Room
-    initSprintLogger((workspaceId: string, event: Record<string, unknown>) => emitToWorkspace(workspaceId, event))
+    initSprintLogger((workspaceId: string, event: Record<string, unknown>) => emitToWorkspace(workspaceId, event as import('./sse-emitter.js').AgentEvent))
+
 
     // OWD → SSE: when an agent requests approval, push a real-time notification
     // to all connected SSE clients in that workspace so the approval banner appears

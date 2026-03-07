@@ -212,8 +212,28 @@ export const workspaces = pgTable('workspaces', {
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 })
 
+export const workspaceKeyShares = pgTable('workspace_key_shares', {
+    id: text('id').primaryKey(),  // ulid
+    sourceWsId: uuid('source_ws_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    targetWsId: uuid('target_ws_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    providerKey: text('provider_key').notNull(),  // 'openai' | 'anthropic' | etc.
+    grantedBy: uuid('granted_by')
+        .notNull()
+        .references(() => users.id),
+    grantedAt: timestamp('granted_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('key_shares_source_idx').on(table.sourceWsId),
+    index('key_shares_target_idx').on(table.targetWsId),
+    uniqueIndex('key_shares_unique_idx').on(table.sourceWsId, table.targetWsId, table.providerKey),
+])
+
 export const channels = pgTable('channels', {
     id: uuid('id').defaultRandom().primaryKey(),
+
     workspaceId: uuid('workspace_id')
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),

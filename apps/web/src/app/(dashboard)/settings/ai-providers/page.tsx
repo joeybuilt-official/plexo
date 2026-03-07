@@ -17,6 +17,8 @@ import {
     RefreshCw,
     Users,
     X,
+    Link2,
+    Share2,
 } from 'lucide-react'
 import { getModelCapabilities } from '@web/lib/models'
 import { CapabilityList } from '@web/components/capabilities'
@@ -291,6 +293,16 @@ export default function AIProvidersPage() {
     const [wsDefaultCostCeiling, setWsDefaultCostCeiling] = useState('')
     const [wsDefaultTokenBudget, setWsDefaultTokenBudget] = useState('')
 
+    // Key sharing state
+    type KeyShare = { id: string; providerKey: string; grantedAt: string; targetWorkspace?: { id: string; name: string }; sourceWorkspace?: { id: string; name: string } }
+    type OwnWorkspace = { id: string; name: string }
+    const [lending, setLending] = useState<KeyShare[]>([])
+    const [borrowing, setBorrowing] = useState<KeyShare[]>([])
+    const [ownWorkspaces, setOwnWorkspaces] = useState<OwnWorkspace[]>([])
+    const [shareModal, setShareModal] = useState<{ providerKey: ProviderKey } | null>(null)
+    const [shareTargets, setShareTargets] = useState<Set<string>>(new Set())
+    const [sharingBusy, setSharingBusy] = useState(false)
+
     const API_BASE = typeof window !== 'undefined'
         ? ((typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')))
         : 'http://localhost:3001'
@@ -393,7 +405,29 @@ export default function AIProvidersPage() {
                 setLoadError('Could not load saved provider config')
             }
         })()
-        // WS_ID is async from useWorkspace() — run again when it resolves
+    // WS_ID is async from useWorkspace() — run again when it resolves
+    }, [WS_ID, API_BASE])
+
+    // Load key shares and own workspaces once WS_ID resolves
+    useEffect(() => {
+        if (!WS_ID) return
+        void (async () => {
+            try {
+                const [sharesRes, wsRes] = await Promise.all([
+                    fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/key-shares`),
+                    fetch(`${API_BASE}/api/v1/workspaces`),
+                ])
+                if (sharesRes.ok) {
+                    const sd = await sharesRes.json() as { lending?: KeyShare[]; borrowing?: KeyShare[] }
+                    setLending(sd.lending ?? [])
+                    setBorrowing(sd.borrowing ?? [])
+                }
+                if (wsRes.ok) {
+                    const wd = await wsRes.json() as OwnWorkspace[]
+                    setOwnWorkspaces(wd.filter((w) => w.id !== WS_ID))
+                }
+            } catch { /* non-fatal */ }
+        })()
     }, [WS_ID, API_BASE])
 
     const selected = PROVIDERS.find((p) => p.key === selectedProvider)!
@@ -404,6 +438,48 @@ export default function AIProvidersPage() {
             ...prev,
             [key]: { ...prev[key], ...patch },
         }))
+    }
+
+    async function handleShare() {
+        if (!WS_ID || !shareModal || shareTargets.size === 0) return
+        setSharingBusy(true)
+        try {
+            await Promise.all([...shareTargets].map((targetWsId) =>
+                fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/key-shares`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetWorkspaceId: targetWsId, providerKey: shareModal.providerKey }),
+                })
+            ))
+            // Refresh shares
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/key-shares`)
+            if (res.ok) {
+                const sd = await res.json() as { lending?: KeyShare[]; borrowing?: KeyShare[] }
+                setLending(sd.lending ?? [])
+                setBorrowing(sd.borrowing ?? [])
+            }
+            setShareModal(null)
+            setShareTargets(new Set())
+        } finally {
+            setSharingBusy(false)
+        }
+    }
+
+    async function handleRevokeShare(shareId: string) {
+        if (!WS_ID) return
+        await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/key-shares/${shareId}`, { method: 'DELETE' })
+        setLending((prev) => prev.filter((s) => s.id !== shareId))
+    }
+
+    async function handleStopBorrowing(providerKey: ProviderKey) {
+        if (!WS_ID) return
+        const share = borrowing.find((s) => s.providerKey === providerKey)
+        if (!share?.sourceWorkspace?.id) return
+        // DELETE on the source workspace's share
+        await fetch(`${API_BASE}/api/v1/workspaces/${share.sourceWorkspace.id}/key-shares/${share.id}`, { method: 'DELETE' })
+        setBorrowing((prev) => prev.filter((s) => s.id !== share.id))
+        // Reset the provider to unconfigured in local state
+        updateState(providerKey, { status: 'unconfigured', apiKey: '' })
     }
 
     // Fetch models from a URL-based provider (Ollama, etc.) without running a test.
@@ -647,6 +723,7 @@ export default function AIProvidersPage() {
     )
 
     return (
+        <>
         <div className="flex flex-col gap-6 h-full">
             {/* Header */}
             <div>
@@ -1030,6 +1107,63 @@ export default function AIProvidersPage() {
                                 {state.testResult}
                             </div>
                         )}
+
+                        {/* ── Borrowed badge (target workspace UI) ── */}
+                        {(() => {
+                            const borrow = borrowing.find((s) => s.providerKey === selectedProvider)
+                            if (!borrow) return null
+                            return (
+                                <div className="flex items-center gap-3 rounded-xl border border-indigo-800/30 bg-indigo-950/10 px-4 py-3">
+                                    <Link2 className="h-4 w-4 text-indigo-400 shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-indigo-300">Borrowed from <span className="font-semibold">{borrow.sourceWorkspace?.name ?? 'another workspace'}</span></p>
+                                        <p className="text-[10px] text-zinc-600 mt-0.5">Key stays encrypted in the source workspace — not copied here.</p>
+                                    </div>
+                                    <button
+                                        onClick={() => void handleStopBorrowing(selectedProvider)}
+                                        className="text-[11px] text-red-500 hover:text-red-400 transition-colors shrink-0"
+                                    >
+                                        Stop borrowing
+                                    </button>
+                                </div>
+                            )
+                        })()}
+
+                        {/* ── Key sharing (source workspace UI) ── */}
+                        {state.status !== 'unconfigured' && !borrowing.find((s) => s.providerKey === selectedProvider) && (
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs font-medium text-zinc-500">Shared with</p>
+                                    {ownWorkspaces.length > 0 && (
+                                        <button
+                                            onClick={() => { setShareModal({ providerKey: selectedProvider }); setShareTargets(new Set()) }}
+                                            className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                                        >
+                                            <Share2 className="h-3 w-3" />
+                                            Share with a workspace
+                                        </button>
+                                    )}
+                                </div>
+                                {lending.filter((s) => s.providerKey === selectedProvider).length === 0 ? (
+                                    <p className="text-[11px] text-zinc-700">Not shared with any workspaces.</p>
+                                ) : (
+                                    <div className="flex flex-col gap-1">
+                                        {lending.filter((s) => s.providerKey === selectedProvider).map((share) => (
+                                            <div key={share.id} className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
+                                                <span className="text-xs text-zinc-300">{share.targetWorkspace?.name ?? share.id}</span>
+                                                <button
+                                                    onClick={() => void handleRevokeShare(share.id)}
+                                                    className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors"
+                                                    title="Revoke share"
+                                                >
+                                                    <X className="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1053,7 +1187,9 @@ export default function AIProvidersPage() {
                                                 ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'
                                                 : 'border-zinc-700/80 bg-zinc-800/80 text-zinc-400'
                                         }`}>
-                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 shrink-0" />
+                                            {borrowing.find((s) => s.providerKey === p.key)
+                                                ? <Link2 className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
+                                                : <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 shrink-0" />}
                                             {p.name}
                                         </span>
                                     </div>
@@ -1250,5 +1386,69 @@ export default function AIProvidersPage() {
                 </div>}
             </div>
         </div>
+
+        {/* ── Share Modal ────────────────────────────────────────────── */}
+        {shareModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-semibold text-zinc-100">
+                            Share <span className="text-indigo-300">{PROVIDERS.find((p) => p.key === shareModal?.providerKey)?.name}</span> key
+                        </h3>
+                        <button onClick={() => setShareModal(null)} className="text-zinc-600 hover:text-zinc-400 transition-colors">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <p className="text-xs text-zinc-500 mb-4 leading-relaxed">
+                        Select workspaces to share this key with. The key stays encrypted here — target workspaces get a verified reference only.
+                    </p>
+                    <div className="flex flex-col gap-2 mb-5">
+                        {ownWorkspaces.length === 0 ? (
+                            <p className="text-xs text-zinc-600">No other workspaces found.</p>
+                        ) : ownWorkspaces.map((ws) => {
+                            const alreadyShared = lending.some((s) => s.providerKey === shareModal?.providerKey && s.targetWorkspace?.id === ws.id)
+                            const checked = shareTargets.has(ws.id)
+                            return (
+                                <label key={ws.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${checked
+                                    ? 'border-indigo-500/50 bg-indigo-500/5'
+                                    : 'border-zinc-700/60 bg-zinc-800/40 hover:border-zinc-600'
+                                }`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={checked || alreadyShared}
+                                        disabled={alreadyShared}
+                                        onChange={(e) => {
+                                            setShareTargets((prev) => {
+                                                const next = new Set(prev)
+                                                if (e.target.checked) next.add(ws.id); else next.delete(ws.id)
+                                                return next
+                                            })
+                                        }}
+                                        className="accent-indigo-500"
+                                    />
+                                    <span className="text-sm text-zinc-200">{ws.name}</span>
+                                    {alreadyShared && <span className="ml-auto text-[10px] text-indigo-400 font-medium">Already shared</span>}
+                                </label>
+                            )
+                        })}
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                        <button
+                            onClick={() => setShareModal(null)}
+                            className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+                        >Cancel</button>
+                        <button
+                            onClick={() => void handleShare()}
+                            disabled={sharingBusy || shareTargets.size === 0}
+                            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                        >
+                            {sharingBusy ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Share2 className="h-3 w-3" />}
+                            {sharingBusy ? 'Sharing…' : `Share with ${shareTargets.size || ''} workspace${shareTargets.size !== 1 ? 's' : ''}`}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     )
 }
