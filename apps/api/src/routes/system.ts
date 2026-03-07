@@ -352,7 +352,8 @@ systemRouter.post('/update', async (_req, res) => {
             }
             
             // e.g. /opt/plexo/docker -> /opt/plexo
-            const hostRepoRoot = require('node:path').dirname(workingDir)
+            const { dirname } = await import('node:path')
+            const hostRepoRoot = dirname(workingDir)
             
             send('status', { step: 'pull', message: 'Preparing updater framework (this may take a few seconds)…' })
             await pullImage('alpine:latest', () => { /* quiet pull logs */ })
