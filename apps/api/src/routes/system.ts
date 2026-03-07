@@ -99,9 +99,20 @@ import { promisify } from 'node:util'
 const execAsync = promisify(exec)
 
 async function getLocalVersion(): Promise<{ type: 'release' | 'commit'; version: string }> {
-    if (process.env.APP_VERSION && process.env.APP_VERSION !== 'dev') {
+    // Primary: version baked into image at build time from package.json
+    try {
+        const { readFile } = await import('node:fs/promises')
+        const baked = (await readFile('/app/.version', 'utf8')).trim()
+        if (baked && baked !== 'auto' && baked !== 'dev') {
+            return { type: 'release', version: baked }
+        }
+    } catch { /* not in a Docker container — continue */ }
+
+    // Secondary: APP_VERSION env var (must not be 'dev' or 'auto' sentinel)
+    if (process.env.APP_VERSION && process.env.APP_VERSION !== 'dev' && process.env.APP_VERSION !== 'auto') {
         return { type: 'release', version: process.env.APP_VERSION }
     }
+    // Tertiary: git commit hash (source checkout)
     try {
         const { stdout } = await execAsync('git rev-parse HEAD', { cwd: process.cwd() })
         return { type: 'commit', version: stdout.trim() }
@@ -111,7 +122,9 @@ async function getLocalVersion(): Promise<{ type: 'release' | 'commit'; version:
 }
 
 function semverGt(a: string, b: string): boolean {
-    const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number)
+    // Strip v prefix and pre-release suffixes (e.g. -beta.1) before comparing
+    const clean = (v: string) => v.replace(/^v/, '').replace(/-.*$/, '')
+    const parse = (v: string) => clean(v).split('.').map(Number)
     const [aMaj = 0, aMin = 0, aPat = 0] = parse(a)
     const [bMaj = 0, bMin = 0, bPat = 0] = parse(b)
     if (aMaj !== bMaj) return aMaj > bMaj
@@ -278,15 +291,36 @@ systemRouter.post('/update', async (_req, res) => {
             }
 
             send('status', { step: 'restart', message: 'Restarting containers…' })
-            // Restart in reverse dependency order: web first (depends on api), then api
+            // Sort: web first (can restart while API is still streaming), API last
+            // so the SSE stream stays alive long enough to deliver the done event.
             const sorted = [...containers].sort((a) =>
                 a.Names.some(n => n.includes('web')) ? -1 : 1,
             )
-            for (const container of sorted) {
+            const apiContainer = sorted.find(c => c.Names.some(n => n.includes('api')))
+            const others = sorted.filter(c => !c.Names.some(n => n.includes('api')))
+
+            for (const container of others) {
                 send('status', { step: 'restart', message: `Restarting ${container.Names[0]}…` })
                 await restartContainer(container.Id)
                 send('status', { step: 'restart', message: `Restarted ${container.Names[0]}` })
             }
+
+            // Invalidate version cache before restarting API
+            const redisPre = await getRedis()
+            await redisPre.del(VERSION_CACHE_KEY)
+
+            // Send done BEFORE restarting the API container — the connection
+            // will drop when the API restarts, but the client will have already
+            // received the success event.
+            send('done', { success: true, message: 'Update complete. Reload the page in a few seconds.' })
+            res.end()
+
+            if (apiContainer) {
+                // Small delay so the SSE frame makes it through the TCP buffer before we die
+                await new Promise(r => setTimeout(r, 1500))
+                await restartContainer(apiContainer.Id).catch(() => { /* container restart will kill us anyway */ })
+            }
+            return // skip the duplicate send/res.end below
         } else if (isGit) {
             send('status', { step: 'git', message: 'Pulling latest changes from git…' })
             const { stdout: pullOut } = await execAsync('git pull', { cwd: process.cwd() })

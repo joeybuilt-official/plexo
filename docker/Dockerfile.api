@@ -46,10 +46,15 @@ RUN chmod +x /migrate.sh
 
 RUN chown -R plexo:plexo /app
 
-# Bake the git tag / version into the image at build time.
-# docker build --build-arg APP_VERSION=$(git describe --tags --abbrev=0)
-ARG APP_VERSION=dev
-ENV APP_VERSION=${APP_VERSION}
+# Bake the version from package.json into the image at build time.
+# Override via: docker build --build-arg APP_VERSION=x.y.z
+# Defaults to the version field in root package.json if not supplied.
+ARG APP_VERSION=auto
+RUN V="${APP_VERSION}"; \
+    [ "$V" = "auto" ] && V=$(node -p "require('./package.json').version"); \
+    echo "$V" > /app/.version && \
+    echo "APP_VERSION baked: $V"
+ENV APP_VERSION=auto
 
 USER plexo
 EXPOSE 3001
