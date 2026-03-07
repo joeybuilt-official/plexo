@@ -10,7 +10,7 @@
  * returns a ClarificationRequest instead of a plan — the queue treats this as
  * status: 'blocked' and surfaces the alternatives to the user via their channel.
  */
-import { generateObject } from 'ai'
+import { generateObject, generateText } from 'ai'
 import { z } from 'zod'
 import { withFallback } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
@@ -128,12 +128,28 @@ export async function planTask(
     })
 
     const raw = await withFallback(settings, 'planning', async (model) => {
-        return generateObject({
-            model,
-            system: systemPrompt,
-            prompt: userPrompt,
-            schema: PlannerOutputSchema,
-        })
+        try {
+            return await generateObject({
+                model,
+                system: systemPrompt,
+                prompt: userPrompt,
+                schema: PlannerOutputSchema,
+            })
+        } catch (structuredErr) {
+            const errMsg = (structuredErr as Error).message ?? ''
+            if (errMsg.includes('json_schema') || errMsg.includes('response format') || errMsg.includes('structured output')) {
+                const jsonInstruction = `\n\nRespond with ONLY valid JSON — no markdown, no commentary. Use exactly one of these shapes:\n{"type":"plan","goal":string,"steps":[{"stepNumber":number,"description":string,"toolsRequired":string[],"verificationMethod":string,"isOneWayDoor":boolean}],"oneWayDoors":[],"estimatedDurationMs":number,"confidenceScore":number,"risks":string[]}\nor\n{"type":"clarification","message":string,"alternatives":[{"label":string,"description":string,"taskDescription":string}]}`
+                const textResult = await generateText({
+                    model,
+                    system: systemPrompt,
+                    prompt: userPrompt + jsonInstruction,
+                })
+                const raw = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+                const jsonObj = JSON.parse(raw)
+                return { object: PlannerOutputSchema.parse(jsonObj) }
+            }
+            throw structuredErr
+        }
     })
 
     // Clarification path — return as-is for the queue to handle

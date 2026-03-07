@@ -646,6 +646,19 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
                 outcome: memOutcome,
             }),
         ),
+        // Write to work_ledger — required by self-improvement cycle (needs ≥3 entries)
+        db.execute(sql`
+            INSERT INTO work_ledger
+                (id, workspace_id, task_id, type, source, tokens_in, tokens_out, cost_usd,
+                 quality_score, deliverables, wall_clock_ms, completed_at)
+            VALUES
+                (gen_random_uuid(), ${ctx.workspaceId}::uuid, ${ctx.taskId},
+                 ${ctx.taskType ?? 'automation'}, ${'agent'},
+                 ${executionResult.totalTokensIn}, ${executionResult.totalTokensOut},
+                 ${executionResult.totalCostUsd}, ${verifiedQuality},
+                 ${JSON.stringify(filesWritten)}::jsonb, ${executionResult.totalDurationMs},
+                 now())
+        `),
         // Phase 15 — record which prompt variant was used and evaluate auto-promotion
         recordVariantOutcome({
             workspaceId: ctx.workspaceId,

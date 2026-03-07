@@ -2,7 +2,7 @@
  * Sprint planner — given a repo + request, produces a list of SprintTask
  * records that can be executed in parallel with dependency ordering.
  */
-import { generateObject } from 'ai'
+import { generateObject, generateText } from 'ai'
 import { z } from 'zod'
 import pino from 'pino'
 import { db, eq } from '@plexo/db'
@@ -117,13 +117,37 @@ export async function planSprint(params: {
 
     let rawPlan: SprintPlan
     try {
-        const result = await generateObject({
-            model,
-            schema: SprintPlanSchema,
-            system: systemPrompt,
-            prompt: userMessage + capabilityNote,
-        })
-        rawPlan = result.object
+        let parsed: SprintPlan | null = null
+        try {
+            const result = await generateObject({
+                model,
+                schema: SprintPlanSchema,
+                system: systemPrompt,
+                prompt: userMessage + capabilityNote,
+            })
+            parsed = result.object
+        } catch (structuredErr) {
+            // Some providers (e.g. most Groq models) don't support json_schema
+            // structured output. Fall back to generateText with an explicit JSON
+            // instruction and manual parse.
+            const errMsg = (structuredErr as Error).message ?? ''
+            if (errMsg.includes('json_schema') || errMsg.includes('response format') || errMsg.includes('structured output')) {
+                logger.warn({ sprintId, errMsg }, 'Model does not support json_schema — retrying with generateText + manual JSON parse')
+                const jsonInstruction = `\n\nRespond with ONLY a JSON object matching this exact schema — no markdown, no commentary:\n{"tasks": [{"id": string, "description": string, "scope": string[], "acceptance": string, "branch": string, "priority": number, "depends_on": string[]}], "parallelism_note": string}`
+                const textResult = await generateText({
+                    model,
+                    system: systemPrompt,
+                    prompt: userMessage + capabilityNote + jsonInstruction,
+                })
+                // Strip markdown fences if present
+                const raw = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+                const jsonObj = JSON.parse(raw)
+                parsed = SprintPlanSchema.parse(jsonObj)
+            } else {
+                throw structuredErr
+            }
+        }
+        rawPlan = parsed!
     } catch (err) {
         logger.error({ err, sprintId }, 'Sprint planner LLM call failed')
         throw new Error(`Sprint planning failed: ${(err as Error).message}`)
