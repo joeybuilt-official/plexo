@@ -79,13 +79,14 @@ export function UpdateModal() {
 
     const handleUpdate = useCallback(async () => {
         setUpdating(true)
-        setLogs([])
+        setLogs([{ type: 'status', message: 'Connecting to update service…' }])
         setDone(false)
         setFailed(false)
 
         try {
             const res = await fetch(`${API_URL}/v1/system/update`, { method: 'POST' })
             if (!res.ok || !res.body) {
+                setLogs(prev => [...prev, { type: 'error', message: `Server returned ${res.status}` }])
                 setFailed(true)
                 setUpdating(false)
                 return
@@ -94,6 +95,7 @@ export function UpdateModal() {
             const reader = res.body.getReader()
             const decoder = new TextDecoder()
             let buffer = ''
+            let currentEvent = 'status' // track SSE event type
 
             while (true) {
                 const { value, done: streamDone } = await reader.read()
@@ -104,20 +106,27 @@ export function UpdateModal() {
                 buffer = lines.pop() ?? ''
 
                 for (const line of lines) {
+                    if (line.startsWith('event: ')) {
+                        currentEvent = line.slice(7).trim()
+                        continue
+                    }
                     if (!line.startsWith('data: ')) continue
                     try {
                         const payload = JSON.parse(line.slice(6)) as {
                             message: string
                             step?: string
                             success?: boolean
+                            isError?: boolean
                         }
-                        const isDone = 'success' in payload && payload.success === true
-                        const isError = line.includes('"error"') && !line.includes('"step"')
+                        const isDone = payload.success === true
+                        const isError = payload.isError === true || currentEvent === 'error'
                         const type: UpdateLog['type'] = isDone ? 'done' : isError ? 'error' : 'status'
                         setLogs(prev => [...prev, { type, message: payload.message, step: payload.step }])
                         if (isDone) { setDone(true); setUpdating(false) }
                         if (isError) { setFailed(true); setUpdating(false) }
                     } catch { /* skip malformed */ }
+                    // Reset event type after consuming the data line
+                    currentEvent = 'status'
                 }
             }
         } catch (err) {

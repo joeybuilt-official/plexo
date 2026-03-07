@@ -406,7 +406,7 @@ systemRouter.post('/update', async (_req, res) => {
         send('done', { success: true, message: isDocker ? 'Update complete. Reload the page in a few seconds.' : 'Update pulled. Server may restart automatically.' })
     } catch (err) {
         logger.error({ err }, 'In-app update failed')
-        send('error', { message: err instanceof Error ? err.message : 'Unknown error during update' })
+        send('error', { isError: true, message: err instanceof Error ? err.message : 'Unknown error during update' })
     }
 
     res.end()
