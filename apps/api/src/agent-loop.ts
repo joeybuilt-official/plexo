@@ -259,6 +259,10 @@ async function processOneTask(): Promise<boolean> {
     let agentPersona: string | undefined
     let sprintGoal: string | undefined
     let sprintName: string | undefined
+    // Sprint coding context
+    let sprintWorkDir: string | undefined
+    let sprintRepo: string | undefined
+    let sprintBranch: string | undefined
 
     try {
         const [wsRow] = await db
@@ -298,6 +302,46 @@ async function processOneTask(): Promise<boolean> {
         }
     } catch { /* non-fatal */ }
 
+    // ── Sprint coding context: clone repo to temp dir for coding tasks ──────────
+    // task.context is set by the sprint runner with { repo, branch, workspaceId, ... }
+    // We clone here (agent-loop level) so the executor has a real working dir.
+    if (task.type === 'coding') {
+        const taskCtx = task.context as Record<string, unknown> | null | undefined
+        const repo = taskCtx?.repo as string | undefined
+        const branch = taskCtx?.branch as string | undefined
+        const ctxWorkspaceId = (taskCtx?.workspaceId as string | undefined) ?? taskWorkspaceId
+
+        if (repo && branch) {
+            try {
+                const { execSync } = await import('node:child_process')
+                const { mkdtempSync } = await import('node:fs')
+                const { join } = await import('node:path')
+                const { tmpdir } = await import('node:os')
+
+                // Resolve token from installed_connections or env
+                const { resolveGitHubToken } = await import('@plexo/agent/github/client')
+                const token = await resolveGitHubToken(ctxWorkspaceId).catch(() => process.env.GITHUB_TOKEN ?? '')
+
+                const workDir = mkdtempSync(join(tmpdir(), 'plexo-sprint-'))
+                const cloneUrl = `https://x-access-token:${token}@github.com/${repo}.git`
+
+                execSync(
+                    `git clone --depth=1 --branch ${branch} ${cloneUrl} .`,
+                    { cwd: workDir, timeout: 120_000, maxBuffer: 64 * 1024 * 1024, stdio: 'pipe' },
+                )
+                logger.info({ taskId: task.id, repo, branch, workDir }, 'Sprint repo cloned')
+
+                sprintWorkDir = workDir
+                sprintRepo = repo
+                sprintBranch = branch
+            } catch (cloneErr) {
+                // Non-fatal: executor falls back to process.cwd() which is wrong but at least
+                // the task proceeds. The system prompt will tell the agent to clone manually.
+                logger.warn({ taskId: task.id, err: cloneErr }, 'Sprint repo clone failed — executor will work without pre-cloned dir')
+            }
+        }
+    }
+
     const abort = new AbortController()
     activeAbort = abort
     activeTaskId = task.id
@@ -311,13 +355,17 @@ async function processOneTask(): Promise<boolean> {
         tokenBudget: resolvedTokenBudget,
         taskCostCeilingUsd: resolvedCostCeiling,
         signal: abort.signal,
-        // Phase A: context
+        // Phase A: workspace + persona context
         workspaceName,
         agentName,
         agentPersona,
         workspaceSummary,
         sprintGoal,
         sprintName,
+        // Sprint coding context
+        sprintWorkDir,
+        sprintRepo,
+        sprintBranch,
     }
 
     try {

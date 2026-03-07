@@ -356,6 +356,13 @@ export interface ExecutionContext {
     sprintName?: string
     /** Brief description of the workspace purpose */
     workspaceSummary?: string
+    // ── Sprint coding context ─────────────────────────────────────────────────
+    /** Absolute path to the cloned repo working directory for coding tasks */
+    sprintWorkDir?: string
+    /** Target repo (owner/repo) for coding sprint tasks */
+    sprintRepo?: string
+    /** Branch this sprint task is working on */
+    sprintBranch?: string
 }
 
 export interface StepResult {

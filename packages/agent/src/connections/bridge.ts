@@ -71,22 +71,80 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
                 return `Created #${issue.number}: ${issue.html_url}`
             },
         }),
-        github__list_prs: tool({
-            description: 'List pull requests for a GitHub repository.',
+        github__open_pr: tool({
+            description: 'Open a pull request on GitHub.',
             inputSchema: z.object({
                 owner: z.string(),
                 repo: z.string(),
-                state: z.enum(['open', 'closed', 'all']).optional().default('open'),
+                title: z.string().describe('PR title'),
+                body: z.string().optional().describe('PR description (markdown)'),
+                head: z.string().describe('Branch containing the changes'),
+                base: z.string().default('main').describe('Branch to merge into'),
+                draft: z.boolean().optional().default(false),
             }),
-            execute: async ({ owner, repo, state }) => {
-                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=${state}&per_page=10`, { headers })
-                if (!res.ok) return `GitHub error: ${res.status}`
-                const prs = await res.json() as Array<{ number: number; title: string; html_url: string; draft: boolean }>
-                return prs.map((p) => `#${p.number}${p.draft ? ' [draft]' : ''} ${p.title} — ${p.html_url}`).join('\n') || 'No PRs found.'
+            execute: async ({ owner, repo, title, body, head, base, draft }) => {
+                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
+                    method: 'POST',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, body: body ?? '', head, base, draft }),
+                })
+                if (!res.ok) {
+                    const err = await res.text()
+                    return `GitHub error ${res.status}: ${err.slice(0, 200)}`
+                }
+                const pr = await res.json() as { number: number; html_url: string }
+                return `PR #${pr.number} opened: ${pr.html_url}`
+            },
+        }),
+        github__merge_pr: tool({
+            description: 'Merge a pull request (squash merge).',
+            inputSchema: z.object({
+                owner: z.string(),
+                repo: z.string(),
+                pull_number: z.number().describe('PR number to merge'),
+                commit_message: z.string().optional().describe('Squash commit message'),
+            }),
+            execute: async ({ owner, repo, pull_number, commit_message }) => {
+                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${pull_number}/merge`, {
+                    method: 'PUT',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ merge_method: 'squash', commit_message: commit_message ?? '' }),
+                })
+                if (res.status === 204 || res.ok) return `PR #${pull_number} merged.`
+                const err = await res.text()
+                return `GitHub error ${res.status}: ${err.slice(0, 200)}`
+            },
+        }),
+        github__create_branch: tool({
+            description: 'Create a new branch in a GitHub repository from a base branch or SHA.',
+            inputSchema: z.object({
+                owner: z.string(),
+                repo: z.string(),
+                branch: z.string().describe('Name for the new branch'),
+                from_branch: z.string().optional().default('main').describe('Branch or SHA to branch from'),
+            }),
+            execute: async ({ owner, repo, branch, from_branch }) => {
+                const refRes = await fetch(
+                    `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(from_branch)}`,
+                    { headers },
+                )
+                if (!refRes.ok) return `GitHub error resolving base branch ${from_branch}: ${refRes.status}`
+                const refData = await refRes.json() as { object: { sha: string } }
+                const sha = refData.object.sha
+                const createRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs`, {
+                    method: 'POST',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }),
+                })
+                if (!createRes.ok) {
+                    const err = await createRes.text()
+                    return `GitHub error ${createRes.status}: ${err.slice(0, 200)}`
+                }
+                return `Branch '${branch}' created from '${from_branch}' (${sha.slice(0, 7)})`
             },
         }),
         github__get_ci_status: tool({
-            description: 'Get latest CI/check status for a branch.',
+            description: 'Get latest CI/check status for a branch or commit SHA.',
             inputSchema: z.object({
                 owner: z.string(),
                 repo: z.string(),
@@ -97,6 +155,68 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
                 if (!res.ok) return `GitHub error: ${res.status}`
                 const d = await res.json() as { check_runs: Array<{ name: string; conclusion: string | null; status: string }> }
                 return d.check_runs.map((c) => `${c.name}: ${c.conclusion ?? c.status}`).join('\n') || 'No checks found.'
+            },
+        }),
+        github__read_file: tool({
+            description: 'Read a file from a GitHub repository at a given ref (branch or commit).',
+            inputSchema: z.object({
+                owner: z.string(),
+                repo: z.string(),
+                path: z.string().describe('File path in the repo, e.g. src/index.ts'),
+                ref: z.string().optional().default('main').describe('Branch, tag, or commit SHA'),
+            }),
+            execute: async ({ owner, repo, path, ref }) => {
+                const res = await fetch(
+                    `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+                    { headers },
+                )
+                if (!res.ok) return `GitHub error ${res.status} reading ${path}`
+                const data = await res.json() as { content?: string; encoding?: string; message?: string }
+                if (data.message) return `GitHub: ${data.message}`
+                if (data.content && data.encoding === 'base64') {
+                    return Buffer.from(data.content.replace(/\n/g, ''), 'base64').toString('utf8')
+                }
+                return 'Unable to decode file content.'
+            },
+        }),
+        github__push_file: tool({
+            description: 'Create or update a file in a GitHub repository on a specific branch.',
+            inputSchema: z.object({
+                owner: z.string(),
+                repo: z.string(),
+                path: z.string().describe('File path in the repo'),
+                content: z.string().describe('Full file content (UTF-8)'),
+                message: z.string().describe('Commit message'),
+                branch: z.string().describe('Branch to commit to'),
+            }),
+            execute: async ({ owner, repo, path, content, message, branch }) => {
+                // Get current file SHA if it exists (needed for updates)
+                let sha: string | undefined
+                const existingRes = await fetch(
+                    `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(branch)}`,
+                    { headers },
+                )
+                if (existingRes.ok) {
+                    const existing = await existingRes.json() as { sha?: string }
+                    sha = existing.sha
+                }
+                const body: Record<string, unknown> = {
+                    message,
+                    content: Buffer.from(content, 'utf8').toString('base64'),
+                    branch,
+                }
+                if (sha) body.sha = sha
+                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+                    method: 'PUT',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                })
+                if (!res.ok) {
+                    const err = await res.text()
+                    return `GitHub error ${res.status}: ${err.slice(0, 200)}`
+                }
+                const d = await res.json() as { commit: { sha: string } }
+                return `Committed ${path} -> ${d.commit.sha.slice(0, 7)} on ${branch}`
             },
         }),
     }

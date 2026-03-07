@@ -24,16 +24,21 @@ import type { JudgeMeta } from './quality-judge.js'
 async function dispatchTool(
     name: string,
     input: Record<string, unknown>,
-    _ctx: ExecutionContext,
+    ctx: ExecutionContext,
 ): Promise<string> {
     const { execSync } = await import('node:child_process')
-    const { readFileSync, writeFileSync, mkdirSync } = await import('node:fs')
-    const { dirname } = await import('node:path')
+    const { readFileSync, writeFileSync, mkdirSync, existsSync } = await import('node:fs')
+    const { dirname, resolve, isAbsolute } = await import('node:path')
+
+    // defaultCwd: for sprint coding tasks this is the cloned repo working dir
+    const defaultCwd = (ctx.sprintWorkDir as string | undefined) ?? process.cwd()
 
     switch (name) {
         case 'read_file': {
             try {
-                return readFileSync(input.path as string, 'utf8')
+                const rawPath = input.path as string
+                const p = isAbsolute(rawPath) ? rawPath : resolve(defaultCwd, rawPath)
+                return readFileSync(p, 'utf8')
             } catch (e) {
                 return `ERROR: ${(e as Error).message}`
             }
@@ -41,7 +46,8 @@ async function dispatchTool(
 
         case 'write_file': {
             try {
-                const p = input.path as string
+                const rawPath = input.path as string
+                const p = isAbsolute(rawPath) ? rawPath : resolve(defaultCwd, rawPath)
                 mkdirSync(dirname(p), { recursive: true })
                 writeFileSync(p, input.content as string, 'utf8')
                 return `OK: wrote ${(input.content as string).length} bytes to ${p}`
@@ -52,16 +58,25 @@ async function dispatchTool(
 
         case 'shell': {
             try {
+                const cwd = (input.cwd as string | undefined) ?? defaultCwd
                 const out = execSync(input.command as string, {
-                    cwd: (input.cwd as string) ?? process.cwd(),
-                    timeout: 30_000,
-                    maxBuffer: 1024 * 1024,
+                    cwd,
+                    timeout: 60_000,  // 60s — enough for pnpm install / test runs
+                    maxBuffer: 2 * 1024 * 1024,  // 2MB
                     encoding: 'utf8',
+                    env: {
+                        ...process.env,
+                        // Ensure pnpm/node/git are on path
+                        PATH: process.env.PATH ?? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                    },
                 })
                 return out.trim()
             } catch (e) {
                 const err = e as { stdout?: string; stderr?: string; message: string }
-                return `ERROR: ${err.stderr ?? err.message}`
+                const stderr = err.stderr?.trim() ?? ''
+                const stdout = err.stdout?.trim() ?? ''
+                const detail = stderr || stdout || err.message
+                return `ERROR: ${detail.slice(0, 2000)}`
             }
         }
 
@@ -282,8 +297,22 @@ export async function executeTask(
         .map(([k, v]) => `\n\n[${k.replace(/_/g, ' ')}]\n${v}`)
         .join('')
 
+    const sprintCodingBlock = ctx.sprintWorkDir
+        ? `
+
+SPRINT CODING CONTEXT:
+- Repository: ${ctx.sprintRepo ?? 'unknown'}
+- Branch: ${ctx.sprintBranch ?? 'unknown'}
+- Working directory: ${ctx.sprintWorkDir}
+- The repo has been cloned to the working directory. All shell commands and file operations should use this directory.
+- Workflow: read files, make changes, run tests with shell(), push changes with git commands or github__push_file, then call task_complete.
+- Always run \`pnpm typecheck\` or equivalent tests before calling task_complete.
+- Git config: set user.email and user.name before commits (\`git config user.email 'plexo@plexo.ai'\`).
+- Do NOT push directly to main. You are working on branch: ${ctx.sprintBranch ?? 'your assigned branch'}.`
+        : ''
+
     const systemPrompt = `${personaPrefix}You are ${agentName}, an autonomous AI agent executing a task.
-${ctx.workspaceName ? `\nWorkspace: ${ctx.workspaceName}` : ''}${ctx.workspaceSummary ? `\nWorkspace purpose: ${ctx.workspaceSummary}` : ''}${ctx.sprintGoal ? `\nActive project goal: ${ctx.sprintGoal}` : ''}
+${ctx.workspaceName ? `\nWorkspace: ${ctx.workspaceName}` : ''}${ctx.workspaceSummary ? `\nWorkspace purpose: ${ctx.workspaceSummary}` : ''}${ctx.sprintGoal ? `\nActive project goal: ${ctx.sprintGoal}` : ''}${sprintCodingBlock}
 
 Task goal: ${plan.goal}
 

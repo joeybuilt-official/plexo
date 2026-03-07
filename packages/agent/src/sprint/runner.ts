@@ -23,7 +23,7 @@ import { sprints, sprintTasks, tasks } from '@plexo/db'
 import { push as pushTask } from '@plexo/queue'
 import { planSprint, type PlanResult } from './planner.js'
 import { detectStaticConflicts, detectDynamicConflicts } from './conflicts.js'
-import { buildGitHubClient } from '../github/client.js'
+import { buildGitHubClientForWorkspace } from '../github/client.js'
 import {
     logSprintEvent,
     registerSprintWorkspace,
@@ -142,7 +142,7 @@ async function runCodeSprint(
         metadata: { repo, category: 'code' },
     })
 
-    const github = buildGitHubClient(owner, repoName)
+    const github = await buildGitHubClientForWorkspace(owner, repoName, workspaceId)
     const baseBranch = opts.baseBranch ?? await github.getDefaultBranch()
     const baseSha = (await github.getBranch(baseBranch)).sha
 
@@ -241,6 +241,8 @@ async function runCodeSprint(
                     acceptance: st.acceptance,
                     repo,
                     baseBranch,
+                    // workspaceId propagated so executor can resolve GitHub token
+                    workspaceId,
                 },
             })
 

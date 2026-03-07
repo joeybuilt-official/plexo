@@ -194,10 +194,58 @@ export class GitHubClient {
     }
 }
 
-// ── Factory (resolved token from env or installed_connections) ────────────────
+// ── Factory (resolved token from installed_connections or env fallback) ──────
+// Preferred: PAT stored via the Connections UI (encrypted in DB).
+// Fallback: GITHUB_TOKEN env var (for environments where it's set directly).
 
-export function buildGitHubClient(owner: string, repo: string): GitHubClient {
+export async function resolveGitHubToken(workspaceId?: string): Promise<string> {
+    // 1. Try installed_connections for the given workspace
+    if (workspaceId) {
+        try {
+            const { db, eq, and } = await import('@plexo/db')
+            const { installedConnections } = await import('@plexo/db')
+            const { decrypt } = await import('../connections/crypto-util.js')
+
+            const [row] = await db
+                .select({ credentials: installedConnections.credentials })
+                .from(installedConnections)
+                .where(and(
+                    eq(installedConnections.workspaceId, workspaceId),
+                    eq(installedConnections.registryId, 'github'),
+                    eq(installedConnections.status, 'active'),
+                ))
+                .limit(1)
+
+            if (row?.credentials) {
+                const raw = row.credentials as { encrypted?: string }
+                if (raw.encrypted) {
+                    const decrypted = decrypt(raw.encrypted, workspaceId)
+                    const creds = JSON.parse(decrypted) as Record<string, string>
+                    const token = creds.access_token ?? creds.token ?? Object.values(creds).find(Boolean)
+                    if (token) return token
+                }
+            }
+        } catch {
+            // Fall through to env var
+        }
+    }
+
+    // 2. Env var fallback
     const token = process.env.GITHUB_TOKEN
-    if (!token) throw new Error('GITHUB_TOKEN not set — GitHub integration unavailable')
+    if (token) return token
+
+    throw new Error('No GitHub token available — install GitHub connection in the workspace or set GITHUB_TOKEN env var')
+}
+
+/** Synchronous factory for contexts that already have a token (e.g. env-only scenarios). */
+export function buildGitHubClient(owner: string, repo: string, token?: string): GitHubClient {
+    const resolved = token ?? process.env.GITHUB_TOKEN
+    if (!resolved) throw new Error('GITHUB_TOKEN not set — GitHub integration unavailable')
+    return new GitHubClient({ owner, repo, token: resolved })
+}
+
+/** Async factory — resolves token from workspace connection first, env fallback second. */
+export async function buildGitHubClientForWorkspace(owner: string, repo: string, workspaceId: string): Promise<GitHubClient> {
+    const token = await resolveGitHubToken(workspaceId)
     return new GitHubClient({ owner, repo, token })
 }
