@@ -366,13 +366,13 @@ systemRouter.post('/update', async (_req, res) => {
                     Image: 'alpine:latest',
                     Cmd: [
                         'sh', '-c',
-                        'apk add --no-cache git docker-cli docker-cli-compose && cd /host-repo && git fetch origin main && git reset --hard origin/main && docker compose -f docker/compose.yml build api web migrate && docker compose -f docker/compose.yml up -d --remove-orphans'
+                        `apk add --no-cache git docker-cli docker-cli-compose && cd ${hostRepoRoot} && git fetch origin main && git reset --hard origin/main && docker compose -f docker/compose.yml build api web migrate && docker compose -f docker/compose.yml up -d --remove-orphans`
                     ],
                     HostConfig: {
                         AutoRemove: true,
                         Binds: [
                             '/var/run/docker.sock:/var/run/docker.sock',
-                            `${hostRepoRoot}:/host-repo`
+                            `${hostRepoRoot}:${hostRepoRoot}`
                         ]
                     }
                 }
