@@ -42,6 +42,7 @@ import { configureTelemetry } from './telemetry/posthog.js'
 import { terminateAll, workerStats } from '@plexo/agent/persistent-pool'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
+import { initSprintLogger } from '@plexo/agent/sprint/logger'
 
 
 import { debugRouter } from './routes/debug.js'
@@ -173,6 +174,9 @@ const server = app.listen(port, '0.0.0.0', () => {
     // Background Sync
     runCronJobs()
     setInterval(() => { void runCronJobs() }, 24 * 60 * 60 * 1000)
+
+    // Wire sprint activity logger → SSE emitter so runner events stream to Control Room
+    initSprintLogger((workspaceId: string, event: Record<string, unknown>) => emitToWorkspace(workspaceId, event))
 
     // OWD → SSE: when an agent requests approval, push a real-time notification
     // to all connected SSE clients in that workspace so the approval banner appears

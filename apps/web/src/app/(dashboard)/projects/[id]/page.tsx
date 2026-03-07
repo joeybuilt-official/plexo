@@ -21,6 +21,16 @@ import {
     BarChart2,
     Megaphone,
     Sparkles,
+    Terminal,
+    ChevronDown,
+    GitPullRequest,
+    Cpu,
+    AlertCircle,
+    CheckCheck,
+    Play,
+    Layers,
+    BadgeDollarSign,
+    Wifi,
 } from 'lucide-react'
 import Link from 'next/link'
 import { getCategoryDef } from '@web/lib/project-categories'
@@ -63,6 +73,26 @@ interface SprintDetail {
     tasks: SprintTaskItem[]
 }
 
+type SprintLogLevel = 'info' | 'warn' | 'error'
+type SprintLogEvent =
+    | 'planning_start' | 'planning_complete'
+    | 'wave_start' | 'wave_complete'
+    | 'task_queued' | 'task_running' | 'task_complete' | 'task_failed' | 'task_timeout'
+    | 'pr_created' | 'pr_failed'
+    | 'conflict_detected' | 'budget_check' | 'budget_ceiling_hit'
+    | 'sprint_complete' | 'sprint_failed'
+    | 'branch_created' | 'branch_failed'
+
+interface SprintLogEntry {
+    id: string
+    sprintId: string
+    level: SprintLogLevel
+    event: SprintLogEvent
+    message: string
+    metadata: Record<string, unknown>
+    createdAt: string
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
@@ -77,6 +107,42 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string; lab
     finalizing: { bg: 'bg-cyan-500/15', text: 'text-cyan-400', dot: 'bg-cyan-400 animate-pulse', label: 'Finalizing' },
     cancelled: { bg: 'bg-zinc-700/30', text: 'text-zinc-500', dot: 'bg-zinc-600', label: 'Cancelled' },
 }
+
+// ── Log event config ──────────────────────────────────────────────────────────
+
+const LOG_EVENT_CONFIG: Record<SprintLogEvent, {
+    icon: React.ElementType
+    color: string
+    bgColor: string
+    label: string
+}> = {
+    planning_start: { icon: Sparkles, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Planning' },
+    planning_complete: { icon: CheckCheck, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Plan Ready' },
+    wave_start: { icon: Layers, color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/20', label: 'Wave' },
+    wave_complete: { icon: CheckCheck, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10 border-emerald-500/20', label: 'Wave Done' },
+    task_queued: { icon: Play, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Queued' },
+    task_running: { icon: Cpu, color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/20', label: 'Running' },
+    task_complete: { icon: CheckCircle2, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10 border-emerald-500/20', label: 'Done' },
+    task_failed: { icon: XCircle, color: 'text-red-400', bgColor: 'bg-red-500/10 border-red-500/20', label: 'Failed' },
+    task_timeout: { icon: Clock, color: 'text-amber-400', bgColor: 'bg-amber-500/10 border-amber-500/20', label: 'Timeout' },
+    pr_created: { icon: GitPullRequest, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10 border-emerald-500/20', label: 'PR' },
+    pr_failed: { icon: AlertCircle, color: 'text-red-400', bgColor: 'bg-red-500/10 border-red-500/20', label: 'PR Failed' },
+    conflict_detected: { icon: AlertTriangle, color: 'text-amber-400', bgColor: 'bg-amber-500/10 border-amber-500/20', label: 'Conflict' },
+    budget_check: { icon: BadgeDollarSign, color: 'text-zinc-400', bgColor: 'bg-zinc-800/60 border-zinc-700/30', label: 'Budget' },
+    budget_ceiling_hit: { icon: AlertTriangle, color: 'text-amber-400', bgColor: 'bg-amber-500/10 border-amber-500/20', label: 'Budget Limit' },
+    sprint_complete: { icon: CheckCheck, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10 border-emerald-500/20', label: 'Complete' },
+    sprint_failed: { icon: XCircle, color: 'text-red-400', bgColor: 'bg-red-500/10 border-red-500/20', label: 'Failed' },
+    branch_created: { icon: GitBranch, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Branch' },
+    branch_failed: { icon: AlertCircle, color: 'text-amber-400', bgColor: 'bg-amber-500/10 border-amber-500/20', label: 'Branch Err' },
+}
+
+const LEVEL_COLORS: Record<SprintLogLevel, string> = {
+    info: 'text-zinc-500',
+    warn: 'text-amber-500',
+    error: 'text-red-500',
+}
+
+// ── Utility helpers ───────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
     const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.queued!
@@ -103,10 +169,15 @@ function timeAgo(iso: string): string {
     return `${Math.floor(s / 86400)}d ago`
 }
 
+function formatTime(iso: string): string {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
 // ── Worker Grid item ──────────────────────────────────────────────────────────
 
 function WorkerCard({ task }: { task: SprintTaskItem }) {
     const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.queued!
+    void cfg
     return (
         <div className={`rounded-lg border ${task.status === 'running' ? 'border-blue-700/50' : 'border-zinc-800'} bg-zinc-900/60 p-3 flex flex-col gap-2 transition-all`}>
             <div className="flex items-center justify-between gap-2">
@@ -151,6 +222,266 @@ function CategoryBadge({ category }: { category: string }) {
     )
 }
 
+// ── Activity Log entry ────────────────────────────────────────────────────────
+
+function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) {
+    const cfg = LOG_EVENT_CONFIG[entry.event] ?? LOG_EVENT_CONFIG.task_running
+    const Icon = cfg.icon
+    const [expanded, setExpanded] = useState(false)
+    const hasMetadata = Object.keys(entry.metadata ?? {}).length > 0 &&
+        !(['budget_check'].includes(entry.event) && Object.keys(entry.metadata).length <= 2)
+
+    return (
+        <div
+            className={`
+                group flex gap-3 px-3 py-2.5 rounded-lg border transition-all duration-300
+                ${cfg.bgColor}
+                ${isNew ? 'animate-[fadeSlideIn_0.3s_ease-out]' : ''}
+            `}
+        >
+            {/* Icon */}
+            <div className={`shrink-0 mt-0.5 ${cfg.color}`}>
+                <Icon className="h-3.5 w-3.5" />
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] font-semibold uppercase tracking-wider ${cfg.color} opacity-70`}>
+                            {cfg.label}
+                        </span>
+                        <p className="text-xs text-zinc-300 leading-relaxed">{entry.message}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[10px] font-mono ${LEVEL_COLORS[entry.level]}`}>
+                            {entry.level !== 'info' ? entry.level.toUpperCase() : ''}
+                        </span>
+                        <span className="text-[10px] font-mono text-zinc-600 tabular-nums">
+                            {formatTime(entry.createdAt)}
+                        </span>
+                        {hasMetadata && (
+                            <button
+                                onClick={() => setExpanded(!expanded)}
+                                className="text-zinc-600 hover:text-zinc-400 transition-colors"
+                            >
+                                <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Expandable metadata */}
+                {expanded && hasMetadata && (
+                    <div className="mt-2 rounded bg-black/30 border border-zinc-800/50 p-2">
+                        <pre className="text-[10px] font-mono text-zinc-400 whitespace-pre-wrap overflow-x-auto max-h-40">
+                            {JSON.stringify(entry.metadata, null, 2)}
+                        </pre>
+                    </div>
+                )}
+
+                {/* Branch inline display */}
+                {(entry.metadata?.branch as string) && !expanded && (
+                    <div className="mt-1 flex items-center gap-1 text-[10px] font-mono text-zinc-600">
+                        <GitBranch className="h-2.5 w-2.5" />
+                        {entry.metadata.branch as string}
+                    </div>
+                )}
+
+                {/* PR link inline */}
+                {(entry.metadata?.prUrl as string) && (
+                    <a
+                        href={entry.metadata.prUrl as string}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`mt-1 inline-flex items-center gap-1 text-[10px] ${cfg.color} hover:opacity-80 transition-opacity`}
+                    >
+                        <ExternalLink className="h-2.5 w-2.5" />
+                        View PR #{entry.metadata.prNumber as number}
+                    </a>
+                )}
+            </div>
+        </div>
+    )
+}
+
+// ── Activity Log panel ────────────────────────────────────────────────────────
+
+function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boolean }) {
+    const [logs, setLogs] = useState<SprintLogEntry[]>([])
+    const [loading, setLoading] = useState(true)
+    const [newIds, setNewIds] = useState<Set<string>>(new Set())
+    const [autoScroll, setAutoScroll] = useState(true)
+    const [liveConnected, setLiveConnected] = useState(false)
+    const scrollRef = useRef<HTMLDivElement>(null)
+    const seenIds = useRef<Set<string>>(new Set())
+
+    const fetchLogs = useCallback(async (silent = false) => {
+        try {
+            if (!silent) setLoading(true)
+            const res = await fetch(`${API}/api/v1/sprints/${sprintId}/logs`)
+            if (!res.ok) return
+            const data = await res.json() as { logs: SprintLogEntry[] }
+            const incoming = data.logs ?? []
+
+            // Mark new entries for animation
+            const freshIds = new Set<string>()
+            for (const e of incoming) {
+                if (!seenIds.current.has(e.id)) {
+                    freshIds.add(e.id)
+                    seenIds.current.add(e.id)
+                }
+            }
+            if (freshIds.size > 0) setNewIds(freshIds)
+            setLogs(incoming)
+        } catch { /* silent */ } finally {
+            setLoading(false)
+        }
+    }, [sprintId])
+
+    // Initial load
+    useEffect(() => { void fetchLogs() }, [fetchLogs])
+
+    // SSE live updates
+    useEffect(() => {
+        const es = new EventSource(`${API}/api/v1/sse?workspaceId=sprint-${sprintId}`)
+        es.onopen = () => setLiveConnected(true)
+        es.onmessage = (e) => {
+            try {
+                const ev = JSON.parse(e.data as string) as { type: string; event?: string }
+                if (ev.type === 'sprint_log') {
+                    // Append live log entry directly
+                    const entry = ev as unknown as SprintLogEntry & { type: string }
+                    setLogs((prev) => {
+                        if (prev.some((p) => p.id === entry.id)) return prev
+                        seenIds.current.add(entry.id)
+                        setNewIds((n) => new Set([...n, entry.id]))
+                        return [...prev, entry]
+                    })
+                }
+            } catch { /* ignore */ }
+        }
+        es.onerror = () => {
+            setLiveConnected(false)
+            es.close()
+        }
+        return () => { es.close(); setLiveConnected(false) }
+    }, [sprintId])
+
+    // Polling fallback for active sprints
+    useEffect(() => {
+        if (!isActive) return
+        const t = setInterval(() => void fetchLogs(true), 8_000)
+        return () => clearInterval(t)
+    }, [isActive, fetchLogs])
+
+    // Auto-scroll to bottom
+    useEffect(() => {
+        if (autoScroll && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+        }
+    }, [logs, autoScroll])
+
+    // Clear new animation flags after delay
+    useEffect(() => {
+        if (newIds.size === 0) return
+        const t = setTimeout(() => setNewIds(new Set()), 800)
+        return () => clearTimeout(t)
+    }, [newIds])
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const el = e.currentTarget
+        const isAtBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 40
+        setAutoScroll(isAtBottom)
+    }
+
+    if (loading && logs.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-zinc-600">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <p className="text-sm">Loading activity log…</p>
+            </div>
+        )
+    }
+
+    if (logs.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-zinc-600">
+                <Terminal className="h-8 w-8 opacity-30" />
+                <p className="text-sm">No activity yet — logs will appear as agents work</p>
+                {isActive && (
+                    <div className="flex items-center gap-1.5 text-xs text-violet-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+                        Agents are planning…
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    return (
+        <div className="flex flex-col gap-3">
+            {/* Log toolbar */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">{logs.length} events</span>
+                    {isActive && (
+                        <div className={`flex items-center gap-1.5 text-[10px] font-medium ${liveConnected ? 'text-emerald-400' : 'text-zinc-600'}`}>
+                            <Wifi className="h-2.5 w-2.5" />
+                            {liveConnected ? 'Live' : 'Polling'}
+                        </div>
+                    )}
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => void fetchLogs(true)}
+                        className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1"
+                    >
+                        <RefreshCw className="h-2.5 w-2.5" />
+                        Refresh
+                    </button>
+                    <button
+                        onClick={() => {
+                            setAutoScroll(true)
+                            if (scrollRef.current) {
+                                scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+                            }
+                        }}
+                        className={`text-[11px] transition-colors flex items-center gap-1 ${autoScroll ? 'text-indigo-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+                    >
+                        <ChevronDown className="h-2.5 w-2.5" />
+                        {autoScroll ? 'Auto-scroll on' : 'Scroll to bottom'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Log feed */}
+            <div
+                ref={scrollRef}
+                onScroll={handleScroll}
+                className="flex flex-col gap-1.5 max-h-[640px] overflow-y-auto pr-1 scroll-smooth"
+                style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}
+            >
+                {logs.map((entry) => (
+                    <LogEntry
+                        key={entry.id}
+                        entry={entry}
+                        isNew={newIds.has(entry.id)}
+                    />
+                ))}
+
+                {/* Blinking cursor when active */}
+                {isActive && (
+                    <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-mono text-zinc-600">
+                        <span className="text-violet-400 animate-pulse">▊</span>
+                        agents working…
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ProjectControlRoom() {
@@ -161,7 +492,7 @@ export default function ProjectControlRoom() {
     const [loading, setLoading] = useState(true)
     const [notFound, setNotFound] = useState(false)
     const [elapsedMs, setElapsedMs] = useState(0)
-    const [tab, setTab] = useState<'workers' | 'tasks' | 'features'>('workers')
+    const [tab, setTab] = useState<'workers' | 'tasks' | 'features' | 'log'>('workers')
     const esRef = useRef<EventSource | null>(null)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -350,18 +681,25 @@ export default function ProjectControlRoom() {
             <div className="flex flex-col gap-4">
                 <div className="flex gap-1 border-b border-zinc-800">
                     {([
-                        { id: 'workers', label: `${def.unitPlural} (${tasks.length})` },
-                        { id: 'tasks', label: `All ${def.unitPlural.toLowerCase()}` },
-                        { id: 'features', label: `Delivered (${sprint.featuresCompleted.length})` },
-                    ] as const).map(({ id, label }) => (
+                        { id: 'workers' as const, label: `${def.unitPlural} (${tasks.length})`, badge: false },
+                        { id: 'tasks' as const, label: `All ${def.unitPlural.toLowerCase()}`, badge: false },
+                        { id: 'features' as const, label: `Delivered (${sprint.featuresCompleted.length})`, badge: false },
+                        { id: 'log' as const, label: 'Activity Log', badge: isActive },
+                    ]).map(({ id, label, badge }) => (
                         <button
                             key={id}
                             onClick={() => setTab(id)}
-                            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === id
+                            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${tab === id
                                 ? 'border-indigo-500 text-zinc-100'
                                 : 'border-transparent text-zinc-500 hover:text-zinc-300'
                                 }`}
-                        >{label}</button>
+                        >
+                            {id === 'log' && <Terminal className="h-3 w-3" />}
+                            {label}
+                            {badge && (
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            )}
+                        </button>
                     ))}
                 </div>
 
@@ -443,6 +781,10 @@ export default function ProjectControlRoom() {
                             ))
                         )}
                     </div>
+                )}
+
+                {tab === 'log' && (
+                    <ActivityLog sprintId={sprintId} isActive={isActive} />
                 )}
             </div>
 
