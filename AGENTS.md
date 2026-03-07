@@ -183,15 +183,19 @@ pnpm --filter @plexo/web dev
 
 ### Developer Tooling Notes
 
-- **`tsx watch` + stdin**: Do NOT start `tsx watch` via `&` without `< /dev/null`. If stdin is a pipe, tsx reads Enter keys from subsequent shell commands and hot-restarts mid-request. Always use `cmd < /dev/null > logfile 2>&1 &`.
+- **`tsx watch` + stdin**: Do NOT start `tsx watch` via `&` without `< /dev/null`. If stdin is a pipe, tsx reads Enter keys from subsequent shell commands and hot-starts mid-request. Always use `cmd < /dev/null > logfile 2>&1 &`.
 - **Multiple local agents**: Running multiple concurrent `pnpm dev` or `tsx watch` processes fight over port 3000 and HMR WebSockets, causing UI flashing. Run `killall -9 node tsx turbo next pnpm` then a single `pnpm dev`.
 
 ### Version & Release Infrastructure
-
-- **Version source of truth**: `NEXT_PUBLIC_APP_VERSION` injected in `apps/web/next.config.ts` from root `package.json`. Sidebar and dashboard footer read from this env var.
-- **Version check API**: Use `/releases?per_page=1` not `/releases/latest` — the latter returns 404 when no non-prerelease exists and skips pre-releases entirely.
-- **`scripts/self-update.sh`**: git pull → pnpm install → db:migrate → docker compose build + up. Checks `PLEXO_MANAGED=true` to skip Docker steps on managed instances.
-- **Redis keys**: `plexo:system:latest_version` (1h TTL, cleared after update).
+ 
+ - **Version source of truth**: `NEXT_PUBLIC_APP_VERSION` injected in `apps/web/next.config.ts` from root `package.json`. Sidebar and dashboard footer read from this env var.
+ - **Version check API**: Use `/releases?per_page=1` not `/releases/latest` — the latter returns 404 when no non-prerelease exists and skips pre-releases entirely.
+ - **`scripts/self-update.sh`**: git pull → pnpm install → db:migrate → docker compose build + up. Checks `PLEXO_MANAGED=true` to skip Docker steps on managed instances.
+ - **Redis keys**: `plexo:system:latest_version` (1h TTL, cleared after update).
+ 
+ - **2026-03 — Infinite Update Loop**: 
+   - **Root cause**: The VPS server clock and the client clock (where commits were authored) were slightly skewed. When `system.ts` triggered a `docker compose build`, the `.build-time` generated on the VPS was physically *earlier* than the literal commit date as registered by git on the laptop. Since the system compared `commitDate > buildDate`, the server perpetually believed it was behind the commit it had just pulled and built.
+   - **Fix**: Ripped out the clock comparison logic. We now explicitly bake the exact SHA hash of the commit directly into the docker container as a `.source-commit` file using `docker compose build --build-arg SOURCE_COMMIT=$(git rev-parse HEAD)`. `system.ts` now reads `local.sourceCommit` and compares it directly against the GitHub `latestCommit.sha` string, bypassing clocks entirely.
 
 ### GitHub Integration & Sprint Execution
 
