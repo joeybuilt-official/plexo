@@ -218,14 +218,14 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
             </button>
 
             {open && (
-                <div className="absolute left-2 top-[calc(100%+4px)] z-50 w-[200px] rounded-xl border border-zinc-700/60 bg-zinc-900 shadow-2xl shadow-black/40 overflow-hidden">
+                <div className="absolute left-2 top-[calc(100%+4px)] z-50 w-[240px] rounded-xl border border-zinc-700/60 bg-zinc-900 shadow-2xl shadow-black/40 overflow-hidden">
                     {/* Workspace list */}
-                    <div className="max-h-60 overflow-y-auto p-1">
+                    <div className="max-h-80 overflow-y-auto p-1.5 space-y-0.5">
                         {isLoading && list.length === 0 && (
-                            <p className="px-3 py-2 text-[11px] text-zinc-600">Loading…</p>
+                            <p className="px-3 py-3 text-sm text-zinc-500">Loading…</p>
                         )}
                         {!isLoading && list.length === 0 && (
-                            <p className="px-3 py-2 text-[11px] text-zinc-600">No workspaces</p>
+                            <p className="px-3 py-3 text-sm text-zinc-500">No workspaces</p>
                         )}
                         {list.map((ws) => (
                             <button
@@ -234,13 +234,13 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
                                     if (ws.id !== workspaceId) setWorkspace(ws.id, ws.name)
                                     setOpen(false)
                                 }}
-                                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-left hover:bg-zinc-800 transition-colors"
+                                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-zinc-800 transition-colors"
                             >
-                                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-600/20 text-xs font-bold text-indigo-400 uppercase pb-[1px]">
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-600/20 text-sm font-bold text-indigo-400 uppercase pb-[1px]">
                                     {ws.name.slice(0, 1)}
                                 </div>
-                                <span className="flex-1 truncate text-[13px] text-zinc-200">{ws.name}</span>
-                                {ws.id === workspaceId && <Check className="h-3 w-3 text-indigo-400 shrink-0" />}
+                                <span className="flex-1 truncate text-sm font-medium text-zinc-200">{ws.name}</span>
+                                {ws.id === workspaceId && <Check className="h-4 w-4 text-indigo-400 shrink-0" />}
                             </button>
                         ))}
                     </div>
@@ -269,9 +269,9 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
                         ) : (
                             <button
                                 onClick={() => setCreating(true)}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
+                                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-sm font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
                             >
-                                <Plus className="h-3.5 w-3.5" />
+                                <Plus className="h-4 w-4" />
                                 New workspace
                             </button>
                         )}

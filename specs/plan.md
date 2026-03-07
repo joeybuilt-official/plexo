@@ -1,42 +1,35 @@
-# Spec: Multi-Model Logic Verification & Graceful Fallback (Automated)
+# Spec: Intelligent LLM Router
 
 ## Why
-Currently, Plexo relies on static, manually configured default models and only falls back when encountering API-level errors (rate limits, 503s). It lacks resilience to LLM hallucination or bad formatting, leading to complete task failures. To achieve "multiple nines" of logical correctness and automatically adapt to the fast-moving AI landscape, Plexo needs an Automated Knowledge Refresh (AKR) pipeline for model capabilities, along with a Consultative Semantic Router and a deterministic Actor/Evaluator executor fallback.
+Plexo currently relies on a static, manual configuration block `DEFAULT_MODEL_ROUTING` and single-threaded fallback chains tied strictly to hard-coded configurations. This prevents intelligent cost vs. quality arbitration, lacks true "auto" fallback routing to cheaper inference providers for simple tasks, and intimately couples API keys (vault) with the execution mapping (arbiter). To support autonomous scaling and 4-Mode model selection (Full Auto, BYOK, Managed Proxy, Override), we must build the Intelligent LLM Router.
 
 ## How
 
-### Phase 1: Dynamic Knowledge Base (`models_knowledge`)
-- Define a new DB table `models_knowledge` inside `packages/db/src/schema.ts` holding:
-  - `id`, `provider`, `modelId`
-  - `contextWindow` (int)
-  - `costPerMIn` / `costPerMOut` (numeric)
-  - `strengths` (jsonb array: e.g. "coding", "reasoning", "speed")
-  - `reliabilityScore` (numeric 0-1) - Starts at 1.0, decays linearly on failure telemetry.
-  - `lastSyncedAt` (timestamp)
-- Create an internal cron job inside `apps/api/src/cron.ts` that triggers `syncModelKnowledge()` daily.
-- The sync fetches data from `api.openrouter.ai/api/v1/models` (or uses a bundled static fallback) to populate the initial list and token costs.
+### Phase 1: Portkey Registry Sync
+- Modify the `syncModelKnowledge()` cron task (`packages/agent/src/providers/knowledge.ts`) to pull the open-source `Portkey-AI/models` registry.
+- Introduce `Layer 1: Provider Allowlist` filtering, validating only approved providers (Anthropic, OpenAI, Gemini, Groq, Together, DeepSeek) are retained.
+- Update `packages/db/src/schema.ts` to reflect a more robust `models_knowledge` table to handle context windows, costs, and dynamic strength flags properly derived from the external registry.
 
-### Phase 2: Pre-Flight Consultative Routing
-- Update `apps/api/src/routes/chat.ts` intent classifier.
-- When intent is classified as `TASK` or `PROJECT`, fetch the user's configured providers.
-- Compare the required strengths (e.g. coding tasks require high reasoning models) against their available models in the `models_knowledge` table.
-- If the best model != workspace default model, prompt the user with a recommendation. 
-  "I recommend switching from your default `claude-haiku-4-5` to `claude-sonnet-4-5` for this complex logic task..."
-- Add a field `recommendedModel` in the pushed task payload.
+### Phase 2: Credential & Parameter Uncoupling (The Vault)
+- Refactor `WorkspaceAISettings` schema to untangle credentials from routing configuration.
+- Write a backward-compatible adapter inside `apps/api/src/routes/ai-provider-creds.ts` that safely decrypts existing legacy credentials into a pure "Vault" structure without exposing keys to the agent execution loop's logic trees.
 
-### Phase 3: The Actor/Evaluator Fallback Loop
-- Update `packages/agent/src/providers/registry.ts`'s `withFallback` function to gracefully handle `TypeValidationError` (AI SDK parsing errors) and local `LogicError`s. Let it degrade sequentially through the fallback chain instead of immediately throwing.
-- In `packages/agent/src/executor/index.ts`, when a task tool `shell` returns an error or constraints fail:
-  - Record the tool output. 
-  - Instead of failing the task directly, reflect on it and prompt a fix. If the retry cap hits, throw a `LogicError` to trigger the `withFallback` chain and downgrade the model's telemetry reliability.
+### Phase 3: The 4-Mode Arbitration Engine
+- Construct a new `Router` singleton that receives task requests and enforces the correct mode:
+   - **Mode 1 (Full Auto)**: Select most cost-effective capabilities from a Plexo managed inference pool.
+   - **Mode 2 (BYOK)**: Select optimally across user-provisioned vault keys.
+   - **Mode 3 (Proxy)**: Use Plexo proxy keys but run inference locally.
+   - **Mode 4 (Override)**: Hardened constraints placed at the task/project level overrides all cost optimizations.
+
+### Phase 4: Executor Integration
+- Update `buildModel()` within `packages/agent/src/providers/registry.ts` to defer mapping and capability selection to the new `Router` rather than parsing config maps directly.
+- Add telemetry tags to clearly surface the selected model and reasoning trace (cost vs bounds) in `sprintLogs` for observability.
 
 ## Risks
-- **Cost/Latency**: Multiplying models increases token usage and execution time. We will cap retries to 2 to mitigate infinite loops.
-- **Complexity**: Pre-flight analysis takes time. We will use a fast model (e.g., Haiku) for the `chat.ts` intent routing step.
+- **Data Migration Drift:** Transitioning `workspaces.settings.aiProviders` represents a very high risk one-way door. If the migration misaligns properties, existing automated teams go dark.
+- **Latency Overheads:** Resolving database checks against `models_knowledge` during active `executeTask` runs could stack latency unacceptably. 
 
 ## Verification
-- **Unit**: Mock `generateText` in `chat.ts` to simulate a highly complex coding task. Assert that the returned intent includes a recommendation to use a capable model (e.g., Sonnet 3.5) over a basic one (e.g., Haiku), if the user has both configured.
-- **Integration**: Force an executor tool failure (e.g. exit code 1) and assert the agent falls back to the next model.
-
-## Approvals
-- Evaluated by Principal Engineering Panel: Tradeoffs declared. Scope approved.
+- **Unit (Routers):** Enforce strict input/output matching for all 4 routing modes under TDD principles.
+- **Integration (Migration):** Test existing encrypted keys successfully map onto the new split schema without failing the decryption routine.
+- **End-to-End:** Validate Playwright specs executing arbitrary tasks (research, development) properly fall backing based on simulated 429 response codes across completely different cloud providers without task disruption.

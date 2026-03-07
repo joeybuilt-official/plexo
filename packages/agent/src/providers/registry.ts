@@ -58,6 +58,8 @@ export interface WorkspaceAISettings {
     fallbackChain: ProviderKey[]   // ordered; tried if primary fails
     providers: Partial<Record<ProviderKey, AIProviderConfig>>
     modelOverrides?: Partial<Record<TaskType, string>>
+    /** Configuration for IntelligentRouter */
+    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
     /** Max judges recruited from Ollama ensemble (1–5). Default 3. */
     ensembleSize?: number
     /** Score deviation from mean that triggers cloud arbitration (0–1). Default 0.25. */
@@ -67,7 +69,7 @@ export interface WorkspaceAISettings {
 // Use a broad type that works with generateText — all providers return LanguageModelV2 or V3
 // which are both accepted by generateText / generateObject in ai@6
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyLanguageModel = any
+export type AnyLanguageModel = any
 
 /**
  * Build a LanguageModel instance for a given provider + task type.
@@ -202,16 +204,54 @@ export function buildModel(
     }
 }
 
+import { IntelligentRouter, VaultConfig, RouterConfig } from './router.js'
+
 /**
- * Resolve the primary model for a task type from workspace settings.
+ * Resolve the optimal model for a task type from workspace settings using 4-mode arbitration.
  */
-export function resolveModel(
+export async function resolveModel(
     taskType: TaskType,
     settings: WorkspaceAISettings,
-): AnyLanguageModel {
-    const config = settings.providers[settings.primaryProvider]
-    if (!config) throw new Error(`Primary provider ${settings.primaryProvider} not configured`)
-    return buildModel(settings.primaryProvider, config, taskType, settings)
+): Promise<AnyLanguageModel> {
+    
+    // Deconstruct WorkspaceAISettings into Vault and Config structures
+    const vault: VaultConfig = {}
+    const routerProviders: RouterConfig['providers'] = {}
+
+    for (const [key, p] of Object.entries(settings.providers)) {
+        if (!p) continue
+        vault[key] = {
+            apiKey: p.apiKey,
+            baseUrl: p.baseUrl
+        }
+        routerProviders[key] = {
+            selectedModel: p.model,
+            enabled: p.apiKey !== undefined || p.baseUrl !== undefined, // naive enabled check
+        }
+    }
+
+    const routerConfig: RouterConfig = {
+        inferenceMode: settings.inferenceMode ?? 'byok',
+        primaryProvider: settings.primaryProvider,
+        fallbackChain: settings.fallbackChain,
+        providers: routerProviders,
+        modelOverrides: settings.modelOverrides
+    }
+
+    const router = new IntelligentRouter(vault, routerConfig)
+    const { model, meta } = await router.route(taskType)
+    
+    // Telemetry trace: clearly surface the selected model and reasoning
+    console.info(JSON.stringify({
+        event: 'router.arbitration.resolved',
+        taskType,
+        mode: meta.mode,
+        provider: meta.provider,
+        modelId: meta.id,
+        costBounds: { in: meta.costPerMIn, out: meta.costPerMOut }
+    }))
+    
+    return model
 }
 
 /**

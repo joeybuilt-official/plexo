@@ -128,6 +128,14 @@ pnpm --filter @plexo/web dev
 | 2026-03-03 | Pino over Winston | 10x faster, structured JSON native, built-in redaction |
 | 2026-03-03 | Turborepo over Nx | Simpler config, faster cold starts, Vercel-maintained |
 
+### Intelligent LLM Router (Pre-Build Audit)
+
+- **Finding**: `DEFAULT_MODEL_ROUTING` in `registry.ts` is entirely static and explicitly marked as "Not runtime configurable."
+- **Finding**: Model strengths (capabilities) are currently inferred via hardcoded string heuristics on model IDs (e.g. `llama -> open-source`) within `packages/agent/src/providers/knowledge.ts`.
+- **Finding**: Model knowledge currently syncs from a free `openrouter/api` endpoint, not the proposed `Portkey-AI/models` JSON registry.
+- **Convention/Decision**: The Intelligent LLM Router will transition to a 4-mode routing abstraction (Auto, BYOK, Mode Proxy, Override) based on dynamic cost vs. quality arbitration.
+- **Decision (Gap)**: Credentials and routing are currently tightly coupled in `workspaces.settings.aiProviders`. A backwards-compatible migration path is required to decouple the 'vault' (keys) from the 'arbiter' (routing preferences).
+
 ### 2025-06 — Vercel AI SDK v6 Migration
 
 - **ai@6 breaking changes**: `maxSteps` removed → use `stopWhen: stepCountIs(N)`. `usage.promptTokens/completionTokens` → `usage.inputTokens/outputTokens`. Tool definitions use `inputSchema:` not `parameters:`. `execute` receives `(input, options)`.
@@ -203,3 +211,10 @@ pnpm --filter @plexo/web dev
 - **Token resolution**: `resolveGitHubToken(workspaceId)` checks `installed_connections` table first, falls back to `GITHUB_TOKEN` env var.
 - **`GitHubClient.getFileContent(path, ref)`**: Fetches and base64-decodes a file from any ref. Returns null on 404 or error.
 - **`git` in Docker**: API container (`Dockerfile.api`) installs git via `apk add --no-cache git` on the Alpine base — required for sprint repo clones inside the container.
+
+### Intelligent LLM Router (Execution Complete)
+
+- **Finding**: Implemented `IntelligentRouter` inside `packages/agent/src/providers/router.ts`.
+- **Finding**: Modified `syncModelKnowledge()` inside `packages/agent/src/providers/knowledge.ts` to strictly loop `ALLOWED_PROVIDERS` and pull pricing configuration via `Portkey-AI/models` registry index mapping, enforcing Layer 1 architecture.
+- **Finding**: `resolveModel()` now unpacks `WorkspaceAISettings` recursively into disjoint `VaultConfig` and `RouterConfig`, ensuring the router operates solely on parameter references and never exposes credential strings to raw arbitration traces.
+- **Finding**: Implemented `console.info` structured telemetry in `resolveModel` that exports `router.arbitration.resolved` specifying task, mode, model, and cost per million.
