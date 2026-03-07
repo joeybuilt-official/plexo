@@ -54,19 +54,31 @@ aiProvidersRouter.post('/test', async (req, res) => {
     }
 })
 
-/** GET /api/settings/ai-providers/models?provider=ollama[_cloud]&baseUrl=...&apiKey=... */
+/** GET /api/settings/ai-providers/models?provider=ollama[_cloud]&baseUrl=...&apiKey=...&workspaceId=... */
 aiProvidersRouter.get('/models', async (req, res) => {
-    const { provider, baseUrl, apiKey } = req.query as { provider?: string; baseUrl?: string; apiKey?: string }
+    const { provider, baseUrl, apiKey, workspaceId } = req.query as {
+        provider?: string; baseUrl?: string; apiKey?: string; workspaceId?: string
+    }
     if (provider !== 'ollama' && provider !== 'ollama_cloud') {
         res.status(400).json({ ok: false, message: 'Only ollama / ollama_cloud support dynamic model listing' })
         return
     }
 
     if (provider === 'ollama_cloud') {
-        // Fetch cloud models from ollama.com/api/tags with bearer auth
+        // Resolve the API key — prefer explicit query param, then decrypt from workspace if available
+        let effectiveKey = apiKey
+        if (!effectiveKey && workspaceId) {
+            try {
+                const decrypted = await loadDecryptedAIProviders(workspaceId)
+                const entry = decrypted?.providers?.['ollama_cloud']
+                if (entry) effectiveKey = entry.apiKey
+            } catch (err) {
+                logger.warn({ err, workspaceId }, 'Failed to load ollama_cloud key for model listing')
+            }
+        }
         try {
             const r = await fetch('https://ollama.com/api/tags', {
-                headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+                headers: effectiveKey ? { Authorization: `Bearer ${effectiveKey}` } : {},
                 signal: AbortSignal.timeout(8000),
             })
             if (!r.ok) {

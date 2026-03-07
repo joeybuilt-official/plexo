@@ -429,7 +429,7 @@ export default function AIProvidersPage() {
                     if (ollamaCloudEntry?.status === 'configured') {
                         void (async () => {
                             try {
-                                const mr = await fetch(`${API_BASE}/api/v1/settings/ai-providers/models?provider=ollama_cloud`)
+                                const mr = await fetch(`${API_BASE}/api/v1/settings/ai-providers/models?provider=ollama_cloud&workspaceId=${encodeURIComponent(WS_ID)}`)
                                 if (mr.ok) {
                                     const md = await mr.json() as { ok: boolean; models?: string[] }
                                     if (md.ok && md.models?.length) {
@@ -535,11 +535,10 @@ export default function AIProvidersPage() {
         try {
             let url: string
             if (selectedProvider === 'ollama_cloud') {
-                // For cloud, the API key is already in state — pass as query param so
-                // the backend can forward it as a Bearer token
+                // For cloud, prefer explicitly entered key; fall back to server-decrypted stored key via workspaceId
                 const key = providerStates.ollama_cloud.apiKey
                 url = `${API_BASE}/api/v1/settings/ai-providers/models?provider=ollama_cloud${
-                    key ? `&apiKey=${encodeURIComponent(key)}` : ''
+                    key ? `&apiKey=${encodeURIComponent(key)}` : `&workspaceId=${encodeURIComponent(WS_ID)}`
                 }`
             } else {
                 const baseUrl = providerStates[selectedProvider].baseUrl || 'http://localhost:11434'
