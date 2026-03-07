@@ -115,9 +115,11 @@ services:
     # ── One-click update (opt-in) ──────────────────────────────────────────
     # To enable the in-app update button, set DOCKER_SOCKET_ENABLED=true in
     # your .env and uncomment the block below. Mounting the Docker socket
-    # grants the API container root-equivalent access to the host — only do
-    # this if you understand the security tradeoff.
+    # requires root inside the container to access it, and grants the API 
+    # root-equivalent access to the host — only do this if you understand
+    # the security tradeoff.
     #
+    # user: root
     # volumes:
     #   - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
