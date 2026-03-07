@@ -410,7 +410,13 @@ export function Sidebar({ user }: { user?: SessionUser }) {
         </aside>
 
         {/* Mobile Bottom Tab Bar */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex h-[72px] items-center justify-around border-t border-zinc-800/60 bg-zinc-950/90 backdrop-blur-xl px-1 pb-safe-bottom">
+        <nav 
+            className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-zinc-800/60 bg-zinc-950/90 backdrop-blur-xl px-1"
+            style={{ 
+                height: 'calc(72px + env(safe-area-inset-bottom))',
+                paddingBottom: 'env(safe-area-inset-bottom)'
+            }}
+        >
             {[
                 { label: 'Overview', href: '/', icon: LayoutDashboard, exact: true },
                 { label: 'Chat', href: '/chat', icon: MessagesSquare, exact: false },

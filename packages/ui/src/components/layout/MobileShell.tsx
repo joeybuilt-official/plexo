@@ -22,14 +22,26 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     ]
 
     return (
-        <div className="flex flex-col h-[100dvh] overflow-hidden bg-zinc-950">
+        <div 
+            className="flex flex-col h-[100dvh] overflow-hidden bg-zinc-950"
+            style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        >
             {/* Main scrollable content area */}
-            <main className="flex-1 overflow-auto pb-16 bg-zinc-950">
+            <main 
+                className="flex-1 overflow-auto bg-zinc-950"
+                style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
+            >
                 {children}
             </main>
 
             {/* Bottom Navigation */}
-            <nav className="fixed bottom-0 left-0 right-0 h-16 bg-zinc-950 border-t border-zinc-800/80 flex items-center justify-around px-2 z-50">
+            <nav 
+                className="fixed bottom-0 left-0 right-0 bg-zinc-950 border-t border-zinc-800/80 flex items-center justify-around px-2 z-50"
+                style={{ 
+                    height: 'calc(4rem + env(safe-area-inset-bottom))',
+                    paddingBottom: 'env(safe-area-inset-bottom)'
+                }}
+            >
                 {navItems.map((item) => {
                     const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
                     return (
