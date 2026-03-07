@@ -362,34 +362,46 @@ systemRouter.post('/update', async (_req, res) => {
             }
 
             send('status', { step: 'restart', message: 'Restarting containers…' })
-            // Sort: web first (can restart while API is still streaming), API last
+            // Sort: web first (can restart while API is still streaming), API/Caddy last
             // so the SSE stream stays alive long enough to deliver the done event.
             const sorted = [...containers].sort((a) =>
                 a.Names.some(n => n.includes('web')) ? -1 : 1,
             )
             const apiContainer = sorted.find(c => c.Names.some(n => n.includes('api')))
-            const others = sorted.filter(c => !c.Names.some(n => n.includes('api')))
+            const caddyContainer = sorted.find(c => c.Names.some(n => n.includes('caddy')))
+            const others = sorted.filter(c => !c.Names.some(n => n.includes('api') || n.includes('caddy')))
 
             for (const container of others) {
-                send('status', { step: 'restart', message: `Restarting ${container.Names[0]}…` })
+                const name = container.Names[0]?.replace(/^\//, '') ?? 'container'
+                send('status', { step: 'restart', message: `Restarting ${name}…` })
                 await restartContainer(container.Id)
-                send('status', { step: 'restart', message: `Restarted ${container.Names[0]}` })
+                send('status', { step: 'restart', message: `Restarted ${name}` })
             }
 
             // Invalidate version cache before restarting API
             const redisPre = await getRedis()
             await redisPre.del(VERSION_CACHE_KEY)
 
+            if (caddyContainer) {
+                const name = caddyContainer.Names[0]?.replace(/^\//, '') ?? 'container'
+                send('status', { step: 'restart', message: `Restarting ${name}…` })
+            }
+            if (apiContainer) {
+                const name = apiContainer.Names[0]?.replace(/^\//, '') ?? 'container'
+                send('status', { step: 'restart', message: `Restarting ${name}…` })
+            }
+
             // Send done BEFORE restarting the API container — the connection
-            // will drop when the API restarts, but the client will have already
+            // will drop when the API/Caddy restarts, but the client will have already
             // received the success event.
             send('done', { success: true, message: 'Update complete. Reload the page in a few seconds.' })
             res.end()
 
-            if (apiContainer) {
+            if (apiContainer || caddyContainer) {
                 // Small delay so the SSE frame makes it through the TCP buffer before we die
                 await new Promise(r => setTimeout(r, 1500))
-                await restartContainer(apiContainer.Id).catch(() => { /* container restart will kill us anyway */ })
+                if (caddyContainer) await restartContainer(caddyContainer.Id).catch(() => {})
+                if (apiContainer) await restartContainer(apiContainer.Id).catch(() => { /* container restart will kill us anyway */ })
             }
             return // skip the duplicate send/res.end below
         } else if (isGit) {
