@@ -24,7 +24,9 @@ import { logger } from '../logger.js'
 const GITHUB_OWNER = 'joeybuilt-official'
 const GITHUB_REPO = 'plexo'
 const VERSION_CACHE_KEY = 'plexo:system:latest_version'
-const VERSION_CACHE_TTL = 60 * 60 // 1 hour
+const VERSION_CACHE_TTL = 60 * 60 // 1 hour for release info
+const COMMIT_CACHE_KEY = 'plexo:system:latest_commit'
+const COMMIT_CACHE_TTL = 5 * 60  // 5 min — detect pushes quickly during beta
 
 export const systemRouter: RouterType = Router()
 
@@ -40,20 +42,29 @@ async function getRedis() {
     return _redis
 }
 
-interface GithubRelease {
-    tag_name: string
-    html_url: string
-    body: string | null
-    published_at: string
+interface RemoteRelease {
+    type: 'release' | 'commit'
+    version: string
+    url: string
+    date: string
+    message: string | null
 }
 
-async function fetchLatestRemote(): Promise<{ type: 'release' | 'commit'; version: string; url: string; date: string; message: string | null } | null> {
+interface LatestCommit {
+    sha: string
+    shortSha: string
+    date: string
+    url: string
+    message: string
+}
+
+async function fetchLatestRelease(): Promise<RemoteRelease | null> {
     try {
         const redis = await getRedis()
         const cached = await redis.get(VERSION_CACHE_KEY)
-        if (cached) return JSON.parse(cached)
+        if (cached) return JSON.parse(cached) as RemoteRelease
 
-        // Try releases first — use list endpoint (includes pre-releases; /releases/latest skips them)
+        // Use list endpoint — includes pre-releases; /releases/latest skips them
         const releaseRes = await fetch(
             `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=1`,
             {
@@ -65,30 +76,47 @@ async function fetchLatestRemote(): Promise<{ type: 'release' | 'commit'; versio
             const releases = await releaseRes.json() as { tag_name: string; html_url: string; published_at: string; body: string }[]
             if (releases.length > 0) {
                 const data = releases[0]!
-                const result = { type: 'release' as const, version: data.tag_name, url: data.html_url, date: data.published_at, message: data.body }
+                const result: RemoteRelease = { type: 'release', version: data.tag_name, url: data.html_url, date: data.published_at, message: data.body }
                 await redis.set(VERSION_CACHE_KEY, JSON.stringify(result), { EX: VERSION_CACHE_TTL })
                 return result
             }
         }
 
-        // Fall back to main branch commit
-        const commitRes = await fetch(
+        // No releases yet — commit check runs in parallel in the route handler
+        return null
+    } catch (err) {
+        logger.warn({ err }, 'Failed to fetch latest release')
+        return null
+    }
+}
+
+async function fetchLatestMainCommit(): Promise<LatestCommit | null> {
+    try {
+        const redis = await getRedis()
+        const cached = await redis.get(COMMIT_CACHE_KEY)
+        if (cached) return JSON.parse(cached) as LatestCommit
+
+        const res = await fetch(
             `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/main`,
             {
                 headers: { 'User-Agent': 'plexo-self-host/1.0', Accept: 'application/vnd.github+json' },
                 signal: AbortSignal.timeout(4000),
             },
         )
-        if (commitRes.ok) {
-            const data = await commitRes.json() as { sha: string; html_url: string; commit: { author: { date: string }; message: string } }
-            const result = { type: 'commit' as const, version: data.sha, url: data.html_url, date: data.commit.author.date, message: data.commit.message }
-            await redis.set(VERSION_CACHE_KEY, JSON.stringify(result), { EX: VERSION_CACHE_TTL })
-            return result
-        }
+        if (!res.ok) return null
 
-        return null
+        const data = await res.json() as { sha: string; html_url: string; commit: { committer: { date: string }; message: string } }
+        const result: LatestCommit = {
+            sha: data.sha,
+            shortSha: data.sha.slice(0, 7),
+            date: data.commit.committer.date,
+            url: data.html_url,
+            message: data.commit.message.split('\n')[0] ?? '',
+        }
+        await redis.set(COMMIT_CACHE_KEY, JSON.stringify(result), { EX: COMMIT_CACHE_TTL })
+        return result
     } catch (err) {
-        logger.warn({ err }, 'Failed to fetch latest remote version')
+        logger.warn({ err }, 'Failed to fetch latest main commit')
         return null
     }
 }
@@ -98,26 +126,33 @@ import { promisify } from 'node:util'
 
 const execAsync = promisify(exec)
 
-async function getLocalVersion(): Promise<{ type: 'release' | 'commit'; version: string }> {
+async function getLocalVersion(): Promise<{ type: 'release' | 'commit'; version: string; buildTime: string | null }> {
+    const { readFile } = await import('node:fs/promises')
+
+    // Read build timestamp (baked at Docker build time)
+    let buildTime: string | null = null
+    try {
+        buildTime = (await readFile('/app/.build-time', 'utf8')).trim() || null
+    } catch { /* dev environment */ }
+
     // Primary: version baked into image at build time from package.json
     try {
-        const { readFile } = await import('node:fs/promises')
         const baked = (await readFile('/app/.version', 'utf8')).trim()
         if (baked && baked !== 'auto' && baked !== 'dev') {
-            return { type: 'release', version: baked }
+            return { type: 'release', version: baked, buildTime }
         }
     } catch { /* not in a Docker container — continue */ }
 
-    // Secondary: APP_VERSION env var (must not be 'dev' or 'auto' sentinel)
+    // Secondary: APP_VERSION env var
     if (process.env.APP_VERSION && process.env.APP_VERSION !== 'dev' && process.env.APP_VERSION !== 'auto') {
-        return { type: 'release', version: process.env.APP_VERSION }
+        return { type: 'release', version: process.env.APP_VERSION, buildTime }
     }
     // Tertiary: git commit hash (source checkout)
     try {
         const { stdout } = await execAsync('git rev-parse HEAD', { cwd: process.cwd() })
-        return { type: 'commit', version: stdout.trim() }
+        return { type: 'commit', version: stdout.trim(), buildTime }
     } catch {
-        return { type: 'release', version: process.env.npm_package_version ?? '0.0.0' }
+        return { type: 'release', version: process.env.npm_package_version ?? '0.0.0', buildTime }
     }
 }
 
@@ -211,35 +246,61 @@ async function restartContainer(id: string): Promise<void> {
  * Returns current vs latest version info.
  */
 systemRouter.get('/version', async (_req, res) => {
-    const local = await getLocalVersion()
-    const remote = await fetchLatestRemote()
+    const [local, release, latestCommit] = await Promise.all([
+        getLocalVersion(),
+        fetchLatestRelease(),
+        fetchLatestMainCommit(),
+    ])
 
-    if (!remote) {
+    if (!release && !latestCommit) {
         res.json({ current: local.version, latest: null, behind: false, error: 'github_unreachable' })
         return
     }
 
     let behind = false
-    let latest = remote.version
+    let latest = local.version
+    let releaseUrl: string | null = null
+    let publishedAt: string | null = null
+    let changelog: string | null = null
 
-    if (remote.type === 'release' && local.type === 'release') {
-        latest = remote.version.replace(/^v/, '')
-        const current = local.version.replace(/^v/, '')
-        behind = semverGt(latest, current)
-    } else if (remote.type === 'commit' && local.type === 'commit') {
-        behind = local.version !== remote.version
-        latest = remote.version.slice(0, 7)
-    } else if (remote.type === 'release' && local.type === 'commit') {
-        behind = true // assuming release is newer than source
+    if (release) {
+        if (release.type === 'release' && local.type === 'release') {
+            latest = release.version.replace(/^v/, '')
+            const current = local.version.replace(/^v/, '')
+            behind = semverGt(latest, current)
+        } else if (release.type === 'commit' && local.type === 'commit') {
+            behind = local.version !== release.version
+            latest = release.version.slice(0, 7)
+        } else if (release.type === 'release' && local.type === 'commit') {
+            behind = true
+            latest = release.version.replace(/^v/, '')
+        }
+        releaseUrl = release.url
+        publishedAt = release.date
+        changelog = release.message?.slice(0, 2000) ?? null
+    }
+
+    // Commit-aware: even if on the latest release, check whether main has
+    // newer commits than when this image was built (beta mode).
+    if (!behind && latestCommit && local.buildTime) {
+        const commitDate = new Date(latestCommit.date).getTime()
+        const buildDate = new Date(local.buildTime).getTime()
+        if (commitDate > buildDate) {
+            behind = true
+            latest = latestCommit.shortSha
+            releaseUrl = latestCommit.url
+            publishedAt = latestCommit.date
+            changelog = latestCommit.message
+        }
     }
 
     res.json({
         current: local.type === 'commit' ? local.version.slice(0, 7) : local.version,
         latest,
         behind,
-        releaseUrl: remote.url,
-        publishedAt: remote.date,
-        changelog: remote.message?.slice(0, 2000) ?? null,
+        releaseUrl,
+        publishedAt,
+        changelog,
         dockerEnabled: process.env.DOCKER_SOCKET_ENABLED === 'true',
         isGitSource: local.type === 'commit',
     })
@@ -336,6 +397,7 @@ systemRouter.post('/update', async (_req, res) => {
         // Invalidate version cache so next check reflects the new version
         const redis = await getRedis()
         await redis.del(VERSION_CACHE_KEY)
+        await redis.del(COMMIT_CACHE_KEY)
 
         send('done', { success: true, message: isDocker ? 'Update complete. Reload the page in a few seconds.' : 'Update pulled. Server may restart automatically.' })
     } catch (err) {

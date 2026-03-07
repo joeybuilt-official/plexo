@@ -1023,7 +1023,7 @@ export default function AIProvidersPage() {
                                                 href={PROVIDER_LINKS[selectedProvider]!.url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-indigo-400 transition-colors"
                                             >
                                                 {PROVIDER_LINKS[selectedProvider]!.label}
                                                 <ExternalLink className="h-3 w-3" />
@@ -1033,10 +1033,11 @@ export default function AIProvidersPage() {
 
                                     {/* Configured pill — shown when a key is stored and not editing */}
                                     {state.status !== 'unconfigured' && !editingKey[selectedProvider] ? (
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex-1 flex items-center gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 px-3 py-2">
-                                                <span className="text-zinc-600 tracking-[0.3em] text-sm select-none">••••••••••••••••••••</span>
-                                                <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                        <div className="flex flex-col gap-1.5">
+                                            {/* Key pill */}
+                                            <div className="flex items-center gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 px-3 py-2">
+                                                <span className="text-zinc-600 tracking-[0.3em] text-sm select-none flex-1">••••••••••••••••••••</span>
+                                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
                                                     state.status === 'configured'
                                                         ? 'bg-emerald-900/40 text-emerald-400'
                                                         : 'bg-amber-900/40 text-amber-400'
@@ -1044,9 +1045,10 @@ export default function AIProvidersPage() {
                                                     {state.status === 'configured' ? 'Verified' : 'Saved'}
                                                 </span>
                                             </div>
+                                            {/* Actions row */}
                                             {clearConfirm === selectedProvider ? (
-                                                <div className="flex items-center gap-1.5 shrink-0">
-                                                    <span className="text-[11px] text-zinc-500">Remove key?</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[11px] text-zinc-500">Remove stored key?</span>
                                                     <button
                                                         onClick={async () => {
                                                             setClearConfirm(null)
@@ -1066,50 +1068,48 @@ export default function AIProvidersPage() {
                                                     </button>
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center gap-2 shrink-0">
+                                                <div className="flex items-center gap-3">
                                                     <button
                                                         onClick={() => setEditingKey((prev) => ({ ...prev, [selectedProvider]: true }))}
-                                                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                                        className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
                                                     >
-                                                        Change
+                                                        Change key
                                                     </button>
+                                                    <span className="text-zinc-800 select-none">·</span>
                                                     <button
                                                         onClick={() => setClearConfirm(selectedProvider)}
-                                                        className="text-zinc-700 hover:text-red-400 transition-colors"
-                                                        title="Remove stored key"
+                                                        className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors"
                                                     >
-                                                        <X className="h-3.5 w-3.5" />
+                                                        Remove
                                                     </button>
                                                 </div>
                                             )}
                                         </div>
                                     ) : (
                                         /* Edit mode — show real input */
-                                        <div className="flex flex-col gap-1.5">
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="password"
-                                                    value={state.apiKey}
-                                                    onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
-                                                    onKeyDown={(e) => e.key === 'Enter' && void handleTest()}
-                                                    placeholder="sk-ant-api03-••••••••"
-                                                    autoFocus
-                                                    autoComplete="new-password"
-                                                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-                                                />
-                                                {editingKey[selectedProvider] && (
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingKey((prev) => ({ ...prev, [selectedProvider]: false }))
-                                                            updateState(selectedProvider, { apiKey: '' })
-                                                        }}
-                                                        className="text-zinc-600 hover:text-zinc-400 transition-colors"
-                                                        title="Cancel"
-                                                    >
-                                                        <X className="h-4 w-4" />
-                                                    </button>
-                                                )}
-                                            </div>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="password"
+                                                value={state.apiKey}
+                                                onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
+                                                onKeyDown={(e) => e.key === 'Enter' && void handleTest()}
+                                                placeholder="sk-ant-api03-••••••••"
+                                                autoFocus
+                                                autoComplete="new-password"
+                                                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                            />
+                                            {editingKey[selectedProvider] && (
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingKey((prev) => ({ ...prev, [selectedProvider]: false }))
+                                                        updateState(selectedProvider, { apiKey: '' })
+                                                    }}
+                                                    className="text-zinc-600 hover:text-zinc-400 transition-colors"
+                                                    title="Cancel"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     )}
 
@@ -1271,14 +1271,12 @@ export default function AIProvidersPage() {
                             const sharedCount = lending.filter((s) => s.providerKey === selectedProvider).length
                             const sharingOn = sharedCount > 0
                             return (
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-xs font-medium text-zinc-500">Share with workspaces</p>
-                                            {sharedCount > 0 && (
-                                                <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-indigo-900/40 text-indigo-400 font-medium">{sharedCount}</span>
-                                            )}
-                                        </div>
+                                <div className="flex flex-col gap-2 pt-1 border-t border-zinc-800/60">
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-xs font-medium text-zinc-500">Share with workspaces</p>
+                                        {sharedCount > 0 && (
+                                            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-indigo-900/40 text-indigo-400 font-medium">{sharedCount}</span>
+                                        )}
                                         <button
                                             role="switch"
                                             aria-checked={sharingOn}
@@ -1289,7 +1287,7 @@ export default function AIProvidersPage() {
                                                         .forEach((s) => void handleRevokeShare(s.id))
                                                 }
                                             }}
-                                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                                            className={`ml-auto relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
                                                 sharingOn ? 'bg-indigo-600' : 'bg-zinc-700'
                                             }`}
                                         >
@@ -1305,7 +1303,7 @@ export default function AIProvidersPage() {
                                             <a href="/settings" className="text-indigo-500 hover:text-indigo-400">Create one in Settings.</a>
                                         </p>
                                     ) : (
-                                        <div className="flex flex-col gap-1">
+                                        <div className="flex flex-col gap-1 max-w-xs">
                                             {ownWorkspaces.map((ws) => {
                                                 const isShared = lending.some((s) => s.providerKey === selectedProvider && s.targetWorkspace?.id === ws.id)
                                                 const busy = sharingWs.has(ws.id)
@@ -1323,11 +1321,11 @@ export default function AIProvidersPage() {
                                                             checked={isShared}
                                                             disabled={busy}
                                                             onChange={() => void handleToggleShare(ws.id, selectedProvider)}
-                                                            className="accent-indigo-500 h-3.5 w-3.5"
+                                                            className="accent-indigo-500 h-3.5 w-3.5 shrink-0"
                                                         />
-                                                        <span className="text-xs text-zinc-300 flex-1">{ws.name}</span>
-                                                        {busy && <RefreshCw className="h-3 w-3 text-zinc-600 animate-spin" />}
-                                                        {isShared && !busy && <span className="text-[10px] text-indigo-400">Shared</span>}
+                                                        <span className="text-xs text-zinc-300 flex-1 truncate">{ws.name}</span>
+                                                        {busy && <RefreshCw className="h-3 w-3 text-zinc-600 animate-spin shrink-0" />}
+                                                        {isShared && !busy && <span className="text-[10px] text-indigo-400 shrink-0">Shared</span>}
                                                     </label>
                                                 )
                                             })}
