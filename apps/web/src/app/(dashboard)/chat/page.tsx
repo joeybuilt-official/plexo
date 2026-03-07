@@ -137,7 +137,7 @@ function useSpeechInput({ workspaceId, onResult, onSetupNeeded }: UseSpeechInput
     // Check if Deepgram is configured for this workspace
     useEffect(() => {
         if (!workspaceId) return
-        fetch(`/api/voice/settings?workspaceId=${workspaceId}`, { signal: AbortSignal.timeout(5000) })
+        fetch(`/api/v1/voice/settings?workspaceId=${workspaceId}`, { signal: AbortSignal.timeout(5000) })
             .then(r => r.ok ? r.json() as Promise<{ configured: boolean }> : null)
             .then(d => setDeepgramConfigured(d?.configured ?? false))
             .catch(() => setDeepgramConfigured(false))
@@ -210,7 +210,7 @@ function useSpeechInput({ workspaceId, onResult, onSetupNeeded }: UseSpeechInput
                 setLevel(0)
 
                 try {
-                    const r = await fetch(`/api/voice/transcribe?workspaceId=${workspaceId}`, {
+                    const r = await fetch(`/api/v1/voice/transcribe?workspaceId=${workspaceId}`, {
                         method: 'POST',
                         headers: { 'Content-Type': recorder.mimeType || 'audio/webm' },
                         body: blob,

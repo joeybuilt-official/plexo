@@ -305,7 +305,7 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
 
         // Check if Deepgram is configured for this workspace
         const apiBase = `http://localhost:${process.env.PORT ?? 3001}`
-        const settingsRes = await fetch(`${apiBase}/api/voice/settings?workspaceId=${workspaceId}`, {
+        const settingsRes = await fetch(`${apiBase}/api/v1/voice/settings?workspaceId=${workspaceId}`, {
             signal: AbortSignal.timeout(5000),
         }).catch(() => null)
 
@@ -339,7 +339,7 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
             const mimeType = (msg.voice?.mime_type ?? msg.audio?.mime_type ?? 'audio/ogg') as string
 
             // Send to our transcription endpoint
-            const transcribeRes = await fetch(`${apiBase}/api/voice/transcribe?workspaceId=${workspaceId}`, {
+            const transcribeRes = await fetch(`${apiBase}/api/v1/voice/transcribe?workspaceId=${workspaceId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': mimeType },
                 body: audioBuffer,
