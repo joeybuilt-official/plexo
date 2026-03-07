@@ -67,7 +67,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.api
       args:
-        APP_VERSION: ${APP_VERSION:-dev}
+        APP_VERSION: ${APP_VERSION:-auto}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -102,7 +102,7 @@ services:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
       MAX_SPRINT_WORKERS: ${MAX_SPRINT_WORKERS:-5}
       API_COST_CEILING_USD: ${API_COST_CEILING_USD:-10.00}
-      APP_VERSION: ${APP_VERSION:-dev}
+      APP_VERSION: ${APP_VERSION:-auto}
       # Asset storage (MinIO or S3-compatible)
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-http://minio:9000}
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
