@@ -32,6 +32,7 @@ export type SprintLogEvent =
     | 'budget_ceiling_hit'
     | 'sprint_complete'
     | 'sprint_failed'
+    | 'sprint_cancelled'
     | 'branch_created'
     | 'branch_failed'
 

@@ -564,6 +564,13 @@ async function waitForWave(sprintTaskIds: string[], sprintId: string): Promise<v
     const deadline = Date.now() + TASK_TIMEOUT_MS
 
     while (Date.now() < deadline) {
+        // Check if the sprint itself was cancelled
+        const [sprintRow] = await db.select({ status: sprints.status })
+            .from(sprints).where(eq(sprints.id, sprintId)).limit(1)
+        if (sprintRow?.status === 'cancelled') {
+            throw new Error('Sprint cancelled by user')
+        }
+
         const rows = await db.select({ id: sprintTasks.id, status: sprintTasks.status })
             .from(sprintTasks)
             .where(inArray(sprintTasks.id, sprintTaskIds))

@@ -1,18 +1,22 @@
 /**
  * Sprint engine API — start, status, task tree.
  *
- * POST /api/sprints/:id/run        Start sprint execution
- * GET  /api/sprints/:id/tasks      Sprint task tree with status
- * GET  /api/sprints/:id/conflicts  Conflict report for a sprint
+ * POST   /api/sprints/:id/run        Start sprint execution
+ * DELETE /api/sprints/:id            Cancel a running (or any) sprint
+ * GET    /api/sprints/:id/tasks      Sprint task tree with status
+ * GET    /api/sprints/:id/conflicts  Conflict report for a sprint
+ * GET    /api/sprints/:id/logs       Activity log
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, asc } from '@plexo/db'
-import { sprints, sprintTasks, sprintLogs } from '@plexo/db'
+import { db, eq, asc, inArray } from '@plexo/db'
+import { sprints, sprintTasks, sprintLogs, tasks } from '@plexo/db'
 import { runSprint } from '@plexo/agent/sprint/runner'
 import { detectDynamicConflicts } from '@plexo/agent/sprint/conflicts'
 import { resolveModel } from '@plexo/agent/providers/registry'
-import { loadWorkspaceAISettings } from '../agent-loop.js'
+import { loadWorkspaceAISettings, cancelActiveTask } from '../agent-loop.js'
+import { logSprintEvent } from '@plexo/agent/sprint/logger'
 import { logger } from '../logger.js'
+import { emitToWorkspace } from '../sse-emitter.js'
 
 export const sprintRunnerRouter: RouterType = Router()
 
@@ -66,6 +70,93 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
     })
 
     res.status(202).json({ sprintId, status: 'started', message: 'Sprint execution started — follow progress via SSE' })
+})
+
+// ── DELETE /api/sprints/:id ───────────────────────────────────────────────────
+// Cancels a sprint (any status) and cascades to all its tasks.
+// - Sets sprints.status = 'cancelled' → waitForWave in runner.ts detects this
+//   and throws, causing the async runner to stop cleanly at the next wave poll.
+// - Cancels all tasks (tasks table) belonging to the sprint.
+// - Aborts the active AbortController if the currently-running task belongs to
+//   this sprint (via cancelActiveTask exported from agent-loop.ts).
+// - Marks all sprint_tasks rows that are still queued/running as 'failed'.
+
+sprintRunnerRouter.delete('/:id', async (req, res) => {
+    const { id: sprintId } = req.params
+
+    try {
+        const [sprint] = await db
+            .select({ id: sprints.id, status: sprints.status, workspaceId: sprints.workspaceId })
+            .from(sprints)
+            .where(eq(sprints.id, sprintId))
+            .limit(1)
+
+        if (!sprint) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
+            return
+        }
+
+        // 1. Tombstone the sprint — waitForWave in runner.ts polls sprints.status
+        //    and will throw 'Sprint cancelled by user' on its next iteration.
+        await db.update(sprints)
+            .set({ status: 'cancelled', completedAt: new Date() })
+            .where(eq(sprints.id, sprintId))
+
+        // 2. Fetch all tasks that belong to this sprint, cancel them
+        const allTaskIds = await db
+            .select({ id: tasks.id })
+            .from(tasks)
+            .where(eq(tasks.projectId, sprintId))
+            .then((rows) => rows.map((r) => r.id))
+
+        let abortedCount = 0
+        if (allTaskIds.length > 0) {
+            await db.update(tasks)
+                .set({ status: 'cancelled' })
+                .where(inArray(tasks.id, allTaskIds))
+
+            // Immediately signal the executor if one of these tasks is actively running
+            for (const taskId of allTaskIds) {
+                if (cancelActiveTask(taskId)) {
+                    abortedCount++
+                    break // single-worker loop: at most one executes at a time
+                }
+            }
+        }
+
+        // 3. Mark in-flight sprint_tasks rows as failed
+        const stRows = await db
+            .select({ id: sprintTasks.id, status: sprintTasks.status })
+            .from(sprintTasks)
+            .where(eq(sprintTasks.sprintId, sprintId))
+
+        const stInFlight = stRows
+            .filter((t) => t.status === 'queued' || t.status === 'running')
+            .map((t) => t.id)
+
+        if (stInFlight.length > 0) {
+            await db.update(sprintTasks)
+                .set({ status: 'failed' })
+                .where(inArray(sprintTasks.id, stInFlight))
+        }
+
+        // 4. Log + emit
+        await logSprintEvent({
+            sprintId,
+            level: 'warn',
+            event: 'sprint_cancelled',
+            message: `Sprint cancelled — ${allTaskIds.length} task(s) terminated, ${abortedCount} executor(s) interrupted`,
+            metadata: { cancelledTaskCount: allTaskIds.length, abortedCount },
+        })
+
+        logger.info({ sprintId, cancelledTasks: allTaskIds.length, abortedCount }, 'Sprint cancelled')
+        emitToWorkspace(sprint.workspaceId ?? '', { type: 'sprint_cancelled', sprintId })
+
+        res.json({ ok: true, cancelledTasks: allTaskIds.length, abortedCount })
+    } catch (err) {
+        logger.error({ err, sprintId }, 'DELETE /api/sprints/:id failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel sprint' } })
+    }
 })
 
 // ── GET /api/sprints/:id/tasks ────────────────────────────────────────────────
@@ -151,20 +242,19 @@ sprintRunnerRouter.get('/:id/conflicts', async (req, res) => {
 })
 
 // ── GET /api/sprints/:id/logs ─────────────────────────────────────────────────
-// Returns the activity log for a sprint, newest-first or oldest-first.
+// Returns the activity log for a sprint, oldest-first.
 // Used by the Control Room "Activity Log" tab.
 
 sprintRunnerRouter.get('/:id/logs', async (req, res) => {
     const { id: sprintId } = req.params
-    const { limit = '200', after } = req.query as Record<string, string>
+    const { limit = '200' } = req.query as Record<string, string>
 
     try {
-        const query = db.select().from(sprintLogs)
+        const rows = await db.select().from(sprintLogs)
             .where(eq(sprintLogs.sprintId, sprintId))
             .orderBy(asc(sprintLogs.createdAt))
             .limit(Math.min(parseInt(limit, 10) || 200, 500))
 
-        const rows = await query
         res.json({ logs: rows, total: rows.length })
     } catch (err) {
         logger.error({ err, sprintId }, 'GET /api/sprints/:id/logs failed')

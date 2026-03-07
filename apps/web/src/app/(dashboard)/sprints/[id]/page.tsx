@@ -21,6 +21,7 @@ import {
     BarChart2,
     Megaphone,
     Sparkles,
+    StopCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { getCategoryDef } from '@web/lib/project-categories'
@@ -162,6 +163,7 @@ export default function SprintControlRoom() {
     const [notFound, setNotFound] = useState(false)
     const [elapsedMs, setElapsedMs] = useState(0)
     const [tab, setTab] = useState<'workers' | 'tasks' | 'features'>('workers')
+    const [stopping, setStopping] = useState(false)
     const esRef = useRef<EventSource | null>(null)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -176,6 +178,19 @@ export default function SprintControlRoom() {
             setLoading(false)
         }
     }, [sprintId])
+
+    async function handleStop() {
+        if (!confirm('Stop this project? All running and queued tasks will be cancelled.')) return
+        setStopping(true)
+        try {
+            const res = await fetch(`${API}/api/v1/sprints/${sprintId}`, { method: 'DELETE' })
+            if (res.ok) {
+                await fetchData()
+            }
+        } finally {
+            setStopping(false)
+        }
+    }
 
     // Initial load + poll every 5s when running
     useEffect(() => {
@@ -277,13 +292,26 @@ export default function SprintControlRoom() {
                         <p className="pl-6 text-sm font-mono text-zinc-500">{sprint.repo}</p>
                     )}
                 </div>
-                <button
-                    onClick={() => void fetchData()}
-                    className="rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors"
-                    aria-label="Refresh"
-                >
-                    <RefreshCw className={`h-3.5 w-3.5 ${isActive ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                    {isActive && (
+                        <button
+                            id="stop-sprint-btn"
+                            onClick={() => void handleStop()}
+                            disabled={stopping}
+                            className="flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/40 hover:border-red-700 hover:text-red-300 transition-all disabled:opacity-40"
+                        >
+                            <StopCircle className="h-3.5 w-3.5" />
+                            {stopping ? 'Stopping…' : 'Stop project'}
+                        </button>
+                    )}
+                    <button
+                        onClick={() => void fetchData()}
+                        className="rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                        aria-label="Refresh"
+                    >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isActive ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
             </div>
 
             {/* Request card */}

@@ -15,6 +15,19 @@ const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
 
 let running = true
 let activeAbort: AbortController | null = null
+let activeTaskId: string | null = null
+
+/**
+ * Abort the currently-running task if it matches the given id.
+ * Called by DELETE /api/v1/tasks/:id so the executor stops at the
+ * next signal-check boundary instead of finishing the current step.
+ */
+export function cancelActiveTask(taskId: string): boolean {
+    if (activeTaskId !== taskId || !activeAbort) return false
+    activeAbort.abort()
+    logger.info({ taskId }, 'Active task abort signalled via cancelActiveTask')
+    return true
+}
 
 /**
  * Load workspace AI settings and resolve the first usable credential.
@@ -287,6 +300,7 @@ async function processOneTask(): Promise<boolean> {
 
     const abort = new AbortController()
     activeAbort = abort
+    activeTaskId = task.id
 
     const ctx: ExecutionContext = {
         taskId: task.id,
@@ -377,6 +391,7 @@ async function processOneTask(): Promise<boolean> {
         emit({ type: 'task_failed', taskId: task.id, error: message })
     } finally {
         activeAbort = null
+        activeTaskId = null
     }
 
     return true

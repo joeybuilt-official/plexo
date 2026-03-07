@@ -4,6 +4,7 @@ import { tasks, taskSteps } from '@plexo/db'
 import { push, list } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { emitToWorkspace } from '../sse-emitter.js'
+import { cancelActiveTask } from '../agent-loop.js'
 
 export const tasksRouter: RouterType = Router()
 
@@ -145,8 +146,23 @@ tasksRouter.delete('/:id', async (req, res) => {
         return
     }
     try {
+        // Fetch workspace id before we tombstone the row (for SSE emit)
+        const [existing] = await db.select({ workspaceId: tasks.workspaceId, status: tasks.status })
+            .from(tasks).where(eq(tasks.id, id)).limit(1)
+
+        if (!existing) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
+            return
+        }
+
         await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, id))
-        res.json({ ok: true })
+
+        // Signal the executor immediately if this task is currently running
+        const aborted = cancelActiveTask(id)
+        logger.info({ taskId: id, aborted }, 'Task cancelled')
+
+        emitToWorkspace(existing.workspaceId, { type: 'task_cancelled', taskId: id })
+        res.json({ ok: true, aborted })
     } catch (err) {
         logger.error({ err }, 'DELETE /api/tasks/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel task' } })
