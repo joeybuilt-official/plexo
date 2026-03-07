@@ -10,6 +10,7 @@ import { Router, type Router as RouterType } from 'express'
 import { db, eq, and } from '@plexo/db'
 import { channels } from '@plexo/db'
 import { logger } from '../logger.js'
+import { registerTelegramChannel } from './telegram.js'
 
 export const channelsRouter: RouterType = Router()
 
@@ -59,6 +60,18 @@ channelsRouter.post('/', async (req, res) => {
             enabled: true,
         }).returning()
         logger.info({ workspaceId, type, name }, 'Channel created')
+
+        // Auto-register webhook for Telegram bots so the bot is live immediately
+        if (type === 'telegram') {
+            const cfg = config as { token?: string; bot_token?: string }
+            const token = cfg.token ?? cfg.bot_token ?? null
+            if (token) {
+                registerTelegramChannel(token, workspaceId).catch(
+                    (err: Error) => logger.warn({ err }, 'Telegram webhook auto-register failed')
+                )
+            }
+        }
+
         res.status(201).json(created)
     } catch (err) {
         logger.error({ err }, 'POST /api/channels failed')
