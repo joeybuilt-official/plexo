@@ -17,7 +17,7 @@ import { db, eq, desc, sql } from '@plexo/db'
 import { workspaces, tasks, taskSteps, sprints, modelsKnowledge } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
-import { pushTask, completeTask } from '@plexo/queue'
+import { pushTask, completeTask, blockTask } from '@plexo/queue'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
@@ -210,6 +210,27 @@ chatRouter.post('/message', async (req, res) => {
             if (history.length > 20) history.splice(0, history.length - 20)
             sessionHistory.set(sid, history)
 
+            // Create the task record immediately — ensures it always appears in Conversations
+            // regardless of whether the AI call succeeds or fails.
+            let taskId: string | null = null
+            try {
+                taskId = await pushTask({
+                    workspaceId,
+                    type: 'online',
+                    source: 'dashboard',
+                    status: 'queued',
+                    context: {
+                        description: trimmedMsg,
+                        message: trimmedMsg,
+                        sessionId: sessionId ?? null,
+                        channel: 'web',
+                    },
+                    priority: 2,
+                })
+            } catch (dbErr) {
+                logger.error({ dbErr, workspaceId }, 'Webchat: failed to create task record')
+            }
+
             try {
                 logger.info({ workspaceId, providerKey, modelId: config.model }, 'Webchat: generating conversational reply')
                 const result = await generateText({
@@ -226,6 +247,11 @@ chatRouter.post('/message', async (req, res) => {
                 if (!replyText) {
                     logger.warn({ workspaceId, providerKey }, 'Webchat conversational reply: empty response from model')
                     const classified = classifyAIError(new Error('Empty response from model — the model returned no text.'))
+                    // Mark the pre-created task as blocked
+                    if (taskId) {
+                        try { await blockTask(taskId, `[provider error] ${classified.message}`) } catch { /* non-fatal */ }
+                        emitToWorkspace(workspaceId, { type: 'task_failed', taskId, source: 'dashboard' })
+                    }
                     res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
                     return
                 }
@@ -233,33 +259,27 @@ chatRouter.post('/message', async (req, res) => {
                 if (history.length > 20) history.splice(0, history.length - 20)
                 sessionHistory.set(sid, history)
 
-                // Log as a completed task so it appears in the Conversations list
-                const taskId = await pushTask({
-                    workspaceId,
-                    type: 'online',
-                    source: 'dashboard',
-                    status: 'complete',
-                    context: {
-                        description: trimmedMsg,
-                        message: trimmedMsg,
-                        sessionId: sessionId ?? null,
-                        channel: 'web',
-                    },
-                    priority: 2,
-                })
-                await completeTask(taskId, {
-                    qualityScore: 1,
-                    outcomeSummary: replyText,
-                    tokensIn: 0,
-                    tokensOut: 0,
-                    costUsd: 0,
-                })
-                emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'dashboard' })
+                // Mark the pre-created task as complete
+                if (taskId) {
+                    await completeTask(taskId, {
+                        qualityScore: 1,
+                        outcomeSummary: replyText,
+                        tokensIn: 0,
+                        tokensOut: 0,
+                        costUsd: 0,
+                    })
+                    emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'dashboard' })
+                }
 
                 res.json({ status: 'complete', reply: replyText })
             } catch (err) {
                 const classified = classifyAIError(err)
                 logger.error({ err, workspaceId, errorType: classified.type }, 'Webchat conversational reply failed')
+                // Mark the pre-created task as blocked so it appears in Conversations with the error
+                if (taskId) {
+                    try { await blockTask(taskId, `[provider error] ${classified.message}`) } catch { /* non-fatal */ }
+                    emitToWorkspace(workspaceId, { type: 'task_failed', taskId, source: 'dashboard' })
+                }
                 res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
             }
             return
