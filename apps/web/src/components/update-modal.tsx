@@ -45,12 +45,15 @@ export function UpdateModal() {
     const [copied, setCopied] = useState(false)
     const logEndRef = useRef<HTMLDivElement>(null)
 
+    const lastSeenLatest = useRef<string | null>(null)
+
     const checkVersion = useCallback(async () => {
         try {
             const res = await fetch(`${API_URL}/v1/system/version`)
             if (!res.ok) return
             const data = (await res.json()) as VersionInfo
-            if (data.behind) {
+            if (data.behind && data.latest !== lastSeenLatest.current) {
+                lastSeenLatest.current = data.latest
                 setVersionInfo(data)
                 setOpen(true)
             }
@@ -61,7 +64,7 @@ export function UpdateModal() {
 
     useEffect(() => {
         void checkVersion()
-        const interval = setInterval(() => void checkVersion(), 6 * 60 * 60 * 1000)
+        const interval = setInterval(() => void checkVersion(), 3 * 60 * 1000)
         return () => clearInterval(interval)
     }, [checkVersion])
 

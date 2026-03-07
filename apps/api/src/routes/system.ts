@@ -26,7 +26,7 @@ const GITHUB_REPO = 'plexo'
 const VERSION_CACHE_KEY = 'plexo:system:latest_version'
 const VERSION_CACHE_TTL = 60 * 60 // 1 hour for release info
 const COMMIT_CACHE_KEY = 'plexo:system:latest_commit'
-const COMMIT_CACHE_TTL = 5 * 60  // 5 min — detect pushes quickly during beta
+const COMMIT_CACHE_TTL = 2 * 60  // 2 min — detect pushes quickly during beta
 
 export const systemRouter: RouterType = Router()
 
