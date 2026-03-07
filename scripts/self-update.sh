@@ -49,11 +49,18 @@ if ! command -v docker &>/dev/null; then
     exit 0
 fi
 
+# Build compose arguments
+COMPOSE_ARGS="-f ${COMPOSE_FILE}"
+if [ -f "docker/compose.override.yml" ]; then
+    log "Using docker/compose.override.yml"
+    COMPOSE_ARGS="$COMPOSE_ARGS -f docker/compose.override.yml"
+fi
+
 # Rebuild and restart via Docker Compose
 log "Building Docker images"
-docker compose -f "${COMPOSE_FILE}" build --no-cache api web
+docker compose $COMPOSE_ARGS build --no-cache api web
 
 log "Restarting containers"
-docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
+docker compose $COMPOSE_ARGS up -d --remove-orphans
 
 log "Plexo self-update complete"
