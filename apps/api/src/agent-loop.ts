@@ -440,6 +440,14 @@ async function processOneTask(): Promise<boolean> {
     } finally {
         activeAbort = null
         activeTaskId = null
+        // Clean up cloned repo temp dir for coding tasks
+        if (sprintWorkDir) {
+            try {
+                const { rmSync } = await import('node:fs')
+                rmSync(sprintWorkDir, { recursive: true, force: true })
+                logger.debug({ taskId: task.id, sprintWorkDir }, 'Sprint work dir cleaned up')
+            } catch { /* non-fatal */ }
+        }
     }
 
     return true

@@ -122,6 +122,22 @@ export class GitHubClient {
         return Array.isArray(items) ? items : []
     }
 
+    /** Read a file's decoded text content at a given ref. Returns null if not found. */
+    async getFileContent(path: string, ref = 'main'): Promise<string | null> {
+        try {
+            const data = await this.call<{ content?: string; encoding?: string; message?: string }>(
+                'GET', `/repos/${this.owner}/${this.repo}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+            )
+            if (data.message) return null  // 404 or access error
+            if (data.content && data.encoding === 'base64') {
+                return Buffer.from(data.content.replace(/\n/g, ''), 'base64').toString('utf8')
+            }
+            return null
+        } catch {
+            return null
+        }
+    }
+
     // ── Pull Requests ────────────────────────────────────────────────────────────
 
     async createPR(opts: {
