@@ -62,11 +62,11 @@ channelsRouter.post('/', async (req, res) => {
         logger.info({ workspaceId, type, name }, 'Channel created')
 
         // Auto-register webhook for Telegram bots so the bot is live immediately
-        if (type === 'telegram') {
+        if (type === 'telegram' && created) {
             const cfg = config as { token?: string; bot_token?: string }
             const token = cfg.token ?? cfg.bot_token ?? null
             if (token) {
-                registerTelegramChannel(token, workspaceId).catch(
+                registerTelegramChannel(created.id, token, workspaceId).catch(
                     (err: Error) => logger.warn({ err }, 'Telegram webhook auto-register failed')
                 )
             }
