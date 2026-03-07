@@ -149,19 +149,23 @@ function WorkspaceSwitcher() {
     const { workspaceId, workspaceName, setWorkspace } = useWorkspace()
     const [open, setOpen] = useState(false)
     const [list, setList] = useState<WorkspaceSummary[]>([])
+    const [isLoading, setIsLoading] = useState(false)
     const [creating, setCreating] = useState(false)
     const [newName, setNewName] = useState('')
     const ref = useRef<HTMLDivElement>(null)
-    const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
     // Fetch workspace list when dropdown opens
     useEffect(() => {
         if (!open) return
-        fetch(`${API}/api/v1/workspaces`, { cache: 'no-store' })
+        setIsLoading(true)
+        fetch('/api/v1/workspaces', { cache: 'no-store' })
             .then((r) => r.ok ? r.json() : { items: [] })
-            .then((d: unknown) => setList(Array.isArray(d) ? d : ((d as { items?: WorkspaceSummary[] }).items ?? [])))
-            .catch(() => { /* non-fatal */ })
-    }, [open, API])
+            .then((d: unknown) => {
+                setList(Array.isArray(d) ? d : ((d as { items?: WorkspaceSummary[] }).items ?? []))
+                setIsLoading(false)
+            })
+            .catch(() => { setIsLoading(false) })
+    }, [open])
 
     // Close on outside click
     useEffect(() => {
@@ -176,10 +180,10 @@ function WorkspaceSwitcher() {
     async function handleCreate() {
         if (!newName.trim()) return
         // Need the current user's id as ownerId — read from the first workspace as a proxy
-        const ownerRes = await fetch(`${API}/api/v1/workspaces/${workspaceId}`)
+        const ownerRes = await fetch(`/api/v1/workspaces/${workspaceId}`)
         const ownerData = await (ownerRes.ok ? ownerRes.json() : {}) as { ownerId?: string }
         const ownerId = ownerData.ownerId ?? workspaceId  // fallback to workspace id if unknown
-        const res = await fetch(`${API}/api/v1/workspaces`, {
+        const res = await fetch(`/api/v1/workspaces`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: newName.trim(), ownerId }),
@@ -203,8 +207,8 @@ function WorkspaceSwitcher() {
                 className="flex h-14 w-full items-center gap-2.5 border-b border-zinc-800/50 px-3 hover:bg-zinc-900/60 transition-colors"
             >
                 {/* App icon */}
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white">
-                    P
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-lg font-bold text-white uppercase leading-none pb-[1px]">
+                    {displayName.charAt(0)}
                 </div>
                 <div className="flex min-w-0 flex-col text-left">
                     <span className="text-[11px] font-semibold leading-tight tracking-tight text-zinc-100 truncate">{displayName}</span>
@@ -217,8 +221,11 @@ function WorkspaceSwitcher() {
                 <div className="absolute left-2 top-[calc(100%+4px)] z-50 w-[200px] rounded-xl border border-zinc-700/60 bg-zinc-900 shadow-2xl shadow-black/40 overflow-hidden">
                     {/* Workspace list */}
                     <div className="max-h-60 overflow-y-auto p-1">
-                        {list.length === 0 && (
+                        {isLoading && list.length === 0 && (
                             <p className="px-3 py-2 text-[11px] text-zinc-600">Loading…</p>
+                        )}
+                        {!isLoading && list.length === 0 && (
+                            <p className="px-3 py-2 text-[11px] text-zinc-600">No workspaces</p>
                         )}
                         {list.map((ws) => (
                             <button
@@ -229,8 +236,8 @@ function WorkspaceSwitcher() {
                                 }}
                                 className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-left hover:bg-zinc-800 transition-colors"
                             >
-                                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-600/20 text-[9px] font-bold text-indigo-400">
-                                    {ws.name.slice(0, 1).toUpperCase()}
+                                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-600/20 text-xs font-bold text-indigo-400 uppercase pb-[1px]">
+                                    {ws.name.slice(0, 1)}
                                 </div>
                                 <span className="flex-1 truncate text-[13px] text-zinc-200">{ws.name}</span>
                                 {ws.id === workspaceId && <Check className="h-3 w-3 text-indigo-400 shrink-0" />}
