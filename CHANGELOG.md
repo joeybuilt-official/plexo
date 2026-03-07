@@ -6,7 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
-- **Workspace deletion** — users can now delete non-active workspaces from Settings → Workspace. Trash icon appears on each non-active workspace row; clicking it triggers an inline confirmation before deletion. The active workspace and the last remaining workspace are protected from deletion. `DELETE /api/workspaces/:id` added to the backend with a last-workspace guard; all child rows cascade-delete via existing FK constraints.
+- **Version check service** — `GET /api/v1/system/version` polls GitHub Releases API, falls back to commit SHA comparison; `POST /api/v1/system/update` streams Docker pull + restart or git pull progress via SSE; `UpdateModal` component polls every 6 hours and opens automatically when behind
+- **`scripts/self-update.sh`** — self-hosted one-click update script: git pull → pnpm install → db:migrate → docker compose build + up; respects `PLEXO_MANAGED=true` to skip Docker steps on managed hosting
+- **Version source of truth** — `NEXT_PUBLIC_APP_VERSION` injected from root `package.json` via `next.config.ts`; sidebar and dashboard footer read from same env var; eliminates hardcoded version strings
+
 - BSL 1.1 license (converts to Apache 2.0 on 2030-03-03)
 - Commercial context + ZeroClaw parity gate in AGENTS.md
 - `.agents-local.md` gitignored for private operational notes

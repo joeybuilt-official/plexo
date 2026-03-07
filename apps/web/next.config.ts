@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import rootPkg from "../../package.json";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -6,6 +7,9 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@plexo/ui"],
   turbopack: {
     root: "../../",
+  },
+  env: {
+    NEXT_PUBLIC_APP_VERSION: rootPkg.version,
   },
   async rewrites() {
     return [

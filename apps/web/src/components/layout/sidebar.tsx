@@ -141,9 +141,7 @@ interface WorkspaceSummary {
     name: string
 }
 
-import pkg from '../../../package.json'
-
-const VERSION = `v${pkg.version}`
+const VERSION = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? '0.8.0-beta.1'}`
 
 function WorkspaceSwitcher() {
     const { workspaceId, workspaceName, setWorkspace } = useWorkspace()

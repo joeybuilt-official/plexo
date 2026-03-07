@@ -44,7 +44,7 @@ export default async function HomePage() {
 
             {/* Version */}
             <p className="mt-6 text-center text-[10px] text-zinc-700">
-                {process.env.NEXT_PUBLIC_APP_VERSION ?? 'v0.7.0'} · dev
+                v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.8.0-beta.1'}{process.env.NODE_ENV === 'development' ? ' · dev' : ''}
             </p>
         </div>
     )
