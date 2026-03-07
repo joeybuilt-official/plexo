@@ -73,4 +73,3 @@ User Message → Channel Adapter → Message Router → Agent Core
 | Build | Turborepo | Monorepo task orchestration, caching |
 | Styling | Tailwind CSS v4 | Utility-first, design system tokens |
 | Components | shadcn/ui | Composable, customizable, accessible |
-test
