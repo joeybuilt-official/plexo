@@ -208,6 +208,18 @@ export class GitHubClient {
             'GET', `/repos/${this.owner}/${this.repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
         )
     }
+
+    /** Returns true if head branch has commits that base does not. Safe to use before createPR. */
+    async hasCommitsAhead(base: string, head: string): Promise<boolean> {
+        try {
+            const result = await this.call<{ ahead_by: number }>(
+                'GET', `/repos/${this.owner}/${this.repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
+            )
+            return (result.ahead_by ?? 0) > 0
+        } catch {
+            return false
+        }
+    }
 }
 
 // ── Factory (resolved token from installed_connections or env fallback) ──────

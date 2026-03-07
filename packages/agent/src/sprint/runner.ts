@@ -280,23 +280,36 @@ async function runCodeSprint(
                 })
 
                 try {
-                    const pr = await github.createPR({
-                        title: `[Sprint ${sprintId.slice(0, 8)}] ${st.description}`,
-                        body: `**Sprint:** ${sprintId}\n**Scope:** ${(st.scope as string[]).join(', ')}\n\n**Acceptance:** ${st.acceptance}`,
-                        head: st.branch,
-                        base: baseBranch,
-                        draft: true,
-                    })
-                    await db.update(sprintTasks)
-                        .set({ handoff: { ...(st.handoff as object ?? {}), prNumber: pr.number, prUrl: pr.html_url } })
-                        .where(eq(sprintTasks.id, st.id))
+                    // Only open a PR if the executor actually pushed commits.
+                    // createPR will 422 if the branch is identical to base.
+                    const hasWork = await github.hasCommitsAhead(baseBranch, st.branch)
+                    if (!hasWork) {
+                        await logSprintEvent({
+                            sprintId,
+                            level: 'warn',
+                            event: 'pr_skipped',
+                            message: `No commits pushed to ${st.branch} — PR skipped`,
+                            metadata: { branch: st.branch, sprintTaskId: st.id },
+                        })
+                    } else {
+                        const pr = await github.createPR({
+                            title: `[Sprint ${sprintId.slice(0, 8)}] ${st.description}`,
+                            body: `**Sprint:** ${sprintId}\n**Scope:** ${(st.scope as string[]).join(', ')}\n\n**Acceptance:** ${st.acceptance}`,
+                            head: st.branch,
+                            base: baseBranch,
+                            draft: true,
+                        })
+                        await db.update(sprintTasks)
+                            .set({ handoff: { ...(st.handoff as object ?? {}), prNumber: pr.number, prUrl: pr.html_url } })
+                            .where(eq(sprintTasks.id, st.id))
 
-                    await logSprintEvent({
-                        sprintId,
-                        event: 'pr_created',
-                        message: `PR #${pr.number} created for ${st.branch}`,
-                        metadata: { prNumber: pr.number, prUrl: pr.html_url, branch: st.branch, sprintTaskId: st.id },
-                    })
+                        await logSprintEvent({
+                            sprintId,
+                            event: 'pr_created',
+                            message: `PR #${pr.number} created for ${st.branch}`,
+                            metadata: { prNumber: pr.number, prUrl: pr.html_url, branch: st.branch, sprintTaskId: st.id },
+                        })
+                    }
                 } catch (err) {
                     logger.warn({ err, branch: st.branch }, 'PR creation failed')
                     await logSprintEvent({

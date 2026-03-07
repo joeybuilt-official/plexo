@@ -303,12 +303,22 @@ export async function executeTask(
 SPRINT CODING CONTEXT:
 - Repository: ${ctx.sprintRepo ?? 'unknown'}
 - Branch: ${ctx.sprintBranch ?? 'unknown'}
-- Working directory: ${ctx.sprintWorkDir}
-- The repo has been cloned to the working directory. All shell commands and file operations should use this directory.
-- Workflow: read files, make changes, run tests with shell(), push changes with git commands or github__push_file, then call task_complete.
-- Always run \`pnpm typecheck\` or equivalent tests before calling task_complete.
-- Git config: set user.email and user.name before commits (\`git config user.email 'plexo@plexo.ai'\`).
-- Do NOT push directly to main. You are working on branch: ${ctx.sprintBranch ?? 'your assigned branch'}.`
+- Working directory (pre-cloned): ${ctx.sprintWorkDir}
+
+MANDATORY WORKFLOW — follow this exactly:
+1. Read relevant files with read_file or shell("cat <path>") to understand the codebase.
+2. Make changes with write_file. Follow all conventions in AGENTS.md if present.
+3. Run \`pnpm typecheck\` (or the repo's lint/test command) with shell() to verify correctness.
+4. Configure git identity:
+   shell("git config user.email 'agent@plexo.ai' && git config user.name 'Plexo Agent'")
+5. Stage, commit, and push your changes:
+   shell("git add -A && git commit -m '<concise description>' && git push origin ${ctx.sprintBranch ?? 'HEAD'}")
+6. ONLY THEN call task_complete.
+
+CRITICAL: You MUST push at least one commit before calling task_complete.
+If you call task_complete without pushing, no PR can be opened and your work is lost.
+If typecheck fails, fix the errors before pushing — do not push broken code.
+Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch'}.`
         : ''
 
     const systemPrompt = `${personaPrefix}You are ${agentName}, an autonomous AI agent executing a task.
