@@ -209,9 +209,12 @@ export default function AIProvidersPage() {
         ) as unknown as Record<ProviderKey, ProviderState>
     )
     const [testing, setTesting] = useState(false)
+    const [connecting, setConnecting] = useState(false)
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
     const [showRouting, setShowRouting] = useState(false)
+    const [showFallback, setShowFallback] = useState(false)
+    const [showCostDefaults, setShowCostDefaults] = useState(false)
     const [editingKey, setEditingKey] = useState<Record<ProviderKey, boolean>>(
         () => Object.fromEntries(PROVIDERS.map((p) => [p.key, false])) as Record<ProviderKey, boolean>
     )
@@ -274,6 +277,7 @@ export default function AIProvidersPage() {
                 if (rawAp?.defaultTaskCostCeiling) setWsDefaultCostCeiling(String(rawAp.defaultTaskCostCeiling))
                 if (rawAp?.defaultTokenBudget) setWsDefaultTokenBudget(String(rawAp.defaultTokenBudget))
                 if (aiCfg.providers) {
+                    const ollamaEntry = aiCfg.providers['ollama' as ProviderKey]
                     setProviderStates((prev) => {
                         const next = { ...prev }
                         for (const [k, v] of Object.entries(aiCfg.providers!)) {
@@ -291,6 +295,24 @@ export default function AIProvidersPage() {
                         }
                         return next
                     })
+                    // Auto-fetch Ollama models if it was previously configured
+                    if (ollamaEntry?.status === 'configured') {
+                        const ollamaBase = ollamaEntry.baseUrl ?? 'http://localhost:11434'
+                        void (async () => {
+                            try {
+                                const mr = await fetch(`${API_BASE}/api/v1/settings/ai-providers/models?provider=ollama&baseUrl=${encodeURIComponent(ollamaBase)}`)
+                                if (mr.ok) {
+                                    const md = await mr.json() as { ok: boolean; models?: string[] }
+                                    if (md.ok && md.models?.length) {
+                                        setProviderStates((prev) => ({
+                                            ...prev,
+                                            ollama: { ...prev.ollama, dynamicModels: md.models! },
+                                        }))
+                                    }
+                                }
+                            } catch { /* non-fatal */ }
+                        })()
+                    }
                 }
             } catch {
                 setLoadError('Could not load saved provider config')
@@ -309,7 +331,35 @@ export default function AIProvidersPage() {
         }))
     }
 
-
+    // Fetch models from a URL-based provider (Ollama, etc.) without running a test.
+    // Populates dynamicModels so the dropdown appears before Save & Test.
+    async function handleConnect() {
+        setConnecting(true)
+        try {
+            const baseUrl = providerStates[selectedProvider].baseUrl || 'http://localhost:11434'
+            const res = await fetch(
+                `${API_BASE}/api/v1/settings/ai-providers/models?provider=${selectedProvider}&baseUrl=${encodeURIComponent(baseUrl)}`
+            )
+            if (res.ok) {
+                const data = await res.json() as { ok: boolean; models?: string[]; error?: string }
+                if (data.ok && data.models?.length) {
+                    updateState(selectedProvider, {
+                        dynamicModels: data.models,
+                        selectedModel: providerStates[selectedProvider].selectedModel || data.models[0]!,
+                        status: 'untested',
+                    })
+                } else {
+                    updateState(selectedProvider, { testResult: `✗ ${data.error ?? 'No models found — is Ollama running?'}` })
+                }
+            } else {
+                updateState(selectedProvider, { testResult: '✗ Could not reach the server — check the URL and try again' })
+            }
+        } catch {
+            updateState(selectedProvider, { testResult: '✗ Network error — check console' })
+        } finally {
+            setConnecting(false)
+        }
+    }
 
     async function handleTest() {
         setTesting(true)
@@ -568,6 +618,7 @@ export default function AIProvidersPage() {
                     ) : displayedProviders.map((p: ProviderConfig) => {
                         const pState = providerStates[p.key]
                         const active = p.key === selectedProvider
+                        const modelLabel = pState.selectedModel || null
                         return (
                             <button
                                 key={p.key}
@@ -598,7 +649,11 @@ export default function AIProvidersPage() {
                                     </div>
                                     <StatusDot status={pState.status} />
                                 </div>
-                                <p className="mt-1.5 text-xs text-zinc-500 pl-10">{p.description}</p>
+                                {modelLabel ? (
+                                    <p className="mt-1.5 text-[10px] font-mono text-zinc-500 pl-10 truncate" title={modelLabel}>{modelLabel}</p>
+                                ) : (
+                                    <p className="mt-1.5 text-xs text-zinc-600 pl-10 truncate">{p.description}</p>
+                                )}
                             </button>
                         )
                     })}
@@ -787,23 +842,39 @@ export default function AIProvidersPage() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-sm font-medium text-zinc-300">Base URL</label>
-                                    <span className="text-[10px] text-zinc-600">Local or remote — any reachable Ollama instance</span>
+                            <div className="flex flex-col gap-3">
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-medium text-zinc-300">Base URL</label>
+                                        <span className="text-[10px] text-zinc-600">Local or remote — any reachable Ollama instance</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={state.baseUrl}
+                                            onChange={(e) => updateState(selectedProvider, { baseUrl: e.target.value, dynamicModels: [], status: 'unconfigured' })}
+                                            onKeyDown={(e) => e.key === 'Enter' && void handleConnect()}
+                                            placeholder="http://localhost:11434"
+                                            className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                        />
+                                        {state.dynamicModels.length === 0 && (
+                                            <button
+                                                onClick={() => void handleConnect()}
+                                                disabled={connecting || !state.baseUrl}
+                                                className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-50 shrink-0"
+                                            >
+                                                {connecting
+                                                    ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Connecting…</>
+                                                    : 'Connect'
+                                                }
+                                            </button>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-zinc-600">
+                                        Plexo will call <code className="text-zinc-500">/api/tags</code> to discover models and <code className="text-zinc-500">/v1</code> for inference.
+                                        No API key required — network connectivity is sufficient.
+                                    </p>
                                 </div>
-                                <input
-                                    type="text"
-                                    value={state.baseUrl}
-                                    onChange={(e) => updateState(selectedProvider, { baseUrl: e.target.value })}
-                                    onKeyDown={(e) => e.key === 'Enter' && void handleSave()}
-                                    placeholder="http://your-server:11434  or  https://ollama.example.com"
-                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-                                />
-                                <p className="text-xs text-zinc-600">
-                                    Plexo will call <code className="text-zinc-500">/api/tags</code> to discover models and <code className="text-zinc-500">/v1</code> for inference.
-                                    No API key required — network connectivity is sufficient.
-                                </p>
                             </div>
                         )}
 
@@ -859,20 +930,22 @@ export default function AIProvidersPage() {
                             </div>
                         )}
 
-                        {/* Primary action — Save & Test only */}
-                        <div className="flex items-center">
-                            <button
-                                onClick={() => void handleTest()}
-                                disabled={testing || saving}
-                                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
-                            >
-                                {testing
-                                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                    : <TestTube className="h-3.5 w-3.5" />
-                                }
-                                {testing ? 'Testing…' : saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & Test'}
-                            </button>
-                        </div>
+                        {/* Primary action — only show Save & Test when ready */}
+                        {(!selected.requiresKey ? state.dynamicModels.length > 0 : true) && (
+                            <div className="flex items-center">
+                                <button
+                                    onClick={() => void handleTest()}
+                                    disabled={testing || saving}
+                                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                >
+                                    {testing
+                                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                        : <TestTube className="h-3.5 w-3.5" />
+                                    }
+                                    {testing ? 'Testing…' : saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & Test'}
+                                </button>
+                            </div>
+                        )}
 
                         {state.testResult && (
                             <div className={`rounded-lg border px-3 py-2 text-sm font-mono ${state.testResult.startsWith('✓')
@@ -888,14 +961,25 @@ export default function AIProvidersPage() {
 
             {/* ── Global Routing ─────────────────────────────────── */}
             {configuredProviders.length > 0 && (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                    <button
+                        onClick={() => setShowFallback((v) => !v)}
+                        className="w-full flex items-center justify-between px-5 py-4 hover:bg-zinc-800/30 transition-colors"
+                    >
+                        <div className="text-left">
                             <h2 className="text-sm font-semibold text-zinc-200">Fallback Chain</h2>
                             <p className="mt-0.5 text-xs text-zinc-500">
-                                If the primary provider fails, Plexo tries these in order — across all task types.
+                                If the primary provider fails, Plexo tries these in order.
                             </p>
                         </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-zinc-600">{activeChainProviders.length} active</span>
+                            {showFallback ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
+                        </div>
+                    </button>
+                    {showFallback && <div className="px-5 pb-5">
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                        <div />
                         <button
                             onClick={() => setShowRouting((v) => !v)}
                             className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-400 transition-colors shrink-0"
@@ -1001,18 +1085,25 @@ export default function AIProvidersPage() {
                             </table>
                         </div>
                     )}
+                    </div>}
                 </div>
             )}
 
             {/* ── Cost Defaults ──────────────────────────────────────────── */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
-                <div className="mb-4">
-                    <h2 className="text-sm font-semibold text-zinc-200">Cost Defaults</h2>
-                    <p className="mt-0.5 text-xs text-zinc-500">
-                        Workspace-level fallbacks applied when a task or project has no explicit budget set.
-                        Projects and tasks can override these individually.
-                    </p>
-                </div>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                <button
+                    onClick={() => setShowCostDefaults((v) => !v)}
+                    className="w-full flex items-center justify-between px-5 py-4 hover:bg-zinc-800/30 transition-colors"
+                >
+                    <div className="text-left">
+                        <h2 className="text-sm font-semibold text-zinc-200">Cost Defaults</h2>
+                        <p className="mt-0.5 text-xs text-zinc-500">
+                            Workspace-level budget fallbacks for tasks and projects.
+                        </p>
+                    </div>
+                    {showCostDefaults ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
+                </button>
+                {showCostDefaults && <div className="px-5 pb-5">
                 <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
                         <label htmlFor="ws-cost-ceiling" className="text-xs font-medium text-zinc-400">Default task cost ceiling (USD)</label>
@@ -1057,6 +1148,7 @@ export default function AIProvidersPage() {
                     <Save className="h-3.5 w-3.5" />
                     {saving ? 'Saving…' : saved ? 'Saved' : 'Save defaults'}
                 </button>
+                </div>}
             </div>
         </div>
     )
