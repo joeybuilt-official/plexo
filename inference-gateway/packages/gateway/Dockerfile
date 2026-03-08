@@ -26,6 +26,7 @@ ENV PORT 3001
 COPY --from=builder /app/packages/gateway/package.json ./packages/gateway/
 COPY --from=builder /app/packages/gateway/dist ./packages/gateway/dist
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages/gateway/node_modules ./packages/gateway/node_modules
 
 EXPOSE 3001
 WORKDIR /app/packages/gateway
