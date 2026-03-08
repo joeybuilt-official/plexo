@@ -24,7 +24,7 @@ export const ALLOWED_PROVIDERS = [
 
 /**
  * Sync knowledge base.
- * Pulls from Portkey-AI open-source models registry (pricing JSONs)
+ * Pulls from Portkey-AI open-source models registry (pricing and general capabilities)
  * filtering only by ALLOWED_PROVIDERS to enforce Layer 1 isolation.
  */
 export async function syncModelKnowledge() {
@@ -36,18 +36,24 @@ export async function syncModelKnowledge() {
             try {
                 // Map local plexo names to Portkey github filenames
                 const portkeyName = provider === 'openai' ? 'openai' : provider
-                const res = await fetch(`https://raw.githubusercontent.com/Portkey-AI/models/main/pricing/${portkeyName}.json`)
                 
-                if (!res.ok) {
-                    console.warn(`Failed to fetch Portkey models for ${provider}: ${res.status}`)
+                // Fetch Pricing and General Metadata in parallel
+                const [priceRes, genRes] = await Promise.all([
+                    fetch(`https://raw.githubusercontent.com/Portkey-AI/models/main/pricing/${portkeyName}.json`),
+                    fetch(`https://raw.githubusercontent.com/Portkey-AI/models/main/general/${portkeyName}.json`)
+                ])
+                
+                if (!priceRes.ok || !genRes.ok) {
+                    console.warn(`Failed to fetch Portkey models for ${provider}: Pricing=${priceRes.status}, General=${genRes.status}`)
                     continue
                 }
 
-                const data = await res.json() as Record<string, any>
+                const priceData = await priceRes.json() as Record<string, any>
+                const genData = await genRes.json() as Record<string, any>
                 
                 // Parse Portkey pricing format
                 // the object keys are model IDs, except for "default"
-                for (const [key, value] of Object.entries(data)) {
+                for (const [key, value] of Object.entries(priceData)) {
                     if (key === 'default') continue
                     
                     const payAsYouGo = value.pricing_config?.pay_as_you_go
@@ -60,24 +66,46 @@ export async function syncModelKnowledge() {
                     const costPerMIn = parseFloat(String(promptPrice)) * 1000000
                     const costPerMOut = parseFloat(String(completionPrice)) * 1000000
 
-                    // Dynamic Strengths heuristics (simplified map)
+                    // Dynamic Strengths heuristics via capabilities registry mapped
                     const strengths: string[] = []
-                    if (key.includes('llama')) strengths.push('open-source')
-                    if (key.includes('claude') || key.includes('gpt-4') || key.includes('o1') || key.includes('o3')) strengths.push('reasoning', 'coding')
-                    if (key.includes('haiku') || key.includes('mini') || key.includes('flash') || key.includes('8b')) strengths.push('speed')
+                    let contextWindow = 128000 // default fallback
                     
-                    if (provider === 'deepseek') strengths.push('coding', 'reasoning')
-                    if (provider === 'groq') strengths.push('speed')
+                    // GenData keys map up to base capability maps (or model-specific overrides if present)
+                    const modelGen = genData[key] || genData.default || {}
+                    
+                    if (modelGen.type) {
+                        if (modelGen.type.supported?.includes('image')) strengths.push('vision')
+                        if (modelGen.type.supported?.includes('tools')) strengths.push('tools')
+                        if (modelGen.type.supported?.includes('video')) strengths.push('video')
+                    }
+                    
+                    // Parse params mapping for specialized outputs/inputs
+                    if (modelGen.params && Array.isArray(modelGen.params)) {
+                        for (const param of modelGen.params) {
+                            if (param.key === 'max_tokens' && param.maxValue) {
+                                // this is max output tokens
+                            }
+                            if (param.key === 'response_format') {
+                                // If true json_schema represents deep structured output capability
+                                const hasJsonSchema = param.options?.some((opt: any) => opt.value === 'json_schema')
+                                if (hasJsonSchema) strengths.push('structured_output')
+                            }
+                        }
+                    }
+
+                    // For now, reasoning and speed can still be partly designated by open-source community conventions if unlisted
+                    if (key.includes('llama') || key.includes('mistral')) strengths.push('open-source')
+                    if (key.includes('claude') || key.includes('gpt-4') || key.includes('o1') || key.includes('o3') || key.includes('deepseek')) strengths.push('reasoning', 'coding')
+                    if (key.includes('haiku') || key.includes('mini') || key.includes('flash') || key.includes('8b')) strengths.push('speed')
 
                     records.push({
                         id: `${provider}/${key}`,
                         provider,
                         modelId: key,
-                        // Portkey pricing doesn't strictly have context embedded here, assume standard 128k fallback
-                        contextWindow: 128000, 
+                        contextWindow, 
                         costPerMIn: costPerMIn || 0,
                         costPerMOut: costPerMOut || 0,
-                        strengths,
+                        strengths: Array.from(new Set(strengths)), // dedupe
                         reliabilityScore: 1.0,
                     })
                 }
@@ -86,27 +114,31 @@ export async function syncModelKnowledge() {
             }
         }
 
-        // Upsert DB
-        for (const record of records) {
-            await db.insert(modelsKnowledge).values({
-                id: record.id,
-                provider: record.provider,
-                modelId: record.modelId,
-                contextWindow: record.contextWindow,
-                costPerMIn: record.costPerMIn,
-                costPerMOut: record.costPerMOut,
-                strengths: record.strengths,
-                lastSyncedAt: new Date()
-            }).onConflictDoUpdate({
-                target: modelsKnowledge.id,
-                set: {
+        // Paginated upserts to bound memory/connection usage (GAP-004)
+        const BATCH_SIZE = 50
+        for (let i = 0; i < records.length; i += BATCH_SIZE) {
+            const batch = records.slice(i, i + BATCH_SIZE)
+            await Promise.all(batch.map(record => 
+                db.insert(modelsKnowledge).values({
+                    id: record.id,
+                    provider: record.provider,
+                    modelId: record.modelId,
                     contextWindow: record.contextWindow,
                     costPerMIn: record.costPerMIn,
                     costPerMOut: record.costPerMOut,
                     strengths: record.strengths,
                     lastSyncedAt: new Date()
-                }
-            })
+                }).onConflictDoUpdate({
+                    target: modelsKnowledge.id,
+                    set: {
+                        contextWindow: record.contextWindow,
+                        costPerMIn: record.costPerMIn,
+                        costPerMOut: record.costPerMOut,
+                        strengths: record.strengths,
+                        lastSyncedAt: new Date()
+                    }
+                })
+            ))
         }
 
         console.log(`Synced ${records.length} Portkey models into knowledge base across ${ALLOWED_PROVIDERS.length} providers.`)
