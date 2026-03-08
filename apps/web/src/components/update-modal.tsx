@@ -139,8 +139,8 @@ export function UpdateModal() {
                         if (isDone) {
                             setDone(true)
                             setUpdating(false)
-                            localStorage.removeItem('plexo:update:last_seen')
-                            lastSeenLatest.current = null
+                            // Do NOT clear lastSeenLatest here — the current SHA is now what's installed.
+                            // Only a genuinely new SHA should re-open the modal.
                         }
                         if (isError) { setFailed(true); setUpdating(false) }
                     } catch { /* skip malformed */ }
