@@ -282,7 +282,7 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
     )
 }
 
-export function Sidebar({ user }: { user?: SessionUser }) {
+export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUser; onNavClick?: () => void; className?: string }) {
     const pathname = usePathname()
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
         // SSR safe — defaultOpen values only
@@ -371,6 +371,7 @@ export function Sidebar({ user }: { user?: SessionUser }) {
                                             <Link
                                                 key={href}
                                                 href={href}
+                                                onClick={onNavClick}
                                                 className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors border-l-2 ${active
                                                     ? 'border-indigo-500 bg-zinc-800/80 text-zinc-100'
                                                     : 'border-transparent text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'

@@ -147,9 +147,9 @@ function AttentionItem({ icon: Icon, iconColor, label, meta, href, actionLabel }
             </div>
             <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] text-zinc-200">{label}</p>
-                <p className="text-[11px] text-zinc-600">{meta}</p>
+                <p className="truncate text-[11px] text-zinc-600">{meta}</p>
             </div>
-            <span className="shrink-0 flex items-center gap-1 text-[11px] font-medium text-zinc-600 group-hover:text-zinc-400 transition-colors">
+            <span className="shrink-0 ml-2 flex h-9 items-center justify-center gap-1 text-[11px] font-medium text-zinc-600 group-hover:text-zinc-400 transition-colors">
                 {actionLabel}
                 <ChevronRight className="h-3 w-3" />
             </span>
@@ -198,7 +198,7 @@ function ActiveWorkItem({ task }: { task: Task }) {
                 )}
                 <Link
                     href={`/tasks/${task.id}`}
-                    className="flex items-center justify-center rounded border border-zinc-700/50 bg-zinc-800/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-zinc-500 transition-all hover:border-zinc-500/40 hover:bg-zinc-700/40 hover:text-zinc-300 flex-1 md:flex-initial"
+                        className="flex items-center justify-center rounded border border-zinc-700/50 bg-zinc-800/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-zinc-500 transition-all hover:border-zinc-500/40 hover:bg-zinc-700/40 hover:text-zinc-300 flex-1 md:flex-initial"
                 >
                     Task
                 </Link>
@@ -527,7 +527,7 @@ export function CommandCenter() {
             </div>
 
             {/* Hero stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <HeroStat
                     label="Active Tasks"
                     value={activeTasks.length}
