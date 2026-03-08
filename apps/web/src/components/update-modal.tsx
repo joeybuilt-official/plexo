@@ -47,26 +47,37 @@ export function UpdateModal() {
 
     const lastSeenLatest = useRef<string | null>(null)
 
+    // On mount, sync from localStorage so we don't re-show a dismissed notification
+    useEffect(() => {
+        lastSeenLatest.current = localStorage.getItem('plexo:update:last_seen') ?? null
+    }, [])
+
+    const markSeen = useCallback((sha: string) => {
+        lastSeenLatest.current = sha
+        localStorage.setItem('plexo:update:last_seen', sha)
+    }, [])
+
     const checkVersion = useCallback(async () => {
         try {
             const res = await fetch(`${API_URL}/v1/system/version`)
             if (!res.ok) return
             const data = (await res.json()) as VersionInfo
             if (data.behind && data.latest !== lastSeenLatest.current) {
-                lastSeenLatest.current = data.latest
+                markSeen(data.latest!)
                 setVersionInfo(data)
                 setOpen(true)
             }
         } catch {
             // Non-fatal — silent
         }
-    }, [])
+    }, [markSeen])
 
     useEffect(() => {
         void checkVersion()
         const interval = setInterval(() => void checkVersion(), 3 * 60 * 1000)
         return () => clearInterval(interval)
     }, [checkVersion])
+
 
     useEffect(() => {
         logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -125,7 +136,12 @@ export function UpdateModal() {
                         const isError = payload.isError === true || currentEvent === 'error'
                         const type: UpdateLog['type'] = isDone ? 'done' : isError ? 'error' : 'status'
                         setLogs(prev => [...prev, { type, message: payload.message, step: payload.step }])
-                        if (isDone) { setDone(true); setUpdating(false) }
+                        if (isDone) {
+                            setDone(true)
+                            setUpdating(false)
+                            localStorage.removeItem('plexo:update:last_seen')
+                            lastSeenLatest.current = null
+                        }
                         if (isError) { setFailed(true); setUpdating(false) }
                     } catch { /* skip malformed */ }
                     // Reset event type after consuming the data line
