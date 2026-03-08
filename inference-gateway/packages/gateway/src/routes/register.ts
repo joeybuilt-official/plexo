@@ -86,7 +86,7 @@ registerRouter.post('/v1/register', async (req: Request, res: Response) => {
       success: true,
       instance_id: instance.instanceId,
       signing_secret: signingSecret,
-      gateway_url: process.env.GATEWAY_URL || 'https://inference.getplexo.com'
+      gateway_url: process.env.GATEWAY_URL
     })
   } catch (err: any) {
     if (err.code === '23505') {

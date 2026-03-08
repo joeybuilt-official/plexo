@@ -16,7 +16,7 @@ Plexo Inference Gateway is the server-side proxy that sits between self-hosted P
 2. **Envelope Validation**: Proprietary payload envelope mandatory. Raw upstream payload shapes (e.g. standard OpenAI chat completions) are rejected.
 3. **Signed Instances**: Valid `X-Plexo-Signature` HMAC header is required, featuring a 5-minute replay-prevention window.
 4. **Upstream Keys Isolation**: Upstream provider keys exist strictly in environment variables on the gateway. Never returned to callers.
-5. **Private Admin Routing**: Admin panel is served on a separate subdomain (`gateway-admin.getplexo.com`) with a `noindex` policy. Authentication is via a single admin user through Auth.js v5.
+5. **Private Admin Routing**: Admin panel is served on a separate subdomain (configured via `ADMIN_URL`) with a `noindex` policy. Authentication is via a single admin user through Auth.js v5.
 
 ## Decisions Log
 
