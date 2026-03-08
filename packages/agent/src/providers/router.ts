@@ -87,13 +87,23 @@ export class IntelligentRouter {
 
     private async handleProxy(taskType: TaskType) {
         // Mode 3: Proxy execution using Plexo managed key pool.
-        // Requires special proxy keys or auth injection which is handled outside in the API call.
-        // For now, route directly using OPENROUTER_API_KEY as the proxy key.
         const provider: ProviderKey = 'openrouter'
         const defaultModel = DEFAULT_MODEL_ROUTING[taskType]
+        const proxyUrl = process.env.PLEXO_PROXY_URL || 'https://proxy.plexo.ai/v1/chat/completions'
+        const proxyKey = process.env.PLEXO_API_KEY || ''
+        
+        const proxyFetch = async (url: string | URL | globalThis.Request, init?: RequestInit): Promise<Response> => {
+            const requestInit = init || {}
+            requestInit.headers = {
+                ...(requestInit.headers as Record<string, string>),
+                'Authorization': `Bearer ${proxyKey}`
+            }
+            // Request paths via openrouter SDK should tunnel directly through the Plexo secure endpoint
+            return globalThis.fetch(proxyUrl, requestInit)
+        }
         
         return {
-            model: buildModel(provider, { provider, apiKey: process.env.OPENROUTER_API_KEY }, taskType, {
+            model: buildModel(provider, { provider, apiKey: 'proxy-enabled', customFetch: proxyFetch as any }, taskType, {
                 primaryProvider: provider,
                 fallbackChain: [],
                 providers: { [provider]: { model: defaultModel } }

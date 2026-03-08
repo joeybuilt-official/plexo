@@ -51,6 +51,7 @@ export interface AIProviderConfig {
     apiKey?: string
     baseUrl?: string        // for Ollama or custom OpenAI-compatible endpoints
     model?: string          // provider-level default model override
+    customFetch?: typeof globalThis.fetch // For proxy/security injections
 }
 
 export interface WorkspaceAISettings {
@@ -117,7 +118,7 @@ export function buildModel(
 
     switch (providerKey) {
         case 'openrouter': {
-            const or = createOpenRouter({ apiKey: config.apiKey! })
+            const or = createOpenRouter({ apiKey: config.apiKey!, fetch: config.customFetch })
             return or(modelId)
         }
         case 'anthropic': {
