@@ -28,4 +28,4 @@ COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3001
 WORKDIR /app/packages/gateway
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "npm run db:migrate && node dist/index.js"]

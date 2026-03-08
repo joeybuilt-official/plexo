@@ -6,6 +6,8 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://gateway:${POSTGRES_PASSWORD}@postgres:5432/plexo_gateway
+      - VALKEY_URL=redis://valkey:6379
     env_file: .env
     depends_on:
       postgres:
@@ -25,6 +27,7 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://gateway:${POSTGRES_PASSWORD}@postgres:5432/plexo_gateway
     env_file: .env
     depends_on:
       postgres:
