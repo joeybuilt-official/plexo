@@ -1,29 +1,3 @@
-inference.getplexo.com {
-  reverse_proxy inference-gateway-gateway-1:3001
-
-  header {
-    Strict-Transport-Security "max-age=31536000; includeSubDomains"
-    X-Content-Type-Options nosniff
-    X-Frame-Options DENY
-    -Server
-  }
-
-  encode gzip zstd
-}
-
-gateway-admin.getplexo.com {
-  reverse_proxy inference-gateway-admin-1:3002
-
-  header {
-    Strict-Transport-Security "max-age=31536000; includeSubDomains"
-    X-Content-Type-Options nosniff
-    X-Frame-Options DENY
-    -Server
-  }
-
-  encode gzip zstd
-}
-
 {$PUBLIC_DOMAIN} {
   # SSE — disable buffering (must be before generic /api/* catch)
   handle /api/sse {
