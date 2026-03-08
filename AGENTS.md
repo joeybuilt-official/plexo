@@ -218,6 +218,8 @@ pnpm --filter @plexo/web dev
 
 - **Finding**: Implemented `IntelligentRouter` inside `packages/agent/src/providers/router.ts`.
 - **Finding**: Modified `syncModelKnowledge()` inside `packages/agent/src/providers/knowledge.ts` to strictly loop `ALLOWED_PROVIDERS` and pull pricing configuration via `Portkey-AI/models` registry index mapping, enforcing Layer 1 architecture.
+- **Finding**: Upgraded `IntelligentRouter.handleAuto` to map Task types directly against Portkey metrics natively via highly optimized PostgreSQL JSONB containment (`@>`) querying.
+- **Finding**: Rebuilt Mode 3 ('proxy') inference router loop. `proxyFetch` now translates standard AI SDK fetch payloads dynamically into heavily guarded `PlexoInferenceRequestSchema` mapped bodies featuring live HMAC `X-Plexo-Signature` cryptographic bindings for secure downstream evaluation by the Plexo inference-gateway.
 - **Finding**: `resolveModel()` now unpacks `WorkspaceAISettings` recursively into disjoint `VaultConfig` and `RouterConfig`, ensuring the router operates solely on parameter references and never exposes credential strings to raw arbitration traces.
 - **Finding**: Implemented `console.info` structured telemetry in `resolveModel` that exports `router.arbitration.resolved` specifying task, mode, model, and cost per million.
 - **Finding**: `workspaces.settings.aiProviders` decoupling resolved via on-read lazy migration in `apps/api/src/routes/ai-provider-creds.ts`. Legacy schema is split invisibly into strictly typed `vault` (keys, OAuth tokens) and `arbiter` (inference settings) entries, achieving zero-downtime architectural isolation backwards-compatible with active client payloads.
