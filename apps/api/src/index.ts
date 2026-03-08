@@ -58,6 +58,8 @@ import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
+import { db, eq } from '@plexo/db'
+import { sprints } from '@plexo/db'
 import { runCronJobs } from './cron.js'
 
 const app: Express = express()
@@ -174,6 +176,17 @@ const server = app.listen(port, '0.0.0.0', () => {
         plexoVersion: process.env.npm_package_version ?? '0.1.0',
         redisUrl: process.env.REDIS_URL,
     })
+    // On startup: reset any sprints left in 'running' state by a previous process.
+    // Fire-and-forget async runners die with the process, leaving DB rows orphaned.
+    db.update(sprints)
+        .set({ status: 'failed', completedAt: new Date() })
+        .where(eq(sprints.status, 'running'))
+        .then((result) => {
+            // Drizzle update doesn't expose rowCount directly — log unconditionally
+            logger.info('Startup: orphaned running sprints reset to failed')
+        })
+        .catch((err: unknown) => logger.error({ err }, 'Startup: failed to reset orphaned sprints'))
+
     startAgentLoop()
     initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
 

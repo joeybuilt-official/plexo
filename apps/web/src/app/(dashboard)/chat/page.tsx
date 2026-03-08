@@ -704,7 +704,11 @@ function ChatContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID, intent, description, sessionId: sessionId.current, category }),
             })
-            if (!res.ok) throw new Error('Failed to execute')
+            if (!res.ok) {
+                const errBody = await res.json().catch(() => null) as { error?: { message?: string } } | null
+                const errMsg = errBody?.error?.message ?? 'Failed to execute action.'
+                throw new Error(errMsg)
+            }
             const data = await res.json() as { taskId?: string; sprintId?: string; status?: string }
             if (data.taskId) {
                 setMessages((prev) => prev.map((m) =>
@@ -717,9 +721,10 @@ function ChatContent() {
                 ))
                 window.location.href = `/projects/${data.sprintId}`
             }
-        } catch {
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Failed to start action.'
             setMessages((prev) => prev.map((m) =>
-                m.id === msgId ? { ...m, status: 'failed', content: 'Failed to start action.', intent: undefined, actionDescription: undefined } : m
+                m.id === msgId ? { ...m, status: 'failed', content: msg, intent: undefined, actionDescription: undefined } : m
             ))
         }
     }

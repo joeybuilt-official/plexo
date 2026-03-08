@@ -215,7 +215,7 @@ chatRouter.post('/message', async (req, res) => {
         const taglineHint = agentTagline ? ` (${agentTagline})` : ''
 
         // Classify intent — skip if caller forced CONVERSATION (e.g. "Just answer" button)
-        let intent: 'TASK' | 'PROJECT' | 'CONVERSATION' = forceConversation ? 'CONVERSATION' : 'CONVERSATION'
+        let intent: 'TASK' | 'PROJECT' | 'CONVERSATION' = forceConversation ? 'CONVERSATION' : 'TASK'
         const sid = sessionId ?? 'default'
         const history = sessionHistory.get(sid) ?? []
         const trimmedMsg = message.trim()
@@ -410,6 +410,34 @@ chatRouter.post('/execute-action', async (req, res) => {
             emitToWorkspace(workspaceId, { type: 'task_queued', taskId, source: 'dashboard' })
             res.status(202).json({ taskId, status: 'queued' })
         } else if (intent === 'PROJECT') {
+            // Pre-check: verify at least one AI provider is configured before creating the sprint row.
+            // This avoids leaving a zombie sprint in 'planning' state when credentials are missing.
+            let aiSettings: any
+            try {
+                const loaded = await loadWorkspaceAISettings(workspaceId)
+                if (loaded.aiSettings) aiSettings = loaded.aiSettings
+            } catch (err) {
+                logger.warn({ err, workspaceId }, 'Could not resolve AI settings for sprint planner — using env fallback')
+            }
+
+            if (aiSettings) {
+                const chain = [aiSettings.primaryProvider, ...(aiSettings.fallbackChain ?? [])]
+                const hasUsableProvider = chain.some((key: string) => {
+                    const p = aiSettings.providers?.[key]
+                    if (!p || p.enabled === false) return false
+                    return !!(p.apiKey || p.oauthToken || p.baseUrl || p.status === 'configured')
+                })
+                if (!hasUsableProvider) {
+                    res.status(400).json({
+                        error: {
+                            code: 'NO_AI_PROVIDER',
+                            message: 'No AI provider is configured for this workspace. Go to Settings → AI Providers and add at least one API key before starting a project.',
+                        },
+                    })
+                    return
+                }
+            }
+
             const id = ulid()
             const [sprint] = await db.insert(sprints).values({
                 id,
@@ -422,14 +450,6 @@ chatRouter.post('/execute-action', async (req, res) => {
             if (!sprint) throw new Error('Sprint insert returned no rows')
             logger.info({ workspaceId, sprintId: sprint.id, category: resolvedCategory }, 'Webchat project explicitly confirmed and created')
 
-            // Load aiSettings and kick off the sprint runner (fire-and-forget)
-            let aiSettings: any
-            try {
-                const loaded = await loadWorkspaceAISettings(workspaceId)
-                if (loaded.aiSettings) aiSettings = loaded.aiSettings
-            } catch (err) {
-                logger.warn({ err, sprintId: sprint.id }, 'Could not resolve AI settings for sprint planner — using env fallback')
-            }
             runSprint({
                 sprintId: sprint.id,
                 workspaceId,

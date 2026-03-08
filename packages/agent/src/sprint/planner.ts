@@ -113,14 +113,18 @@ export async function planSprint(params: {
         capabilityNote = '\n\n' + manifestToPromptBlock(manifest) + '\n\nIMPORTANT: Only plan tasks achievable with the above capabilities. If a requested task would require video_generation, image_generation, audio_generation, or any connection not listed, substitute it with a text/document deliverable instead (e.g. "video script" instead of "video").'
     } catch { /* non-fatal */ }
 
+    const PLANNER_TIMEOUT_MS = 3 * 60 * 1000 // 3 minutes — fail fast rather than hanging
     const doPlan = async (model: AnyLanguageModel) => {
         let parsed: SprintPlan | null = null
+        const ac = new AbortController()
+        const timer = setTimeout(() => ac.abort(new Error('Sprint planner timed out after 3 minutes')), PLANNER_TIMEOUT_MS)
         try {
             const result = await generateObject({
                 model,
                 schema: SprintPlanSchema,
                 system: systemPrompt,
                 prompt: userMessage + capabilityNote,
+                abortSignal: ac.signal,
             })
             parsed = result.object
         } catch (structuredErr) {
@@ -135,6 +139,7 @@ export async function planSprint(params: {
                     model,
                     system: systemPrompt,
                     prompt: userMessage + capabilityNote + jsonInstruction,
+                    abortSignal: ac.signal,
                 })
                 // Strip markdown fences if present
                 const raw = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
@@ -143,6 +148,8 @@ export async function planSprint(params: {
             } else {
                 throw structuredErr
             }
+        } finally {
+            clearTimeout(timer)
         }
         return parsed!
     }
@@ -150,9 +157,24 @@ export async function planSprint(params: {
     let rawPlan: SprintPlan
     try {
         if (aiSettings) {
-             rawPlan = await withFallback(aiSettings, 'planning', doPlan)
+            // Pre-check: ensure at least one provider in the chain has a key.
+            // If none are usable, fail fast with a clear error instead of hanging
+            // on LLM auth failures deep in withFallback.
+            const chain = [aiSettings.primaryProvider, ...(aiSettings.fallbackChain ?? [])]
+            const hasUsableProvider = chain.some((key: string) => {
+                const p = aiSettings.providers?.[key]
+                if (!p || p.enabled === false) return false
+                return !!(p.apiKey || p.oauthToken || p.baseUrl || p.status === 'configured')
+            })
+            if (!hasUsableProvider) {
+                throw new Error(
+                    'No AI provider is configured for this workspace. ' +
+                    'Go to Settings → AI Providers and add at least one API key.'
+                )
+            }
+            rawPlan = await withFallback(aiSettings, 'planning', doPlan)
         } else {
-             rawPlan = await doPlan(resolveModelFromEnv(MODEL_ROUTING.planning))
+            rawPlan = await doPlan(resolveModelFromEnv(MODEL_ROUTING.planning))
         }
     } catch (err) {
         logger.error({ err, sprintId }, 'Sprint planner LLM call failed')
