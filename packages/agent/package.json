@@ -50,6 +50,7 @@
         "@plexo/sdk": "workspace:*",
         "ai": "^6.0.111",
         "bcrypt": "^5.1",
+        "drizzle-orm": "^0.39.3",
         "ollama-ai-provider": "^1.2.0",
         "pino": "^9",
         "redis": "^4",

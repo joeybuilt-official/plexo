@@ -2,6 +2,7 @@ import { AnyLanguageModel, TaskType, ProviderKey, DEFAULT_MODEL_ROUTING } from '
 import { db, sql } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
 import { buildModel } from './registry.js'
+import * as crypto from 'crypto'
 
 export type InferenceMode = 'auto' | 'byok' | 'proxy' | 'override'
 
@@ -89,17 +90,86 @@ export class IntelligentRouter {
         // Mode 3: Proxy execution using Plexo managed key pool.
         const provider: ProviderKey = 'openrouter'
         const defaultModel = DEFAULT_MODEL_ROUTING[taskType]
-        const proxyUrl = process.env.PLEXO_PROXY_URL || 'https://proxy.plexo.ai/v1/chat/completions'
+        const proxyUrl = process.env.PLEXO_PROXY_URL || 'https://proxy.plexo.ai/v1/infer'
         const proxyKey = process.env.PLEXO_API_KEY || ''
+        const instanceId = process.env.PLEXO_INSTANCE_ID || '00000000-0000-0000-0000-000000000000'
+        const signingSecret = process.env.PLEXO_SIGNING_SECRET || 'dev-secret'
+        const workspaceId = this.workspaceId || 'system'
         
         const proxyFetch = async (url: string | URL | globalThis.Request, init?: RequestInit): Promise<Response> => {
             const requestInit = init || {}
-            requestInit.headers = {
-                ...(requestInit.headers as Record<string, string>),
-                'Authorization': `Bearer ${proxyKey}`
+            let rawBody = requestInit.body as string
+            
+            if (rawBody && typeof rawBody === 'string') {
+                const openaiPayload = JSON.parse(rawBody)
+                const envelope = {
+                    plexo_instance_id: instanceId,
+                    plexo_task_id: 'auto-routed-task',
+                    plexo_workspace_id: workspaceId,
+                    task_type: taskType === 'codeGeneration' ? 'code_generation' : taskType,
+                    preferred_provider: 'openrouter',
+                    preferred_model: defaultModel,
+                    messages: openaiPayload.messages,
+                    max_tokens: openaiPayload.max_tokens || 4000,
+                    temperature: openaiPayload.temperature,
+                    stream: openaiPayload.stream || false,
+                    tools: openaiPayload.tools,
+                    tool_choice: openaiPayload.tool_choice
+                }
+                
+                rawBody = JSON.stringify(envelope)
+                requestInit.body = rawBody
+                
+                const timestamp = Date.now().toString()
+                const signature = crypto.createHmac('sha256', signingSecret)
+                    .update(timestamp)
+                    .update(instanceId)
+                    .update(rawBody)
+                    .digest('hex')
+
+                requestInit.headers = {
+                    ...(requestInit.headers as Record<string, string>),
+                    'Authorization': `Bearer ${proxyKey}`,
+                    'X-Plexo-Signature': signature,
+                    'X-Plexo-Timestamp': timestamp,
+                    'Content-Type': 'application/json'
+                }
+                
+                const response = await globalThis.fetch(proxyUrl, requestInit)
+                if (!response.ok) return response
+                
+                const plexoRes = await response.json() as any
+                const openaiRes = {
+                    id: plexoRes.gateway_request_id,
+                    object: 'chat.completion',
+                    created: Math.floor(Date.now() / 1000),
+                    model: plexoRes.model_used,
+                    choices: [{
+                        index: 0,
+                        message: {
+                            role: 'assistant',
+                            content: plexoRes.content?.[0]?.text || '',
+                            tool_calls: (plexoRes.content || []).filter((c: any) => c.type === 'tool_use').map((c: any) => ({
+                                id: c.tool_use?.id || '',
+                                type: 'function',
+                                function: c.tool_use?.function
+                            }))
+                        },
+                        finish_reason: plexoRes.stop_reason === 'stop' ? 'stop' : (plexoRes.content?.some((c:any) => c.type === 'tool_use') ? 'tool_calls' : 'stop')
+                    }],
+                    usage: {
+                        prompt_tokens: plexoRes.usage?.tokens_input || 0,
+                        completion_tokens: plexoRes.usage?.tokens_output || 0,
+                        total_tokens: (plexoRes.usage?.tokens_input || 0) + (plexoRes.usage?.tokens_output || 0)
+                    }
+                }
+                
+                return new Response(JSON.stringify(openaiRes), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                })
             }
-            // Request paths via openrouter SDK should tunnel directly through the Plexo secure endpoint
-            return globalThis.fetch(proxyUrl, requestInit)
+            return globalThis.fetch(url, init)
         }
         
         return {
@@ -112,7 +182,7 @@ export class IntelligentRouter {
                 id: defaultModel,
                 provider,
                 mode: 'proxy' as InferenceMode,
-                costPerMIn: 0, // Costs would be managed on proxy side
+                costPerMIn: 0, 
                 costPerMOut: 0
             } as ResolvedModelMeta
         }
@@ -128,7 +198,7 @@ export class IntelligentRouter {
 
         const models = await db.select()
             .from(modelsKnowledge)
-            // .where(sql`${requiredStrengths[0]} = ANY(${modelsKnowledge.strengths})`)
+            .where(sql`${modelsKnowledge.strengths} @> ${JSON.stringify([requiredStrengths[0]])}::jsonb`)
             .orderBy(modelsKnowledge.costPerMIn) // Cheapest first
             .limit(10)
         
