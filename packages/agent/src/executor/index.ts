@@ -2,7 +2,7 @@ import { generateText, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
 import { db, sql } from '@plexo/db'
 import { taskSteps } from '@plexo/db'
-import { withFallback } from '../providers/registry.js'
+import { withFallback, resolveModel } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError, LogicError } from '../errors.js'
 import { loadConnectionTools } from '../connections/bridge.js'
@@ -409,7 +409,36 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         )
     }
 
-    const genResult = await withFallback(settings, 'codeGeneration', async (model) => {
+    // ── Model resolution via IntelligentRouter ──────────────────────────────────
+    // Inject per-task model override if specified in execution context
+    const effectiveSettings: WorkspaceAISettings = ctx.modelOverrideId
+        ? {
+            ...settings,
+            inferenceMode: 'override',
+            modelOverrides: {
+                ...(settings.modelOverrides ?? {}),
+                // Apply to the actual task type being executed
+                codeGeneration: ctx.modelOverrideId,
+                planning: ctx.modelOverrideId,
+                verification: ctx.modelOverrideId,
+                summarization: ctx.modelOverrideId,
+                classification: ctx.modelOverrideId,
+                logAnalysis: ctx.modelOverrideId,
+            }
+        }
+        : settings
+
+    const { model: resolvedModel, meta: resolvedMeta } = await resolveModel(
+        'codeGeneration',
+        effectiveSettings,
+        ctx.workspaceId,
+    ).catch(async () => {
+        // Router failure (e.g. empty models_knowledge table) — fall back to BYOK
+        const fallbackModel = await withFallback(settings, 'codeGeneration', async (m) => m)
+        return { model: fallbackModel, meta: { id: 'unknown', provider: settings.primaryProvider as import('../providers/registry.js').ProviderKey, mode: 'byok' as import('../providers/router.js').InferenceMode, costPerMIn: 3, costPerMOut: 15 } }
+    })
+
+    const genResult = await (async () => {
         let messages: any[] = [{ role: 'user', content: userMessage }]
         let retries = 0
         let accumulatedUsage = { inputTokens: 0, outputTokens: 0 }
@@ -418,7 +447,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 
         while (retries < 3) {
             const result = await generateText({
-                model,
+                model: resolvedModel,
                 system: systemPrompt,
                 messages,
                 tools: allTools,
@@ -459,14 +488,16 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
             steps: accumulatedSteps,
             text: lastResult?.text ?? '',
         }
-    })
+    })()
 
     // AI SDK v6: usage.inputTokens / usage.outputTokens
     const tokensIn = genResult.usage.inputTokens ?? 0
     const tokensOut = genResult.usage.outputTokens ?? 0
 
-    // Estimate cost — rough claude-sonnet rates
-    const costUsd = (tokensIn / 1_000_000) * 3 + (tokensOut / 1_000_000) * 15
+    // Cost calculation: use real pricing from router meta when available, else fall back to claude-sonnet-4-5 rates
+    const costPerMIn = resolvedMeta.costPerMIn > 0 ? resolvedMeta.costPerMIn : 3
+    const costPerMOut = resolvedMeta.costPerMOut > 0 ? resolvedMeta.costPerMOut : 15
+    const costUsd = (tokensIn / 1_000_000) * costPerMIn + (tokensOut / 1_000_000) * costPerMOut
     totalTokensIn += tokensIn
     totalTokensOut += tokensOut
     totalCost += costUsd
@@ -528,11 +559,11 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 
     const stepDurationMs = Date.now() - stepStart
 
-    // Persist step record to DB
+    // Persist step record to DB — use real model ID from router meta
     await db.insert(taskSteps).values({
         taskId: ctx.taskId,
         stepNumber: 1,
-        model: 'vercel-ai-sdk',
+        model: `${resolvedMeta.provider}/${resolvedMeta.id}`,
         tokensIn,
         tokensOut,
         toolCalls: toolCallRecords,

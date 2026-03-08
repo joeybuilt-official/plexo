@@ -353,6 +353,12 @@ async function processOneTask(): Promise<boolean> {
     activeAbort = abort
     activeTaskId = task.id
 
+    // Per-task model override: task.context.modelOverrideId forces Mode 4 routing
+    const taskContext0 = task.context as Record<string, unknown> | null | undefined
+    const modelOverrideId = typeof taskContext0?.modelOverrideId === 'string' && taskContext0.modelOverrideId
+        ? taskContext0.modelOverrideId
+        : undefined
+
     const ctx: ExecutionContext = {
         taskId: task.id,
         workspaceId: taskWorkspaceId ?? '',
@@ -373,6 +379,8 @@ async function processOneTask(): Promise<boolean> {
         activeProvider: aiSettings?.primaryProvider ?? 'anthropic',
         activeModel: (aiSettings?.providers as Record<string, { model?: string } | undefined> | undefined)
             ?.[aiSettings?.primaryProvider ?? 'anthropic']?.model ?? 'claude-sonnet-4-5',
+        // Per-task override (Mode 4): forces this model ID over workspace settings
+        modelOverrideId,
         // Sprint coding context
         sprintWorkDir,
         sprintRepo,

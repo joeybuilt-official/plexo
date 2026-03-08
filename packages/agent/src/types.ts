@@ -361,6 +361,12 @@ export interface ExecutionContext {
     activeProvider?: string
     /** The model ID actually in use, e.g. 'claude-sonnet-4-5' */
     activeModel?: string
+    /**
+     * Per-task model override ID — forces Mode 4 (Override) for this task only.
+     * Set from task.context.modelOverrideId if present.
+     * Overrides workspace inferenceMode and modelOverrides for all task types.
+     */
+    modelOverrideId?: string
     // ── Sprint coding context ─────────────────────────────────────────────────
     /** Absolute path to the cloned repo working directory for coding tasks */
     sprintWorkDir?: string

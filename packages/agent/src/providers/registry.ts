@@ -209,11 +209,13 @@ import { IntelligentRouter, VaultConfig, RouterConfig } from './router.js'
 
 /**
  * Resolve the optimal model for a task type from workspace settings using 4-mode arbitration.
+ * Returns both the model instance and its resolved metadata for attribution/cost tracking.
  */
 export async function resolveModel(
     taskType: TaskType,
     settings: WorkspaceAISettings,
-): Promise<AnyLanguageModel> {
+    workspaceId?: string,
+): Promise<{ model: AnyLanguageModel; meta: import('./router.js').ResolvedModelMeta }> {
     
     // Deconstruct WorkspaceAISettings into Vault and Config structures
     const vault: VaultConfig = {}
@@ -239,7 +241,7 @@ export async function resolveModel(
         modelOverrides: settings.modelOverrides
     }
 
-    const router = new IntelligentRouter(vault, routerConfig)
+    const router = new IntelligentRouter(vault, routerConfig, workspaceId)
     const { model, meta } = await router.route(taskType)
     
     // Telemetry trace: clearly surface the selected model and reasoning
@@ -252,7 +254,7 @@ export async function resolveModel(
         costBounds: { in: meta.costPerMIn, out: meta.costPerMOut }
     }))
     
-    return model
+    return { model, meta }
 }
 
 /**
