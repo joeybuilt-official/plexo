@@ -2,30 +2,40 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 // sentry.client.config.ts — runs in the browser
-// Respects the same opt-in as PostHog crash reporting (Settings → Privacy).
-// Disabled when NEXT_PUBLIC_TELEMETRY_DISABLED=true or NEXT_PUBLIC_SENTRY_DSN is unset.
+//
+// DSN priority:
+//   1. NEXT_PUBLIC_SENTRY_DSN — operator's own Sentry project (always used if set)
+//   2. Plexo central DSN — used when telemetry is opted in and no operator DSN is set
+//
+// The browser SDK only supports one Sentry init. If an operator wants both,
+// they should route their own events to sentry.getplexo.com via relay (advanced).
 import * as Sentry from '@sentry/nextjs'
 
-const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN
+// Plexo's central Sentry — same project as the API central client
+const PLEXO_CENTRAL_DSN = 'https://6d0a6e3fc7520f34ea7a26647013f2b6@sentry.getplexo.com/2'
+const OPERATOR_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN
 const TELEMETRY_DISABLED = process.env.NEXT_PUBLIC_TELEMETRY_DISABLED === 'true'
 
-if (SENTRY_DSN && !TELEMETRY_DISABLED) {
+// Operator DSN takes precedence. Fall back to central if telemetry is opted in.
+const dsn = OPERATOR_DSN ?? (!TELEMETRY_DISABLED ? PLEXO_CENTRAL_DSN : undefined)
+
+if (dsn) {
   Sentry.init({
-    dsn: SENTRY_DSN,
+    dsn,
     environment: process.env.NODE_ENV ?? 'production',
-    // Capture JS exceptions; no performance tracing
+    // Errors only — no performance tracing
     tracesSampleRate: 0,
-    // Replay 10% of sessions; 100% when an error occurs
+    // Session replay: 10% baseline, 100% on error
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
     integrations: [
       Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),
     ],
-    // Don't send expected/benign errors
     ignoreErrors: [
       'ResizeObserver loop limit exceeded',
       'Network request failed',
       /ChunkLoadError/,
+      'AbortError',
     ],
   })
 }

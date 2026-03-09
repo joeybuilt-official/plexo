@@ -2,56 +2,102 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * sentry.ts — Sentry initializer and thin capture wrapper.
+ * sentry.ts — Dual Sentry client: central Plexo project + optional operator project.
  *
- * Import this module ONCE at the top of index.ts before any other app code.
- * All other modules import captureException() from here rather than @sentry/node
- * directly, so Sentry stays opt-in (no-ops when SENTRY_DSN is unset).
+ * Two independent Sentry clients:
  *
- * Sentry respects the same privacy toggle as PostHog crash reporting.
- * If the operator has disabled anonymous crash reporting via Settings → Privacy,
- * captureException() is a no-op — no data leaves the instance.
+ * 1. CENTRAL (sentry.getplexo.com) — receives errors from all opted-in instances.
+ *    Gated by the privacy toggle (Settings → Privacy → "Anonymous crash reports").
+ *    DSN is baked in — no operator config required, mirrors how PostHog works.
+ *
+ * 2. OPERATOR (SENTRY_DSN env var) — the operator's own Sentry project.
+ *    Always active when SENTRY_DSN is set, regardless of the privacy toggle.
+ *    Self-hosted operators use this to track errors on their own instance.
+ *
+ * captureException() sends to whichever clients are initialized.
+ * Never throws. Never blocks the process.
  */
-import * as SentrySDK from '@sentry/node'
+import { NodeClient, defaultStackParser, getDefaultIntegrations, makeNodeTransport } from '@sentry/node'
+import type { EventHint } from '@sentry/node'
 import { logger } from './logger.js'
 import { getTelemetryConfig } from './telemetry/posthog.js'
 
-let initialized = false
+// Plexo's central Sentry project — receives errors from opted-in instances.
+// Sentry DSNs are designed to be public (client-side in browsers always).
+// This allows submission only — no read access to the project.
+const PLEXO_CENTRAL_DSN = 'https://6d0a6e3fc7520f34ea7a26647013f2b6@sentry.getplexo.com/2'
 
-export function initSentry(): void {
-    const dsn = process.env.SENTRY_DSN
-    if (!dsn) {
-        logger.info('Sentry: SENTRY_DSN not set — error reporting disabled')
-        return
-    }
+const IGNORE_ERRORS = [
+    'Sprint cancelled by user',
+    'AbortError',
+]
 
-    SentrySDK.init({
+function makeClient(dsn: string): NodeClient {
+    return new NodeClient({
         dsn,
         environment: process.env.NODE_ENV ?? 'production',
         release: process.env.npm_package_version,
-        tracesSampleRate: 0,         // no performance tracing — errors only
-        // Avoid capturing noisy/expected errors
-        ignoreErrors: [
-            'Sprint cancelled by user',
-        ],
+        tracesSampleRate: 0,
+        stackParser: defaultStackParser,
+        transport: makeNodeTransport,
+        integrations: getDefaultIntegrations({}).filter(
+            (i) => !['OnUncaughtException', 'OnUnhandledRejection'].includes(i.name),
+            // We handle these ourselves in index.ts for clean shutdown
+        ),
     })
-    initialized = true
-    logger.info('Sentry: initialized')
+}
+
+let centralClient: NodeClient | null = null
+let operatorClient: NodeClient | null = null
+
+export function initSentry(): void {
+    // Central client — for all opted-in instances
+    try {
+        centralClient = makeClient(PLEXO_CENTRAL_DSN)
+        logger.info('Sentry: central client initialized (sentry.getplexo.com)')
+    } catch (err) {
+        logger.warn({ err }, 'Sentry: central client failed to initialize')
+    }
+
+    // Operator client — for the instance operator's own Sentry
+    const operatorDsn = process.env.SENTRY_DSN
+    if (operatorDsn && operatorDsn !== PLEXO_CENTRAL_DSN) {
+        try {
+            operatorClient = makeClient(operatorDsn)
+            logger.info('Sentry: operator client initialized (SENTRY_DSN)')
+        } catch (err) {
+            logger.warn({ err }, 'Sentry: operator client failed to initialize')
+        }
+    }
 }
 
 /**
- * Capture an exception to Sentry. No-op if:
- *   - Sentry was not initialized (no SENTRY_DSN)
- *   - The operator has disabled crash reporting via Settings → Privacy
+ * Capture an exception.
+ *
+ * - Central client: only fires when telemetry is enabled (privacy toggle)
+ * - Operator client: always fires when initialized (operator's own project)
+ *
  * Always non-fatal — never throws.
  */
 export function captureException(err: unknown, context?: Record<string, unknown>): void {
-    if (!initialized) return
-    // Respect the privacy toggle — same gate as PostHog captureError()
-    if (!getTelemetryConfig().enabled) return
-    try {
-        SentrySDK.captureException(err, context ? { extra: context } : undefined)
-    } catch {
-        // Never let Sentry itself crash the process
+    const message = err instanceof Error ? err.message : String(err)
+
+    // Ignore known non-actionable errors in both clients
+    if (IGNORE_ERRORS.some((pat) => message.includes(pat))) return
+
+    const hint: EventHint | undefined = context ? { data: context } : undefined
+
+    // Central: gated by privacy toggle
+    if (centralClient && getTelemetryConfig().enabled) {
+        try {
+            centralClient.captureException(err, hint)
+        } catch { /* never crash */ }
+    }
+
+    // Operator: always active
+    if (operatorClient) {
+        try {
+            operatorClient.captureException(err, hint)
+        } catch { /* never crash */ }
     }
 }
