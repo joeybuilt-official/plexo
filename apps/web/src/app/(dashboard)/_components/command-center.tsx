@@ -610,7 +610,7 @@ export function CommandCenter() {
                 </div>
 
                 {/* Right Column: Recent Activity Feed */}
-                <div className="xl:col-span-1 flex flex-col min-h-[400px] h-[500px] xl:h-[calc(100vh-280px)]">
+                <div className="xl:col-span-1 flex flex-col h-[400px] xl:h-[500px]">
                     <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm flex flex-col h-full overflow-hidden">
                         <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 shrink-0 bg-zinc-950/30">
                             <div className="flex items-center gap-2">
