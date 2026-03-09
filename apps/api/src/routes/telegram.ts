@@ -12,10 +12,20 @@
  * Message routing:
  * - Conversational messages → direct AI reply (no task queued)
  * - Task requests → queued, agent executes, replies when done
+ *
+ * Every message exchange is recorded in the `conversations` table with:
+ *   - source: 'telegram'
+ *   - sessionId: 'telegram:{channelId}:{chatId}'  (stable per chat)
+ *   - channelRef: { channel: 'telegram', channelId, chatId }
+ *
+ * This enables:
+ *   - Full conversation history in Plexo web UI
+ *   - "Continue in web" → restores full thread context
+ *   - Bidirectional: web replies route back to the originating Telegram chat
  */
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
-import { pushTask, completeTask } from '@plexo/queue'
+import { pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
 import { db, eq } from '@plexo/db'
@@ -24,6 +34,11 @@ import { ulid } from 'ulid'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
+import {
+    recordConversation,
+    linkTaskToConversation,
+    type ChannelRef,
+} from '../conversation-log.js'
 
 export const telegramRouter: RouterType = Router()
 
@@ -132,10 +147,16 @@ async function classifyIntent(workspaceId: string, history: ChatMessage[]): Prom
 }
 
 // Per-chat conversation history (last 20 messages, scoped to channelId+chatId)
+// In-memory warm cache — DB is the source of truth; this is rebuilt on demand.
 const chatHistory = new Map<string, ChatMessage[]>()
 
 function historyKey(channelId: string, chatId: string): string {
     return `${channelId}:${chatId}`
+}
+
+/** Stable session ID for a Telegram chat — used as conversations.session_id */
+function telegramSessionId(channelId: string, chatId: string): string {
+    return `telegram:${channelId}:${chatId}`
 }
 
 function addToHistory(channelId: string, chatId: string, role: 'user' | 'assistant', content: string): void {
@@ -147,6 +168,7 @@ function addToHistory(channelId: string, chatId: string, role: 'user' | 'assista
 }
 
 // Pending confirmations scoped to channel (so the right bot replies)
+// Now stores the conversationId so we can link taskId on confirm.
 const pendingActions = new Map<string, {
     channelId: string
     token: string
@@ -155,6 +177,8 @@ const pendingActions = new Map<string, {
     description: string
     from?: string
     messageId?: number
+    chatId: string
+    conversationId: string   // NEW — ID of the conversations row for this proposal
 }>()
 
 // ── Update handler ────────────────────────────────────────────────────────────
@@ -163,7 +187,7 @@ interface TelegramUpdate {
     update_id: number
     message?: {
         message_id: number
-        from: { id: number; username?: string; first_name?: string }
+        from: { id: number; username?: string; first_name?: string; is_bot?: boolean }
         chat: { id: number; type: string }
         date: number
         text?: string
@@ -173,7 +197,7 @@ interface TelegramUpdate {
     }
     callback_query?: {
         id: string
-        from: { id: number; username?: string; first_name?: string }
+        from: { id: number; username?: string; first_name?: string; is_bot?: boolean }
         message?: { message_id: number; chat: { id: number; type: string } }
         data: string
     }
@@ -185,6 +209,9 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     // ── Inline button callbacks ───────────────────────────────────────────────
     if (update.callback_query) {
         const cb = update.callback_query
+        // Ignore bot-originated callbacks
+        if (cb.from.is_bot) return
+
         const chatId = String(cb.message?.chat.id)
         const data = cb.data
 
@@ -231,9 +258,15 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                             chatId,
                             from: action.from ?? 'Unknown',
                             messageId: action.messageId,
+                            sessionId: telegramSessionId(channelId, chatId),
                         },
                         priority: 2,
                     })
+
+                    // Link the queued task back to the original proposal conversation row
+                    if (action.conversationId) {
+                        await linkTaskToConversation(action.conversationId, taskId).catch(() => null)
+                    }
 
                     await sendMessage(token, chatId, `⏳ Queueing Task… _(${taskId.slice(0, 8)})_`)
 
@@ -244,10 +277,33 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                             const result = (event.result as string | undefined) ?? 'Done.'
                             sendMessage(token, chatId, `✅ ${result}`).catch(() => null)
                             addToHistory(channelId, chatId, 'assistant', result)
+                            // Record the completion turn in conversations
+                            recordConversation({
+                                workspaceId,
+                                sessionId: telegramSessionId(channelId, chatId),
+                                source: 'telegram',
+                                message: '[Task completed]',
+                                reply: result,
+                                status: 'complete',
+                                intent: 'TASK',
+                                taskId,
+                                channelRef: { channel: 'telegram', channelId, chatId },
+                            }).catch(() => null)
                         } else if (event.type === 'task_failed' || event.type === 'task_blocked') {
                             unsub()
                             const reason = (event.reason as string | undefined) ?? 'Unknown error'
                             sendMessage(token, chatId, `❌ ${reason}`).catch(() => null)
+                            recordConversation({
+                                workspaceId,
+                                sessionId: telegramSessionId(channelId, chatId),
+                                source: 'telegram',
+                                message: '[Task failed]',
+                                errorMsg: reason,
+                                status: 'failed',
+                                intent: 'TASK',
+                                taskId,
+                                channelRef: { channel: 'telegram', channelId, chatId },
+                            }).catch(() => null)
                         }
                     })
                     setTimeout(() => unsub(), 5 * 60 * 1000)
@@ -268,6 +324,12 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                         status: 'planning',
                         metadata: {},
                     }).returning()
+
+                    // Link sprint to conversation
+                    if (action.conversationId && sprint) {
+                        await linkTaskToConversation(action.conversationId, sprint.id).catch(() => null)
+                    }
+
                     await sendMessage(token, chatId, `✅ Project created: _${sprint!.id}_. You can view it in the dashboard.`)
                 } catch (err) {
                     logger.error({ err, chatId }, 'Failed to create Telegram project')
@@ -282,7 +344,12 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     const msg = update.message
     if (!msg) return
 
+    // Ignore bot-originated messages to prevent relay loops
+    if (msg.from.is_bot) return
+
     const chatId = String(msg.chat.id)
+    const channelRef: ChannelRef = { channel: 'telegram', channelId, chatId }
+    const sessionId = telegramSessionId(channelId, chatId)
 
     // ── Voice / Audio ─────────────────────────────────────────────────────────
     const voiceFile = msg.voice ?? msg.audio ?? msg.video_note
@@ -385,12 +452,48 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         }
         const replyText = result.text ?? "I'm having a bit of trouble right now — please try again in a moment."
         addToHistory(channelId, chatId, 'assistant', replyText)
+
+        // Record every conversation turn
+        await recordConversation({
+            workspaceId,
+            sessionId,
+            source: 'telegram',
+            message: text,
+            reply: replyText,
+            status: result.error ? 'failed' : 'complete',
+            errorMsg: result.error ? `AI error: ${result.error}` : null,
+            intent: 'CONVERSATION',
+            channelRef,
+        }).catch((err: Error) => logger.warn({ err }, 'Failed to record Telegram conversation'))
+
         await sendMessage(token, chatId, replyText)
+        emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'telegram' })
         return
     }
 
     // TASK or PROJECT: ask for confirmation with inline buttons
     const actionId = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+    const replyText = `Ready to create a **${intent === 'TASK' ? 'Task' : 'Project'}**.\n\nDescription: _${text.slice(0, 100)}${text.length > 100 ? '...' : ''}_\n\nProceed?`
+
+    // Record the proposal as a conversation turn BEFORE sending the confirm prompt
+    // so we can link the task/project ID back to it on confirmation.
+    let conversationId = ''
+    try {
+        conversationId = await recordConversation({
+            workspaceId,
+            sessionId,
+            source: 'telegram',
+            message: text,
+            reply: replyText,
+            status: 'complete',
+            intent,
+            channelRef,
+        })
+        emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'telegram' })
+    } catch (err) {
+        logger.error({ err, chatId }, 'Failed to record Telegram proposal conversation')
+    }
+
     pendingActions.set(actionId, {
         channelId,
         token,
@@ -399,37 +502,9 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         description: text,
         from: msg.from.username ?? msg.from.first_name ?? String(msg.from.id),
         messageId: msg.message_id,
+        chatId,
+        conversationId,
     })
-
-    const replyText = `Ready to create a **${intent === 'TASK' ? 'Task' : 'Project'}**.\n\nDescription: _${text.slice(0, 100)}${text.length > 100 ? '...' : ''}_\n\nProceed?`
-
-    // Log the interaction
-    try {
-        const taskId = await pushTask({
-            workspaceId,
-            type: 'online',
-            source: 'telegram',
-            status: 'complete',
-            context: {
-                description: text,
-                channel: 'telegram',
-                chatId,
-                from: msg.from.username ?? msg.from.first_name ?? String(msg.from.id),
-                messageId: msg.message_id,
-            },
-            priority: 2,
-        })
-        await completeTask(taskId, {
-            qualityScore: 1,
-            outcomeSummary: replyText,
-            tokensIn: 0,
-            tokensOut: 0,
-            costUsd: 0,
-        })
-        emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'telegram' })
-    } catch (err) {
-        logger.error({ err, chatId }, 'Failed to log Telegram interaction to DB')
-    }
 
     await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
         method: 'POST',
@@ -482,6 +557,15 @@ telegramRouter.get('/info', (_req, res) => {
         mode: process.env.PUBLIC_URL && !process.env.PUBLIC_URL.includes('localhost') ? 'webhook' : 'polling',
     })
 })
+
+// ── Token lookup (used by conversation-log reply-back) ────────────────────────
+
+/**
+ * Get the bot token for a channelId so chat.ts can relay web replies back to Telegram.
+ */
+export function getTelegramToken(channelId: string): string | null {
+    return _channels.get(channelId)?.token ?? null
+}
 
 // ── Long polling (local dev) ──────────────────────────────────────────────────
 

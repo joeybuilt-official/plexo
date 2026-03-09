@@ -7,7 +7,7 @@ async function fetchInitialConversations(workspaceId: string) {
     const apiBase = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
     try {
         const res = await fetch(
-            `${apiBase}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100`,
+            `${apiBase}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100&groupBySession=true`,
             { cache: 'no-store' },
         )
         if (!res.ok) return []
@@ -52,7 +52,6 @@ export default async function ConversationsPage() {
             </div>
         )
     }
-
 
     const initialItems = (await fetchInitialConversations(workspaceId)) as any[] // eslint-disable-line @typescript-eslint/no-explicit-any
 

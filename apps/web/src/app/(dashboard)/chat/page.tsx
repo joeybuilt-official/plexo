@@ -574,48 +574,93 @@ function ChatContent() {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
-    // Load context from ?context=<conversationId> (continue conversation from Conversations page)
+    // Load context from ?context=<conversationId> OR ?sessionId=<sessionId>
+    // ?sessionId loads the full thread (all turns); ?context loads a single turn.
+    // In both cases the session ID ref is set so new messages are correctly linked.
     useEffect(() => {
         const contextId = searchParams.get('context')
-        if (!contextId || messages.length > 0) return
+        const sessionIdParam = searchParams.get('sessionId')
+        if (!contextId && !sessionIdParam) return
+        if (messages.length > 0) return
+
         async function loadContext() {
             try {
-                const res = await fetch(`${API}/api/v1/conversations/${contextId}`)
-                if (!res.ok) return
-                const data = await res.json() as {
-                    id: string
-                    message: string
-                    reply: string | null
-                    sessionId: string | null
-                    status: string
+                // ── Full session thread (preferred, from Telegram or multi-turn) ────
+                if (sessionIdParam && WS_ID) {
+                    const res = await fetch(
+                        `${API}/api/v1/conversations?workspaceId=${encodeURIComponent(WS_ID)}&sessionId=${encodeURIComponent(sessionIdParam)}&limit=100`
+                    )
+                    if (!res.ok) return
+                    const data = await res.json() as { items: Array<{ id: string; message: string; reply: string | null; errorMsg: string | null; status: string; intent: string | null; taskId: string | null }> }
+                    const turns = data.items ?? []
+                    const loaded: Message[] = []
+                    for (const turn of turns) {
+                        loaded.push({
+                            id: `ctx-user-${turn.id}`,
+                            role: 'user',
+                            content: turn.message,
+                            status: 'complete',
+                            at: Date.now(),
+                        })
+                        const body = turn.reply ?? turn.errorMsg ?? null
+                        if (body) {
+                            loaded.push({
+                                id: `ctx-agent-${turn.id}`,
+                                role: 'agent',
+                                content: body,
+                                status: (turn.status === 'failed' && turn.errorMsg) ? 'failed' : 'complete',
+                                taskId: turn.taskId ?? undefined,
+                                at: Date.now() + 1,
+                            })
+                        }
+                    }
+                    if (loaded.length > 0) setMessages(loaded)
+                    // Restore the session ID — new messages from web will be linked
+                    // and relayed back to the originating channel (e.g. Telegram)
+                    sessionId.current = sessionIdParam
+                    return
                 }
-                const loaded: Message[] = []
-                if (data.message) {
-                    loaded.push({
-                        id: `ctx-user-${Date.now()}`,
-                        role: 'user',
-                        content: data.message,
-                        status: 'complete',
-                        at: Date.now() - 1,
-                    })
+
+                // ── Single-turn context (legacy ?context= param) ─────────────────
+                if (contextId) {
+                    const res = await fetch(`${API}/api/v1/conversations/${contextId}`)
+                    if (!res.ok) return
+                    const data = await res.json() as {
+                        id: string
+                        message: string
+                        reply: string | null
+                        sessionId: string | null
+                        status: string
+                    }
+                    const loaded: Message[] = []
+                    if (data.message) {
+                        loaded.push({
+                            id: `ctx-user-${Date.now()}`,
+                            role: 'user',
+                            content: data.message,
+                            status: 'complete',
+                            at: Date.now() - 1,
+                        })
+                    }
+                    if (data.reply) {
+                        loaded.push({
+                            id: `ctx-agent-${Date.now()}`,
+                            role: 'agent',
+                            content: data.reply,
+                            status: 'complete',
+                            at: Date.now(),
+                        })
+                    }
+                    if (loaded.length > 0) setMessages(loaded)
+                    if (data.sessionId) sessionId.current = data.sessionId
                 }
-                if (data.reply) {
-                    loaded.push({
-                        id: `ctx-agent-${Date.now()}`,
-                        role: 'agent',
-                        content: data.reply,
-                        status: 'complete',
-                        at: Date.now(),
-                    })
-                }
-                if (loaded.length > 0) setMessages(loaded)
-                // Restore the original session ID so in-memory history continues
-                if (data.sessionId) sessionId.current = data.sessionId
             } catch { /* ignore */ }
         }
         void loadContext()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+
+
 
     const tts = useTTS()
 

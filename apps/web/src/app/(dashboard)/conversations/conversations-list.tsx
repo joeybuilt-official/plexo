@@ -12,6 +12,7 @@ import {
     MessageCircle,
     ExternalLink,
     Info,
+    Layers,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
@@ -31,6 +32,8 @@ interface ConversationItem {
     sessionId: string | null
     taskId: string | null
     createdAt: string
+    // From groupBySession mode:
+    turn_count?: number | string
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -82,6 +85,21 @@ function getPreview(item: ConversationItem): string {
     return item.message
 }
 
+/** Returns the href that "Continue conversation" should navigate to */
+function continueHref(item: ConversationItem): string {
+    // If the item has a sessionId, restore the full thread context
+    if (item.sessionId) return `/chat?sessionId=${encodeURIComponent(item.sessionId)}`
+    // Otherwise fall back to single-turn context
+    return `/chat?context=${encodeURIComponent(item.id)}`
+}
+
+/** Returns the number of turns in a session, shown as a label */
+function turnLabel(item: ConversationItem): string | null {
+    const n = typeof item.turn_count === 'string' ? parseInt(item.turn_count, 10) : (item.turn_count ?? 1)
+    if (!n || n <= 1) return null
+    return `${n} turns`
+}
+
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function SkeletonRow() {
@@ -111,8 +129,6 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
     const { workspaceId: ctxWorkspaceId } = useWorkspace()
     const workspaceId = ctxWorkspaceId || propWorkspaceId
 
-    // If the context workspace differs from what the server rendered,
-    // treat initialItems as stale — show nothing until the client fetch resolves.
     const workspaceMismatch = !!ctxWorkspaceId && ctxWorkspaceId !== propWorkspaceId
     const [items, setItems] = useState<ConversationItem[]>(workspaceMismatch ? [] : initialItems)
     const [loading, setLoading] = useState(workspaceMismatch)
@@ -122,11 +138,11 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
     const lf = useListFilter(FILTER_KEYS, 'newest')
     const { search, filterValues, hasFilters, clearAll } = lf
 
-    // ── Data fetching ─────────────────────────────────────────────────────────
+    // ── Data fetching — grouped sessions mode ─────────────────────────────────
     const fetchConversations = useCallback(async () => {
         try {
             const res = await fetch(
-                `${API_BASE}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100`,
+                `${API_BASE}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100&groupBySession=true`,
                 { cache: 'no-store' },
             )
             if (!res.ok) return
@@ -139,7 +155,6 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
         }
     }, [workspaceId])
 
-    // Fetch on mount if workspace mismatched, always poll every 15s
     useEffect(() => {
         if (workspaceMismatch || ctxWorkspaceId) {
             void fetchConversations()
@@ -148,7 +163,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
         return () => clearInterval(t)
     }, [fetchConversations, workspaceMismatch, ctxWorkspaceId])
 
-    // SSE live updates — refresh list when a chat.message completes
+    // SSE live updates
     useEffect(() => {
         if (typeof window === 'undefined') return
         const url = `${API_BASE}/api/v1/sse?workspaceId=${encodeURIComponent(workspaceId)}`
@@ -159,8 +174,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             es.onmessage = (e) => {
                 try {
                     const event = JSON.parse(e.data as string) as { type: string }
-                    // Refresh whenever a chat message completes or a task is created from one
-                    if (['task_complete', 'task_failed', 'task_queued'].includes(event.type)) {
+                    if (['task_complete', 'task_failed', 'task_queued', 'conversation_updated'].includes(event.type)) {
                         void fetchConversations()
                     }
                 } catch { /* malformed */ }
@@ -172,7 +186,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
         return () => { es.close(); esRef.current = null }
     }, [workspaceId, fetchConversations])
 
-    // ── Derived sources (for dimming unavailable options) ─────────────────────
+    // ── Derived sources ───────────────────────────────────────────────────────
     const availableSources = useMemo(() => new Set(items.map((i) => i.source)), [items])
     const availableStatuses = useMemo(() => new Set(items.map((i) => i.status)), [items])
 
@@ -236,7 +250,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                     {loading
                         ? 'Loading…'
                         : items.length > 0
-                            ? `${displayed.length}${displayed.length !== items.length ? ` of ${items.length}` : ''} conversation${items.length === 1 ? '' : 's'}`
+                            ? `${displayed.length}${displayed.length !== items.length ? ` of ${items.length}` : ''} thread${items.length === 1 ? '' : 's'}`
                             : 'Chat history from all channels'}
                 </p>
             </div>
@@ -282,6 +296,8 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                 const preview = getPreview(item)
                                 const badge = SOURCE_BADGE[item.source] ?? DEFAULT_SOURCE_BADGE
                                 const isFailed = item.status === 'failed'
+                                const turns = turnLabel(item)
+                                const isThread = !!(item.sessionId && turns)
 
                                 return (
                                     <div
@@ -291,9 +307,13 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                         <span className="mt-0.5 shrink-0">
                                             {STATUS_ICON[item.status] ?? STATUS_ICON['pending']}
                                         </span>
-                                        {/* Clickable body → detail page */}
+                                        {/* Clickable body → thread detail or single conversation */}
                                         <Link
-                                            href={`/conversations/${encodeURIComponent(item.id)}`}
+                                            href={
+                                                item.sessionId
+                                                    ? `/conversations/thread?sessionId=${encodeURIComponent(item.sessionId)}`
+                                                    : `/conversations/${encodeURIComponent(item.id)}`
+                                            }
                                             className="flex-1 min-w-0 block hover:opacity-80 transition-opacity"
                                         >
                                             {/* User message */}
@@ -311,6 +331,11 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                                 {item.intent && item.intent !== 'CONVERSATION' && (
                                                     <span className="rounded bg-indigo-900/40 border border-indigo-800/50 px-1.5 py-0.5 text-[9px] text-indigo-400 capitalize">
                                                         {item.intent.toLowerCase()}
+                                                    </span>
+                                                )}
+                                                {isThread && (
+                                                    <span className="flex items-center gap-0.5 rounded bg-zinc-800 border border-zinc-700/50 px-1.5 py-0.5 text-[9px] text-zinc-500">
+                                                        <Layers className="h-2.5 w-2.5" /> {turns}
                                                     </span>
                                                 )}
                                                 <span className="text-[10px] text-zinc-600">
@@ -332,15 +357,19 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                             )}
                                             {/* Conversation info / detail */}
                                             <Link
-                                                href={`/conversations/${encodeURIComponent(item.id)}`}
+                                                href={
+                                                    item.sessionId
+                                                        ? `/conversations/thread?sessionId=${encodeURIComponent(item.sessionId)}`
+                                                        : `/conversations/${encodeURIComponent(item.id)}`
+                                                }
                                                 className="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
-                                                title="Conversation info"
+                                                title={isThread ? 'View thread' : 'Conversation info'}
                                             >
                                                 <Info className="h-4 w-4" />
                                             </Link>
                                             {/* Continue in chat */}
                                             <Link
-                                                href={`/chat?context=${encodeURIComponent(item.id)}`}
+                                                href={continueHref(item)}
                                                 className="rounded-lg p-1.5 text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800 transition-colors"
                                                 title="Continue conversation"
                                             >

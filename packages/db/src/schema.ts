@@ -302,10 +302,17 @@ export const conversations = pgTable('conversations', {
     status: text('status').notNull().default('complete'), // complete | failed | pending
     intent: text('intent'), // CONVERSATION | TASK | PROJECT — classifier output
     taskId: text('task_id').references((): any => tasks.id, { onDelete: 'set null' }), // eslint-disable-line @typescript-eslint/no-explicit-any
+    /**
+     * Origin channel reference — stored when the conversation started in an external channel.
+     * Shape: { channel: 'telegram'|'slack'|'discord', channelId: string, chatId: string }
+     * Used to route web-initiated replies back to the originating channel.
+     */
+    channelRef: jsonb('channel_ref').$type<{ channel: string; channelId: string; chatId: string } | null>().default(null),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
     index('conversations_workspace_idx').on(table.workspaceId),
     index('conversations_workspace_created_idx').on(table.workspaceId, table.createdAt),
+    index('conversations_session_idx').on(table.sessionId),
 ])
 
 export const taskSteps = pgTable('task_steps', {

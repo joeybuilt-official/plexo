@@ -14,7 +14,7 @@
  */
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, desc, sql } from '@plexo/db'
-import { workspaces, tasks, taskSteps, sprints, modelsKnowledge, conversations } from '@plexo/db'
+import { workspaces, tasks, taskSteps, sprints, modelsKnowledge } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 import { pushTask } from '@plexo/queue'
@@ -25,35 +25,12 @@ import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { runSprint } from '@plexo/agent/sprint/runner'
 import { storeMemory, rememberInstruction } from '@plexo/agent/memory/store'
 import { setPreference } from '@plexo/agent/memory/preferences'
-
-// ── Conversation helpers ──────────────────────────────────────────────────────
-
-async function recordConversation(params: {
-    workspaceId: string
-    sessionId?: string | null
-    source: string
-    message: string
-    reply?: string | null
-    errorMsg?: string | null
-    status: 'complete' | 'failed' | 'pending'
-    intent?: string | null
-    taskId?: string | null
-}): Promise<string> {
-    const id = ulid()
-    await db.insert(conversations).values({
-        id,
-        workspaceId: params.workspaceId,
-        sessionId: params.sessionId ?? null,
-        source: params.source,
-        message: params.message,
-        reply: params.reply ?? null,
-        errorMsg: params.errorMsg ?? null,
-        status: params.status,
-        intent: params.intent ?? null,
-        taskId: params.taskId ?? null,
-    })
-    return id
-}
+import {
+    recordConversation,
+    getSessionChannelRef,
+    replyToChannel,
+} from '../conversation-log.js'
+import { getTelegramToken } from './telegram.js'
 
 export const chatRouter: RouterType = Router()
 
@@ -337,6 +314,14 @@ chatRouter.post('/message', async (req, res) => {
             if (history.length > 20) history.splice(0, history.length - 20)
             sessionHistory.set(sid, history)
 
+            // Detect if this session originated from an external channel (Telegram, etc.)
+            // so we (a) record the correct source and (b) relay the reply back
+            let externalChannelRef: { channel: string; channelId: string; chatId: string } | null = null
+            if (sessionId && sessionId.startsWith('telegram:')) {
+                externalChannelRef = await getSessionChannelRef(workspaceId, sessionId).catch(() => null)
+            }
+            const conversationSource = externalChannelRef ? externalChannelRef.channel : 'dashboard'
+
             try {
                 logger.info({ workspaceId, providerKey, modelId: config.model }, 'Webchat: generating conversational reply')
                 const result = await withFallback(aiSettings, 'summarization', async (model) =>
@@ -354,7 +339,7 @@ Keep replies concise and friendly. If the user proposes a single distinct action
                     logger.warn({ workspaceId, providerKey }, 'Webchat: empty response from model')
                     const classified = classifyAIError(new Error('Empty response from model — the model returned no text.'))
                     try {
-                        await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent })
+                        await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent })
                     } catch { /* non-fatal */ }
                     res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
                     return
@@ -363,10 +348,20 @@ Keep replies concise and friendly. If the user proposes a single distinct action
                 if (history.length > 20) history.splice(0, history.length - 20)
                 sessionHistory.set(sid, history)
 
-                // Record the conversation — NOT a task
+                // Record the conversation turn
                 try {
-                    await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: replyText, status: 'complete', intent })
+                    await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent })
                 } catch { /* non-fatal */ }
+
+                // Relay reply back to the originating channel (e.g. Telegram)
+                if (externalChannelRef) {
+                    const token = externalChannelRef.channel === 'telegram'
+                        ? getTelegramToken(externalChannelRef.channelId)
+                        : null
+                    replyToChannel(externalChannelRef, replyText, token ?? undefined).catch(
+                        (err: Error) => logger.warn({ err, channelRef: externalChannelRef }, 'Failed to relay web reply to source channel')
+                    )
+                }
 
                 // Write to semantic memory so this chat exchange is retrievable
                 storeMemory({
@@ -381,12 +376,13 @@ Keep replies concise and friendly. If the user proposes a single distinct action
                 const classified = classifyAIError(err)
                 logger.error({ err, workspaceId, errorType: classified.type }, 'Webchat conversational reply failed')
                 try {
-                    await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent })
+                    await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent })
                 } catch { /* non-fatal */ }
                 res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
             }
             return
         }
+
 
         // TASK or PROJECT — Record the conversation exchange, no task yet (user must confirm)
         const confirmReply = intent === 'TASK'

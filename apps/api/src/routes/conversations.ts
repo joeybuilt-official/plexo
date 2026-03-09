@@ -1,5 +1,5 @@
 import { Router, type Router as RouterType } from 'express'
-import { db, desc, eq, sql } from '@plexo/db'
+import { db, desc, eq, sql, asc } from '@plexo/db'
 import { conversations } from '@plexo/db'
 import { logger } from '../logger.js'
 
@@ -31,12 +31,13 @@ conversationsRouter.get('/:id', async (req, res) => {
     }
 })
 
-// ── GET /api/v1/conversations?workspaceId=&limit=&cursor= ─────────────────────
-// Returns all conversation records for a workspace, newest first.
-// These are pure interaction logs — not tasks.
+// ── GET /api/v1/conversations?workspaceId=&limit=&cursor=&sessionId= ─────────
+// Returns conversation records for a workspace, newest first.
+// If ?sessionId= is provided, returns all turns for that session in chronological order.
+// If ?groupBySession=true, returns one entry per session (most recent turn per session).
 
 conversationsRouter.get('/', async (req, res) => {
-    const { workspaceId, limit = '50', cursor } = req.query as Record<string, string>
+    const { workspaceId, limit = '50', cursor, sessionId, groupBySession } = req.query as Record<string, string>
 
     if (!workspaceId) {
         res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
@@ -50,6 +51,41 @@ conversationsRouter.get('/', async (req, res) => {
     try {
         const lim = Math.min(parseInt(limit, 10) || 50, 200)
 
+        // Session thread view: all turns for a specific session ID (chronological)
+        if (sessionId) {
+            const items = await db.select().from(conversations)
+                .where(sql`workspace_id = ${workspaceId} AND session_id = ${sessionId}`)
+                .orderBy(asc(conversations.createdAt))
+                .limit(lim)
+            res.json({ items, nextCursor: null, sessionId })
+            return
+        }
+
+        // Grouped view: one row per session (the most recent turn), plus a turn count.
+        // Falls back to per-row view for conversations without a sessionId.
+        if (groupBySession === 'true') {
+            // Use a window function to get the latest turn per session
+            // plus a count of total turns per session.
+            const rawRows = await db.execute(sql`
+                WITH ranked AS (
+                    SELECT *,
+                           ROW_NUMBER() OVER (PARTITION BY COALESCE(session_id, id) ORDER BY created_at DESC) AS rn,
+                           COUNT(*) OVER (PARTITION BY COALESCE(session_id, id)) AS turn_count
+                    FROM conversations
+                    WHERE workspace_id = ${workspaceId}
+                    ${cursor ? sql`AND created_at < (SELECT created_at FROM conversations WHERE id = ${cursor})` : sql``}
+                )
+                SELECT * FROM ranked WHERE rn = 1
+                ORDER BY created_at DESC
+                LIMIT ${lim}
+            `)
+            const items = rawRows as Array<Record<string, unknown>>
+            const nextCursor = items.length === lim ? (items[items.length - 1]?.['id'] as string ?? null) : null
+            res.json({ items, nextCursor })
+            return
+        }
+
+        // Default: flat list, newest first
         const items = cursor
             ? await db.select().from(conversations)
                 .where(sql`workspace_id = ${workspaceId} AND id < ${cursor}`)
