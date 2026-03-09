@@ -117,6 +117,15 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03-09 — migrate exits 1: SyntaxError invoking .bin/tsx shell wrapper as JS
+
+- **Root cause**: `docker/migrate.sh` called `node --max-old-space-size=200 /app/packages/db/node_modules/.bin/tsx src/migrate.ts`. The `.bin/tsx` file is a POSIX shell shebang wrapper (`#!/bin/sh`, starts with `basedir=$(dirname...)`). Node.js interprets that shell script as JavaScript, hitting `SyntaxError: missing ) after argument list` on the first line.
+- **Impact**: `docker-migrate-1` exited code 1. All services with `depends_on: migrate / condition: service_completed_successfully` (`caddy`, `api`, `web`) stayed in `Created` state. VPS unreachable.
+- **Fix**: `migrate.sh` now invokes `node_modules/tsx/dist/cli.mjs` directly — the actual ESM entrypoint — bypassing the shell wrapper. Stable regardless of pnpm hoisting.
+- **Lesson**: Never pass a `.bin/` wrapper as an argument to `node <path>`. `.bin/` files are shell scripts. Use the package's real `dist/` entrypoint when calling via `node`.
+
+---
+
 ### 2026-03 — Migration Container 32GB Swap Runaway
 
 - **Root cause 1 (`deploy.resources.limits` not enforced)**: All services in `docker/compose.yml` used `deploy.resources.limits` for memory and CPU caps. This key is **Swarm-only** — `docker compose up` (non-Swarm) ignores it entirely. The migrate container had no enforced memory cap.
