@@ -56,14 +56,17 @@ router.get('/', async (req, res) => {
         return res.status(400).json({ error: 'Invalid workspace ID' })
     }
 
-    // Check cache first
-    try {
-        const redis = await getRedis()
-        const cached = await redis.get(introspectCacheKey(wsId))
-        if (cached) {
-            return res.json(JSON.parse(cached))
-        }
-    } catch { /* cache miss — fall through */ }
+    // Check cache first — skip if ?bust=1 (e.g. manual Refresh button click)
+    const bustCache = req.query.bust === '1' || req.query.bust === 'true'
+    if (!bustCache) {
+        try {
+            const redis = await getRedis()
+            const cached = await redis.get(introspectCacheKey(wsId))
+            if (cached) {
+                return res.json(JSON.parse(cached))
+            }
+        } catch { /* cache miss — fall through */ }
+    }
 
     try {
         const snapshot = await buildIntrospectionSnapshot(wsId)

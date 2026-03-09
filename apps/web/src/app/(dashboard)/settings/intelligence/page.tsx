@@ -202,7 +202,8 @@ export default function IntelligencePage() {
         if (!WS_ID) return
         if (showSpinner) setRefreshing(true)
         try {
-            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/introspect`)
+            const url = `${API_BASE}/api/v1/workspaces/${WS_ID}/introspect${showSpinner ? '?bust=1' : ''}`
+            const res = await fetch(url)
             if (res.ok) {
                 const data = await res.json() as IntrospectionSnapshot
                 setSnapshot(data)
