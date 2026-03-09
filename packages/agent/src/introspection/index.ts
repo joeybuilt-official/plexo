@@ -193,7 +193,15 @@ export async function buildIntrospectionSnapshot(
 
                 const providers = (ap.providers ?? {}) as Record<string, Record<string, unknown>>
                 for (const [key, cfg] of Object.entries(providers)) {
-                    const isConfigured = cfg.status === 'configured' || !!cfg.apiKey || !!cfg.oauthToken || !!cfg.baseUrl
+                    // A provider is truly configured when it has a real credential:
+                    // - apiKey exists AND is not the sentinel placeholder (__configured__)
+                    // - OR a baseUrl is present (keyless/local providers, e.g. Ollama)
+                    // - OR status is explicitly 'configured' without an apiKey (Ollama-style)
+                    const SENTINEL = '__configured__'
+                    const hasRealApiKey = !!cfg.apiKey && cfg.apiKey !== SENTINEL
+                    const hasBaseUrl = !!cfg.baseUrl
+                    const isKeylessConfigured = cfg.status === 'configured' && !cfg.apiKey
+                    const isConfigured = hasRealApiKey || hasBaseUrl || isKeylessConfigured
                     const modality = MODEL_MODALITIES[key] ?? MODEL_MODALITIES.anthropic!
                     const isPrimary = key === primaryProvider
                     const isFallback = fallbackChain.includes(key)
@@ -217,15 +225,18 @@ export async function buildIntrospectionSnapshot(
         }
     } catch { /* non-fatal */ }
 
-    // If no providers loaded, add a minimal entry for the env-resolved active provider
+    // If no providers loaded at all, add a stub — but only mark it primary if
+    // we were given an explicit activeProvider (meaning a task is actually running).
+    // With no providers and no active task, show 'unconfigured' so the UI is honest.
     if (providerSnapshots.length === 0) {
         const modality = MODEL_MODALITIES[primaryProvider] ?? MODEL_MODALITIES.anthropic!
         providerSnapshots.push({
             key: primaryProvider,
             name: PROVIDER_DISPLAY_NAMES[primaryProvider] ?? primaryProvider,
             model: activeModel ?? 'unknown',
-            status: 'primary',
-            enabled: true,
+            // Only claim 'primary' status if we were explicitly told a provider is active
+            status: activeProvider ? 'primary' : 'unconfigured',
+            enabled: !!activeProvider,
             modalities: modality.supports,
             missing: modality.missing,
         })
@@ -349,14 +360,15 @@ export async function buildIntrospectionSnapshot(
         totalTokens7d: 0,
     }
     try {
+        const defaultCeiling = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
         const [costRow] = await db.execute<{
             cost_usd: string | null
             ceiling_usd: string | null
         }>(sql`
-            SELECT cost_usd, ceiling_usd
+            SELECT cost_usd, COALESCE(ceiling_usd, ${defaultCeiling}) AS ceiling_usd
             FROM api_cost_tracking
             WHERE workspace_id = ${workspaceId}::uuid
-            ORDER BY week_start DESC
+              AND week_start = date_trunc('week', NOW())::date
             LIMIT 1
         `)
 

@@ -1,8 +1,9 @@
 import { claimTask, completeTask, blockTask } from '@plexo/queue'
 import { db, eq, sql } from '@plexo/db'
-import { tasks, apiCostTracking, workspaces, sprints, sprintTasks } from '@plexo/db'
+import { tasks, apiCostTracking, workLedger, workspaces, sprints, sprintTasks } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
+import { recordTaskMemory } from '@plexo/agent/memory/store'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from './logger.js'
@@ -440,6 +441,66 @@ async function processOneTask(): Promise<boolean> {
             tokensOut: result.totalTokensOut,
             costUsd: result.totalCostUsd,
         })
+
+        // ── Cost accounting ────────────────────────────────────────────────────
+        // Upsert the weekly cost tracking row so the Intelligence page shows real spend.
+        // Week starts on Monday (ISO) — use date_trunc('week', NOW()) in Postgres.
+        if (result.totalCostUsd > 0) {
+            try {
+                await db.execute(sql`
+                    INSERT INTO api_cost_tracking (id, workspace_id, week_start, cost_usd, ceiling_usd)
+                    VALUES (
+                        gen_random_uuid(),
+                        ${taskWorkspaceId ?? ''}::uuid,
+                        date_trunc('week', NOW())::date,
+                        ${result.totalCostUsd},
+                        ${API_COST_CEILING}
+                    )
+                    ON CONFLICT (workspace_id, week_start)
+                    DO UPDATE SET cost_usd = api_cost_tracking.cost_usd + EXCLUDED.cost_usd
+                `)
+            } catch (costWriteErr) {
+                logger.warn({ err: costWriteErr, taskId: task.id }, 'api_cost_tracking upsert failed — non-fatal')
+            }
+        }
+
+        // Write a work_ledger row for per-task audit trail and 7d stats
+        try {
+            await db.insert(workLedger).values({
+                workspaceId: taskWorkspaceId ?? '',
+                taskId: task.id,
+                type: task.type,
+                source: task.source as string,
+                tokensIn: result.totalTokensIn,
+                tokensOut: result.totalTokensOut,
+                costUsd: result.totalCostUsd,
+                qualityScore: result.qualityScore,
+                completedAt: new Date(),
+            })
+        } catch (ledgerErr) {
+            logger.warn({ err: ledgerErr, taskId: task.id }, 'work_ledger insert failed — non-fatal')
+        }
+
+        // ── Task memory ────────────────────────────────────────────────────────
+        // Store a semantic memory entry so the Intelligence page has entries to show
+        // and future tasks can retrieve relevant past context.
+        try {
+            const taskCtxForMem = task.context as Record<string, unknown> | null | undefined
+            const description = (taskCtxForMem?.description as string)
+                ?? (taskCtxForMem?.message as string)
+                ?? task.type
+            await recordTaskMemory({
+                workspaceId: taskWorkspaceId ?? '',
+                taskId: task.id,
+                description,
+                outcome: result.ok ? 'success' : 'partial',
+                toolsUsed: [],  // executor doesn't currently expose tool list in result
+                qualityScore: result.qualityScore,
+                notes: result.outcomeSummary?.slice(0, 300),
+            })
+        } catch (memErr) {
+            logger.warn({ err: memErr, taskId: task.id }, 'recordTaskMemory failed — non-fatal')
+        }
 
         // ── Sprint task sync (CRITICAL) ────────────────────────────────────────
         // The sprint runner polls sprint_tasks.status to detect wave completion.
