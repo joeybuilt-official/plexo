@@ -15,6 +15,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **Behavioral injection** — at task start, executor loads workspace preferences (Redis-cached) and injects them as `WORKSPACE RULES (always follow these)` in the system prompt, linking user-set instructions to actual agent behavior.
 
 ### Fixed
+- **Sprint tasks running forever (no output)** — `agent-loop.ts` only updated the `tasks` table on completion; `sprint_tasks.status` was never transitioned from `running` to `complete`/`failed`. `waitForWave` polls `sprint_tasks` and timed out after 30 minutes every time. Now agent-loop reads `task.context.sprintTaskId` (embedded by the sprint runner) and mirrors task terminal status into `sprint_tasks` immediately on completion or failure. All sprint categories (code, research, writing, ops, etc.) are covered.
+- **Over-eager task proposals** — intent classifier defaulted to `TASK` before classification ran, so any failure caused a task confirmation prompt. Changed default to `CONVERSATION`. Rewrote `CLASSIFY_SYSTEM` prompt: `TASK` now requires an unmistakable action verb with a clear deliverable; questions, lookups, and status checks route to `CONVERSATION`.
+- **Input field locked during task execution** — `pollReply()` (SSE) was `await`ed inside `sendMessageWith`, holding `setSending(true)` for the full duration of a task (minutes). Now fired as `void pollReply()` so the input unlocks immediately once the initial response is received.
+- **Project creation hijacked navigation** — on project creation success, `window.location.href` redirected to an empty/planning-state project page. Now stays in chat and shows a completion bubble with an "Open project" link.
+- **confirm_action bubble too generic** — header "What would you like to do with this?" replaced with intent-aware copy: tasks say "I can run this as an automated task." / projects say "I can set this up as a coordinated project."
 - `POST /api/v1/memory/improvements/run` — was fire-and-forget; now synchronous and returns `{ok, count, applied, proposals}`
 - `runSelfImprovementCycle` — removed min-3-ledger-entry threshold; falls back to task history if `work_ledger` is sparse
 - `executor/index.ts` — memory write failures now logged at warn level instead of silently discarded
