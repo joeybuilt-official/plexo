@@ -531,40 +531,40 @@ export function CommandCenter() {
                 />
             </div>
 
+            {/* Attention Required - Moved outside grid to ensure perfect top-level alignment of focus/activity columns */}
+            {hasAttention && (
+                <div className="rounded-xl border border-red-500/20 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden mb-6">
+                    <div className="flex items-center justify-between border-b border-red-500/10 px-4 py-3 bg-red-500/5">
+                        <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                            <h3 className="text-[13px] font-semibold text-red-500">Attention Required</h3>
+                        </div>
+                        <span className="text-[11px] font-medium text-red-400 bg-red-500/10 px-2.5 py-0.5 rounded-full">{attentionItems.length} item{attentionItems.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="divide-y divide-zinc-800/30 p-1">
+                        {attentionItems.map(item => (
+                            <AttentionItem
+                                key={item.id}
+                                icon={item.icon}
+                                iconColor={item.iconColor}
+                                label={item.label}
+                                meta={item.meta}
+                                href={item.href}
+                                actionLabel={item.actionLabel}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Main Layout Grid */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                 
                 {/* Left Column: Essential Workflow */}
                 <div className="xl:col-span-2 flex flex-col gap-6">
-                    {/* Attention Required */}
-                    {hasAttention && (
-                        <div className="rounded-xl border border-red-500/20 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden">
-                            <div className="flex items-center justify-between border-b border-red-500/10 px-4 py-3 bg-red-500/5">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                                    <h3 className="text-[13px] font-semibold text-red-500">Attention Required</h3>
-                                </div>
-                                <span className="text-[11px] font-medium text-red-400 bg-red-500/10 px-2.5 py-0.5 rounded-full">{attentionItems.length} item{attentionItems.length !== 1 ? 's' : ''}</span>
-                            </div>
-                            <div className="divide-y divide-zinc-800/30 p-1">
-                                {attentionItems.map(item => (
-                                    <AttentionItem
-                                        key={item.id}
-                                        icon={item.icon}
-                                        iconColor={item.iconColor}
-                                        label={item.label}
-                                        meta={item.meta}
-                                        href={item.href}
-                                        actionLabel={item.actionLabel}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
                     {/* Active Work */}
-                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden flex flex-col">
-                            <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 bg-zinc-950/30">
+                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden h-[330px] flex flex-col">
+                            <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 shrink-0 bg-zinc-950/30">
                                 <div className="flex items-center gap-2">
                                     <div className={`h-1.5 w-1.5 rounded-full ${hasActiveWork ? 'bg-blue-400 animate-pulse' : 'bg-emerald-400'}`} />
                                     <h3 className="text-[13px] font-semibold text-zinc-200">Current Focus</h3>
@@ -574,13 +574,13 @@ export function CommandCenter() {
                                 </Link>
                             </div>
                             {hasActiveWork ? (
-                                <div className="divide-y divide-zinc-800/30 p-1 max-h-[280px] overflow-y-auto custom-scrollbar">
+                                <div className="divide-y divide-zinc-800/30 p-1 flex-1 overflow-y-auto custom-scrollbar">
                                     {activeWork.map(task => (
                                         <ActiveWorkItem key={task.id} task={task} />
                                     ))}
                                 </div>
                             ) : (
-                                <div className="py-8 px-4 text-center flex flex-col items-center justify-center">
+                                <div className="py-8 px-4 text-center flex flex-col items-center flex-1 justify-center">
                                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 text-emerald-400 mb-3 border border-emerald-500/20">
                                         <CheckCircle2 className="h-6 w-6" />
                                     </div>
@@ -613,8 +613,8 @@ export function CommandCenter() {
                 </div>
 
                 {/* Right Column: Recent Activity Feed */}
-                <div className="xl:col-span-1 flex flex-col">
-                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm flex flex-col max-h-[350px] overflow-hidden">
+                <div className="xl:col-span-1 flex flex-col h-[330px]">
+                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm flex flex-col h-full overflow-hidden">
                         <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 shrink-0 bg-zinc-950/30">
                             <div className="flex items-center gap-2">
                                 <Activity className="h-3.5 w-3.5 text-zinc-400" />
