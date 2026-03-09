@@ -327,9 +327,11 @@ export async function executeTask(
 
         const rules: string[] = []
 
-        // user_instruction is a free-form string stored by chat MEMORY intent
-        if (typeof prefs.user_instruction === 'string' && prefs.user_instruction) {
-            rules.push(prefs.user_instruction)
+        // Collect all user_instruction:* keys (each "remember X" chat message is a separate entry)
+        for (const [key, val] of Object.entries(prefs)) {
+            if ((key === 'user_instruction' || key.startsWith('user_instruction:')) && typeof val === 'string' && val) {
+                rules.push(val)
+            }
         }
 
         // Structured preferences derived from task outcomes

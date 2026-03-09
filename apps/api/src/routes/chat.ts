@@ -302,10 +302,11 @@ chatRouter.post('/message', async (req, res) => {
                 // Store as a high-confidence pattern in memory_entries
                 await rememberInstruction({ workspaceId, instruction: trimmedMsg, source: 'chat' })
 
-                // Also write to workspace_preferences so the executor reads it at task start
-                // Extract a normalized key from the instruction (first 3 meaningful words)
+                // Also write to workspace_preferences under a unique key per instruction
+                // so multiple "remember X" instructions accumulate rather than overwrite
                 const sanitized = trimmedMsg.replace(/^(remember|always|never|don't|dont|please|make sure)\s+/i, '').trim()
-                await setPreference({ workspaceId, key: 'user_instruction', value: sanitized, source: 'chat' })
+                const instrKey = `user_instruction:${Date.now()}`
+                await setPreference({ workspaceId, key: instrKey, value: sanitized, source: 'chat' })
 
                 const reply = `Got it — I'll remember that and apply it going forward.`
                 history.push({ role: 'user', content: trimmedMsg })
