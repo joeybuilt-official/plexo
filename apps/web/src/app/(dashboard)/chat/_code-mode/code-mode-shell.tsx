@@ -1,0 +1,399 @@
+'use client'
+
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import {
+    Terminal, GitBranch, TestTube, FileText, Settings2,
+    Activity, X, ChevronLeft, ChevronRight, Layers, Split, Code2
+} from 'lucide-react'
+import { useCodeStream, type StepShellLineEvent, type StepFileWriteEvent, type StepTestResultEvent } from './use-code-stream'
+import { TerminalPanel } from './terminal-panel'
+import { TestResultsPanel } from './test-results-panel'
+import { FileTree } from './file-tree'
+import { DiffViewer } from './diff-viewer'
+import { RepoPicker, type RepoSelection } from './repo-picker'
+import type { Message } from 'ai/react'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface FileNode {
+    path: string
+    name: string
+    size: number
+    mtime: number
+    ext: string
+}
+
+export interface CodeModeContext {
+    repo?: string
+    branch?: string
+    taskId?: string
+    isNew?: boolean
+}
+
+interface CodeModeShellProps {
+    workspaceId: string
+    taskId?: string
+    isTaskRunning: boolean
+    context: CodeModeContext
+    onRepoSelect: (sel: RepoSelection) => void
+    onRerunTest: (testNames: string[]) => void
+    onClose: () => void
+    /** Pass-through of the main chat panel */
+    children: React.ReactNode
+}
+
+// ── Bottom tab types ──────────────────────────────────────────────────────────
+
+type BottomTab = 'terminal' | 'tests' | 'diff'
+
+// ── Fetch helpers ─────────────────────────────────────────────────────────────
+
+async function fetchFileTree(workspaceId: string, taskId: string): Promise<FileNode[]> {
+    const res = await fetch(`/api/v1/code/tree?workspaceId=${workspaceId}&taskId=${taskId}`)
+    if (!res.ok) return []
+    const data = await res.json() as { files?: FileNode[] }
+    return data.files ?? []
+}
+
+async function fetchFileContent(workspaceId: string, taskId: string, path: string): Promise<string | null> {
+    const res = await fetch(
+        `/api/v1/code/file?workspaceId=${workspaceId}&taskId=${taskId}&path=${encodeURIComponent(path)}`
+    )
+    if (!res.ok) return null
+    const data = await res.json() as { content?: string }
+    return data.content ?? null
+}
+
+// ── Status bar ────────────────────────────────────────────────────────────────
+
+function AgentStatusBar({
+    taskId,
+    repo,
+    branch,
+    isRunning,
+    shellLines,
+    fileWriteCount,
+    testResults,
+}: {
+    taskId?: string
+    repo?: string
+    branch?: string
+    isRunning: boolean
+    shellLines: number
+    fileWriteCount: number
+    testResults: StepTestResultEvent[]
+}) {
+    const passed = testResults.filter((r) => r.pass).length
+    const failed = testResults.filter((r) => !r.pass).length
+
+    return (
+        <div className="flex items-center gap-4 px-3 h-8 bg-zinc-950 border-t border-zinc-800 text-xs font-mono text-zinc-500 flex-shrink-0">
+            {/* Agent pulse */}
+            <div className="flex items-center gap-1.5">
+                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'}`} />
+                <span className={isRunning ? 'text-emerald-400' : 'text-zinc-600'}>
+                    {isRunning ? 'agent active' : 'idle'}
+                </span>
+            </div>
+            <span className="text-zinc-700">|</span>
+            {/* Repo */}
+            {repo && (
+                <>
+                    <div className="flex items-center gap-1">
+                        <GitBranch className="w-3 h-3" />
+                        <span className="text-zinc-400">{repo}</span>
+                        {branch && <span className="text-zinc-600">• {branch}</span>}
+                    </div>
+                    <span className="text-zinc-700">|</span>
+                </>
+            )}
+            {/* Counters */}
+            <span>{shellLines} lines</span>
+            <span>{fileWriteCount} writes</span>
+            {testResults.length > 0 && (
+                <>
+                    <span className="text-zinc-700">|</span>
+                    <span className="text-emerald-400">{passed}✓</span>
+                    {failed > 0 && <span className="text-red-400">{failed}✗</span>}
+                </>
+            )}
+            {/* Task ID */}
+            {taskId && (
+                <>
+                    <span className="text-zinc-700 ml-auto">|</span>
+                    <span className="text-zinc-700">{taskId.slice(0, 8)}</span>
+                </>
+            )}
+        </div>
+    )
+}
+
+// ── Main shell ────────────────────────────────────────────────────────────────
+
+export function CodeModeShell({
+    workspaceId,
+    taskId,
+    isTaskRunning,
+    context,
+    onRepoSelect,
+    onRerunTest,
+    onClose,
+    children,
+}: CodeModeShellProps) {
+    // ── Stream state ──────────────────────────────────────────────────────────
+    const [shellLines, setShellLines] = useState<StepShellLineEvent[]>([])
+    const [fileWrites, setFileWrites] = useState<StepFileWriteEvent[]>([])
+    const [testResults, setTestResults] = useState<StepTestResultEvent[]>([])
+
+    const modifiedPaths = useMemo(
+        () => new Set(fileWrites.map((e) => e.path)),
+        [fileWrites]
+    )
+
+    useCodeStream({
+        workspaceId,
+        taskId,
+        onShellLine: useCallback((e) => setShellLines((p) => [...p, e]), []),
+        onFileWrite: useCallback((e) => {
+            setFileWrites((p) => [...p, e])
+            // Refresh file tree when agent writes
+            if (taskId) loadTree()
+        }, [taskId]),
+        onTestResult: useCallback((e) => setTestResults((p) => [...p, e]), []),
+    })
+
+    // ── File tree ─────────────────────────────────────────────────────────────
+    const [files, setFiles] = useState<FileNode[]>([])
+    const [selectedFile, setSelectedFile] = useState<string | undefined>()
+    const [fileContent, setFileContent] = useState<string | null>(null)
+    const [isLoadingFile, setIsLoadingFile] = useState(false)
+
+    const loadTree = useCallback(async () => {
+        if (!taskId) return
+        const f = await fetchFileTree(workspaceId, taskId)
+        setFiles(f)
+    }, [workspaceId, taskId])
+
+    useEffect(() => { loadTree() }, [loadTree])
+
+    // Reload tree periodically while task is running
+    useEffect(() => {
+        if (!isTaskRunning || !taskId) return
+        const timer = setInterval(loadTree, 10_000)
+        return () => clearInterval(timer)
+    }, [isTaskRunning, taskId, loadTree])
+
+    async function openFile(path: string) {
+        if (!taskId) return
+        setSelectedFile(path)
+        setIsLoadingFile(true)
+        const content = await fetchFileContent(workspaceId, taskId, path)
+        setFileContent(content)
+        setIsLoadingFile(false)
+    }
+
+    // Reload selected file when it changes on disk (agent write event)
+    useEffect(() => {
+        if (!selectedFile) return
+        const last = fileWrites[fileWrites.length - 1]
+        if (last && last.path === selectedFile) {
+            openFile(selectedFile)
+        }
+    }, [fileWrites.length])
+
+    // ── Layout ────────────────────────────────────────────────────────────────
+    const [bottomTab, setBottomTab] = useState<BottomTab>('terminal')
+    const [sidebarWidth, setSidebarWidth] = useState(220)
+    const [bottomHeight, setBottomHeight] = useState(220)
+    const [showSidebar, setShowSidebar] = useState(true)
+    const [showBottom, setShowBottom] = useState(true)
+
+    // ── Clear state when task changes ─────────────────────────────────────────
+    const prevTaskId = useRef(taskId)
+    useEffect(() => {
+        if (taskId !== prevTaskId.current) {
+            setShellLines([])
+            setFileWrites([])
+            setTestResults([])
+            setFiles([])
+            setSelectedFile(undefined)
+            setFileContent(null)
+            prevTaskId.current = taskId
+        }
+    }, [taskId])
+
+    const hasRepo = !!context.repo
+
+    return (
+        <div className="flex flex-col h-full bg-zinc-900 text-zinc-200 overflow-hidden relative">
+            {/* ── Toolbar ─────────────────────────────────────────────────── */}
+            <div className="flex items-center gap-1 px-2 h-9 bg-zinc-900 border-b border-zinc-800 flex-shrink-0">
+                {/* Sidebar toggle */}
+                <button
+                    onClick={() => setShowSidebar((v) => !v)}
+                    title="Toggle file tree"
+                    className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-200 transition-colors"
+                >
+                    <Layers className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Repo badge */}
+                {context.repo && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-400 ml-1">
+                        <GitBranch className="w-3 h-3" />
+                        <span>{context.repo}</span>
+                        {context.branch && <span className="text-zinc-600">@{context.branch}</span>}
+                    </div>
+                )}
+
+                <div className="flex-1" />
+
+                {/* Bottom panel toggle buttons */}
+                {(['terminal', 'tests', 'diff'] as BottomTab[]).map((tab) => {
+                    const icons = {
+                        terminal: Terminal,
+                        tests: TestTube,
+                        diff: FileText,
+                    }
+                    const Icon = icons[tab]
+                    const labels = { terminal: 'Terminal', tests: 'Tests', diff: 'Changes' }
+                    const counts = {
+                        terminal: shellLines.length || undefined,
+                        tests: testResults.length || undefined,
+                        diff: fileWrites.length || undefined,
+                    }
+                    return (
+                        <button
+                            key={tab}
+                            onClick={() => {
+                                if (showBottom && bottomTab === tab) {
+                                    setShowBottom(false)
+                                } else {
+                                    setBottomTab(tab)
+                                    setShowBottom(true)
+                                }
+                            }}
+                            className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                                showBottom && bottomTab === tab
+                                    ? 'bg-zinc-700 text-zinc-100'
+                                    : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'
+                            }`}
+                        >
+                            <Icon className="w-3 h-3" />
+                            <span>{labels[tab]}</span>
+                            {counts[tab] !== undefined && (
+                                <span className={`px-1 rounded text-xs ${
+                                    tab === 'tests' && testResults.filter((r) => !r.pass).length > 0
+                                        ? 'bg-red-900/50 text-red-400'
+                                        : 'bg-zinc-700 text-zinc-400'
+                                }`}>
+                                    {counts[tab]}
+                                </span>
+                            )}
+                        </button>
+                    )
+                })}
+
+                <div className="w-px h-4 bg-zinc-800 mx-1" />
+
+                {/* Close code mode */}
+                <button
+                    onClick={onClose}
+                    title="Exit code mode"
+                    className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors"
+                >
+                    <X className="w-3.5 h-3.5" />
+                </button>
+            </div>
+
+            {/* ── Main area ───────────────────────────────────────────────── */}
+            <div className="flex flex-1 overflow-hidden">
+                {/* File tree sidebar */}
+                {showSidebar && (
+                    <div
+                        className="flex flex-col border-r border-zinc-800 bg-zinc-950 flex-shrink-0"
+                        style={{ width: sidebarWidth }}
+                    >
+                        {hasRepo || files.length > 0
+                            ? <FileTree
+                                files={files}
+                                modifiedPaths={modifiedPaths}
+                                selectedPath={selectedFile}
+                                onSelect={openFile}
+                                className="flex-1"
+                            />
+                            : <RepoPicker onSelect={onRepoSelect} className="flex-1" />
+                        }
+                    </div>
+                )}
+
+                {/* Content area: editor + chat stacked */}
+                <div className="flex flex-col flex-1 overflow-hidden">
+                    {/* File editor (shown when a file is selected) */}
+                    {selectedFile && (
+                        <div className="border-b border-zinc-800 bg-zinc-950 overflow-hidden flex flex-col" style={{ height: 300 }}>
+                            {/* Tab bar */}
+                            <div className="flex items-center gap-1 px-2 h-8 border-b border-zinc-800 bg-zinc-900 text-xs font-mono">
+                                <Code2 className="w-3 h-3 text-zinc-500" />
+                                <span className="text-zinc-400 flex-1 truncate">{selectedFile}</span>
+                                {modifiedPaths.has(selectedFile) && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Modified by agent" />
+                                )}
+                                <button onClick={() => { setSelectedFile(undefined); setFileContent(null) }} className="p-0.5 hover:text-zinc-200">
+                                    <X className="w-3 h-3" />
+                                </button>
+                            </div>
+                            {/* Content */}
+                            <div className="flex-1 overflow-auto bg-zinc-950 p-3">
+                                {isLoadingFile
+                                    ? <span className="text-xs text-zinc-500 font-mono animate-pulse">loading…</span>
+                                    : fileContent !== null
+                                    ? <pre className="text-xs font-mono text-zinc-300 whitespace-pre leading-relaxed">{fileContent}</pre>
+                                    : <span className="text-xs text-zinc-500 font-mono">File not available</span>
+                                }
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Chat panel (always visible) */}
+                    <div className="flex-1 overflow-hidden flex flex-col">
+                        {children}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Bottom panel ────────────────────────────────────────────── */}
+            {showBottom && (
+                <div
+                    className="border-t border-zinc-800 bg-zinc-950 flex-shrink-0 flex flex-col overflow-hidden"
+                    style={{ height: bottomHeight }}
+                >
+                    {bottomTab === 'terminal' && (
+                        <TerminalPanel lines={shellLines} className="flex-1" />
+                    )}
+                    {bottomTab === 'tests' && (
+                        <TestResultsPanel
+                            results={testResults}
+                            onRerun={onRerunTest}
+                            className="flex-1"
+                        />
+                    )}
+                    {bottomTab === 'diff' && (
+                        <DiffViewer events={fileWrites} className="flex-1" />
+                    )}
+                </div>
+            )}
+
+            {/* ── Status bar ──────────────────────────────────────────────── */}
+            <AgentStatusBar
+                taskId={taskId}
+                repo={context.repo}
+                branch={context.branch}
+                isRunning={isTaskRunning}
+                shellLines={shellLines.length}
+                fileWriteCount={fileWrites.length}
+                testResults={testResults}
+            />
+        </div>
+    )
+}

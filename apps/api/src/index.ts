@@ -43,6 +43,7 @@ import { registryRouter } from './routes/registry.js'
 import { telemetryRouter } from './telemetry/router.js'
 import { configureTelemetry } from './telemetry/posthog.js'
 import { clarificationRouter } from './routes/clarification.js'
+import { sentryWebhookRouter } from './routes/sentry-webhook.js'
 import { terminateAll, workerStats } from '@plexo/agent/persistent-pool'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
@@ -130,6 +131,7 @@ v1.use('/plugins', workspaceRateLimit, pluginsRouter)
 v1.use('/registry', registryRouter)
 v1.use('/audit', auditRouter)
 v1.use('/telemetry', telemetryRouter)
+v1.use('/webhooks', sentryWebhookRouter)
 
 v1.use('/debug', debugRouter)
 v1.use('/chat', chatRouter)
@@ -151,6 +153,7 @@ app.use('/api/v1', v1)
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     logger.error({ err }, 'Unhandled error')
+    captureException(err, { context: 'express_error_handler' })
     res.status(500).json({
         error: {
             code: 'INTERNAL_ERROR',

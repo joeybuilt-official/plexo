@@ -11,7 +11,7 @@ export const tasksRouter: RouterType = Router()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const VALID_TASK_TYPES = new Set(['coding', 'deployment', 'research', 'ops', 'opportunity', 'monitoring', 'report', 'online', 'automation'])
-const VALID_TASK_SOURCES = new Set(['telegram', 'slack', 'discord', 'scanner', 'github', 'cron', 'dashboard', 'api', 'extension'])
+const VALID_TASK_SOURCES = new Set(['telegram', 'slack', 'discord', 'scanner', 'github', 'cron', 'dashboard', 'api', 'extension', 'sentry'])
 
 // ── GET /api/tasks?workspaceId=&status=&type=&limit=&cursor= ─────────────────
 

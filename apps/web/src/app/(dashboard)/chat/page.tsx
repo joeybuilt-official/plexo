@@ -35,7 +35,9 @@ import {
     BarChart2,
     Megaphone,
     FolderOpen,
+    Code2 as CodeIcon,
 } from 'lucide-react'
+import { CodeModeShell, type CodeModeContext } from './_code-mode/code-mode-shell'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
 import { getModelCapabilities, recommendModelForInput, checkAttachmentPrompt } from '@web/lib/models'
@@ -586,6 +588,12 @@ function ChatContent() {
     const sessionId = useRef(`session-${Date.now()}`)
     const searchParams = useSearchParams()
 
+    // ── Code Mode state ───────────────────────────────────────────────────────
+    const [codeMode, setCodeMode] = useState(false)
+    const [codeModeContext, setCodeModeContext] = useState<CodeModeContext>({})
+    // Track last running task's taskId for Code Mode streaming
+    const lastRunningTaskId = messages.find((m) => m.status === 'running')?.taskId
+
     // Fetch the active agent model
     useEffect(() => {
         if (!WS_ID) return
@@ -959,6 +967,11 @@ function ChatContent() {
                     workspaceId: WS_ID,
                     message: text,
                     sessionId: sessionId.current,
+                    // Inject Code Mode repo context if active
+                    ...(codeMode && codeModeContext.repo ? {
+                        repo: codeModeContext.repo,
+                        branch: codeModeContext.branch,
+                    } : {}),
                     images: images && images.length > 0
                         ? images.map((img) => ({ data: img.dataUrl, mimeType: img.mimeType, name: img.name }))
                         : undefined,
@@ -1070,7 +1083,7 @@ function ChatContent() {
     const suggestion = recommendModelForInput(input, modelToUse)
     const wantsAttachment = checkAttachmentPrompt(input)
 
-    return (
+    const chatPanel = (
         <div className="flex h-full flex-col">
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-zinc-800 shrink-0">
@@ -1120,6 +1133,21 @@ function ChatContent() {
                     >
                         History →
                     </Link>
+
+                    {/* Code Mode toggle */}
+                    <button
+                        id="code-mode-toggle"
+                        onClick={() => setCodeMode((v) => !v)}
+                        title={codeMode ? 'Exit code mode' : 'Enter code mode'}
+                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                            codeMode
+                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20'
+                                : 'text-zinc-600 hover:text-zinc-400 border border-transparent hover:border-zinc-700'
+                        }`}
+                    >
+                        <CodeIcon className="h-3.5 w-3.5" />
+                        <span>Code</span>
+                    </button>
                 </div>
             </div>
 
@@ -1362,4 +1390,29 @@ function ChatContent() {
             </div>
         </div>
     )
+
+    if (codeMode) {
+        return (
+            <CodeModeShell
+                workspaceId={WS_ID}
+                taskId={lastRunningTaskId}
+                isTaskRunning={!!lastRunningTaskId}
+                context={codeModeContext}
+                onRepoSelect={(sel) => {
+                    setCodeModeContext({ repo: sel.repo, branch: sel.branch, isNew: sel.isNew })
+                }}
+                onRerunTest={(testNames) => {
+                    const text = testNames.length === 1
+                        ? `Re-run the failing test: ${testNames[0]}`
+                        : `Re-run these failing tests: ${testNames.join(', ')}`
+                    void sendMessageWith(text)
+                }}
+                onClose={() => setCodeMode(false)}
+            >
+                {chatPanel}
+            </CodeModeShell>
+        )
+    }
+
+    return chatPanel
 }

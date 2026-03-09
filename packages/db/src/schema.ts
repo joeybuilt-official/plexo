@@ -62,6 +62,7 @@ export const taskSourceEnum = pgEnum('task_source', [
     'dashboard',
     'api',
     'extension',
+    'sentry',
 ])
 
 export const sprintStatusEnum = pgEnum('sprint_status', [
