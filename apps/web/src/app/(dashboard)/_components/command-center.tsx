@@ -563,7 +563,7 @@ export function CommandCenter() {
                     )}
 
                     {/* Active Work */}
-                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden min-h-[140px] flex flex-col">
+                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden flex flex-col">
                             <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 bg-zinc-950/30">
                                 <div className="flex items-center gap-2">
                                     <div className={`h-1.5 w-1.5 rounded-full ${hasActiveWork ? 'bg-blue-400 animate-pulse' : 'bg-emerald-400'}`} />
@@ -574,13 +574,13 @@ export function CommandCenter() {
                                 </Link>
                             </div>
                             {hasActiveWork ? (
-                                <div className="divide-y divide-zinc-800/30 p-1">
+                                <div className="divide-y divide-zinc-800/30 p-1 max-h-[280px] overflow-y-auto custom-scrollbar">
                                     {activeWork.map(task => (
                                         <ActiveWorkItem key={task.id} task={task} />
                                     ))}
                                 </div>
                             ) : (
-                                <div className="p-8 text-center flex flex-col items-center flex-1 justify-center">
+                                <div className="py-8 px-4 text-center flex flex-col items-center justify-center">
                                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 text-emerald-400 mb-3 border border-emerald-500/20">
                                         <CheckCircle2 className="h-6 w-6" />
                                     </div>
@@ -613,8 +613,8 @@ export function CommandCenter() {
                 </div>
 
                 {/* Right Column: Recent Activity Feed */}
-                <div className="xl:col-span-1 flex flex-col h-[350px] xl:h-[450px]">
-                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm flex flex-col h-full overflow-hidden">
+                <div className="xl:col-span-1 flex flex-col">
+                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm flex flex-col max-h-[350px] overflow-hidden">
                         <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 shrink-0 bg-zinc-950/30">
                             <div className="flex items-center gap-2">
                                 <Activity className="h-3.5 w-3.5 text-zinc-400" />
