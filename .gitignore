@@ -41,3 +41,4 @@ test-*.js
 # Playwright
 playwright-report/
 test-results/
+caddy.json

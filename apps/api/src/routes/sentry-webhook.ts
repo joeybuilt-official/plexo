@@ -8,7 +8,7 @@
  * We create an `ops` task so an agent can investigate and push a fix.
  *
  * Setup in Sentry:
- *   Settings → Integrations → Webhooks → add https://APP_DOMAIN/api/v1/webhooks/sentry
+ *   Settings → Integrations → Webhooks → add https://<your-plexo-domain>/api/v1/webhooks/sentry
  *   Trigger: "Issue" events (new issue, regression)
  *   Secret: value of SENTRY_WEBHOOK_SECRET env var (used for HMAC-SHA256 verification)
  */
