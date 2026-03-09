@@ -121,7 +121,9 @@ pnpm --filter @plexo/web dev
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-03-03 | Drizzle over Prisma | No binary dependency, no generation step, SQL-native, smaller bundle |
+| 2026-03-09 | Agent self-extension via `synthesize_kapsel_skill` | Enables agent to generate, persist, and activate its own Kapsel skills. Sandboxed (SDK-only), capability-gated, code validated before install |
+| 2026-03-09 | Generated skills stored in Docker named volume `generated_skills` at `/var/plexo/generated-skills` | Survives container restarts; survives rebuilds if volume is not pruned |
+| 2026-03-09 | `is_generated` flag on `connections_registry`, `isGenerated` in `plugins.settings` | Drives ✦ Custom badge in UI; no separate table needed |
 | 2026-03-03 | Valkey over Redis | Open-source fork, API-compatible, production-stable, no license risk |
 | 2026-03-03 | ULID over UUID | Lexicographically sortable, URL-safe, no coordination needed |
 | 2026-03-03 | Express 5 over Fastify | Mature ecosystem, async middleware native, simpler mental model |

@@ -91,9 +91,18 @@ export default function InsightsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: WS_ID }),
             })
-            const data = await res.json() as { ok?: boolean; message?: string; count?: number }
-            setRunMsg({ ok: res.ok, text: res.ok ? `Cycle complete — ${data.count ?? 0} proposal(s) generated` : (data.message ?? 'Failed') })
-            if (res.ok) await load()
+            const data = await res.json() as { ok?: boolean; message?: string; count?: number; proposals?: ImprovementEntry[]; error?: { message: string } }
+            if (res.ok) {
+                setRunMsg({ ok: true, text: `Cycle complete — ${data.count ?? 0} proposal(s) generated` })
+                // Use proposals from response directly (no extra round-trip needed)
+                if (Array.isArray(data.proposals)) {
+                    setImprovements(data.proposals)
+                } else {
+                    await load()
+                }
+            } else {
+                setRunMsg({ ok: false, text: data.error?.message ?? data.message ?? 'Failed' })
+            }
         } catch {
             setRunMsg({ ok: false, text: 'Network error' })
         } finally {

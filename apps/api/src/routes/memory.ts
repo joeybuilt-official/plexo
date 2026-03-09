@@ -4,13 +4,15 @@
  * GET  /api/memory/search?workspaceId=&q=&type=        Semantic search
  * GET  /api/memory/preferences?workspaceId=            Workspace preferences
  * GET  /api/memory/improvements?workspaceId=           Agent improvement log
- * POST /api/memory/improvements/run                    Trigger improvement cycle
+ * POST /api/memory/improvements/run                    Trigger improvement cycle (synchronous)
  */
 import { Router, type Router as RouterType } from 'express'
 import { searchMemory } from '@plexo/agent/memory/store'
 import { getPreferences } from '@plexo/agent/memory/preferences'
 import { runSelfImprovementCycle, getImprovementLog } from '@plexo/agent/memory/self-improvement'
 import { proposePromptImprovements, applyPromptPatch } from '@plexo/agent/memory/prompt-improvement'
+import { loadDecryptedAIProviders } from './ai-provider-creds.js'
+import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from '../logger.js'
 
 export const memoryRouter: RouterType = Router()
@@ -84,6 +86,8 @@ memoryRouter.get('/improvements', async (req, res) => {
 })
 
 // ── POST /api/memory/improvements/run ────────────────────────────────────────
+// Synchronous — waits for the cycle to complete and returns the actual count.
+// Times out at 90s (generous for claude-haiku).
 
 memoryRouter.post('/improvements/run', async (req, res) => {
     const { workspaceId, lookbackDays } = req.body as {
@@ -96,15 +100,52 @@ memoryRouter.post('/improvements/run', async (req, res) => {
         return
     }
 
-    // Fire-and-forget
-    res.status(202).json({ message: 'Improvement cycle started', workspaceId })
+    // Load workspace AI settings so the cycle uses the configured provider, not just env fallback
+    let aiSettings: WorkspaceAISettings | undefined
+    try {
+        const ap = await loadDecryptedAIProviders(workspaceId)
+        if (ap?.providers) {
+            aiSettings = {
+                inferenceMode: ap.inferenceMode as WorkspaceAISettings['inferenceMode'],
+                primaryProvider: (ap.primary ?? ap.primaryProvider ?? 'anthropic') as ProviderKey,
+                fallbackChain: (ap.fallbackOrder ?? ap.fallbackChain ?? []) as ProviderKey[],
+                providers: Object.fromEntries(
+                    Object.entries(ap.providers as Record<string, Record<string, unknown>>).map(([k, p]) => [k, {
+                        provider: k as ProviderKey,
+                        apiKey: p.apiKey as string | undefined,
+                        oauthToken: p.oauthToken as string | undefined,
+                        baseUrl: p.baseUrl as string | undefined,
+                        model: (p.selectedModel ?? p.defaultModel) as string | undefined,
+                        enabled: p.enabled as boolean | undefined,
+                    }])
+                ) as WorkspaceAISettings['providers'],
+            }
+        }
+    } catch (err) {
+        logger.warn({ err, workspaceId }, 'memory/run: failed to load workspace AI settings — using env fallback')
+    }
 
-    runSelfImprovementCycle({
-        workspaceId,
-        lookbackDays: lookbackDays ?? 7,
-    }).catch((err: unknown) => {
+    try {
+        const result = await runSelfImprovementCycle({
+            workspaceId,
+            lookbackDays: lookbackDays ?? 7,
+            aiSettings,
+        })
+
+        // Reload the improvement log so UI can display results immediately
+        const log = await getImprovementLog(workspaceId, 30)
+
+        res.json({
+            ok: true,
+            count: result.proposals,
+            applied: result.applied,
+            message: `Cycle complete — ${result.proposals} proposal(s) generated`,
+            proposals: log,
+        })
+    } catch (err: unknown) {
         logger.error({ err, workspaceId }, 'Self-improvement cycle failed')
-    })
+        res.status(500).json({ error: { code: 'CYCLE_FAILED', message: 'Self-improvement cycle failed' } })
+    }
 })
 
 // ── POST /api/memory/improvements/prompt ─────────────────────────────────────
@@ -154,4 +195,3 @@ memoryRouter.post('/improvements/:id/apply', async (req, res) => {
         res.status(400).json({ error: { code: 'APPLY_FAILED', message: msg } })
     }
 })
-

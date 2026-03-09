@@ -428,6 +428,18 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     // Build systemPrompt here so identity line reflects the actual resolved model
     const identityLine = `Identity: running on ${resolvedMeta.provider} / ${resolvedMeta.id}. If asked what model, provider, or system you are, call self_reflect({focus:"identity"}) to get the accurate, live answer rather than guessing.`
 
+    const selfExtensionBlock = `
+
+SELF-EXTENSION CAPABILITY:
+You can generate new skills and connections for any external service on demand.
+Call synthesize_kapsel_skill when:
+- The user asks you to connect to a service with no installed skill or connector
+- The user asks you to "add support for X", "build a tool for X", or "integrate with X"
+The tool handles everything: API research, code generation, disk storage, connection
+registration, and auto-activation. After a successful synthesis, tell the user:
+"[Service] skill is now active. Go to Connections → [Service] to enter your API key."
+Never attempt to synthesize for already-installed services — check self_reflect first.`
+
     const systemPrompt = `${personaPrefix}You are ${agentName}, an autonomous AI agent executing a task.
 ${identityLine}
 ${ctx.workspaceName ? `\nWorkspace: ${ctx.workspaceName}` : ''}${ctx.workspaceSummary ? `\nWorkspace purpose: ${ctx.workspaceSummary}` : ''}${ctx.sprintGoal ? `\nActive project goal: ${ctx.sprintGoal}` : ''}${sprintCodingBlock}
@@ -439,7 +451,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 - Use write_asset to save any deliverable the user should receive (documents, scripts, email copy, HTML, etc.).
 - When you have completed all steps, call task_complete.
 - Be conservative. If something seems wrong, stop and report it.
-- NEVER output credentials, secrets, or tokens in any tool call or message.${capabilityBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
+- NEVER output credentials, secrets, or tokens in any tool call or message.${capabilityBlock}${selfExtensionBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
 
     const genResult = await (async () => {
         let messages: any[] = [{ role: 'user', content: userMessage }]
@@ -659,49 +671,55 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
             : 'partial'
         : 'failure'
 
-    Promise.all([
-        import('../memory/store.js').then(({ recordTaskMemory }) =>
-            recordTaskMemory({
-                workspaceId: ctx.workspaceId,
-                taskId: ctx.taskId,
-                description: plan.goal,
-                outcome: memOutcome,
-                toolsUsed,
-                qualityScore: verifiedQuality,
-                durationMs: executionResult.totalDurationMs,
-            }),
-        ),
-        import('../memory/preferences.js').then(({ inferFromTaskOutcome }) =>
-            inferFromTaskOutcome({
-                workspaceId: ctx.workspaceId,
-                toolsUsed,
-                filesWritten,
-                qualityScore: verifiedQuality,
-                outcome: memOutcome,
-            }),
-        ),
-        // Write to work_ledger — required by self-improvement cycle (needs ≥3 entries)
-        db.execute(sql`
-            INSERT INTO work_ledger
-                (id, workspace_id, task_id, type, source, tokens_in, tokens_out, cost_usd,
-                 quality_score, deliverables, wall_clock_ms, completed_at)
-            VALUES
-                (gen_random_uuid(), ${ctx.workspaceId}::uuid, ${ctx.taskId},
-                 ${ctx.taskType ?? 'automation'}, ${'agent'},
-                 ${executionResult.totalTokensIn}, ${executionResult.totalTokensOut},
-                 ${executionResult.totalCostUsd}, ${verifiedQuality},
-                 ${JSON.stringify(filesWritten)}::jsonb, ${executionResult.totalDurationMs},
-                 now())
-        `),
-        // Phase 15 — record which prompt variant was used and evaluate auto-promotion
-        recordVariantOutcome({
+    // Memory writes are non-blocking but we log failures so they're diagnosable.
+    // Each concern is independent — one failure doesn't abort the others.
+    const pinoMod = await import('pino')
+    const memLogger = pinoMod.default({ name: 'executor.memory' })
+
+    import('../memory/store.js').then(({ recordTaskMemory }) =>
+        recordTaskMemory({
             workspaceId: ctx.workspaceId,
             taskId: ctx.taskId,
-            variant: variantAssignment.variant,
-            challengerId: variantAssignment.challengerId,
+            description: plan.goal,
+            outcome: memOutcome,
+            toolsUsed,
             qualityScore: verifiedQuality,
-        }),
-    ]).catch(() => { /* memory errors are never fatal */ })
+            durationMs: executionResult.totalDurationMs,
+        })
+    ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'recordTaskMemory failed'))
+
+    import('../memory/preferences.js').then(({ inferFromTaskOutcome }) =>
+        inferFromTaskOutcome({
+            workspaceId: ctx.workspaceId,
+            toolsUsed,
+            filesWritten,
+            qualityScore: verifiedQuality,
+            outcome: memOutcome,
+        })
+    ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'inferFromTaskOutcome failed'))
+
+    // Write to work_ledger — required by self-improvement cycle
+    db.execute(sql`
+        INSERT INTO work_ledger
+            (id, workspace_id, task_id, type, source, tokens_in, tokens_out, cost_usd,
+             quality_score, deliverables, wall_clock_ms, completed_at)
+        VALUES
+            (gen_random_uuid(), ${ctx.workspaceId}::uuid, ${ctx.taskId},
+             ${ctx.taskType ?? 'automation'}, ${'agent'},
+             ${executionResult.totalTokensIn}, ${executionResult.totalTokensOut},
+             ${executionResult.totalCostUsd}, ${verifiedQuality},
+             ${JSON.stringify(filesWritten)}::jsonb, ${executionResult.totalDurationMs},
+             now())
+    `).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'work_ledger insert failed — check schema or migration'))
+
+    // Phase 15 — record which prompt variant was used and evaluate auto-promotion
+    recordVariantOutcome({
+        workspaceId: ctx.workspaceId,
+        taskId: ctx.taskId,
+        variant: variantAssignment.variant,
+        challengerId: variantAssignment.challengerId,
+        qualityScore: verifiedQuality,
+    }).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'recordVariantOutcome failed'))
 
     return executionResult
 }

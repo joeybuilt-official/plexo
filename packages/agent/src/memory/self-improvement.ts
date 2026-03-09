@@ -3,8 +3,8 @@
  * and proposes agent behavior improvements.
  *
  * Runs on a schedule (e.g. post-sprint or nightly) and:
- * 1. Loads recent work-ledger entries
- * 2. Uses the registry model to identify failure patterns and success patterns
+ * 1. Loads recent work-ledger entries (falls back to task_steps/tasks when sparse)
+ * 2. Uses the configured workspace model to identify failure patterns and success patterns
  * 3. Stores proposals in agent_improvement_log
  * 4. Updates workspace preferences from high-confidence patterns
  *
@@ -15,8 +15,9 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 import pino from 'pino'
 import { db, sql, desc, eq } from '@plexo/db'
-import { workLedger } from '@plexo/db'
+import { workLedger, tasks } from '@plexo/db'
 import { resolveModelFromEnv } from '../providers/registry.js'
+import type { WorkspaceAISettings } from '../providers/registry.js'
 import { learnPreference } from './preferences.js'
 
 const logger = pino({ name: 'self-improvement' })
@@ -36,20 +37,33 @@ const ProposalsSchema = z.object({
 
 type ImprovementProposal = z.infer<typeof ImprovementProposalSchema>
 
+// ── Shared type for ledger-like rows ─────────────────────────────────────────
+
+interface LedgerRow {
+    taskId: string | null
+    type: string
+    qualityScore: number | null
+    confidenceScore: number | null
+    calibration: string | null
+    tokensIn: number | null
+    tokensOut: number | null
+    deliverables: unknown
+    wallClockMs: number | null
+    completedAt: Date | null
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function runSelfImprovementCycle(params: {
     workspaceId: string
     lookbackDays?: number
+    aiSettings?: WorkspaceAISettings
 }): Promise<{ proposals: number; applied: number }> {
-    const { workspaceId, lookbackDays = 7 } = params
+    const { workspaceId, lookbackDays = 7, aiSettings } = params
 
     logger.info({ workspaceId, lookbackDays }, 'Self-improvement cycle started')
 
     // Load recent ledger entries
-    const since = new Date()
-    since.setDate(since.getDate() - lookbackDays)
-
     const rawLedger = await db.select({
         taskId: workLedger.taskId,
         type: workLedger.type,
@@ -66,15 +80,57 @@ export async function runSelfImprovementCycle(params: {
         .orderBy(desc(workLedger.completedAt))
         .limit(200)
 
+    let ledgerRows: LedgerRow[] = rawLedger
+
+    // ── Fallback: if work_ledger is sparse, synthesise rows from completed tasks ──
+    // This handles installs where memory writes were added after tasks already ran.
     if (rawLedger.length < 3) {
-        logger.info({ workspaceId }, 'Not enough ledger data for improvement analysis — skipping')
+        logger.info({ workspaceId, ledgerCount: rawLedger.length }, 'work_ledger sparse — supplementing from completed tasks')
+
+        const completedTasks = await db.select({
+            id: tasks.id,
+            type: tasks.type,
+            qualityScore: tasks.qualityScore,
+            confidenceScore: tasks.confidenceScore,
+            tokensIn: tasks.tokensIn,
+            tokensOut: tasks.tokensOut,
+            outcomeSummary: tasks.outcomeSummary,
+            completedAt: tasks.completedAt,
+        }).from(tasks)
+            .where(eq(tasks.workspaceId, workspaceId))
+            .orderBy(desc(tasks.completedAt))
+            .limit(50)
+
+        const syntheticRows: LedgerRow[] = completedTasks.map((t) => ({
+            taskId: t.id,
+            type: t.type,
+            qualityScore: t.qualityScore,
+            confidenceScore: t.confidenceScore,
+            calibration: null,
+            tokensIn: t.tokensIn,
+            tokensOut: t.tokensOut,
+            deliverables: [],
+            wallClockMs: null,
+            completedAt: t.completedAt,
+        }))
+
+        // Merge: real ledger rows first, deduplicated by taskId
+        const seen = new Set(rawLedger.map((r) => r.taskId))
+        ledgerRows = [
+            ...rawLedger,
+            ...syntheticRows.filter((r) => !seen.has(r.taskId)),
+        ]
+    }
+
+    if (ledgerRows.length === 0) {
+        logger.info({ workspaceId }, 'No task data available for improvement analysis — run a task first')
         return { proposals: 0, applied: 0 }
     }
 
     // Stratify by task type (max 8 per type) to prevent pattern analysis from
     // overfitting to whichever type dominated the recent history.
-    const byType = new Map<string, typeof rawLedger>()
-    for (const r of rawLedger) {
+    const byType = new Map<string, LedgerRow[]>()
+    for (const r of ledgerRows) {
         const t = r.type ?? 'unknown'
         const list = byType.get(t) ?? []
         if (list.length < 8) {
@@ -82,11 +138,23 @@ export async function runSelfImprovementCycle(params: {
             byType.set(t, list)
         }
     }
-    const ledgerRows = Array.from(byType.values()).flat()
+    const stratified = Array.from(byType.values()).flat()
 
-    const model = resolveModelFromEnv('claude-haiku-4-5')
+    // Resolve model — prefer workspace-configured model, fall back to env
+    let model: import('../providers/registry.js').AnyLanguageModel
+    if (aiSettings) {
+        try {
+            const { resolveModel } = await import('../providers/registry.js')
+            const resolved = await resolveModel('summarization', aiSettings, workspaceId)
+            model = resolved.model
+        } catch {
+            model = resolveModelFromEnv('claude-haiku-4-5')
+        }
+    } else {
+        model = resolveModelFromEnv('claude-haiku-4-5')
+    }
 
-    const ledgerSummary = ledgerRows.map((r) => ({
+    const ledgerSummary = stratified.map((r) => ({
         taskId: r.taskId?.slice(0, 8),
         type: r.type,
         qualityScore: r.qualityScore,
@@ -101,7 +169,7 @@ export async function runSelfImprovementCycle(params: {
             model,
             schema: ProposalsSchema,
             system: 'You are an AI operations analyst. Given task performance data, identify patterns that an AI agent could use to improve.',
-            prompt: `Analyze these recent task outcomes and identify up to 5 improvement patterns:\n${JSON.stringify(ledgerSummary, null, 2)}`,
+            prompt: `Analyze these recent task outcomes (${stratified.length} tasks) and identify up to 5 improvement patterns:\n${JSON.stringify(ledgerSummary, null, 2)}`,
             maxOutputTokens: 1024,
         })
         proposals = result.object.proposals
@@ -127,7 +195,6 @@ export async function runSelfImprovementCycle(params: {
       `)
 
             // Auto-apply tool_preference patterns only above a meaningful confidence floor.
-            // 0.55 is coin-flip — raise to 0.75 (requires consistent signal across samples).
             if (proposal.pattern_type === 'tool_preference' && proposal.proposed_change) {
                 await learnPreference({
                     workspaceId,

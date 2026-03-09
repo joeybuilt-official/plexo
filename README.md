@@ -92,7 +92,34 @@ A platform's survival depends on its ecosystem. Plexo natively adheres to [**Kap
 
 *   **Persistent Sandboxes:** Extensions run in their own persistent `worker_threads`. Zero cold-start overhead. Crashes are caught, isolated, and respawned without affecting the host.
 *   **Write Once, Run Anywhere:** A Kapsel plugin written for Plexo runs on any other Kapsel-compliant host.
-*   **Omni-Channel Native:** Native adapters for Slack, Discord, and Telegram. Agents live where your team communicates. 
+*   **Omni-Channel Native:** Native adapters for Slack, Discord, and Telegram. Agents live where your team communicates.
+
+### 🧬 Self-Extending: The Agent Builds Its Own Tools
+
+Plexo's most powerful extensibility feature is the ability for the agent to **generate its own skills and connections on demand** — without any code deployment from you.
+
+When you ask the agent to integrate with a service that isn't already installed, it autonomously:
+1. **Scrapes the official API documentation** from the service's website
+2. **Generates a valid Kapsel skill** (ESM JavaScript + `kapsel.json` manifest) via LLM
+3. **Writes the code to a persistent Docker volume** so it survives restarts
+4. **Registers a connection entry** so the credential UI appears immediately in Settings → Connections
+5. **Auto-activates the skill** — it's live for the next task
+6. **Tells you where to enter credentials** — you just supply the API key like any other connection
+
+Generated skills appear in the Skills, Tools, and Marketplace pages with a **✦ Custom** badge. They run in the same Kapsel sandbox as marketplace plugins — capability-gated, isolated, non-fatal on errors. The agent cannot grant itself capabilities beyond what the requested operations require.
+
+**Example:** Ask Plexo to "connect to Intercom and list open conversations" — it will build the Intercom skill, register the connection, activate it, and prompt you to add your API key. No code deployment needed.
+
+```
+User: "I need you to connect to Intercom and build a tool that fetches open conversations."
+
+Agent: Researching Intercom API docs...
+       Generating skill code...
+       Installing @generated/intercom-skill...
+
+       ✦ Intercom skill is now active. Go to Connections → Intercom
+         to enter your API key and start using it.
+```
 
 ### Kapsel Protocol Example
 Plexo provides a transparent, capability-gated SDK for developers.

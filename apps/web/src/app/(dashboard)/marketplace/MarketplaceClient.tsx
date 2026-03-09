@@ -21,6 +21,7 @@ interface RegistryItem {
     tools_provided: string[]
     cards_provided: string[]
     is_core: boolean
+    is_generated?: boolean
     doc_url: string | null
 }
 
@@ -141,6 +142,11 @@ function IntegrationCard({
                         {item.is_core && (
                             <span className="shrink-0 rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-400 border border-indigo-500/30">
                                 Core
+                            </span>
+                        )}
+                        {item.is_generated && (
+                            <span className="shrink-0 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400 border border-violet-500/30">
+                                ✦ Custom
                             </span>
                         )}
                     </div>

@@ -68,6 +68,12 @@ const ENV_SPEC: EnvVar[] = [
         description: 'GitHub OAuth App client ID',
         required: false,
     },
+    // ── Optional — Synthesizer ────────────────────────────────────────────────
+    {
+        key: 'GENERATED_SKILLS_DIR',
+        description: 'Writable directory for agent-generated Kapsel skills (default: /var/plexo/generated-skills)',
+        required: false,
+    },
 ]
 
 export function validateEnv(): void {

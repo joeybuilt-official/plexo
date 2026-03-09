@@ -40,6 +40,7 @@ interface Plugin {
     enabledTools: string[] | null
     installedAt: string
     kapselManifest: KapselManifest | null
+    settings?: Record<string, unknown>
 }
 
 // Tools from installed connections (non-plugin)
@@ -198,7 +199,7 @@ export default function ToolsPage() {
 
             return {
                 key: p.id,
-                label: `${p.name} (plugin)`,
+                label: `${p.name}${p.settings?.isGenerated ? ' ✦' : ''} (plugin)`,
                 enabledCount: tools.length, // total enabled in DB, independent of filter for accurate source stat
                 total: tools.length,
                 filteredCount: filteredTools.length,

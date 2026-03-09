@@ -121,6 +121,7 @@ services:
     user: root
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - generated_skills:/var/plexo/generated-skills
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
       interval: 30s
@@ -221,3 +222,4 @@ volumes:
   miniodata:
   caddy_data:
   caddy_config:
+  generated_skills:

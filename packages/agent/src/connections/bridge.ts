@@ -410,6 +410,40 @@ export async function loadConnectionTools(workspaceId: string): Promise<ToolSet>
             }
         }
 
+        // ── Self-extension tool ────────────────────────────────────────────────
+        // Always available — lets the agent generate new skills/connections on demand.
+        merged['synthesize_kapsel_skill'] = tool({
+            description:
+                'Research a third-party service API and generate, install, and activate a ' +
+                'Kapsel skill + connection entry for it. Call this when the user needs to ' +
+                'integrate with a service that has no installed skill or connector. ' +
+                'The tool handles doc scraping, code generation, disk persistence, ' +
+                'connection registration, and auto-activation in one call.',
+            inputSchema: z.object({
+                serviceName: z.string().describe(
+                    'Human-readable service name, e.g. "Intercom" or "Airtable"',
+                ),
+                serviceWebsite: z.string().describe(
+                    'Official website or docs URL, e.g. "https://developers.intercom.com"',
+                ),
+                requestedCapabilities: z.array(z.string()).describe(
+                    'List of operations the user wants, e.g. ' +
+                    '["list open conversations", "send a reply", "poll for new messages every hour"]',
+                ),
+            }),
+            execute: async ({ serviceName, serviceWebsite, requestedCapabilities }) => {
+                const { synthesizeSkill } = await import('../plugins/synthesizer.js')
+                const result = await synthesizeSkill({
+                    serviceName,
+                    serviceWebsite,
+                    requestedCapabilities,
+                    workspaceId,
+                })
+                if (!result.ok) return `Synthesis failed: ${result.error}`
+                return result.message
+            },
+        })
+
         return merged
     } catch {
         // Non-fatal — executor continues with built-in tools only

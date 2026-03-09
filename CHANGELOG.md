@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
+- **Agent self-extension (`synthesize_kapsel_skill`)** — agent can now generate, install, and auto-activate its own Kapsel skills and connections on demand. When a user requests integration with a service that has no installed skill or connector, the agent scrapes official API docs, generates a valid ESM skill + `kapsel.json` manifest via LLM, writes code to a persistent Docker volume (`generated_skills`), registers a connection entry (so the credential UI appears immediately), and activates the skill in the same task invocation. No restart required.
+  - `packages/agent/src/plugins/synthesizer.ts` — new synthesizer module: `researchAPI`, `generateSkillCode`, `validateGeneratedCode`, `writeSkillToDisk`, `registerConnection`, `installAndActivate`, `synthesizeSkill`
+  - `docker/compose.yml` — added `generated_skills` named volume mounted at `/var/plexo/generated-skills` in the API container
+  - Migration `0019_generated_skills.sql` — `is_generated` boolean column on `connections_registry`; unique index on `plugins(workspace_id, name)` for upsert support
+  - `packages/db/src/schema.ts` — schema reflects above migration changes
+  - `apps/api/src/env.ts` — `GENERATED_SKILLS_DIR` optional env var documented
+  - `packages/agent/src/connections/bridge.ts` — `synthesize_kapsel_skill` tool wired into `loadConnectionTools()` (always available, not connection-gated)
+  - `packages/agent/src/executor/index.ts` — system prompt extended with self-extension instructions
+- **✦ Custom badge** — generated skills and connections display a **✦ Custom** badge in the Skills, Tools, and Marketplace pages, distinguishing them from marketplace-installed components. Driven by `settings.isGenerated` on plugins and `is_generated` on registry entries.
+- **README updated** — new "Self-Extending" section under The Extensibility Moat documents the agent's ability to generate its own tools, with an example interaction flow.
+
+### Added (previous)
 - **Version check service** — `GET /api/v1/system/version` polls GitHub Releases API, falls back to commit SHA comparison; `POST /api/v1/system/update` streams Docker pull + restart or git pull progress via SSE; `UpdateModal` component polls every 6 hours and opens automatically when behind
 - **`scripts/self-update.sh`** — self-hosted one-click update script: git pull → pnpm install → db:migrate → docker compose build + up; respects `PLEXO_MANAGED=true` to skip Docker steps on managed hosting
 - **Version source of truth** — `NEXT_PUBLIC_APP_VERSION` injected from root `package.json` via `next.config.ts`; sidebar and dashboard footer read from same env var; eliminates hardcoded version strings
