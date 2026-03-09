@@ -37,7 +37,6 @@ function isEncrypted(v: string): boolean {
 
 type VaultEntry = {
     apiKey?: string
-    oauthToken?: string
     baseUrl?: string
     status?: string
     keySource?: { workspaceId: string; workspaceName?: string }
@@ -86,7 +85,7 @@ export function getDecoupledSettings(workspaceId: string, settings: Record<strin
         vault = {}
         const legacyProviders = legacy.providers ?? {}
         for (const [k, p] of Object.entries(legacyProviders)) {
-            vault[k] = { apiKey: p.apiKey, oauthToken: p.oauthToken, baseUrl: p.baseUrl, status: p.status, keySource: p.keySource }
+            vault[k] = { apiKey: p.apiKey, baseUrl: p.baseUrl, status: p.status, keySource: p.keySource }
             arbiter.providers![k] = { selectedModel: p.selectedModel ?? p.defaultModel, enabled: p.enabled }
         }
 
@@ -111,7 +110,7 @@ function splitIntoDecoupled(blob: AIProvidersBlob): { vault: VaultBlob, arbiter:
     }
     const blobProviders = blob.providers ?? {}
     for (const [k, p] of Object.entries(blobProviders)) {
-        vault[k] = { apiKey: p.apiKey, oauthToken: p.oauthToken, baseUrl: p.baseUrl, status: p.status, keySource: p.keySource }
+        vault[k] = { apiKey: p.apiKey, baseUrl: p.baseUrl, status: p.status, keySource: p.keySource }
         arbiter.providers![k] = { selectedModel: p.selectedModel ?? p.defaultModel, enabled: p.enabled }
     }
     return { vault, arbiter }
@@ -142,9 +141,6 @@ function encryptVault(vault: VaultBlob, workspaceId: string): VaultBlob {
         if (out.apiKey && out.apiKey !== CONFIGURED_SENTINEL && !isEncrypted(out.apiKey)) {
             out.apiKey = encrypt(out.apiKey, workspaceId)
         }
-        if (out.oauthToken && out.oauthToken !== CONFIGURED_SENTINEL && !isEncrypted(out.oauthToken)) {
-            out.oauthToken = encrypt(out.oauthToken, workspaceId)
-        }
         encrypted[key] = out
     }
     return encrypted
@@ -158,9 +154,6 @@ function decryptVault(vault: VaultBlob, workspaceId: string): VaultBlob {
         if (out.apiKey && isEncrypted(out.apiKey)) {
             try { out.apiKey = decrypt(out.apiKey, workspaceId) } catch { /* leave as-is */ }
         }
-        if (out.oauthToken && isEncrypted(out.oauthToken)) {
-            try { out.oauthToken = decrypt(out.oauthToken, workspaceId) } catch { /* leave as-is */ }
-        }
         decrypted[key] = out
     }
     return decrypted
@@ -172,7 +165,6 @@ function redactVault(vault: VaultBlob): VaultBlob {
     for (const [key, e] of Object.entries(vault)) {
         const out = { ...e }
         if (out.apiKey) out.apiKey = CONFIGURED_SENTINEL
-        if (out.oauthToken) out.oauthToken = CONFIGURED_SENTINEL
         redacted[key] = out
     }
     return redacted
@@ -260,13 +252,6 @@ aiProviderCredsRouter.put('/', async (req, res) => {
                     delete e.apiKey
                     e.status = 'unconfigured'
                 }
-                if (e.oauthToken === CONFIGURED_SENTINEL) {
-                    e.oauthToken = (current as ProviderEntry).oauthToken
-                }
-                if (e.oauthToken === '__CLEAR__') {
-                    delete e.oauthToken
-                    e.status = 'unconfigured'
-                }
 
                 mergedProviders[key] = e
             }
@@ -339,7 +324,6 @@ export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIP
                 logger.warn({ workspaceId, providerKey, sourceWsId }, 'key-share: share not found (revoked?) — treating as unconfigured')
                 decryptedVault[providerKey] = { ...entry, status: 'unconfigured' }
                 delete decryptedVault[providerKey]!.apiKey
-                delete decryptedVault[providerKey]!.oauthToken
                 continue
             }
 

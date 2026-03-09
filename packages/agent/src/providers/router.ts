@@ -9,7 +9,6 @@ export type InferenceMode = 'auto' | 'byok' | 'proxy' | 'override'
 export interface VaultConfig {
     [provider: string]: {
         apiKey?: string
-        oauthToken?: string
         baseUrl?: string
     } | undefined
 }

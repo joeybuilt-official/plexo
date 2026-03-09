@@ -36,7 +36,7 @@ aiProvidersRouter.post('/test', async (req, res) => {
             const decrypted = await loadDecryptedAIProviders(workspaceId)
             const entry = decrypted?.providers?.[provider]
             if (entry) {
-                effectiveKey = entry.oauthToken || entry.apiKey
+                effectiveKey = entry.apiKey
             }
         } catch (err) {
             logger.error({ err, workspaceId, provider }, 'Failed to load stored provider key for test')

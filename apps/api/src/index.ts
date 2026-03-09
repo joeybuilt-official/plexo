@@ -94,15 +94,7 @@ app.use(generalLimiter) // default: 300/15min
 // Health — always available, no rate limit (exempt via skip fn)
 app.use('/health', healthRouter)
 
-// Anthropic OAuth callback — registered at root path because Anthropic's OAuth
-// server redirects to http://localhost:PORT/oauth/callback after authorization.
-// This proxies query params to the real handler.
-function anthropicCallbackProxy(req: express.Request, res: express.Response) {
-    const params = new URLSearchParams(req.query as Record<string, string>).toString()
-    res.redirect(307, `/api/oauth/anthropic/callback${params ? `?${params}` : ''}`)
-}
-app.get('/oauth/callback', anthropicCallbackProxy)
-app.get('/callback', anthropicCallbackProxy)
+
 
 // Build a v1 sub-router so we can mount once at both prefixes
 const v1 = express.Router()

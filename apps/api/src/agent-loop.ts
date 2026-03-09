@@ -7,7 +7,7 @@ import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from './logger.js'
 import { emit } from './sse-emitter.js'
-import { getAnthropicTokens } from './anthropic-tokens.js'
+
 import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
 
 const POLL_INTERVAL_MS = 2_000
@@ -63,7 +63,6 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
                     return [k, {
                         status: p.status ?? 'missing',
                         hasApiKey: !!(p.apiKey),
-                        hasOAuthToken: !!(p.oauthToken),
                         hasBaseUrl: !!(p.baseUrl),
                         selectedModel: p.selectedModel ?? p.defaultModel ?? null,
                     }]
@@ -78,7 +77,8 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
 
             aiSettings = {
                 inferenceMode: ap.inferenceMode as WorkspaceAISettings['inferenceMode'],
-                primaryProvider: (ap.primary ?? ap.primaryProvider ?? 'anthropic') as ProviderKey,
+                // No Anthropic default — if no primary is set the workspace is not configured
+                primaryProvider: (ap.primary ?? ap.primaryProvider) as ProviderKey,
                 fallbackChain: (ap.fallbackOrder ?? ap.fallbackChain ?? []) as ProviderKey[],
                 providers: Object.fromEntries(
                     providerKeys.map((k) => {
@@ -86,7 +86,6 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
                         return [k, {
                             provider: k as ProviderKey,
                             apiKey: p.apiKey,
-                            oauthToken: p.oauthToken,
                             baseUrl: p.baseUrl,
                             status: p.status,
                             model: p.selectedModel ?? p.defaultModel,
@@ -99,46 +98,33 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
         logger.error({ err, workspaceId }, 'ai-cred: failed to load workspace settings from DB')
     }
 
-    // 1. Env var override (Anthropic direct key only, not OAuth tokens)
-    const envKey = process.env.ANTHROPIC_API_KEY
-    if (envKey && envKey !== 'placeholder' && !envKey.startsWith('sk-ant-oat')) {
-        logger.info({ workspaceId }, 'ai-cred: using ANTHROPIC_API_KEY env var override')
-        // If no workspace DB settings exist, synthesize a minimal WorkspaceAISettings
-        // from the env key. Without this, the executor falls into defaultSettings() which
-        // builds { primaryProvider: 'anthropic', providers: { anthropic: { provider: 'anthropic' } } }
-        // — no apiKey field — and resolveModel either re-reads the env var (works) or fails.
-        // Making it explicit avoids the ambiguity and ensures the router always has a key.
-        const resolvedSettings: WorkspaceAISettings = aiSettings ?? {
-            primaryProvider: 'anthropic',
-            fallbackChain: [],
-            providers: {
-                anthropic: {
-                    provider: 'anthropic',
-                    apiKey: envKey,
-                    enabled: true,
-                },
-            },
-        }
-        // Ensure the env key is always present in the anthropic provider slot,
-        // even when workspace settings exist but have no anthropic key.
-        if (!resolvedSettings.providers?.anthropic?.apiKey) {
-            resolvedSettings.providers = {
-                ...resolvedSettings.providers,
-                anthropic: {
-                    ...(resolvedSettings.providers?.anthropic ?? { provider: 'anthropic' }),
-                    apiKey: envKey,
-                    enabled: true,
-                },
-            }
-        }
-        return { credential: { type: 'api_key', apiKey: envKey }, aiSettings: resolvedSettings }
+    // Per-provider env var names — used as last-resort fallback when a provider
+    // is configured by the user (in their chain) but has no DB key yet.
+    // This allows operators to pre-seed keys via env without requiring a UI setup.
+    // Priority is always the user's configured primaryProvider and fallbackChain.
+    const PROVIDER_ENV_VARS: Partial<Record<string, string>> = {
+        anthropic: process.env.ANTHROPIC_API_KEY,
+        openai: process.env.OPENAI_API_KEY,
+        openrouter: process.env.OPENROUTER_API_KEY,
+        google: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+        mistral: process.env.MISTRAL_API_KEY,
+        groq: process.env.GROQ_API_KEY,
+        xai: process.env.XAI_API_KEY,
+        deepseek: process.env.DEEPSEEK_API_KEY,
     }
 
-    // 2. Walk the full provider chain — first one with a usable credential wins.
-    //    IMPORTANT: also update aiSettings.primaryProvider to match the winning provider
-    //    so resolveModel() builds the correct model, not the un-keyed primary.
-    const primaryProvider = aiSettings?.primaryProvider ?? 'anthropic'
-    const fallbackChain = aiSettings?.fallbackChain ?? []
+    const isValidApiKey = (k: string) => k !== 'placeholder' && k.length > 10 && !k.includes(' ')
+
+    // Walk the full provider chain from workspace DB settings.
+    // First provider with a usable credential wins.
+    // If no primary is configured at all, we have nothing to fall back on.
+    if (!aiSettings?.primaryProvider) {
+        logger.warn({ workspaceId }, 'ai-cred: ✗ no primary provider configured for workspace')
+        return { credential: null, aiSettings }
+    }
+
+    const primaryProvider = aiSettings.primaryProvider
+    const fallbackChain = aiSettings.fallbackChain ?? []
     const chain = [primaryProvider, ...fallbackChain.filter((p) => p !== primaryProvider)]
 
     logger.info({ workspaceId, chain }, 'ai-cred: walking provider chain')
@@ -152,60 +138,51 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
     }
 
     for (const providerKey of chain) {
+        // Respect user-level enable/disable toggle
         const p = rawProviders[providerKey]
-        if (!p) {
-            logger.debug({ workspaceId, providerKey }, 'ai-cred: provider not in DB — skip')
-            continue
-        }
-
-        // Respect user-level enable/disable toggle — skip without treating as error
-        if (p.enabled === false) {
+        if (p?.enabled === false) {
             logger.info({ workspaceId, providerKey }, 'ai-cred: provider disabled by user — skip')
             continue
         }
 
-        const apiKey = p.apiKey as string | undefined
-        const oauthToken = p.oauthToken as string | undefined
-        const baseUrl = p.baseUrl as string | undefined
-        const status = p.status as string | undefined
+        const apiKey = p?.apiKey as string | undefined
+        const baseUrl = p?.baseUrl as string | undefined
+        const status = p?.status as string | undefined
 
-        // Basic validity checks — expired OAuth tokens look valid but aren't.
-        // A token with spaces, wrong prefix, or under 20 chars is rejected so we fall through.
-        const isValidOAuthToken = (t: string) => t.startsWith('sk-ant-oat') && t.length > 20 && !t.includes(' ')
-        const isValidApiKey = (k: string) => k !== 'placeholder' && k.length > 10 && !k.includes(' ')
-
-        if (providerKey === 'anthropic') {
-            if (oauthToken && isValidOAuthToken(oauthToken)) {
-                logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ anthropic OAuth token found')
-                return withPrimary('anthropic', { type: 'api_key', apiKey: oauthToken })
-            }
-            if (apiKey && isValidApiKey(apiKey)) {
-                logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ anthropic API key found')
-                return withPrimary('anthropic', { type: 'api_key', apiKey })
-            }
-            logger.debug({ workspaceId, providerKey, status, hasOAuth: !!oauthToken, hasKey: !!apiKey }, 'ai-cred: anthropic — no valid key/token, skip')
-        } else {
-            if (apiKey && isValidApiKey(apiKey)) {
-                logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ API key found')
-                return withPrimary(providerKey, { type: 'api_key', apiKey })
-            }
-            if (status === 'configured' || baseUrl) {
-                logger.info({ workspaceId, providerKey, baseUrl }, 'ai-cred: ✓ keyless provider (configured/baseUrl)')
-                return withPrimary(providerKey, { type: 'api_key', apiKey: 'local' })
-            }
-            logger.debug({ workspaceId, providerKey, status, hasApiKey: !!apiKey }, 'ai-cred: no usable credential, skip')
+        // 1. DB-stored API key
+        if (apiKey && isValidApiKey(apiKey)) {
+            logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ API key found in DB')
+            return withPrimary(providerKey, { type: 'api_key', apiKey })
         }
-    }
 
-    // 3. Installed OAuth token from the OAuth flow (fallback for anthropic)
-    try {
-        const tokens = await getAnthropicTokens(workspaceId)
-        if (tokens?.accessToken) {
-            logger.info({ workspaceId }, 'ai-cred: ✓ installed Anthropic OAuth token found')
-            return withPrimary('anthropic', { type: 'api_key', apiKey: tokens.accessToken })
+        // 2. Keyless provider (Ollama, configured status)
+        if (status === 'configured' || baseUrl) {
+            logger.info({ workspaceId, providerKey, baseUrl }, 'ai-cred: ✓ keyless provider (configured/baseUrl)')
+            return withPrimary(providerKey, { type: 'api_key', apiKey: 'local' })
         }
-    } catch (err) {
-        logger.warn({ err, workspaceId }, 'ai-cred: getAnthropicTokens failed')
+
+        // 3. Per-provider env var fallback (only if the user has this provider in their chain)
+        const envKey = PROVIDER_ENV_VARS[providerKey]
+        if (envKey && isValidApiKey(envKey)) {
+            logger.info({ workspaceId, providerKey }, 'ai-cred: ✓ using env var fallback for configured provider')
+            // Inject the env key into aiSettings so the executor has an explicit apiKey
+            if (aiSettings) {
+                aiSettings = {
+                    ...aiSettings,
+                    providers: {
+                        ...aiSettings.providers,
+                        [providerKey]: {
+                            ...(aiSettings.providers?.[providerKey as ProviderKey] ?? { provider: providerKey as ProviderKey }),
+                            apiKey: envKey,
+                            enabled: true,
+                        },
+                    },
+                }
+            }
+            return withPrimary(providerKey, { type: 'api_key', apiKey: envKey })
+        }
+
+        logger.debug({ workspaceId, providerKey, status, hasApiKey: !!apiKey }, 'ai-cred: no usable credential, skip')
     }
 
     logger.warn({ workspaceId, chain }, 'ai-cred: ✗ no usable credential found in any provider — task will be blocked')

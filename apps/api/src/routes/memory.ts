@@ -107,13 +107,12 @@ memoryRouter.post('/improvements/run', async (req, res) => {
         if (ap?.providers) {
             aiSettings = {
                 inferenceMode: ap.inferenceMode as WorkspaceAISettings['inferenceMode'],
-                primaryProvider: (ap.primary ?? ap.primaryProvider ?? 'anthropic') as ProviderKey,
+                primaryProvider: (ap.primary ?? ap.primaryProvider) as ProviderKey,
                 fallbackChain: (ap.fallbackOrder ?? ap.fallbackChain ?? []) as ProviderKey[],
                 providers: Object.fromEntries(
                     Object.entries(ap.providers as Record<string, Record<string, unknown>>).map(([k, p]) => [k, {
                         provider: k as ProviderKey,
                         apiKey: p.apiKey as string | undefined,
-                        oauthToken: p.oauthToken as string | undefined,
                         baseUrl: p.baseUrl as string | undefined,
                         model: (p.selectedModel ?? p.defaultModel) as string | undefined,
                         enabled: p.enabled as boolean | undefined,

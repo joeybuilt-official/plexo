@@ -1,14 +1,6 @@
 import { Router, type Router as RouterType } from 'express'
-import { randomBytes, createHash } from 'node:crypto'
-import { z } from 'zod'
-import {
-    ANTHROPIC_OAUTH,
-    buildAnthropicAuthUrl,
-    exchangeAnthropicCode,
-} from '@plexo/agent/ai/anthropic-oauth'
+import { randomBytes } from 'node:crypto'
 import { logger } from '../logger.js'
-import { storePkce, consumePkce } from '../pkce-store.js'
-import { storeAnthropicTokens } from '../anthropic-tokens.js'
 import { db, eq, and } from '@plexo/db'
 import { installedConnections } from '@plexo/db'
 import { encrypt } from '../crypto.js'
@@ -19,101 +11,43 @@ function base64url(buf: Buffer): string {
     return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-function generatePKCE(): { verifier: string; challenge: string } {
-    const verifier = base64url(randomBytes(32))
-    const challenge = base64url(Buffer.from(createHash('sha256').update(verifier).digest()))
-    return { verifier, challenge }
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Redis-backed PKCE state store (inline — no longer a separate file)
+import { createClient, type RedisClientType } from 'redis'
+
+const PKCE_TTL = 600
+let _redis: RedisClientType | null = null
+async function getRedis(): Promise<RedisClientType> {
+    if (!_redis) {
+        _redis = createClient({ url: process.env.REDIS_URL ?? 'redis://localhost:6379' }) as RedisClientType
+        _redis.on('error', (err: Error) => logger.warn({ err }, '[pkce] Redis error'))
+        await _redis.connect()
+    }
+    return _redis
 }
 
-// ── GET /api/oauth/anthropic/start?workspaceId= ──────────────────────────────
+interface PkceRecord { workspaceId: string; redirectUri: string; createdAt: number }
+const pkceKey = (s: string) => `pkce:${s}`
 
-// Anthropic's OAuth server requires http://localhost:{port}/callback
-// (matches Claude Code's actual implementation).
-const ANTHROPIC_REDIRECT_URI = `http://localhost:${process.env.PORT ?? 3001}/callback`
+async function storePkce(state: string, record: PkceRecord): Promise<void> {
+    const r = await getRedis()
+    await r.setEx(pkceKey(state), PKCE_TTL, JSON.stringify(record))
+}
 
-oauthRouter.get('/anthropic/start', async (req, res) => {
-    const workspaceId = req.query.workspaceId as string
-    if (!workspaceId) {
-        res.status(400).json({ error: 'workspaceId required' })
-        return
-    }
-
-    const { verifier, challenge } = generatePKCE()
-    const state = base64url(randomBytes(16))
-
-    try {
-        await storePkce(state, {
-            codeVerifier: verifier,
-            workspaceId,
-            redirectUri: ANTHROPIC_REDIRECT_URI,
-            createdAt: Date.now(),
-        })
-    } catch (err) {
-        logger.error({ err }, 'PKCE store failed — Redis may be down')
-        res.status(503).json({ error: 'OAuth service temporarily unavailable' })
-        return
-    }
-
-    const url = buildAnthropicAuthUrl({ redirectUri: ANTHROPIC_REDIRECT_URI, state, codeChallenge: challenge })
-    res.redirect(url)
-})
-
-// ── GET /api/oauth/anthropic/callback?code=...&state=... ─────────────────────
-
-const CallbackSchema = z.object({ code: z.string(), state: z.string() })
-
-oauthRouter.get('/anthropic/callback', async (req, res) => {
-    const parse = CallbackSchema.safeParse(req.query)
-    if (!parse.success) {
-        res.status(400).json({ error: 'Invalid callback parameters' })
-        return
-    }
-
-    const { code, state } = parse.data
-
-    let pending: Awaited<ReturnType<typeof consumePkce>>
-    try {
-        pending = await consumePkce(state)
-    } catch (err) {
-        logger.error({ err }, 'PKCE consume failed')
-        res.status(503).json({ error: 'OAuth service temporarily unavailable' })
-        return
-    }
-
-    if (!pending) {
-        res.status(400).json({ error: 'Invalid or expired state — please restart the OAuth flow' })
-        return
-    }
-
-    try {
-        const tokens = await exchangeAnthropicCode({
-            code,
-            redirectUri: pending.redirectUri,
-            codeVerifier: pending.codeVerifier,
-        })
-
-        // Persist encrypted to installed_connections (Phase 4)
-        await storeAnthropicTokens(pending.workspaceId, tokens)
-
-        logger.info({ workspaceId: pending.workspaceId }, 'Anthropic OAuth tokens stored (encrypted)')
-
-        res.send(popupCloseScript({
-            ok: true,
-            provider: 'anthropic',
-            workspaceId: pending.workspaceId,
-            credentialType: 'oauth_token',
-        }))
-    } catch (err) {
-        logger.error({ err }, 'Anthropic OAuth exchange failed')
-        res.send(popupCloseScript({ ok: false, provider: 'anthropic', error: 'exchange_failed' }))
-    }
-})
+async function consumePkce(state: string): Promise<PkceRecord | null> {
+    const r = await getRedis()
+    const result = await r.eval(
+        `local v = redis.call('GET', KEYS[1]) if v then redis.call('DEL', KEYS[1]) end return v`,
+        { keys: [pkceKey(state)], arguments: [] },
+    ) as string | null
+    if (!result) return null
+    try { return JSON.parse(result) as PkceRecord } catch { return null }
+}
 
 // ── Generic provider OAuth2 (GitHub, Slack, Google) ─────────────────────────
 // Pattern: open popup → /api/oauth/:provider/start → redirect to provider →
 //          callback → store encrypted token → postMessage to opener → close popup
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface ProviderConfig {
     authUrl: string
@@ -168,7 +102,6 @@ oauthRouter.get('/:provider/start', async (req, res) => {
 
     const clientId = process.env[config.clientIdEnv]
     if (!clientId) {
-        // Return an HTML popup-close page so the UI message handler can surface the error cleanly
         res.send(popupCloseScript({
             ok: false,
             provider,
@@ -183,12 +116,7 @@ oauthRouter.get('/:provider/start', async (req, res) => {
     const redirectUri = `${process.env.API_PUBLIC_URL ?? 'http://localhost:3001'}/api/oauth/${provider}/callback`
 
     try {
-        await storePkce(state, {
-            codeVerifier: '',  // not used for GitHub/Slack (no PKCE)
-            workspaceId,
-            redirectUri,
-            createdAt: Date.now(),
-        })
+        await storePkce(state, { workspaceId, redirectUri, createdAt: Date.now() })
     } catch (err) {
         logger.error({ err }, `${provider} OAuth: PKCE store failed`)
         res.status(503).json({ error: 'OAuth service temporarily unavailable' })
@@ -202,9 +130,7 @@ oauthRouter.get('/:provider/start', async (req, res) => {
         state,
         response_type: 'code',
     })
-    // Google requires access_type=offline for refresh tokens
     if (provider === 'google') params.set('access_type', 'offline')
-
     res.redirect(`${config.authUrl}?${params.toString()}`)
 })
 
@@ -219,7 +145,6 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
         return
     }
 
-    // Surface provider denials gracefully (popup close)
     if (oauthError) {
         res.send(popupCloseScript({ ok: false, error: oauthError, provider }))
         return
@@ -230,7 +155,7 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
         return
     }
 
-    let pending: Awaited<ReturnType<typeof consumePkce>>
+    let pending: PkceRecord | null
     try {
         pending = await consumePkce(state)
     } catch (err) {
@@ -248,7 +173,6 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
     const clientSecret = process.env[config.clientSecretEnv] ?? ''
 
     try {
-        // Exchange code for tokens
         const tokenRes = await fetch(config.tokenUrl, {
             method: 'POST',
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
@@ -264,7 +188,7 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
 
         const authedUser = tokenData.authed_user as Record<string, unknown> | undefined
         const accessToken = (tokenData.access_token ?? authedUser?.access_token) as string | undefined
-        if (!tokenData || !accessToken) {
+        if (!accessToken) {
             logger.error({ tokenData, provider }, 'Token exchange returned no access_token')
             res.send(popupCloseScript({ ok: false, error: 'token_exchange_failed', provider }))
             return
@@ -276,17 +200,16 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
             expires_at: tokenData.expires_in
                 ? new Date(Date.now() + Number(tokenData.expires_in) * 1000).toISOString()
                 : null,
-            bot_token: (tokenData.access_token) as string | undefined,  // Slack workspace token
+            bot_token: tokenData.access_token as string | undefined,
             scope: (tokenData.scope as string | undefined) ?? config.defaultScopes,
         }
 
-        // Upsert into installed_connections
         const { workspaceId } = pending
         const existing = await db.select({ id: installedConnections.id })
             .from(installedConnections)
             .where(and(
                 eq(installedConnections.workspaceId, workspaceId),
-                eq(installedConnections.registryId, config.registryId)
+                eq(installedConnections.registryId, config.registryId),
             ))
             .limit(1)
 
@@ -321,57 +244,9 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
     }
 })
 
-/** Sends an HTML page that posts a message to the opener and closes itself */
 function popupCloseScript(payload: Record<string, unknown>): string {
     return `<!DOCTYPE html><html><body><script>
         try { window.opener.postMessage(${JSON.stringify({ type: 'oauth_callback', ...payload })}, '*') } catch(e){}
         setTimeout(() => window.close(), 300)
     </script><p style="font-family:sans-serif;color:#aaa;text-align:center;margin-top:40vh">${payload.ok ? 'Connected! Closing…' : 'Error: ' + String(payload.error)}</p></body></html>`
 }
-
-// ── POST /api/oauth/anthropic/import-cli ────────────────────────────────────
-// Dev-only: reads ~/.claude/.credentials.json (written by Claude Code CLI)
-// and loads the stored OAuth tokens directly into Plexo's credential store.
-// Only works when the file exists on the server's local filesystem.
-
-oauthRouter.post('/anthropic/import-cli', async (req, res) => {
-    const { workspaceId } = req.body as { workspaceId?: string }
-    if (!workspaceId) {
-        res.status(400).json({ error: 'workspaceId required' })
-        return
-    }
-    try {
-        const { readFileSync } = await import('node:fs')
-        const home = process.env.HOME ?? '/root'
-        const raw = JSON.parse(readFileSync(`${home}/.claude/.credentials.json`, 'utf8'))
-        const oauth = raw?.claudeAiOauth
-        if (!oauth?.accessToken) {
-            res.status(404).json({ error: 'No claudeAiOauth.accessToken found in ~/.claude/.credentials.json' })
-            return
-        }
-        const expiresIn = Math.max(0, Math.floor((oauth.expiresAt - Date.now()) / 1000))
-        await storeAnthropicTokens(workspaceId, {
-            access_token: oauth.accessToken,
-            refresh_token: oauth.refreshToken,
-            expires_in: expiresIn,
-        })
-        logger.info({ workspaceId, expiresIn }, 'Anthropic OAuth token imported from Claude Code CLI')
-        res.json({ ok: true, expiresIn, tokenPrefix: String(oauth.accessToken).slice(0, 20) + '…' })
-    } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        logger.error({ err }, 'CLI token import failed')
-        res.status(500).json({ error: msg })
-    }
-})
-
-// ── GET /api/oauth/anthropic/info ────────────────────────────────────────────
-
-oauthRouter.get('/anthropic/info', (_req, res) => {
-    res.json({
-        available: true,
-        description: 'Authenticate with your Claude.ai subscription (Pro/Max) instead of a paid API key.',
-        scopes: ANTHROPIC_OAUTH.scopes,
-        clientId: ANTHROPIC_OAUTH.clientId,
-        authorizationUrl: ANTHROPIC_OAUTH.authorizationUrl,
-    })
-})

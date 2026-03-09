@@ -124,28 +124,10 @@ export function buildModel(
             return or(modelId)
         }
         case 'anthropic': {
-            if (config.apiKey) {
-                // OAuth tokens (sk-ant-oat*) need Authorization: Bearer + oauth beta header
-                // API keys (sk-ant-api03-*) use x-api-key header (handled by createAnthropic default)
-                const isOAuth = config.apiKey.startsWith('sk-ant-oat')
-                const provider = isOAuth
-                    ? createAnthropic({
-                        apiKey: 'oauth',
-                        fetch: (url: string | URL, init: RequestInit = {}) =>
-                            globalThis.fetch(url, {
-                                ...init,
-                                headers: {
-                                    ...(init.headers as Record<string, string> ?? {}),
-                                    'Authorization': `Bearer ${config.apiKey}`,
-                                    'anthropic-version': '2023-06-01',
-                                    'anthropic-beta': 'oauth-2025-04-20',
-                                },
-                            }),
-                    } as Parameters<typeof createAnthropic>[0])
-                    : createAnthropic({ apiKey: config.apiKey })
-                return provider(modelId)
-            }
-            return anthropic(modelId)
+            const provider = config.apiKey
+                ? createAnthropic({ apiKey: config.apiKey })
+                : anthropic
+            return provider(modelId)
         }
         case 'openai': {
             const oa = config.apiKey
@@ -393,27 +375,10 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
             return createOpenRouter({ apiKey })(modelId)
         }
         case 'anthropic': {
-            if (apiKey) {
-                // Claude.ai subscription tokens (sk-ant-oat*) need Authorization: Bearer
-                const isOAuth = apiKey.startsWith('sk-ant-oat')
-                const provider = isOAuth
-                    ? createAnthropic({
-                        apiKey: 'oauth',
-                        fetch: (url: string | URL, init: RequestInit = {}) =>
-                            globalThis.fetch(url, {
-                                ...init,
-                                headers: {
-                                    ...(init.headers as Record<string, string> ?? {}),
-                                    'Authorization': `Bearer ${apiKey}`,
-                                    'anthropic-version': '2023-06-01',
-                                    'anthropic-beta': 'oauth-2025-04-20',
-                                },
-                            }),
-                    } as Parameters<typeof createAnthropic>[0])
-                    : createAnthropic({ apiKey })
-                return provider(modelId)
-            }
-            return anthropic(modelId)
+            const provider = apiKey
+                ? createAnthropic({ apiKey })
+                : anthropic
+            return provider(modelId)
         }
         case 'openai': {
             const oa = apiKey ? createOpenAI({ apiKey }) : openai
@@ -674,20 +639,14 @@ export async function testProvider(
     const modelId = opts.model ?? DEFAULT_TEST_MODELS[providerKey]
     const envKey = PROVIDER_ENV_KEY[providerKey]
 
-    // For Anthropic OAuth tokens, do NOT inject into env (env → x-api-key which fails for OAuth).
-    // Instead pass the key directly to buildTestModel which handles Bearer auth.
-    const isAnthropicOAuth = providerKey === 'anthropic' && opts.apiKey?.startsWith('sk-ant-oat')
-
-    // Temporarily override env key for non-OAuth providers
+    // Inject the key into env for non-Anthropic providers that read it automatically.
     let savedKey: string | undefined
-    if (opts.apiKey && envKey && !isAnthropicOAuth) {
+    if (opts.apiKey && envKey && providerKey !== 'anthropic') {
         savedKey = process.env[envKey]
         process.env[envKey] = opts.apiKey
     }
-
     try {
-        // For Anthropic: always pass the key directly so buildTestModel can set the correct auth header.
-        // For other providers: key is injected via env var above (non-Anthropic path).
+        // Always pass the key directly for Anthropic so buildTestModel uses the correct key.
         const directKey = providerKey === 'anthropic' ? opts.apiKey : undefined
         const model = buildTestModel(providerKey, modelId, opts.baseUrl, directKey)
         const ac = new AbortController()
@@ -705,7 +664,7 @@ export async function testProvider(
         const message = err instanceof Error ? err.message.slice(0, 200) : 'Unknown error'
         return { ok: false, message, latencyMs: Date.now() - start, model: modelId }
     } finally {
-        if (envKey && !isAnthropicOAuth) {
+        if (envKey) {
             if (savedKey === undefined) delete process.env[envKey]
             else process.env[envKey] = savedKey
         }
