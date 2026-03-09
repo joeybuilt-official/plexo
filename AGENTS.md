@@ -262,3 +262,10 @@ pnpm --filter @plexo/web dev
 - **Finding**: `resolveModel()` now unpacks `WorkspaceAISettings` recursively into disjoint `VaultConfig` and `RouterConfig`, ensuring the router operates solely on parameter references and never exposes credential strings to raw arbitration traces.
 - **Finding**: Implemented `console.info` structured telemetry in `resolveModel` that exports `router.arbitration.resolved` specifying task, mode, model, and cost per million.
 - **Finding**: `workspaces.settings.aiProviders` decoupling resolved via on-read lazy migration in `apps/api/src/routes/ai-provider-creds.ts`. Legacy schema is split invisibly into strictly typed `vault` (keys, OAuth tokens) and `arbiter` (inference settings) entries, achieving zero-downtime architectural isolation backwards-compatible with active client payloads.
+
+### 2026-03 — Empty Insights & Self-Improvement Failure
+
+- **Root cause 1 (Self-Improvement LLM failure)**: When the agent found no new patterns, the LLM returned an empty object `{}` instead of `{"proposals": []}`. This crashed the Zod schema validation with a `TypeValidationError`, swallowing the cycle silently as 0 proposals.
+- **Fix 1**: Chained `.default([]).catch([])` onto the Zod `proposals` array and instructed the LLM prompt to explicitly return an empty array if no clear patterns exist.
+- **Root cause 2 (Memory completely empty on load)**: `GET /api/v1/memory/search` enforced a strict 400 error if the `q` parameter was empty. The `InsightsPage` UI prevented search entirely without a query. As a result, users never saw their historical memory entries natively.
+- **Fix 2**: Dropped the empty `q` check in the API. Modified `store.ts` to skip both ILIKE strings and embedding when the query is empty, substituting it for a straight order-by `memory_entries.createdAt` query. Finally, `InsightsPage.tsx` now calls a search with `q=` on mount to fetch the latest context natively.
