@@ -15,11 +15,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "1.0"
+    # Enforced cgroup limits (mem_limit/memswap_limit apply without Swarm mode)
+    mem_limit: 512m
+    memswap_limit: 1g
 
   # ── Cache / State ────────────────────────────────────────
 
@@ -34,11 +32,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: 192M
-          cpus: "0.5"
+    mem_limit: 192m
+    memswap_limit: 256m
 
   # ── DB Migrations (runs once, exits) ────────────────────
 
@@ -56,11 +51,10 @@ services:
     environment:
       DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@postgres:5432/plexo
       MIGRATIONS_DIR: ./drizzle
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.25"
+    # 256m RAM + up to 256m swap = 512m ceiling total.
+    # OOM-kill enforced by cgroup — prevents runaway swap consumption.
+    mem_limit: 256m
+    memswap_limit: 512m
 
   # ── API Server ───────────────────────────────────────────
 
@@ -129,11 +123,8 @@ services:
       timeout: 10s
       retries: 5
       start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "1.0"
+    mem_limit: 512m
+    memswap_limit: 768m
 
   # ── Web Dashboard ────────────────────────────────────────
 
@@ -161,11 +152,8 @@ services:
       timeout: 10s
       retries: 5
       start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "1.0"
+    mem_limit: 512m
+    memswap_limit: 768m
 
   # ── Asset Storage (S3-compatible) ──────────────────────────
   # MinIO provides local S3-compatible storage for agent-produced assets.
@@ -186,11 +174,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
+    mem_limit: 256m
+    memswap_limit: 384m
 
   # ── Reverse Proxy ────────────────────────────────────────
 
@@ -212,11 +197,8 @@ services:
         condition: service_started
       api:
         condition: service_started
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.25"
+    mem_limit: 128m
+    memswap_limit: 192m
 
 volumes:
   pgdata:

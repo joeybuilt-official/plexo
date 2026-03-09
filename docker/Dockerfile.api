@@ -44,7 +44,6 @@ COPY --from=deps /app/package.json ./
 
 # Drizzle migrations — run via migrate service (compose.yml) before api starts
 COPY docker/migrate.sh /migrate.sh
-COPY docker/migrate.mjs /app/migrate.mjs
 RUN chmod +x /migrate.sh
 
 # Bake the version from package.json into the image at build time.

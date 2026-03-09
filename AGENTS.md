@@ -47,7 +47,8 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 - The canonical repo is always the source of truth.
 - All changes go: local → `git push origin main` → server pulls from GitHub.
 - Never edit files directly on a production server.
-- Deploy: `git pull origin main && docker compose -f docker/compose.yml build <service> && docker compose -f docker/compose.yml up -d <service>`
+- Deploy: `export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker/compose.yml -f docker/compose.override.yml build <service> && docker compose -f docker/compose.yml -f docker/compose.override.yml up -d <service>`
+- `docker/compose.override.yml` is gitignored — operator customizations (external Postgres, custom ports) go there and survive `git pull`.
 - `/opt/plexo/docker/.env` is a symlink to `/opt/plexo/.env` — do not break this or `POSTGRES_PASSWORD` won't substitute.
 
 ## Critical Rules
@@ -68,7 +69,7 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 ## Deploy sequence (non-negotiable)
 1. Commit locally
 2. `git push origin main`
-3. Single SSH command: `git pull origin main && docker compose -f docker/compose.yml build <service> && docker compose -f docker/compose.yml up -d <service>`
+3. Single SSH command: `export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker/compose.yml -f docker/compose.override.yml build <service> && docker compose -f docker/compose.yml -f docker/compose.override.yml up -d <service>`
 
 Rules:
 - `git pull` and `docker compose build/up` MUST be in the same SSH invocation, chained with `&&`.
@@ -113,6 +114,22 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ## Known Issues
 *None.*
+
+---
+
+### 2026-03 — Migration Container 32GB Swap Runaway
+
+- **Root cause 1 (`deploy.resources.limits` not enforced)**: All services in `docker/compose.yml` used `deploy.resources.limits` for memory and CPU caps. This key is **Swarm-only** — `docker compose up` (non-Swarm) ignores it entirely. The migrate container had no enforced memory cap.
+- **Root cause 2 (No Node heap limit)**: `migrate.sh` called `tsx src/migrate.ts` with no `NODE_OPTIONS` or `--max-old-space-size`. V8 could grow unbounded into swap.
+- **Root cause 3 (No process timeout)**: If the migration hung (wrong credentials, locked DB, corrupt state), it ran indefinitely. `restart: "no"` prevented restarts but didn't bound the initial run.
+- **Fix 1**: Replaced all `deploy.resources.limits` blocks with top-level `mem_limit` / `memswap_limit` which Docker enforces via cgroup in all run modes. Migrate gets `mem_limit: 256m` + `memswap_limit: 512m` — 256m RAM + up to 256m swap, hard ceiling.
+- **Fix 2**: `migrate.sh` now passes `node --max-old-space-size=200` before tsx. V8 stays within cgroup limits.
+- **Fix 3**: `packages/db/src/migrate.ts` has a 5-minute `setTimeout` that exits 1 if migrations don't complete.
+- **Fix 4**: Migration runner now logs file count on start and elapsed time on completion. No more silent black box.
+- **Fix 5**: `MIGRATIONS_DIR` env var (set in compose.yml but never read) is now actually read in `migrate.ts`.
+- **Fix 6**: Removed dead `docker/migrate.mjs` (used a different Drizzle adapter than the runner that actually executes).
+- **Fix 7**: Deploy command now includes `-f docker/compose.override.yml` so user customizations survive deploys.
+- **Lesson**: `deploy.resources.limits` requires Swarm mode. For enforced limits in `docker compose up`, use top-level `mem_limit` + `memswap_limit` at the service level.
 
 ---
 

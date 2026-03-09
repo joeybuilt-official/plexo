@@ -49,7 +49,7 @@ cp .env.example .env
 # Start the stack (Next.js, Express, Postgres, Valkey)
 docker compose -f docker/compose.yml up -d
 ```
-> **Note:** First boot takes ~60s as migrations run. Caddy handles TLS automatically if `PUBLIC_DOMAIN` is set in your `.env`.
+> **Note:** First boot runs database migrations before the API starts. Caddy handles TLS automatically if `PUBLIC_DOMAIN` is set in your `.env`.
 
 [**Read the full self-hosting guide →**](docs/)
 
