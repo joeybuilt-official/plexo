@@ -164,7 +164,7 @@ export async function planSprint(params: {
             const hasUsableProvider = chain.some((key: string) => {
                 const p = aiSettings.providers?.[key]
                 if (!p || p.enabled === false) return false
-                return !!(p.apiKey || p.oauthToken || p.baseUrl || p.status === 'configured')
+                return !!(p.apiKey || p.baseUrl || p.status === 'configured')
             })
             if (!hasUsableProvider) {
                 throw new Error(

@@ -234,8 +234,13 @@ export class IntelligentRouter {
     }
 
     private async handleByok(taskType: TaskType) {
-        // Mode 2: Standard user-configured fallback chains
-        const provider = this.config.primaryProvider ?? 'anthropic'
+        // Mode 2: Standard user-configured fallback chains.
+        // primaryProvider MUST be set — agent-loop's credential check ensures this.
+        // If it reaches here without a primary, something bypassed the pre-flight.
+        const provider = this.config.primaryProvider
+        if (!provider) {
+            throw new Error('No AI provider configured for this workspace. Set a primary provider in Settings → AI Providers.')
+        }
         const configProvider = this.config.providers?.[provider]
         const creds = this.vault[provider] || {}
         
