@@ -105,6 +105,20 @@ pnpm --filter @plexo/web dev
 
 ---
 
+### 2026-03 — Intelligence Page: Provider Status / Cost / Memory all Non-Functional
+
+- **Root cause 1 (Provider status)**: `buildIntrospectionSnapshot` used `!!cfg.apiKey` to determine if a provider was configured. But the GET endpoint returns the sentinel string `__configured__` instead of real keys. Truthy sentinel → every provider that had ever been saved showed as `ACTIVE`, regardless of whether the real key was valid or removed.
+- **Fix 1**: `isConfigured` now requires `cfg.apiKey !== '__configured__'` (real decrypted key), or `cfg.baseUrl`, or `cfg.status === 'configured'` without an apiKey (keyless providers like Ollama). The no-provider fallback is marked `unconfigured` unless an `activeProvider` argument is passed (meaning a task is actively running).
+- **Root cause 2 (Weekly budget always $0)**: `agent-loop.ts` called `completeTask()` which only updates the `tasks` row. Neither `api_cost_tracking` (weekly accumulator) nor `work_ledger` (per-task audit row) were ever written. Both tables existed in the schema but no code path inserted into them on task completion.
+- **Fix 2**: After `completeTask()`, agent-loop now: (1) upserts the current-week `api_cost_tracking` row using `ON CONFLICT DO UPDATE SET cost_usd = cost_usd + EXCLUDED.cost_usd`, (2) inserts a `work_ledger` row. Also fixed the introspection cost query to filter to the current ISO week with `date_trunc('week', NOW())::date` instead of `ORDER BY week_start DESC LIMIT 1`.
+- **Root cause 3 (Memory always empty)**: `recordTaskMemory()` existed in `packages/agent/src/memory/store.ts` but was never called after task completion. The only way entries accumulated was via the 6h consolidation cron.
+- **Fix 3**: `agent-loop.ts` now calls `recordTaskMemory()` non-fatally after every successful task, populating `memory_entries` with `type='task'`.
+- **Root cause 4 (Refresh button useless)**: The refresh endpoint was cached for 30s in Redis with no bypass. Clicking Refresh within 30s returned the same cached response.
+- **Fix 4**: `GET /introspect?bust=1` skips the Redis cache entirely. The Refresh button now appends `?bust=1` to the URL.
+- **Lesson**: Tables in the schema are not automatically evidence that writes happen. Always trace the write path from agent-loop/executor to verify cost/memory/ledger tables are actually populated.
+
+---
+
 ## Memory System Architecture
 
 - **`memory_entries` (PostgreSQL + pgvector)**: Stores semantic memories with 1536-dim embeddings (OpenAI `text-embedding-3-small`). Falls back to ILIKE text search when no OpenAI key.
