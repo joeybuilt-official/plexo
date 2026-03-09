@@ -23,7 +23,8 @@ import { generateText } from 'ai'
 import { withFallback, resolveModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { runSprint } from '@plexo/agent/sprint/runner'
-import { storeMemory } from '@plexo/agent/memory/store'
+import { storeMemory, rememberInstruction } from '@plexo/agent/memory/store'
+import { setPreference } from '@plexo/agent/memory/preferences'
 
 // ── Conversation helpers ──────────────────────────────────────────────────────
 
@@ -108,10 +109,11 @@ function classifyAIError(err: unknown): ClassifiedError {
 // ── Intent classification ────────────────────────────────────────────────────
 
 const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
-Decide if the user's message is a TASK, PROJECT, or CONVERSATION.
+Decide if the user's message is a TASK, PROJECT, MEMORY, or CONVERSATION.
 
 TASK: The user is explicitly asking to start a clear, immediate, actionable task. Or the user is confirming (e.g. "yes", "do it") a previous proposal to create a task.
 PROJECT: The user is explicitly asking to start a large, multi-step goal requiring planning (e.g., "Build a new features"). Or the user is confirming a proposal to create a project.
+MEMORY: The user wants the agent to remember something, behave differently, or follow a rule going forward. Examples: "remember to always use TypeScript", "don't use semicolons", "always respond in bullet points", "prefer tabs over spaces", "never deploy on Fridays".
 CONVERSATION: Vague requests, troubleshooting, requests needing clarification, greetings, checks, small talk, or rejecting proposals.
 
 Also determine the complexity: SIMPLE or COMPLEX.
@@ -131,6 +133,9 @@ For TASK or CONVERSATION: Reply with EXACTLY two words separated by a space:
 [INTENT] [COMPLEXITY]
 Example: TASK COMPLEX
 Example: CONVERSATION SIMPLE
+
+For MEMORY: Reply with EXACTLY two words:
+MEMORY SIMPLE
 
 For PROJECT: Reply with EXACTLY three words separated by spaces:
 PROJECT [COMPLEXITY] [CATEGORY]
@@ -215,7 +220,7 @@ chatRouter.post('/message', async (req, res) => {
         const taglineHint = agentTagline ? ` (${agentTagline})` : ''
 
         // Classify intent — skip if caller forced CONVERSATION (e.g. "Just answer" button)
-        let intent: 'TASK' | 'PROJECT' | 'CONVERSATION' = forceConversation ? 'CONVERSATION' : 'TASK'
+        let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = forceConversation ? 'CONVERSATION' : 'TASK'
         const sid = sessionId ?? 'default'
         const history = sessionHistory.get(sid) ?? []
         const trimmedMsg = message.trim()
@@ -243,6 +248,7 @@ chatRouter.post('/message', async (req, res) => {
                 const parts = text.split(/\s+/)
                 if (upperText.startsWith('TASK')) intent = 'TASK'
                 else if (upperText.startsWith('PROJECT')) intent = 'PROJECT'
+                else if (upperText.startsWith('MEMORY')) intent = 'MEMORY'
                 else intent = 'CONVERSATION'
 
                 if (parts[1]?.toUpperCase().startsWith('COMPLEX')) isComplex = true
@@ -289,6 +295,35 @@ chatRouter.post('/message', async (req, res) => {
         }
 
         logger.info({ workspaceId, intent, message: trimmedMsg.slice(0, 80) }, 'Webchat intent classified')
+
+        // ── MEMORY intent: store instruction immediately ───────────────────────────
+        if (intent === 'MEMORY') {
+            try {
+                // Store as a high-confidence pattern in memory_entries
+                await rememberInstruction({ workspaceId, instruction: trimmedMsg, source: 'chat' })
+
+                // Also write to workspace_preferences so the executor reads it at task start
+                // Extract a normalized key from the instruction (first 3 meaningful words)
+                const sanitized = trimmedMsg.replace(/^(remember|always|never|don't|dont|please|make sure)\s+/i, '').trim()
+                await setPreference({ workspaceId, key: 'user_instruction', value: sanitized, source: 'chat' })
+
+                const reply = `Got it — I'll remember that and apply it going forward.`
+                history.push({ role: 'user', content: trimmedMsg })
+                history.push({ role: 'assistant', content: reply })
+                if (history.length > 20) history.splice(0, history.length - 20)
+                sessionHistory.set(sid, history)
+
+                try {
+                    await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply, status: 'complete', intent })
+                } catch { /* non-fatal */ }
+
+                res.json({ status: 'complete', reply })
+            } catch (err) {
+                logger.error({ err, workspaceId }, 'MEMORY intent storage failed')
+                res.json({ status: 'complete', reply: 'I tried to remember that, but ran into an issue. Please try again.' })
+            }
+            return
+        }
 
         if (intent === 'CONVERSATION') {
             history.push({ role: 'user', content: trimmedMsg })

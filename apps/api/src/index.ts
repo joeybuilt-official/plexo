@@ -58,9 +58,9 @@ import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
-import { db, eq } from '@plexo/db'
+import { db, eq, sql } from '@plexo/db'
 import { sprints } from '@plexo/db'
-import { runCronJobs } from './cron.js'
+import { runCronJobs, scheduleMemoryConsolidation } from './cron.js'
 
 const app: Express = express()
 const port = parseInt(process.env.PORT ?? '3001', 10)
@@ -193,6 +193,31 @@ const server = app.listen(port, '0.0.0.0', () => {
     // Background Sync
     runCronJobs()
     setInterval(() => { void runCronJobs() }, 24 * 60 * 60 * 1000)
+
+    // Schedule automatic memory consolidation (every 6h, first run after 5m)
+    scheduleMemoryConsolidation()
+
+    // Seed default "Memory consolidation" cron job row per workspace so it's visible in UI
+    db.execute(sql`
+        SELECT id FROM workspaces LIMIT 50
+    `).then(async (wsRows) => {
+        for (const ws of wsRows as unknown as { id: string }[]) {
+            await db.execute(sql`
+                INSERT INTO cron_jobs (id, workspace_id, name, schedule, enabled, created_at)
+                SELECT
+                    gen_random_uuid(),
+                    ${ws.id}::uuid,
+                    'Memory consolidation',
+                    '0 */6 * * *',
+                    true,
+                    now()
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM cron_jobs
+                    WHERE workspace_id = ${ws.id}::uuid AND name = 'Memory consolidation'
+                )
+            `)
+        }
+    }).catch((err: unknown) => logger.warn({ err }, 'Startup: failed to seed memory cron rows — non-fatal'))
 
     // Wire sprint activity logger → SSE emitter so runner events stream to Control Room
     initSprintLogger((workspaceId: string, event: Record<string, unknown>) => emitToWorkspace(workspaceId, event as import('./sse-emitter.js').AgentEvent))

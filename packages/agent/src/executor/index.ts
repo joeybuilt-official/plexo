@@ -302,8 +302,9 @@ export async function executeTask(
         } catch { /* non-fatal */ }
     }
 
-    // ── Phase B: Read prior memory before building system prompt ──────────────
+    // ── Phase B: Read prior memory + apply user preferences ──────────────────
     let memoryBlock = ''
+    let preferencesBlock = ''
     try {
         const priorMemory = await searchMemory({
             workspaceId: ctx.workspaceId,
@@ -315,6 +316,32 @@ export async function executeTask(
                 .map((m) => `- ${m.content.split('\n').slice(0, 3).join(' | ')}`)
                 .join('\n')
             memoryBlock = `\n\nPRIOR WORK CONTEXT (from memory):\n${entries}`
+        }
+    } catch { /* non-fatal */ }
+
+    // Load user-set preferences (from "remember X" instructions + learned patterns)
+    // These gate agent behavior and are injected as high-priority rules.
+    try {
+        const { getPreferences } = await import('../memory/preferences.js')
+        const prefs = await getPreferences(ctx.workspaceId)
+
+        const rules: string[] = []
+
+        // user_instruction is a free-form string stored by chat MEMORY intent
+        if (typeof prefs.user_instruction === 'string' && prefs.user_instruction) {
+            rules.push(prefs.user_instruction)
+        }
+
+        // Structured preferences derived from task outcomes
+        if (typeof prefs.preferred_language === 'string') {
+            rules.push(`Prefer ${prefs.preferred_language} for all code.`)
+        }
+        if (typeof prefs.preferred_test_framework === 'string') {
+            rules.push(`Use ${prefs.preferred_test_framework} as the test framework.`)
+        }
+
+        if (rules.length > 0) {
+            preferencesBlock = `\n\nWORKSPACE RULES (always follow these):\n${rules.map((r) => `- ${r}`).join('\n')}`
         }
     } catch { /* non-fatal */ }
 
@@ -451,7 +478,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 - Use write_asset to save any deliverable the user should receive (documents, scripts, email copy, HTML, etc.).
 - When you have completed all steps, call task_complete.
 - Be conservative. If something seems wrong, stop and report it.
-- NEVER output credentials, secrets, or tokens in any tool call or message.${capabilityBlock}${selfExtensionBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
+- NEVER output credentials, secrets, or tokens in any tool call or message.${capabilityBlock}${selfExtensionBlock}${preferencesBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
 
     const genResult = await (async () => {
         let messages: any[] = [{ role: 'user', content: userMessage }]
