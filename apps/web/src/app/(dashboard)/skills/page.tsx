@@ -79,7 +79,7 @@ function SkillCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: string
                         <span className="text-sm font-medium text-zinc-200 truncate">{plugin.name}</span>
                         <span className="text-[10px] font-mono text-zinc-600 shrink-0">v{plugin.version}</span>
                         <span className="text-[10px] text-zinc-600 shrink-0">kapsel@{plugin.kapselVersion}</span>
-                        {plugin.settings?.isGenerated && (
+                        {!!plugin.settings?.isGenerated && (
                             <span className="text-[10px] font-medium text-indigo-400 border border-indigo-400/30 rounded px-1.5 py-0.5 shrink-0">
                                 ✦ Custom
                             </span>

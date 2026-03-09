@@ -14,6 +14,7 @@
  */
 import pino from 'pino'
 import { db, sql } from '@plexo/db'
+import { getCachedPreferences, setCachedPreferences, invalidatePrefsCache } from './store.js'
 
 const logger = pino({ name: 'preferences' })
 
@@ -29,6 +30,10 @@ export interface Preference {
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 export async function getPreferences(workspaceId: string): Promise<Record<string, unknown>> {
+    // Redis hot path
+    const cached = await getCachedPreferences(workspaceId)
+    if (cached) return cached
+
     const rows = await db.execute<{
         key: string
         value: unknown
@@ -40,7 +45,9 @@ export async function getPreferences(workspaceId: string): Promise<Record<string
     ORDER BY confidence DESC
   `)
 
-    return Object.fromEntries(rows.map((r) => [r.key, r.value]))
+    const prefs = Object.fromEntries(rows.map((r) => [r.key, r.value]))
+    await setCachedPreferences(workspaceId, prefs)
+    return prefs
 }
 
 export async function getPreference(workspaceId: string, key: string): Promise<unknown | null> {
@@ -84,7 +91,24 @@ export async function learnPreference(params: {
       last_updated = now()
   `)
 
+    // Invalidate Redis cache so next read reflects the update
+    await invalidatePrefsCache(workspaceId)
     logger.debug({ workspaceId, key, value }, 'Preference learned')
+}
+
+/**
+ * Directly set a preference from an explicit user instruction (high confidence).
+ * Sends immediately to DB + invalidates cache. Used by chat "remember" intent.
+ */
+export async function setPreference(params: {
+    workspaceId: string
+    key: string
+    value: unknown
+    source?: string
+}): Promise<void> {
+    const { workspaceId, key, value, source = 'user' } = params
+    await learnPreference({ workspaceId, key, value, observationConfidence: 0.9 })
+    logger.info({ workspaceId, key, source }, 'Preference set directly by user')
 }
 
 // ── Infer preferences from task outcome ──────────────────────────────────────
