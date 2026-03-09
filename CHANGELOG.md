@@ -21,6 +21,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **env.ts completeness** — added optional warnings for `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `POSTHOG_API_KEY`, `PLEXO_INSTANCE_ID`
 - **Router unit tests fixed** — Mode 1 (AUTO) mock was missing `.where()` in Drizzle chain; 4/4 now pass (`@plexo/agent`)
 - **Android test stub fixed** — no longer exits 1; turbo `pnpm test` now passes across all non-DB packages
+- **Storage integration** — `write_asset` executor tool now opportunistically uploads to S3/MinIO when `STORAGE_ENDPOINT` + `STORAGE_ACCESS_KEY` + `STORAGE_SECRET_KEY` are set. Falls back to `/tmp` silently. `@plexo/storage` added as an optional dep of `@plexo/agent`.
+- **E2E sprint creation test (T1)** — `tests/e2e/critical-paths.test.ts` now includes sprint creation round-trip: POST → GET → assert valid status. Covers the missing T1 scenario from the finish phases plan.
+- **vitest.config.ts** — added `@plexo/storage` alias so storage tests resolve in unit test context.
+- **AGENTS.md** — package dependency rules updated: `packages/agent` now officially lists `packages/storage` dependency.
 - **`web_fetch` tool** — agent can now fetch content from any URL (GET/POST, 30s timeout, 50k char truncation). Enables research and external data retrieval in tasks.
 - **`web_search` tool** — DuckDuckGo Instant Answer integration, no API key required. Returns answer, topic summary, and related links for any query.
 - **Task assets API** — `GET /api/v1/tasks/:id/assets` lists and returns inline content for agent-produced files written via `write_asset` tool. Text files up to 200 KB returned inline.

@@ -48,6 +48,7 @@
     "@plexo/db": "workspace:*",
     "@plexo/queue": "workspace:*",
     "@plexo/sdk": "workspace:*",
+    "@plexo/storage": "workspace:*",
     "ai": "^6.0.111",
     "bcrypt": "^5.1",
     "diff": "^8.0.3",

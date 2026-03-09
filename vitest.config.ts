@@ -8,6 +8,7 @@ export default defineConfig({
             '@plexo/agent': resolve('./packages/agent/src/index.ts'),
             '@plexo/queue': resolve('./packages/queue/src/index.ts'),
             '@plexo/sdk': resolve('./packages/sdk/src/index.ts'),
+            '@plexo/storage': resolve('./packages/storage/src/index.ts'),
         },
     },
     test: {

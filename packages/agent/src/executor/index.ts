@@ -191,8 +191,8 @@ function buildTools(ctx: ExecutionContext) {
             execute: async (input) =>
                 dispatchTool('task_complete', input as Record<string, unknown>, ctx),
         }),
-        // Phase C: write_asset — writes to disk at /tmp/plexo-assets/{taskId}/{filename}
-        // until MinIO is wired in. File path returned so agent can reference it.
+        // write_asset — writes to /tmp (always) and uploads to S3/MinIO when STORAGE_* is configured.
+        // The tasks/:id/assets API reads from /tmp; S3 URL is returned so the agent can surface it.
         write_asset: tool({
             description: 'Save a completed deliverable (document, script, HTML, email copy, etc.) as a named asset file. Use this for any output the user should receive.',
             inputSchema: z.object({
@@ -203,11 +203,30 @@ function buildTools(ctx: ExecutionContext) {
             execute: async (input) => {
                 const { mkdirSync, writeFileSync } = await import('node:fs')
                 const { join } = await import('node:path')
+                // Always write to /tmp (tasks/:id/assets API reads from here)
                 const dir = `/tmp/plexo-assets/${ctx.taskId}`
                 mkdirSync(dir, { recursive: true })
                 const filePath = join(dir, input.filename as string)
                 writeFileSync(filePath, input.content as string, 'utf8')
-                return `Asset saved: ${filePath} (${(input.content as string).length} bytes)`
+                // Upload to S3/MinIO when configured (opportunistic — never blocks on failure)
+                let storageUrl: string | null = null
+                const storageEndpoint = process.env.STORAGE_ENDPOINT
+                const storageKey = process.env.STORAGE_ACCESS_KEY
+                const storageSecret = process.env.STORAGE_SECRET_KEY
+                if (storageEndpoint && storageKey && storageSecret) {
+                    try {
+                        const { uploadContent } = await import('@plexo/storage')
+                        const result = await uploadContent({
+                            taskId: ctx.taskId,
+                            filename: input.filename as string,
+                            content: input.content as string,
+                            contentType: input.mimeType as string,
+                        })
+                        storageUrl = result.url
+                    } catch { /* non-fatal — /tmp path still served by assets API */ }
+                }
+                const note = storageUrl ? ` | S3: ${storageUrl}` : ''
+                return `Asset saved: ${filePath} (${(input.content as string).length} bytes)${note}`
             },
         }),
         web_fetch: tool({

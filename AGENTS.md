@@ -36,7 +36,7 @@ pnpm db:rollback        # roll back one migration
 packages/db        → no internal dependencies
 packages/sdk       → no internal dependencies (public API)
 packages/queue     → packages/db only
-packages/agent     → packages/db, packages/queue (never packages/sdk)
+packages/agent     → packages/db, packages/queue, packages/storage (never packages/sdk)
 packages/ui        → no internal dependencies
 apps/api           → packages/agent, packages/db, packages/queue, packages/sdk
 apps/web           → packages/ui only (no direct DB or agent access)

@@ -525,3 +525,51 @@ test.describe('Audit API', () => {
   })
 })
 
+
+// ── Sprint / Project creation round-trip (T1) ─────────────────────────────────
+
+test.describe('Sprint creation (T1)', () => {
+  test('POST /api/sprints requires workspaceId', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/sprints`, {
+      data: { goal: 'no workspace provided' },
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('MISSING_WORKSPACE')
+  })
+
+  test('POST /api/sprints requires goal', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/sprints`, {
+      data: { workspaceId: '00000000-0000-0000-0000-000000000001' },
+    })
+    expect(res.status()).toBe(400)
+  })
+
+  test('sprint creation round-trip: create → fetch → assert valid status', async ({ request }) => {
+    // Get the first real workspace
+    const wsRes = await request.get(`${API_URL}/api/workspaces`)
+    if (!wsRes.ok) return
+    const wsData = await wsRes.json() as { items: { id: string }[] }
+    if (!wsData.items?.length) return
+    const wsId = wsData.items[0].id
+
+    // Create a sprint
+    const createRes = await request.post(`${API_URL}/api/sprints`, {
+      data: {
+        workspaceId: wsId,
+        goal: '[E2E T1] test sprint creation round-trip — safe to delete',
+        category: 'general',
+      },
+    })
+    expect([200, 201]).toContain(createRes.status())
+    const created = await createRes.json() as { id: string; status: string }
+    expect(created.id).toBeDefined()
+
+    // Fetch the sprint and verify status is a valid state
+    const fetchRes = await request.get(`${API_URL}/api/sprints/${created.id}`)
+    expect(fetchRes.status()).toBe(200)
+    const fetched = await fetchRes.json() as { id: string; status: string }
+    expect(fetched.id).toBe(created.id)
+    expect(['planning', 'queued', 'running', 'completed', 'failed']).toContain(fetched.status)
+  })
+})
