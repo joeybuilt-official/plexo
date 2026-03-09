@@ -348,7 +348,8 @@ export default function PrivacyPage() {
                             </p>
                             <p className="mt-3 text-sm text-zinc-400 leading-relaxed">
                                 The only information we can receive is what you explicitly send via crash
-                                reporting above.
+                                reporting above — anonymous error events via PostHog and Sentry (if
+                                configured by your operator).
                             </p>
                             <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {[
