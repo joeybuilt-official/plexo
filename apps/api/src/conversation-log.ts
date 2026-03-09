@@ -87,12 +87,15 @@ export async function getSessionTurns(
     sessionId: string,
     limit = 50,
 ) {
-    return db
+    const rows = await db
         .select()
         .from(conversations)
         .where(sql`workspace_id = ${workspaceId} AND session_id = ${sessionId}`)
-        .orderBy(conversations.createdAt)
+        .orderBy(desc(conversations.createdAt))
         .limit(limit)
+    
+    // Reverse so the oldest of the most recent 50 is first (chronological order)
+    return rows.reverse()
 }
 
 // ── Reply back to an originating channel ──────────────────────────────────────

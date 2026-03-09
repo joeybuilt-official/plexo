@@ -146,7 +146,7 @@ export async function storeMemory(params: {
 
 export async function searchMemory(params: {
     workspaceId: string
-    query: string
+    query?: string
     type?: MemoryType
     limit?: number
     useCache?: boolean
@@ -158,7 +158,7 @@ export async function searchMemory(params: {
         try {
             const redis = await getRedis()
             if (redis) {
-                const cached = await redis.get(searchKey(workspaceId, query, type))
+                const cached = await redis.get(searchKey(workspaceId, query || '', type))
                 if (cached) {
                     return JSON.parse(cached) as MemorySearchResult[]
                 }
@@ -166,7 +166,7 @@ export async function searchMemory(params: {
         } catch { /* non-fatal */ }
     }
 
-    const vector = await embed(query)
+    const vector = query?.trim() ? await embed(query) : null
     let results: MemorySearchResult[]
 
     if (vector) {
@@ -203,11 +203,15 @@ export async function searchMemory(params: {
             similarity: r.similarity,
         }))
     } else {
-        // Text fallback — ILIKE search when no embedding available
-        const conditions = [
-            eq(memoryEntries.workspaceId, workspaceId),
-            sql`content ILIKE ${'%' + query.split(' ').slice(0, 5).join('%') + '%'}`,
+        // Text fallback — ILIKE search when no embedding available, or just recent if query is empty
+        const conditions: NonNullable<Parameters<typeof and>[0]>[] = [
+            eq(memoryEntries.workspaceId, workspaceId)
         ]
+        
+        if (query?.trim()) {
+            conditions.push(sql`content ILIKE ${'%' + query.split(' ').slice(0, 5).join('%') + '%'}`)
+        }
+        
         if (type) conditions.push(eq(memoryEntries.type, type))
 
         const rows = await db.select().from(memoryEntries)
@@ -231,7 +235,7 @@ export async function searchMemory(params: {
         try {
             const redis = await getRedis()
             if (redis) {
-                await redis.setEx(searchKey(workspaceId, query, type), SEARCH_TTL, JSON.stringify(results))
+                await redis.setEx(searchKey(workspaceId, query || '', type), SEARCH_TTL, JSON.stringify(results))
             }
         } catch { /* non-fatal */ }
     }

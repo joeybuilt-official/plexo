@@ -28,10 +28,6 @@ memoryRouter.get('/search', async (req, res) => {
         res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
         return
     }
-    if (!q) {
-        res.status(400).json({ error: { code: 'MISSING_QUERY', message: 'q parameter required' } })
-        return
-    }
 
     try {
         const results = await searchMemory({

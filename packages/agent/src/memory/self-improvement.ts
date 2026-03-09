@@ -32,7 +32,7 @@ const ImprovementProposalSchema = z.object({
 })
 
 const ProposalsSchema = z.object({
-    proposals: z.array(ImprovementProposalSchema).max(5),
+    proposals: z.array(ImprovementProposalSchema).max(5).default([]).catch([]),
 })
 
 type ImprovementProposal = z.infer<typeof ImprovementProposalSchema>
@@ -169,7 +169,7 @@ export async function runSelfImprovementCycle(params: {
             model,
             schema: ProposalsSchema,
             system: 'You are an AI operations analyst. Given task performance data, identify patterns that an AI agent could use to improve.',
-            prompt: `Analyze these recent task outcomes (${stratified.length} tasks) and identify up to 5 improvement patterns:\n${JSON.stringify(ledgerSummary, null, 2)}`,
+            prompt: `Analyze these recent task outcomes (${stratified.length} tasks) and identify up to 5 improvement patterns. If there are no clear patterns or no tasks, return an empty array for proposals:\n${JSON.stringify(ledgerSummary, null, 2)}`,
             maxOutputTokens: 1024,
         })
         proposals = result.object.proposals

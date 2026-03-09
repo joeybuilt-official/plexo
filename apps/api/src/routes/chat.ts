@@ -29,6 +29,7 @@ import {
     recordConversation,
     getSessionChannelRef,
     replyToChannel,
+    getSessionTurns,
 } from '../conversation-log.js'
 import { getTelegramToken } from './telegram.js'
 import { captureException } from '../sentry.js'
@@ -125,9 +126,8 @@ Example: PROJECT SIMPLE general
 
 When in doubt, use CONVERSATION. Only classify as TASK or PROJECT when the user's intent to have the agent perform work is unmistakable.`
 
-// Per-session conversation history (last 20 messages, in-memory)
-const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>()
-
+// Per-session conversation history now fetched dynamically per request from DB
+// to ensure persistence and full context even if the agent server restarts.
 // ── POST /api/chat/message ────────────────────────────────────────────────────
 
 chatRouter.post('/message', async (req, res) => {
@@ -226,7 +226,16 @@ chatRouter.post('/message', async (req, res) => {
         // Default to CONVERSATION — tasks only get proposed when classifier explicitly says so.
         let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = 'CONVERSATION'
         const sid = sessionId ?? 'default'
-        const history = sessionHistory.get(sid) ?? []
+        
+        // Fetch full chat history reliably from the database instead of in-memory caching
+        const dbTurns = await getSessionTurns(workspaceId, sid, 50)
+        // Reconstruct messages array from the log
+        const history: Array<{ role: 'user' | 'assistant'; content: string }> = []
+        for (const t of dbTurns) {
+            if (t.message) history.push({ role: 'user', content: t.message })
+            if (t.reply) history.push({ role: 'assistant', content: t.reply })
+        }
+
         const trimmedMsg = textMessage || (hasImages ? `[Image${validImages.length > 1 ? 's' : ''} attached]` : '')
 
         // Build multimodal user content for AI SDK v6
@@ -329,10 +338,6 @@ chatRouter.post('/message', async (req, res) => {
                 await setPreference({ workspaceId, key: instrKey, value: sanitized, source: 'chat' })
 
                 const reply = `Got it — I'll remember that and apply it going forward.`
-                history.push({ role: 'user', content: trimmedMsg })
-                history.push({ role: 'assistant', content: reply })
-                if (history.length > 20) history.splice(0, history.length - 20)
-                sessionHistory.set(sid, history)
 
                 try {
                     await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply, status: 'complete', intent })
@@ -347,10 +352,6 @@ chatRouter.post('/message', async (req, res) => {
         }
 
         if (intent === 'CONVERSATION') {
-            history.push({ role: 'user', content: trimmedMsg })
-            if (history.length > 20) history.splice(0, history.length - 20)
-            sessionHistory.set(sid, history)
-
             // Detect if this session originated from an external channel (Telegram, etc.)
             // so we (a) record the correct source and (b) relay the reply back
             let externalChannelRef: { channel: string; channelId: string; chatId: string } | null = null
@@ -368,7 +369,7 @@ chatRouter.post('/message', async (req, res) => {
 
 Keep replies concise and friendly. If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. Only agree to start a task or project when the scope is clear.`,
                         messages: [
-                            ...history.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
+                            ...history.map((m) => ({ role: m.role, content: m.content })),
                             // Last message may include images as multimodal content
                             { role: 'user' as const, content: userContent },
                         ],
@@ -385,9 +386,6 @@ Keep replies concise and friendly. If the user proposes a single distinct action
                     res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
                     return
                 }
-                history.push({ role: 'assistant', content: replyText })
-                if (history.length > 20) history.splice(0, history.length - 20)
-                sessionHistory.set(sid, history)
 
                 // Record the conversation turn
                 try {

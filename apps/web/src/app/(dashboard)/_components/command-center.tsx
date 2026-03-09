@@ -12,6 +12,7 @@ import {
     CheckCircle2,
     Loader2,
     Clock,
+    Activity,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
@@ -440,24 +441,8 @@ export function CommandCenter() {
     const hasProjects = activeSprints.length > 0
     const hasCompletedRecently = completedTasks.length > 0
 
-    if (runtime === 'capacitor') {
-        // Mobile layout: Recent Activity Feed only
-        const allFeedTasks = allTasks.slice(0, 50) // Limit feed
-        return (
-            <div className="flex flex-col gap-4 pb-20">
-                <h2 className="text-xl font-bold tracking-tight text-white mb-2">Recent Activity</h2>
-                {allFeedTasks.length === 0 ? (
-                    <div className="p-8 text-center text-zinc-500">No recent activity.</div>
-                ) : (
-                    <div className="divide-y divide-zinc-800/40 border border-zinc-800/60 rounded-xl bg-zinc-900/20 overflow-hidden">
-                        {allFeedTasks.map(t => (
-                            t.status === 'complete' ? <CompletedItem key={t.id} task={t} /> : <ActiveWorkItem key={t.id} task={t} />
-                        ))}
-                    </div>
-                )}
-            </div>
-        )
-    }
+    // ── Unified Desktop & Mobile Optimized Dashboard ──
+    const allFeedTasks = allTasks.slice(0, 30) // Limit feed so it doesn't dominate
 
     if (runtime === 'tauri') {
         // Desktop Layout: Agent Status Card + Chat Side by Side
@@ -500,10 +485,7 @@ export function CommandCenter() {
                         </div>
                     )}
                 </div>
-                {/* Chat Frame - we proxy the Chat page by embedding an iframe or just telling them to go to chat, since we cannot easily embed the ChatPage Server component.
-                    For now, we'll embed the Chat Client or provide a prominent link/input. Actually the easiest way to embed the Chat in React is via an iframe to `/chat` or extracting the chat component.
-                    Since `apps/web/src/app/(dashboard)/chat/page.tsx` exists, we can use an iframe for flawless embedding without breaking Next.js layout!
-                */}
+                {/* Chat Frame */}
                 <div className="flex-1 rounded-xl border border-zinc-800/60 bg-zinc-950 flex overflow-hidden">
                     <iframe src="/chat" className="w-full h-full border-0" />
                 </div>
@@ -511,23 +493,10 @@ export function CommandCenter() {
         )
     }
 
-    // Default Browser Layout
     return (
-        <div className="flex flex-col gap-5">
-            {/* Greeting */}
-            <div>
-                <h2 className="text-lg font-semibold tracking-tight text-zinc-100">{getGreeting()}</h2>
-                <p className="mt-0.5 text-[13px] text-zinc-500">
-                    {hasAttention
-                        ? `${attentionItems.length} item${attentionItems.length > 1 ? 's' : ''} need${attentionItems.length === 1 ? 's' : ''} your attention`
-                        : activeWork.length > 0
-                            ? 'Your agent is working — everything looks good'
-                            : 'Nothing urgent right now'}
-                </p>
-            </div>
-
-            {/* Hero stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="flex flex-col gap-6 pb-20 md:pb-4">
+            {/* Top Row: Hero Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <HeroStat
                     label="Active Tasks"
                     value={activeTasks.length}
@@ -559,20 +528,22 @@ export function CommandCenter() {
                 />
             </div>
 
-            {/* Attention Required + Active Work */}
-            {(hasAttention || hasActiveWork) && (
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            {/* Main Layout Grid */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                
+                {/* Left Column: Essential Workflow */}
+                <div className="xl:col-span-2 flex flex-col gap-6">
                     {/* Attention Required */}
                     {hasAttention && (
-                        <div className={`rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm ${hasActiveWork ? 'lg:col-span-3' : 'lg:col-span-5'}`}>
-                            <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3">
+                        <div className="rounded-xl border border-red-500/20 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden">
+                            <div className="flex items-center justify-between border-b border-red-500/10 px-4 py-3 bg-red-500/5">
                                 <div className="flex items-center gap-2">
-                                    <div className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                                    <h3 className="text-[13px] font-semibold text-zinc-200">Attention Required</h3>
+                                    <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                                    <h3 className="text-[13px] font-semibold text-red-500">Attention Required</h3>
                                 </div>
-                                <span className="text-[11px] text-zinc-600">{attentionItems.length} item{attentionItems.length !== 1 ? 's' : ''}</span>
+                                <span className="text-[11px] font-medium text-red-400 bg-red-500/10 px-2.5 py-0.5 rounded-full">{attentionItems.length} item{attentionItems.length !== 1 ? 's' : ''}</span>
                             </div>
-                            <div className="divide-y divide-zinc-800/30">
+                            <div className="divide-y divide-zinc-800/30 p-1">
                                 {attentionItems.map(item => (
                                     <AttentionItem
                                         key={item.id}
@@ -589,78 +560,88 @@ export function CommandCenter() {
                     )}
 
                     {/* Active Work */}
-                    {hasActiveWork && (
-                        <div className={`rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm ${hasAttention ? 'lg:col-span-2' : 'lg:col-span-5'}`}>
-                            <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3">
+                    {(hasActiveWork || (!hasAttention && !hasProjects && !hasActiveWork)) && (
+                        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden min-h-[140px] flex flex-col">
+                            <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 bg-zinc-950/30">
                                 <div className="flex items-center gap-2">
-                                    <div className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
-                                    <h3 className="text-[13px] font-semibold text-zinc-200">Active Work</h3>
+                                    <div className={`h-1.5 w-1.5 rounded-full ${hasActiveWork ? 'bg-blue-400 animate-pulse' : 'bg-emerald-400'}`} />
+                                    <h3 className="text-[13px] font-semibold text-zinc-200">Current Focus</h3>
                                 </div>
-                                <Link href="/tasks" className="text-xs md:text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1 min-h-[44px] md:min-h-0 -mr-2 md:-mr-0 pr-2 md:pr-0">
-                                    All tasks <ArrowRight className="h-3 w-3" />
+                                <Link href="/tasks" className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1 group">
+                                    <span className="hidden sm:inline">View Tasks</span> <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
                                 </Link>
                             </div>
-                            <div className="divide-y divide-zinc-800/30">
-                                {activeWork.map(task => (
-                                    <ActiveWorkItem key={task.id} task={task} />
+                            {hasActiveWork ? (
+                                <div className="divide-y divide-zinc-800/30 p-1">
+                                    {activeWork.map(task => (
+                                        <ActiveWorkItem key={task.id} task={task} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-8 text-center flex flex-col items-center flex-1 justify-center">
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 text-emerald-400 mb-3 border border-emerald-500/20">
+                                        <CheckCircle2 className="h-6 w-6" />
+                                    </div>
+                                    <h4 className="text-sm font-medium text-zinc-300 mb-1">Queue Empty</h4>
+                                    <p className="text-[11px] text-zinc-500">Your agent is online and awaiting instructions.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Projects Overview */}
+                    {hasProjects && (
+                        <div>
+                            <div className="flex items-center justify-between mb-3 px-1">
+                                <h3 className="text-[13px] font-semibold text-zinc-300">Active Projects</h3>
+                                <Link href="/projects" className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1 group">
+                                    View all <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+                                </Link>
+                            </div>
+                            <div className="flex flex-wrap sm:flex-nowrap gap-3">
+                                {activeSprints.slice(0, 3).map(sprint => (
+                                    <ProjectCard
+                                        key={sprint.id}
+                                        sprint={sprint}
+                                        tasks={allTasks.filter(t => t.source === sprint.id)}
+                                    />
                                 ))}
                             </div>
                         </div>
                     )}
                 </div>
-            )}
 
-            {/* Projects */}
-            {hasProjects && (
-                <div>
-                    <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-[13px] font-semibold text-zinc-300">Projects</h3>
-                        <Link href="/projects" className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1">
-                            View all <ArrowRight className="h-3 w-3" />
-                        </Link>
-                    </div>
-                    <div className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                        {activeSprints.slice(0, 4).map(sprint => (
-                            <ProjectCard
-                                key={sprint.id}
-                                sprint={sprint}
-                                tasks={allTasks.filter(t => t.source === sprint.id)}
-                            />
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Recently Completed */}
-            {hasCompletedRecently && (
-                <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm">
-                    <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3">
-                        <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                            <h3 className="text-[13px] font-semibold text-zinc-200">Recently Completed</h3>
+                {/* Right Column: Recent Activity Feed */}
+                <div className="xl:col-span-1 flex flex-col min-h-[400px] h-[500px] xl:h-[calc(100vh-280px)]">
+                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm flex flex-col h-full overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 shrink-0 bg-zinc-950/30">
+                            <div className="flex items-center gap-2">
+                                <Activity className="h-3.5 w-3.5 text-zinc-400" />
+                                <h3 className="text-[12px] font-semibold text-zinc-200 uppercase tracking-widest">Recent Activity</h3>
+                            </div>
+                            <span className="flex h-4 items-center justify-center rounded-full bg-zinc-800/50 px-2 text-[9px] font-medium uppercase tracking-wider text-zinc-400">
+                                {allFeedTasks.length} events
+                            </span>
                         </div>
-                        <Link href="/tasks" className="text-xs md:text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1 min-h-[44px] md:min-h-0 -mr-2 md:-mr-0 pr-2 md:pr-0">
-                            All tasks <ArrowRight className="h-3 w-3" />
-                        </Link>
-                    </div>
-                    <div className="divide-y divide-zinc-800/30">
-                        {completedTasks.map(task => (
-                            <CompletedItem key={task.id} task={task} />
-                        ))}
+                        
+                        <div className="flex-1 overflow-y-auto p-1 custom-scrollbar">
+                            {allFeedTasks.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-[11px] text-zinc-500">
+                                    No activity yet.
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-zinc-800/30">
+                                    {allFeedTasks.map(t => (
+                                        t.status === 'complete' ? <CompletedItem key={t.id} task={t} /> : <ActiveWorkItem key={t.id} task={t} />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
-            )}
 
-            {/* Empty state — no work at all */}
-            {!hasAttention && !hasActiveWork && !hasProjects && !hasCompletedRecently && (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-zinc-800/60 border-dashed bg-zinc-900/20 py-12 px-6 text-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 text-indigo-400 mb-4">
-                        <Zap className="h-6 w-6" />
-                    </div>
-                    <h3 className="text-sm font-medium text-zinc-300 mb-1">No activity yet</h3>
-                    <p className="text-[12px] text-zinc-600 max-w-sm">Send your first task using the quick task input below, or create a project to get started.</p>
-                </div>
-            )}
+            </div>
         </div>
     )
+
 }

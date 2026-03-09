@@ -664,10 +664,16 @@ function AgentSettingsContent() {
         if (!workspaceId) return
         setSaving(true)
         try {
+            const payloadSettings = {
+                agentName: settings.agentName,
+                agentTagline: settings.agentTagline,
+                agentAvatar: settings.agentAvatar,
+                agentPersona: settings.agentPersona,
+            }
             await fetch(`${API}/api/v1/workspaces/${workspaceId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: workspaceName, settings }),
+                body: JSON.stringify({ name: workspaceName, settings: payloadSettings }),
             })
             setSaved(true)
             setTimeout(() => setSaved(false), 2000)

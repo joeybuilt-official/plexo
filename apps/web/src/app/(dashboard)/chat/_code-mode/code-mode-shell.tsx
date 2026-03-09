@@ -11,7 +11,7 @@ import { TestResultsPanel } from './test-results-panel'
 import { FileTree } from './file-tree'
 import { DiffViewer } from './diff-viewer'
 import { RepoPicker, type RepoSelection } from './repo-picker'
-import type { Message } from 'ai/react'
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -153,13 +153,13 @@ export function CodeModeShell({
     useCodeStream({
         workspaceId,
         taskId,
-        onShellLine: useCallback((e) => setShellLines((p) => [...p, e]), []),
-        onFileWrite: useCallback((e) => {
+        onShellLine: useCallback((e: StepShellLineEvent) => setShellLines((p) => [...p, e]), []),
+        onFileWrite: useCallback((e: StepFileWriteEvent) => {
             setFileWrites((p) => [...p, e])
             // Refresh file tree when agent writes
             if (taskId) loadTree()
         }, [taskId]),
-        onTestResult: useCallback((e) => setTestResults((p) => [...p, e]), []),
+        onTestResult: useCallback((e: StepTestResultEvent) => setTestResults((p) => [...p, e]), []),
     })
 
     // ── File tree ─────────────────────────────────────────────────────────────

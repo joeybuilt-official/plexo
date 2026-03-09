@@ -62,9 +62,10 @@ export default function InsightsPage() {
         if (!WS_ID) return
         setLoading(true)
         try {
-            const [impRes, prefRes] = await Promise.all([
+            const [impRes, prefRes, memRes] = await Promise.all([
                 fetch(`${API_BASE}/api/v1/memory/improvements?workspaceId=${WS_ID}&limit=30`),
                 fetch(`${API_BASE}/api/v1/memory/preferences?workspaceId=${WS_ID}`),
+                fetch(`${API_BASE}/api/v1/memory/search?workspaceId=${WS_ID}&q=&limit=10`),
             ])
             if (impRes.ok) {
                 const d = await impRes.json() as { items: ImprovementEntry[] }
@@ -73,6 +74,10 @@ export default function InsightsPage() {
             if (prefRes.ok) {
                 const d = await prefRes.json() as { preferences: Record<string, unknown> }
                 setPreferences(d.preferences ?? {})
+            }
+            if (memRes.ok) {
+                const d = await memRes.json() as { results: SearchResult[] }
+                setSearchResults(d.results ?? [])
             }
         } finally {
             setLoading(false)
@@ -128,7 +133,7 @@ export default function InsightsPage() {
 
     async function handleSearch(e: React.FormEvent) {
         e.preventDefault()
-        if (!searchQ.trim() || !WS_ID) return
+        if (!WS_ID) return
         setSearching(true)
         setSearchResults(null)
         try {
@@ -192,7 +197,7 @@ export default function InsightsPage() {
                     />
                     <button
                         type="submit"
-                        disabled={searching || !searchQ.trim()}
+                        disabled={searching}
                         className="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 transition-colors"
                     >
                         {searching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
