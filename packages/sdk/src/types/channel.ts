@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Kapsel Channel Contract Types
  * Corresponds to §2.3 and §9.2 of the Kapsel Protocol Specification v0.2.0

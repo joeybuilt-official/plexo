@@ -14,7 +14,7 @@ A persistent, self-hosted AI workforce that autonomously handles software engine
 
 <br/>
 
-[![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-orange.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Docker](https://img.shields.io/badge/Deploy-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Kapsel](https://img.shields.io/badge/Kapsel-Full%20compliant-6C47FF)](https://github.com/joeybuilt-official/kapsel)
@@ -201,9 +201,16 @@ plexo sprint start "review code and run integration tests" --wait --timeout 2h
 
 ---
 
-## 📄 License & Commercial
+## License
 
-Plexo is licensed under **BSL 1.1** (Converts to Apache 2.0 on 2030-03-03). See [LICENSE](LICENSE) for details.
+Plexo is open source software licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
 
-This allows full free usage for self-hosting and internal deployment, while protecting the commercial target offering. For managed cloud and enterprise features, visit [getplexo.com](https://getplexo.com).
+**What this means:**
+- You can use, modify, and self-host Plexo freely.
+- If you modify Plexo and offer it as a network service, you must publish your modifications under the same AGPL-3.0 license.
+- You cannot take Plexo, make proprietary improvements, and offer it as a closed-source hosted service.
+
+**Commercial licensing:** If AGPL-3.0 does not work for your use case, contact [licensing@getplexo.com](mailto:licensing@getplexo.com) to discuss a commercial license.
+
+Copyright (C) 2026 Joeybuilt LLC
 

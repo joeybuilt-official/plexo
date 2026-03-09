@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { NextRequest, NextResponse } from 'next/server'
 
 // Proxy to the Express API which has all AI SDK packages.

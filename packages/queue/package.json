@@ -1,23 +1,24 @@
 {
-    "name": "@plexo/queue",
-    "version": "0.1.0",
-    "private": true,
-    "type": "module",
-    "exports": {
-        ".": "./src/index.ts"
-    },
-    "scripts": {
-        "typecheck": "tsc --noEmit",
-        "test": "vitest run --passWithNoTests"
-    },
-    "dependencies": {
-        "@plexo/db": "workspace:*",
-        "drizzle-orm": "^0.39",
-        "ulid": "^2.3"
-    },
-    "devDependencies": {
-        "typescript": "^5.7",
-        "@types/node": "^22",
-        "vitest": "^3"
-    }
+  "name": "@plexo/queue",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@plexo/db": "workspace:*",
+    "drizzle-orm": "^0.39",
+    "ulid": "^2.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.7",
+    "@types/node": "^22",
+    "vitest": "^3"
+  },
+  "license": "AGPL-3.0-only"
 }

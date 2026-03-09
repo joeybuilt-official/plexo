@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { ulid } from 'ulid'
 import type { Request, Response, NextFunction } from 'express'
 import { AsyncLocalStorage } from 'node:async_hooks'

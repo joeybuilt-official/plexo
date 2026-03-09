@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Kapsel Event Bus Types
  * Corresponds to §7.4 of the Kapsel Protocol Specification v0.2.0

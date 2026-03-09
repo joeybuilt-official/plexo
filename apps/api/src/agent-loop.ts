@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { claimTask, completeTask, blockTask } from '@plexo/queue'
 import { db, eq, sql } from '@plexo/db'
 import { tasks, apiCostTracking, workLedger, workspaces, sprints, sprintTasks } from '@plexo/db'

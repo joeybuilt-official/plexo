@@ -42,7 +42,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **`scripts/self-update.sh`** — self-hosted one-click update script: git pull → pnpm install → db:migrate → docker compose build + up; respects `PLEXO_MANAGED=true` to skip Docker steps on managed hosting
 - **Version source of truth** — `NEXT_PUBLIC_APP_VERSION` injected from root `package.json` via `next.config.ts`; sidebar and dashboard footer read from same env var; eliminates hardcoded version strings
 
-- BSL 1.1 license (converts to Apache 2.0 on 2030-03-03)
+- AGPL-3.0-only license
 - Commercial context + ZeroClaw parity gate in AGENTS.md
 - `.agents-local.md` gitignored for private operational notes
 - **Multi-category projects** — new project creation supports Code, Research, Writing, Ops, Data, Marketing, and General project types with category-appropriate terminology, form fields, and planner prompts

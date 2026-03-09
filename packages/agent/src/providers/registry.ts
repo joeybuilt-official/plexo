@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
 import { db, eq, sql } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'

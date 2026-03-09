@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { syncModelKnowledge } from '@plexo/agent/providers/knowledge'
 import { runSelfImprovementCycle } from '@plexo/agent/memory/self-improvement'
 import { db, sql } from '@plexo/db'

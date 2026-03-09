@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Kapsel Agent Contract Types
  * Corresponds to §8 of the Kapsel Protocol Specification v0.2.0

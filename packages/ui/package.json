@@ -1,36 +1,37 @@
 {
-    "name": "@plexo/ui",
-    "version": "0.1.0",
-    "private": true,
-    "type": "module",
-    "exports": {
-        ".": "./src/index.ts",
-        "./components/*": "./src/components/*.tsx",
-        "./lib/*": "./src/lib/*.ts"
-    },
-    "scripts": {
-        "typecheck": "tsc --noEmit"
-    },
-    "dependencies": {
-        "class-variance-authority": "^0.7",
-        "clsx": "^2",
-        "lucide-react": "^0.480",
-        "react": "^19",
-        "tailwind-merge": "^3"
-    },
-    "devDependencies": {
-        "@capacitor/core": "^6.0.0",
-        "@capacitor/preferences": "^6.0.0",
-        "@capacitor/push-notifications": "^6.0.0",
-        "@capgo/capacitor-native-biometric": "^6.0.0",
-        "@tauri-apps/api": "^2.0.0",
-        "@tauri-apps/plugin-shell": "^2.0.0",
-        "@types/react": "^19",
-        "next": "16.1.6",
-        "tailwindcss": "^4",
-        "typescript": "^5.7"
-    },
-    "peerDependencies": {
-        "react": "^19"
-    }
+  "name": "@plexo/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./lib/*": "./src/lib/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7",
+    "clsx": "^2",
+    "lucide-react": "^0.480",
+    "react": "^19",
+    "tailwind-merge": "^3"
+  },
+  "devDependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/preferences": "^6.0.0",
+    "@capacitor/push-notifications": "^6.0.0",
+    "@capgo/capacitor-native-biometric": "^6.0.0",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0",
+    "@types/react": "^19",
+    "next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5.7"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  },
+  "license": "AGPL-3.0-only"
 }

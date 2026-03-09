@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Terminal output utilities — colors, spinners, tables, formatters.
  * Auto-disables color/spinners when output is piped (non-TTY).

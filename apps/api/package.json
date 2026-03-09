@@ -1,41 +1,42 @@
 {
-    "name": "@plexo/api",
-    "version": "0.8.0-beta.1",
-    "private": true,
-    "type": "module",
-    "scripts": {
-        "dev": "tsx watch src/index.ts",
-        "build": "tsc",
-        "start": "node dist/index.js",
-        "typecheck": "tsc --noEmit",
-        "test": "vitest run --passWithNoTests"
-    },
-    "dependencies": {
-        "@plexo/agent": "workspace:*",
-        "@plexo/db": "workspace:*",
-        "@plexo/queue": "workspace:*",
-        "@plexo/sdk": "workspace:*",
-        "@sentry/node": "^10.42.0",
-        "ai": "^6.0.111",
-        "bcrypt": "^5.1",
-        "cors": "^2.8",
-        "dotenv": "^16",
-        "express": "^5",
-        "express-rate-limit": "^8.2.1",
-        "pino": "^9",
-        "pino-pretty": "^13",
-        "redis": "^4.7",
-        "tsx": "^4",
-        "ulid": "^2.3",
-        "zod": "^3.24"
-    },
-    "devDependencies": {
-        "@types/bcrypt": "^5.0",
-        "@types/cors": "^2.8",
-        "@types/express": "^5",
-        "@types/node": "^22",
-        "tsx": "^4",
-        "typescript": "^5.7",
-        "vitest": "^3"
-    }
+  "name": "@plexo/api",
+  "version": "0.8.0-beta.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@plexo/agent": "workspace:*",
+    "@plexo/db": "workspace:*",
+    "@plexo/queue": "workspace:*",
+    "@plexo/sdk": "workspace:*",
+    "@sentry/node": "^10.42.0",
+    "ai": "^6.0.111",
+    "bcrypt": "^5.1",
+    "cors": "^2.8",
+    "dotenv": "^16",
+    "express": "^5",
+    "express-rate-limit": "^8.2.1",
+    "pino": "^9",
+    "pino-pretty": "^13",
+    "redis": "^4.7",
+    "tsx": "^4",
+    "ulid": "^2.3",
+    "zod": "^3.24"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0",
+    "@types/cors": "^2.8",
+    "@types/express": "^5",
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5.7",
+    "vitest": "^3"
+  },
+  "license": "AGPL-3.0-only"
 }

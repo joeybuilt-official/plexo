@@ -100,6 +100,17 @@ DATABASE_URL=postgresql://plexo:<password>@localhost:5432/plexo \
 pnpm --filter @plexo/web dev
 ```
 
+## Licensing
+
+Plexo is licensed under AGPL-3.0-only (GNU Affero General Public License v3.0).
+Copyright (C) 2026 Joeybuilt LLC.
+
+All new source files must include the SPDX header:
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
+Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., proprietary licenses, SSPL, or licenses with additional restrictions). Check new dependencies before adding them.
+
 ## Known Issues
 *None.*
 

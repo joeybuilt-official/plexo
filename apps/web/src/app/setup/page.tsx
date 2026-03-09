@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 'use client'
 
 import { useState } from 'react'
@@ -499,7 +502,7 @@ export default function SetupPage() {
                 </div>
 
                 <p className="mt-4 text-center text-[11px] text-zinc-700">
-                    Plexo · BSL 1.1 · <a href="https://getplexo.com" className="hover:text-zinc-500">getplexo.com</a>
+                    Plexo · <a href="https://github.com/joeybuilt-official/plexo/blob/main/LICENSE" className="hover:text-zinc-500">AGPL-3.0 Open Source</a> · <a href="https://getplexo.com" className="hover:text-zinc-500">getplexo.com</a>
                 </p>
             </div>
         </div>

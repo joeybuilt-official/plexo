@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Self-improvement loop — scans recent task outcomes to identify patterns
  * and proposes agent behavior improvements.

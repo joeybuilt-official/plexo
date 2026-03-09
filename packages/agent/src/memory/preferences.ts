@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Workspace preference learning — infers and stores agent preferences
  * from task outcomes (tool selection, code style, communication tone).

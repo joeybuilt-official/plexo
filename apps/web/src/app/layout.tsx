@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { ThemeProvider } from '@web/components/theme-provider'

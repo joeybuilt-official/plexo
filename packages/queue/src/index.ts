@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { db, eq, and, sql, asc, inArray } from '@plexo/db'
 import { tasks } from '@plexo/db'
 import { ulid } from 'ulid'

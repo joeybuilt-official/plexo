@@ -1,29 +1,30 @@
 {
-    "name": "@plexo/db",
-    "version": "0.1.0",
-    "private": true,
-    "type": "module",
-    "exports": {
-        ".": "./src/index.ts",
-        "./schema": "./src/schema.ts",
-        "./client": "./src/client.ts"
-    },
-    "scripts": {
-        "typecheck": "tsc --noEmit",
-        "db:generate": "drizzle-kit generate",
-        "db:migrate": "drizzle-kit migrate",
-        "db:studio": "drizzle-kit studio",
-        "db:rollback": "tsx src/rollback.ts"
-    },
-    "dependencies": {
-        "drizzle-orm": "^0.39",
-        "postgres": "^3.4",
-        "dotenv": "^16"
-    },
-    "devDependencies": {
-        "drizzle-kit": "^0.30",
-        "typescript": "^5.7",
-        "tsx": "^4",
-        "@types/node": "^22"
-    }
+  "name": "@plexo/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:rollback": "tsx src/rollback.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.39",
+    "postgres": "^3.4",
+    "dotenv": "^16"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30",
+    "typescript": "^5.7",
+    "tsx": "^4",
+    "@types/node": "^22"
+  },
+  "license": "AGPL-3.0-only"
 }

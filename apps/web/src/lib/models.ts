@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 export type ModelCapability = 'text' | 'image' | 'voice' | 'video' | 'tools' | 'reasoning'
 
 export const MODEL_CAPABILITIES: Record<string, ModelCapability[]> = {

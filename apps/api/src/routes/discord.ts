@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Discord channel adapter — handles incoming interactions and DMs via
  * Discord's Interactions API (slash commands + DM messages).

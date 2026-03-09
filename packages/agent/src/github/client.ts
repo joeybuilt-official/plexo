@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * GitHub API client — thin wrapper around Octokit with just what the sprint
  * engine needs. Avoids pulling all of @octokit/rest; uses fetch directly.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Project category definitions — single source of truth for all
  * category-specific labels, icons, and field schemas used throughout the UI.

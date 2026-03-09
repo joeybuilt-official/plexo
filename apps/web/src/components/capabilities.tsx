@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { ModelCapability } from '@web/lib/models'
 import { ImageIcon, Mic, Video, Wrench, BrainCircuit, Type } from 'lucide-react'
 

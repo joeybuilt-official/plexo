@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { describe, it, expect, vi } from 'vitest'
 import { IntelligentRouter, RouterConfig, VaultConfig } from './router.js'
 import { db } from '@plexo/db'

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Pino logger for the MCP server.
  * Structured JSON in production, pretty-print in dev.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { Router, type Router as RouterType } from 'express'
 import { db, desc, eq, and } from '@plexo/db'
 import { sprints, tasks } from '@plexo/db'

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import { getWorkspaceId } from '@web/lib/workspace'
 import { MessageSquare, ArrowRight } from 'lucide-react'
 import Link from 'next/link'

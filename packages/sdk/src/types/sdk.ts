@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 /**
  * Kapsel SDK Interface
  * The complete API available to extensions via the sdk parameter in activate()
