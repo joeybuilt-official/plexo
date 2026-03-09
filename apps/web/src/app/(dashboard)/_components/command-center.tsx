@@ -560,8 +560,7 @@ export function CommandCenter() {
                     )}
 
                     {/* Active Work */}
-                    {(hasActiveWork || (!hasAttention && !hasProjects && !hasActiveWork)) && (
-                        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden min-h-[140px] flex flex-col">
+                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden min-h-[140px] flex flex-col">
                             <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 bg-zinc-950/30">
                                 <div className="flex items-center gap-2">
                                     <div className={`h-1.5 w-1.5 rounded-full ${hasActiveWork ? 'bg-blue-400 animate-pulse' : 'bg-emerald-400'}`} />
@@ -587,7 +586,6 @@ export function CommandCenter() {
                                 </div>
                             )}
                         </div>
-                    )}
 
                     {/* Projects Overview */}
                     {hasProjects && (
