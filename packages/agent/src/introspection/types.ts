@@ -93,11 +93,11 @@ export interface IntrospectionSnapshot {
     agentName: string
     agentPersona: string | null
     agentTagline: string | null
-    /** Provider key currently active for task execution */
-    activeProvider: string
-    /** Model ID currently in use */
-    activeModel: string
-    primaryProvider: string
+    /** Provider key currently active for task execution, or null if none configured */
+    activeProvider: string | null
+    /** Model ID currently in use, or null if none configured */
+    activeModel: string | null
+    primaryProvider: string | null
     fallbackChain: string[]
     providers: ProviderSnapshot[]
     connections: ConnectionSnapshot[]

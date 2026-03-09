@@ -116,6 +116,16 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03 — Cost Tracking: Double-Write + Wrong-Table Reads
+
+- **Root cause 1 (double-write)**: `executor/index.ts` wrote to `api_cost_tracking` at end of `executeTask()`. `agent-loop.ts` then wrote the same amount again after calling `completeTask()`. Every completed task's cost was counted exactly twice in the weekly accumulator.
+- **Root cause 2 (wrong reads)**: `dashboard.ts` (`GET /dashboard/summary`) and `tasks.ts` (`GET /tasks/stats/summary`) both read `SUM(cost_usd)` from the `tasks` table, not `api_cost_tracking`. They also filtered by `created_at` instead of `completed_at`, so tasks created in a prior week but completed this week could be missed, and vice versa. The `tasks` table cost column is a denormalized field for per-task display only — it is NOT the authoritative cost accumulator.
+- **Fix 1**: Removed the `api_cost_tracking` upsert from `executor/index.ts`. Agent-loop is now the single canonical writer for that table.
+- **Fix 2**: Agent-loop upsert upgraded to also set `alerted_80` flag (80% ceiling threshold tracking).
+- **Fix 3**: Dashboard and task stats endpoints now read from `api_cost_tracking` (current ISO week, using `date_trunc('week', NOW())::date`) and `work_ledger` (all-time total, filtered by `completed_at`) — the same sources used by the Intelligence page introspection.
+- **Lesson**: There must be exactly ONE write path to any accumulator table. Any read of a cost/budget number must come from the same table the write path targets. If the Intelligence page shows correct numbers but the dashboard shows $0, trace the query — it's reading the wrong table.
+
+
 ### 2026-03 — Sprint Failures Silent in Chat + No Sentry
 
 - **Root cause 1 (silent failure)**: `chat.ts /execute-action` spawns `runSprint()` fire-and-forget. The `.catch` only called `logger.error`. No `recordConversation` error turn, no SSE event — user saw the conversation bubble stuck at "Project created" with no indication of failure.

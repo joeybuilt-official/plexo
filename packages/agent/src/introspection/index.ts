@@ -172,7 +172,9 @@ export async function buildIntrospectionSnapshot(
     let agentName = 'Plexo'
     let agentPersona: string | null = null
     let agentTagline: string | null = null
-    let primaryProvider = activeProvider ?? 'anthropic'
+    // primaryProvider: set from DB settings, or from active task context, or null (no config)
+    // Never hardcode 'anthropic' — that creates false signals when the provider isn't configured.
+    let primaryProvider: string | null = activeProvider ?? null
     let fallbackChain: string[] = []
     const providerSnapshots: ProviderSnapshot[] = []
 
@@ -191,7 +193,9 @@ export async function buildIntrospectionSnapshot(
 
             const ap = s.aiProviders as Record<string, unknown> | undefined
             if (ap) {
-                primaryProvider = activeProvider ?? ((ap.primary ?? ap.primaryProvider ?? 'anthropic') as string)
+                // Use activeProvider if a task is running, else the saved primary
+                const savedPrimary = (ap.primary ?? ap.primaryProvider ?? null) as string | null
+                primaryProvider = activeProvider ?? savedPrimary
                 fallbackChain = (ap.fallbackOrder ?? ap.fallbackChain ?? []) as string[]
 
                 const providers = (ap.providers ?? {}) as Record<string, Record<string, unknown>>
@@ -228,18 +232,18 @@ export async function buildIntrospectionSnapshot(
         }
     } catch { /* non-fatal */ }
 
-    // If no providers loaded at all, add a stub — but only mark it primary if
-    // we were given an explicit activeProvider (meaning a task is actually running).
-    // With no providers and no active task, show 'unconfigured' so the UI is honest.
-    if (providerSnapshots.length === 0) {
-        const modality = MODEL_MODALITIES[primaryProvider] ?? MODEL_MODALITIES.anthropic!
+    // Only add a stub when no providers are saved at all.
+    // If there's an active task we know exactly which provider is running.
+    // If not, suppress the stub entirely rather than hallucinating 'anthropic'.
+    if (providerSnapshots.length === 0 && activeProvider) {
+        const key = activeProvider
+        const modality = MODEL_MODALITIES[key] ?? MODEL_MODALITIES.anthropic!
         providerSnapshots.push({
-            key: primaryProvider,
-            name: PROVIDER_DISPLAY_NAMES[primaryProvider] ?? primaryProvider,
+            key,
+            name: PROVIDER_DISPLAY_NAMES[key] ?? key,
             model: activeModel ?? 'unknown',
-            // Only claim 'primary' status if we were explicitly told a provider is active
-            status: activeProvider ? 'primary' : 'unconfigured',
-            enabled: !!activeProvider,
+            status: 'primary',
+            enabled: true,
             modalities: modality.supports,
             missing: modality.missing,
         })
@@ -436,7 +440,7 @@ export async function buildIntrospectionSnapshot(
         agentPersona,
         agentTagline,
         activeProvider: activeProvider ?? primaryProvider,
-        activeModel: activeModel ?? (providerSnapshots.find(p => p.key === primaryProvider)?.model ?? 'unknown'),
+        activeModel: activeModel ?? (primaryProvider ? (providerSnapshots.find(p => p.key === primaryProvider)?.model ?? null) : null),
         primaryProvider,
         fallbackChain,
         providers: providerSnapshots,

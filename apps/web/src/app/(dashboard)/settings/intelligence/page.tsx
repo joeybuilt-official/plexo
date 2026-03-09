@@ -97,9 +97,9 @@ interface IntrospectionSnapshot {
     agentName: string
     agentPersona: string | null
     agentTagline: string | null
-    activeProvider: string
-    activeModel: string
-    primaryProvider: string
+    activeProvider: string | null
+    activeModel: string | null
+    primaryProvider: string | null
     fallbackChain: string[]
     providers: ProviderSnapshot[]
     connections: ConnectionSnapshot[]
@@ -278,9 +278,11 @@ export default function IntelligencePage() {
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                             <h2 className="text-base font-bold text-zinc-100 truncate">{snapshot.agentName}</h2>
-                            <span className="text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full px-2 py-0.5 truncate max-w-full">
-                                {snapshot.activeProvider} / {snapshot.activeModel}
-                            </span>
+                            {snapshot.activeProvider && (
+                                <span className="text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full px-2 py-0.5 truncate max-w-full">
+                                    {snapshot.activeProvider}{snapshot.activeModel ? ` / ${snapshot.activeModel}` : ''}
+                                </span>
+                            )}
                         </div>
                         {snapshot.agentTagline && (
                             <p className="text-sm text-zinc-400 mt-0.5 truncate">{snapshot.agentTagline}</p>
