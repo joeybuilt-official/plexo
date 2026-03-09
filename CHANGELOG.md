@@ -6,7 +6,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
-- **Agent self-extension (`synthesize_kapsel_skill`)** — agent can now generate, install, and auto-activate its own Kapsel skills and connections on demand. When a user requests integration with a service that has no installed skill or connector, the agent scrapes official API docs, generates a valid ESM skill + `kapsel.json` manifest via LLM, writes code to a persistent Docker volume (`generated_skills`), registers a connection entry (so the credential UI appears immediately), and activates the skill in the same task invocation. No restart required.
+- **Full memory pipeline** — end-to-end memory now works: write on task completion, read on task start (as WORKSPACE RULES in system prompt), auto-consolidate every 6h via cron.
+  - `memory_entries` + `workspace_preferences` + `work_ledger` all wired and writing
+  - Redis cache layer (5m search TTL, 10m prefs TTL) with invalidation on write
+  - `rememberInstruction()` and `setPreference()` for direct user-instruction writes
+- **MEMORY chat intent** — saying "remember to always do X", "never Y", "always prefer Z" is now detected as `MEMORY` intent, bypasses task queue, and writes directly to `memory_entries` (type=pattern) + `workspace_preferences`. Agent acknowledges immediately.
+- **Automatic memory consolidation cron** — `scheduleMemoryConsolidation()` runs `runSelfImprovementCycle()` for every workspace every 6h. First run is 5 minutes after startup. Visible as a 'Memory consolidation' entry in the Cron UI (seeded per workspace on startup).
+- **Behavioral injection** — at task start, executor loads workspace preferences (Redis-cached) and injects them as `WORKSPACE RULES (always follow these)` in the system prompt, linking user-set instructions to actual agent behavior.
+
+### Fixed
+- `POST /api/v1/memory/improvements/run` — was fire-and-forget; now synchronous and returns `{ok, count, applied, proposals}`
+- `runSelfImprovementCycle` — removed min-3-ledger-entry threshold; falls back to task history if `work_ledger` is sparse
+- `executor/index.ts` — memory write failures now logged at warn level instead of silently discarded
+- `skills/page.tsx` — TS build error (`unknown` not assignable to ReactNode`) fixed with `!!` cast
+
+### Added (previous)
+ When a user requests integration with a service that has no installed skill or connector, the agent scrapes official API docs, generates a valid ESM skill + `kapsel.json` manifest via LLM, writes code to a persistent Docker volume (`generated_skills`), registers a connection entry (so the credential UI appears immediately), and activates the skill in the same task invocation. No restart required.
   - `packages/agent/src/plugins/synthesizer.ts` — new synthesizer module: `researchAPI`, `generateSkillCode`, `validateGeneratedCode`, `writeSkillToDisk`, `registerConnection`, `installAndActivate`, `synthesizeSkill`
   - `docker/compose.yml` — added `generated_skills` named volume mounted at `/var/plexo/generated-skills` in the API container
   - Migration `0019_generated_skills.sql` — `is_generated` boolean column on `connections_registry`; unique index on `plugins(workspace_id, name)` for upsert support

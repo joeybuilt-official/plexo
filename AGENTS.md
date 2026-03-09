@@ -105,6 +105,17 @@ pnpm --filter @plexo/web dev
 
 ---
 
+## Memory System Architecture
+
+- **`memory_entries` (PostgreSQL + pgvector)**: Stores semantic memories with 1536-dim embeddings (OpenAI `text-embedding-3-small`). Falls back to ILIKE text search when no OpenAI key.
+- **`workspace_preferences`**: Key/value store with confidence scores. Used for learned patterns (language, test framework) and user-set behavioral rules.
+- **Redis cache**: `plexo:memory:<workspaceId>:search:*` (5m TTL), `plexo:memory:<workspaceId>:prefs` (10m TTL). Invalidated on every write.
+- **MEMORY intent in chat**: When a user says "remember X", "always do Y", "never Z" — detected by classifier, written directly to `memory_entries` (type=pattern) + `workspace_preferences` (key=user_instruction). No task queued.
+- **Executor injection**: At task start, `getPreferences()` is called (Redis-backed). Non-empty rules are injected as `WORKSPACE RULES (always follow these)` block in the system prompt.
+- **Consolidation cron**: Runs every 6h via `scheduleMemoryConsolidation()` called at startup. Visible in the Cron UI as 'Memory consolidation' (seeded per workspace on startup). Also manually triggerable via `/api/v1/memory/improvements/run`.
+
+---
+
 ## Bug Post-Mortems
 
 ### 2026-03 — ENCRYPTION_SECRET env var mismatch
