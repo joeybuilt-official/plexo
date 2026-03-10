@@ -10,6 +10,7 @@
  * POST /api/memory/improvements/run                    Trigger improvement cycle (synchronous)
  */
 import { Router, type Router as RouterType } from 'express'
+import { db, sql } from '@plexo/db'
 import { searchMemory } from '@plexo/agent/memory/store'
 import { getPreferences } from '@plexo/agent/memory/preferences'
 import { runSelfImprovementCycle, getImprovementLog } from '@plexo/agent/memory/self-improvement'
@@ -170,12 +171,15 @@ memoryRouter.post('/improvements/prompt', async (req, res) => {
 })
 
 // ── POST /api/memory/improvements/:id/apply ───────────────────────────────────
+// Routes by pattern_type:
+//   prompt_patch → applies the diff to workspace prompt_overrides preference
+//   all others   → marks applied=true (operator takes manual action externally)
 
 memoryRouter.post('/improvements/:id/apply', async (req, res) => {
     const { id } = req.params
     const { workspaceId } = req.body as { workspaceId?: string }
 
-    if (!UUID_RE.test(id)) {
+    if (!UUID_RE.test(id as string)) {
         res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required for improvement id' } })
         return
     }
@@ -185,11 +189,40 @@ memoryRouter.post('/improvements/:id/apply', async (req, res) => {
     }
 
     try {
-        await applyPromptPatch({ workspaceId, improvementLogId: id })
-        res.json({ ok: true, message: 'Prompt patch applied and active' })
+        // Fetch the entry to route by pattern_type
+        const rows = await db.execute<{
+            pattern_type: string
+            applied: boolean
+        }>(sql`
+            SELECT pattern_type, applied FROM agent_improvement_log
+            WHERE id = ${id}::uuid AND workspace_id = ${workspaceId}::uuid
+            LIMIT 1
+        `)
+        const row = rows[0]
+        if (!row) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Improvement log entry not found' } })
+            return
+        }
+        if (row.applied) {
+            res.status(409).json({ error: { code: 'ALREADY_APPLIED', message: 'Patch already applied' } })
+            return
+        }
+
+        if (row.pattern_type === 'prompt_patch') {
+            // Full prompt-override apply
+            await applyPromptPatch({ workspaceId, improvementLogId: id as string })
+            res.json({ ok: true, message: 'Prompt patch applied and active' })
+        } else {
+            // Informational proposals — just mark acknowledged/applied
+            await db.execute(sql`
+                UPDATE agent_improvement_log SET applied = true
+                WHERE id = ${id}::uuid AND workspace_id = ${workspaceId}::uuid
+            `)
+            res.json({ ok: true, message: 'Proposal acknowledged' })
+        }
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Apply failed'
-        logger.error({ err, id }, 'Prompt patch apply failed')
+        logger.error({ err, id }, 'Improvement apply failed')
         res.status(400).json({ error: { code: 'APPLY_FAILED', message: msg } })
     }
 })
