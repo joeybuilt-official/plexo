@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
+- **Sprint Task Auto-Fix Retry** — Added a `Retry Failed Tasks` button to the project detail page. When clicked, it calls `POST /api/sprints/:id/retry` which restarts failed and blocked sprint tasks with the specific failure error prepended to their execution context, enabling the agent loop to autonomously fix its own errors.
 - **MCP Tools (Phase 4 complete)** — MCP server now exposes 8 fully-scoped tools:
   - `plexo_health` (no auth), `plexo_workspace_info` (system:read)
   - `plexo_list_tasks`, `plexo_get_task` (tasks:read)

@@ -633,7 +633,7 @@ async function runGenericSprint(
 
 // ── Poll helpers ──────────────────────────────────────────────────────────────
 
-async function waitForWave(sprintTaskIds: string[], sprintId: string): Promise<void> {
+export async function waitForWave(sprintTaskIds: string[], sprintId: string): Promise<void> {
     const deadline = Date.now() + TASK_TIMEOUT_MS
 
     while (Date.now() < deadline) {

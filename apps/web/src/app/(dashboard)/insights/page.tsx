@@ -38,6 +38,9 @@ const PATTERN_STYLE: Record<string, { dot: string; label: string }> = {
     success_pattern: { dot: 'bg-emerald-500', label: 'Success pattern' },
     tool_preference: { dot: 'bg-blue-500', label: 'Tool preference' },
     scope_adjustment: { dot: 'bg-amber-500', label: 'Scope adjustment' },
+    skill_proposal: { dot: 'bg-indigo-500', label: 'Skill Proposal' },
+    plugin_proposal: { dot: 'bg-purple-500', label: 'Plugin Proposal' },
+    agent_proposal: { dot: 'bg-fuchsia-500', label: 'Agent Proposal' },
 }
 
 function timeAgo(iso: string) {

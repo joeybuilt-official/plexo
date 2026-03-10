@@ -633,7 +633,7 @@ export const agentImprovementLog = pgTable('agent_improvement_log', {
     workspaceId: uuid('workspace_id')
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),
-    patternType: text('pattern_type').notNull(), // failure_pattern | success_pattern | tool_preference | scope_adjustment
+    patternType: text('pattern_type').notNull(), // failure_pattern | success_pattern | tool_preference | scope_adjustment | skill_proposal | plugin_proposal | agent_proposal
     description: text('description').notNull(),
     evidence: jsonb('evidence').default('[]').notNull(), // task IDs
     proposedChange: text('proposed_change'),

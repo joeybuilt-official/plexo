@@ -28,7 +28,7 @@ const logger = pino({ name: 'self-improvement' })
 // ── Schema ───────────────────────────────────────────────────────────────────
 
 const ImprovementProposalSchema = z.object({
-    pattern_type: z.enum(['failure_pattern', 'success_pattern', 'tool_preference', 'scope_adjustment']),
+    pattern_type: z.enum(['failure_pattern', 'success_pattern', 'tool_preference', 'scope_adjustment', 'skill_proposal', 'plugin_proposal', 'agent_proposal']),
     description: z.string(),
     evidence: z.array(z.string()),
     proposed_change: z.string().optional(),
@@ -171,8 +171,16 @@ export async function runSelfImprovementCycle(params: {
         const result = await generateObject({
             model,
             schema: ProposalsSchema,
-            system: 'You are an AI operations analyst. Given task performance data, identify patterns that an AI agent could use to improve.',
-            prompt: `Analyze these recent task outcomes (${stratified.length} tasks) and identify up to 5 improvement patterns. If there are no clear patterns or no tasks, return an empty array for proposals:\n${JSON.stringify(ledgerSummary, null, 2)}`,
+            system: 'You are an AI operations analyst. Given task performance data, identify patterns that an AI agent could use to improve. Focus heavily on identifying when a repetitive workflow needs a Skill, an ad-hoc or dangerous boundary crossing needs a deterministic Plugin, or when context saturation/multi-modal needs call for a specialized Agent.',
+            prompt: `Analyze these recent task outcomes (${stratified.length} tasks) and identify up to 5 improvement patterns. 
+
+Look specifically for:
+1. Friction & Flail (Knowledge Gaps): If you see high tool call counts for simple file modifications or repeated failures, propose a 'skill_proposal' (e.g. standardizing a deploy script or framework convention).
+2. Escalation & Danger (Safety Gaps): If you see raw bash scripts for API usage or dangerous commands requiring manual oversight, propose a 'plugin_proposal'.
+3. Context Overload (Delegation Gaps): If token usage is consistently nearing limits or there is a massive read-to-write imbalance, propose an 'agent_proposal'.
+4. Standard behavior adjustments: 'failure_pattern', 'success_pattern', 'tool_preference', or 'scope_adjustment'.
+
+If there are no clear patterns or no tasks, return an empty array for proposals:\n${JSON.stringify(ledgerSummary, null, 2)}`,
             maxOutputTokens: 1024,
         })
         proposals = result.object.proposals

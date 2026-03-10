@@ -16,6 +16,7 @@
     "./sprint/conflicts": "./src/sprint/conflicts.ts",
     "./sprint/sprint-ledger": "./src/sprint/sprint-ledger.ts",
     "./sprint/sprint-intelligence": "./src/sprint/sprint-intelligence.ts",
+    "./sprint/retry": "./src/sprint/retry.ts",
     "./github/client": "./src/github/client.ts",
     "./memory/store": "./src/memory/store.ts",
     "./memory/preferences": "./src/memory/preferences.ts",

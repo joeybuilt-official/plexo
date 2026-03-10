@@ -504,6 +504,7 @@ export default function ProjectControlRoom() {
     const [delivLoaded, setDelivLoaded] = useState(false)
     const [openDeliv, setOpenDeliv] = useState<string | null>(null)
     const [stopping, setStopping] = useState(false)
+    const [retrying, setRetrying] = useState(false)
     const esRef = useRef<EventSource | null>(null)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -564,6 +565,24 @@ export default function ProjectControlRoom() {
             }
         } finally {
             setStopping(false)
+        }
+    }
+
+    async function handleRetry() {
+        setRetrying(true)
+        try {
+            const res = await fetch(`${API}/api/v1/sprints/${sprintId}/retry`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceId: `sprint-${sprintId}` }) 
+            })
+            if (res.ok) {
+                await fetchData()
+            } else {
+                alert('Failed to start retry')
+            }
+        } finally {
+            setRetrying(false)
         }
     }
 
@@ -664,6 +683,16 @@ export default function ProjectControlRoom() {
                     )}
                 </div>
                 <div className="flex items-center gap-2">
+                    {sprint.failedTasks > 0 && !isActive && (
+                        <button
+                            onClick={() => void handleRetry()}
+                            disabled={retrying}
+                            className="flex items-center gap-1.5 rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-900/40 hover:border-emerald-700 hover:text-emerald-300 transition-all disabled:opacity-40"
+                        >
+                            <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
+                            {retrying ? 'Retrying…' : 'Retry Failed'}
+                        </button>
+                    )}
                     {isActive && (
                         <button
                             id="stop-sprint-btn"
