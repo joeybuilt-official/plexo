@@ -40,18 +40,18 @@ const STATUS_DOT: Record<string, string> = {
     planning: 'bg-purple-500',
     running: 'bg-blue-500 animate-pulse',
     finalizing: 'bg-blue-400 animate-pulse',
-    complete: 'bg-emerald-500',
-    failed: 'bg-red-500',
-    cancelled: 'bg-zinc-600',
+    complete: 'bg-emerald',
+    failed: 'bg-red',
+    cancelled: 'bg-surface-3',
 }
 
 const STATUS_TEXT: Record<string, string> = {
     planning: 'text-purple-400',
     running: 'text-blue-400',
     finalizing: 'text-blue-300',
-    complete: 'text-emerald-400',
-    failed: 'text-red-400',
-    cancelled: 'text-zinc-500',
+    complete: 'text-emerald',
+    failed: 'text-red',
+    cancelled: 'text-text-muted',
 }
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -70,7 +70,7 @@ function CategoryBadge({ category }: { category: string }) {
     const def = getCategoryDef(category)
     const Icon = CATEGORY_ICONS[def.icon] ?? Sparkles
     return (
-        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ring-zinc-700/60 bg-zinc-800/60 text-zinc-400">
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ring-zinc-700/60 bg-surface-2/60 text-text-secondary">
             <Icon className="h-2.5 w-2.5" />
             {def.label}
         </span>
@@ -96,33 +96,33 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
     return (
         <Link
             href={`/projects/${sprint.id}`}
-            className="group block rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 transition-all hover:border-indigo-500/40 hover:bg-zinc-900"
+            className="group block rounded-xl border border-border bg-surface-1/60 p-4 transition-all hover:border-indigo/40 hover:bg-surface-1"
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5 min-w-0">
-                    <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[sprint.status] ?? 'bg-zinc-600'}`} />
+                    <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[sprint.status] ?? 'bg-surface-3'}`} />
                     <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">
+                        <p className="truncate text-sm font-medium text-text-primary group-hover:text-text-primary transition-colors">
                             {sprint.request.length > 80 ? sprint.request.slice(0, 80) + '…' : sprint.request}
                         </p>
                         <div className="mt-1 flex items-center gap-2 flex-wrap">
                             <CategoryBadge category={sprint.category ?? 'code'} />
                             {subtitle && (
-                                <p className="text-xs font-mono text-zinc-600 truncate">{subtitle}</p>
+                                <p className="text-xs font-mono text-text-muted truncate">{subtitle}</p>
                             )}
                             <span className="text-[10px] text-zinc-700">{formatAge(sprint.createdAt)}</span>
                         </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <span className={`shrink-0 text-xs font-medium ${STATUS_TEXT[sprint.status] ?? 'text-zinc-400'}`}>
+                    <span className={`shrink-0 text-xs font-medium ${STATUS_TEXT[sprint.status] ?? 'text-text-secondary'}`}>
                         {sprint.status}
                     </span>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.preventDefault()}>
                         {['cancelled', 'failed'].includes(sprint.status) && (
                             <button
                                 onClick={(e) => { e.preventDefault(); onAction('start', sprint.id) }}
-                                className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-indigo-400 transition-colors"
+                                className="p-1.5 rounded-md hover:bg-surface-2 text-text-muted hover:text-indigo transition-colors"
                                 title="Restart project"
                             >
                                 <Play className="h-4 w-4" />
@@ -131,7 +131,7 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
                         {['planning', 'running', 'finalizing'].includes(sprint.status) && (
                             <button
                                 onClick={(e) => { e.preventDefault(); onAction('stop', sprint.id) }}
-                                className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-amber-500 transition-colors"
+                                className="p-1.5 rounded-md hover:bg-surface-2 text-text-muted hover:text-amber transition-colors"
                                 title="Stop project"
                             >
                                 <Square className="h-4 w-4" />
@@ -139,7 +139,7 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
                         )}
                         <button
                             onClick={(e) => { e.preventDefault(); onAction('delete', sprint.id) }}
-                            className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors"
+                            className="p-1.5 rounded-md hover:bg-surface-2 text-text-muted hover:text-red transition-colors"
                             title="Delete project"
                         >
                             <Trash2 className="h-4 w-4" />
@@ -150,13 +150,13 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
 
             {sprint.totalTasks > 0 && (
                 <div className="mt-3">
-                    <div className="h-1 rounded-full bg-zinc-800">
-                        <div className="h-1 rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                    <div className="h-1 rounded-full bg-surface-2">
+                        <div className="h-1 rounded-full bg-emerald transition-all" style={{ width: `${pct}%` }} />
                     </div>
-                    <div className="mt-1.5 flex items-center gap-3 text-[11px] text-zinc-600">
+                    <div className="mt-1.5 flex items-center gap-3 text-[11px] text-text-muted">
                         <span>{sprint.completedTasks}/{sprint.totalTasks} {def.unitPlural.toLowerCase()}</span>
-                        {sprint.failedTasks > 0 && <span className="text-red-500">{sprint.failedTasks} failed</span>}
-                        {sprint.conflictCount > 0 && <span className="text-amber-500">{sprint.conflictCount} conflicts</span>}
+                        {sprint.failedTasks > 0 && <span className="text-red">{sprint.failedTasks} failed</span>}
+                        {sprint.conflictCount > 0 && <span className="text-amber">{sprint.conflictCount} conflicts</span>}
                         {sprint.wallClockMs != null && sprint.wallClockMs > 0 && <span>{Math.round(sprint.wallClockMs / 1000)}s</span>}
                         {sprint.costUsd != null && <span className="ml-auto">${sprint.costUsd.toFixed(4)}</span>}
                     </div>
@@ -307,7 +307,7 @@ export default function ProjectsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Projects</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">
+                    <p className="mt-0.5 text-sm text-text-muted">
                         {loading
                             ? '…'
                             : `${displayed.length}${displayed.length !== sprints.length ? ` of ${sprints.length}` : ''} project${sprints.length === 1 ? '' : 's'}`}
@@ -317,14 +317,14 @@ export default function ProjectsPage() {
                     <button
                         onClick={() => void load(true)}
                         disabled={refreshing}
-                        className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors disabled:opacity-40"
                     >
                         <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
                         Refresh
                     </button>
                     <Link
                         href="/projects/new"
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         New Project
@@ -341,10 +341,10 @@ export default function ProjectsPage() {
                         { label: 'Active', value: String(sprints.filter((s) => ['planning', 'running', 'finalizing'].includes(s.status)).length) },
                         { label: 'Total spend', value: totalCost > 0 ? `$${totalCost.toFixed(3)}` : '—' },
                     ] as { label: string; value: string; sub?: string }[]).map(({ label, value, sub }) => (
-                        <div key={label} className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
-                            <p className="text-[11px] font-medium text-zinc-600 mb-1">{label}</p>
-                            <p className="text-xl font-bold text-zinc-200">{value}</p>
-                            {sub && <p className="text-[10px] text-zinc-600 mt-0.5">{sub}</p>}
+                        <div key={label} className="rounded-xl border border-border bg-surface-1/40 px-4 py-3">
+                            <p className="text-[11px] font-medium text-text-muted mb-1">{label}</p>
+                            <p className="text-xl font-bold text-text-primary">{value}</p>
+                            {sub && <p className="text-[10px] text-text-muted mt-0.5">{sub}</p>}
                         </div>
                     ))}
                 </div>
@@ -366,33 +366,33 @@ export default function ProjectsPage() {
 
             {/* Content */}
             {loading ? (
-                <div className="flex items-center justify-center py-16 text-zinc-600">
+                <div className="flex items-center justify-center py-16 text-text-muted">
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
                 </div>
             ) : displayed.length === 0 && sprints.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center gap-4">
+                <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-surface-1/40 py-16 text-center gap-4">
                     <div className="grid grid-cols-4 gap-2 opacity-40">
                         {[Code2, Search, PenLine, Server].map((Icon, i) => (
-                            <div key={i} className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-800">
-                                <Icon className="h-4 w-4 text-zinc-400" />
+                            <div key={i} className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-2">
+                                <Icon className="h-4 w-4 text-text-secondary" />
                             </div>
                         ))}
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-zinc-400">No projects yet</p>
-                        <p className="mt-1 text-xs text-zinc-600">Create a project to run parallel AI work — code, research, writing, and more.</p>
+                        <p className="text-sm font-medium text-text-secondary">No projects yet</p>
+                        <p className="mt-1 text-xs text-text-muted">Create a project to run parallel AI work — code, research, writing, and more.</p>
                     </div>
-                    <Link href="/projects/new" className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
+                    <Link href="/projects/new" className="flex items-center gap-2 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 transition-colors">
                         <Plus className="h-4 w-4" />
                         Create first project
                     </Link>
                 </div>
             ) : displayed.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
-                    <p className="text-sm text-zinc-500">No projects match your filters</p>
+                <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
+                    <p className="text-sm text-text-muted">No projects match your filters</p>
                     <button
                         onClick={clearAll}
-                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto"
+                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto"
                     >
                         <X className="h-3.5 w-3.5" /> Clear filters
                     </button>

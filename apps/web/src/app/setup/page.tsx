@@ -32,13 +32,13 @@ function StepIndicator({ current }: { current: Step }) {
         <div className="flex items-center gap-2 mb-8 flex-wrap">
             {STEPS.slice(0, -1).map((s, i) => (
                 <div key={s} className="flex items-center gap-2">
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${i < idx ? 'bg-indigo-600 text-white' :
-                        i === idx ? 'border-2 border-indigo-500 text-indigo-400' :
-                            'border border-zinc-700 text-zinc-600'
+                    <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${i < idx ? 'bg-indigo text-text-primary' :
+                        i === idx ? 'border-2 border-indigo text-indigo' :
+                            'border border-border text-text-muted'
                         }`}>
                         {i < idx ? <Check className="h-3.5 w-3.5" /> : i + 1}
                     </div>
-                    <span className={`text-xs ${i === idx ? 'text-zinc-200 font-medium' : 'text-zinc-600'}`}>
+                    <span className={`text-xs ${i === idx ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
                         {STEP_LABELS[i]}
                     </span>
                     {i < STEPS.length - 2 && <ChevronRight className="h-3 w-3 text-zinc-700" />}
@@ -85,27 +85,27 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
         <div className="flex flex-col gap-6">
             <div>
                 <div className="flex items-center gap-2 mb-1">
-                    <ShieldCheck className="h-5 w-5 text-indigo-400" />
+                    <ShieldCheck className="h-5 w-5 text-indigo" />
                     <h2 className="text-lg font-bold text-zinc-50">Help us fix bugs faster</h2>
                 </div>
-                <p className="text-sm text-zinc-400 leading-relaxed">
+                <p className="text-sm text-text-secondary leading-relaxed">
                     Plexo is self-hosted — your data stays on your machine. This is optional, anonymous crash
                     reporting that helps us identify where things break.
                 </p>
-                <p className="mt-3 text-sm text-zinc-400 leading-relaxed">
+                <p className="mt-3 text-sm text-text-secondary leading-relaxed">
                     If you enable this, when Plexo encounters an error, a sanitized report is sent to our
                     servers. No task content, no credentials, no file paths, no workspace names — ever. The
                     stripping happens on your machine before anything leaves.
                 </p>
-                <p className="mt-3 text-sm text-zinc-400 leading-relaxed">
+                <p className="mt-3 text-sm text-text-secondary leading-relaxed">
                     You can change this at any time in{' '}
-                    <span className="text-zinc-300 font-medium">Settings → Privacy</span>.
+                    <span className="text-text-secondary font-medium">Settings → Privacy</span>.
                 </p>
             </div>
 
             {/* Toggle */}
-            <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3.5">
-                <span className="text-sm font-medium text-zinc-200">
+            <div className="flex items-center justify-between rounded-xl border border-border bg-surface-1 px-4 py-3.5">
+                <span className="text-sm font-medium text-text-primary">
                     {enabled ? 'Sending anonymous crash reports' : 'Crash reporting disabled'}
                 </span>
                 <button
@@ -113,7 +113,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
                     role="switch"
                     aria-checked={enabled}
                     onClick={() => setEnabled(v => !v)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${enabled ? 'bg-indigo-600' : 'bg-zinc-700'
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo ${enabled ? 'bg-indigo' : 'bg-zinc-700'
                         }`}
                 >
                     <span className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform duration-200 ${enabled ? 'translate-x-5' : 'translate-x-1'
@@ -122,43 +122,43 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
             </div>
 
             {/* What we collect — expandable */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+            <div className="rounded-xl border border-border bg-surface-1/50 overflow-hidden">
                 <button
                     id="setup-telemetry-details-toggle"
                     onClick={() => setExpanded(v => !v)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-zinc-300 hover:text-zinc-100 transition-colors"
+                    className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
                 >
                     <span>What we collect</span>
-                    <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 text-text-muted transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
                 </button>
 
                 <div className={`grid transition-all duration-300 ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                     <div className="overflow-hidden">
                         <div className="px-4 pb-4">
                             <div className="grid grid-cols-2 gap-x-4 text-xs">
-                                <div className="mb-2 border-b border-zinc-800 pb-2">
-                                    <span className="font-semibold text-zinc-300">We collect</span>
+                                <div className="mb-2 border-b border-border pb-2">
+                                    <span className="font-semibold text-text-secondary">We collect</span>
                                 </div>
-                                <div className="mb-2 border-b border-zinc-800 pb-2">
-                                    <span className="font-semibold text-zinc-300">We never collect</span>
+                                <div className="mb-2 border-b border-border pb-2">
+                                    <span className="font-semibold text-text-secondary">We never collect</span>
                                 </div>
                                 {COLLECT_ROWS.map(([yes, no]) => (
                                     <>
-                                        <div key={`yes-${yes}`} className="flex items-start gap-2 py-1.5 border-b border-zinc-800/50">
-                                            <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-emerald-400" />
-                                            <span className="text-zinc-400">{yes}</span>
+                                        <div key={`yes-${yes}`} className="flex items-start gap-2 py-1.5 border-b border-border-subtle">
+                                            <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-emerald" />
+                                            <span className="text-text-secondary">{yes}</span>
                                         </div>
-                                        <div key={`no-${no}`} className="flex items-start gap-2 py-1.5 border-b border-zinc-800/50">
-                                            <X className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-400" />
-                                            <span className="text-zinc-400">{no}</span>
+                                        <div key={`no-${no}`} className="flex items-start gap-2 py-1.5 border-b border-border-subtle">
+                                            <X className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red" />
+                                            <span className="text-text-secondary">{no}</span>
                                         </div>
                                     </>
                                 ))}
                             </div>
-                            <p className="mt-3 text-[11px] text-zinc-600 leading-relaxed">
+                            <p className="mt-3 text-[11px] text-text-muted leading-relaxed">
                                 All sanitization runs locally. You can inspect the{' '}
-                                <code className="font-mono text-zinc-500">sanitize()</code> function in{' '}
-                                <code className="font-mono text-zinc-500">packages/api/src/telemetry/sanitize.ts</code>.
+                                <code className="font-mono text-text-muted">sanitize()</code> function in{' '}
+                                <code className="font-mono text-text-muted">packages/api/src/telemetry/sanitize.ts</code>.
                             </p>
                         </div>
                     </div>
@@ -170,7 +170,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
                 <button
                     id="setup-telemetry-skip"
                     onClick={onComplete}
-                    className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
+                    className="flex-1 rounded-xl border border-border py-2.5 text-sm text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors"
                 >
                     Skip for now
                 </button>
@@ -178,7 +178,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
                     id="setup-telemetry-save"
                     onClick={() => void save()}
                     disabled={saving}
-                    className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                    className="flex-1 rounded-xl bg-indigo py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                     {saving ? 'Saving…' : 'Save and continue'}
@@ -280,32 +280,32 @@ export default function SetupPage() {
     }
 
     return (
-        <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
+        <div className="min-h-screen bg-canvas flex items-center justify-center p-6">
             <div className="w-full max-w-xl">
                 <div className="mb-8 flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-lg shadow-indigo-500/20">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl   text-sm font-bold text-text-primary shadow-lg shadow-indigo-500/20">
                         P
                     </div>
-                    <span className="text-lg font-bold text-zinc-100">Plexo Setup</span>
+                    <span className="text-lg font-bold text-text-primary">Plexo Setup</span>
                 </div>
 
                 <StepIndicator current={step} />
 
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-7 backdrop-blur-sm">
+                <div className="rounded-2xl border border-border bg-surface-1/60 p-7 backdrop-blur-sm">
                     {/* ── Welcome ── */}
                     {step === 'welcome' && (
                         <div className="flex flex-col gap-5">
                             <div>
                                 <h1 className="text-xl font-bold text-zinc-50">Welcome to Plexo</h1>
-                                <p className="mt-1.5 text-sm text-zinc-500 leading-relaxed">
+                                <p className="mt-1.5 text-sm text-text-muted leading-relaxed">
                                     This wizard will get your AI agent workspace running in under 2 minutes.
                                     No terminal required after this point.
                                 </p>
                             </div>
                             <ul className="flex flex-col gap-2">
                                 {['Create your workspace', 'Connect an AI Model', 'Run a test task'].map((item, i) => (
-                                    <li key={item} className="flex items-center gap-3 text-sm text-zinc-400">
-                                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-500">{i + 1}</span>
+                                    <li key={item} className="flex items-center gap-3 text-sm text-text-secondary">
+                                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-2 text-[10px] font-bold text-text-muted">{i + 1}</span>
                                         {item}
                                     </li>
                                 ))}
@@ -313,7 +313,7 @@ export default function SetupPage() {
                             <button
                                 id="setup-get-started"
                                 onClick={() => setStep('workspace')}
-                                className="mt-2 w-full rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+                                className="mt-2 w-full rounded-xl bg-indigo py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors"
                             >
                                 Get started
                             </button>
@@ -325,23 +325,23 @@ export default function SetupPage() {
                         <div className="flex flex-col gap-5">
                             <div>
                                 <h2 className="text-lg font-bold text-zinc-50">Name your workspace</h2>
-                                <p className="mt-1 text-sm text-zinc-500">This is typically your team or project name.</p>
+                                <p className="mt-1 text-sm text-text-muted">This is typically your team or project name.</p>
                             </div>
                             <div className="flex flex-col gap-1.5">
-                                <label htmlFor="workspace-name" className="text-sm font-medium text-zinc-300">Workspace name</label>
+                                <label htmlFor="workspace-name" className="text-sm font-medium text-text-secondary">Workspace name</label>
                                 <input
                                     id="workspace-name"
                                     type="text"
                                     value={workspaceName}
                                     onChange={(e) => setWorkspaceName(e.target.value)}
                                     placeholder="My Team"
-                                    className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                    className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                                     autoFocus
                                     onKeyDown={(e) => e.key === 'Enter' && workspaceName.trim() && void createWorkspace()}
                                 />
                             </div>
                             {error && (
-                                <div className="flex items-center gap-2 text-xs text-red-400">
+                                <div className="flex items-center gap-2 text-xs text-red">
                                     <AlertCircle className="h-3.5 w-3.5" /> {error}
                                 </div>
                             )}
@@ -349,7 +349,7 @@ export default function SetupPage() {
                                 id="setup-create-workspace"
                                 onClick={() => void createWorkspace()}
                                 disabled={!workspaceName.trim() || saving}
-                                className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                className="w-full rounded-xl bg-indigo py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                             >
                                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                                 {saving ? 'Creating…' : 'Continue'}
@@ -362,20 +362,20 @@ export default function SetupPage() {
                         <div className="flex flex-col gap-5">
                             <div>
                                 <h2 className="text-lg font-bold text-zinc-50">Choose an AI Model</h2>
-                                <p className="mt-1 text-sm text-zinc-500">
+                                <p className="mt-1 text-sm text-text-muted">
                                     Plexo needs an AI model to execute tasks.
                                 </p>
                             </div>
 
                             <div className="flex flex-col gap-1.5">
-                                <label className="text-sm font-medium text-zinc-300">Which LLM would you like to use?</label>
+                                <label className="text-sm font-medium text-text-secondary">Which LLM would you like to use?</label>
                                 <select
                                     value={selectedProvider}
                                     onChange={(e) => {
                                         setSelectedProvider(e.target.value)
                                         setProviderCredential('')
                                     }}
-                                    className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                                    className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary focus:border-indigo focus:outline-none"
                                 >
                                     {MODELS.map(p => (
                                         <option key={p.key} value={p.key}>{p.name}</option>
@@ -384,7 +384,7 @@ export default function SetupPage() {
                             </div>
 
                             <div className="flex flex-col gap-1.5">
-                                <label htmlFor="provider-credential" className="text-sm font-medium text-zinc-300">
+                                <label htmlFor="provider-credential" className="text-sm font-medium text-text-secondary">
                                     {selectedProvider === 'ollama' ? 'Base URL' : 'API Key'}
                                 </label>
                                 <input
@@ -393,7 +393,7 @@ export default function SetupPage() {
                                     value={providerCredential}
                                     onChange={(e) => setProviderCredential(e.target.value)}
                                     placeholder={MODELS.find(p => p.key === selectedProvider)?.placeholder}
-                                    className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
+                                    className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none font-mono"
                                     autoComplete="new-password"
                                     autoFocus
                                 />
@@ -402,7 +402,7 @@ export default function SetupPage() {
                                         href={MODELS.find(p => p.key === selectedProvider)?.link}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 mt-1"
+                                        className="flex items-center gap-1 text-[11px] text-indigo hover:text-indigo-300 mt-1"
                                     >
                                         Get a key from {new URL(MODELS.find(p => p.key === selectedProvider)?.link || 'https://example.com').hostname.replace('console.', '').replace('platform.', '')} <ExternalLink className="h-3 w-3" />
                                     </a>
@@ -412,7 +412,7 @@ export default function SetupPage() {
                                 <button
                                     id="setup-provider-skip"
                                     onClick={() => setStep('test')}
-                                    className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
+                                    className="flex-1 rounded-xl border border-border py-2.5 text-sm text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors"
                                 >
                                     Skip for now
                                 </button>
@@ -420,7 +420,7 @@ export default function SetupPage() {
                                     id="setup-provider-save"
                                     onClick={() => void saveProvider()}
                                     disabled={saving}
-                                    className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                    className="flex-1 rounded-xl bg-indigo py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                                 >
                                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                                     {saving ? 'Saving…' : 'Save & continue'}
@@ -434,22 +434,22 @@ export default function SetupPage() {
                         <div className="flex flex-col gap-5">
                             <div>
                                 <h2 className="text-lg font-bold text-zinc-50">Test your agent</h2>
-                                <p className="mt-1 text-sm text-zinc-500">Submit a simple task to verify everything is connected.</p>
+                                <p className="mt-1 text-sm text-text-muted">Submit a simple task to verify everything is connected.</p>
                             </div>
                             <input
                                 type="text"
                                 value={testPrompt}
                                 onChange={(e) => setTestPrompt(e.target.value)}
-                                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm font-mono text-zinc-400 focus:border-indigo-500 focus:outline-none focus:text-zinc-200 transition-colors"
+                                className="w-full rounded-xl border border-border bg-canvas px-4 py-3 text-sm font-mono text-text-secondary focus:border-indigo focus:outline-none focus:text-text-primary transition-colors"
                             />
                             {testResult === 'ok' && (
-                                <div className="flex items-center gap-2 rounded-lg bg-emerald-950/40 border border-emerald-900/50 px-4 py-3 text-sm text-emerald-400">
+                                <div className="flex items-center gap-2 rounded-lg bg-emerald-950/40 border border-emerald-900/50 px-4 py-3 text-sm text-emerald">
                                     <Check className="h-4 w-4 shrink-0" />
                                     Task queued successfully — your agent will pick it up shortly.
                                 </div>
                             )}
                             {testResult === 'fail' && (
-                                <div className="flex items-center gap-2 rounded-lg bg-red-950/40 border border-red-900/50 px-4 py-3 text-sm text-red-400">
+                                <div className="flex items-center gap-2 rounded-lg bg-red-950/40 border border-red-900/50 px-4 py-3 text-sm text-red">
                                     <AlertCircle className="h-4 w-4 shrink-0" />
                                     Task failed to queue. Make sure the API server is running.
                                 </div>
@@ -459,7 +459,7 @@ export default function SetupPage() {
                                     id="setup-run-test"
                                     onClick={() => void runTest()}
                                     disabled={testing}
-                                    className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors flex items-center justify-center gap-2"
+                                    className="flex-1 rounded-xl border border-border py-2.5 text-sm text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors flex items-center justify-center gap-2"
                                 >
                                     {testing && <Loader2 className="h-4 w-4 animate-spin" />}
                                     {testing ? 'Sending…' : 'Run test task'}
@@ -467,7 +467,7 @@ export default function SetupPage() {
                                 <button
                                     id="setup-test-continue"
                                     onClick={() => setStep('telemetry')}
-                                    className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+                                    className="flex-1 rounded-xl bg-indigo py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors"
                                 >
                                     {testResult === 'ok' ? 'Continue →' : 'Skip'}
                                 </button>
@@ -483,17 +483,17 @@ export default function SetupPage() {
                     {/* ── Done ── */}
                     {step === 'done' && (
                         <div className="flex flex-col items-center gap-5 py-4 text-center">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 border border-emerald-500/30">
-                                <Check className="h-7 w-7 text-emerald-400" />
+                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald/15 border border-emerald-500/30">
+                                <Check className="h-7 w-7 text-emerald" />
                             </div>
                             <div>
                                 <h2 className="text-lg font-bold text-zinc-50">You&apos;re all set!</h2>
-                                <p className="mt-1 text-sm text-zinc-500">Your workspace is ready. Head to the dashboard to submit tasks.</p>
+                                <p className="mt-1 text-sm text-text-muted">Your workspace is ready. Head to the dashboard to submit tasks.</p>
                             </div>
                             <Link
                                 id="setup-open-dashboard"
                                 href="/"
-                                className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors block"
+                                className="w-full rounded-xl bg-indigo py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors block"
                             >
                                 Open dashboard →
                             </Link>
@@ -502,7 +502,7 @@ export default function SetupPage() {
                 </div>
 
                 <p className="mt-4 text-center text-[11px] text-zinc-700">
-                    Plexo · <a href="https://github.com/joeybuilt-official/plexo/blob/main/LICENSE" className="hover:text-zinc-500">AGPL-3.0 Open Source</a> · <a href="https://getplexo.com" className="hover:text-zinc-500">getplexo.com</a>
+                    Plexo · <a href="https://github.com/joeybuilt-official/plexo/blob/main/LICENSE" className="hover:text-text-muted">AGPL-3.0 Open Source</a> · <a href="https://getplexo.com" className="hover:text-text-muted">getplexo.com</a>
                 </p>
             </div>
         </div>

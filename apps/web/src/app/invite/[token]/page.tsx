@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CheckCircle, XCircle, Clock, RefreshCw, Shield } from 'lucide-react'
+import { PlexoMark } from '@web/components/plexo-logo'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
@@ -82,46 +83,48 @@ export default function InvitePage() {
     }
 
     return (
-        <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
-            <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-8 flex flex-col gap-5">
+        <div className="min-h-screen bg-canvas flex items-center justify-center p-4">
+            <div className="w-full max-w-sm rounded-2xl border border-border bg-surface-1 p-8 flex flex-col gap-5">
                 {/* Logo / brand */}
                 <div className="flex items-center gap-2 justify-center mb-2">
-                    <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">P</div>
-                    <span className="font-semibold text-zinc-200 text-lg">Plexo</span>
+                    <div className="h-8 w-8 flex items-center justify-center">
+                        <PlexoMark className="h-6 w-6 text-indigo drop-shadow-lg" />
+                    </div>
+                    <span className="font-semibold text-text-primary text-lg">Plexo</span>
                 </div>
 
                 {status === 'loading' && (
                     <div className="flex flex-col items-center gap-3 py-4">
-                        <RefreshCw className="h-6 w-6 animate-spin text-zinc-600" />
-                        <p className="text-sm text-zinc-500">Checking invite…</p>
+                        <RefreshCw className="h-6 w-6 animate-spin text-text-muted" />
+                        <p className="text-sm text-text-muted">Checking invite…</p>
                     </div>
                 )}
 
                 {status === 'ready' && info && (
                     <>
                         <div className="text-center flex flex-col gap-1">
-                            <p className="text-sm text-zinc-500">You&apos;ve been invited to join</p>
+                            <p className="text-sm text-text-muted">You&apos;ve been invited to join</p>
                             <h1 className="text-xl font-bold text-zinc-50">{info.workspaceName}</h1>
-                            <div className="mx-auto mt-2 inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1 text-xs text-zinc-400">
+                            <div className="mx-auto mt-2 inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-3 py-1 text-xs text-text-secondary">
                                 <Shield className="h-3 w-3" />
-                                as <span className="font-semibold text-zinc-200 capitalize">{info.role}</span>
+                                as <span className="font-semibold text-text-primary capitalize">{info.role}</span>
                             </div>
                         </div>
 
                         {info.invitedEmail && (
-                            <p className="text-center text-xs text-zinc-600">
-                                This invite is addressed to <span className="text-zinc-400">{info.invitedEmail}</span>
+                            <p className="text-center text-xs text-text-muted">
+                                This invite is addressed to <span className="text-text-secondary">{info.invitedEmail}</span>
                             </p>
                         )}
 
-                        <div className="flex items-center gap-1.5 justify-center text-xs text-zinc-600">
+                        <div className="flex items-center gap-1.5 justify-center text-xs text-text-muted">
                             <Clock className="h-3 w-3" />
                             Expires {new Date(info.expiresAt).toLocaleDateString()}
                         </div>
 
                         <button
                             onClick={() => void accept()}
-                            className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+                            className="flex items-center justify-center gap-2 rounded-xl bg-indigo py-3 text-sm font-semibold text-white hover:bg-indigo/90 transition-colors"
                         >
                             Accept invitation
                         </button>
@@ -130,29 +133,29 @@ export default function InvitePage() {
 
                 {status === 'accepting' && (
                     <div className="flex flex-col items-center gap-3 py-4">
-                        <RefreshCw className="h-6 w-6 animate-spin text-indigo-400" />
-                        <p className="text-sm text-zinc-400">Joining workspace…</p>
+                        <RefreshCw className="h-6 w-6 animate-spin text-indigo" />
+                        <p className="text-sm text-text-secondary">Joining workspace…</p>
                     </div>
                 )}
 
                 {status === 'done' && (
                     <div className="flex flex-col items-center gap-3 py-4 text-center">
-                        <CheckCircle className="h-8 w-8 text-emerald-400" />
+                        <CheckCircle className="h-8 w-8 text-emerald" />
                         <div>
-                            <p className="text-base font-semibold text-zinc-100">You&apos;re in!</p>
-                            <p className="text-sm text-zinc-500 mt-1">Redirecting to your workspace…</p>
+                            <p className="text-base font-semibold text-text-primary">You&apos;re in!</p>
+                            <p className="text-sm text-text-muted mt-1">Redirecting to your workspace…</p>
                         </div>
                     </div>
                 )}
 
                 {status === 'error' && (
                     <div className="flex flex-col items-center gap-3 py-4 text-center">
-                        <XCircle className="h-8 w-8 text-red-400" />
+                        <XCircle className="h-8 w-8 text-red" />
                         <div>
-                            <p className="text-base font-semibold text-zinc-100">Invite invalid</p>
-                            <p className="text-sm text-zinc-500 mt-1">{errorMsg}</p>
+                            <p className="text-base font-semibold text-text-primary">Invite invalid</p>
+                            <p className="text-sm text-text-muted mt-1">{errorMsg}</p>
                         </div>
-                        <Link href="/" className="mt-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
+                        <Link href="/" className="mt-2 text-sm text-indigo hover:text-indigo-300 transition-colors">
                             Go to dashboard →
                         </Link>
                     </div>

@@ -18,7 +18,7 @@ export function AppShell({ children, sidebar }: { children: React.ReactNode; sid
 
   if (runtime === null) {
     // Avoid hydration mismatch by rendering a minimal shell initially
-    return <div className="flex h-screen overflow-hidden bg-zinc-950 items-center justify-center">Loading Plexo...</div>
+    return <div className="flex h-screen overflow-hidden bg-canvas items-center justify-center">Loading Plexo...</div>
   }
 
   if (runtime === 'capacitor') {

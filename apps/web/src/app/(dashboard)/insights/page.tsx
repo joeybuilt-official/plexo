@@ -34,10 +34,10 @@ interface SearchResult {
 }
 
 const PATTERN_STYLE: Record<string, { dot: string; label: string }> = {
-    failure_pattern: { dot: 'bg-red-500', label: 'Failure pattern' },
-    success_pattern: { dot: 'bg-emerald-500', label: 'Success pattern' },
+    failure_pattern: { dot: 'bg-red', label: 'Failure pattern' },
+    success_pattern: { dot: 'bg-emerald', label: 'Success pattern' },
     tool_preference: { dot: 'bg-blue-500', label: 'Tool preference' },
-    scope_adjustment: { dot: 'bg-amber-500', label: 'Scope adjustment' },
+    scope_adjustment: { dot: 'bg-amber', label: 'Scope adjustment' },
     skill_proposal: { dot: 'bg-indigo-500', label: 'Skill Proposal' },
     plugin_proposal: { dot: 'bg-purple-500', label: 'Plugin Proposal' },
     agent_proposal: { dot: 'bg-fuchsia-500', label: 'Agent Proposal' },
@@ -161,20 +161,20 @@ export default function InsightsPage() {
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Memory & Insights</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">Agent memory, learned preferences, and self-improvement proposals</p>
+                    <p className="mt-0.5 text-sm text-text-muted">Agent memory, learned preferences, and self-improvement proposals</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => void load()}
                         disabled={loading}
-                        className="flex items-center gap-1.5 rounded-lg border border-zinc-800 px-3 py-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-text-muted hover:text-text-secondary transition-colors"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                     <button
                         onClick={() => void runCycle()}
                         disabled={running || !WS_ID}
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-xs font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-40 transition-colors"
                     >
                         {running ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
                         {running ? 'Running…' : 'Run improvement cycle'}
@@ -183,14 +183,14 @@ export default function InsightsPage() {
             </div>
 
             {runMsg && (
-                <div className={`rounded-lg border px-3 py-2 text-sm ${runMsg.ok ? 'border-emerald-800/50 bg-emerald-950/20 text-emerald-400' : 'border-red-800/50 bg-red-950/20 text-red-400'}`}>
+                <div className={`rounded-lg border px-3 py-2 text-sm ${runMsg.ok ? 'border-emerald-800/50 bg-emerald-950/20 text-emerald' : 'border-red-800/50 bg-red-950/20 text-red'}`}>
                     {runMsg.text}
                 </div>
             )}
 
             {/* Memory search */}
             <section>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-2">
                     <Brain className="h-3.5 w-3.5" />
                     Memory Search
                 </h2>
@@ -199,12 +199,12 @@ export default function InsightsPage() {
                         value={searchQ}
                         onChange={(e) => setSearchQ(e.target.value)}
                         placeholder="Semantic search across agent memory…"
-                        className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                        className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                     />
                     <button
                         type="submit"
                         disabled={searching}
-                        className="flex items-center gap-1.5 rounded-lg bg-zinc-800 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-secondary hover:bg-zinc-700 disabled:opacity-40 transition-colors"
                     >
                         {searching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
                         Search
@@ -213,12 +213,12 @@ export default function InsightsPage() {
                 {searchResults !== null && (
                     <div className="mt-3 flex flex-col gap-2">
                         {searchResults.length === 0 ? (
-                            <p className="text-sm text-zinc-600 text-center py-6">No results found</p>
+                            <p className="text-sm text-text-muted text-center py-6">No results found</p>
                         ) : searchResults.map((r) => (
-                            <div key={r.id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-                                <p className="text-sm text-zinc-300 leading-relaxed">{r.content}</p>
+                            <div key={r.id} className="rounded-lg border border-border bg-surface-1/40 p-3">
+                                <p className="text-sm text-text-secondary leading-relaxed">{r.content}</p>
                                 {r.similarity !== undefined && (
-                                    <p className="mt-1.5 text-[10px] text-zinc-600">similarity: {(r.similarity * 100).toFixed(1)}%</p>
+                                    <p className="mt-1.5 text-[10px] text-text-muted">similarity: {(r.similarity * 100).toFixed(1)}%</p>
                                 )}
                             </div>
                         ))}
@@ -228,21 +228,21 @@ export default function InsightsPage() {
 
             {/* Preferences */}
             <section>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-2">
                     <Zap className="h-3.5 w-3.5" />
                     Workspace Preferences
-                    <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">{prefEntries.length}</span>
+                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">{prefEntries.length}</span>
                 </h2>
                 {prefEntries.length === 0 ? (
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 text-center text-sm text-zinc-500">
+                    <div className="rounded-xl border border-border bg-surface-1/40 p-6 text-center text-sm text-text-muted">
                         No preferences learned yet. Preferences accumulate as the agent completes tasks.
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {prefEntries.map(([key, value]) => (
-                            <div key={key} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                                <p className="text-[10px] font-mono text-zinc-500 truncate">{key}</p>
-                                <p className="mt-1 text-xs font-medium text-zinc-300 break-all">
+                            <div key={key} className="rounded-lg border border-border bg-surface-1/60 p-3">
+                                <p className="text-[10px] font-mono text-text-muted truncate">{key}</p>
+                                <p className="mt-1 text-xs font-medium text-text-secondary break-all">
                                     {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                                 </p>
                             </div>
@@ -253,46 +253,46 @@ export default function InsightsPage() {
 
             {/* Improvement log */}
             <section>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-2">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     Improvement Proposals
-                    <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">{improvements.length}</span>
+                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">{improvements.length}</span>
                 </h2>
 
                 {improvements.length === 0 ? (
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-10 text-center flex flex-col items-center gap-3">
+                    <div className="rounded-xl border border-border bg-surface-1/40 py-10 text-center flex flex-col items-center gap-3">
                         <Brain className="h-7 w-7 text-zinc-700" />
-                        <p className="text-sm text-zinc-500">No improvement proposals yet.</p>
-                        <p className="text-xs text-zinc-600">Click &apos;Run improvement cycle&apos; above after completing some tasks.</p>
+                        <p className="text-sm text-text-muted">No improvement proposals yet.</p>
+                        <p className="text-xs text-text-muted">Click &apos;Run improvement cycle&apos; above after completing some tasks.</p>
                     </div>
                 ) : (
                     <div className="flex flex-col gap-2">
                         {improvements.map((entry) => {
-                            const style = PATTERN_STYLE[entry.pattern_type] ?? { dot: 'bg-zinc-600', label: entry.pattern_type }
+                            const style = PATTERN_STYLE[entry.pattern_type] ?? { dot: 'bg-surface-3', label: entry.pattern_type }
                             return (
-                                <div key={entry.id} className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+                                <div key={entry.id} className="rounded-xl border border-border bg-surface-1/60 p-4">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-start gap-2 min-w-0">
                                             <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${style.dot}`} />
                                             <div className="min-w-0">
-                                                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">{style.label}</p>
-                                                <p className="mt-0.5 text-sm text-zinc-200">{entry.description}</p>
+                                                <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">{style.label}</p>
+                                                <p className="mt-0.5 text-sm text-text-primary">{entry.description}</p>
                                                 {entry.proposed_change && (
-                                                    <p className="mt-1.5 text-xs text-zinc-500 italic">→ {entry.proposed_change}</p>
+                                                    <p className="mt-1.5 text-xs text-text-muted italic">→ {entry.proposed_change}</p>
                                                 )}
                                                 <p className="mt-1.5 text-[10px] text-zinc-700">{timeAgo(entry.created_at)}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
                                             {entry.applied ? (
-                                                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                                                <span className="rounded-full bg-emerald-dim px-2 py-0.5 text-[10px] font-medium text-emerald">
                                                     applied
                                                 </span>
                                             ) : (
                                                 <button
                                                     onClick={() => void applyImprovement(entry.id)}
                                                     disabled={applying === entry.id}
-                                                    className="rounded-lg bg-indigo-600/20 border border-indigo-500/30 px-2.5 py-1 text-[11px] font-medium text-indigo-400 hover:bg-indigo-600/30 disabled:opacity-40 transition-colors"
+                                                    className="rounded-lg bg-indigo/20 border border-indigo/30 px-2.5 py-1 text-[11px] font-medium text-indigo hover:bg-indigo/30 disabled:opacity-40 transition-colors"
                                                 >
                                                     {applying === entry.id ? 'Applying…' : 'Apply'}
                                                 </button>

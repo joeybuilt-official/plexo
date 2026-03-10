@@ -71,39 +71,39 @@ export function ModeSelection({ onSelectMode }: { onSelectMode: (mode: 'local' |
 
     return (
         <div className="flex flex-col items-center justify-center p-6 space-y-6 max-w-md mx-auto text-center">
-            <h1 className="text-2xl font-bold text-zinc-100">How do you want to run Plexo?</h1>
+            <h1 className="text-2xl font-bold text-text-primary">How do you want to run Plexo?</h1>
             
             <button 
                 onClick={handleLocal}
                 disabled={dockerInstalled === false || starting}
-                className="w-full flex-col flex items-start p-4 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group text-left"
+                className="w-full flex-col flex items-start p-4 rounded-xl border border-border bg-surface-1 hover:bg-surface-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group text-left"
             >
-                <div className="flex items-center gap-3 font-semibold text-zinc-100">
-                    <MonitorPlay className="w-5 h-5 text-indigo-400" />
+                <div className="flex items-center gap-3 font-semibold text-text-primary">
+                    <MonitorPlay className="w-5 h-5 text-indigo" />
                     Run locally on this machine
                 </div>
-                <p className="text-sm text-zinc-400 mt-2">Plexo runs on your computer. When you close the app, the service stops.</p>
+                <p className="text-sm text-text-secondary mt-2">Plexo runs on your computer. When you close the app, the service stops.</p>
                 {dockerInstalled === false && (
-                    <p className="text-xs text-red-400 mt-2 font-medium">Docker is required. Please install Docker first.</p>
+                    <p className="text-xs text-red mt-2 font-medium">Docker is required. Please install Docker first.</p>
                 )}
                 {starting && (
-                    <p className="text-xs text-indigo-400 mt-2 font-medium">Starting Plexo (this may take a minute)...</p>
+                    <p className="text-xs text-indigo mt-2 font-medium">Starting Plexo (this may take a minute)...</p>
                 )}
             </button>
 
             <button 
                 onClick={() => onSelectMode('remote')}
                 disabled={starting}
-                className="w-full flex-col flex items-start p-4 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 transition-colors text-left"
+                className="w-full flex-col flex items-start p-4 rounded-xl border border-border bg-surface-1 hover:bg-surface-2 transition-colors text-left"
             >
-                <div className="flex items-center gap-3 font-semibold text-zinc-100">
-                    <Server className="w-5 h-5 text-indigo-400" />
+                <div className="flex items-center gap-3 font-semibold text-text-primary">
+                    <Server className="w-5 h-5 text-indigo" />
                     Connect to a remote instance
                 </div>
-                <p className="text-sm text-zinc-400 mt-2">Connect to getplexo.com or your own server. Works from anywhere.</p>
+                <p className="text-sm text-text-secondary mt-2">Connect to getplexo.com or your own server. Works from anywhere.</p>
             </button>
 
-            {error && <p className="text-red-400 text-sm mt-4 font-medium">{error}</p>}
+            {error && <p className="text-red text-sm mt-4 font-medium">{error}</p>}
         </div>
     )
 }

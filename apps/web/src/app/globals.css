@@ -1,8 +1,58 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --color-zinc-925: #111113;
+  /* Colors */
+  --color-canvas:       #0C0E14;
+  --color-surface-1:    #12151E;
+  --color-surface-2:    #181C28;
+  --color-surface-3:    #1F2437;
+  --color-border:       #252A3A;
+  --color-border-subtle:#1A1E2C;
+
+  --color-text-primary: #EEF0F7;
+  --color-text-secondary:#8C95AD;
+  --color-text-muted:   #545C72;
+
+  /* Core Palette */
+  --color-indigo:       #6366F1;
+  --color-indigo-500:   var(--color-indigo);
+  --color-indigo-600:   var(--color-indigo);
+  --color-indigo-dim:   rgba(99,102,241,0.15);
+  --color-indigo-glow:  rgba(99,102,241,0.06);
+
+  --color-emerald:      #10B981;
+  --color-emerald-500:  var(--color-emerald);
+  --color-emerald-600:  var(--color-emerald);
+  --color-emerald-dim:  rgba(16,185,129,0.12);
+
+  --color-amber:        #F59E0B;
+  --color-amber-500:    var(--color-amber);
+  --color-amber-600:    var(--color-amber);
+  --color-amber-dim:    rgba(245,158,11,0.12);
+
+  --color-red:          #EF4444;
+  --color-red-500:      var(--color-red);
+  --color-red-600:      var(--color-red);
+  --color-red-dim:      rgba(239,68,68,0.12);
+
+  /* Radius */
+  --radius-md:          7px;  /* buttons, inputs */
+  --radius-lg:          10px; /* cards, panels */
+  --radius-xl:          12px; /* large surfaces */
+
+  /* Fonts */
+  --font-display: 'Syne', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+  --font-sans:    'Inter', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+  }
 }
 
 /* Scrollbar styling */
@@ -16,17 +66,17 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: theme(--color-zinc-700);
+  background: theme(--color-border);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: theme(--color-zinc-600);
+  background: theme(--color-text-muted);
 }
 
 /* Focus visible */
 *:focus-visible {
-  outline: 2px solid theme(--color-indigo-500);
+  outline: 2px solid theme(--color-indigo);
   outline-offset: 2px;
 }
 
@@ -39,7 +89,7 @@
 
 /* Card hover glow */
 .card-glow:hover {
-  box-shadow: 0 0 0 1px theme(--color-zinc-700), 0 0 20px -5px theme(--color-indigo-500 / 15%);
+  box-shadow: 0 0 0 1px theme(--color-border), 0 0 20px -5px theme(--color-indigo-glow);
 }
 
 /* Activity log entry animation */

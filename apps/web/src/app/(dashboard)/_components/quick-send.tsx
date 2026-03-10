@@ -49,10 +49,10 @@ export function QuickSend() {
     }
 
     return (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 backdrop-blur-sm">
+        <div className="rounded-xl border border-border bg-surface-1/50 p-4 backdrop-blur-sm">
             <label
                 htmlFor="quick-send-input"
-                className="mb-2 block text-xs font-medium text-zinc-500"
+                className="mb-2 block text-xs font-medium text-text-muted"
             >
                 Quick task
             </label>
@@ -64,32 +64,32 @@ export function QuickSend() {
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder="Describe a task for your agent…"
-                    className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50 min-h-[44px]"
+                    className="flex-1 rounded-lg border border-border bg-canvas px-3 py-2.5 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo/50 focus:outline-none focus:ring-1 focus:ring-indigo/50 disabled:opacity-50 min-h-[44px]"
                     disabled={status === 'sending'}
                 />
                 <button
                     type="submit"
                     disabled={!text.trim() || status === 'sending'}
-                    className="rounded-lg bg-indigo-600 px-4 py-2.5 text-[16px] md:text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40 min-h-[44px]"
+                    className="rounded-lg bg-indigo px-4 py-2.5 text-[16px] md:text-sm font-medium text-text-primary transition-all hover:bg-indigo/90 disabled:cursor-not-allowed disabled:opacity-40 min-h-[44px]"
                 >
                     {status === 'sending' ? '…' : 'Send'}
                 </button>
             </form>
             {status === 'sent' && taskId && (
-                <p className="mt-2 text-[11px] text-emerald-500">
+                <p className="mt-2 text-[11px] text-emerald">
                     ✓ Task queued —{' '}
-                    <Link href={`/tasks/${taskId}`} className="underline hover:text-emerald-400 transition-colors">
+                    <Link href={`/tasks/${taskId}`} className="underline hover:text-emerald transition-colors">
                         view {taskId.slice(0, 8)}…
                     </Link>
                 </p>
             )}
             {status === 'error' && (
-                <p className="mt-2 text-[11px] text-red-400">
+                <p className="mt-2 text-[11px] text-red">
                     Failed to queue task. Make sure the API is running.
                 </p>
             )}
             {status === 'idle' && !taskId && (
-                <p className="mt-2 text-[11px] text-zinc-600">
+                <p className="mt-2 text-[11px] text-text-muted">
                     Tasks submitted here are processed by your agent automatically.
                 </p>
             )}

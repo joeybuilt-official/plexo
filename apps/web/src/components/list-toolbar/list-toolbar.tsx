@@ -36,18 +36,18 @@ function CustomSortDropdown({
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className={`flex justify-between items-center w-full gap-1.5 rounded-lg border px-3 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm transition-colors shadow-sm ${open ? 'border-zinc-500 bg-zinc-800 text-zinc-200' : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
+                className={`flex justify-between items-center w-full gap-1.5 rounded-lg border px-3 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm transition-colors shadow-sm ${open ? 'border-zinc-500 bg-surface-2 text-text-primary' : 'border-border bg-surface-1 text-text-secondary hover:border-zinc-500 hover:text-text-secondary'
                     }`}
             >
                 <div className="flex items-center gap-1.5">
                     <ArrowUpDown className="h-4 w-4 md:h-3.5 md:w-3.5" />
                     <span className="font-medium whitespace-nowrap">{selectedLabel}</span>
                 </div>
-                <ChevronDown className="h-4 w-4 md:hidden text-zinc-500" />
+                <ChevronDown className="h-4 w-4 md:hidden text-text-muted" />
             </button>
 
             {open && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[170px] rounded-xl border border-zinc-700 bg-zinc-950 py-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[170px] rounded-xl border border-border bg-canvas py-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-100">
                     <ul role="listbox" className="max-h-[300px] overflow-y-auto px-1.5 flex flex-col gap-0.5">
                         {options.map((opt) => {
                             const active = opt.value === value
@@ -55,7 +55,7 @@ function CustomSortDropdown({
                                 <li key={opt.value} role="option" aria-selected={active}>
                                     <button
                                         type="button"
-                                        className={`w-full flex items-center justify-between gap-3 rounded-md px-3 py-3 md:px-2.5 md:py-1.5 text-[16px] md:text-sm transition-colors text-left ${active ? 'bg-indigo-500/15 text-indigo-300' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                                        className={`w-full flex items-center justify-between gap-3 rounded-md px-3 py-3 md:px-2.5 md:py-1.5 text-[16px] md:text-sm transition-colors text-left ${active ? 'bg-indigo-500/15 text-indigo-300' : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
                                             }`}
                                         onClick={() => {
                                             onChange(opt.value)
@@ -124,18 +124,18 @@ export function ListToolbar({
             <div className="flex flex-col md:flex-row gap-2">
                 {/* Search input */}
                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 md:h-3.5 md:w-3.5 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 md:h-3.5 md:w-3.5 -translate-y-1/2 text-text-muted pointer-events-none" />
                     <input
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder={placeholder}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900/60 py-2 pl-10 pr-4 min-h-[44px] md:min-h-[32px] text-[16px] md:text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/20 transition-colors"
+                        className="w-full rounded-lg border border-border bg-surface-1/60 py-2 pl-10 pr-4 min-h-[44px] md:min-h-[32px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/20 transition-colors"
                     />
                     {search && (
                         <button
                             onClick={() => setSearch('')}
-                            className="absolute right-0 top-0 bottom-0 px-3 text-zinc-600 hover:text-zinc-400 transition-colors flex justify-center items-center"
+                            className="absolute right-0 top-0 bottom-0 px-3 text-text-muted hover:text-text-secondary transition-colors flex justify-center items-center"
                             aria-label="Clear search"
                         >
                             <X className="h-4 w-4 md:h-3 md:w-3" />
@@ -148,15 +148,15 @@ export function ListToolbar({
                     <button
                         onClick={toggleFilters}
                         className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${showFilters
-                            ? 'border-indigo-600 bg-indigo-600/10 text-indigo-400'
-                            : 'border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                            ? 'border-indigo-600 bg-indigo/10 text-indigo'
+                            : 'border-border text-text-secondary hover:border-zinc-600 hover:text-text-primary'
                             }`}
                         aria-expanded={showFilters}
                     >
                         <SlidersHorizontal className="h-3.5 w-3.5" />
                         Filters
                         {activeFilterCount > 0 && (
-                            <span className="ml-0.5 rounded-full bg-indigo-500 px-1.5 py-0.5 text-[9px] font-semibold text-white leading-none">
+                            <span className="ml-0.5 rounded-full bg-indigo-500 px-1.5 py-0.5 text-[9px] font-semibold text-text-primary leading-none">
                                 {activeFilterCount}
                             </span>
                         )}
@@ -172,7 +172,7 @@ export function ListToolbar({
                 {hasFilters && (
                     <button
                         onClick={clearAll}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm text-zinc-500 hover:border-zinc-600 hover:text-zinc-300 transition-colors"
+                        className="flex items-center justify-center gap-1 rounded-lg border border-border px-2.5 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm text-text-muted hover:border-zinc-600 hover:text-text-secondary transition-colors"
                     >
                         <X className="h-4 w-4 md:h-3 md:w-3" />
                         Clear
@@ -182,12 +182,12 @@ export function ListToolbar({
 
             {/* ── Expandable filter panel ──────────────────────────────────── */}
             {showFilters && hasDimensions && (
-                <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3.5">
+                <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface-1/40 p-3.5">
                     {dimensions.map((dim) => {
                         const current = filterValues[dim.key] ?? null
                         return (
                             <div key={dim.key} className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[10px] uppercase tracking-wide text-zinc-600 w-16 shrink-0">
+                                <span className="text-[10px] uppercase tracking-wide text-text-muted w-16 shrink-0">
                                     {dim.label}
                                 </span>
                                 <div className="flex gap-1.5 flex-wrap">
@@ -195,8 +195,8 @@ export function ListToolbar({
                                     <button
                                         onClick={() => setFilter(dim.key, null)}
                                         className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${current === null
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'border border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                                            ? 'bg-indigo text-text-primary'
+                                            : 'border border-border text-text-secondary hover:border-zinc-600 hover:text-text-primary'
                                             }`}
                                     >
                                         All
@@ -214,10 +214,10 @@ export function ListToolbar({
                                                     )
                                             }}
                                             className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium capitalize transition-colors ${current === opt.value
-                                                ? 'bg-indigo-600 text-white'
+                                                ? 'bg-indigo text-text-primary'
                                                 : opt.dimmed
-                                                    ? 'border border-zinc-800 text-zinc-600 opacity-40 cursor-default'
-                                                    : 'border border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                                                    ? 'border border-border text-text-muted opacity-40 cursor-default'
+                                                    : 'border border-border text-text-secondary hover:border-zinc-600 hover:text-text-primary'
                                                 }`}
                                             aria-pressed={current === opt.value}
                                             aria-disabled={opt.dimmed}
@@ -244,7 +244,7 @@ export function ListToolbar({
                         return (
                             <span
                                 key={dim.key}
-                                className="flex items-center gap-1 rounded-full border border-indigo-800/50 bg-indigo-900/20 pl-3 pr-1 py-1 text-[13px] md:py-0.5 md:pl-2.5 md:pr-0.5 md:text-[11px] text-indigo-400"
+                                className="flex items-center gap-1 rounded-full border border-indigo-800/50 bg-indigo-900/20 pl-3 pr-1 py-1 text-[13px] md:py-0.5 md:pl-2.5 md:pr-0.5 md:text-[11px] text-indigo"
                             >
                                 {dim.label}: {label}
                                 <button

@@ -42,14 +42,14 @@ interface Sprint {
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
-    pending: { icon: Clock, color: 'text-amber-400', bg: 'bg-amber-400/10', label: 'Pending' },
-    queued: { icon: Clock, color: 'text-amber-400', bg: 'bg-amber-400/10', label: 'Queued' },
+    pending: { icon: Clock, color: 'text-amber', bg: 'bg-amber/10', label: 'Pending' },
+    queued: { icon: Clock, color: 'text-amber', bg: 'bg-amber/10', label: 'Queued' },
     claimed: { icon: Loader2, color: 'text-indigo-300', bg: 'bg-indigo-300/10', label: 'Claimed' },
-    running: { icon: Loader2, color: 'text-indigo-400', bg: 'bg-indigo-400/10', label: 'Running' },
-    complete: { icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-400/10', label: 'Complete' },
-    failed: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-400/10', label: 'Failed' },
+    running: { icon: Loader2, color: 'text-indigo', bg: 'bg-indigo-400/10', label: 'Running' },
+    complete: { icon: CheckCircle, color: 'text-emerald', bg: 'bg-emerald/10', label: 'Complete' },
+    failed: { icon: XCircle, color: 'text-red', bg: 'bg-red/10', label: 'Failed' },
     blocked: { icon: XCircle, color: 'text-orange-400', bg: 'bg-orange-400/10', label: 'Blocked' },
-    cancelled: { icon: XCircle, color: 'text-zinc-500', bg: 'bg-zinc-500/10', label: 'Cancelled' },
+    cancelled: { icon: XCircle, color: 'text-text-muted', bg: 'bg-zinc-500/10', label: 'Cancelled' },
 } as const
 
 const TASK_STATUSES = ['pending', 'running', 'complete', 'failed', 'blocked', 'cancelled'] as const
@@ -165,13 +165,13 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                 onClick={onClose}
             />
             <div
-                className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ${open ? 'translate-x-0' : 'translate-x-full'}`}
+                className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border bg-canvas shadow-2xl transition-transform duration-300 ${open ? 'translate-x-0' : 'translate-x-full'}`}
             >
-                <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-5">
-                    <h2 className="text-sm font-semibold text-zinc-100">New task</h2>
+                <div className="flex h-14 items-center justify-between border-b border-border px-5">
+                    <h2 className="text-sm font-semibold text-text-primary">New task</h2>
                     <button
                         onClick={onClose}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:bg-surface-2 hover:text-text-secondary transition-colors"
                     >
                         <X className="h-4 w-4" />
                     </button>
@@ -179,7 +179,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
 
                 <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-zinc-400">Description <span className="text-zinc-600">(required)</span></label>
+                        <label className="text-xs font-medium text-text-secondary">Description <span className="text-text-muted">(required)</span></label>
                         <textarea
                             ref={textRef}
                             value={description}
@@ -187,20 +187,20 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                             onKeyDown={handleKeyDown}
                             placeholder="Describe the task the agent should execute…"
                             rows={5}
-                            className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 resize-none"
+                            className="rounded-xl border border-border bg-surface-1 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 resize-none"
                         />
-                        <p className="text-[10px] text-zinc-600">⌘ Enter to submit</p>
+                        <p className="text-[10px] text-text-muted">⌘ Enter to submit</p>
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-zinc-400">Type</label>
+                        <label className="text-xs font-medium text-text-secondary">Type</label>
                         <div className="flex flex-wrap gap-1.5">
                             {TASK_TYPES.map((t) => (
                                 <button
                                     key={t}
                                     type="button"
                                     onClick={() => setType(t)}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors ${type === t ? 'bg-indigo-600 text-white' : 'border border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}`}
+                                    className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors ${type === t ? 'bg-indigo text-text-primary' : 'border border-border text-text-secondary hover:border-zinc-600 hover:text-text-primary'}`}
                                 >
                                     {t}
                                 </button>
@@ -209,16 +209,16 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-zinc-400">
-                            Project <span className="text-zinc-600">(optional)</span>
+                        <label className="text-xs font-medium text-text-secondary">
+                            Project <span className="text-text-muted">(optional)</span>
                         </label>
                         {sprints.length === 0 ? (
-                            <p className="text-xs text-zinc-600">No projects yet — create one from the Projects page.</p>
+                            <p className="text-xs text-text-muted">No projects yet — create one from the Projects page.</p>
                         ) : (
                             <select
                                 value={projectId}
                                 onChange={(e) => setProjectId(e.target.value)}
-                                className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                                className="rounded-xl border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none"
                             >
                                 <option value="">— No project (standalone) —</option>
                                 {sprints.map((s) => (
@@ -231,21 +231,21 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                     </div>
 
                     {error && (
-                        <p className="rounded-lg border border-red-800/40 bg-red-950/30 px-3 py-2 text-xs text-red-400">{error}</p>
+                        <p className="rounded-lg border border-red-800/40 bg-red-950/30 px-3 py-2 text-xs text-red">{error}</p>
                     )}
 
                     <div className="mt-auto flex justify-end gap-2.5 pt-2">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
+                            className="rounded-lg border border-border px-4 py-2 text-sm text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={submitting || !description.trim()}
-                            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-2 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors"
                         >
                             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                             Create task
@@ -405,7 +405,7 @@ export default function TasksPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Tasks</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">
+                    <p className="mt-0.5 text-sm text-text-muted">
                         {loading
                             ? '…'
                             : `${displayed.length}${displayed.length !== tasks.length ? ` of ${tasks.length}` : ''} task${tasks.length === 1 ? '' : 's'}`}
@@ -415,7 +415,7 @@ export default function TasksPage() {
                     <button
                         onClick={() => void load(true)}
                         disabled={refreshing}
-                        className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors disabled:opacity-40"
                     >
                         <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
                         Refresh
@@ -423,7 +423,7 @@ export default function TasksPage() {
                     <button
                         id="new-task-btn"
                         onClick={() => setSheetOpen(true)}
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         New task
@@ -446,25 +446,25 @@ export default function TasksPage() {
 
             {/* Task list */}
             {loading ? (
-                <div className="flex items-center justify-center py-16 text-zinc-600">
+                <div className="flex items-center justify-center py-16 text-text-muted">
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
                 </div>
             ) : displayed.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
-                    <p className="text-sm text-zinc-500">
+                <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
+                    <p className="text-sm text-text-muted">
                         {hasFilters ? 'No tasks match your filters' : 'No tasks found'}
                     </p>
                     {hasFilters ? (
                         <button
                             onClick={clearAll}
-                            className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto"
+                            className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto"
                         >
                             <X className="h-3.5 w-3.5" /> Clear filters
                         </button>
                     ) : (
                         <button
                             onClick={() => setSheetOpen(true)}
-                            className="mt-3 flex items-center gap-1.5 rounded-lg bg-indigo-600/10 border border-indigo-800/30 px-3 py-1.5 text-xs text-indigo-400 hover:bg-indigo-600/20 transition-colors mx-auto"
+                            className="mt-3 flex items-center gap-1.5 rounded-lg bg-indigo/10 border border-indigo-800/30 px-3 py-1.5 text-xs text-indigo hover:bg-indigo/20 transition-colors mx-auto"
                         >
                             <Plus className="h-3.5 w-3.5" />
                             Create your first task
@@ -483,7 +483,7 @@ export default function TasksPage() {
                             <div key={task.id} className="relative group/row">
                             <Link
                                 href={`/tasks/${task.id}`}
-                                className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 hover:border-zinc-700 hover:bg-zinc-900/70 transition-colors group"
+                                className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-xl border border-border bg-surface-1/40 px-4 py-3.5 hover:border-border hover:bg-surface-1/70 transition-colors group"
                             >
                                 <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto sm:flex-1 min-w-0">
                                     <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg mt-0.5 sm:mt-0 ${cfg.bg}`}>
@@ -492,39 +492,39 @@ export default function TasksPage() {
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap mb-1.5 sm:mb-0">
-                                            <span className="text-xs font-mono text-zinc-500">{task.id.slice(0, 8)}</span>
-                                            <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500 capitalize">{task.type}</span>
-                                            <span className="rounded bg-zinc-800/50 px-1.5 py-0.5 text-[10px] text-zinc-600 hidden sm:inline-block">{task.source}</span>
+                                            <span className="text-xs font-mono text-text-muted">{task.id.slice(0, 8)}</span>
+                                            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted capitalize">{task.type}</span>
+                                            <span className="rounded bg-surface-2/50 px-1.5 py-0.5 text-[10px] text-text-muted hidden sm:inline-block">{task.source}</span>
                                             {projectLabel && (
-                                                <span className="flex items-center gap-1 rounded bg-indigo-900/30 border border-indigo-800/30 px-1.5 py-0.5 text-[10px] text-indigo-400 max-w-[140px] sm:max-w-[180px]">
+                                                <span className="flex items-center gap-1 rounded bg-indigo-900/30 border border-indigo-800/30 px-1.5 py-0.5 text-[10px] text-indigo max-w-[140px] sm:max-w-[180px]">
                                                     <FolderOpen className="h-2.5 w-2.5 shrink-0" />
                                                     <span className="truncate">{projectLabel}</span>
                                                 </span>
                                             )}
                                         </div>
                                         {task.outcomeSummary && (
-                                            <p className="sm:mt-1 text-sm sm:text-xs text-zinc-300 sm:text-zinc-400 line-clamp-2 sm:truncate">{task.outcomeSummary}</p>
+                                            <p className="sm:mt-1 text-sm sm:text-xs text-text-secondary sm:text-text-secondary line-clamp-2 sm:truncate">{task.outcomeSummary}</p>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto pt-3 sm:pt-0 mt-2 sm:mt-0 border-t border-zinc-800/50 sm:border-0 sm:shrink-0 text-left sm:text-right">
+                                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto pt-3 sm:pt-0 mt-2 sm:mt-0 border-t border-border-subtle sm:border-0 sm:shrink-0 text-left sm:text-right">
                                     <div className="flex items-center gap-2">
                                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
                                         {task.qualityScore !== null && (
-                                            <span className={`text-[10px] font-medium hidden sm:inline-block ${task.qualityScore >= 0.8 ? 'text-emerald-400' : task.qualityScore >= 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
+                                            <span className={`text-[10px] font-medium hidden sm:inline-block ${task.qualityScore >= 0.8 ? 'text-emerald' : task.qualityScore >= 0.5 ? 'text-amber' : 'text-red'}`}>
                                                 Q:{Math.round(task.qualityScore * 100)}%
                                             </span>
                                         )}
                                         {task.costUsd !== null && (
-                                            <span className="text-[10px] text-zinc-600 hidden sm:inline-block">${task.costUsd.toFixed(4)}</span>
+                                            <span className="text-[10px] text-text-muted hidden sm:inline-block">${task.costUsd.toFixed(4)}</span>
                                         )}
                                     </div>
-                                    <div className="flex items-center justify-end gap-2 text-[10px] text-zinc-600">
+                                    <div className="flex items-center justify-end gap-2 text-[10px] text-text-muted">
                                         <span>{formatAge(task.createdAt)}</span>
                                         <span>·</span>
                                         <span>{formatDur(task.createdAt, task.completedAt)}</span>
-                                        <ChevronRight className="h-4 w-4 shrink-0 text-zinc-700 group-hover:text-zinc-500 transition-colors ml-1 sm:ml-2" />
+                                        <ChevronRight className="h-4 w-4 shrink-0 text-zinc-700 group-hover:text-text-muted transition-colors ml-1 sm:ml-2" />
                                     </div>
                                 </div>
                             </Link>
@@ -532,7 +532,7 @@ export default function TasksPage() {
                                 <button
                                     onClick={(e) => void cancelTask(task.id, e)}
                                     title="Cancel task"
-                                    className="absolute top-2 right-2 z-10 opacity-0 group-hover/row:opacity-100 transition-opacity flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-400 hover:border-red-700/50 hover:text-red-400 hover:bg-red-950/20"
+                                    className="absolute top-2 right-2 z-10 opacity-0 group-hover/row:opacity-100 transition-opacity flex items-center gap-1 rounded-md border border-border bg-surface-1 px-2 py-1 text-[10px] text-text-secondary hover:border-red-700/50 hover:text-red hover:bg-red-950/20"
                                 >
                                     <X className="h-3 w-3" /> Cancel
                                 </button>

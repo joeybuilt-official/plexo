@@ -74,17 +74,17 @@ const PLUGIN_TYPE_LABELS: Record<string, string> = {
 }
 
 const STATUS_DOT: Record<string, string> = {
-    active: 'bg-emerald-400',
-    error: 'bg-red-400',
-    expired: 'bg-amber-400',
+    active: 'bg-emerald',
+    error: 'bg-red',
+    expired: 'bg-amber',
     disconnected: 'bg-zinc-500',
 }
 
 const PLUGIN_TYPE_COLOR: Record<string, string> = {
     agent: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
     skill: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
-    channel: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
-    tool: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+    channel: 'bg-emerald/15 text-emerald border border-emerald-500/30',
+    tool: 'bg-amber/15 text-amber border border-amber-500/30',
     'mcp-server': 'bg-rose-500/15 text-rose-400 border border-rose-500/30',
 }
 
@@ -129,21 +129,21 @@ function IntegrationCard({
     }
 
     return (
-        <div className="flex flex-col rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 gap-4 transition-colors hover:border-zinc-700">
+        <div className="flex flex-col rounded-xl border border-border bg-surface-1/60 p-5 gap-4 transition-colors hover:border-border">
             <div className="flex items-start gap-3">
                 {item.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={item.logo_url} alt={item.name} className="h-8 w-8 rounded object-contain bg-white p-0.5" />
                 ) : (
-                    <div className="h-8 w-8 rounded bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300">
+                    <div className="h-8 w-8 rounded bg-zinc-700 flex items-center justify-center text-xs font-bold text-text-secondary">
                         {item.name[0]}
                     </div>
                 )}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-semibold text-zinc-100 truncate">{item.name}</h3>
+                        <h3 className="text-sm font-semibold text-text-primary truncate">{item.name}</h3>
                         {item.is_core && (
-                            <span className="shrink-0 rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-400 border border-indigo-500/30">
+                            <span className="shrink-0 rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo border border-indigo/30">
                                 Core
                             </span>
                         )}
@@ -153,19 +153,19 @@ function IntegrationCard({
                             </span>
                         )}
                     </div>
-                    <p className="mt-0.5 text-xs text-zinc-500 line-clamp-2">{item.description}</p>
+                    <p className="mt-0.5 text-xs text-text-muted line-clamp-2">{item.description}</p>
                 </div>
             </div>
 
             {/* Tools */}
             <div className="flex flex-wrap gap-1">
                 {(item.tools_provided ?? []).slice(0, 4).map((t) => (
-                    <span key={t} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">
+                    <span key={t} className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-secondary">
                         {t}
                     </span>
                 ))}
                 {(item.tools_provided ?? []).length > 4 && (
-                    <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500">
+                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-muted">
                         +{(item.tools_provided ?? []).length - 4}
                     </span>
                 )}
@@ -174,14 +174,14 @@ function IntegrationCard({
             {/* Action */}
             {installed ? (
                 <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs text-zinc-400">
+                    <span className="flex items-center gap-1.5 text-xs text-text-secondary">
                         <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[installed.status] ?? 'bg-zinc-500'}`} />
                         {installed.status}
                     </span>
                     <button
                         onClick={handleUninstall}
                         disabled={pending}
-                        className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-red-800 hover:text-red-400 transition-colors disabled:opacity-40"
+                        className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:border-red-800 hover:text-red transition-colors disabled:opacity-40"
                     >
                         {pending ? 'Removing…' : 'Remove'}
                     </button>
@@ -192,12 +192,12 @@ function IntegrationCard({
                         <div className="mb-3 flex flex-col gap-2">
                             {(item.setup_fields ?? []).map((field) => (
                                 <div key={field.key}>
-                                    <label className="text-[10px] text-zinc-500 uppercase tracking-wide">{field.label}</label>
+                                    <label className="text-[10px] text-text-muted uppercase tracking-wide">{field.label}</label>
                                     <input
                                         type={field.type === 'password' ? 'password' : 'text'}
                                         value={creds[field.key] ?? ''}
                                         onChange={(e) => setCreds((p) => ({ ...p, [field.key]: e.target.value }))}
-                                        className="mt-0.5 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                        className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                                         placeholder={`Enter ${field.label.toLowerCase()}`}
                                     />
                                 </div>
@@ -205,14 +205,14 @@ function IntegrationCard({
                         </div>
                     )}
                     {installError && (
-                        <p className="mb-2 text-[11px] text-red-400 flex items-center gap-1">
+                        <p className="mb-2 text-[11px] text-red flex items-center gap-1">
                             <AlertCircle className="h-3 w-3" />{installError}
                         </p>
                     )}
                     <button
                         onClick={hasSetupFields ? (open ? handleInstall : () => setOpen(true)) : handleInstall}
                         disabled={pending}
-                        className="w-full rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-40"
+                        className="w-full rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40"
                     >
                         {pending ? 'Installing…' : hasSetupFields && !open ? 'Configure' : 'Install'}
                     </button>
@@ -244,27 +244,27 @@ function ExtensionCard({
         startTransition(async () => { await onUninstall(plugin.id) })
     }
 
-    const typeColor = PLUGIN_TYPE_COLOR[plugin.type] ?? 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+    const typeColor = PLUGIN_TYPE_COLOR[plugin.type] ?? 'bg-surface-2 text-text-secondary border border-border'
     const typeLabel = PLUGIN_TYPE_LABELS[plugin.type] ?? plugin.type
 
     return (
-        <div className="flex flex-col rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 gap-4 transition-colors hover:border-zinc-700">
+        <div className="flex flex-col rounded-xl border border-border bg-surface-1/60 p-5 gap-4 transition-colors hover:border-border">
             <div className="flex items-start gap-3">
-                <div className="h-8 w-8 rounded bg-zinc-800 flex items-center justify-center text-sm">
-                    <Puzzle className="h-4 w-4 text-zinc-400" />
+                <div className="h-8 w-8 rounded bg-surface-2 flex items-center justify-center text-sm">
+                    <Puzzle className="h-4 w-4 text-text-secondary" />
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-semibold text-zinc-100 truncate">{plugin.displayName || plugin.name}</h3>
+                        <h3 className="text-sm font-semibold text-text-primary truncate">{plugin.displayName || plugin.name}</h3>
                         <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${typeColor}`}>
                             {typeLabel}
                         </span>
                     </div>
-                    <p className="mt-0.5 text-xs text-zinc-500 line-clamp-2">{plugin.description || 'No description'}</p>
+                    <p className="mt-0.5 text-xs text-text-muted line-clamp-2">{plugin.description || 'No description'}</p>
                 </div>
             </div>
 
-            <div className="flex items-center gap-2 text-[10px] text-zinc-600">
+            <div className="flex items-center gap-2 text-[10px] text-text-muted">
                 <span className="font-mono">{plugin.name}</span>
                 <span>·</span>
                 <span>v{plugin.version}</span>
@@ -276,7 +276,7 @@ function ExtensionCard({
                 <button
                     onClick={handleToggle}
                     disabled={pending}
-                    className={`flex items-center gap-1.5 text-xs transition-colors disabled:opacity-40 ${plugin.enabled ? 'text-emerald-400' : 'text-zinc-500'}`}
+                    className={`flex items-center gap-1.5 text-xs transition-colors disabled:opacity-40 ${plugin.enabled ? 'text-emerald' : 'text-text-muted'}`}
                 >
                     {pending
                         ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -289,7 +289,7 @@ function ExtensionCard({
                 <button
                     onClick={handleUninstall}
                     disabled={pending}
-                    className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-red-800 hover:text-red-400 transition-colors disabled:opacity-40"
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:border-red-800 hover:text-red transition-colors disabled:opacity-40"
                 >
                     Uninstall
                 </button>
@@ -350,7 +350,7 @@ function IntegrationsTab({
             options: Array.from(availableCategories).sort().map((cat) => ({
                 value: cat,
                 label: CATEGORY_LABELS[cat] ?? cat,
-                icon: <Layers className="h-3 w-3 mr-1 shrink-0 text-zinc-500" />,
+                icon: <Layers className="h-3 w-3 mr-1 shrink-0 text-text-muted" />,
                 dimmed: !availableCategories.has(cat),
             })),
         },
@@ -389,8 +389,8 @@ function IntegrationsTab({
                 ]}
             />
 
-            <div className="flex items-center gap-4 text-xs text-zinc-500">
-                <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" />{installed.length} connected</span>
+            <div className="flex items-center gap-4 text-xs text-text-muted">
+                <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald" />{installed.length} connected</span>
                 <span>{filtered.length} available</span>
             </div>
 
@@ -464,7 +464,7 @@ function ExtensionsTab({
             options: Array.from(availableTypes).sort().map((t) => ({
                 value: t,
                 label: PLUGIN_TYPE_LABELS[t] ?? t,
-                icon: <Puzzle className="h-3 w-3 mr-1 shrink-0 text-zinc-500" />,
+                icon: <Puzzle className="h-3 w-3 mr-1 shrink-0 text-text-muted" />,
                 dimmed: !availableTypes.has(t),
             })),
         },
@@ -489,12 +489,12 @@ function ExtensionsTab({
     if (plugins.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-                <div className="h-12 w-12 rounded-xl bg-zinc-800 flex items-center justify-center">
-                    <Puzzle className="h-5 w-5 text-zinc-600" />
+                <div className="h-12 w-12 rounded-xl bg-surface-2 flex items-center justify-center">
+                    <Puzzle className="h-5 w-5 text-text-muted" />
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-zinc-400">No extensions installed</p>
-                    <p className="mt-1 text-xs text-zinc-600 max-w-xs">
+                    <p className="text-sm font-medium text-text-secondary">No extensions installed</p>
+                    <p className="mt-1 text-xs text-text-muted max-w-xs">
                         Extensions are Kapsel-standard packages that add new capabilities — custom tools, MCP servers, agent skills, and more.
                     </p>
                 </div>
@@ -502,7 +502,7 @@ function ExtensionsTab({
                     href="https://kapsel.dev"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                    className="text-xs text-indigo hover:text-indigo-300 underline underline-offset-2"
                 >
                     Browse the Kapsel registry →
                 </a>
@@ -524,9 +524,9 @@ function ExtensionsTab({
                 ]}
             />
 
-            <div className="flex items-center gap-4 text-xs text-zinc-500">
+            <div className="flex items-center gap-4 text-xs text-text-muted">
                 <span>{plugins.length} installed</span>
-                <span className="text-emerald-500">{plugins.filter(p => p.enabled).length} active</span>
+                <span className="text-emerald">{plugins.filter(p => p.enabled).length} active</span>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -566,37 +566,37 @@ export default function MarketplaceClient({
             {/* Header */}
             <div>
                 <h1 className="text-xl font-bold text-zinc-50">Marketplace</h1>
-                <p className="mt-0.5 text-sm text-zinc-500">
+                <p className="mt-0.5 text-sm text-text-muted">
                     Discover and manage integrations and extensions that extend what the agent can do.
                 </p>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-0 border-b border-zinc-800">
+            <div className="flex gap-0 border-b border-border">
                 <button
                     onClick={() => setTab('integrations')}
                     className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'integrations'
-                        ? 'border-indigo-500 text-indigo-400'
-                        : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                        ? 'border-indigo text-indigo'
+                        : 'border-transparent text-text-muted hover:text-text-secondary'
                         }`}
                 >
                     <Package className="h-3.5 w-3.5" />
                     Integrations
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'integrations' ? 'bg-indigo-900/40 text-indigo-400' : 'bg-zinc-800 text-zinc-500'}`}>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'integrations' ? 'bg-indigo-900/40 text-indigo' : 'bg-surface-2 text-text-muted'}`}>
                         {registry.length}
                     </span>
                 </button>
                 <button
                     onClick={() => setTab('extensions')}
                     className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'extensions'
-                        ? 'border-indigo-500 text-indigo-400'
-                        : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                        ? 'border-indigo text-indigo'
+                        : 'border-transparent text-text-muted hover:text-text-secondary'
                         }`}
                 >
                     <Puzzle className="h-3.5 w-3.5" />
                     Extensions
                     {plugins.length > 0 && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'extensions' ? 'bg-indigo-900/40 text-indigo-400' : 'bg-zinc-800 text-zinc-500'}`}>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'extensions' ? 'bg-indigo-900/40 text-indigo' : 'bg-surface-2 text-text-muted'}`}>
                             {plugins.length}
                         </span>
                     )}

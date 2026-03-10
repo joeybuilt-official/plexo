@@ -130,7 +130,7 @@ function MessageBubble({
                     key={img.id}
                     src={img.dataUrl}
                     alt={img.name}
-                    className="max-h-40 max-w-[200px] rounded-lg border border-zinc-700 object-cover"
+                    className="max-h-40 max-w-[200px] rounded-lg border border-border object-cover"
                 />
             ))}
         </div>
@@ -143,11 +143,11 @@ function MessageBubble({
                 <div
                     key={doc.id}
                     title={doc.content}
-                    className="flex items-center gap-2 rounded-lg border border-zinc-600/60 bg-zinc-800/60 px-3 py-2 text-xs text-zinc-300"
+                    className="flex items-center gap-2 rounded-lg border border-zinc-600/60 bg-surface-2/60 px-3 py-2 text-xs text-text-secondary"
                 >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-text-secondary" />
                     <span className="font-medium truncate max-w-[160px]">{doc.name}</span>
-                    <span className="text-zinc-500 shrink-0">{doc.lineCount} lines</span>
+                    <span className="text-text-muted shrink-0">{doc.lineCount} lines</span>
                 </div>
             ))}
         </div>
@@ -172,11 +172,11 @@ function MessageBubble({
             {/* Avatar */}
             <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${msg.role === 'user'
                 ? 'bg-zinc-700'
-                : 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                : ' '
                 }`}>
                 {msg.role === 'user'
-                    ? <User className="h-4 w-4 text-zinc-300" />
-                    : <Bot className="h-4 w-4 text-white" />
+                    ? <User className="h-4 w-4 text-text-secondary" />
+                    : <Bot className="h-4 w-4 text-text-primary" />
                 }
             </div>
 
@@ -185,20 +185,20 @@ function MessageBubble({
                 {imageStrip}
                 {docStrip}
                 <div className={`relative w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
-                    ? 'bg-indigo-600 text-white rounded-tr-md'
+                    ? 'bg-indigo text-text-primary rounded-tr-md'
                     : msg.status === 'failed'
                         ? 'bg-red-950/30 border border-red-800/40 text-red-300 rounded-tl-md'
-                        : 'bg-zinc-800 text-zinc-200 rounded-tl-md'
+                        : 'bg-surface-2 text-text-primary rounded-tl-md'
                     }`}>
                     {msg.status === 'queued' ? (
                         <div className="flex items-center gap-2">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500" />
-                            <span className="text-zinc-500 text-sm italic">Queued…</span>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-text-muted" />
+                            <span className="text-text-muted text-sm italic">Queued…</span>
                         </div>
                     ) : msg.status === 'running' ? (
                         <div className="flex items-start gap-2">
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400 shrink-0 mt-0.5" />
-                            <span className="text-zinc-400 text-sm italic">
+                            <span className="text-text-secondary text-sm italic">
                                 {msg.content || 'Working…'}
                             </span>
                         </div>
@@ -218,11 +218,11 @@ function MessageBubble({
                             )}
                             {msg.technicalDetail && (
                                 <details className="group/td mt-0.5">
-                                    <summary className="text-[10px] text-red-400/50 cursor-pointer hover:text-red-400/70 list-none flex items-center gap-1">
+                                    <summary className="text-[10px] text-red/50 cursor-pointer hover:text-red/70 list-none flex items-center gap-1">
                                         <span className="group-open/td:hidden">▸ Technical details</span>
                                         <span className="hidden group-open/td:inline">▾ Technical details</span>
                                     </summary>
-                                    <code className="block mt-1.5 text-[10px] text-red-400/50 font-mono break-all leading-relaxed bg-red-950/30 rounded p-2">
+                                    <code className="block mt-1.5 text-[10px] text-red/50 font-mono break-all leading-relaxed bg-red-950/30 rounded p-2">
                                         {msg.technicalDetail}
                                     </code>
                                 </details>
@@ -230,12 +230,12 @@ function MessageBubble({
                         </div>
                     ) : msg.status === 'confirm_action' && msg.intent ? (
                         <div className="flex flex-col gap-3">
-                            <span className="font-medium text-zinc-200">
+                            <span className="font-medium text-text-primary">
                                 {msg.intent === 'TASK'
                                     ? 'I can run this as an automated task.'
                                     : 'I can set this up as a coordinated project.'}
                             </span>
-                            <span className="text-sm text-zinc-400 italic">&quot;{msg.actionDescription}&quot;</span>
+                            <span className="text-sm text-text-secondary italic">&quot;{msg.actionDescription}&quot;</span>
 
                             {/* Project category picker — only shown when PROJECT is selected */}
                             {msg.intent === 'PROJECT' && (
@@ -246,8 +246,8 @@ function MessageBubble({
                                             onClick={() => onSelectCategory(msg.id, id)}
                                             className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium border transition-all ${
                                                 sel === id
-                                                    ? 'bg-indigo-600 border-indigo-500 text-white'
-                                                    : 'bg-zinc-700/50 border-zinc-600/50 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                                                    ? 'bg-indigo border-indigo text-text-primary'
+                                                    : 'bg-zinc-700/50 border-zinc-600/50 text-text-secondary hover:border-zinc-500 hover:text-text-primary'
                                             }`}
                                         >
                                             <Icon className="h-3 w-3" />
@@ -261,25 +261,25 @@ function MessageBubble({
                             <div className="flex flex-wrap items-center gap-2">
                                 <button
                                     onClick={() => onExecute(msg.id, 'CONVERSATION', msg.actionDescription!, sel)}
-                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600 transition-colors"
+                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-3 transition-colors"
                                 >
                                     Just answer
                                 </button>
                                 <button
                                     onClick={() => onExecute(msg.id, 'TASK', msg.actionDescription!, sel)}
-                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600 transition-colors"
+                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-3 transition-colors"
                                 >
                                     Create Task
                                 </button>
                                 <button
                                     onClick={() => onExecute(msg.id, 'PROJECT', msg.actionDescription!, sel)}
-                                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                                    className="rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
                                 >
                                     Create Project
                                 </button>
                                 <button
                                     onClick={() => onCancel(msg.id)}
-                                    className="ml-auto text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                                    className="ml-auto text-[11px] text-text-muted hover:text-text-secondary transition-colors"
                                 >
                                     Dismiss
                                 </button>
@@ -291,7 +291,7 @@ function MessageBubble({
                             {msg.fixUrl && (
                                 <Link
                                     href={msg.fixUrl}
-                                    className="inline-flex items-center gap-1 self-start rounded-md bg-zinc-700/60 border border-zinc-600/50 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-zinc-600 hover:text-zinc-100 transition-colors"
+                                    className="inline-flex items-center gap-1 self-start rounded-md bg-zinc-700/60 border border-zinc-600/50 px-2.5 py-1 text-xs font-medium text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors"
                                 >
                                     {msg.fixLabel ?? 'View'} →
                                 </Link>
@@ -303,11 +303,11 @@ function MessageBubble({
                     {msg.status !== 'queued' && msg.status !== 'running' && msg.status !== 'confirm_action' && msg.content && (
                         <button
                             onClick={copyMsg}
-                            className="absolute -top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-md bg-zinc-700 border border-zinc-600 p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-600"
+                            className="absolute -top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-md bg-zinc-700 border border-zinc-600 p-1 text-text-secondary hover:text-text-primary hover:bg-surface-3"
                             title="Copy"
                         >
                             {copied
-                                ? <Check className="h-3 w-3 text-emerald-400" />
+                                ? <Check className="h-3 w-3 text-emerald" />
                                 : <Copy className="h-3 w-3" />
                             }
                         </button>
@@ -315,18 +315,18 @@ function MessageBubble({
                 </div>
 
                 {/* Meta */}
-                <div className="flex items-center gap-2 text-[10px] text-zinc-600">
+                <div className="flex items-center gap-2 text-[10px] text-text-muted">
                     <span>{fmt(msg.at)}</span>
                     {msg.taskId && (
                         <Link
                             href={`/tasks/${msg.taskId}`}
-                            className="hover:text-zinc-400 transition-colors font-mono"
+                            className="hover:text-text-secondary transition-colors font-mono"
                         >
                             {msg.taskId.slice(0, 8)} ↗
                         </Link>
                     )}
                     {msg.status === 'complete' && (
-                        <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                        <CheckCircle2 className="h-3 w-3 text-emerald" />
                     )}
                 </div>
             </div>
@@ -337,10 +337,10 @@ function MessageBubble({
 function StatusChip({ status }: { status: Message['status'] }) {
     if (!status || status === 'complete') return null
     const map = {
-        queued: { icon: Clock, cls: 'text-zinc-500', label: 'Queued' },
+        queued: { icon: Clock, cls: 'text-text-muted', label: 'Queued' },
         running: { icon: Loader2, cls: 'text-blue-400 animate-spin', label: 'Working…' },
-        pending: { icon: Loader2, cls: 'text-zinc-500 animate-spin', label: 'Waiting…' },
-        failed: { icon: XCircle, cls: 'text-red-400', label: 'Failed' },
+        pending: { icon: Loader2, cls: 'text-text-muted animate-spin', label: 'Waiting…' },
+        failed: { icon: XCircle, cls: 'text-red', label: 'Failed' },
     } as const
     const cfg = map[status as keyof typeof map]
     if (!cfg) return null
@@ -597,7 +597,7 @@ function useTTS() {
 export default function ChatPage() {
     return (
         <Suspense fallback={
-            <div className="flex items-center justify-center py-16 text-zinc-600">
+            <div className="flex items-center justify-center py-16 text-text-muted">
                 <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
             </div>
         }>
@@ -1154,20 +1154,20 @@ function ChatContent() {
     const chatPanel = (
         <div className="flex h-full flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-zinc-800 shrink-0">
+            <div className="flex items-center justify-between pb-4 border-b border-border shrink-0">
                 <div>
                     <div className="flex items-center gap-3">
                         <h1 className="text-xl font-bold text-zinc-50">Chat</h1>
                         {agentModel && (
                             <div className="flex items-center gap-2">
-                                <span className="text-[11px] font-mono font-medium text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-full">
+                                <span className="text-[11px] font-mono font-medium text-text-secondary bg-surface-1 border border-border px-2 py-0.5 rounded-full">
                                     {agentModel}
                                 </span>
                                 <CapabilityList caps={caps} />
                             </div>
                         )}
                     </div>
-                    <p className="text-sm text-zinc-500 mt-1">Talk directly with your agent</p>
+                    <p className="text-sm text-text-muted mt-1">Talk directly with your agent</p>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* TTS toggle */}
@@ -1176,8 +1176,8 @@ function ChatContent() {
                         onClick={tts.toggle}
                         title={tts.enabled ? 'Voice responses on' : 'Voice responses off'}
                         className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${tts.enabled
-                            ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20'
-                            : 'text-zinc-600 hover:text-zinc-400 border border-transparent'
+                            ? 'bg-indigo-dim text-indigo border border-indigo/20 hover:bg-indigo-dim'
+                            : 'text-text-muted hover:text-text-secondary border border-transparent'
                             }`}
                     >
                         {tts.enabled
@@ -1190,14 +1190,14 @@ function ChatContent() {
                     {messages.length > 0 && (
                         <button
                             onClick={() => { setMessages([]); tts.stop() }}
-                            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                            className="text-xs text-text-muted hover:text-text-secondary transition-colors"
                         >
                             Clear
                         </button>
                     )}
                     <Link
                         href="/conversations"
-                        className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                        className="text-xs text-text-muted hover:text-text-secondary transition-colors"
                     >
                         History →
                     </Link>
@@ -1210,7 +1210,7 @@ function ChatContent() {
                         className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                             codeMode
                                 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20'
-                                : 'text-zinc-600 hover:text-zinc-400 border border-transparent hover:border-zinc-700'
+                                : 'text-text-muted hover:text-text-secondary border border-transparent hover:border-border'
                         }`}
                     >
                         <CodeIcon className="h-3.5 w-3.5" />
@@ -1224,18 +1224,18 @@ function ChatContent() {
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
                         {/* Idle agent orb */}
-                        <div className={`relative h-16 w-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center transition-all duration-300 ${isListening ? 'scale-110 shadow-[0_0_32px_rgba(99,102,241,0.5)]' : ''
+                        <div className={`relative h-16 w-16 rounded-full   flex items-center justify-center transition-all duration-300 ${isListening ? 'scale-110 shadow-[0_0_32px_rgba(99,102,241,0.5)]' : ''
                             }`}>
-                            <Bot className="h-8 w-8 text-white" />
+                            <Bot className="h-8 w-8 text-text-primary" />
                             {isListening && (
                                 <div className="absolute inset-0 rounded-full border-2 border-indigo-400 animate-ping opacity-40" />
                             )}
                         </div>
                         <div>
-                            <p className="text-base font-semibold text-zinc-300">
+                            <p className="text-base font-semibold text-text-secondary">
                                 {isListening ? 'Listening…' : 'Your agent is ready'}
                             </p>
-                            <p className="text-sm text-zinc-600 mt-1">
+                            <p className="text-sm text-text-muted mt-1">
                                 {isListening
                                     ? 'Speak now — I\'ll send when you\'re done'
                                     : 'Ask anything — or tap the mic to speak'
@@ -1253,7 +1253,7 @@ function ChatContent() {
                                     <button
                                         key={suggestion}
                                         onClick={() => { setInput(suggestion); inputRef.current?.focus() }}
-                                        className="rounded-full border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-indigo-500/50 hover:text-zinc-200 transition-colors"
+                                        className="rounded-full border border-border px-3 py-1.5 text-xs text-text-secondary hover:border-indigo/50 hover:text-text-primary transition-colors"
                                     >
                                         {suggestion}
                                     </button>
@@ -1284,7 +1284,7 @@ function ChatContent() {
 
             {/* Error banner */}
             {error && (
-                <div className="shrink-0 flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-sm text-red-400 mb-2">
+                <div className="shrink-0 flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-sm text-red mb-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {error}
                 </div>
@@ -1292,11 +1292,11 @@ function ChatContent() {
 
             {/* Voice setup prompt — shown on first click if Deepgram not configured */}
             {showVoiceSetupPrompt && !voice.deepgramConfigured && (
-                <div className="shrink-0 flex items-start gap-3 mb-2 rounded-xl border border-indigo-500/30 bg-indigo-500/8 px-4 py-3">
-                    <Mic className="h-4 w-4 shrink-0 mt-0.5 text-indigo-400" />
+                <div className="shrink-0 flex items-start gap-3 mb-2 rounded-xl border border-indigo/30 bg-indigo-500/8 px-4 py-3">
+                    <Mic className="h-4 w-4 shrink-0 mt-0.5 text-indigo" />
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-indigo-200">Get better voice accuracy with Deepgram</p>
-                        <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                        <p className="text-xs text-text-muted mt-0.5 leading-relaxed">
                             Currently using browser speech recognition. Deepgram&apos;s Nova-3 model is significantly more accurate
                             and works across all channels including Telegram. Free $200 in credits.
                         </p>
@@ -1304,13 +1304,13 @@ function ChatContent() {
                     <div className="flex items-center gap-2 shrink-0 mt-0.5">
                         <Link
                             href="/settings/voice"
-                            className="rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors whitespace-nowrap"
+                            className="rounded-lg bg-indigo-dim hover:bg-indigo/90/30 border border-indigo/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors whitespace-nowrap"
                         >
                             Set up →
                         </Link>
                         <button
                             onClick={() => setShowVoiceSetupPrompt(false)}
-                            className="rounded-lg p-1.5 text-zinc-600 hover:text-zinc-400 transition-colors"
+                            className="rounded-lg p-1.5 text-text-muted hover:text-text-secondary transition-colors"
                             aria-label="Dismiss"
                         >
                             <X className="h-3.5 w-3.5" />
@@ -1323,7 +1323,7 @@ function ChatContent() {
             {isListening && messages.length > 0 && (
                 <div className="shrink-0 flex items-center justify-center gap-3 py-2 mb-1">
                     <VoiceWaveform active level={voice.level} />
-                    <span className="text-xs text-indigo-400 font-medium animate-pulse">Listening…</span>
+                    <span className="text-xs text-indigo font-medium animate-pulse">Listening…</span>
                     <VoiceWaveform active level={voice.level} />
                 </div>
             )}
@@ -1332,24 +1332,24 @@ function ChatContent() {
             {(suggestion || wantsAttachment) && !sending && !isListening && (
                 <div className="shrink-0 flex flex-col gap-2 mb-3 px-2">
                     {suggestion && (
-                        <div className="flex items-start gap-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-300 shadow-sm shadow-indigo-500/5 transition-all">
-                            <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-indigo-400" />
+                        <div className="flex items-start gap-3 rounded-xl border border-indigo/30 bg-indigo-dim px-4 py-3 text-sm text-indigo-300 shadow-sm shadow-indigo-500/5 transition-all">
+                            <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-indigo" />
                             <div className="flex-1">
                                 <span className="font-semibold block text-indigo-200">Suggested Model: {suggestion.suggestedModel}</span>
-                                <span className="text-indigo-400/80 text-xs mt-0.5 block">{suggestion.reason}</span>
+                                <span className="text-indigo/80 text-xs mt-0.5 block">{suggestion.reason}</span>
                             </div>
-                            <Link href="/settings/ai-providers" className="whitespace-nowrap rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors">
+                            <Link href="/settings/ai-providers" className="whitespace-nowrap rounded-lg bg-indigo-dim hover:bg-indigo/90/30 border border-indigo/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors">
                                 Change model →
                             </Link>
                         </div>
                     )}
                     {wantsAttachment && (
-                        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300 shadow-sm shadow-amber-500/5 transition-all">
-                            <FileUp className="h-4 w-4 shrink-0 text-amber-400" />
-                            <span className="flex-1 text-amber-500/90 text-xs font-medium">
+                        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-dim px-4 py-3 text-sm text-amber-300 shadow-sm shadow-amber-500/5 transition-all">
+                            <FileUp className="h-4 w-4 shrink-0 text-amber" />
+                            <span className="flex-1 text-amber/90 text-xs font-medium">
                                 Did you forget an attachment? We noticed you mentioned a file or image in your prompt.
                             </span>
-                            <button className="whitespace-nowrap rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-400 transition-colors shadow-sm"
+                            <button className="whitespace-nowrap rounded-lg bg-amber/20 hover:bg-amber/30 border border-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber transition-colors shadow-sm"
                                 onClick={() => document.getElementById('file-upload-invisible')?.click()}
                             >
                                 Attach file
@@ -1361,7 +1361,7 @@ function ChatContent() {
             )}
 
             {/* Input area */}
-            <div className="shrink-0 flex flex-col gap-2 pt-3 border-t border-zinc-800">
+            <div className="shrink-0 flex flex-col gap-2 pt-3 border-t border-border">
                 {/* Pasted image previews */}
                 {pastedImages.length > 0 && (
                     <div className="flex flex-wrap gap-2 px-1">
@@ -1371,11 +1371,11 @@ function ChatContent() {
                                 <img
                                     src={img.dataUrl}
                                     alt={img.name}
-                                    className="h-20 w-20 rounded-lg border border-zinc-700 object-cover"
+                                    className="h-20 w-20 rounded-lg border border-border object-cover"
                                 />
                                 <button
                                     onClick={() => removeImage(img.id)}
-                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-red-500 hover:border-red-400 transition-all opacity-0 group-hover:opacity-100"
+                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-surface-2 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-red hover:border-red-400 transition-all opacity-0 group-hover:opacity-100"
                                     aria-label="Remove image"
                                 >
                                     <X className="h-3 w-3" />
@@ -1389,15 +1389,15 @@ function ChatContent() {
                 {pastedDocs.length > 0 && (
                     <div className="flex flex-wrap gap-2 px-1">
                         {pastedDocs.map((doc) => (
-                            <div key={doc.id} className="relative group flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-xs text-zinc-300 max-w-[320px]">
-                                <FileText className="h-3.5 w-3.5 shrink-0 text-indigo-400" />
+                            <div key={doc.id} className="relative group flex items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-xs text-text-secondary max-w-[320px]">
+                                <FileText className="h-3.5 w-3.5 shrink-0 text-indigo" />
                                 <div className="min-w-0 flex-1">
                                     <p className="font-medium truncate leading-tight">{doc.name}</p>
-                                    <p className="text-zinc-500 text-[10px] leading-tight">{doc.lineCount} lines · {(doc.charCount / 1000).toFixed(1)}k chars</p>
+                                    <p className="text-text-muted text-[10px] leading-tight">{doc.lineCount} lines · {(doc.charCount / 1000).toFixed(1)}k chars</p>
                                 </div>
                                 <button
                                     onClick={() => setPastedDocs((prev) => prev.filter(d => d.id !== doc.id))}
-                                    className="shrink-0 h-5 w-5 rounded-full bg-zinc-700 border border-zinc-600 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-red-500 hover:border-red-400 transition-all opacity-0 group-hover:opacity-100 ml-1"
+                                    className="shrink-0 h-5 w-5 rounded-full bg-zinc-700 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-red hover:border-red-400 transition-all opacity-0 group-hover:opacity-100 ml-1"
                                     aria-label="Remove document"
                                 >
                                     <X className="h-3 w-3" />
@@ -1417,8 +1417,8 @@ function ChatContent() {
                             disabled={sending}
                             title={isListening ? 'Stop recording' : 'Voice input'}
                             className={`flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all duration-200 ${isListening
-                                ? 'bg-red-500/20 border border-red-500/40 text-red-400 shadow-[0_0_16px_rgba(239,68,68,0.3)] animate-pulse'
-                                : 'border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 bg-zinc-900'
+                                ? 'bg-red/20 border border-red-500/40 text-red shadow-[0_0_16px_rgba(239,68,68,0.3)] animate-pulse'
+                                : 'border border-border text-text-muted hover:text-text-secondary hover:border-zinc-500 bg-surface-1'
                                 } disabled:opacity-40 disabled:cursor-not-allowed`}
                             aria-label={isListening ? 'Stop recording' : 'Start voice input'}
                         >
@@ -1435,7 +1435,7 @@ function ChatContent() {
                         onClick={() => fileInputRef.current?.click()}
                         disabled={sending || isListening}
                         title="Attach image"
-                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border text-text-muted hover:text-text-secondary hover:border-zinc-500 bg-surface-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         aria-label="Attach image"
                     >
                         <ImageIcon className="h-4 w-4" />
@@ -1460,7 +1460,7 @@ function ChatContent() {
                         placeholder={isListening ? 'Listening…' : pastedImages.length > 0 ? 'Add a message or just send the image…' : pastedDocs.length > 0 ? 'Add a note or just send the document…' : 'Message your agent… (paste images, Enter to send)'}
                         rows={1}
                         disabled={sending || isListening}
-                        className="flex-1 resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
+                        className="flex-1 resize-none rounded-xl border border-border bg-surface-1 px-4 py-3 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
                         style={{ minHeight: '48px' }}
                     />
 
@@ -1468,7 +1468,7 @@ function ChatContent() {
                         id="send-btn"
                         onClick={() => void sendMessage()}
                         disabled={sending || (!input.trim() && pastedImages.length === 0 && pastedDocs.length === 0) || isListening}
-                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-indigo-600 p-3 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-indigo p-3 text-text-primary hover:bg-indigo/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         aria-label="Send"
                     >
                         {sending

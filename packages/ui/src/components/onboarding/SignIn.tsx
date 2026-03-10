@@ -50,40 +50,40 @@ export function SignIn({ onSignIn, apiUrl }: { onSignIn: () => void; apiUrl?: st
 
     return (
         <div className="flex flex-col p-6 space-y-6 max-w-md mx-auto h-full justify-center text-center">
-            <h1 className="text-2xl font-bold text-zinc-100">Sign In</h1>
+            <h1 className="text-2xl font-bold text-text-primary">Sign In</h1>
             <form onSubmit={handleSubmit} className="flex flex-col space-y-4 text-left">
                 <div>
-                    <label className="text-sm font-medium text-zinc-400">Email</label>
+                    <label className="text-sm font-medium text-text-secondary">Email</label>
                     <input 
                         type="email" 
                         required
                         value={email}
                         onChange={e => setEmail(e.target.value)}
-                        className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 mt-1 focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 bg-canvas border border-border rounded-lg text-text-primary mt-1 focus:outline-none focus:border-indigo"
                     />
                 </div>
                 <div>
-                    <label className="text-sm font-medium text-zinc-400">Password</label>
+                    <label className="text-sm font-medium text-text-secondary">Password</label>
                     <input 
                         type="password" 
                         required
                         value={password}
                         onChange={e => setPassword(e.target.value)}
-                        className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 mt-1 focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 bg-canvas border border-border rounded-lg text-text-primary mt-1 focus:outline-none focus:border-indigo"
                     />
                 </div>
                 
-                {error && <p className="text-red-400 text-sm font-medium">{error}</p>}
+                {error && <p className="text-red text-sm font-medium">{error}</p>}
                 
                 <button 
                     type="submit"
                     disabled={loading || !email || !password}
-                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold disabled:opacity-50 transition-colors"
+                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-text-primary rounded-lg font-semibold disabled:opacity-50 transition-colors"
                 >
                     {loading ? '...' : 'Sign In'}
                 </button>
             </form>
-            <p className="text-sm text-zinc-500 mt-4">Forgot your password? Reset it from the web client.</p>
+            <p className="text-sm text-text-muted mt-4">Forgot your password? Reset it from the web client.</p>
         </div>
     )
 }

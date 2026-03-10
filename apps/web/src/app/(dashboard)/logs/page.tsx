@@ -32,20 +32,20 @@ interface LogEntry {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-    complete: 'bg-emerald-950 text-emerald-400 border-emerald-800',
+    complete: 'bg-emerald-950 text-emerald border-emerald-800',
     running: 'bg-blue-950 text-blue-400 border-blue-800',
-    queued: 'bg-zinc-800 text-zinc-400 border-zinc-700',
-    blocked: 'bg-amber-950 text-amber-400 border-amber-800',
-    failed: 'bg-red-950 text-red-400 border-red-800',
-    cancelled: 'bg-zinc-900 text-zinc-600 border-zinc-800',
+    queued: 'bg-surface-2 text-text-secondary border-border',
+    blocked: 'bg-amber-950 text-amber border-amber-800',
+    failed: 'bg-red-950 text-red border-red-800',
+    cancelled: 'bg-surface-1 text-text-muted border-border',
 }
 
 const SOURCE_COLOR: Record<string, string> = {
     chat: 'text-violet-400',
     telegram: 'text-sky-400',
-    cron: 'text-amber-400',
-    api: 'text-zinc-400',
-    sprint: 'text-emerald-400',
+    cron: 'text-amber',
+    api: 'text-text-secondary',
+    sprint: 'text-emerald',
 }
 
 function taskDescription(ctx: Record<string, unknown>): string {
@@ -168,13 +168,13 @@ export default function LogsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Logs</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">Agent work ledger — {logs.length} entries</p>
+                    <p className="mt-0.5 text-sm text-text-muted">Agent work ledger — {logs.length} entries</p>
                 </div>
                 <button
                     onClick={() => void fetchLogsData()}
                     disabled={loading}
                     title="Refresh Activity"
-                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors disabled:opacity-40"
                 >
                     <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">Refresh</span>
@@ -194,18 +194,18 @@ export default function LogsPage() {
             />
 
             {loading ? (
-                <div className="flex items-center justify-center py-16 text-sm text-zinc-600">
+                <div className="flex items-center justify-center py-16 text-sm text-text-muted">
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                     Loading logs…
                 </div>
             ) : logs.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
-                    <p className="text-sm text-zinc-500">No log entries yet</p>
+                <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
+                    <p className="text-sm text-text-muted">No log entries yet</p>
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center">
-                    <p className="text-sm text-zinc-500">No logs match your filters.</p>
-                    <button onClick={lf.clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto">
+                <div className="rounded-xl border border-border bg-surface-1/40 py-12 text-center">
+                    <p className="text-sm text-text-muted">No logs match your filters.</p>
+                    <button onClick={lf.clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto">
                         Clear filters
                     </button>
                 </div>
@@ -219,49 +219,49 @@ export default function LogsPage() {
                             <Link
                                 key={log.id}
                                 href={`/logs/${log.id}`}
-                                className="group flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 transition-colors hover:border-zinc-700 hover:bg-zinc-900/80"
+                                className="group flex items-center gap-4 rounded-xl border border-border bg-surface-1/40 px-4 py-3.5 transition-colors hover:border-border hover:bg-surface-1/80"
                             >
-                                <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[log.status] ?? 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                                <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[log.status] ?? 'bg-surface-2 text-text-muted border-border'}`}>
                                     {log.status}
                                 </span>
 
-                                <span className={`shrink-0 w-16 text-xs font-medium capitalize ${SOURCE_COLOR[log.source] ?? 'text-zinc-500'}`}>
+                                <span className={`shrink-0 w-16 text-xs font-medium capitalize ${SOURCE_COLOR[log.source] ?? 'text-text-muted'}`}>
                                     {log.source}
                                 </span>
 
-                                <span className="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500 capitalize">
+                                <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted capitalize">
                                     {log.type}
                                 </span>
 
-                                <span className="flex-1 truncate text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                                    {desc ? desc.slice(0, 120) : <span className="italic text-zinc-600">{log.type} task</span>}
+                                <span className="flex-1 truncate text-sm text-text-secondary group-hover:text-text-primary transition-colors">
+                                    {desc ? desc.slice(0, 120) : <span className="italic text-text-muted">{log.type} task</span>}
                                 </span>
 
                                 {log.outcomeSummary && (
-                                    <span className="hidden xl:block max-w-[200px] truncate text-xs text-zinc-600">
+                                    <span className="hidden xl:block max-w-[200px] truncate text-xs text-text-muted">
                                         {log.outcomeSummary.slice(0, 80)}
                                     </span>
                                 )}
 
-                                <div className="flex shrink-0 items-center justify-end gap-4 text-xs text-zinc-600 w-[240px]">
+                                <div className="flex shrink-0 items-center justify-end gap-4 text-xs text-text-muted w-[240px]">
                                     {log.tokensIn != null && (
                                         <span className="hidden lg:block truncate max-w-[80px]">
                                             {((log.tokensIn ?? 0) + (log.tokensOut ?? 0)).toLocaleString()} tok
                                         </span>
                                     )}
                                     {log.costUsd != null && log.costUsd > 0 && (
-                                        <span className="hidden lg:block text-zinc-500 truncate max-w-[60px]">${log.costUsd.toFixed(4)}</span>
+                                        <span className="hidden lg:block text-text-muted truncate max-w-[60px]">${log.costUsd.toFixed(4)}</span>
                                     )}
                                     {dur && <span className="hidden lg:block w-12 text-right">{dur}</span>}
                                     {log.qualityScore != null && (
-                                        <span className={log.qualityScore >= 0.8 ? 'text-emerald-500 hidden sm:block w-8 text-right' : log.qualityScore >= 0.5 ? 'text-amber-500 hidden sm:block w-8 text-right' : 'text-red-500 hidden sm:block w-8 text-right'}>
+                                        <span className={log.qualityScore >= 0.8 ? 'text-emerald hidden sm:block w-8 text-right' : log.qualityScore >= 0.5 ? 'text-amber hidden sm:block w-8 text-right' : 'text-red hidden sm:block w-8 text-right'}>
                                             {Math.round(log.qualityScore * 100)}%
                                         </span>
                                     )}
                                     <span className="text-zinc-700 min-w-[4rem] text-right">{relativeTime(ts)}</span>
                                 </div>
 
-                                <ChevronRight size={14} className="shrink-0 text-zinc-700 group-hover:text-zinc-500 transition-colors" />
+                                <ChevronRight size={14} className="shrink-0 text-zinc-700 group-hover:text-text-muted transition-colors" />
                             </Link>
                         )
                     })}

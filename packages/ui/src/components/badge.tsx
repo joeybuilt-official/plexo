@@ -8,11 +8,11 @@ interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const variantClasses = {
-    default: 'border-zinc-700 bg-zinc-800 text-zinc-300',
-    success: 'border-emerald-800 bg-emerald-950 text-emerald-400',
-    warning: 'border-amber-800 bg-amber-950 text-amber-400',
-    error: 'border-red-800 bg-red-950 text-red-400',
-    info: 'border-indigo-800 bg-indigo-950 text-indigo-400',
+    default: 'border-border bg-surface-2 text-text-secondary',
+    success: 'border-emerald-800 bg-emerald-950 text-emerald',
+    warning: 'border-amber-800 bg-amber-950 text-amber',
+    error: 'border-red-800 bg-red-950 text-red',
+    info: 'border-indigo-800 bg-indigo-950 text-indigo',
 }
 
 export function Badge({ className, variant = 'default', ...props }: BadgeProps) {

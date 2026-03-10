@@ -32,7 +32,7 @@ function relativeTime(ts: number): string {
 export function DiffViewer({ events, className = '' }: DiffViewerProps) {
     if (events.length === 0) {
         return (
-            <div className={`flex items-center justify-center h-full text-xs text-zinc-500 font-mono select-none ${className}`}>
+            <div className={`flex items-center justify-center h-full text-xs text-text-muted font-mono select-none ${className}`}>
                 <span className="opacity-50">no file changes yet</span>
             </div>
         )
@@ -46,11 +46,11 @@ export function DiffViewer({ events, className = '' }: DiffViewerProps) {
                 const removeCount = lines.filter((l) => l.type === 'remove').length
                 return (
                     <details key={i} open={i === events.length - 1}>
-                        <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-zinc-900/60 list-none select-text">
-                            <span className="font-mono text-xs text-zinc-300 flex-1 truncate">{ev.path}</span>
-                            <span className="text-xs text-emerald-400 font-mono">+{addCount}</span>
-                            <span className="text-xs text-red-400 font-mono">-{removeCount}</span>
-                            <span className="text-xs text-zinc-600">{relativeTime(ev.ts)}</span>
+                        <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-surface-1/60 list-none select-text">
+                            <span className="font-mono text-xs text-text-secondary flex-1 truncate">{ev.path}</span>
+                            <span className="text-xs text-emerald font-mono">+{addCount}</span>
+                            <span className="text-xs text-red font-mono">-{removeCount}</span>
+                            <span className="text-xs text-text-muted">{relativeTime(ev.ts)}</span>
                         </summary>
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs font-mono">
@@ -64,22 +64,22 @@ export function DiffViewer({ events, className = '' }: DiffViewerProps) {
                                                     : l.type === 'remove'
                                                     ? 'bg-red-950/40'
                                                     : l.type === 'header'
-                                                    ? 'bg-zinc-900/60'
+                                                    ? 'bg-surface-1/60'
                                                     : ''
                                             }
                                         >
                                             <td
                                                 className={`pl-3 pr-4 select-none w-4 ${
                                                     l.type === 'add'
-                                                        ? 'text-emerald-400'
+                                                        ? 'text-emerald'
                                                         : l.type === 'remove'
-                                                        ? 'text-red-400'
-                                                        : 'text-zinc-600'
+                                                        ? 'text-red'
+                                                        : 'text-text-muted'
                                                 }`}
                                             >
                                                 {l.type === 'add' ? '+' : l.type === 'remove' ? '-' : l.type === 'header' ? '' : ' '}
                                             </td>
-                                            <td className="pr-4 py-0.5 text-zinc-300 whitespace-pre">{l.text.slice(1) || l.text}</td>
+                                            <td className="pr-4 py-0.5 text-text-secondary whitespace-pre">{l.text.slice(1) || l.text}</td>
                                         </tr>
                                     ))}
                                 </tbody>

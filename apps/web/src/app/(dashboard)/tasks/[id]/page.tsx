@@ -56,14 +56,14 @@ async function fetchTask(id: string) {
 }
 
 const STATUS_CONFIG: Record<string, { icon: React.ReactNode; label: string; color: string; bg: string }> = {
-    pending: { icon: <Clock className="h-4 w-4" />, label: 'Pending', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-    queued: { icon: <Clock className="h-4 w-4" />, label: 'Queued', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+    pending: { icon: <Clock className="h-4 w-4" />, label: 'Pending', color: 'text-amber', bg: 'bg-amber-dim border-amber-500/20' },
+    queued: { icon: <Clock className="h-4 w-4" />, label: 'Queued', color: 'text-amber', bg: 'bg-amber-dim border-amber-500/20' },
     running: { icon: <Loader2 className="h-4 w-4 animate-spin" />, label: 'Running', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
     claimed: { icon: <Loader2 className="h-4 w-4 animate-spin" />, label: 'Running', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-    complete: { icon: <CheckCircle2 className="h-4 w-4" />, label: 'Complete', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-    failed: { icon: <XCircle className="h-4 w-4" />, label: 'Failed', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
-    blocked: { icon: <AlertTriangle className="h-4 w-4" />, label: 'Blocked', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
-    cancelled: { icon: <XCircle className="h-4 w-4" />, label: 'Cancelled', color: 'text-zinc-500', bg: 'bg-zinc-800/60 border-zinc-700/40' },
+    complete: { icon: <CheckCircle2 className="h-4 w-4" />, label: 'Complete', color: 'text-emerald', bg: 'bg-emerald-dim border-emerald-500/20' },
+    failed: { icon: <XCircle className="h-4 w-4" />, label: 'Failed', color: 'text-red', bg: 'bg-red-dim border-red-500/20' },
+    blocked: { icon: <AlertTriangle className="h-4 w-4" />, label: 'Blocked', color: 'text-red', bg: 'bg-red-dim border-red-500/20' },
+    cancelled: { icon: <XCircle className="h-4 w-4" />, label: 'Cancelled', color: 'text-text-muted', bg: 'bg-surface-2/60 border-border/40' },
 }
 
 function humanSource(source: string, context: Record<string, unknown>): string {
@@ -103,7 +103,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <Link href="/tasks" className="flex items-center justify-center min-h-[40px] min-w-[40px] md:min-h-[32px] md:min-w-[32px] rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors -ml-2">
+                    <Link href="/tasks" className="flex items-center justify-center min-h-[40px] min-w-[40px] md:min-h-[32px] md:min-w-[32px] rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-2/50 transition-colors -ml-2">
                         <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
                     </Link>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -111,15 +111,15 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                             {sc.icon}
                             {sc.label}
                         </span>
-                        <span className="rounded bg-zinc-800 px-2 py-0.5 text-[11px] capitalize text-zinc-400">{task.type}</span>
-                        <span className="inline-flex items-center gap-1 rounded bg-zinc-800/50 px-2 py-0.5 text-[11px] text-zinc-500">
+                        <span className="rounded bg-surface-2 px-2 py-0.5 text-[11px] capitalize text-text-secondary">{task.type}</span>
+                        <span className="inline-flex items-center gap-1 rounded bg-surface-2/50 px-2 py-0.5 text-[11px] text-text-muted">
                             <MessageSquare className="h-3 w-3" />
                             {humanSource(task.source, task.context ?? {})}
                         </span>
                         {task.projectId && (
                             <Link
                                 href={`/projects/${task.projectId}`}
-                                className="inline-flex items-center gap-1 rounded border border-indigo-800/30 bg-indigo-900/20 px-2 py-0.5 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                                className="inline-flex items-center gap-1 rounded border border-indigo-800/30 bg-indigo-900/20 px-2 py-0.5 text-[11px] text-indigo hover:text-indigo-300 transition-colors"
                             >
                                 <FolderOpen className="h-3 w-3" />
                                 {task.project ?? 'Project'}
@@ -139,43 +139,43 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
             {/* What was asked */}
             {message && (
-                <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4">
-                    <p className="mb-1.5 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Request</p>
-                    <p className="text-sm text-zinc-200 leading-relaxed">{message}</p>
+                <div className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
+                    <p className="mb-1.5 text-[11px] font-medium text-text-muted uppercase tracking-wider">Request</p>
+                    <p className="text-sm text-text-primary leading-relaxed">{message}</p>
                 </div>
             )}
 
             {/* Outcome — primary */}
             {task.outcomeSummary ? (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald/5 p-4">
                     <p className="mb-1.5 text-[11px] font-medium text-emerald-600 uppercase tracking-wider">Outcome</p>
-                    <p className="text-sm text-zinc-200 leading-relaxed">{task.outcomeSummary}</p>
+                    <p className="text-sm text-text-primary leading-relaxed">{task.outcomeSummary}</p>
                 </div>
             ) : task.status === 'running' || task.status === 'claimed' ? (
                 <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 flex items-center gap-3">
                     <Loader2 className="h-4 w-4 text-blue-400 animate-spin shrink-0" />
-                    <p className="text-sm text-zinc-400">Agent is working on this task…</p>
+                    <p className="text-sm text-text-secondary">Agent is working on this task…</p>
                 </div>
             ) : null}
 
             {/* Stats row */}
-            <div className="flex flex-wrap gap-3 text-[12px] text-zinc-500">
+            <div className="flex flex-wrap gap-3 text-[12px] text-text-muted">
                 {[
-                    task.qualityScore != null && { label: 'Quality', value: `${Math.round(task.qualityScore * 100)}%`, color: 'text-zinc-300' },
-                    task.costUsd != null && { label: 'Cost', value: `$${task.costUsd.toFixed(5)}`, color: 'text-zinc-400' },
-                    durationMs != null && { label: 'Duration', value: `${(durationMs / 1000).toFixed(1)}s`, color: 'text-zinc-400' },
-                    steps.length > 0 && { label: 'Steps', value: String(steps.length), color: 'text-zinc-400' },
+                    task.qualityScore != null && { label: 'Quality', value: `${Math.round(task.qualityScore * 100)}%`, color: 'text-text-secondary' },
+                    task.costUsd != null && { label: 'Cost', value: `$${task.costUsd.toFixed(5)}`, color: 'text-text-secondary' },
+                    durationMs != null && { label: 'Duration', value: `${(durationMs / 1000).toFixed(1)}s`, color: 'text-text-secondary' },
+                    steps.length > 0 && { label: 'Steps', value: String(steps.length), color: 'text-text-secondary' },
                     (task.tokensIn || task.tokensOut) && {
                         label: 'Tokens',
                         value: `${(task.tokensIn ?? 0).toLocaleString()} in · ${(task.tokensOut ?? 0).toLocaleString()} out`,
-                        color: 'text-zinc-500',
+                        color: 'text-text-muted',
                     },
-                    { label: 'Started', value: new Date(task.createdAt).toLocaleString(), color: 'text-zinc-500' },
+                    { label: 'Started', value: new Date(task.createdAt).toLocaleString(), color: 'text-text-muted' },
                 ].filter(Boolean).map((item) => {
                     const { label, value, color } = item as { label: string; value: string; color: string }
                     return (
-                        <span key={label} className="inline-flex items-center gap-1.5 rounded border border-zinc-800 bg-zinc-900/40 px-2.5 py-1">
-                            <span className="text-zinc-600">{label}</span>
+                        <span key={label} className="inline-flex items-center gap-1.5 rounded border border-border bg-surface-1/40 px-2.5 py-1">
+                            <span className="text-text-muted">{label}</span>
                             <span className={color}>{value}</span>
                         </span>
                     )
@@ -198,29 +198,29 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 return (
                     <div className="rounded-xl border border-indigo-800/30 bg-indigo-950/20 p-4 flex flex-col gap-3">
                         <div className="flex items-center gap-2">
-                            <Users className="h-3.5 w-3.5 text-indigo-400" />
-                            <span className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider">
+                            <Users className="h-3.5 w-3.5 text-indigo" />
+                            <span className="text-[11px] font-semibold text-indigo uppercase tracking-wider">
                                 Quality ensemble
                             </span>
-                            <span className="ml-auto text-[10px] text-indigo-400/60 capitalize">
+                            <span className="ml-auto text-[10px] text-indigo/60 capitalize">
                                 {judge.mode?.replace('+', ' + ')}
                             </span>
                         </div>
                         <div className="grid grid-cols-3 gap-3">
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-zinc-600">Self-assessed</span>
-                                <span className="text-sm font-semibold text-zinc-300">{selfPct != null ? `${selfPct}%` : '—'}</span>
+                                <span className="text-[10px] text-text-muted">Self-assessed</span>
+                                <span className="text-sm font-semibold text-text-secondary">{selfPct != null ? `${selfPct}%` : '—'}</span>
                             </div>
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-zinc-600">Verified</span>
-                                <span className="text-sm font-semibold text-emerald-400">{verPct != null ? `${verPct}%` : '—'}</span>
+                                <span className="text-[10px] text-text-muted">Verified</span>
+                                <span className="text-sm font-semibold text-emerald">{verPct != null ? `${verPct}%` : '—'}</span>
                             </div>
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-zinc-600">Delta</span>
-                                <span className={`text-sm font-semibold ${delta == null ? 'text-zinc-500'
-                                        : delta > 0 ? 'text-emerald-400'
+                                <span className="text-[10px] text-text-muted">Delta</span>
+                                <span className={`text-sm font-semibold ${delta == null ? 'text-text-muted'
+                                        : delta > 0 ? 'text-emerald'
                                             : delta < 0 ? 'text-rose-400'
-                                                : 'text-zinc-400'
+                                                : 'text-text-secondary'
                                     }`}>
                                     {delta != null ? `${delta > 0 ? '+' : ''}${delta}pp` : '—'}
                                 </span>
@@ -228,12 +228,12 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                         </div>
                         {judge.models && judge.models.length > 0 && (
                             <div className="flex flex-col gap-1">
-                                <span className="text-[10px] text-zinc-600">{judge.judgeCount} judge{judge.judgeCount !== 1 ? 's' : ''}</span>
+                                <span className="text-[10px] text-text-muted">{judge.judgeCount} judge{judge.judgeCount !== 1 ? 's' : ''}</span>
                                 <div className="flex flex-wrap gap-1">
                                     {judge.models.map((m) => (
                                         <span key={m} className={`rounded px-1.5 py-0.5 text-[10px] font-mono ${(judge.dissenters ?? []).includes(m)
                                                 ? 'bg-rose-900/30 text-rose-400'
-                                                : 'bg-zinc-800 text-zinc-400'
+                                                : 'bg-surface-2 text-text-secondary'
                                             }`}>{m}</span>
                                     ))}
                                 </div>
@@ -248,13 +248,13 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
             {/* Context — human-readable fields only */}
             {contextItems.length > 0 && (
-                <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4">
-                    <p className="mb-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Context</p>
+                <div className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
+                    <p className="mb-3 text-[11px] font-medium text-text-muted uppercase tracking-wider">Context</p>
                     <dl className="flex flex-col gap-2">
                         {contextItems.map(({ label, value }) => (
                             <div key={label} className="flex gap-3 text-sm">
-                                <dt className="w-32 shrink-0 text-zinc-600">{label}</dt>
-                                <dd className="text-zinc-300 break-all">{value}</dd>
+                                <dt className="w-32 shrink-0 text-text-muted">{label}</dt>
+                                <dd className="text-text-secondary break-all">{value}</dd>
                             </div>
                         ))}
                     </dl>
@@ -264,36 +264,36 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             {/* Execution steps — collapsed summary */}
             {steps.length > 0 && (
                 <div>
-                    <p className="mb-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                    <p className="mb-3 text-[11px] font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
                         <Zap className="h-3 w-3" />
                         Execution steps ({steps.length})
                     </p>
                     <div className="flex flex-col gap-2">
                         {steps.map((step) => (
-                            <div key={step.id} className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
+                            <div key={step.id} className="rounded-xl border border-border bg-surface-1/30 p-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <span className={`text-[11px] font-medium ${step.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        <span className={`text-[11px] font-medium ${step.ok ? 'text-emerald' : 'text-red'}`}>
                                             Step {step.stepNumber}
                                         </span>
                                         {step.model && (
-                                            <span className="rounded border border-indigo-800/40 bg-indigo-950/30 px-1.5 py-0.5 text-[10px] font-mono text-indigo-400">
+                                            <span className="rounded border border-indigo-800/40 bg-indigo-950/30 px-1.5 py-0.5 text-[10px] font-mono text-indigo">
                                                 {step.model}
                                             </span>
                                         )}
                                         {step.toolCalls?.map((tc, i) => (
-                                            <span key={i} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500">
+                                            <span key={i} className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-muted">
                                                 {tc.tool}
                                             </span>
                                         ))}
                                     </div>
-                                    <div className="flex items-center gap-2 text-[10px] text-zinc-600 shrink-0 ml-2">
+                                    <div className="flex items-center gap-2 text-[10px] text-text-muted shrink-0 ml-2">
                                         {step.durationMs != null && <span>{step.durationMs}ms</span>}
                                         {step.tokensIn != null && <span>{step.tokensIn?.toLocaleString()}t</span>}
                                     </div>
                                 </div>
                                 {step.output && (
-                                    <p className="mt-2 text-[11px] text-zinc-500 leading-relaxed line-clamp-3">
+                                    <p className="mt-2 text-[11px] text-text-muted leading-relaxed line-clamp-3">
                                         {step.output.slice(0, 400)}{step.output.length > 400 ? '…' : ''}
                                     </p>
                                 )}

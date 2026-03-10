@@ -12,6 +12,7 @@ import { EnableNotifications } from '@plexo/ui/components/onboarding/EnableNotif
 import { EnableBiometric } from '@plexo/ui/components/onboarding/EnableBiometric'
 import { OnboardingComplete } from '@plexo/ui/components/onboarding/OnboardingComplete'
 import { getRuntimeContext } from '@plexo/ui/lib/runtime'
+import { PlexoMark } from '@web/components/plexo-logo'
 
 export default function OnboardingPage() {
     const router = useRouter()
@@ -42,15 +43,15 @@ export default function OnboardingPage() {
         if (step === 1) {
             return (
                 <div className="flex flex-col p-6 space-y-6 max-w-md mx-auto h-full justify-center text-center">
-                    <div className="flex items-center justify-center w-16 h-16 bg-indigo-500 rounded-2xl mx-auto mb-4">
-                        <span className="text-white text-3xl font-bold">P</span>
+                    <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4">
+                        <PlexoMark className="w-12 h-12 text-indigo drop-shadow-lg" />
                     </div>
-                    <h1 className="text-3xl font-bold text-zinc-100">Welcome to Plexo</h1>
-                    <p className="text-zinc-400">Your AI agentic platform.</p>
+                    <h1 className="text-3xl font-bold text-text-primary">Welcome to Plexo</h1>
+                    <p className="text-text-secondary">Your AI agentic platform.</p>
                     
                     <button 
                         onClick={() => router.push('/onboarding?step=2')}
-                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold flex items-center justify-center transition-colors shadow-lg shadow-indigo-500/20 mt-12"
+                        className="w-full py-3 bg-indigo hover:bg-indigo/90 text-white rounded-lg font-semibold flex items-center justify-center transition-colors shadow-lg shadow-indigo/20 mt-12"
                     >
                         Get Started
                     </button>

@@ -113,7 +113,7 @@ function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputEleme
     'use no memo';
     return (
         <input
-            className={`min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 disabled:opacity-40 w-full ${className ?? ''}`}
+            className={`min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 disabled:opacity-40 w-full ${className ?? ''}`}
             {...props}
         />
     )
@@ -123,7 +123,7 @@ function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLText
     'use no memo';
     return (
         <textarea
-            className={`min-h-[44px] w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 leading-relaxed ${className ?? ''}`}
+            className={`min-h-[44px] w-full resize-none rounded-lg border border-border bg-surface-1 px-3 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 leading-relaxed ${className ?? ''}`}
             {...props}
         />
     )
@@ -135,7 +135,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
         <button
             type="button"
             onClick={onChange}
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-950 min-h-[44px] ${checked ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo focus:ring-offset-2 focus:ring-offset-zinc-950 min-h-[44px] ${checked ? 'bg-indigo' : 'bg-zinc-700'}`}
         >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
         </button>
@@ -145,19 +145,19 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
 function Field({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
     return (
         <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-zinc-300">{label}</label>
+            <label className="text-sm font-medium text-text-secondary">{label}</label>
             {children}
-            {description && <p className="text-xs text-zinc-600">{description}</p>}
+            {description && <p className="text-xs text-text-muted">{description}</p>}
         </div>
     )
 }
 
 function Section({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
     return (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 sm:p-5">
+        <div className="rounded-xl border border-border bg-surface-1/40 p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
-                <Icon className="h-4 w-4 text-zinc-500" />
-                <h2 className="text-sm font-semibold text-zinc-200">{title}</h2>
+                <Icon className="h-4 w-4 text-text-muted" />
+                <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
             </div>
             <div className="flex flex-col gap-4">{children}</div>
         </div>
@@ -184,28 +184,28 @@ const ICON_MAP: Record<string, React.ElementType> = {
 }
 
 const COLOR_MAP: Record<string, { border: string; accent: string; bg: string; text: string; badge: string }> = {
-    red: { border: 'border-red-800/40', accent: 'border-l-red-500', bg: 'bg-red-950/20', text: 'text-red-400', badge: 'bg-red-900/30 text-red-400' },
-    amber: { border: 'border-amber-800/40', accent: 'border-l-amber-500', bg: 'bg-amber-950/20', text: 'text-amber-400', badge: 'bg-amber-900/30 text-amber-400' },
+    red: { border: 'border-red-800/40', accent: 'border-l-red-500', bg: 'bg-red-950/20', text: 'text-red', badge: 'bg-red-900/30 text-red' },
+    amber: { border: 'border-amber-800/40', accent: 'border-l-amber-500', bg: 'bg-amber-950/20', text: 'text-amber', badge: 'bg-amber-900/30 text-amber' },
     blue: { border: 'border-blue-800/40', accent: 'border-l-blue-500', bg: 'bg-blue-950/20', text: 'text-blue-400', badge: 'bg-blue-900/30 text-blue-400' },
     green: { border: 'border-green-800/40', accent: 'border-l-green-500', bg: 'bg-green-950/20', text: 'text-green-400', badge: 'bg-green-900/30 text-green-400' },
     purple: { border: 'border-purple-800/40', accent: 'border-l-purple-500', bg: 'bg-purple-950/20', text: 'text-purple-400', badge: 'bg-purple-900/30 text-purple-400' },
     orange: { border: 'border-orange-800/40', accent: 'border-l-orange-500', bg: 'bg-orange-950/20', text: 'text-orange-400', badge: 'bg-orange-900/30 text-orange-400' },
-    zinc: { border: 'border-zinc-700/40', accent: 'border-l-zinc-500', bg: 'bg-zinc-900/20', text: 'text-zinc-400', badge: 'bg-zinc-800/40 text-zinc-400' },
+    zinc: { border: 'border-border/40', accent: 'border-l-zinc-500', bg: 'bg-surface-1/20', text: 'text-text-secondary', badge: 'bg-surface-2/40 text-text-secondary' },
 }
 
 function SourceBadge({ source }: { source: RuleSource }) {
     const map: Record<RuleSource, string> = {
-        platform: 'bg-zinc-800 text-zinc-500',
+        platform: 'bg-surface-2 text-text-muted',
         workspace: 'bg-blue-900/30 text-blue-400',
         project: 'bg-purple-900/30 text-purple-400',
-        task: 'bg-amber-900/30 text-amber-400',
+        task: 'bg-amber-900/30 text-amber',
     }
     return <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wide ${map[source]}`}>{source}</span>
 }
 
 function RuleValueEditor({ val, locked, onChange }: { val: RuleValue; locked: boolean; onChange: (v: RuleValue) => void }) {
     if (locked) {
-        return <span className="text-sm text-zinc-500 font-mono">{val.type === 'boolean' ? (val.value ? 'enabled' : 'disabled') : String(val.value)}</span>
+        return <span className="text-sm text-text-muted font-mono">{val.type === 'boolean' ? (val.value ? 'enabled' : 'disabled') : String(val.value)}</span>
     }
     switch (val.type) {
         case 'boolean':
@@ -214,30 +214,30 @@ function RuleValueEditor({ val, locked, onChange }: { val: RuleValue; locked: bo
             return (
                 <input type="number" value={val.value as number} min={val.min} max={val.max}
                     onChange={e => onChange({ ...val, value: parseFloat(e.target.value) })}
-                    className="w-full sm:w-24 min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full sm:w-24 min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none"
                 />
             )
         case 'enum':
             return (
                 <select value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
-                    className="w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none">
+                    className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none">
                     {(val.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
             )
         case 'string':
             return (
                 <input type="text" value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
-                    className="flex-1 w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                    className="flex-1 w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none"
                 />
             )
         case 'text_block':
             return (
                 <textarea value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })} rows={3}
-                    className="flex-1 w-full resize-none min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none leading-relaxed"
+                    className="flex-1 w-full resize-none min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none leading-relaxed"
                 />
             )
         default:
-            return <span className="text-xs text-zinc-600 font-mono break-all">{JSON.stringify(val.value)}</span>
+            return <span className="text-xs text-text-muted font-mono break-all">{JSON.stringify(val.value)}</span>
     }
 }
 
@@ -277,18 +277,18 @@ function RuleRow({ rule, onUpdate, onDelete, showSource = false, overriddenBy }:
     const needsTextSave = ['text_block', 'string', 'json'].includes(localVal.type)
 
     return (
-        <div className={`group flex flex-col gap-2 py-3 border-b border-zinc-800/60 last:border-0 ${overriddenBy ? 'opacity-60' : ''}`}>
+        <div className={`group flex flex-col gap-2 py-3 border-b border-border/60 last:border-0 ${overriddenBy ? 'opacity-60' : ''}`}>
             <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
-                    {rule.locked && <Lock className="h-3.5 w-3.5 text-zinc-600 mt-0.5 shrink-0" />}
+                    {rule.locked && <Lock className="h-3.5 w-3.5 text-text-muted mt-0.5 shrink-0" />}
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium text-zinc-200">{rule.label}</span>
+                            <span className="text-sm font-medium text-text-primary">{rule.label}</span>
                             {showSource && <SourceBadge source={source} />}
-                            {overriddenBy && <span className="text-[10px] text-zinc-600 italic">overridden at {overriddenBy.source} level</span>}
-                            {rule.locked && <span className="text-[10px] text-zinc-600 px-1.5 py-0.5 rounded border border-zinc-800">enforced</span>}
+                            {overriddenBy && <span className="text-[10px] text-text-muted italic">overridden at {overriddenBy.source} level</span>}
+                            {rule.locked && <span className="text-[10px] text-text-muted px-1.5 py-0.5 rounded border border-border">enforced</span>}
                         </div>
-                        {rule.description && <p className="text-xs text-zinc-600 mt-0.5">{rule.description}</p>}
+                        {rule.description && <p className="text-xs text-text-muted mt-0.5">{rule.description}</p>}
                     </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
@@ -297,13 +297,13 @@ function RuleRow({ rule, onUpdate, onDelete, showSource = false, overriddenBy }:
                     </div>
                     {needsTextSave && dirty && (
                         <button onClick={() => void handleSave()} disabled={saving}
-                            className="text-[16px] sm:text-xs bg-indigo-600 text-white min-h-[44px] min-w-[44px] rounded-lg hover:bg-indigo-500 disabled:opacity-50 flex flex-col items-center justify-center shrink-0">
+                            className="text-[16px] sm:text-xs bg-indigo text-text-primary min-h-[44px] min-w-[44px] rounded-lg hover:bg-indigo/90 disabled:opacity-50 flex flex-col items-center justify-center shrink-0">
                             {saving ? <RefreshCw className="h-4 w-4 sm:h-3 sm:w-3 animate-spin" /> : <Check className="h-4 w-4 sm:h-3 sm:w-3" />}
                         </button>
                     )}
                     {!rule.locked && (
                         <button onClick={() => onDelete(id)}
-                            className="text-zinc-700 hover:text-red-400 transition-colors sm:opacity-0 group-hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
+                            className="text-zinc-700 hover:text-red transition-colors sm:opacity-0 group-hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
                             aria-label="Delete rule">
                             <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         </button>
@@ -338,20 +338,20 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
     }
 
     return (
-        <div className="mt-3 border border-dashed border-zinc-700 rounded-xl p-4 flex flex-col gap-4 sm:gap-3 bg-zinc-900/30 w-full">
+        <div className="mt-3 border border-dashed border-border rounded-xl p-4 flex flex-col gap-4 sm:gap-3 bg-surface-1/30 w-full">
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-3">
                 <div className="flex-1">
-                    <label className="text-xs text-zinc-500 mb-1 block">Label</label>
+                    <label className="text-xs text-text-muted mb-1 block">Label</label>
                     <input type="text" value={label} onChange={e => setLabel(e.target.value)} autoFocus
                         placeholder="e.g. Always use TypeScript strict mode"
-                        className="w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                        className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                     />
                     {autoKey && <p className="text-[10px] text-zinc-700 mt-1 sm:mt-0.5 font-mono">key: {autoKey}</p>}
                 </div>
                 <div>
-                    <label className="text-xs text-zinc-500 mb-1 block">Type</label>
+                    <label className="text-xs text-text-muted mb-1 block">Type</label>
                     <select value={valueType} onChange={e => setValueType(e.target.value as RuleValue['type'])}
-                        className="w-full sm:w-auto min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none">
+                        className="w-full sm:w-auto min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none">
                         <option value="text_block">Text block</option>
                         <option value="string">Short string</option>
                         <option value="boolean">Toggle</option>
@@ -361,33 +361,33 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                 </div>
             </div>
             <div>
-                <label className="text-xs text-zinc-500 mb-1 block">
+                <label className="text-xs text-text-muted mb-1 block">
                     {valueType === 'text_block' ? 'Content' : valueType === 'enum' ? 'Options (comma-separated)' : 'Value'}
                 </label>
                 {valueType === 'text_block' ? (
                     <textarea rows={3} value={value} onChange={e => setValue(e.target.value)}
                         placeholder="Enter the rule content…"
-                        className="w-full resize-none min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                        className="w-full resize-none min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                     />
                 ) : (
                     <input type={valueType === 'number' ? 'number' : 'text'} value={value} onChange={e => setValue(e.target.value)}
                         placeholder={valueType === 'enum' ? 'option1, option2, option3' : ''}
-                        className="w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                        className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                     />
                 )}
             </div>
             <div>
-                <label className="text-xs text-zinc-500 mb-1 block">Description (optional)</label>
+                <label className="text-xs text-text-muted mb-1 block">Description (optional)</label>
                 <input type="text" value={description} onChange={e => setDescription(e.target.value)}
                     placeholder="What does this rule do?"
-                    className="w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                    className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                 />
             </div>
             <div className="flex flex-col sm:flex-row gap-2 justify-end mt-2">
-                <button onClick={onCancel} className="text-[16px] sm:text-xs text-zinc-400 hover:text-zinc-200 min-h-[44px] px-4 rounded-lg transition-colors border border-zinc-800 sm:border-transparent">Cancel</button>
+                <button onClick={onCancel} className="text-[16px] sm:text-xs text-text-secondary hover:text-text-primary min-h-[44px] px-4 rounded-lg transition-colors border border-border sm:border-transparent">Cancel</button>
                 <button onClick={() => { if (!label.trim()) return; onAdd({ type, key: autoKey, label: label.trim(), description, value: buildValue() }) }}
                     disabled={!label.trim()}
-                    className="flex justify-center items-center text-[16px] sm:text-xs bg-indigo-600 text-white min-h-[44px] px-4 rounded-lg hover:bg-indigo-500 disabled:opacity-40 transition-colors cursor-pointer">
+                    className="flex justify-center items-center text-[16px] sm:text-xs bg-indigo text-text-primary min-h-[44px] px-4 rounded-lg hover:bg-indigo/90 disabled:opacity-40 transition-colors cursor-pointer">
                     Add rule
                 </button>
             </div>
@@ -413,24 +413,24 @@ function BehaviorCard({ group, rules, inheritanceMode, resolvedRules, onUpdate, 
         : rules.filter(r => group.ruleTypes.includes(r.type))
 
     return (
-        <div className={`rounded-xl border ${colors.border} border-l-4 ${colors.accent} bg-zinc-900/40 overflow-hidden`}>
+        <div className={`rounded-xl border ${colors.border} border-l-4 ${colors.accent} bg-surface-1/40 overflow-hidden`}>
             <button onClick={() => setExpanded(e => !e)}
-                className="w-full flex items-center gap-3 px-4 sm:px-5 py-4 min-h-[64px] hover:bg-zinc-800/20 transition-colors text-left">
+                className="w-full flex items-center gap-3 px-4 sm:px-5 py-4 min-h-[64px] hover:bg-surface-2/20 transition-colors text-left">
                 <div className={`p-1.5 rounded-lg ${colors.bg}`}>
                     <Icon className={`h-4 w-4 ${colors.text}`} />
                 </div>
                 <div className="flex-1 min-w-0 pr-2">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-zinc-200">{group.label}</span>
-                        {group.locked && <Lock className="h-3 w-3 text-zinc-600 shrink-0" />}
+                        <span className="text-sm font-semibold text-text-primary">{group.label}</span>
+                        {group.locked && <Lock className="h-3 w-3 text-text-muted shrink-0" />}
                     </div>
-                    <p className="text-xs text-zinc-600 truncate mt-0.5 max-w-[200px] sm:max-w-none">{group.description}</p>
+                    <p className="text-xs text-text-muted truncate mt-0.5 max-w-[200px] sm:max-w-none">{group.description}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors.badge}`}>
                         <span className="whitespace-nowrap">{displayRules.length} <span className="hidden sm:inline">{displayRules.length === 1 ? 'rule' : 'rules'}</span></span>
                     </span>
-                    <ChevronDown className={`h-4 w-4 text-zinc-600 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`} />
                 </div>
             </button>
             {expanded && (
@@ -459,7 +459,7 @@ function BehaviorCard({ group, rules, inheritanceMode, resolvedRules, onUpdate, 
                                 onCancel={() => setAdding(false)} />
                         ) : (
                             <button onClick={() => setAdding(true)}
-                                className={`mt-2 flex items-center justify-center gap-1.5 text-[16px] sm:text-xs ${colors.text} hover:opacity-80 transition-opacity min-h-[44px] w-full sm:w-auto sm:justify-start border border-dashed border-zinc-800 sm:border-transparent rounded-lg`}>
+                                className={`mt-2 flex items-center justify-center gap-1.5 text-[16px] sm:text-xs ${colors.text} hover:opacity-80 transition-opacity min-h-[44px] w-full sm:w-auto sm:justify-start border border-dashed border-border sm:border-transparent rounded-lg`}>
                                 <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> Add rule
                             </button>
                         )
@@ -498,21 +498,21 @@ function SystemPromptPreview({ workspaceId, refreshTick }: { workspaceId: string
     }, [open, workspaceId, refreshTick])
 
     return (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+        <div className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
             <button onClick={() => setOpen(o => !o)}
-                className="w-full flex items-center gap-3 px-4 sm:px-5 py-4 min-h-[64px] hover:bg-zinc-800/20 transition-colors text-left">
-                {open ? <EyeOff className="h-4 w-4 text-zinc-500 shrink-0" /> : <Eye className="h-4 w-4 text-zinc-500 shrink-0" />}
-                <span className="text-sm font-medium text-zinc-300 min-w-0 truncate">{open ? 'Hide' : 'Preview'} compiled system prompt</span>
-                <span className="ml-auto text-xs text-zinc-600 shrink-0 hidden sm:inline">What the agent actually receives →</span>
+                className="w-full flex items-center gap-3 px-4 sm:px-5 py-4 min-h-[64px] hover:bg-surface-2/20 transition-colors text-left">
+                {open ? <EyeOff className="h-4 w-4 text-text-muted shrink-0" /> : <Eye className="h-4 w-4 text-text-muted shrink-0" />}
+                <span className="text-sm font-medium text-text-secondary min-w-0 truncate">{open ? 'Hide' : 'Preview'} compiled system prompt</span>
+                <span className="ml-auto text-xs text-text-muted shrink-0 hidden sm:inline">What the agent actually receives →</span>
             </button>
             {open && (
                 <div className="px-5 pb-5">
                     {loading ? (
-                        <div className="flex items-center gap-2 py-4 text-sm text-zinc-600"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Compiling…</div>
+                        <div className="flex items-center gap-2 py-4 text-sm text-text-muted"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Compiling…</div>
                     ) : prompt ? (
-                        <pre className="text-xs text-zinc-400 bg-zinc-950 rounded-lg p-4 overflow-auto max-h-80 whitespace-pre-wrap leading-relaxed border border-zinc-800">{prompt}</pre>
+                        <pre className="text-xs text-text-secondary bg-canvas rounded-lg p-4 overflow-auto max-h-80 whitespace-pre-wrap leading-relaxed border border-border">{prompt}</pre>
                     ) : (
-                        <p className="text-sm text-zinc-600 py-2 italic">No rules configured yet.</p>
+                        <p className="text-sm text-text-muted py-2 italic">No rules configured yet.</p>
                     )}
                 </div>
             )}
@@ -536,28 +536,28 @@ function HistoryTab({ workspaceId }: { workspaceId: string }) {
         })()
     }, [workspaceId])
 
-    if (loading) return <div className="flex items-center gap-2 py-8 text-sm text-zinc-600"><RefreshCw className="h-4 w-4 animate-spin" /> Loading…</div>
+    if (loading) return <div className="flex items-center gap-2 py-8 text-sm text-text-muted"><RefreshCw className="h-4 w-4 animate-spin" /> Loading…</div>
 
     return (
         <div className="flex flex-col gap-4">
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-text-muted">
                 Snapshots capture the compiled system prompt at each task start or manual preview. Click a snapshot to inspect its prompt.
             </p>
             {snapshots.length === 0 ? (
-                <p className="text-sm text-zinc-600 italic py-4">No snapshots yet. They&apos;re created each time the agent starts a task.</p>
+                <p className="text-sm text-text-muted italic py-4">No snapshots yet. They&apos;re created each time the agent starts a task.</p>
             ) : (
                 <div className="flex flex-col gap-1.5">
                     {snapshots.map(s => (
                         <div key={s.id}
-                            className={`rounded-lg border px-4 py-3 cursor-pointer transition-colors ${selected?.id === s.id ? 'border-indigo-500/40 bg-indigo-950/10' : 'border-zinc-800 hover:border-zinc-700'}`}
+                            className={`rounded-lg border px-4 py-3 cursor-pointer transition-colors ${selected?.id === s.id ? 'border-indigo/40 bg-indigo-950/10' : 'border-border hover:border-border'}`}
                             onClick={() => setSelected(selected?.id === s.id ? null : s)}>
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-medium text-zinc-300 capitalize">{s.triggeredBy.replace('_', ' ')}</span>
-                                <span className="text-[10px] text-zinc-600">{new Date(s.createdAt).toLocaleString()}</span>
+                                <span className="text-xs font-medium text-text-secondary capitalize">{s.triggeredBy.replace('_', ' ')}</span>
+                                <span className="text-[10px] text-text-muted">{new Date(s.createdAt).toLocaleString()}</span>
                             </div>
                             {s.triggerResourceId && <p className="text-[10px] text-zinc-700 font-mono mt-0.5">{s.triggerResourceId.slice(0, 8)}</p>}
                             {selected?.id === s.id && s.compiledPrompt && (
-                                <pre className="mt-3 text-[11px] text-zinc-500 bg-zinc-950 rounded-lg p-3 overflow-auto max-h-48 whitespace-pre-wrap border border-zinc-800">
+                                <pre className="mt-3 text-[11px] text-text-muted bg-canvas rounded-lg p-3 overflow-auto max-h-48 whitespace-pre-wrap border border-border">
                                     {s.compiledPrompt}
                                 </pre>
                             )}
@@ -574,7 +574,7 @@ function HistoryTab({ workspaceId }: { workspaceId: string }) {
 export default function AgentSettingsPage() {
     return (
         <Suspense fallback={
-            <div className="flex items-center gap-2 py-8 text-sm text-zinc-600">
+            <div className="flex items-center gap-2 py-8 text-sm text-text-muted">
                 <RefreshCw className="h-4 w-4 animate-spin" /> Loading settings…
             </div>
         }>
@@ -730,23 +730,23 @@ function AgentSettingsContent() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-xl shadow-lg shadow-indigo-500/20 shrink-0">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl   text-xl shadow-lg shadow-indigo-500/20 shrink-0">
                         {settings.agentAvatar ?? '🤖'}
                     </div>
                     <div className="min-w-0 flex-1">
                         <h1 className="text-xl font-bold text-zinc-50 truncate">{settings.agentName || 'Agent'}</h1>
-                        <p className="text-xs text-zinc-500 truncate">{settings.agentTagline || 'Configure your AI agent'}</p>
+                        <p className="text-xs text-text-muted truncate">{settings.agentTagline || 'Configure your AI agent'}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button onClick={() => void fetchCore()} disabled={loading}
-                        className="flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors min-h-[44px] min-w-[44px] shrink-0">
+                        className="flex items-center justify-center rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors min-h-[44px] min-w-[44px] shrink-0">
                         <RefreshCw className={`h-4 w-4 sm:h-3.5 sm:w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                     {showSaveButton && (
                         <button onClick={() => void handleSave()} disabled={saving || loading || !workspaceId}
-                            className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial">
-                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald-400" /> : <Save className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
+                            className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial">
+                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald" /> : <Save className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                             {saved ? 'Saved' : 'Save changes'}
                         </button>
                     )}
@@ -755,31 +755,31 @@ function AgentSettingsContent() {
 
             {/* Status banner */}
             {agentStatus && (
-                <div className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border px-4 py-3 ${agentStatus.status === 'running' ? 'border-green-800/40 bg-green-950/20' : 'border-zinc-800 bg-zinc-900/40'}`}>
+                <div className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border px-4 py-3 ${agentStatus.status === 'running' ? 'border-green-800/40 bg-green-950/20' : 'border-border bg-surface-1/40'}`}>
                     <div className="flex items-center gap-3 min-w-0">
-                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${agentStatus.status === 'running' ? 'bg-green-400 animate-pulse' : 'bg-zinc-600'}`} />
+                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${agentStatus.status === 'running' ? 'bg-emerald animate-pulse' : 'bg-surface-3'}`} />
                         <div className="text-sm truncate">
-                            <span className="font-medium text-zinc-200 capitalize">{agentStatus.status}</span>
-                            {agentStatus.currentTask && <span className="text-zinc-500 ml-2">· task {agentStatus.currentTask.slice(0, 8)}</span>}
-                            {agentStatus.currentModel && <span className="text-zinc-600 ml-2 truncate">via {agentStatus.currentModel}</span>}
+                            <span className="font-medium text-text-primary capitalize">{agentStatus.status}</span>
+                            {agentStatus.currentTask && <span className="text-text-muted ml-2">· task {agentStatus.currentTask.slice(0, 8)}</span>}
+                            {agentStatus.currentModel && <span className="text-text-muted ml-2 truncate">via {agentStatus.currentModel}</span>}
                         </div>
                     </div>
-                    <div className="sm:ml-auto text-xs text-zinc-600 pl-5 sm:pl-0 shrink-0">{agentStatus.sessionCount} sessions</div>
+                    <div className="sm:ml-auto text-xs text-text-muted pl-5 sm:pl-0 shrink-0">{agentStatus.sessionCount} sessions</div>
                 </div>
             )}
 
             {!workspaceId && !loading && (
-                <div className="flex items-center gap-2 rounded-xl border border-amber-800/40 bg-amber-950/20 px-4 py-3 text-sm text-amber-400">
+                <div className="flex items-center gap-2 rounded-xl border border-amber-800/40 bg-amber-950/20 px-4 py-3 text-sm text-amber">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     NEXT_PUBLIC_DEFAULT_WORKSPACE not configured — settings cannot be saved.
                 </div>
             )}
 
             {/* Tabs */}
-            <div className="flex gap-1 border-b border-zinc-800 overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex gap-1 border-b border-border overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {TABS.map(({ id, label, icon: Icon }) => (
                     <button key={id} onClick={() => setTab(id)}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px shrink-0 w-auto min-h-[44px] ${tab === id ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>
+                        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px shrink-0 w-auto min-h-[44px] ${tab === id ? 'border-indigo text-indigo' : 'border-transparent text-text-muted hover:text-text-secondary'}`}>
                         <Icon className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         {label}
                     </button>
@@ -789,28 +789,28 @@ function AgentSettingsContent() {
             {/* ── Identity tab ── */}
             {tab === 'identity' && (
                 loading ? (
-                    <div className="flex items-center gap-2 py-8 text-sm text-zinc-600"><RefreshCw className="h-4 w-4 animate-spin" /> Loading…</div>
+                    <div className="flex items-center gap-2 py-8 text-sm text-text-muted"><RefreshCw className="h-4 w-4 animate-spin" /> Loading…</div>
                 ) : (
                     <div className="flex flex-col gap-4">
                         <Section title="Personality" icon={Sparkles}>
                             <div className="flex flex-col sm:flex-row items-center gap-4">
                                 <div className="flex flex-col gap-2 w-full sm:w-auto">
-                                    <label className="text-sm font-medium text-zinc-300">Avatar</label>
+                                    <label className="text-sm font-medium text-text-secondary">Avatar</label>
                                     <div className="flex flex-row justify-between sm:justify-start gap-1.5 w-full overflow-x-auto pb-2 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                                         {['🤖', '🧠', '⚡', '🦾', '🌟', '👾', '🔱', '🦊', '🐉', '🔮'].map((emoji) => (
                                             <button key={emoji} onClick={() => updateSetting('agentAvatar', emoji)}
-                                                className={`min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji ? 'bg-indigo-600/30 ring-1 ring-indigo-500' : 'bg-zinc-800 hover:bg-zinc-700'}`}>
+                                                className={`min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji ? 'bg-indigo/30 ring-1 ring-indigo' : 'bg-surface-2 hover:bg-zinc-700'}`}>
                                                 {emoji}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                                <div className="flex flex-col items-center gap-1.5 sm:ml-auto w-full sm:w-auto pt-4 sm:pt-0 border-t border-zinc-800 sm:border-0 order-first sm:order-none">
-                                    <div className="flex h-16 w-16 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-3xl shadow-lg shadow-indigo-500/20">
+                                <div className="flex flex-col items-center gap-1.5 sm:ml-auto w-full sm:w-auto pt-4 sm:pt-0 border-t border-border sm:border-0 order-first sm:order-none">
+                                    <div className="flex h-16 w-16 sm:h-14 sm:w-14 items-center justify-center rounded-full   text-3xl shadow-lg shadow-indigo-500/20">
                                         {settings.agentAvatar ?? '🤖'}
                                     </div>
-                                    <span className="text-sm sm:text-xs text-zinc-100 sm:text-zinc-500 font-medium">{settings.agentName || 'Plexo'}</span>
-                                    {settings.agentTagline && <span className="text-[10px] text-zinc-400 sm:text-zinc-600 italic max-w-[200px] sm:max-w-[100px] text-center truncate">{settings.agentTagline}</span>}
+                                    <span className="text-sm sm:text-xs text-text-primary sm:text-text-muted font-medium">{settings.agentName || 'Plexo'}</span>
+                                    {settings.agentTagline && <span className="text-[10px] text-text-secondary sm:text-text-muted italic max-w-[200px] sm:max-w-[100px] text-center truncate">{settings.agentTagline}</span>}
                                 </div>
                             </div>
                             <Field label="Agent name" description="How the agent refers to itself in messages.">
@@ -832,7 +832,7 @@ function AgentSettingsContent() {
                             </Field>
                         </Section>
 
-                        <div className="flex items-start gap-2 text-xs text-zinc-600 px-1">
+                        <div className="flex items-start gap-2 text-xs text-text-muted px-1">
                             <Bot className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                             Changes take effect on the next task started after saving.
                         </div>
@@ -864,29 +864,29 @@ function AgentSettingsContent() {
 
                     <div className="flex items-center justify-end gap-2">
                         <button onClick={() => void handleSave()} disabled={saving || !workspaceId}
-                            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors">
-                            {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Save className="h-3.5 w-3.5" />}
+                            className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors">
+                            {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5 text-emerald" /> : <Save className="h-3.5 w-3.5" />}
                             {saved ? 'Saved' : 'Save changes'}
                         </button>
                     </div>
 
                     {/* Advanced rules accordion */}
-                    <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                    <div className="rounded-xl border border-border overflow-hidden">
                         <button onClick={() => setShowAdvanced(v => !v)}
-                            className="w-full flex items-center gap-3 px-5 py-4 hover:bg-zinc-800/20 transition-colors text-left">
-                            <Settings2 className="h-4 w-4 text-zinc-500" />
+                            className="w-full flex items-center gap-3 px-5 py-4 hover:bg-surface-2/20 transition-colors text-left">
+                            <Settings2 className="h-4 w-4 text-text-muted" />
                             <div className="flex-1">
-                                <span className="text-sm font-medium text-zinc-300">Advanced rules</span>
-                                <p className="text-xs text-zinc-600 mt-0.5">Fine-grained layered rules for communication style, operational limits, quality gates, and more.</p>
+                                <span className="text-sm font-medium text-text-secondary">Advanced rules</span>
+                                <p className="text-xs text-text-muted mt-0.5">Fine-grained layered rules for communication style, operational limits, quality gates, and more.</p>
                             </div>
-                            <ChevronDown className={`h-4 w-4 text-zinc-600 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                            <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
                         </button>
 
                         {showAdvanced && (
-                            <div className="px-5 pb-5 flex flex-col gap-4 border-t border-zinc-800">
+                            <div className="px-5 pb-5 flex flex-col gap-4 border-t border-border">
                                 {/* Inheritance toggle */}
                                 <div className="flex items-center justify-between pt-4">
-                                    <div className="flex items-center gap-3 text-xs text-zinc-600">
+                                    <div className="flex items-center gap-3 text-xs text-text-muted">
                                         <Layers className="h-3.5 w-3.5" />
                                         <span>Rule sources:</span>
                                         {(['platform', 'workspace', 'project', 'task'] as RuleSource[]).map(s => (
@@ -895,14 +895,14 @@ function AgentSettingsContent() {
                                         <span className="text-zinc-700">— later layers override earlier ones</span>
                                     </div>
                                     <button onClick={() => setInheritanceMode(m => !m)}
-                                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${inheritanceMode ? 'border-indigo-500/40 bg-indigo-950/20 text-indigo-400' : 'border-zinc-700 text-zinc-500 hover:text-zinc-300'}`}>
+                                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${inheritanceMode ? 'border-indigo/40 bg-indigo-950/20 text-indigo' : 'border-border text-text-muted hover:text-text-secondary'}`}>
                                         <ArrowLeftRight className="h-3.5 w-3.5" />
                                         {inheritanceMode ? 'Inheritance view' : 'Inheritance view'}
                                     </button>
                                 </div>
 
                                 {behaviorError && (
-                                    <div className="flex items-center gap-2 rounded-xl border border-red-800/40 bg-red-950/20 px-4 py-3 text-sm text-red-400">
+                                    <div className="flex items-center gap-2 rounded-xl border border-red-800/40 bg-red-950/20 px-4 py-3 text-sm text-red">
                                         <X className="h-4 w-4 shrink-0" />
                                         {behaviorError}
                                         <button onClick={() => void fetchBehavior()} className="ml-auto text-xs underline">Retry</button>
@@ -910,7 +910,7 @@ function AgentSettingsContent() {
                                 )}
 
                                 {behaviorLoading ? (
-                                    <div className="flex items-center gap-2 py-6 text-sm text-zinc-600">
+                                    <div className="flex items-center gap-2 py-6 text-sm text-text-muted">
                                         <RefreshCw className="h-4 w-4 animate-spin" /> Loading rules…
                                     </div>
                                 ) : (
@@ -926,10 +926,10 @@ function AgentSettingsContent() {
 
                                 {!behaviorLoading && WS_ID && (
                                     <>
-                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 mt-2 border-t border-zinc-800">
+                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 mt-2 border-t border-border">
                                             <SystemPromptPreview workspaceId={WS_ID} refreshTick={refreshTick} />
                                             <div className="flex gap-2">
-                                                <a href={`${API}/api/v1/behavior/${WS_ID}/rules/export`} download="AGENTS.md" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs text-zinc-300 transition-colors whitespace-nowrap">
+                                                <a href={`${API}/api/v1/behavior/${WS_ID}/rules/export`} download="AGENTS.md" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface-1 hover:bg-surface-2 text-xs text-text-secondary transition-colors whitespace-nowrap">
                                                     Export AGENTS.md
                                                 </a>
                                                 <button onClick={async () => {
@@ -948,7 +948,7 @@ function AgentSettingsContent() {
                                                         fetchBehavior()
                                                     }
                                                     input.click()
-                                                }} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-500/30 bg-indigo-950/20 hover:bg-indigo-950/40 text-xs text-indigo-300 transition-colors whitespace-nowrap">
+                                                }} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo/30 bg-indigo-950/20 hover:bg-indigo-950/40 text-xs text-indigo-300 transition-colors whitespace-nowrap">
                                                     Import AGENTS.md
                                                 </button>
                                             </div>
@@ -964,7 +964,7 @@ function AgentSettingsContent() {
             {/* ── Limits tab ── */}
             {tab === 'limits' && (
                 loading ? (
-                    <div className="flex items-center gap-2 py-8 text-sm text-zinc-600"><RefreshCw className="h-4 w-4 animate-spin" /> Loading…</div>
+                    <div className="flex items-center gap-2 py-8 text-sm text-text-muted"><RefreshCw className="h-4 w-4 animate-spin" /> Loading…</div>
                 ) : (
                     <div className="flex flex-col gap-4">
                         <Section title="Execution" icon={Zap}>
@@ -988,7 +988,7 @@ function AgentSettingsContent() {
                                     <select
                                         value={settings.maxRetries ?? 3}
                                         onChange={e => updateSetting('maxRetries', parseInt(e.target.value))}
-                                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none w-fit"
+                                        className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none w-fit"
                                     >
                                         {[0, 1, 2, 3, 5].map((v) => (
                                             <option key={v} value={v}>{v}</option>
@@ -1001,13 +1001,13 @@ function AgentSettingsContent() {
                         <Section title="Cost & Safety" icon={Shield}>
                             <Field label="Weekly spend cap (USD)" description="Agent tasks pause automatically when this amount is reached in a 7-day window.">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm text-zinc-500">$</span>
+                                    <span className="text-sm text-text-muted">$</span>
                                     <Input type="number" min={0} step={0.5}
                                         value={settings.costCeilingUsd ?? 10}
                                         onChange={e => updateSetting('costCeilingUsd', parseFloat(e.target.value) || 10)}
                                         className="w-28"
                                     />
-                                    <span className="text-xs text-zinc-600">per week</span>
+                                    <span className="text-xs text-text-muted">per week</span>
                                 </div>
                             </Field>
 
@@ -1020,7 +1020,7 @@ function AgentSettingsContent() {
                                         else if (v === 'always_ask') updateSetting('autoApproveThreshold', 0.0)
                                         else updateSetting('autoApproveThreshold', 0.5)
                                     }}
-                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none w-fit"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none w-fit"
                                 >
                                     <option value="auto">Auto-approve (default)</option>
                                     <option value="manual">Ask me when uncertain</option>
@@ -1031,12 +1031,12 @@ function AgentSettingsContent() {
                             <Field label="Safe mode" description="When enabled, all file-write and destructive tool calls require your approval before executing.">
                                 <div className="flex items-center gap-3">
                                     <Toggle checked={!!settings.safeMode} onChange={() => updateSetting('safeMode', !settings.safeMode)} />
-                                    <span className="text-sm text-zinc-400">{settings.safeMode ? 'Enabled — writes need approval' : 'Disabled'}</span>
+                                    <span className="text-sm text-text-secondary">{settings.safeMode ? 'Enabled — writes need approval' : 'Disabled'}</span>
                                 </div>
                             </Field>
                         </Section>
 
-                        <div className="flex items-start gap-2 text-xs text-zinc-600 px-1">
+                        <div className="flex items-start gap-2 text-xs text-text-muted px-1">
                             <DollarSign className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                             Limits are enforced at task start. Changes take effect on the next task.
                         </div>
@@ -1048,7 +1048,7 @@ function AgentSettingsContent() {
             {tab === 'quality' && (
                 <div className="flex flex-col gap-4">
                     <Section title="Ensemble configuration" icon={Users}>
-                        <p className="text-sm text-zinc-400 leading-relaxed">
+                        <p className="text-sm text-text-secondary leading-relaxed">
                             When Ollama is configured, Plexo recruits multiple local models to independently
                             score each task deliverable. Their weighted votes form a consensus quality score,
                             decoupled from the executing agent's self-assessment.
@@ -1059,7 +1059,7 @@ function AgentSettingsContent() {
                                 <select
                                     value={settings.ensembleSize ?? 3}
                                     onChange={e => updateSetting('ensembleSize', parseInt(e.target.value))}
-                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none w-fit"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none w-fit"
                                 >
                                     {[1, 2, 3, 4, 5].map(n => (
                                         <option key={n} value={n}>{n} judge{n !== 1 ? 's' : ''}</option>
@@ -1071,7 +1071,7 @@ function AgentSettingsContent() {
                                 <select
                                     value={settings.dissentThreshold ?? 0.25}
                                     onChange={e => updateSetting('dissentThreshold', parseFloat(e.target.value))}
-                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none w-fit"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none w-fit"
                                 >
                                     {[0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50].map(v => (
                                         <option key={v} value={v}>{Math.round(v * 100)}pp</option>
@@ -1080,50 +1080,50 @@ function AgentSettingsContent() {
                             </Field>
                         </div>
 
-                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 flex flex-col gap-3">
-                            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">How it works</p>
-                            <ol className="flex flex-col gap-2 text-xs text-zinc-500 list-none">
+                        <div className="rounded-lg border border-border bg-surface-1/40 p-4 flex flex-col gap-3">
+                            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">How it works</p>
+                            <ol className="flex flex-col gap-2 text-xs text-text-muted list-none">
                                 <li className="flex items-start gap-2">
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo-400">1</span>
-                                    Task completes → executor calls <code className="text-zinc-400">judgeQuality()</code>
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo">1</span>
+                                    Task completes → executor calls <code className="text-text-secondary">judgeQuality()</code>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo-400">2</span>
-                                    Ollama <code className="text-zinc-400">/api/tags</code> queried → up to <strong className="text-zinc-400">{settings.ensembleSize ?? 3}</strong> small models recruited
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo">2</span>
+                                    Ollama <code className="text-text-secondary">/api/tags</code> queried → up to <strong className="text-text-secondary">{settings.ensembleSize ?? 3}</strong> small models recruited
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo-400">3</span>
-                                    All judges score the deliverable in parallel — weighted by their <code className="text-zinc-400">reliabilityScore</code>
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo">3</span>
+                                    All judges score the deliverable in parallel — weighted by their <code className="text-text-secondary">reliabilityScore</code>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-900/50 text-[9px] font-bold text-amber-400">4</span>
-                                    If any judge diverges &gt; <strong className="text-amber-400">{Math.round((settings.dissentThreshold ?? 0.25) * 100)}pp</strong> from consensus → cloud arbitrator resolves
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-900/50 text-[9px] font-bold text-amber">4</span>
+                                    If any judge diverges &gt; <strong className="text-amber">{Math.round((settings.dissentThreshold ?? 0.25) * 100)}pp</strong> from consensus → cloud arbitrator resolves
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-900/50 text-[9px] font-bold text-emerald-400">5</span>
-                                    Result stored in task context · each judge's <code className="text-zinc-400">reliabilityScore</code> nudged ±0.5–1% based on agreement
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-900/50 text-[9px] font-bold text-emerald">5</span>
+                                    Result stored in task context · each judge's <code className="text-text-secondary">reliabilityScore</code> nudged ±0.5–1% based on agreement
                                 </li>
                             </ol>
                         </div>
 
-                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 flex flex-col gap-2">
-                            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Model preference order</p>
+                        <div className="rounded-lg border border-border bg-surface-1/30 p-4 flex flex-col gap-2">
+                            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Model preference order</p>
                             <div className="flex flex-wrap gap-1.5">
                                 {['llama3.2', 'llama3.1', 'phi3', 'phi3.5', 'gemma2', 'gemma3', 'mistral', 'qwen2.5', 'deepseek-r1'].map((m) => (
-                                    <span key={m} className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-500">{m}</span>
+                                    <span key={m} className="rounded bg-surface-2 px-2 py-0.5 text-[10px] font-mono text-text-muted">{m}</span>
                                 ))}
                             </div>
-                            <p className="text-[11px] text-zinc-600">Tried in priority order. First {settings.ensembleSize ?? 3} available win.</p>
+                            <p className="text-[11px] text-text-muted">Tried in priority order. First {settings.ensembleSize ?? 3} available win.</p>
                         </div>
 
-                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 flex flex-col gap-2">
-                            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Fallback modes</p>
-                            <div className="flex flex-col gap-1.5 text-xs text-zinc-500">
+                        <div className="rounded-lg border border-border bg-surface-1/40 p-4 flex flex-col gap-2">
+                            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Fallback modes</p>
+                            <div className="flex flex-col gap-1.5 text-xs text-text-muted">
                                 {[
-                                    { mode: 'ensemble', color: 'bg-indigo-900/30 text-indigo-400', label: 'Ollama configured + models available + consensus reached' },
-                                    { mode: 'ensemble+arbitration', color: 'bg-amber-900/30 text-amber-400', label: 'Ensemble ran but judges disagreed — cloud resolved' },
-                                    { mode: 'single', color: 'bg-zinc-800 text-zinc-400', label: 'Ollama not configured — single cheap cloud model judges' },
-                                    { mode: 'fallback', color: 'bg-zinc-800 text-zinc-600', label: 'All judges failed — self-reported score passed through' },
+                                    { mode: 'ensemble', color: 'bg-indigo-900/30 text-indigo', label: 'Ollama configured + models available + consensus reached' },
+                                    { mode: 'ensemble+arbitration', color: 'bg-amber-900/30 text-amber', label: 'Ensemble ran but judges disagreed — cloud resolved' },
+                                    { mode: 'single', color: 'bg-surface-2 text-text-secondary', label: 'Ollama not configured — single cheap cloud model judges' },
+                                    { mode: 'fallback', color: 'bg-surface-2 text-text-muted', label: 'All judges failed — self-reported score passed through' },
                                 ].map(({ mode, color, label }) => (
                                     <div key={mode} className="flex items-center gap-2">
                                         <span className={`rounded px-1.5 py-0.5 ${color} font-mono text-[10px]`}>{mode}</span>
@@ -1135,7 +1135,7 @@ function AgentSettingsContent() {
 
                         <a
                             href="/settings/ai-providers"
-                            className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                            className="inline-flex items-center gap-1.5 text-xs text-indigo hover:text-indigo-300 transition-colors"
                         >
                             <Zap className="h-3.5 w-3.5" />
                             Configure Ollama in AI Providers →

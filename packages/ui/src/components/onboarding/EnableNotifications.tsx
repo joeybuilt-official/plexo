@@ -31,19 +31,19 @@ export function EnableNotifications({ onComplete }: { onComplete: () => void }) 
 
     return (
         <div className="flex flex-col p-6 space-y-6 max-w-md mx-auto h-full justify-center text-center">
-            <h1 className="text-2xl font-bold text-zinc-100">Stay on top of your agents</h1>
-            <p className="text-zinc-400">Get notified when your agent needs approval or finishes a task.</p>
+            <h1 className="text-2xl font-bold text-text-primary">Stay on top of your agents</h1>
+            <p className="text-text-secondary">Get notified when your agent needs approval or finishes a task.</p>
             
             <button 
                 onClick={requestPermissions}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold flex items-center justify-center transition-colors shadow-lg shadow-indigo-500/20 mt-8"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-text-primary rounded-lg font-semibold flex items-center justify-center transition-colors shadow-lg shadow-indigo-500/20 mt-8"
             >
                 Enable Notifications
             </button>
             
             <button 
                 onClick={onComplete}
-                className="text-zinc-500 hover:text-zinc-300 font-medium text-sm mt-4 transition-colors"
+                className="text-text-muted hover:text-text-secondary font-medium text-sm mt-4 transition-colors"
             >
                 Not now
             </button>

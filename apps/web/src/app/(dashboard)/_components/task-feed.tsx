@@ -33,12 +33,12 @@ async function fetchRecent(workspaceId: string): Promise<Task[]> {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-    complete: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    complete: 'bg-emerald/20 text-emerald border-emerald-500/30',
     running: 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse',
-    queued: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-    blocked: 'bg-red-500/20 text-red-400 border-red-500/30',
-    cancelled: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
-    claimed: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
+    queued: 'bg-amber/20 text-amber border-amber-500/30',
+    blocked: 'bg-red/20 text-red border-red-500/30',
+    cancelled: 'bg-zinc-500/20 text-text-secondary border-zinc-500/30',
+    claimed: 'bg-indigo-dim text-indigo border-indigo/30',
 }
 
 function timeAgo(iso: string): string {
@@ -55,15 +55,15 @@ export async function TaskFeed() {
 
     if (tasks.length === 0) {
         return (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 text-center">
-                <p className="text-sm text-zinc-500">No tasks yet. Send a message to get started.</p>
+            <div className="rounded-xl border border-border bg-surface-1/50 p-6 text-center">
+                <p className="text-sm text-text-muted">No tasks yet. Send a message to get started.</p>
             </div>
         )
     }
 
     return (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
-            <div className="border-b border-zinc-800/50 px-4 py-3">
+        <div className="rounded-xl border border-border bg-surface-1/50 backdrop-blur-sm">
+            <div className="border-b border-border-subtle px-4 py-3">
                 <h2 className="text-[13px] font-semibold">Recent Tasks</h2>
             </div>
             <ul className="divide-y divide-zinc-800/50">
@@ -75,12 +75,12 @@ export async function TaskFeed() {
                             {task.status}
                         </span>
                         <div className="min-w-0 flex-1">
-                            <p className="truncate text-[13px] text-zinc-200">
+                            <p className="truncate text-[13px] text-text-primary">
                                 {task.outcomeSummary
                                     ? task.outcomeSummary
                                     : `${task.type} task via ${task.source}`}
                             </p>
-                            <div className="mt-0.5 flex gap-2 text-[11px] text-zinc-500">
+                            <div className="mt-0.5 flex gap-2 text-[11px] text-text-muted">
                                 <span>{task.type}</span>
                                 <span>·</span>
                                 <span>{timeAgo(task.createdAt)}</span>

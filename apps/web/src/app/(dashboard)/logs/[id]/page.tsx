@@ -33,11 +33,11 @@ interface TaskDetail {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-    complete: 'bg-emerald-950 text-emerald-400 border-emerald-800',
+    complete: 'bg-emerald-950 text-emerald border-emerald-800',
     running: 'bg-blue-950 text-blue-400 border-blue-800',
-    queued: 'bg-zinc-800 text-zinc-400 border-zinc-700',
-    blocked: 'bg-amber-950 text-amber-400 border-amber-800',
-    failed: 'bg-red-950 text-red-400 border-red-800',
+    queued: 'bg-surface-2 text-text-secondary border-border',
+    blocked: 'bg-amber-950 text-amber border-amber-800',
+    failed: 'bg-red-950 text-red border-red-800',
 }
 
 function fmt(iso: string | null | undefined): string {
@@ -73,12 +73,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
     if (!result) {
         return (
             <div className="flex flex-col gap-4 max-w-4xl">
-                <Link href="/logs" className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors w-fit">
+                <Link href="/logs" className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors w-fit">
                     <ArrowLeft size={12} /> Back to logs
                 </Link>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-6 py-12 text-center">
-                    <p className="text-sm text-zinc-400 font-medium mb-1">Task not found</p>
-                    <p className="text-xs text-zinc-600 font-mono">{id}</p>
+                <div className="rounded-xl border border-border bg-surface-1/40 px-6 py-12 text-center">
+                    <p className="text-sm text-text-secondary font-medium mb-1">Task not found</p>
+                    <p className="text-xs text-text-muted font-mono">{id}</p>
                 </div>
             </div>
         )
@@ -114,7 +114,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         <div className="flex flex-col gap-6 max-w-4xl">
             {/* Back + copy */}
             <div className="flex items-center justify-between">
-                <Link href="/logs" className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                <Link href="/logs" className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors">
                     <ArrowLeft size={12} /> Back to logs
                 </Link>
                 <CopyButton text={exportText} label="Copy log" />
@@ -123,12 +123,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             {/* Header */}
             <div>
                 <div className="flex items-center gap-3 mb-2">
-                    <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[task.status] ?? 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                    <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[task.status] ?? 'bg-surface-2 text-text-muted border-border'}`}>
                         {task.status}
                     </span>
-                    <span className="font-mono text-xs text-zinc-500">{task.id}</span>
+                    <span className="font-mono text-xs text-text-muted">{task.id}</span>
                 </div>
-                <p className="text-lg font-semibold text-zinc-100 leading-snug">
+                <p className="text-lg font-semibold text-text-primary leading-snug">
                     {description?.slice(0, 200) || `${task.type} task`}
                 </p>
             </div>
@@ -145,25 +145,25 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     ['Created', fmt(task.createdAt), false],
                     ['Completed', fmt(task.completedAt), false],
                 ] as [string, string, boolean][]).map(([label, value, mono]) => (
-                    <div key={label} className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2.5">
-                        <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">{label}</p>
-                        <p className={`text-sm text-zinc-300 truncate capitalize ${mono ? 'font-mono' : ''}`}>{value}</p>
+                    <div key={label} className="rounded-lg border border-border bg-surface-1/40 px-3 py-2.5">
+                        <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">{label}</p>
+                        <p className={`text-sm text-text-secondary truncate capitalize ${mono ? 'font-mono' : ''}`}>{value}</p>
                     </div>
                 ))}
             </div>
 
             {/* Outcome / blocked notice */}
             {task.outcomeSummary ? (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
-                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-2">Outcome</p>
-                    <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{task.outcomeSummary}</p>
+                <div className="rounded-lg border border-border bg-surface-1/40 p-4">
+                    <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Outcome</p>
+                    <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">{task.outcomeSummary}</p>
                 </div>
             ) : ['blocked', 'failed', 'cancelled'].includes(task.status) ? (
                 <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 p-4">
                     <p className="text-[10px] text-amber-700 uppercase tracking-wider mb-2">
                         {task.status === 'blocked' ? 'Blocked — no execution' : task.status === 'failed' ? 'Failed' : 'Cancelled'}
                     </p>
-                    <p className="text-sm text-amber-400/70 leading-relaxed">
+                    <p className="text-sm text-amber/70 leading-relaxed">
                         {task.status === 'blocked'
                             ? 'Agent claimed this task but could not execute — likely no AI provider credential was configured at the time.'
                             : 'No outcome was recorded.'}
@@ -173,20 +173,20 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
             {/* Context */}
             {(description || Object.keys(contextRest).length > 0) && (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
-                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Context</p>
+                <div className="rounded-lg border border-border bg-surface-1/40 p-4">
+                    <p className="text-[10px] text-text-muted uppercase tracking-wider mb-3">Context</p>
                     {description && (
                         <div className="mb-4">
-                            <p className="text-xs text-zinc-500 mb-1">Request</p>
-                            <p className="text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed">{description}</p>
+                            <p className="text-xs text-text-muted mb-1">Request</p>
+                            <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">{description}</p>
                         </div>
                     )}
                     {Object.keys(contextRest).length > 0 && (
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {Object.entries(contextRest).map(([k, v]) => (
-                                <div key={k} className="rounded bg-zinc-950 px-2.5 py-2">
-                                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-0.5">{k}</p>
-                                    <p className="text-xs text-zinc-400 font-mono truncate">{String(v)}</p>
+                                <div key={k} className="rounded bg-canvas px-2.5 py-2">
+                                    <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5">{k}</p>
+                                    <p className="text-xs text-text-secondary font-mono truncate">{String(v)}</p>
                                 </div>
                             ))}
                         </div>
@@ -196,8 +196,8 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
             {/* Steps */}
             {steps.length > 0 && (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
-                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Execution steps ({steps.length})</p>
+                <div className="rounded-lg border border-border bg-surface-1/40 p-4">
+                    <p className="text-[10px] text-text-muted uppercase tracking-wider mb-3">Execution steps ({steps.length})</p>
                     <ol className="flex flex-col gap-3">
                         {steps.map((step) => {
                             const toolCalls = Array.isArray(step.toolCalls)
@@ -205,12 +205,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                                 : []
                             return (
                                 <li key={step.id} className="flex gap-3">
-                                    <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-[10px] font-mono text-zinc-400">
+                                    <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-2 text-[10px] font-mono text-text-secondary">
                                         {step.stepNumber}
                                     </span>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                            {step.model && <span className="text-[10px] font-mono text-zinc-600">{step.model}</span>}
+                                            {step.model && <span className="text-[10px] font-mono text-text-muted">{step.model}</span>}
                                             {step.tokensIn != null && (
                                                 <span className="text-[10px] text-zinc-700">
                                                     {(step.tokensIn + (step.tokensOut ?? 0)).toLocaleString()} tok
@@ -222,7 +222,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                                             )}
                                         </div>
                                         {step.outcome && (
-                                            <p className="text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed">{step.outcome}</p>
+                                            <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{step.outcome}</p>
                                         )}
                                     </div>
                                 </li>

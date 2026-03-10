@@ -12,7 +12,7 @@ export function DesktopShell({ children, sidebar }: { children: React.ReactNode;
             <div className="shrink-0 hidden md:block" data-tauri-drag-region>
                {sidebar}
             </div>
-            <main className="flex-1 overflow-auto bg-zinc-925 p-6 relative">
+            <main className="flex-1 overflow-auto bg-canvas p-6 relative">
                 <div className="absolute top-0 left-0 right-0 h-4 z-50 pointer-events-none" data-tauri-drag-region />
                 {children}
             </main>

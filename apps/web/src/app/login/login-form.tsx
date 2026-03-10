@@ -8,6 +8,7 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Github, Mail, ArrowRight, Loader2, ExternalLink } from 'lucide-react'
+import { PlexoMark } from '@web/components/plexo-logo'
 
 export function LoginForm() {
     const router = useRouter()
@@ -37,44 +38,44 @@ export function LoginForm() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4">
+        <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
             {/* Background pattern */}
-            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-zinc-950 to-zinc-950" />
+            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo/10 via-canvas to-canvas" />
 
             <div className="relative w-full max-w-sm">
                 {/* Logo */}
                 <div className="mb-8 text-center">
-                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-lg font-bold text-white shadow-lg shadow-indigo-500/25">
-                        P
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
+                        <PlexoMark className="w-10 h-10 text-indigo drop-shadow-lg" />
                     </div>
                     <h1 className="text-lg font-semibold tracking-tight">Sign in to Plexo</h1>
-                    <p className="mt-1.5 text-sm text-zinc-500">
+                    <p className="mt-1.5 text-sm text-text-muted">
                         Your AI agent is waiting
                     </p>
                 </div>
 
                 {/* Form card */}
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 shadow-xl backdrop-blur-sm">
+                <div className="rounded-2xl border border-border bg-surface-1/50 p-6 shadow-xl backdrop-blur-sm">
                     <form onSubmit={handleCredentials} className="space-y-3">
                         <div>
-                            <label htmlFor="login-email" className="mb-1 block text-xs font-medium text-zinc-400">
+                            <label htmlFor="login-email" className="mb-1 block text-xs font-medium text-text-secondary">
                                 Email
                             </label>
                             <div className="relative">
-                                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
+                                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
                                 <input
                                     id="login-email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="you@example.com"
-                                    className="w-full rounded-lg border border-zinc-800 bg-zinc-950 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+                                    className="w-full rounded-lg border border-border bg-canvas py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo/50 focus:outline-none focus:ring-1 focus:ring-indigo/50"
                                     required
                                 />
                             </div>
                         </div>
                         <div>
-                            <label htmlFor="login-password" className="mb-1 block text-xs font-medium text-zinc-400">
+                            <label htmlFor="login-password" className="mb-1 block text-xs font-medium text-text-secondary">
                                 Password
                             </label>
                             <input
@@ -83,14 +84,14 @@ export function LoginForm() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••••••"
-                                className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+                                className="w-full rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo/50 focus:outline-none focus:ring-1 focus:ring-indigo/50"
                                 required
                                 minLength={12}
                             />
                         </div>
 
                         {error && (
-                            <div className="rounded-lg bg-red-950/50 px-3 py-2 text-xs text-red-400">
+                            <div className="rounded-lg bg-red-950/50 px-3 py-2 text-xs text-red">
                                 {error}
                             </div>
                         )}
@@ -98,7 +99,7 @@ export function LoginForm() {
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo/90 disabled:opacity-50"
                         >
                             {isLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -113,9 +114,9 @@ export function LoginForm() {
                 </div>
 
                 {/* Register link */}
-                <p className="mt-5 text-center text-xs text-zinc-600">
+                <p className="mt-5 text-center text-xs text-text-muted">
                     Don&apos;t have an account?{' '}
-                    <Link href="/register" className="text-indigo-400 hover:text-indigo-300">
+                    <Link href="/register" className="text-indigo hover:text-indigo-300">
                         Create one
                     </Link>
                 </p>

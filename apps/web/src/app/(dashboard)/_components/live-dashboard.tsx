@@ -84,12 +84,12 @@ const ACTIVITY_POLL_MS = 10_000
 const CHANNEL_POLL_MS = 30_000
 
 const STATUS_COLORS: Record<string, string> = {
-    complete: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    complete: 'bg-emerald/20 text-emerald border-emerald-500/30',
     running: 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse',
-    queued: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-    blocked: 'bg-red-500/20 text-red-400 border-red-500/30',
-    cancelled: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
-    claimed: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
+    queued: 'bg-amber/20 text-amber border-amber-500/30',
+    blocked: 'bg-red/20 text-red border-red-500/30',
+    cancelled: 'bg-zinc-500/20 text-text-secondary border-zinc-500/30',
+    claimed: 'bg-indigo-dim text-indigo border-indigo/30',
 }
 
 function timeAgo(iso: string): string {
@@ -226,10 +226,10 @@ export function LiveDashboard() {
             title: 'Agent Status',
             subtitle: isRunning ? 'Running' : (summary ? 'Idle' : 'Connecting…'),
             icon: Activity,
-            accent: isRunning ? 'from-green-500 to-emerald-600' : 'from-emerald-500 to-emerald-600',
-            dot: isRunning ? 'bg-green-400 animate-pulse' : 'bg-zinc-600',
+            accent: isRunning ? 'bg-emerald' : 'bg-emerald',
+            dot: isRunning ? 'bg-emerald animate-pulse' : 'bg-surface-3',
             content: !WS_ID
-                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors">Configure AI provider <ArrowRight className="h-3 w-3" /></Link>
+                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-indigo hover:text-indigo-300 transition-colors">Configure AI provider <ArrowRight className="h-3 w-3" /></Link>
                 : running > 0
                     ? `${running} task${running !== 1 ? 's' : ''} running · ${queued} queued`
                     : queued > 0
@@ -241,12 +241,12 @@ export function LiveDashboard() {
             title: 'Tasks',
             subtitle: summary ? `${totalTasks} total` : '…',
             icon: Zap,
-            accent: 'from-amber-500 to-orange-600',
-            dot: (running + queued) > 0 ? 'bg-amber-400 animate-pulse' : 'bg-zinc-600',
+            accent: 'bg-amber',
+            dot: (running + queued) > 0 ? 'bg-amber animate-pulse' : 'bg-surface-3',
             content: !summary
                 ? 'Loading…'
                 : totalTasks === 0
-                    ? <span className="text-zinc-600">No tasks yet — send a message below</span>
+                    ? <span className="text-text-muted">No tasks yet — send a message below</span>
                     : Object.entries(summary.tasks.byStatus)
                         .map(([s, n]) => `${n} ${s}`)
                         .join(' · '),
@@ -256,10 +256,10 @@ export function LiveDashboard() {
             title: 'Channels',
             subtitle: channels.length > 0 ? `${channels.filter(c => c.status === 'active').length} active` : 'Monitoring',
             icon: MessageSquare,
-            accent: 'from-blue-500 to-indigo-600',
-            dot: channels.some(c => c.status === 'active') ? 'bg-blue-400 animate-pulse' : 'bg-zinc-600',
+            accent: 'bg-indigo',
+            dot: channels.some(c => c.status === 'active') ? 'bg-blue-400 animate-pulse' : 'bg-surface-3',
             content: channels.length === 0
-                ? <Link href="/settings/channels" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors">Add a channel <ArrowRight className="h-3 w-3" /></Link>
+                ? <Link href="/settings/channels" className="flex items-center gap-1 text-indigo hover:text-indigo-300 transition-colors">Add a channel <ArrowRight className="h-3 w-3" /></Link>
                 : channels.map(c => c.name).join(' · '),
         },
         {
@@ -267,8 +267,8 @@ export function LiveDashboard() {
             title: 'API Cost',
             subtitle: 'This week',
             icon: DollarSign,
-            accent: pct > 80 ? 'from-red-500 to-rose-600' : pct > 50 ? 'from-amber-500 to-orange-600' : 'from-violet-500 to-purple-600',
-            dot: pct > 80 ? 'bg-red-400 animate-pulse' : 'bg-zinc-600',
+            accent: pct > 80 ? 'bg-red' : pct > 50 ? 'bg-amber' : 'bg-indigo',
+            dot: pct > 80 ? 'bg-red animate-pulse' : 'bg-surface-3',
             content: !summary
                 ? 'Loading…'
                 : `$${weekCost.toFixed(4)} / $${ceiling.toFixed(2)} (${Math.round(pct)}% used)`,
@@ -278,8 +278,8 @@ export function LiveDashboard() {
             title: 'Steps This Week',
             subtitle: 'Agent executions',
             icon: Clock,
-            accent: 'from-cyan-500 to-teal-600',
-            dot: 'bg-zinc-600',
+            accent: 'bg-surface-3',
+            dot: 'bg-surface-3',
             content: summary
                 ? `${stepsThisWeek.toLocaleString()} steps · ${(summary.steps.tokensThisWeek / 1000).toFixed(1)}k tokens`
                 : 'Loading…',
@@ -289,9 +289,9 @@ export function LiveDashboard() {
             title: 'Projects',
             subtitle: 'Sprints',
             icon: GitBranch,
-            accent: 'from-pink-500 to-rose-600',
-            dot: 'bg-zinc-600',
-            content: <Link href="/projects" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors">View Projects <ArrowRight className="h-3 w-3" /></Link>,
+            accent: 'bg-surface-3',
+            dot: 'bg-surface-3',
+            content: <Link href="/projects" className="flex items-center gap-1 text-indigo hover:text-indigo-300 transition-colors">View Projects <ArrowRight className="h-3 w-3" /></Link>,
         },
         {
             id: 'ensemble',
@@ -300,10 +300,10 @@ export function LiveDashboard() {
                 ? `${summary.ensemble.total} task${summary.ensemble.total !== 1 ? 's' : ''} verified`
                 : 'No data yet',
             icon: Users,
-            accent: 'from-indigo-500 to-violet-600',
-            dot: (summary?.ensemble?.total ?? 0) > 0 ? 'bg-indigo-400' : 'bg-zinc-600',
+            accent: '',
+            dot: (summary?.ensemble?.total ?? 0) > 0 ? 'bg-indigo-400' : 'bg-surface-3',
             content: !summary?.ensemble || summary.ensemble.total === 0
-                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors">Configure Ollama <ArrowRight className="h-3 w-3" /></Link>
+                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-indigo hover:text-indigo-300 transition-colors">Configure Ollama <ArrowRight className="h-3 w-3" /></Link>
                 : (() => {
                     const { byMode, avgDelta } = summary.ensemble
                     const ensembleCount = (byMode['ensemble'] ?? 0) + (byMode['ensemble+arbitration'] ?? 0)
@@ -324,13 +324,13 @@ export function LiveDashboard() {
             {/* Cards */}
             <div>
                 <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs text-zinc-600">
+                    <p className="text-xs text-text-muted">
                         {lastUpdated ? `Updated ${timeAgo(lastUpdated.toISOString())}` : 'Loading…'}
                     </p>
                     <button
                         onClick={() => void manualRefresh()}
                         disabled={refreshing}
-                        className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-400 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors disabled:opacity-50"
                     >
                         <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
                         Refresh
@@ -343,22 +343,22 @@ export function LiveDashboard() {
                         return (
                             <div
                                 key={card.id}
-                                className="card-glow group rounded-xl border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm transition-all hover:border-zinc-700"
+                                className="card-glow group rounded-xl border border-border bg-surface-1/50 backdrop-blur-sm transition-all hover:border-border"
                             >
-                                <div className="flex items-center gap-3 border-b border-zinc-800/50 p-4">
-                                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br ${card.accent} text-white shadow-lg`}>
+                                <div className="flex items-center gap-3 border-b border-border-subtle p-4">
+                                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg  ${card.accent} text-text-primary shadow-lg`}>
                                         <Icon className="h-4 w-4" />
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <h3 className="text-[13px] font-semibold">{card.title}</h3>
                                         <div className="flex items-center gap-1.5">
                                             <span className={`inline-block h-1.5 w-1.5 rounded-full ${card.dot}`} />
-                                            <p className="text-[11px] text-zinc-500">{card.subtitle}</p>
+                                            <p className="text-[11px] text-text-muted">{card.subtitle}</p>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="px-4 py-5">
-                                    <p className="text-sm text-zinc-400 flex items-center gap-1">{card.content}</p>
+                                    <p className="text-sm text-text-secondary flex items-center gap-1">{card.content}</p>
                                 </div>
                             </div>
                         )
@@ -367,8 +367,8 @@ export function LiveDashboard() {
             </div>
 
             {/* Task feed */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
-                <div className="border-b border-zinc-800/50 px-4 py-3 flex items-center justify-between">
+            <div className="rounded-xl border border-border bg-surface-1/50 backdrop-blur-sm">
+                <div className="border-b border-border-subtle px-4 py-3 flex items-center justify-between">
                     <h2 className="text-[13px] font-semibold">Recent Tasks</h2>
                     {(running + queued) > 0 && (
                         <span className="flex items-center gap-1.5 text-[11px] text-blue-400">
@@ -379,7 +379,7 @@ export function LiveDashboard() {
                 </div>
                 {tasks.length === 0 ? (
                     <div className="px-4 py-6 text-center">
-                        <p className="text-sm text-zinc-600">No tasks yet. Send a message below to get started.</p>
+                        <p className="text-sm text-text-muted">No tasks yet. Send a message below to get started.</p>
                     </div>
                 ) : (
                     <ul className="divide-y divide-zinc-800/50">
@@ -389,10 +389,10 @@ export function LiveDashboard() {
                                     {task.status}
                                 </span>
                                 <div className="min-w-0 flex-1">
-                                    <p className="truncate text-[13px] text-zinc-200">
+                                    <p className="truncate text-[13px] text-text-primary">
                                         {task.outcomeSummary ?? `${task.type} task via ${task.source}`}
                                     </p>
-                                    <div className="mt-0.5 flex gap-2 text-[11px] text-zinc-500">
+                                    <div className="mt-0.5 flex gap-2 text-[11px] text-text-muted">
                                         <span>{task.type}</span>
                                         <span>·</span>
                                         <span>{timeAgo(task.createdAt)}</span>

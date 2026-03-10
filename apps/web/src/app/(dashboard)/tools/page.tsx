@@ -73,24 +73,24 @@ function ToolRow({ tool, enabled, onToggle }: { tool: string; enabled: boolean; 
     return (
         <div
             className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-all ${enabled
-                ? 'border-zinc-700/60 bg-zinc-900/50'
-                : 'border-zinc-800/30 bg-zinc-900/10 opacity-50'
+                ? 'border-border/60 bg-surface-1/50'
+                : 'border-border/30 bg-surface-1/10 opacity-50'
                 }`}
         >
             <div className="flex items-center gap-2">
-                <Wrench className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
-                <span className="text-xs font-mono text-zinc-300">{tool}</span>
+                <Wrench className="h-3.5 w-3.5 text-text-muted shrink-0" />
+                <span className="text-xs font-mono text-text-secondary">{tool}</span>
             </div>
             {onToggle ? (
                 <button onClick={onToggle} className="shrink-0">
                     {enabled
-                        ? <ToggleRight className="h-5 w-5 text-indigo-400" />
+                        ? <ToggleRight className="h-5 w-5 text-indigo" />
                         : <ToggleLeft className="h-5 w-5 text-zinc-700" />
                     }
                 </button>
             ) : (
                 enabled
-                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald shrink-0" />
                     : <Circle className="h-3.5 w-3.5 text-zinc-700 shrink-0" />
             )}
         </div>
@@ -100,20 +100,20 @@ function ToolRow({ tool, enabled, onToggle }: { tool: string; enabled: boolean; 
 function SourceSection({ label, tools, count, total }: { label: string; tools: React.ReactNode[]; count: number; total: number }) {
     const [expanded, setExpanded] = useState(true)
     return (
-        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/30 overflow-hidden">
+        <div className="rounded-xl border border-border/60 bg-surface-1/30 overflow-hidden">
             <button
-                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-zinc-900/60 transition-colors"
+                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-1/60 transition-colors"
                 onClick={() => setExpanded((e) => !e)}
             >
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-300">{label}</span>
-                    <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                    <span className="text-sm font-medium text-text-secondary">{label}</span>
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-text-muted">
                         {count}/{total} enabled
                     </span>
                 </div>
                 {expanded
-                    ? <ChevronDown className="h-3.5 w-3.5 text-zinc-600" />
-                    : <ChevronRight className="h-3.5 w-3.5 text-zinc-600" />
+                    ? <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
+                    : <ChevronRight className="h-3.5 w-3.5 text-text-muted" />
                 }
             </button>
             {expanded && (
@@ -263,7 +263,7 @@ export default function ToolsPage() {
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-xl font-bold tracking-tight text-zinc-50">Tools</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">
+                    <p className="mt-0.5 text-sm text-text-muted">
                         Agent-accessible tools from integrations and plugin extensions
                     </p>
                 </div>
@@ -271,7 +271,7 @@ export default function ToolsPage() {
                     onClick={() => void fetchAll()}
                     disabled={loading}
                     title="Refresh"
-                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors disabled:opacity-40"
                 >
                     <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">Refresh</span>
@@ -288,7 +288,7 @@ export default function ToolsPage() {
             </div>
 
             {error && (
-                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 flex items-center gap-2 text-xs text-red-400">
+                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 flex items-center gap-2 text-xs text-red">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {error}
                 </div>
@@ -307,33 +307,33 @@ export default function ToolsPage() {
             />
 
             {!loading && totalTools > 0 && (
-                <div className="flex items-center gap-4 text-xs text-zinc-500">
-                    <span><span className="text-zinc-300 font-medium">{totalEnabled}</span> / {totalTools} tools enabled</span>
-                    <span><span className="text-zinc-300 font-medium">{allSectionsUnfiltered.length}</span> sources</span>
+                <div className="flex items-center gap-4 text-xs text-text-muted">
+                    <span><span className="text-text-secondary font-medium">{totalEnabled}</span> / {totalTools} tools enabled</span>
+                    <span><span className="text-text-secondary font-medium">{allSectionsUnfiltered.length}</span> sources</span>
                 </div>
             )}
 
             {loading ? (
                 <div className="flex items-center justify-center py-16">
-                    <RefreshCw className="h-5 w-5 text-zinc-600 animate-spin" />
+                    <RefreshCw className="h-5 w-5 text-text-muted animate-spin" />
                 </div>
             ) : allSectionsUnfiltered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
                     <WrenchIcon className="h-10 w-10 text-zinc-700" />
                     <div className="text-center">
-                        <p className="text-sm font-medium text-zinc-500">No tools available</p>
-                        <p className="text-xs text-zinc-600 mt-1">
+                        <p className="text-sm font-medium text-text-muted">No tools available</p>
+                        <p className="text-xs text-text-muted mt-1">
                             Connect services in{' '}
-                            <a href="/settings/connections" className="text-indigo-400 hover:underline">Integrations</a>{' '}
+                            <a href="/settings/connections" className="text-indigo hover:underline">Integrations</a>{' '}
                             or install Kapsel plugins from the{' '}
-                            <a href="/marketplace" className="text-indigo-400 hover:underline">Marketplace</a>.
+                            <a href="/marketplace" className="text-indigo hover:underline">Marketplace</a>.
                         </p>
                     </div>
                 </div>
             ) : allSections.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center">
-                    <p className="text-sm text-zinc-500">No results match your filters.</p>
-                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto">
+                <div className="rounded-xl border border-border bg-surface-1/40 py-12 text-center">
+                    <p className="text-sm text-text-muted">No results match your filters.</p>
+                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto">
                         Clear search
                     </button>
                 </div>

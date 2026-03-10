@@ -48,9 +48,9 @@ const SOURCE_LABEL: Record<string, { icon: string; label: string }> = {
 }
 
 const STATUS_CFG = {
-    complete: { icon: CheckCircle, cls: 'text-emerald-400', label: 'Completed' },
-    failed: { icon: XCircle, cls: 'text-red-400', label: 'Failed' },
-    pending: { icon: Clock, cls: 'text-amber-400', label: 'Pending' },
+    complete: { icon: CheckCircle, cls: 'text-emerald', label: 'Completed' },
+    failed: { icon: XCircle, cls: 'text-red', label: 'Failed' },
+    pending: { icon: Clock, cls: 'text-amber', label: 'Pending' },
 }
 
 export default function ConversationDetailPage() {
@@ -75,7 +75,7 @@ export default function ConversationDetailPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-20 text-zinc-600">
+            <div className="flex items-center justify-center py-20 text-text-muted">
                 <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
             </div>
         )
@@ -84,11 +84,11 @@ export default function ConversationDetailPage() {
     if (notFound || !conv) {
         return (
             <div className="max-w-2xl">
-                <Link href="/conversations" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-6">
+                <Link href="/conversations" className="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-text-secondary transition-colors mb-6">
                     <ArrowLeft className="h-4 w-4" /> Back to conversations
                 </Link>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
-                    <p className="text-sm text-zinc-500">Conversation not found.</p>
+                <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
+                    <p className="text-sm text-text-muted">Conversation not found.</p>
                 </div>
             </div>
         )
@@ -105,24 +105,24 @@ export default function ConversationDetailPage() {
             {/* Back nav */}
             <Link
                 href="/conversations"
-                className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-text-secondary transition-colors"
             >
                 <ArrowLeft className="h-4 w-4" /> Back to conversations
             </Link>
 
             {/* Header card */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-4">
+            <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[11px] text-zinc-500 font-mono">{conv.id}</span>
+                            <span className="text-[11px] text-text-muted font-mono">{conv.id}</span>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap mt-1">
-                            <span className="text-xs bg-zinc-800 border border-zinc-700/50 rounded px-2 py-0.5 text-zinc-400">
+                            <span className="text-xs bg-surface-2 border border-border/50 rounded px-2 py-0.5 text-text-secondary">
                                 {srcMeta.icon} {srcMeta.label}
                             </span>
                             {conv.intent && conv.intent !== 'CONVERSATION' && (
-                                <span className="text-xs bg-indigo-900/40 border border-indigo-800/50 rounded px-2 py-0.5 text-indigo-400 capitalize">
+                                <span className="text-xs bg-indigo-900/40 border border-indigo-800/50 rounded px-2 py-0.5 text-indigo capitalize">
                                     {conv.intent.toLowerCase()}
                                 </span>
                             )}
@@ -136,7 +136,7 @@ export default function ConversationDetailPage() {
                         {conv.taskId && (
                             <Link
                                 href={`/tasks/${conv.taskId}`}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2/60 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:border-zinc-600 transition-colors"
                             >
                                 <ExternalLink className="h-3.5 w-3.5" />
                                 View task
@@ -144,7 +144,7 @@ export default function ConversationDetailPage() {
                         )}
                         <Link
                             href={`/chat?context=${encodeURIComponent(conv.id)}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
                         >
                             <MessageCircle className="h-3.5 w-3.5" />
                             Continue
@@ -152,7 +152,7 @@ export default function ConversationDetailPage() {
                     </div>
                 </div>
 
-                <p className="text-[11px] text-zinc-600">
+                <p className="text-[11px] text-text-muted">
                     {createdAt.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                     {' · '}
                     {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -164,10 +164,10 @@ export default function ConversationDetailPage() {
                 {/* User turn */}
                 <div className="flex gap-3 flex-row-reverse">
                     <div className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-zinc-700">
-                        <User className="h-4 w-4 text-zinc-300" />
+                        <User className="h-4 w-4 text-text-secondary" />
                     </div>
                     <div className="flex flex-col gap-1 max-w-[85%] items-end">
-                        <div className="rounded-2xl rounded-tr-md px-4 py-2.5 text-sm leading-relaxed bg-indigo-600 text-white">
+                        <div className="rounded-2xl rounded-tr-md px-4 py-2.5 text-sm leading-relaxed bg-indigo text-text-primary">
                             {conv.message}
                         </div>
                     </div>
@@ -176,14 +176,14 @@ export default function ConversationDetailPage() {
                 {/* Agent turn */}
                 {body && (
                     <div className="flex gap-3">
-                        <div className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600">
-                            <Bot className="h-4 w-4 text-white" />
+                        <div className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center  ">
+                            <Bot className="h-4 w-4 text-text-primary" />
                         </div>
                         <div className="flex flex-col gap-1 max-w-[85%] items-start">
                             <div className={`rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed ${
                                 conv.status === 'failed' && conv.errorMsg
                                     ? 'bg-red-950/30 border border-red-800/40 text-red-300'
-                                    : 'bg-zinc-800 text-zinc-200'
+                                    : 'bg-surface-2 text-text-primary'
                             }`}>
                                 {body}
                             </div>
@@ -194,9 +194,9 @@ export default function ConversationDetailPage() {
 
             {/* Meta footer */}
             {conv.sessionId && (
-                <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/20 px-4 py-3">
-                    <p className="text-[11px] text-zinc-600">
-                        Session ID: <span className="font-mono text-zinc-500">{conv.sessionId}</span>
+                <div className="rounded-lg border border-border/60 bg-surface-1/20 px-4 py-3">
+                    <p className="text-[11px] text-text-muted">
+                        Session ID: <span className="font-mono text-text-muted">{conv.sessionId}</span>
                     </p>
                 </div>
             )}

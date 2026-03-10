@@ -27,14 +27,14 @@ export function OnboardingComplete({ onComplete }: { onComplete: () => void }) {
 
     return (
         <div className="flex flex-col p-6 space-y-6 max-w-md mx-auto h-full justify-center text-center">
-            <h1 className="text-2xl font-bold text-zinc-100">You're all set</h1>
-            {url && <p className="text-zinc-400">Connected to:<br/><span className="font-semibold text-zinc-200">{url}</span></p>}
+            <h1 className="text-2xl font-bold text-text-primary">You're all set</h1>
+            {url && <p className="text-text-secondary">Connected to:<br/><span className="font-semibold text-text-primary">{url}</span></p>}
             
-            <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto my-8" />
+            <CheckCircle2 className="w-16 h-16 text-emerald mx-auto my-8" />
             
             <button 
                 onClick={onComplete}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold flex items-center justify-center shadow-lg shadow-indigo-500/20"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-text-primary rounded-lg font-semibold flex items-center justify-center shadow-lg shadow-indigo-500/20"
             >
                 Open Plexo
             </button>

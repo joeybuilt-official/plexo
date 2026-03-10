@@ -103,14 +103,14 @@ interface SprintLogEntry {
 const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-    queued: { bg: 'bg-zinc-700/50', text: 'text-zinc-300', dot: 'bg-zinc-500', label: 'Queued' },
+    queued: { bg: 'bg-zinc-700/50', text: 'text-text-secondary', dot: 'bg-zinc-500', label: 'Queued' },
     running: { bg: 'bg-blue-500/15', text: 'text-blue-400', dot: 'bg-blue-400 animate-pulse', label: 'Running' },
-    complete: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', dot: 'bg-emerald-400', label: 'Complete' },
-    blocked: { bg: 'bg-amber-500/15', text: 'text-amber-400', dot: 'bg-amber-400', label: 'Blocked' },
-    failed: { bg: 'bg-red-500/15', text: 'text-red-400', dot: 'bg-red-400', label: 'Failed' },
+    complete: { bg: 'bg-emerald/15', text: 'text-emerald', dot: 'bg-emerald', label: 'Complete' },
+    blocked: { bg: 'bg-amber/15', text: 'text-amber', dot: 'bg-amber', label: 'Blocked' },
+    failed: { bg: 'bg-red/15', text: 'text-red', dot: 'bg-red', label: 'Failed' },
     planning: { bg: 'bg-purple-500/15', text: 'text-purple-400', dot: 'bg-purple-400 animate-pulse', label: 'Planning' },
     finalizing: { bg: 'bg-cyan-500/15', text: 'text-cyan-400', dot: 'bg-cyan-400 animate-pulse', label: 'Finalizing' },
-    cancelled: { bg: 'bg-zinc-700/30', text: 'text-zinc-500', dot: 'bg-zinc-600', label: 'Cancelled' },
+    cancelled: { bg: 'bg-zinc-700/30', text: 'text-text-muted', dot: 'bg-surface-3', label: 'Cancelled' },
 }
 
 // ── Log event config ──────────────────────────────────────────────────────────
@@ -124,27 +124,27 @@ const LOG_EVENT_CONFIG: Record<SprintLogEvent, {
     planning_start: { icon: Sparkles, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Planning' },
     planning_complete: { icon: CheckCheck, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Plan Ready' },
     wave_start: { icon: Layers, color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/20', label: 'Wave' },
-    wave_complete: { icon: CheckCheck, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10 border-emerald-500/20', label: 'Wave Done' },
+    wave_complete: { icon: CheckCheck, color: 'text-emerald', bgColor: 'bg-emerald-dim border-emerald-500/20', label: 'Wave Done' },
     task_queued: { icon: Play, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Queued' },
     task_running: { icon: Cpu, color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/20', label: 'Running' },
-    task_complete: { icon: CheckCircle2, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10 border-emerald-500/20', label: 'Done' },
-    task_failed: { icon: XCircle, color: 'text-red-400', bgColor: 'bg-red-500/10 border-red-500/20', label: 'Failed' },
-    task_timeout: { icon: Clock, color: 'text-amber-400', bgColor: 'bg-amber-500/10 border-amber-500/20', label: 'Timeout' },
-    pr_created: { icon: GitPullRequest, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10 border-emerald-500/20', label: 'PR' },
-    pr_failed: { icon: AlertCircle, color: 'text-red-400', bgColor: 'bg-red-500/10 border-red-500/20', label: 'PR Failed' },
-    conflict_detected: { icon: AlertTriangle, color: 'text-amber-400', bgColor: 'bg-amber-500/10 border-amber-500/20', label: 'Conflict' },
-    budget_check: { icon: BadgeDollarSign, color: 'text-zinc-400', bgColor: 'bg-zinc-800/60 border-zinc-700/30', label: 'Budget' },
-    budget_ceiling_hit: { icon: AlertTriangle, color: 'text-amber-400', bgColor: 'bg-amber-500/10 border-amber-500/20', label: 'Budget Limit' },
-    sprint_complete: { icon: CheckCheck, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10 border-emerald-500/20', label: 'Complete' },
-    sprint_failed: { icon: XCircle, color: 'text-red-400', bgColor: 'bg-red-500/10 border-red-500/20', label: 'Failed' },
+    task_complete: { icon: CheckCircle2, color: 'text-emerald', bgColor: 'bg-emerald-dim border-emerald-500/20', label: 'Done' },
+    task_failed: { icon: XCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'Failed' },
+    task_timeout: { icon: Clock, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Timeout' },
+    pr_created: { icon: GitPullRequest, color: 'text-emerald', bgColor: 'bg-emerald-dim border-emerald-500/20', label: 'PR' },
+    pr_failed: { icon: AlertCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'PR Failed' },
+    conflict_detected: { icon: AlertTriangle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Conflict' },
+    budget_check: { icon: BadgeDollarSign, color: 'text-text-secondary', bgColor: 'bg-surface-2/60 border-border/30', label: 'Budget' },
+    budget_ceiling_hit: { icon: AlertTriangle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Budget Limit' },
+    sprint_complete: { icon: CheckCheck, color: 'text-emerald', bgColor: 'bg-emerald-dim border-emerald-500/20', label: 'Complete' },
+    sprint_failed: { icon: XCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'Failed' },
     branch_created: { icon: GitBranch, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Branch' },
-    branch_failed: { icon: AlertCircle, color: 'text-amber-400', bgColor: 'bg-amber-500/10 border-amber-500/20', label: 'Branch Err' },
+    branch_failed: { icon: AlertCircle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Branch Err' },
 }
 
 const LEVEL_COLORS: Record<SprintLogLevel, string> = {
-    info: 'text-zinc-500',
-    warn: 'text-amber-500',
-    error: 'text-red-500',
+    info: 'text-text-muted',
+    warn: 'text-amber',
+    error: 'text-red',
 }
 
 // ── Utility helpers ───────────────────────────────────────────────────────────
@@ -184,13 +184,13 @@ function WorkerCard({ task }: { task: SprintTaskItem }) {
     const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.queued!
     void cfg
     return (
-        <div className={`rounded-lg border ${task.status === 'running' ? 'border-blue-700/50' : 'border-zinc-800'} bg-zinc-900/60 p-3 flex flex-col gap-2 transition-all`}>
+        <div className={`rounded-lg border ${task.status === 'running' ? 'border-blue-700/50' : 'border-border'} bg-surface-1/60 p-3 flex flex-col gap-2 transition-all`}>
             <div className="flex items-center justify-between gap-2">
                 <StatusBadge status={task.status} />
-                <span className="text-[10px] font-mono text-zinc-600">#{task.priority}</span>
+                <span className="text-[10px] font-mono text-text-muted">#{task.priority}</span>
             </div>
-            <p className="text-xs text-zinc-300 line-clamp-2 leading-relaxed">{task.description}</p>
-            <div className="flex items-center gap-1 text-[10px] font-mono text-zinc-600">
+            <p className="text-xs text-text-secondary line-clamp-2 leading-relaxed">{task.description}</p>
+            <div className="flex items-center gap-1 text-[10px] font-mono text-text-muted">
                 <GitBranch className="h-2.5 w-2.5 shrink-0" />
                 <span className="truncate">{task.branch}</span>
             </div>
@@ -206,7 +206,7 @@ function WorkerCard({ task }: { task: SprintTaskItem }) {
                 </a>
             )}
             {task.completedAt && (
-                <span className="text-[10px] text-zinc-600">{timeAgo(task.completedAt)}</span>
+                <span className="text-[10px] text-text-muted">{timeAgo(task.completedAt)}</span>
             )}
         </div>
     )
@@ -220,7 +220,7 @@ function CategoryBadge({ category }: { category: string }) {
     const def = getCategoryDef(category)
     const Icon = CATEGORY_ICONS[def.icon] ?? Sparkles
     return (
-        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ring-zinc-700/60 bg-zinc-800/60 text-zinc-400">
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ring-zinc-700/60 bg-surface-2/60 text-text-secondary">
             <Icon className="h-2.5 w-2.5" />
             {def.label}
         </span>
@@ -256,19 +256,19 @@ function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) 
                         <span className={`text-[10px] font-semibold uppercase tracking-wider ${cfg.color} opacity-70`}>
                             {cfg.label}
                         </span>
-                        <p className="text-xs text-zinc-300 leading-relaxed">{entry.message}</p>
+                        <p className="text-xs text-text-secondary leading-relaxed">{entry.message}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                         <span className={`text-[10px] font-mono ${LEVEL_COLORS[entry.level]}`}>
                             {entry.level !== 'info' ? entry.level.toUpperCase() : ''}
                         </span>
-                        <span className="text-[10px] font-mono text-zinc-600 tabular-nums">
+                        <span className="text-[10px] font-mono text-text-muted tabular-nums">
                             {formatTime(entry.createdAt)}
                         </span>
                         {hasMetadata && (
                             <button
                                 onClick={() => setExpanded(!expanded)}
-                                className="text-zinc-600 hover:text-zinc-400 transition-colors"
+                                className="text-text-muted hover:text-text-secondary transition-colors"
                             >
                                 <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                             </button>
@@ -278,8 +278,8 @@ function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) 
 
                 {/* Expandable metadata */}
                 {expanded && hasMetadata && (
-                    <div className="mt-2 rounded bg-black/30 border border-zinc-800/50 p-2">
-                        <pre className="text-[10px] font-mono text-zinc-400 whitespace-pre-wrap overflow-x-auto max-h-40">
+                    <div className="mt-2 rounded bg-black/30 border border-border-subtle p-2">
+                        <pre className="text-[10px] font-mono text-text-secondary whitespace-pre-wrap overflow-x-auto max-h-40">
                             {JSON.stringify(entry.metadata, null, 2)}
                         </pre>
                     </div>
@@ -287,7 +287,7 @@ function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) 
 
                 {/* Branch inline display */}
                 {(entry.metadata?.branch as string) && !expanded && (
-                    <div className="mt-1 flex items-center gap-1 text-[10px] font-mono text-zinc-600">
+                    <div className="mt-1 flex items-center gap-1 text-[10px] font-mono text-text-muted">
                         <GitBranch className="h-2.5 w-2.5" />
                         {entry.metadata.branch as string}
                     </div>
@@ -402,7 +402,7 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
 
     if (loading && logs.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-zinc-600">
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-text-muted">
                 <RefreshCw className="h-4 w-4 animate-spin" />
                 <p className="text-sm">Loading activity log…</p>
             </div>
@@ -411,7 +411,7 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
 
     if (logs.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-zinc-600">
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-text-muted">
                 <Terminal className="h-8 w-8 opacity-30" />
                 <p className="text-sm">No activity yet — logs will appear as agents work</p>
                 {isActive && (
@@ -429,9 +429,9 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
             {/* Log toolbar */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-500">{logs.length} events</span>
+                    <span className="text-xs text-text-muted">{logs.length} events</span>
                     {isActive && (
-                        <div className={`flex items-center gap-1.5 text-[10px] font-medium ${liveConnected ? 'text-emerald-400' : 'text-zinc-600'}`}>
+                        <div className={`flex items-center gap-1.5 text-[10px] font-medium ${liveConnected ? 'text-emerald' : 'text-text-muted'}`}>
                             <Wifi className="h-2.5 w-2.5" />
                             {liveConnected ? 'Live' : 'Polling'}
                         </div>
@@ -440,7 +440,7 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => void fetchLogs(true)}
-                        className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1"
+                        className="text-[11px] text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1"
                     >
                         <RefreshCw className="h-2.5 w-2.5" />
                         Refresh
@@ -452,7 +452,7 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
                                 scrollRef.current.scrollTop = scrollRef.current.scrollHeight
                             }
                         }}
-                        className={`text-[11px] transition-colors flex items-center gap-1 ${autoScroll ? 'text-indigo-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+                        className={`text-[11px] transition-colors flex items-center gap-1 ${autoScroll ? 'text-indigo' : 'text-text-muted hover:text-text-secondary'}`}
                     >
                         <ChevronDown className="h-2.5 w-2.5" />
                         {autoScroll ? 'Auto-scroll on' : 'Scroll to bottom'}
@@ -477,7 +477,7 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
 
                 {/* Blinking cursor when active */}
                 {isActive && (
-                    <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-mono text-zinc-600">
+                    <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-mono text-text-muted">
                         <span className="text-violet-400 animate-pulse">▊</span>
                         agents working…
                     </div>
@@ -623,7 +623,7 @@ export default function ProjectControlRoom() {
     }, [sprintId, fetchData])
 
     if (loading) return (
-        <div className="flex items-center gap-2 py-16 justify-center text-sm text-zinc-600">
+        <div className="flex items-center gap-2 py-16 justify-center text-sm text-text-muted">
             <RefreshCw className="h-4 w-4 animate-spin" />
             Loading project…
         </div>
@@ -631,8 +631,8 @@ export default function ProjectControlRoom() {
 
     if (notFound) return (
         <div className="flex flex-col items-center gap-4 py-16">
-            <p className="text-zinc-400">Project not found</p>
-            <Link href="/projects" className="text-sm text-indigo-400 hover:text-indigo-300">← Back to Projects</Link>
+            <p className="text-text-secondary">Project not found</p>
+            <Link href="/projects" className="text-sm text-indigo hover:text-indigo-300">← Back to Projects</Link>
         </div>
     )
 
@@ -667,7 +667,7 @@ export default function ProjectControlRoom() {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => router.push('/projects')}
-                            className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                            className="text-text-muted hover:text-text-secondary transition-colors"
                             aria-label="Back"
                         >
                             <ArrowLeft className="h-4 w-4" />
@@ -679,7 +679,7 @@ export default function ProjectControlRoom() {
                         <CategoryBadge category={sprint.category ?? 'code'} />
                     </div>
                     {isCode && sprint.repo && (
-                        <p className="pl-6 text-sm font-mono text-zinc-500">{sprint.repo}</p>
+                        <p className="pl-6 text-sm font-mono text-text-muted">{sprint.repo}</p>
                     )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -687,7 +687,7 @@ export default function ProjectControlRoom() {
                         <button
                             onClick={() => void handleRetry()}
                             disabled={retrying}
-                            className="flex items-center gap-1.5 rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-900/40 hover:border-emerald-700 hover:text-emerald-300 transition-all disabled:opacity-40"
+                            className="flex items-center gap-1.5 rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald hover:bg-emerald-900/40 hover:border-emerald-700 hover:text-emerald-300 transition-all disabled:opacity-40"
                         >
                             <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
                             {retrying ? 'Retrying…' : 'Retry Failed'}
@@ -698,7 +698,7 @@ export default function ProjectControlRoom() {
                             id="stop-sprint-btn"
                             onClick={() => void handleStop()}
                             disabled={stopping}
-                            className="flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/40 hover:border-red-700 hover:text-red-300 transition-all disabled:opacity-40"
+                            className="flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/30 px-3 py-1.5 text-xs text-red hover:bg-red-900/40 hover:border-red-700 hover:text-red-300 transition-all disabled:opacity-40"
                         >
                             <StopCircle className="h-3.5 w-3.5" />
                             {stopping ? 'Stopping…' : 'Stop project'}
@@ -706,7 +706,7 @@ export default function ProjectControlRoom() {
                     )}
                     <button
                         onClick={() => void fetchData()}
-                        className="rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                        className="rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors"
                         aria-label="Refresh"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${isActive ? 'animate-spin' : ''}`} />
@@ -715,46 +715,46 @@ export default function ProjectControlRoom() {
             </div>
 
             {/* Request card */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3">
-                <p className="text-sm text-zinc-300 leading-relaxed">{sprint.request}</p>
+            <div className="rounded-xl border border-border bg-surface-1/50 px-4 py-3">
+                <p className="text-sm text-text-secondary leading-relaxed">{sprint.request}</p>
             </div>
 
             {/* Metrics row */}
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
                 {[
-                    { icon: CheckCircle2, label: 'Complete', value: String(sprint.completedTasks), sub: `of ${sprint.totalTasks}`, color: 'text-emerald-400' },
-                    { icon: XCircle, label: 'Failed', value: String(sprint.failedTasks), sub: 'tasks', color: sprint.failedTasks > 0 ? 'text-red-400' : 'text-zinc-600' },
-                    { icon: AlertTriangle, label: 'Conflicts', value: String(sprint.conflictCount), sub: 'merges', color: sprint.conflictCount > 0 ? 'text-amber-400' : 'text-zinc-600' },
-                    { icon: Clock, label: 'Elapsed', value: formatMs(isActive ? elapsedMs : sprint.wallClockMs), sub: '', color: 'text-zinc-300' },
-                    { icon: DollarSign, label: 'Cost', value: sprint.costUsd != null ? `$${sprint.costUsd.toFixed(3)}` : '—', sub: 'USD', color: 'text-zinc-300' },
-                    { icon: TrendingUp, label: 'Velocity', value: throughput ? `${throughput}/m` : '—', sub: 'tasks/min', color: 'text-zinc-300' },
+                    { icon: CheckCircle2, label: 'Complete', value: String(sprint.completedTasks), sub: `of ${sprint.totalTasks}`, color: 'text-emerald' },
+                    { icon: XCircle, label: 'Failed', value: String(sprint.failedTasks), sub: 'tasks', color: sprint.failedTasks > 0 ? 'text-red' : 'text-text-muted' },
+                    { icon: AlertTriangle, label: 'Conflicts', value: String(sprint.conflictCount), sub: 'merges', color: sprint.conflictCount > 0 ? 'text-amber' : 'text-text-muted' },
+                    { icon: Clock, label: 'Elapsed', value: formatMs(isActive ? elapsedMs : sprint.wallClockMs), sub: '', color: 'text-text-secondary' },
+                    { icon: DollarSign, label: 'Cost', value: sprint.costUsd != null ? `$${sprint.costUsd.toFixed(3)}` : '—', sub: 'USD', color: 'text-text-secondary' },
+                    { icon: TrendingUp, label: 'Velocity', value: throughput ? `${throughput}/m` : '—', sub: 'tasks/min', color: 'text-text-secondary' },
                 ].map(({ icon: Icon, label, value, sub, color }) => (
-                    <div key={label} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5 text-zinc-500">
+                    <div key={label} className="rounded-xl border border-border bg-surface-1/40 p-3 flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-text-muted">
                             <Icon className="h-3.5 w-3.5" />
                             <span className="text-[11px]">{label}</span>
                         </div>
                         <div className={`text-xl font-bold ${color}`}>{value}</div>
-                        {sub && <div className="text-[10px] text-zinc-600">{sub}</div>}
+                        {sub && <div className="text-[10px] text-text-muted">{sub}</div>}
                     </div>
                 ))}
             </div>
 
             {/* Progress bar */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <div className="rounded-xl border border-border bg-surface-1/50 p-4">
                 <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Progress</span>
-                    <span className="text-xs font-mono text-zinc-500">{progressPct}% · {sprint.completedTasks}/{sprint.totalTasks}</span>
+                    <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">Progress</span>
+                    <span className="text-xs font-mono text-text-muted">{progressPct}% · {sprint.completedTasks}/{sprint.totalTasks}</span>
                 </div>
-                <div className="h-2 rounded-full bg-zinc-800">
+                <div className="h-2 rounded-full bg-surface-2">
                     <div
-                        className={`h-2 rounded-full transition-all duration-700 ${sprint.failedTasks > 0 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600' : 'bg-emerald-500'}`}
+                        className={`h-2 rounded-full transition-all duration-700 ${sprint.failedTasks > 0 ? 'bg-gradient-to-r bg-emerald' : 'bg-emerald'}`}
                         style={{ width: `${progressPct}%` }}
                     />
                 </div>
                 {sprint.failedTasks > 0 && (
                     <div
-                        className="h-1 rounded-full mt-1 bg-red-500/40 transition-all duration-700"
+                        className="h-1 rounded-full mt-1 bg-red/40 transition-all duration-700"
                         style={{ width: `${Math.round((sprint.failedTasks / sprint.totalTasks) * 100)}%` }}
                     />
                 )}
@@ -780,7 +780,7 @@ export default function ProjectControlRoom() {
 
             {/* Tabs */}
             <div className="flex flex-col gap-4">
-                <div className="flex gap-1 border-b border-zinc-800">
+                <div className="flex gap-1 border-b border-border">
                     {([
                         { id: 'workers' as const, label: `${def.unitPlural} (${tasks.length})`, badge: false },
                         { id: 'tasks' as const, label: `All ${def.unitPlural.toLowerCase()}`, badge: false },
@@ -792,14 +792,14 @@ export default function ProjectControlRoom() {
                             key={id}
                             onClick={() => setTab(id)}
                             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${tab === id
-                                ? 'border-indigo-500 text-zinc-100'
-                                : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                                ? 'border-indigo text-text-primary'
+                                : 'border-transparent text-text-muted hover:text-text-secondary'
                                 }`}
                         >
                             {id === 'log' && <Terminal className="h-3 w-3" />}
                             {label}
                             {badge && (
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald animate-pulse" />
                             )}
                         </button>
                     ))}
@@ -808,7 +808,7 @@ export default function ProjectControlRoom() {
                 {tab === 'workers' && (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {tasks.length === 0 ? (
-                            <p className="col-span-full text-center py-8 text-sm text-zinc-600">No {def.unitPlural.toLowerCase()} yet — project is planning.</p>
+                            <p className="col-span-full text-center py-8 text-sm text-text-muted">No {def.unitPlural.toLowerCase()} yet — project is planning.</p>
                         ) : (
                             tasks.map((t) => <WorkerCard key={t.id} task={t} />)
                         )}
@@ -816,34 +816,34 @@ export default function ProjectControlRoom() {
                 )}
 
                 {tab === 'tasks' && (
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                    <div className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
                         {tasks.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-zinc-600">No {def.unitPlural.toLowerCase()} yet.</p>
+                            <p className="py-8 text-center text-sm text-text-muted">No {def.unitPlural.toLowerCase()} yet.</p>
                         ) : (
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="border-b border-zinc-800 text-left">
-                                        <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">#</th>
-                                        <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">{def.unitSingular}</th>
-                                        {isCode && <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">Branch</th>}
-                                        <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">Status</th>
-                                        {isCode && <th className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase">PR</th>}
+                                    <tr className="border-b border-border text-left">
+                                        <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">#</th>
+                                        <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">{def.unitSingular}</th>
+                                        {isCode && <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">Branch</th>}
+                                        <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">Status</th>
+                                        {isCode && <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">PR</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-zinc-800/50">
                                     {tasks.map((t) => (
-                                        <tr key={t.id} className="hover:bg-zinc-800/20 transition-colors">
-                                            <td className="px-4 py-2.5 text-xs font-mono text-zinc-600">{t.priority}</td>
-                                            <td className="px-4 py-2.5 text-zinc-300 max-w-xs">
+                                        <tr key={t.id} className="hover:bg-surface-2/20 transition-colors">
+                                            <td className="px-4 py-2.5 text-xs font-mono text-text-muted">{t.priority}</td>
+                                            <td className="px-4 py-2.5 text-text-secondary max-w-xs">
                                                 <p className="truncate">{t.description}</p>
                                                 <div className="flex flex-wrap gap-1 mt-1">
                                                     {(t.scope as string[]).slice(0, 3).map((s) => (
-                                                        <span key={s} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500">{s}</span>
+                                                        <span key={s} className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-muted">{s}</span>
                                                     ))}
                                                 </div>
                                             </td>
                                             {isCode && (
-                                                <td className="px-4 py-2.5 font-mono text-[11px] text-zinc-500 max-w-[140px]">
+                                                <td className="px-4 py-2.5 font-mono text-[11px] text-text-muted max-w-[140px]">
                                                     <span className="truncate block">{t.branch}</span>
                                                 </td>
                                             )}
@@ -873,12 +873,12 @@ export default function ProjectControlRoom() {
                 {tab === 'features' && (
                     <div className="flex flex-col gap-2">
                         {sprint.featuresCompleted.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-zinc-600">No features delivered yet.</p>
+                            <p className="py-8 text-center text-sm text-text-muted">No features delivered yet.</p>
                         ) : (
                             sprint.featuresCompleted.map((f, i) => (
-                                <div key={i} className="flex items-start gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3">
-                                    <Zap className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                                    <p className="text-sm text-zinc-300">{f}</p>
+                                <div key={i} className="flex items-start gap-2 rounded-lg border border-border bg-surface-1/40 px-4 py-3">
+                                    <Zap className="h-3.5 w-3.5 text-emerald shrink-0 mt-0.5" />
+                                    <p className="text-sm text-text-secondary">{f}</p>
                                 </div>
                             ))
                         )}
@@ -888,42 +888,42 @@ export default function ProjectControlRoom() {
                 {tab === 'deliverables' && (
                     <div className="flex flex-col gap-3">
                         {delivLoading ? (
-                            <div className="flex items-center gap-2 py-12 justify-center text-sm text-zinc-600">
+                            <div className="flex items-center gap-2 py-12 justify-center text-sm text-text-muted">
                                 <RefreshCw className="h-4 w-4 animate-spin" />
                                 Loading deliverables…
                             </div>
                         ) : deliverables.length === 0 ? (
                             <div className="flex flex-col items-center gap-3 py-12">
                                 <FileText className="h-8 w-8 text-zinc-700" />
-                                <p className="text-sm text-zinc-500">No file deliverables yet.</p>
-                                <p className="text-xs text-zinc-600">Agent-produced files (documents, scripts, reports) appear here when tasks complete.</p>
+                                <p className="text-sm text-text-muted">No file deliverables yet.</p>
+                                <p className="text-xs text-text-muted">Agent-produced files (documents, scripts, reports) appear here when tasks complete.</p>
                             </div>
                         ) : (
                             deliverables.map((d, i) => {
                                 const key = `${d.taskId}-${d.filename}`
                                 const isOpen = openDeliv === key
                                 return (
-                                    <div key={i} className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                                    <div key={i} className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
                                         <button
                                             onClick={() => setOpenDeliv(isOpen ? null : key)}
-                                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-zinc-800/30 transition-colors"
+                                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface-2/30 transition-colors"
                                         >
                                             <div className="flex items-center gap-3">
-                                                <FileText className="h-4 w-4 text-zinc-500 shrink-0" />
+                                                <FileText className="h-4 w-4 text-text-muted shrink-0" />
                                                 <div>
-                                                    <p className="text-sm font-medium text-zinc-200">{d.filename}</p>
-                                                    <p className="text-[11px] text-zinc-600 font-mono">{(d.bytes / 1024).toFixed(1)} KB · Task {d.taskId.slice(0, 8)}</p>
+                                                    <p className="text-sm font-medium text-text-primary">{d.filename}</p>
+                                                    <p className="text-[11px] text-text-muted font-mono">{(d.bytes / 1024).toFixed(1)} KB · Task {d.taskId.slice(0, 8)}</p>
                                                 </div>
                                             </div>
-                                            <ChevronDown className={`h-4 w-4 text-zinc-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                            <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                                         </button>
                                         {isOpen && d.content && (
-                                            <div className="border-t border-zinc-800 bg-zinc-950/60">
-                                                <pre className="p-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap overflow-x-auto max-h-[60vh] leading-relaxed">{d.content}</pre>
+                                            <div className="border-t border-border bg-canvas/60">
+                                                <pre className="p-4 text-xs text-text-secondary font-mono whitespace-pre-wrap overflow-x-auto max-h-[60vh] leading-relaxed">{d.content}</pre>
                                             </div>
                                         )}
                                         {isOpen && !d.content && (
-                                            <div className="border-t border-zinc-800 p-4 text-xs text-zinc-600">Binary or oversized file — not previewable inline.</div>
+                                            <div className="border-t border-border p-4 text-xs text-text-muted">Binary or oversized file — not previewable inline.</div>
                                         )}
                                     </div>
                                 )
@@ -938,7 +938,7 @@ export default function ProjectControlRoom() {
             </div>
 
             {/* Metadata footer */}
-            <div className="flex items-center gap-4 text-xs text-zinc-600 pt-2">
+            <div className="flex items-center gap-4 text-xs text-text-muted pt-2">
                 <span>ID: <code className="font-mono">{sprint.id}</code></span>
                 <span>Started {timeAgo(sprint.createdAt)}</span>
                 {sprint.plannerIterations > 0 && <span>{sprint.plannerIterations} planner iterations</span>}

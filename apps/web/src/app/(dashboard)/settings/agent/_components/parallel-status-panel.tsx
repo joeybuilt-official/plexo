@@ -69,39 +69,39 @@ export function ParallelStatusPanel() {
     if (!status) return null
 
     return (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 sm:p-5">
+        <div className="rounded-xl border border-border bg-surface-1/40 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                    <Server className="h-4 w-4 text-indigo-400" />
-                    <h2 className="text-sm font-semibold text-zinc-200">Parallel Execution Control</h2>
+                    <Server className="h-4 w-4 text-indigo" />
+                    <h2 className="text-sm font-semibold text-text-primary">Parallel Execution Control</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-500">{status.slots.length} / {status.maxSlots} slots</span>
+                    <span className="text-xs text-text-muted">{status.slots.length} / {status.maxSlots} slots</span>
                 </div>
             </div>
 
             <div className="flex flex-col gap-3">
                 {status.slots.length === 0 ? (
-                    <div className="text-xs text-zinc-500 italic py-2 border border-zinc-800/50 rounded-lg text-center bg-zinc-950/30">
+                    <div className="text-xs text-text-muted italic py-2 border border-border-subtle rounded-lg text-center bg-canvas/30">
                         No active parallel tasks. Empty slots ready.
                     </div>
                 ) : (
                     status.slots.map((slot) => {
                         const remaining = Math.max(0, Math.floor(slot.expiresAt - Date.now() / 1000))
                         return (
-                            <div key={slot.taskId} className="flex items-center justify-between p-3 rounded-lg border border-zinc-700/50 bg-zinc-800/20">
+                            <div key={slot.taskId} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-surface-2/20">
                                 <div className="flex items-center gap-3">
-                                    <Activity className="h-4 w-4 text-emerald-400" />
+                                    <Activity className="h-4 w-4 text-emerald" />
                                     <div>
-                                        <p className="text-[13px] text-zinc-200 truncate max-w-[200px]">{slot.resourceKey}</p>
-                                        <p className="text-[11px] text-zinc-500">TTL: {remaining}s</p>
+                                        <p className="text-[13px] text-text-primary truncate max-w-[200px]">{slot.resourceKey}</p>
+                                        <p className="text-[11px] text-text-muted">TTL: {remaining}s</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <a href={`/tasks/${slot.taskId}`} className="p-1.5 rounded hover:bg-zinc-700/50 text-zinc-400 transition-colors">
+                                    <a href={`/tasks/${slot.taskId}`} className="p-1.5 rounded hover:bg-zinc-700/50 text-text-secondary transition-colors">
                                         <ArrowRight className="h-4 w-4" />
                                     </a>
-                                    <button onClick={() => void releaseSlot(slot.taskId)} className="p-1.5 rounded hover:bg-red-900/40 text-red-400 hover:text-red-300 transition-colors">
+                                    <button onClick={() => void releaseSlot(slot.taskId)} className="p-1.5 rounded hover:bg-red-900/40 text-red hover:text-red-300 transition-colors">
                                         <Trash2 className="h-4 w-4" />
                                     </button>
                                 </div>
@@ -111,11 +111,11 @@ export function ParallelStatusPanel() {
                 )}
             </div>
 
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-zinc-800/60">
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/60">
                 <button
                     onClick={() => void claimBatch()}
                     disabled={claiming}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-indigo-dim text-indigo hover:bg-indigo-dim hover:text-indigo-300 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
                 >
                     <Play className={`h-3.5 w-3.5 ${claiming ? 'animate-pulse' : ''}`} />
                     Claim Batch
@@ -123,7 +123,7 @@ export function ParallelStatusPanel() {
                 <button
                     onClick={() => void clearSlots()}
                     disabled={clearing}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-red-900/40 hover:text-red-400 px-4 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 rounded-lg bg-surface-2 text-text-secondary hover:bg-red-900/40 hover:text-red px-4 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
                 >
                     <Shield className="h-3.5 w-3.5" />
                     Force Clear

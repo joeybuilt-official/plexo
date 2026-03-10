@@ -110,17 +110,17 @@ function categoryColor(cat: string): string {
         code: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
         developer: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
         communication: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
-        productivity: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
-        finance: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+        productivity: 'bg-emerald/15 text-emerald border border-emerald-500/30',
+        finance: 'bg-amber/15 text-amber border border-amber-500/30',
         analytics: 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30',
-        storage: 'bg-orange-500/15 text-orange-400 border border-orange-500/30',
+        storage: 'bg-amber/15 text-orange-400 border border-orange-500/30',
     }
-    return map[cat.toLowerCase()] ?? 'bg-zinc-700/40 text-zinc-400 border border-zinc-700'
+    return map[cat.toLowerCase()] ?? 'bg-zinc-700/40 text-text-secondary border border-border'
 }
 
 function AuthIcon({ type }: { type: AuthType }) {
     if (type === 'oauth2') return <Globe2 className="h-3.5 w-3.5 text-blue-400" />
-    if (type === 'api_key') return <Key className="h-3.5 w-3.5 text-amber-400" />
+    if (type === 'api_key') return <Key className="h-3.5 w-3.5 text-amber" />
     if (type === 'webhook') return <Webhook className="h-3.5 w-3.5 text-violet-400" />
     return null
 }
@@ -128,9 +128,9 @@ function AuthIcon({ type }: { type: AuthType }) {
 function AuthBadge({ type }: { type: AuthType }) {
     const map: Record<AuthType, { label: string; cls: string }> = {
         oauth2: { label: 'OAuth2', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-        api_key: { label: 'API Key / PAT', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+        api_key: { label: 'API Key / PAT', cls: 'bg-amber-dim text-amber border-amber-500/20' },
         webhook: { label: 'Webhook', cls: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
-        none: { label: 'No Auth', cls: 'bg-zinc-700/30 text-zinc-500 border-zinc-700/30' },
+        none: { label: 'No Auth', cls: 'bg-zinc-700/30 text-text-muted border-border/30' },
     }
     const { label, cls } = map[type]
     return (
@@ -145,21 +145,21 @@ function CopySnippet({ code }: { code: string }) {
     const [copied, setCopied] = useState(false)
     return (
         <div className="relative group">
-            <pre className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-[11px] font-mono text-zinc-400 overflow-x-auto whitespace-pre leading-relaxed pr-9">{code}</pre>
+            <pre className="rounded-lg border border-border bg-canvas p-3 text-[11px] font-mono text-text-secondary overflow-x-auto whitespace-pre leading-relaxed pr-9">{code}</pre>
             <button
                 onClick={() => { void navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-                className="absolute right-2 top-2 p-1.5 rounded-md bg-zinc-800 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-zinc-200"
+                className="absolute right-2 top-2 p-1.5 rounded-md bg-surface-2 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity hover:text-text-primary"
             >
-                {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                {copied ? <Check className="h-3 w-3 text-emerald" /> : <Copy className="h-3 w-3" />}
             </button>
         </div>
     )
 }
 
 function StatusDot({ status }: { status: ConnectionStatus }) {
-    if (status === 'active') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-    if (status === 'error') return <AlertCircle className="h-3.5 w-3.5 text-red-400" />
-    return <Circle className="h-3.5 w-3.5 text-zinc-600" />
+    if (status === 'active') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald" />
+    if (status === 'error') return <AlertCircle className="h-3.5 w-3.5 text-red" />
+    return <Circle className="h-3.5 w-3.5 text-text-muted" />
 }
 
 const ALL_CATEGORIES = ['All', 'Code', 'Communication', 'Productivity', 'Finance', 'Analytics', 'Storage']
@@ -388,15 +388,15 @@ export default function IntegrationsPage() {
             {/* Header */}
             <div>
                 <h1 className="text-xl font-bold text-zinc-50">Integrations</h1>
-                <p className="mt-0.5 text-sm text-zinc-500">
+                <p className="mt-0.5 text-sm text-text-muted">
                     Manage authenticated external services • {installed.length} active
                 </p>
             </div>
 
             {error && (
-                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-xs text-red-400 flex items-center justify-between">
+                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-xs text-red flex items-center justify-between">
                     {error}
-                    <button onClick={() => setError(null)} className="text-red-600 hover:text-red-400">✕</button>
+                    <button onClick={() => setError(null)} className="text-red-600 hover:text-red">✕</button>
                 </div>
             )}
 
@@ -420,10 +420,10 @@ export default function IntegrationsPage() {
                     <div className="flex-1 flex flex-row md:flex-col gap-2 md:gap-1">
                         {loading ? (
                             <div className="flex items-center justify-center py-8 min-w-[200px] shrink-0 snap-start">
-                                <RefreshCw className="h-4 w-4 text-zinc-600 animate-spin" />
+                                <RefreshCw className="h-4 w-4 text-text-muted animate-spin" />
                             </div>
                         ) : sorted.length === 0 ? (
-                            <p className="text-center text-xs text-zinc-600 py-6 min-w-[200px] shrink-0 snap-start">No results</p>
+                            <p className="text-center text-xs text-text-muted py-6 min-w-[200px] shrink-0 snap-start">No results</p>
                         ) : (
                             sorted.map((r) => {
                                 const inst = installed.find((i) => i.registryId === r.id)
@@ -435,8 +435,8 @@ export default function IntegrationsPage() {
                                         key={r.id}
                                         onClick={() => { setSelected(r); setActiveTab('overview') }}
                                         className={`text-left rounded-xl border px-3 py-2.5 transition-all text-sm shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${active
-                                            ? 'border-indigo-500/50 bg-zinc-900 shadow-sm shadow-indigo-500/10'
-                                            : 'border-zinc-800/60 bg-zinc-900/30 hover:border-zinc-700 hover:bg-zinc-900/60'
+                                            ? 'border-indigo/50 bg-surface-1 shadow-sm shadow-indigo-500/10'
+                                            : 'border-border/60 bg-surface-1/30 hover:border-border hover:bg-surface-1/60'
                                             }`}
                                     >
                                         <div className="flex items-center justify-between gap-2 h-full">
@@ -452,16 +452,16 @@ export default function IntegrationsPage() {
                                                                 (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'flex')
                                                             }}
                                                         />
-                                                        <span className="h-6 w-6 rounded bg-zinc-800 items-center justify-center text-[10px] font-bold text-zinc-400 hidden" style={{ display: 'none' }}>
+                                                        <span className="h-6 w-6 rounded bg-surface-2 items-center justify-center text-[10px] font-bold text-text-secondary hidden" style={{ display: 'none' }}>
                                                             {r.name.slice(0, 2).toUpperCase()}
                                                         </span>
                                                     </span>
                                                 ) : (
-                                                    <div className="h-6 w-6 rounded bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400">
+                                                    <div className="h-6 w-6 rounded bg-surface-2 flex items-center justify-center text-[10px] font-bold text-text-secondary">
                                                         {r.name.slice(0, 2).toUpperCase()}
                                                     </div>
                                                 )}
-                                                <span className="text-sm font-medium text-zinc-200 truncate max-w-[120px]">{r.name}</span>
+                                                <span className="text-sm font-medium text-text-primary truncate max-w-[120px]">{r.name}</span>
                                             </div>
                                             <div className="flex items-center gap-1.5 shrink-0">
                                                 <AuthIcon type={r.authType} />
@@ -482,20 +482,20 @@ export default function IntegrationsPage() {
 
                 {/* Right panel — detail */}
                 {selected ? (
-                    <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 flex flex-col overflow-hidden max-w-[100vw] sm:max-w-none">
+                    <div className="flex-1 rounded-xl border border-border bg-surface-1/40 flex flex-col overflow-hidden max-w-[100vw] sm:max-w-none">
                         {/* Detail header */}
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 border-b border-zinc-800">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 border-b border-border">
                             <div className="flex items-start gap-3">
                                 {selected.logoUrl ? (
                                     <img src={selected.logoUrl} alt={selected.name} className="h-10 w-10 mt-1 sm:mt-0 rounded-lg object-contain bg-white/5 shrink-0" />
                                 ) : (
-                                    <div className="h-10 w-10 mt-1 sm:mt-0 rounded-lg bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-300 shrink-0">
+                                    <div className="h-10 w-10 mt-1 sm:mt-0 rounded-lg bg-surface-2 flex items-center justify-center text-sm font-bold text-text-secondary shrink-0">
                                         {selected.name.slice(0, 2).toUpperCase()}
                                     </div>
                                 )}
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <h2 className="text-base font-semibold text-zinc-100">{selected.name}</h2>
+                                        <h2 className="text-base font-semibold text-text-primary">{selected.name}</h2>
                                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide ${categoryColor(selected.category)}`}>
                                             {selected.category}
                                         </span>
@@ -511,7 +511,7 @@ export default function IntegrationsPage() {
                                         {isConnected && (
                                             <>
                                                 <StatusDot status={connectedItem!.status} />
-                                                <span className="text-xs text-emerald-400">Connected</span>
+                                                <span className="text-xs text-emerald">Connected</span>
                                             </>
                                         )}
                                     </div>
@@ -523,7 +523,7 @@ export default function IntegrationsPage() {
                                         href={selected.docUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center justify-center gap-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
+                                        className="flex items-center justify-center gap-1 rounded-lg border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
                                     >
                                         <ExternalLink className="h-3 w-3" />
                                         Docs
@@ -533,7 +533,7 @@ export default function IntegrationsPage() {
                                     <button
                                         onClick={() => void handleDisconnect()}
                                         disabled={disconnecting}
-                                        className="flex items-center justify-center gap-1.5 rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red-400 hover:border-red-700 hover:bg-red-950/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial whitespace-nowrap"
+                                        className="flex items-center justify-center gap-1.5 rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-950/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial whitespace-nowrap"
                                     >
                                         <Trash2 className="h-3 w-3" />
                                         {disconnecting ? 'Removing…' : 'Disconnect'}
@@ -542,7 +542,7 @@ export default function IntegrationsPage() {
                                     <button
                                         onClick={() => void handleInstall()}
                                         disabled={installing || !WS_ID}
-                                        className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 sm:px-3 sm:py-1.5 text-sm sm:text-xs font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-[2] sm:flex-initial"
+                                        className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-4 py-2 sm:px-3 sm:py-1.5 text-sm sm:text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-[2] sm:flex-initial"
                                     >
                                         <Link2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                                         {installing ? 'Connecting…' : 'Connect'}
@@ -553,7 +553,7 @@ export default function IntegrationsPage() {
 
                         {/* Tabs (only shown when connected) */}
                         {isConnected && (
-                            <div className="flex gap-0 border-b border-zinc-800">
+                            <div className="flex gap-0 border-b border-border">
                                 {([
                                     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
                                     { id: 'tools', label: 'Tools', icon: Wrench },
@@ -563,8 +563,8 @@ export default function IntegrationsPage() {
                                         key={id}
                                         onClick={() => setActiveTab(id)}
                                         className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${activeTab === id
-                                            ? 'border-indigo-500 text-indigo-400'
-                                            : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                                            ? 'border-indigo text-indigo'
+                                            : 'border-transparent text-text-muted hover:text-text-secondary'
                                             }`}
                                     >
                                         <Icon className="h-3.5 w-3.5" />
@@ -580,34 +580,34 @@ export default function IntegrationsPage() {
                             {/* Overview tab / not connected state */}
                             {(!isConnected || activeTab === 'overview') && (
                                 <div className="flex flex-col gap-5">
-                                    <p className="text-sm text-zinc-400">{selected.description}</p>
+                                    <p className="text-sm text-text-secondary">{selected.description}</p>
 
                                     {/* Connection metadata if connected */}
                                     {isConnected && connectedItem && (
-                                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 flex flex-col gap-2">
-                                            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Connection details</p>
+                                        <div className="rounded-xl border border-border bg-surface-1/60 p-4 flex flex-col gap-2">
+                                            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Connection details</p>
                                             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 sm:gap-y-1.5 text-sm">
                                                 <div>
-                                                    <dt className="text-zinc-600 text-[11px] sm:text-xs">Status</dt>
+                                                    <dt className="text-text-muted text-[11px] sm:text-xs">Status</dt>
                                                     <dd className="flex items-center gap-1.5">
                                                         <StatusDot status={connectedItem.status} />
-                                                        <span className="text-zinc-300 capitalize">{connectedItem.status}</span>
+                                                        <span className="text-text-secondary capitalize">{connectedItem.status}</span>
                                                     </dd>
                                                 </div>
                                                 <div>
-                                                    <dt className="text-zinc-600 text-[11px] sm:text-xs">Connected</dt>
-                                                    <dd className="text-zinc-300">{new Date(connectedItem.createdAt).toLocaleDateString()}</dd>
+                                                    <dt className="text-text-muted text-[11px] sm:text-xs">Connected</dt>
+                                                    <dd className="text-text-secondary">{new Date(connectedItem.createdAt).toLocaleDateString()}</dd>
                                                 </div>
                                                 {connectedItem.lastVerifiedAt && (
                                                     <div>
-                                                        <dt className="text-zinc-600 text-[11px] sm:text-xs">Last verified</dt>
-                                                        <dd className="text-zinc-300">{new Date(connectedItem.lastVerifiedAt).toLocaleDateString()}</dd>
+                                                        <dt className="text-text-muted text-[11px] sm:text-xs">Last verified</dt>
+                                                        <dd className="text-text-secondary">{new Date(connectedItem.lastVerifiedAt).toLocaleDateString()}</dd>
                                                     </div>
                                                 )}
                                                 {connectedItem.scopesGranted.length > 0 && (
                                                     <div className="sm:col-span-2">
-                                                        <dt className="text-zinc-600 text-[11px] sm:text-xs">Scopes</dt>
-                                                        <dd className="text-zinc-300">{connectedItem.scopesGranted.join(', ')}</dd>
+                                                        <dt className="text-text-muted text-[11px] sm:text-xs">Scopes</dt>
+                                                        <dd className="text-text-secondary">{connectedItem.scopesGranted.join(', ')}</dd>
                                                     </div>
                                                 )}
                                             </dl>
@@ -617,19 +617,19 @@ export default function IntegrationsPage() {
                                     {/* Setup fields for not-yet-connected */}
                                     {!isConnected && (selected.setupFields ?? []).length > 0 && (
                                         <div className="flex flex-col gap-3">
-                                            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Configuration</h3>
+                                            <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Configuration</h3>
                                             {selected.setupFields.map((field) => (
                                                 <div key={field.key} className="flex flex-col gap-1">
                                                     <div className="flex items-center justify-between">
-                                                        <label className="text-sm font-medium text-zinc-300">
-                                                            {field.label} {field.required && <span className="text-red-500">*</span>}
+                                                        <label className="text-sm font-medium text-text-secondary">
+                                                            {field.label} {field.required && <span className="text-red">*</span>}
                                                         </label>
                                                         {field.tokenUrl && (
                                                             <a
                                                                 href={field.tokenUrl}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                                                                className="flex items-center gap-1 text-[11px] text-indigo hover:text-indigo-300 transition-colors"
                                                             >
                                                                 <ExternalLink className="h-3 w-3" />
                                                                 Create token
@@ -641,7 +641,7 @@ export default function IntegrationsPage() {
                                                         value={fieldValues[field.key] ?? ''}
                                                         onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                                                         placeholder={field.placeholder ?? ''}
-                                                        className="min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                                        className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                                                     />
                                                 </div>
                                             ))}
@@ -667,7 +667,7 @@ export default function IntegrationsPage() {
                                                 {linkedChannels.map((ch) => (
                                                     <div key={ch.id} className="flex items-center justify-between">
                                                         <span className="text-[11px] text-teal-400/70">{ch.name}</span>
-                                                        <span className={`text-[10px] font-medium ${ch.enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                                                        <span className={`text-[10px] font-medium ${ch.enabled ? 'text-emerald' : 'text-text-muted'}`}>
                                                             {ch.enabled ? 'enabled' : 'disabled'}
                                                         </span>
                                                     </div>
@@ -696,10 +696,10 @@ export default function IntegrationsPage() {
                                     {/* Provided tools + cards */}
                                     {allTools.length > 0 && (
                                         <div>
-                                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Tools provided</h3>
+                                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">Tools provided</h3>
                                             <div className="flex flex-wrap gap-1.5">
                                                 {allTools.map((t) => (
-                                                    <span key={t} className="rounded border border-zinc-800 bg-zinc-800/60 px-2 py-0.5 text-xs text-zinc-400 font-mono">{t}</span>
+                                                    <span key={t} className="rounded border border-border bg-surface-2/60 px-2 py-0.5 text-xs text-text-secondary font-mono">{t}</span>
                                                 ))}
                                             </div>
                                         </div>
@@ -707,10 +707,10 @@ export default function IntegrationsPage() {
 
                                     {selected.oauthScopes.length > 0 && (
                                         <div>
-                                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">OAuth scopes requested</h3>
+                                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">OAuth scopes requested</h3>
                                             <div className="flex flex-wrap gap-1.5">
                                                 {selected.oauthScopes.map((s) => (
-                                                    <span key={s} className="rounded border border-zinc-800 bg-zinc-800/60 px-2 py-0.5 text-xs text-zinc-400 font-mono">{s}</span>
+                                                    <span key={s} className="rounded border border-border bg-surface-2/60 px-2 py-0.5 text-xs text-text-secondary font-mono">{s}</span>
                                                 ))}
                                             </div>
                                         </div>
@@ -722,14 +722,14 @@ export default function IntegrationsPage() {
                             {isConnected && activeTab === 'tools' && (
                                 <div className="flex flex-col gap-3">
                                     <div className="flex items-center justify-between">
-                                        <p className="text-xs text-zinc-500">
+                                        <p className="text-xs text-text-muted">
                                             Enable or disable individual tools from this connection.
                                             Disabled tools are hidden from the agent runtime.
                                         </p>
-                                        {savingTools && <RefreshCw className="h-3.5 w-3.5 text-zinc-600 animate-spin" />}
+                                        {savingTools && <RefreshCw className="h-3.5 w-3.5 text-text-muted animate-spin" />}
                                     </div>
                                     {allTools.length === 0 ? (
-                                        <p className="text-sm text-zinc-600">This connection provides no agent tools.</p>
+                                        <p className="text-sm text-text-muted">This connection provides no agent tools.</p>
                                     ) : (
                                         <div className="flex flex-col gap-1">
                                             {allTools.map((tool) => {
@@ -740,16 +740,16 @@ export default function IntegrationsPage() {
                                                         onClick={() => void toggleTool(tool)}
                                                         disabled={savingTools}
                                                         className={`flex items-center justify-between min-h-[44px] rounded-lg border px-3 py-2.5 text-left transition-all disabled:opacity-60 ${enabled
-                                                            ? 'border-zinc-700/60 bg-zinc-900/60 hover:border-zinc-600'
-                                                            : 'border-zinc-800/40 bg-zinc-900/20 opacity-60 hover:opacity-80'
+                                                            ? 'border-border/60 bg-surface-1/60 hover:border-zinc-600'
+                                                            : 'border-border/40 bg-surface-1/20 opacity-60 hover:opacity-80'
                                                             }`}
                                                     >
                                                         <div className="flex items-center gap-2.5 truncate mr-3">
-                                                            <Wrench className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
-                                                            <span className="text-sm font-mono text-zinc-300 truncate">{tool}</span>
+                                                            <Wrench className="h-3.5 w-3.5 text-text-muted shrink-0" />
+                                                            <span className="text-sm font-mono text-text-secondary truncate">{tool}</span>
                                                         </div>
                                                         {enabled
-                                                            ? <ToggleRight className="h-6 w-6 sm:h-5 sm:w-5 text-indigo-400 shrink-0" />
+                                                            ? <ToggleRight className="h-6 w-6 sm:h-5 sm:w-5 text-indigo shrink-0" />
                                                             : <ToggleLeft className="h-6 w-6 sm:h-5 sm:w-5 text-zinc-700 shrink-0" />
                                                         }
                                                     </button>
@@ -769,8 +769,8 @@ export default function IntegrationsPage() {
                                         <div className="mt-3 flex flex-col gap-2">
                                             <div className="flex items-center gap-1.5">
                                                 <Code2 className="h-3.5 w-3.5 text-rose-400" />
-                                                <p className="text-xs font-semibold text-zinc-400">Managed MCP config</p>
-                                                <span className="text-[10px] text-zinc-600">— Plexo writes this for you</span>
+                                                <p className="text-xs font-semibold text-text-secondary">Managed MCP config</p>
+                                                <span className="text-[10px] text-text-muted">— Plexo writes this for you</span>
                                             </div>
                                             <CopySnippet code={JSON.stringify({
                                                 [selected.id]: {
@@ -792,10 +792,10 @@ export default function IntegrationsPage() {
                                 <div className="flex flex-col gap-4">
                                     {(selected.setupFields ?? []).length > 0 ? (
                                         <>
-                                            <p className="text-xs text-zinc-500">Update credentials for this connection.</p>
+                                            <p className="text-xs text-text-muted">Update credentials for this connection.</p>
                                             {selected.setupFields.map((field) => (
                                                 <div key={field.key} className="flex flex-col gap-1">
-                                                    <label className="text-sm font-medium text-zinc-300">
+                                                    <label className="text-sm font-medium text-text-secondary">
                                                         {field.label}
                                                     </label>
                                                     <input
@@ -803,31 +803,31 @@ export default function IntegrationsPage() {
                                                         value={fieldValues[field.key] ?? ''}
                                                         onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                                                         placeholder="Leave blank to keep current value"
-                                                        className="min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                                        className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                                                     />
                                                 </div>
                                             ))}
                                         </>
                                     ) : selected.authType === 'oauth2' ? (
                                         <div className="flex flex-col gap-2">
-                                            <p className="text-sm text-zinc-400">OAuth2 connection — no manual credentials required.</p>
-                                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 flex items-center gap-2">
+                                            <p className="text-sm text-text-secondary">OAuth2 connection — no manual credentials required.</p>
+                                            <div className="rounded-lg border border-border bg-surface-1/60 px-3 py-2 flex items-center gap-2">
                                                 <Globe2 className="h-4 w-4 text-blue-400" />
-                                                <span className="text-xs text-zinc-500">Scopes: {connectedItem?.scopesGranted.join(', ') || 'none recorded'}</span>
+                                                <span className="text-xs text-text-muted">Scopes: {connectedItem?.scopesGranted.join(', ') || 'none recorded'}</span>
                                             </div>
                                         </div>
                                     ) : (
-                                        <p className="text-sm text-zinc-600">No configuration fields for this connection.</p>
+                                        <p className="text-sm text-text-muted">No configuration fields for this connection.</p>
                                     )}
                                 </div>
                             )}
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 flex items-center justify-center">
+                    <div className="flex-1 rounded-xl border border-border bg-surface-1/40 flex items-center justify-center">
                         <div className="text-center">
                             <Link2Off className="mx-auto h-8 w-8 text-zinc-700 mb-2" />
-                            <p className="text-sm text-zinc-600">Select a service</p>
+                            <p className="text-sm text-text-muted">Select a service</p>
                         </div>
                     </div>
                 )}
@@ -835,7 +835,7 @@ export default function IntegrationsPage() {
 
             {/* Footer */}
             {!WS_ID && (
-                <p className="text-xs text-red-500">NEXT_PUBLIC_DEFAULT_WORKSPACE not set — connections will not persist.</p>
+                <p className="text-xs text-red">NEXT_PUBLIC_DEFAULT_WORKSPACE not set — connections will not persist.</p>
             )}
         </div>
     )

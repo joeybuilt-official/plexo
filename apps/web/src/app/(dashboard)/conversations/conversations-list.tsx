@@ -48,9 +48,9 @@ const FILTER_KEYS = ['status', 'source'] as const
 // ── Badge maps ────────────────────────────────────────────────────────────────
 
 const STATUS_ICON: Record<string, React.ReactElement> = {
-    pending: <Clock className="h-3.5 w-3.5 text-amber-400" />,
-    complete: <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />,
-    failed: <XCircle className="h-3.5 w-3.5 text-red-400" />,
+    pending: <Clock className="h-3.5 w-3.5 text-amber" />,
+    complete: <CheckCircle className="h-3.5 w-3.5 text-emerald" />,
+    failed: <XCircle className="h-3.5 w-3.5 text-red" />,
 }
 
 const ALL_STATUSES = ['pending', 'complete', 'failed'] as const
@@ -58,13 +58,13 @@ const ALL_STATUSES = ['pending', 'complete', 'failed'] as const
 const SOURCE_BADGE: Record<string, { icon: string; label: string; className: string }> = {
     telegram: { icon: '✈️', label: 'Telegram', className: 'bg-sky-900/40 text-sky-400 border border-sky-800/50' },
     slack: { icon: '⚡', label: 'Slack', className: 'bg-purple-900/40 text-purple-400 border border-purple-800/50' },
-    discord: { icon: '💬', label: 'Discord', className: 'bg-indigo-900/40 text-indigo-400 border border-indigo-800/50' },
-    github: { icon: '🐙', label: 'GitHub', className: 'bg-zinc-800 text-zinc-400 border border-zinc-700/50' },
-    dashboard: { icon: '🖥', label: 'Dashboard', className: 'bg-zinc-800/60 text-zinc-500 border border-zinc-700/40' },
-    api: { icon: '🔗', label: 'API', className: 'bg-zinc-800/60 text-zinc-500 border border-zinc-700/40' },
+    discord: { icon: '💬', label: 'Discord', className: 'bg-indigo-900/40 text-indigo border border-indigo-800/50' },
+    github: { icon: '🐙', label: 'GitHub', className: 'bg-surface-2 text-text-secondary border border-border/50' },
+    dashboard: { icon: '🖥', label: 'Dashboard', className: 'bg-surface-2/60 text-text-muted border border-border/40' },
+    api: { icon: '🔗', label: 'API', className: 'bg-surface-2/60 text-text-muted border border-border/40' },
     widget: { icon: '💬', label: 'Widget', className: 'bg-teal-900/40 text-teal-400 border border-teal-800/50' },
 }
-const DEFAULT_SOURCE_BADGE = { icon: '🖥', label: 'Unknown', className: 'bg-zinc-800/60 text-zinc-500 border border-zinc-700/40' }
+const DEFAULT_SOURCE_BADGE = { icon: '🖥', label: 'Unknown', className: 'bg-surface-2/60 text-text-muted border border-border/40' }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -107,15 +107,15 @@ function turnLabel(item: ConversationItem): string | null {
 
 function SkeletonRow() {
     return (
-        <div className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 animate-pulse">
-            <div className="mt-0.5 h-3.5 w-3.5 rounded-full bg-zinc-800 shrink-0" />
+        <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-1/40 p-4 animate-pulse">
+            <div className="mt-0.5 h-3.5 w-3.5 rounded-full bg-surface-2 shrink-0" />
             <div className="flex-1 space-y-2">
                 <div className="flex gap-2">
-                    <div className="h-3 w-16 rounded bg-zinc-800" />
-                    <div className="h-3 w-12 rounded bg-zinc-800" />
+                    <div className="h-3 w-16 rounded bg-surface-2" />
+                    <div className="h-3 w-12 rounded bg-surface-2" />
                 </div>
-                <div className="h-3 w-3/4 rounded bg-zinc-800" />
-                <div className="h-2.5 w-20 rounded bg-zinc-800" />
+                <div className="h-3 w-3/4 rounded bg-surface-2" />
+                <div className="h-2.5 w-20 rounded bg-surface-2" />
             </div>
         </div>
     )
@@ -249,7 +249,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             {/* Header */}
             <div>
                 <h1 className="text-xl font-bold text-zinc-50">Conversations</h1>
-                <p className="mt-0.5 text-sm text-zinc-500">
+                <p className="mt-0.5 text-sm text-text-muted">
                     {loading
                         ? 'Loading…'
                         : items.length > 0
@@ -275,17 +275,17 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                     {[0, 1, 2].map(i => <SkeletonRow key={i} />)}
                 </div>
             ) : items.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
+                <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
                     <MessageSquare className="mx-auto h-8 w-8 text-zinc-700 mb-3" />
-                    <p className="text-sm text-zinc-500">No conversations yet</p>
-                    <p className="mt-1 text-xs text-zinc-600">Start a chat from the dashboard to see history here.</p>
+                    <p className="text-sm text-text-muted">No conversations yet</p>
+                    <p className="mt-1 text-xs text-text-muted">Start a chat from the dashboard to see history here.</p>
                 </div>
             ) : displayed.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
-                    <p className="text-sm text-zinc-500">No conversations match your filters</p>
+                <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
+                    <p className="text-sm text-text-muted">No conversations match your filters</p>
                     <button
                         onClick={clearAll}
-                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto"
+                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto"
                     >
                         Clear filters
                     </button>
@@ -293,7 +293,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             ) : (
                 Object.entries(groups).map(([date, groupItems]) => (
                     <div key={date}>
-                        <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">{date}</p>
+                        <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-text-muted">{date}</p>
                         <div className="flex flex-col gap-2">
                             {groupItems.map((item) => {
                                 const preview = getPreview(item)
@@ -305,7 +305,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                 return (
                                     <div
                                         key={item.id}
-                                        className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 hover:border-zinc-700 transition-colors group"
+                                        className="flex items-start gap-3 rounded-xl border border-border bg-surface-1/40 p-4 hover:border-border transition-colors group"
                                     >
                                         <span className="mt-0.5 shrink-0">
                                             {STATUS_ICON[item.status] ?? STATUS_ICON['pending']}
@@ -320,10 +320,10 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                             className="flex-1 min-w-0 block hover:opacity-80 transition-opacity"
                                         >
                                             {/* User message */}
-                                            <p className="text-sm text-zinc-200 leading-snug line-clamp-2">{item.message}</p>
+                                            <p className="text-sm text-text-primary leading-snug line-clamp-2">{item.message}</p>
                                             {/* Reply or error */}
                                             {preview && preview !== item.message && (
-                                                <p className={`mt-1 text-xs leading-snug line-clamp-2 ${isFailed ? 'text-red-400/80' : 'text-zinc-500'}`}>
+                                                <p className={`mt-1 text-xs leading-snug line-clamp-2 ${isFailed ? 'text-red/80' : 'text-text-muted'}`}>
                                                     {isFailed ? '⚠ ' : '↳ '}{preview}
                                                 </p>
                                             )}
@@ -332,16 +332,16 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                                     {badge.icon} {badge.label}
                                                 </span>
                                                 {item.intent && item.intent !== 'CONVERSATION' && (
-                                                    <span className="rounded bg-indigo-900/40 border border-indigo-800/50 px-1.5 py-0.5 text-[9px] text-indigo-400 capitalize">
+                                                    <span className="rounded bg-indigo-900/40 border border-indigo-800/50 px-1.5 py-0.5 text-[9px] text-indigo capitalize">
                                                         {item.intent.toLowerCase()}
                                                     </span>
                                                 )}
                                                 {isThread && (
-                                                    <span className="flex items-center gap-0.5 rounded bg-zinc-800 border border-zinc-700/50 px-1.5 py-0.5 text-[9px] text-zinc-500">
+                                                    <span className="flex items-center gap-0.5 rounded bg-surface-2 border border-border/50 px-1.5 py-0.5 text-[9px] text-text-muted">
                                                         <Layers className="h-2.5 w-2.5" /> {turns}
                                                     </span>
                                                 )}
-                                                <span className="text-[10px] text-zinc-600">
+                                                <span className="text-[10px] text-text-muted">
                                                     {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
@@ -352,7 +352,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                             {item.taskId && (
                                                 <Link
                                                     href={`/tasks/${item.taskId}`}
-                                                    className="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                                    className="rounded-lg p-1.5 text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
                                                     title="View spawned task"
                                                 >
                                                     <ExternalLink className="h-4 w-4" />
@@ -365,7 +365,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                                         ? `/conversations/thread?sessionId=${encodeURIComponent(item.sessionId)}`
                                                         : `/conversations/${encodeURIComponent(item.id)}`
                                                 }
-                                                className="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                                className="rounded-lg p-1.5 text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
                                                 title={isThread ? 'View thread' : 'Conversation info'}
                                             >
                                                 <Info className="h-4 w-4" />
@@ -373,7 +373,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                             {/* Continue in chat */}
                                             <Link
                                                 href={continueHref(item)}
-                                                className="rounded-lg p-1.5 text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800 transition-colors"
+                                                className="rounded-lg p-1.5 text-text-muted hover:text-indigo hover:bg-surface-2 transition-colors"
                                                 title="Continue conversation"
                                             >
                                                 <MessageCircle className="h-4 w-4" />

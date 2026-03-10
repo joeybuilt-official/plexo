@@ -37,10 +37,10 @@ interface VoiceSettings {
 // ── Status indicator ──────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: TestStatus }) {
-    if (status === 'testing') return <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
-    if (status === 'ok') return <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-    if (status === 'error') return <AlertCircle className="h-4 w-4 text-red-400" />
-    return <Circle className="h-4 w-4 text-zinc-600" />
+    if (status === 'testing') return <Loader2 className="h-4 w-4 animate-spin text-indigo" />
+    if (status === 'ok') return <CheckCircle2 className="h-4 w-4 text-emerald" />
+    if (status === 'error') return <AlertCircle className="h-4 w-4 text-red" />
+    return <Circle className="h-4 w-4 text-text-muted" />
 }
 
 export default function VoiceSettingsPage() {
@@ -168,37 +168,37 @@ export default function VoiceSettingsPage() {
 
             {/* Page header */}
             <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">Voice</h1>
-                <p className="mt-1 text-sm text-zinc-500">
+                <h1 className="text-2xl font-bold text-text-primary tracking-tight">Voice</h1>
+                <p className="mt-1 text-sm text-text-muted">
                     Speech-to-text pipeline for any audio source — web chat, messaging channels,
                     integrations, and future apps. One key, one budget, independent of your LLM providers.
                 </p>
             </div>
 
             {/* Deepgram card */}
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+            <div className="rounded-2xl border border-border bg-surface-1/60 overflow-hidden">
 
                 {/* Card header */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-4 sm:px-6 py-4 sm:py-5 border-b border-zinc-800">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-4 sm:px-6 py-4 sm:py-5 border-b border-border">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                            <Mic className="h-5 w-5 text-indigo-400" />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-dim border border-indigo/20">
+                            <Mic className="h-5 w-5 text-indigo" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <span className="text-base font-semibold text-white">Deepgram</span>
-                                <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                <span className="text-base font-semibold text-text-primary">Deepgram</span>
+                                <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide bg-emerald/15 text-emerald border border-emerald-500/30">
                                     RECOMMENDED
                                 </span>
                             </div>
-                            <p className="text-xs text-zinc-500 mt-0.5">
+                            <p className="text-xs text-text-muted mt-0.5">
                                 Nova-3 model · Industry-leading accuracy · $200 free credits
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 mt-1">
                         <StatusDot status={loading ? 'idle' : testStatus} />
-                        <span className="text-xs text-zinc-500">
+                        <span className="text-xs text-text-muted">
                             {loading ? 'Loading…' : settings?.configured ? 'Configured' : 'Not configured'}
                         </span>
                     </div>
@@ -208,11 +208,11 @@ export default function VoiceSettingsPage() {
                 <div className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-5">
 
                     {/* Free credits callout */}
-                    <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                        <Volume2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                    <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald/5 p-4">
+                        <Volume2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald" />
                         <div>
                             <p className="text-sm font-medium text-emerald-300">$200 in free credits — no credit card required to start</p>
-                            <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
+                            <p className="mt-1 text-xs text-text-muted leading-relaxed">
                                 Deepgram&apos;s Nova-3 model delivers best-in-class transcription accuracy. Free credits cover
                                 approximately 20,000 minutes of audio. Create a free account, generate an API key, and paste
                                 it below.
@@ -221,7 +221,7 @@ export default function VoiceSettingsPage() {
                                 href="https://console.deepgram.com/signup"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="mt-2 inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                className="mt-2 inline-flex items-center gap-1.5 text-xs text-indigo hover:text-indigo-300 transition-colors"
                             >
                                 Create free Deepgram account
                                 <ExternalLink className="h-3 w-3" />
@@ -232,12 +232,12 @@ export default function VoiceSettingsPage() {
                     {/* API Key section */}
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between">
-                            <label className="text-sm font-medium text-zinc-300">API Key</label>
+                            <label className="text-sm font-medium text-text-secondary">API Key</label>
                             <a
                                 href="https://console.deepgram.com/project/keys"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                className="flex items-center gap-1 text-xs text-indigo hover:text-indigo-300 transition-colors"
                             >
                                 Get API key
                                 <ExternalLink className="h-3 w-3" />
@@ -247,15 +247,15 @@ export default function VoiceSettingsPage() {
                         {settings?.configured && !editing ? (
                             // Configured state — show locked field + Change button
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2">
-                                <div className="flex-1 flex items-center gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/30 px-3 py-2.5 min-h-[44px]">
-                                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                                    <span className="text-xs text-emerald-400 font-medium whitespace-nowrap">Key saved and verified</span>
-                                    <span className="ml-auto font-mono text-xs text-zinc-600 truncate max-w-[50px] sm:max-w-none">••••••••••••••••••••••••</span>
+                                <div className="flex-1 flex items-center gap-3 rounded-lg border border-border/50 bg-surface-2/30 px-3 py-2.5 min-h-[44px]">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald shrink-0" />
+                                    <span className="text-xs text-emerald font-medium whitespace-nowrap">Key saved and verified</span>
+                                    <span className="ml-auto font-mono text-xs text-text-muted truncate max-w-[50px] sm:max-w-none">••••••••••••••••••••••••</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={startEditing}
-                                        className="flex-1 sm:flex-initial rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-xs text-zinc-300 hover:text-white hover:border-zinc-600 transition-colors min-h-[44px]"
+                                        className="flex-1 sm:flex-initial rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-xs text-text-secondary hover:text-text-primary hover:border-zinc-600 transition-colors min-h-[44px]"
                                     >
                                         Change
                                     </button>
@@ -263,7 +263,7 @@ export default function VoiceSettingsPage() {
                                         onClick={clearKey}
                                         disabled={saving}
                                         title="Remove key"
-                                        className="rounded-lg border border-zinc-700 bg-zinc-800 p-2.5 text-zinc-600 hover:text-red-400 hover:border-red-500/40 transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                        className="rounded-lg border border-border bg-surface-2 p-2.5 text-text-muted hover:text-red hover:border-red-500/40 transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
                                     >
                                         <X className="h-4 w-4" />
                                     </button>
@@ -281,12 +281,12 @@ export default function VoiceSettingsPage() {
                                             onChange={e => setKeyInput(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && void saveAndTest()}
                                             placeholder="Paste your Deepgram API key…"
-                                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-2.5 pr-11 text-[16px] sm:text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors font-mono min-h-[44px]"
+                                            className="w-full rounded-lg border border-border bg-surface-2/60 px-3 py-2.5 pr-11 text-[16px] sm:text-sm text-text-primary placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo focus:border-indigo transition-colors font-mono min-h-[44px]"
                                         />
                                         <button
                                             type="button"
                                             onClick={() => setShowKey(v => !v)}
-                                            className="absolute right-1 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 min-h-[44px] min-w-[44px] flex items-center justify-center p-0 m-0"
+                                            className="absolute right-1 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary min-h-[44px] min-w-[44px] flex items-center justify-center p-0 m-0"
                                         >
                                             {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                         </button>
@@ -296,7 +296,7 @@ export default function VoiceSettingsPage() {
                                         <button
                                             onClick={() => void saveAndTest()}
                                             disabled={saving || (!keyInput.trim() && !settings?.configured)}
-                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-medium text-white transition-colors whitespace-nowrap min-h-[44px]"
+                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-lg bg-indigo hover:bg-indigo/90 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-medium text-text-primary transition-colors whitespace-nowrap min-h-[44px]"
                                         >
                                             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                                             Save &amp; Test
@@ -305,14 +305,14 @@ export default function VoiceSettingsPage() {
                                         {editing && (
                                             <button
                                                 onClick={cancelEditing}
-                                                className="rounded-lg border border-zinc-700 bg-zinc-800 p-2.5 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                                className="rounded-lg border border-border bg-surface-2 p-2.5 text-text-muted hover:text-text-secondary transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
                                             >
                                                 <X className="h-4 w-4" />
                                             </button>
                                         )}
                                     </div>
                                 </div>
-                                <p className="text-xs text-zinc-600">
+                                <p className="text-xs text-text-muted">
                                     Encrypted at rest (AES-256-GCM). Leave blank to keep the existing key.
                                 </p>
                             </div>
@@ -323,8 +323,8 @@ export default function VoiceSettingsPage() {
                     {testMessage && (
                         <div className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-xs ${
                             testStatus === 'ok'
-                                ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
-                                : 'bg-red-500/10 border border-red-500/20 text-red-300'
+                                ? 'bg-emerald-dim border border-emerald-500/20 text-emerald-300'
+                                : 'bg-red-dim border border-red-500/20 text-red-300'
                         }`}>
                             {testStatus === 'ok'
                                 ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
@@ -336,33 +336,33 @@ export default function VoiceSettingsPage() {
             </div>
 
             {/* How voice works */}
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 sm:px-6 py-4 sm:py-5 mt-4">
-                <h2 className="text-sm font-semibold text-white mb-4">How voice processing works</h2>
+            <div className="rounded-2xl border border-border bg-surface-1/60 px-4 sm:px-6 py-4 sm:py-5 mt-4">
+                <h2 className="text-sm font-semibold text-text-primary mb-4">How voice processing works</h2>
                 <div className="flex flex-col gap-4">
                     {[
                         {
-                            icon: <Mic className="h-4 w-4 text-indigo-400" />,
+                            icon: <Mic className="h-4 w-4 text-indigo" />,
                             title: 'Web chat',
                             desc: 'Click the microphone button in Chat. Audio is recorded in your browser and sent to Deepgram for transcription. The transcript is inserted into the message field — you can review before sending.',
                         },
                         {
-                            icon: <Radio className="h-4 w-4 text-indigo-400" />,
+                            icon: <Radio className="h-4 w-4 text-indigo" />,
                             title: 'Channels & integrations',
                             desc: 'Voice messages sent via Telegram, Slack, Discord, or any future channel are automatically downloaded, transcribed, and routed through the same intent classification pipeline as text. No per-channel configuration needed — one Deepgram key covers everything.',
                         },
                         {
-                            icon: <Volume2 className="h-4 w-4 text-indigo-400" />,
+                            icon: <Volume2 className="h-4 w-4 text-indigo" />,
                             title: 'Token isolation',
                             desc: 'Voice transcription uses a completely separate Deepgram API key and budget. It never touches your LLM provider credits — a Deepgram outage cannot affect task execution.',
                         },
                     ].map(item => (
                         <div key={item.title} className="flex items-start gap-3">
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-zinc-800 border border-zinc-700/50">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 border border-border/50">
                                 {item.icon}
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-zinc-200">{item.title}</p>
-                                <p className="text-xs text-zinc-500 leading-relaxed mt-0.5">{item.desc}</p>
+                                <p className="text-sm font-medium text-text-primary">{item.title}</p>
+                                <p className="text-xs text-text-muted leading-relaxed mt-0.5">{item.desc}</p>
                             </div>
                         </div>
                     ))}

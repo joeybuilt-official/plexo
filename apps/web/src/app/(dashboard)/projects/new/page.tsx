@@ -46,26 +46,26 @@ function CategoryCard({
         <button
             type="button"
             onClick={onSelect}
-            className={`group relative flex flex-col gap-2 rounded-xl border p-4 text-left transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${selected
-                ? 'border-indigo-500/70 bg-indigo-500/10 shadow-[0_0_0_1px_rgba(99,102,241,0.3)]'
-                : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900/70'
+            className={`group relative flex flex-col gap-2 rounded-xl border p-4 text-left transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-indigo/50 ${selected
+                ? 'border-indigo/70 bg-indigo-dim shadow-[0_0_0_1px_rgba(99,102,241,0.3)]'
+                : 'border-border bg-surface-1/40 hover:border-border hover:bg-surface-1/70'
                 }`}
         >
             {selected && (
-                <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px] text-white">
+                <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px] text-text-primary">
                     ✓
                 </span>
             )}
             <div
-                className={`flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${def.accent} text-white shadow-sm transition-transform group-hover:scale-105 ${selected ? 'scale-105' : ''}`}
+                className={`flex h-9 w-9 items-center justify-center rounded-lg  ${def.accent} text-text-primary shadow-sm transition-transform group-hover:scale-105 ${selected ? 'scale-105' : ''}`}
             >
                 <CategoryIcon name={def.icon} className="h-4.5 w-4.5 h-[18px] w-[18px]" />
             </div>
             <div>
-                <p className={`text-sm font-semibold transition-colors ${selected ? 'text-zinc-100' : 'text-zinc-300 group-hover:text-zinc-200'}`}>
+                <p className={`text-sm font-semibold transition-colors ${selected ? 'text-text-primary' : 'text-text-secondary group-hover:text-text-primary'}`}>
                     {def.label}
                 </p>
-                <p className="mt-0.5 text-[11px] text-zinc-500 leading-relaxed">
+                <p className="mt-0.5 text-[11px] text-text-muted leading-relaxed">
                     {def.description}
                 </p>
             </div>
@@ -90,7 +90,7 @@ function UrlListField({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder ?? 'https://...'}
-            className="resize-none rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 leading-relaxed focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors font-mono text-[12px]"
+            className="resize-none rounded-lg border border-border bg-surface-1 px-3.5 py-2.5 text-sm text-text-primary placeholder-zinc-600 leading-relaxed focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 transition-colors font-mono text-[12px]"
         />
     )
 }
@@ -194,7 +194,7 @@ export default function NewProjectPage() {
         <div className="mx-auto max-w-2xl">
             <div className="mb-7">
                 <h1 className="text-xl font-bold text-zinc-50">New Project</h1>
-                <p className="mt-0.5 text-sm text-zinc-500">
+                <p className="mt-0.5 text-sm text-text-muted">
                     Choose a category, describe your goal, and Plexo breaks it into parallel work.
                 </p>
             </div>
@@ -202,7 +202,7 @@ export default function NewProjectPage() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                 {/* Category picker */}
                 <div className="flex flex-col gap-2.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
                         What kind of project is this?
                     </label>
                     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
@@ -225,9 +225,9 @@ export default function NewProjectPage() {
                     >
                         {def.extraFields.map((field) => (
                             <div key={field.key} className="flex flex-col gap-1.5">
-                                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                                <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
                                     {field.label}
-                                    {field.required && <span className="ml-1 text-indigo-400">*</span>}
+                                    {field.required && <span className="ml-1 text-indigo">*</span>}
                                 </label>
 
                                 {field.type === 'text' && (
@@ -238,7 +238,7 @@ export default function NewProjectPage() {
                                         value={extraValues[field.key] ?? ''}
                                         onChange={(e) => setExtra(field.key, e.target.value)}
                                         required={field.required}
-                                        className="rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                                        className="rounded-lg border border-border bg-surface-1 px-3.5 py-2.5 text-sm text-text-primary placeholder-zinc-600 focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 transition-colors"
                                     />
                                 )}
 
@@ -249,7 +249,7 @@ export default function NewProjectPage() {
                                         placeholder={field.placeholder}
                                         value={extraValues[field.key] ?? ''}
                                         onChange={(e) => setExtra(field.key, e.target.value)}
-                                        className="resize-none rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 leading-relaxed focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                                        className="resize-none rounded-lg border border-border bg-surface-1 px-3.5 py-2.5 text-sm text-text-primary placeholder-zinc-600 leading-relaxed focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 transition-colors"
                                     />
                                 )}
 
@@ -258,7 +258,7 @@ export default function NewProjectPage() {
                                         id={`field-${field.key}`}
                                         value={extraValues[field.key] ?? (field.options?.[0]?.value ?? '')}
                                         onChange={(e) => setExtra(field.key, e.target.value)}
-                                        className="rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2.5 text-sm text-zinc-200 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                                        className="rounded-lg border border-border bg-surface-1 px-3.5 py-2.5 text-sm text-text-primary focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 transition-colors"
                                     >
                                         {field.options?.map((opt) => (
                                             <option key={opt.value} value={opt.value}>
@@ -277,14 +277,14 @@ export default function NewProjectPage() {
                                 )}
 
                                 {field.hint && (
-                                    <p className="text-[11px] text-zinc-600">{field.hint}</p>
+                                    <p className="text-[11px] text-text-muted">{field.hint}</p>
                                 )}
                             </div>
                         ))}
 
                         {/* Request */}
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                            <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
                                 {def.requestLabel}
                             </label>
                             <textarea
@@ -295,15 +295,15 @@ export default function NewProjectPage() {
                                 onChange={(e) => setRequest(e.target.value)}
                                 required
                                 minLength={10}
-                                className="resize-none rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 leading-relaxed focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                                className="resize-none rounded-lg border border-border bg-surface-1 px-3.5 py-2.5 text-sm text-text-primary placeholder-zinc-600 leading-relaxed focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 transition-colors"
                             />
-                            <p className="text-[11px] text-zinc-600">
+                            <p className="text-[11px] text-text-muted">
                                 Be specific. Plexo uses this to plan the work and identify what can run in parallel.
                             </p>
                         </div>
 
                         {/* Budget */}
-                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+                        <div className="rounded-lg border border-border bg-surface-1/30 overflow-hidden">
                             <button
                                 type="button"
                                 id="budget-toggle"
@@ -312,24 +312,24 @@ export default function NewProjectPage() {
                                 className="flex w-full items-center justify-between px-4 py-3 text-left"
                             >
                                 <div className="flex items-center gap-2">
-                                    <DollarSign className="h-3.5 w-3.5 text-zinc-600" />
-                                    <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Budget</span>
+                                    <DollarSign className="h-3.5 w-3.5 text-text-muted" />
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Budget</span>
                                     {(parseFloat(projectCeiling) > 0 || parseFloat(taskCeiling) > 0) && (
-                                        <span className="rounded-full bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.5 text-[10px] text-indigo-400">set</span>
+                                        <span className="rounded-full bg-indigo-500/15 border border-indigo/30 px-1.5 py-0.5 text-[10px] text-indigo">set</span>
                                     )}
                                 </div>
                                 <ChevronDown
-                                    className={`h-3.5 w-3.5 text-zinc-600 transition-transform duration-200 ${showBudget ? 'rotate-180' : ''}`}
+                                    className={`h-3.5 w-3.5 text-text-muted transition-transform duration-200 ${showBudget ? 'rotate-180' : ''}`}
                                 />
                             </button>
 
                             {showBudget && (
-                                <div className="border-t border-zinc-800 px-4 pb-4 pt-3 flex flex-col gap-3">
+                                <div className="border-t border-border px-4 pb-4 pt-3 flex flex-col gap-3">
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="flex flex-col gap-1">
-                                            <label htmlFor="budget-project" className="text-[11px] text-zinc-500">Project ceiling</label>
+                                            <label htmlFor="budget-project" className="text-[11px] text-text-muted">Project ceiling</label>
                                             <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-sm">$</span>
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
                                                 <input
                                                     id="budget-project"
                                                     type="number"
@@ -338,15 +338,15 @@ export default function NewProjectPage() {
                                                     placeholder="e.g. 5.00"
                                                     value={projectCeiling}
                                                     onChange={(e) => setProjectCeiling(e.target.value)}
-                                                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 pl-7 pr-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                                                    className="w-full rounded-lg border border-border bg-surface-1 pl-7 pr-3 py-2 text-sm text-text-primary placeholder-zinc-600 focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 transition-colors"
                                                 />
                                             </div>
-                                            <p className="text-[10px] text-zinc-600">Total across all tasks</p>
+                                            <p className="text-[10px] text-text-muted">Total across all tasks</p>
                                         </div>
                                         <div className="flex flex-col gap-1">
-                                            <label htmlFor="budget-task" className="text-[11px] text-zinc-500">Per-task ceiling</label>
+                                            <label htmlFor="budget-task" className="text-[11px] text-text-muted">Per-task ceiling</label>
                                             <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-sm">$</span>
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
                                                 <input
                                                     id="budget-task"
                                                     type="number"
@@ -355,13 +355,13 @@ export default function NewProjectPage() {
                                                     placeholder="e.g. 0.50"
                                                     value={taskCeiling}
                                                     onChange={(e) => setTaskCeiling(e.target.value)}
-                                                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 pl-7 pr-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                                                    className="w-full rounded-lg border border-border bg-surface-1 pl-7 pr-3 py-2 text-sm text-text-primary placeholder-zinc-600 focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 transition-colors"
                                                 />
                                             </div>
-                                            <p className="text-[10px] text-zinc-600">Applied to each task individually</p>
+                                            <p className="text-[10px] text-text-muted">Applied to each task individually</p>
                                         </div>
                                     </div>
-                                    <p className="text-[11px] text-zinc-600">
+                                    <p className="text-[11px] text-text-muted">
                                         Optional. Leave blank to use workspace defaults. Tasks are blocked, not errored, if a ceiling is hit.
                                     </p>
                                 </div>
@@ -369,10 +369,10 @@ export default function NewProjectPage() {
                         </div>
 
                         {/* Auto-run toggle */}
-                        <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+                        <div className="flex items-center justify-between rounded-lg border border-border bg-surface-1/60 px-4 py-3">
                             <div>
-                                <p className="text-sm font-medium text-zinc-300">Auto-run</p>
-                                <p className="text-xs text-zinc-500 mt-0.5">
+                                <p className="text-sm font-medium text-text-secondary">Auto-run</p>
+                                <p className="text-xs text-text-muted mt-0.5">
                                     Starts execution immediately after creation.
                                 </p>
                             </div>
@@ -381,7 +381,7 @@ export default function NewProjectPage() {
                                 role="switch"
                                 aria-checked={autoRun}
                                 onClick={() => setAutoRun((r) => !r)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-900 ${autoRun ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo focus:ring-offset-2 focus:ring-offset-zinc-900 ${autoRun ? 'bg-indigo' : 'bg-zinc-700'}`}
                             >
                                 <span
                                     className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${autoRun ? 'translate-x-6' : 'translate-x-1'}`}
@@ -390,19 +390,19 @@ export default function NewProjectPage() {
                         </div>
 
                         {/* How it works */}
-                        <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-4">
+                        <div className="rounded-lg border border-border/60 bg-surface-1/30 p-4">
                             <div className="flex items-center gap-2 mb-3">
-                                <div className={`flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br ${def.accent} text-white`}>
+                                <div className={`flex h-5 w-5 items-center justify-center rounded  ${def.accent} text-text-primary`}>
                                     <CategoryIcon name={def.icon} className="h-3 w-3" />
                                 </div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                                     How {def.label} projects work
                                 </p>
                             </div>
                             <ol className="flex flex-col gap-1.5">
                                 {def.howItWorks.map((step, i) => (
-                                    <li key={i} className="flex items-start gap-2 text-xs text-zinc-500">
-                                        <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-400">
+                                    <li key={i} className="flex items-start gap-2 text-xs text-text-muted">
+                                        <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[10px] font-bold text-text-secondary">
                                             {i + 1}
                                         </span>
                                         {step}
@@ -412,7 +412,7 @@ export default function NewProjectPage() {
                         </div>
 
                         {error && (
-                            <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                            <div className="rounded-lg border border-red-500/20 bg-red-dim px-4 py-3 text-sm text-red">
                                 {error}
                             </div>
                         )}
@@ -421,7 +421,7 @@ export default function NewProjectPage() {
                             <button
                                 type="submit"
                                 disabled={isPending || !canSubmit()}
-                                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="flex items-center gap-2 rounded-lg bg-indigo px-5 py-2.5 text-sm font-medium text-text-primary transition-all hover:bg-indigo/90 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 {isPending ? (
                                     <>
@@ -445,7 +445,7 @@ export default function NewProjectPage() {
                                 type="button"
                                 onClick={() => router.back()}
                                 disabled={isPending}
-                                className="rounded-lg px-4 py-2.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40"
+                                className="rounded-lg px-4 py-2.5 text-sm text-text-muted hover:text-text-secondary transition-colors disabled:opacity-40"
                             >
                                 Cancel
                             </button>
@@ -454,10 +454,10 @@ export default function NewProjectPage() {
                 )}
 
                 {!def && (
-                    <div className="flex items-center gap-2 py-2 text-xs text-zinc-600 animate-pulse">
-                        <span className="h-px flex-1 bg-zinc-800" />
+                    <div className="flex items-center gap-2 py-2 text-xs text-text-muted animate-pulse">
+                        <span className="h-px flex-1 bg-surface-2" />
                         <span>Select a category above to continue</span>
-                        <span className="h-px flex-1 bg-zinc-800" />
+                        <span className="h-px flex-1 bg-surface-2" />
                     </div>
                 )}
             </form>

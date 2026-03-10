@@ -26,12 +26,12 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
 
     return (
         <div 
-            className="flex flex-col h-[100dvh] overflow-hidden bg-zinc-950"
+            className="flex flex-col h-[100dvh] overflow-hidden bg-canvas"
             style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
             {/* Main scrollable content area */}
             <main 
-                className="flex-1 overflow-auto bg-zinc-950"
+                className="flex-1 overflow-auto bg-canvas"
                 style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
             >
                 {children}
@@ -39,7 +39,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
 
             {/* Bottom Navigation */}
             <nav 
-                className="fixed bottom-0 left-0 right-0 bg-zinc-950 border-t border-zinc-800/80 flex items-center justify-around px-2 z-50"
+                className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border/80 flex items-center justify-around px-2 z-50"
                 style={{ 
                     height: 'calc(4rem + env(safe-area-inset-bottom))',
                     paddingBottom: 'env(safe-area-inset-bottom)'
@@ -52,7 +52,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
                             key={item.href}
                             href={item.href}
                             className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${
-                                active ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'
+                                active ? 'text-indigo' : 'text-text-muted hover:text-text-secondary'
                             }`}
                         >
                             <item.icon className="h-5 w-5" />

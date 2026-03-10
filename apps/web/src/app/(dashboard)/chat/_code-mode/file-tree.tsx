@@ -109,15 +109,15 @@ function DirItem({
             <button
                 onClick={() => onToggle(node.path)}
                 style={{ paddingLeft: `${depth * 12 + 8}px` }}
-                className="flex items-center gap-1.5 w-full text-left py-0.5 pr-2 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-zinc-200 transition-colors group text-xs"
+                className="flex items-center gap-1.5 w-full text-left py-0.5 pr-2 hover:bg-surface-2/60 rounded text-text-secondary hover:text-text-primary transition-colors group text-xs"
             >
                 {isExpanded
                     ? <ChevronDown className="w-3 h-3 flex-shrink-0" />
                     : <ChevronRight className="w-3 h-3 flex-shrink-0" />
                 }
-                <span className="text-zinc-500">📁</span>
+                <span className="text-text-muted">📁</span>
                 <span className="flex-1 truncate font-mono">{node.name}</span>
-                {hasModified && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />}
+                {hasModified && <span className="w-1.5 h-1.5 rounded-full bg-amber flex-shrink-0" />}
             </button>
             {isExpanded && (
                 <div>
@@ -164,14 +164,14 @@ function FileItem({
             className={`flex items-center gap-1.5 w-full text-left py-0.5 pr-2 rounded transition-colors text-xs font-mono group ${
                 isSelected
                     ? 'bg-blue-500/20 text-blue-300'
-                    : 'hover:bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'
+                    : 'hover:bg-surface-2/60 text-text-secondary hover:text-text-primary'
             }`}
         >
             <span className="w-3 flex-shrink-0" />
             <span>{extIcon(node.ext)}</span>
             <span className="flex-1 truncate">{node.name}</span>
             {isModified && (
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Modified by agent" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber flex-shrink-0" title="Modified by agent" />
             )}
         </button>
     )
@@ -201,7 +201,7 @@ export function FileTree({ files, modifiedPaths, selectedPath, onSelect, classNa
     if (files.length === 0) {
         return (
             <div className={`flex items-center justify-center h-full ${className}`}>
-                <div className="text-center text-zinc-500 text-xs space-y-1 px-4">
+                <div className="text-center text-text-muted text-xs space-y-1 px-4">
                     <FileText className="w-8 h-8 mx-auto opacity-30 mb-2" />
                     <p>No files loaded</p>
                     <p className="opacity-60">Start a coding task to see the repo</p>
@@ -213,14 +213,14 @@ export function FileTree({ files, modifiedPaths, selectedPath, onSelect, classNa
     return (
         <div className={`flex flex-col h-full ${className}`}>
             {/* Search */}
-            <div className="px-2 py-2 border-b border-zinc-800">
-                <div className="flex items-center gap-1.5 bg-zinc-900 rounded px-2 py-1">
-                    <Search className="w-3 h-3 text-zinc-500" />
+            <div className="px-2 py-2 border-b border-border">
+                <div className="flex items-center gap-1.5 bg-surface-1 rounded px-2 py-1">
+                    <Search className="w-3 h-3 text-text-muted" />
                     <input
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search files…"
-                        className="flex-1 bg-transparent text-xs text-zinc-200 placeholder-zinc-600 outline-none font-mono"
+                        className="flex-1 bg-transparent text-xs text-text-primary placeholder-zinc-600 outline-none font-mono"
                     />
                 </div>
             </div>
@@ -263,10 +263,10 @@ export function FileTree({ files, modifiedPaths, selectedPath, onSelect, classNa
             </div>
 
             {/* Footer stats */}
-            <div className="px-3 py-1.5 border-t border-zinc-800 text-xs text-zinc-600 font-mono flex gap-2">
+            <div className="px-3 py-1.5 border-t border-border text-xs text-text-muted font-mono flex gap-2">
                 <span>{files.length} files</span>
                 {modifiedPaths.size > 0 && (
-                    <span className="text-amber-500">{modifiedPaths.size} modified</span>
+                    <span className="text-amber">{modifiedPaths.size} modified</span>
                 )}
             </div>
         </div>

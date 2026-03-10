@@ -40,42 +40,42 @@ export function InstanceConnect({ onConnect }: { onConnect: (url: string) => voi
 
     return (
         <div className="flex flex-col p-6 space-y-6 max-w-md mx-auto h-full justify-center">
-            <h1 className="text-2xl font-bold text-zinc-100 text-center">Where is your Plexo running?</h1>
+            <h1 className="text-2xl font-bold text-text-primary text-center">Where is your Plexo running?</h1>
             
             <button 
                 onClick={() => handleConnect('https://app.getplexo.com')}
-                className="w-full flex-col flex items-start p-4 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 transition-colors text-left"
+                className="w-full flex-col flex items-start p-4 rounded-xl border border-border bg-surface-1 hover:bg-surface-2 transition-colors text-left"
             >
-                <div className="flex items-center gap-3 font-semibold text-zinc-100">
-                    <Globe className="w-5 h-5 text-indigo-400" />
+                <div className="flex items-center gap-3 font-semibold text-text-primary">
+                    <Globe className="w-5 h-5 text-indigo" />
                     getplexo.com
                 </div>
-                <p className="text-sm text-zinc-400 mt-2">Managed cloud. Sign in with your account.</p>
+                <p className="text-sm text-text-secondary mt-2">Managed cloud. Sign in with your account.</p>
             </button>
 
-            <div className="w-full flex-col flex items-start p-4 rounded-xl border border-zinc-800 bg-zinc-900 text-left space-y-4">
-                <div className="flex items-center gap-3 font-semibold text-zinc-100">
-                    <Server className="w-5 h-5 text-indigo-400" />
+            <div className="w-full flex-col flex items-start p-4 rounded-xl border border-border bg-surface-1 text-left space-y-4">
+                <div className="flex items-center gap-3 font-semibold text-text-primary">
+                    <Server className="w-5 h-5 text-indigo" />
                     Self-hosted
                 </div>
-                <p className="text-sm text-zinc-400">Running on your own server.</p>
+                <p className="text-sm text-text-secondary">Running on your own server.</p>
                 <input 
                     type="url"
                     placeholder="https://plexo.yourdomain.com"
                     value={url}
                     onChange={e => setUrl(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 bg-canvas border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-indigo"
                 />
                 <button 
                     onClick={() => handleConnect(url)}
                     disabled={!url || status === 'checking'}
-                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold flex items-center justify-center disabled:opacity-50 transition-colors"
+                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-text-primary rounded-lg font-semibold flex items-center justify-center disabled:opacity-50 transition-colors"
                 >
                     {status === 'checking' ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Connect'}
                 </button>
             </div>
 
-            {status === 'failed' && <p className="text-red-400 text-sm font-medium text-center">{errorMsg}</p>}
+            {status === 'failed' && <p className="text-red text-sm font-medium text-center">{errorMsg}</p>}
         </div>
     )
 }

@@ -31,7 +31,7 @@ export function CancelButton({ taskId }: { taskId: string }) {
         <button
             onClick={() => void handleCancel()}
             disabled={cancelling}
-            className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-red-800/60 hover:text-red-400 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:border-red-800/60 hover:text-red transition-colors disabled:opacity-40"
         >
             <XCircle className="h-3.5 w-3.5" />
             {cancelling ? 'Cancelling…' : 'Cancel task'}

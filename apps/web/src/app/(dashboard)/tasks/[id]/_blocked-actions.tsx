@@ -96,7 +96,7 @@ function ClarificationPanel({ taskId, clarification }: {
 
     if (chosen !== null) {
         return (
-            <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/30 px-4 py-3 flex items-center gap-2 text-sm text-emerald-400">
+            <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/30 px-4 py-3 flex items-center gap-2 text-sm text-emerald">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 Alternative queued — redirecting to new task…
             </div>
@@ -107,27 +107,27 @@ function ClarificationPanel({ taskId, clarification }: {
         <div className="rounded-xl border border-amber-900/40 bg-amber-950/10 overflow-hidden">
             {/* Header */}
             <div className="flex items-start gap-3 border-b border-amber-900/30 px-4 py-3.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-400 mt-0.5">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber/15 text-amber mt-0.5">
                     <Lightbulb className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-amber-300">Capability gap detected</p>
-                    <p className="text-[12px] text-amber-500/80 mt-0.5 leading-relaxed">{clarification.message}</p>
+                    <p className="text-[12px] text-amber/80 mt-0.5 leading-relaxed">{clarification.message}</p>
                 </div>
             </div>
 
             {/* Alternatives */}
             <div className="px-4 py-3">
-                <p className="text-[11px] text-zinc-500 mb-2 uppercase tracking-wide font-medium">Here's what I can do instead:</p>
+                <p className="text-[11px] text-text-muted mb-2 uppercase tracking-wide font-medium">Here's what I can do instead:</p>
                 <div className="flex flex-col gap-2">
                     {clarification.alternatives.map((alt, idx) => (
                         <button
                             key={idx}
                             onClick={() => void handleChoose(idx)}
                             disabled={choosing !== null}
-                            className="group flex items-center gap-3 rounded-lg border border-zinc-800/60 bg-zinc-900/60 px-3.5 py-3 text-left hover:bg-zinc-800/80 hover:border-zinc-700/60 transition-all disabled:opacity-50"
+                            className="group flex items-center gap-3 rounded-lg border border-border/60 bg-surface-1/60 px-3.5 py-3 text-left hover:bg-surface-2/80 hover:border-border/60 transition-all disabled:opacity-50"
                         >
-                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo-400">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo">
                                 {choosing === idx ? (
                                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                                 ) : (
@@ -135,19 +135,19 @@ function ClarificationPanel({ taskId, clarification }: {
                                 )}
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="text-[13px] font-medium text-zinc-200 group-hover:text-white transition-colors">
+                                <p className="text-[13px] font-medium text-text-primary group-hover:text-text-primary transition-colors">
                                     {alt.label}
                                 </p>
-                                <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">{alt.description}</p>
+                                <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">{alt.description}</p>
                             </div>
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-muted group-hover:text-text-secondary transition-colors" />
                         </button>
                     ))}
                 </div>
             </div>
 
             {error && (
-                <div className="border-t border-amber-900/30 px-4 py-2 text-[11px] text-red-400 bg-red-950/20">
+                <div className="border-t border-amber-900/30 px-4 py-2 text-[11px] text-red bg-red-950/20">
                     {error}
                 </div>
             )}
@@ -227,7 +227,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
 
     if (retried) {
         return (
-            <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/30 px-4 py-3 flex items-center gap-2 text-sm text-emerald-400">
+            <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/30 px-4 py-3 flex items-center gap-2 text-sm text-emerald">
                 <RefreshCw className="h-4 w-4 animate-spin" />
                 Task re-queued — redirecting…
             </div>
@@ -236,7 +236,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
 
     if (dismissed) {
         return (
-            <div className="rounded-xl border border-zinc-800/40 bg-zinc-900/30 px-4 py-3 text-sm text-zinc-500">
+            <div className="rounded-xl border border-border/40 bg-surface-1/30 px-4 py-3 text-sm text-text-muted">
                 Task dismissed.
             </div>
         )
@@ -250,19 +250,19 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
             )}
 
             {/* Standard blocked or failed panel */}
-            <div className={`rounded-xl border overflow-hidden ${status === 'blocked' ? 'border-red-900/40 bg-red-950/20' : 'border-zinc-800/60 bg-zinc-900/30'}`}>
+            <div className={`rounded-xl border overflow-hidden ${status === 'blocked' ? 'border-red-900/40 bg-red-950/20' : 'border-border/60 bg-surface-1/30'}`}>
                 {/* Header */}
-                <div className={`flex items-center gap-2.5 border-b px-4 py-3 ${status === 'blocked' ? 'border-red-900/30' : 'border-zinc-800/40'}`}>
+                <div className={`flex items-center gap-2.5 border-b px-4 py-3 ${status === 'blocked' ? 'border-red-900/30' : 'border-border/40'}`}>
                     {status === 'blocked' ? (
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-red" />
                     ) : (
-                        <XCircle className="h-4 w-4 shrink-0 text-zinc-500" />
+                        <XCircle className="h-4 w-4 shrink-0 text-text-muted" />
                     )}
                     <div>
-                        <p className={`text-[13px] font-semibold ${status === 'blocked' ? 'text-red-300' : 'text-zinc-300'}`}>
+                        <p className={`text-[13px] font-semibold ${status === 'blocked' ? 'text-red-300' : 'text-text-secondary'}`}>
                             {status === 'blocked' ? 'This task is blocked' : 'This task was cancelled or failed'}
                         </p>
-                        <p className={`text-[11px] mt-0.5 ${status === 'blocked' ? 'text-red-500/70' : 'text-zinc-500'}`}>
+                        <p className={`text-[11px] mt-0.5 ${status === 'blocked' ? 'text-red/70' : 'text-text-muted'}`}>
                             {outcomeSummary ?? 'The agent could not continue. Choose an action below.'}
                         </p>
                     </div>
@@ -274,20 +274,20 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
                     {resolution && (
                         <Link
                             href={resolution.fixHref}
-                            className={`group flex items-start gap-3 px-4 py-3.5 transition-colors ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-zinc-800/40'}`}
+                            className={`group flex items-start gap-3 px-4 py-3.5 transition-colors ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-surface-2/40'}`}
                         >
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo-400 mt-0.5">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo mt-0.5">
                                 <ExternalLink className="h-3.5 w-3.5" />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="text-[13px] font-medium text-zinc-200 group-hover:text-white transition-colors">
+                                <p className="text-[13px] font-medium text-text-primary group-hover:text-text-primary transition-colors">
                                     {resolution.fixLabel}
                                 </p>
-                                <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">
+                                <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">
                                     {resolution.fixDescription}
                                 </p>
                             </div>
-                            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400 transition-colors mt-1" />
+                            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted group-hover:text-text-secondary transition-colors mt-1" />
                         </Link>
                     )}
 
@@ -296,16 +296,16 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
                         <button
                             onClick={() => void handleRetry()}
                             disabled={retrying || dismissing}
-                            className={`group flex items-start gap-3 px-4 py-3.5 transition-colors text-left disabled:opacity-40 ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-zinc-800/40'}`}
+                            className={`group flex items-start gap-3 px-4 py-3.5 transition-colors text-left disabled:opacity-40 ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-surface-2/40'}`}
                         >
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-400 mt-0.5">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber/15 text-amber mt-0.5">
                                 <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="text-[13px] font-medium text-zinc-200 group-hover:text-white transition-colors">
+                                <p className="text-[13px] font-medium text-text-primary group-hover:text-text-primary transition-colors">
                                     {retrying ? 'Re-queuing…' : 'Retry task'}
                                 </p>
-                                <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">
+                                <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">
                                     {resolution
                                         ? 'After fixing the issue above, re-queue this task with the same parameters.'
                                         : 'Re-queue this task with the same parameters.'}
@@ -318,16 +318,16 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
                     <button
                         onClick={() => void handleDismiss()}
                         disabled={retrying || dismissing}
-                        className={`group flex items-start gap-3 px-4 py-3.5 transition-colors text-left disabled:opacity-40 ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-zinc-800/40'}`}
+                        className={`group flex items-start gap-3 px-4 py-3.5 transition-colors text-left disabled:opacity-40 ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-surface-2/40'}`}
                     >
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-500/15 text-zinc-500 mt-0.5">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-500/15 text-text-muted mt-0.5">
                             <XCircle className="h-3.5 w-3.5" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                            <p className="text-[13px] font-medium text-text-secondary group-hover:text-text-secondary transition-colors">
                                 {dismissing ? 'Dismissing…' : 'Dismiss'}
                             </p>
-                            <p className="text-[11px] text-zinc-600 mt-0.5 leading-relaxed">
+                            <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">
                                 Cancel and clear this blocked task from your queue.
                             </p>
                         </div>
@@ -336,7 +336,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
 
                 {/* Inline error */}
                 {error && (
-                    <div className={`border-t px-4 py-2 text-[11px] ${status === 'blocked' ? 'border-red-900/30 text-red-400 bg-red-950/20' : 'border-zinc-800/40 text-rose-400 bg-rose-950/20'}`}>
+                    <div className={`border-t px-4 py-2 text-[11px] ${status === 'blocked' ? 'border-red-900/30 text-red bg-red-950/20' : 'border-border/40 text-rose-400 bg-rose-950/20'}`}>
                         {error}
                     </div>
                 )}

@@ -48,6 +48,38 @@ async function scanWorkspace(workspaceId: string): Promise<number> {
 
     if (recentTasks.length < 5) return 0 // Enforce N=5 statistical minimum limit
 
+    const proposals = detectAnomalies(recentTasks)
+
+    let inserted = 0
+    // Persist discovered proposals allowing shadow testing
+    for (const proposal of proposals) {
+        // Prevent duplicate spamming: Don't insert if exactly identical hypothesis exists and remains 'pending'
+        const existing = await db.select().from(rsiProposals).where(
+            and(
+                eq(rsiProposals.workspaceId, workspaceId),
+                eq(rsiProposals.anomalyType, proposal.type),
+                eq(rsiProposals.status, 'pending')
+            )
+        ).limit(1)
+
+        if (existing.length === 0) {
+            await db.insert(rsiProposals).values({
+                workspaceId,
+                anomalyType: proposal.type,
+                hypothesis: proposal.hypothesis,
+                proposedChange: proposal.proposedChange,
+                risk: proposal.risk,
+            })
+            inserted++
+            logger.info({ event: 'rsi_proposal_emitted', workspaceId, type: proposal.type }, 'RSI generated new proposal hypothesis')
+            eventBus.publish(TOPICS.RSI_PROPOSAL_CREATED, { workspaceId, type: proposal.type, hypothesis: proposal.hypothesis })
+        }
+    }
+
+    return inserted
+}
+
+export function detectAnomalies(recentTasks: any[]): RSIAnomaly[] {
     const proposals: RSIAnomaly[] = []
 
     // 1. Check for 'quality_degradation' across tasks with recorded scores
@@ -99,31 +131,5 @@ async function scanWorkspace(workspaceId: string): Promise<number> {
         }
     }
 
-    let inserted = 0
-    // Persist discovered proposals allowing shadow testing
-    for (const proposal of proposals) {
-        // Prevent duplicate spamming: Don't insert if exactly identical hypothesis exists and remains 'pending'
-        const existing = await db.select().from(rsiProposals).where(
-            and(
-                eq(rsiProposals.workspaceId, workspaceId),
-                eq(rsiProposals.anomalyType, proposal.type),
-                eq(rsiProposals.status, 'pending')
-            )
-        ).limit(1)
-
-        if (existing.length === 0) {
-            await db.insert(rsiProposals).values({
-                workspaceId,
-                anomalyType: proposal.type,
-                hypothesis: proposal.hypothesis,
-                proposedChange: proposal.proposedChange,
-                risk: proposal.risk,
-            })
-            inserted++
-            logger.info({ event: 'rsi_proposal_emitted', workspaceId, type: proposal.type }, 'RSI generated new proposal hypothesis')
-            eventBus.publish(TOPICS.RSI_PROPOSAL_CREATED, { workspaceId, type: proposal.type, hypothesis: proposal.hypothesis })
-        }
-    }
-
-    return inserted
+    return proposals
 }

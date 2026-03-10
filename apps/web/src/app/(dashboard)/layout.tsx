@@ -35,7 +35,7 @@ export default async function DashboardLayout({
             <div className="flex h-screen overflow-hidden">
                 <Sidebar user={session?.user} />
                 <main 
-                    className="flex-1 overflow-auto bg-zinc-925 relative z-0 p-4 pt-[calc(4.5rem+var(--safe-top))] pb-[calc(72px+1rem+var(--safe-bottom))] md:p-6 md:pb-[calc(1.5rem+var(--safe-bottom))] md:pt-[calc(1.5rem+var(--safe-top))]"
+                    className="flex-1 overflow-auto bg-canvas relative z-0 p-4 pt-[calc(4.5rem+var(--safe-top))] pb-[calc(72px+1rem+var(--safe-bottom))] md:p-6 md:pb-[calc(1.5rem+var(--safe-bottom))] md:pt-[calc(1.5rem+var(--safe-top))]"
                     style={{
                         '--safe-top': 'env(safe-area-inset-top)',
                         '--safe-bottom': 'env(safe-area-inset-bottom)'

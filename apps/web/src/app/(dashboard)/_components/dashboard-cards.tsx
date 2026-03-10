@@ -77,9 +77,9 @@ export async function DashboardCards() {
             subtitle: data?.agent.status === 'running' ? 'Running' : 'Idle',
             icon: Activity,
             accent: data?.agent.status === 'running'
-                ? 'from-green-500 to-emerald-600'
-                : 'from-emerald-500 to-emerald-600',
-            dot: data?.agent.status === 'running' ? 'bg-green-400 animate-pulse' : 'bg-zinc-600',
+                ? 'bg-emerald'
+                : 'bg-emerald',
+            dot: data?.agent.status === 'running' ? 'bg-emerald animate-pulse' : 'bg-surface-3',
             content: running > 0
                 ? `${running} task${running !== 1 ? 's' : ''} running · ${queued} queued`
                 : queued > 0
@@ -90,8 +90,8 @@ export async function DashboardCards() {
             title: 'Tasks',
             subtitle: `${totalTasks} total`,
             icon: Zap,
-            accent: 'from-amber-500 to-orange-600',
-            dot: (running + queued) > 0 ? 'bg-amber-400 animate-pulse' : 'bg-zinc-600',
+            accent: 'bg-amber',
+            dot: (running + queued) > 0 ? 'bg-amber animate-pulse' : 'bg-surface-3',
             content: data
                 ? Object.entries(data.tasks.byStatus)
                     .map(([s, n]) => `${n} ${s}`)
@@ -102,8 +102,8 @@ export async function DashboardCards() {
             title: 'Channels',
             subtitle: 'Telegram · API',
             icon: MessageSquare,
-            accent: 'from-blue-500 to-indigo-600',
-            dot: 'bg-zinc-600',
+            accent: 'bg-indigo',
+            dot: 'bg-surface-3',
             content: data?.agent.connectedClients
                 ? `${data.agent.connectedClients} live connection${data.agent.connectedClients !== 1 ? 's' : ''}`
                 : 'No active connections',
@@ -113,19 +113,19 @@ export async function DashboardCards() {
             subtitle: 'This week',
             icon: DollarSign,
             accent: pct > 80
-                ? 'from-red-500 to-rose-600'
+                ? 'bg-red'
                 : pct > 50
-                    ? 'from-amber-500 to-orange-600'
-                    : 'from-violet-500 to-purple-600',
-            dot: pct > 80 ? 'bg-red-400 animate-pulse' : 'bg-zinc-600',
+                    ? 'bg-amber'
+                    : 'bg-indigo',
+            dot: pct > 80 ? 'bg-red animate-pulse' : 'bg-surface-3',
             content: `$${weekCost.toFixed(4)} / $${ceiling.toFixed(2)} (${Math.round(pct)}% used)`,
         },
         {
             title: 'Steps This Week',
             subtitle: 'Agent executions',
             icon: Clock,
-            accent: 'from-cyan-500 to-teal-600',
-            dot: 'bg-zinc-600',
+            accent: 'bg-surface-3',
+            dot: 'bg-surface-3',
             content: data
                 ? `${stepsThisWeek} steps · ${(data.steps.tokensThisWeek / 1000).toFixed(1)}k tokens`
                 : 'Loading…',
@@ -134,8 +134,8 @@ export async function DashboardCards() {
             title: 'Projects',
             subtitle: 'None active',
             icon: GitBranch,
-            accent: 'from-pink-500 to-rose-600',
-            dot: 'bg-zinc-600',
+            accent: 'bg-surface-3',
+            dot: 'bg-surface-3',
             content: 'No active projects. Create one from the Projects page.',
         },
     ]
@@ -147,12 +147,12 @@ export async function DashboardCards() {
                 return (
                     <div
                         key={card.title}
-                        className="card-glow group rounded-xl border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm transition-all hover:border-zinc-700"
+                        className="card-glow group rounded-xl border border-border bg-surface-1/50 backdrop-blur-sm transition-all hover:border-border"
                     >
                         {/* Card Header */}
-                        <div className="flex items-center gap-3 border-b border-zinc-800/50 p-4">
+                        <div className="flex items-center gap-3 border-b border-border-subtle p-4">
                             <div
-                                className={`flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br ${card.accent} text-white shadow-lg`}
+                                className={`flex h-8 w-8 items-center justify-center rounded-lg  ${card.accent} text-text-primary shadow-lg`}
                             >
                                 <Icon className="h-4 w-4" />
                             </div>
@@ -160,14 +160,14 @@ export async function DashboardCards() {
                                 <h3 className="text-[13px] font-semibold">{card.title}</h3>
                                 <div className="flex items-center gap-1.5">
                                     <span className={`inline-block h-1.5 w-1.5 rounded-full ${card.dot}`} />
-                                    <p className="text-[11px] text-zinc-500">{card.subtitle}</p>
+                                    <p className="text-[11px] text-text-muted">{card.subtitle}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Card Body */}
                         <div className="px-4 py-5">
-                            <p className="text-sm text-zinc-400">{card.content}</p>
+                            <p className="text-sm text-text-secondary">{card.content}</p>
                         </div>
                     </div>
                 )

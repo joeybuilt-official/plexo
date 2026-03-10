@@ -28,33 +28,33 @@ export function SystemHealth() {
     }
 
     return (
-        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/30 backdrop-blur-sm overflow-hidden">
+        <div className="rounded-xl border border-border/60 bg-surface-1/30 backdrop-blur-sm overflow-hidden">
             {/* Collapsible header */}
             <button
                 onClick={toggle}
-                className="flex w-full min-h-[44px] items-center justify-between px-4 py-3 transition-colors hover:bg-zinc-800/20"
+                className="flex w-full min-h-[44px] items-center justify-between px-4 py-3 transition-colors hover:bg-surface-2/20"
             >
                 <div className="flex items-center gap-2.5">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-zinc-600 to-zinc-700 text-zinc-300">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-md   text-text-secondary">
                         <Activity className="h-3 w-3" />
                     </div>
-                    <h2 className="text-[13px] font-semibold text-zinc-400">System Health</h2>
+                    <h2 className="text-[13px] font-semibold text-text-secondary">System Health</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-zinc-600">
+                    <span className="text-[11px] text-text-muted">
                         {collapsed ? 'Show details' : 'Hide details'}
                     </span>
                     {collapsed ? (
-                        <ChevronRight className="h-3.5 w-3.5 text-zinc-600" />
+                        <ChevronRight className="h-3.5 w-3.5 text-text-muted" />
                     ) : (
-                        <ChevronDown className="h-3.5 w-3.5 text-zinc-600" />
+                        <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
                     )}
                 </div>
             </button>
 
             {/* Content */}
             {!collapsed && (
-                <div className="border-t border-zinc-800/40 p-4">
+                <div className="border-t border-border/40 p-4">
                     <LiveDashboard />
                 </div>
             )}

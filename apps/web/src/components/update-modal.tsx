@@ -187,13 +187,13 @@ export function UpdateModal() {
                 aria-labelledby="update-modal-title"
                 className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4"
             >
-                <div className="relative rounded-xl bg-zinc-900 border border-zinc-800 shadow-2xl p-6 space-y-5">
+                <div className="relative rounded-xl bg-surface-1 border border-border shadow-2xl p-6 space-y-5">
 
                     {/* Close button */}
                     {!updating && (
                         <button
                             onClick={() => setOpen(false)}
-                            className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"
+                            className="absolute top-4 right-4 text-text-muted hover:text-text-secondary transition-colors"
                             aria-label="Close"
                         >
                             <X className="h-4 w-4" />
@@ -206,10 +206,10 @@ export function UpdateModal() {
                             <ArrowUpCircle className="h-5 w-5 text-violet-400" />
                         </div>
                         <div>
-                            <h2 id="update-modal-title" className="text-base font-semibold text-white">
+                            <h2 id="update-modal-title" className="text-base font-semibold text-text-primary">
                                 Update Available
                             </h2>
-                            <p className="text-xs text-zinc-400 mt-0.5">
+                            <p className="text-xs text-text-secondary mt-0.5">
                                 {versionInfo.updateType === 'commit'
                                     ? 'Unreleased changes are ready to install.'
                                     : 'A new version of Plexo is ready to install.'}
@@ -218,18 +218,18 @@ export function UpdateModal() {
                     </div>
 
                     {/* Version diff */}
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800/60 border border-zinc-700/50">
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-surface-2/60 border border-border/50">
                         <div className="flex-1">
-                            <p className="text-xs text-zinc-500 mb-1">Current</p>
-                            <code className="text-sm font-mono text-zinc-300">v{versionInfo.current}</code>
+                            <p className="text-xs text-text-muted mb-1">Current</p>
+                            <code className="text-sm font-mono text-text-secondary">v{versionInfo.current}</code>
                         </div>
-                        <span className="text-zinc-600 text-sm">→</span>
+                        <span className="text-text-muted text-sm">→</span>
                         <div className="flex-1">
-                            <p className="text-xs text-zinc-500 mb-1">Latest</p>
+                            <p className="text-xs text-text-muted mb-1">Latest</p>
                             <div className="flex items-center gap-2">
                                 <code className="text-sm font-mono text-violet-400">v{versionInfo.latest}</code>
                                 {versionInfo.updateType === 'commit' ? (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-dim text-amber border border-amber-500/20 font-medium">
                                         PATCH
                                     </span>
                                 ) : (
@@ -240,7 +240,7 @@ export function UpdateModal() {
                             </div>
                         </div>
                         {versionInfo.publishedAt && (
-                            <div className="flex items-center gap-1 text-xs text-zinc-500">
+                            <div className="flex items-center gap-1 text-xs text-text-muted">
                                 <Clock className="h-3 w-3" />
                                 {new Date(versionInfo.publishedAt).toLocaleDateString()}
                             </div>
@@ -250,9 +250,9 @@ export function UpdateModal() {
                     {/* Changelog */}
                     {versionInfo.changelog && (
                         <div>
-                            <p className="text-xs text-zinc-400 mb-2 font-medium">What&apos;s new</p>
-                            <div className="h-28 overflow-y-auto rounded-md bg-zinc-800/40 border border-zinc-700/50 p-3 scroll-smooth">
-                                <pre className="text-xs text-zinc-300 whitespace-pre-wrap font-sans leading-relaxed">
+                            <p className="text-xs text-text-secondary mb-2 font-medium">What&apos;s new</p>
+                            <div className="h-28 overflow-y-auto rounded-md bg-surface-2/40 border border-border/50 p-3 scroll-smooth">
+                                <pre className="text-xs text-text-secondary whitespace-pre-wrap font-sans leading-relaxed">
                                     {versionInfo.changelog}
                                 </pre>
                             </div>
@@ -262,24 +262,24 @@ export function UpdateModal() {
                     {/* Update log */}
                     {logs.length > 0 && (
                         <div>
-                            <p className="text-xs text-zinc-400 mb-2 font-medium flex items-center gap-1.5">
+                            <p className="text-xs text-text-secondary mb-2 font-medium flex items-center gap-1.5">
                                 <Terminal className="h-3 w-3" /> Update log
                             </p>
-                            <div className="h-32 overflow-y-auto rounded-md bg-black/60 border border-zinc-700/50 p-3 space-y-1">
+                            <div className="h-32 overflow-y-auto rounded-md bg-black/60 border border-border/50 p-3 space-y-1">
                                 {logs.map((log, i) => (
                                     <div key={i} className={cn('text-xs font-mono flex items-start gap-2', {
-                                        'text-zinc-400': log.type === 'status' || log.type === 'progress',
+                                        'text-text-secondary': log.type === 'status' || log.type === 'progress',
                                         'text-green-400': log.type === 'done',
-                                        'text-red-400': log.type === 'error',
+                                        'text-red': log.type === 'error',
                                     })}>
-                                        <span className="text-zinc-600 shrink-0 mt-px">
+                                        <span className="text-text-muted shrink-0 mt-px">
                                             {log.type === 'done' ? '✓' : log.type === 'error' ? '✗' : '›'}
                                         </span>
                                         {log.message}
                                     </div>
                                 ))}
                                 {updating && (
-                                    <div className="flex items-center gap-2 text-xs text-zinc-500 mt-1">
+                                    <div className="flex items-center gap-2 text-xs text-text-muted mt-1">
                                         <Loader2 className="h-3 w-3 animate-spin" />
                                         Working…
                                     </div>
@@ -291,18 +291,18 @@ export function UpdateModal() {
 
                     {/* Manual update fallback */}
                     {!versionInfo.dockerEnabled && !versionInfo.isGitSource && !done && (
-                        <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3">
-                            <p className="text-xs text-amber-400 font-medium mb-1.5">Manual update required</p>
-                            <p className="text-xs text-zinc-400 mb-3">
+                        <div className="rounded-lg bg-amber/5 border border-amber-500/20 p-3">
+                            <p className="text-xs text-amber font-medium mb-1.5">Manual update required</p>
+                            <p className="text-xs text-text-secondary mb-3">
                                 One-click update is not enabled. Run these on your server:
                             </p>
                             <div className="relative">
-                                <pre className="text-xs font-mono text-zinc-300 bg-black/40 rounded p-2.5 pr-8 leading-relaxed">
+                                <pre className="text-xs font-mono text-text-secondary bg-black/40 rounded p-2.5 pr-8 leading-relaxed">
                                     {manualCommands}
                                 </pre>
                                 <button
                                     onClick={copyCommands}
-                                    className="absolute top-2 right-2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                                    className="absolute top-2 right-2 text-text-muted hover:text-text-secondary transition-colors"
                                     aria-label="Copy commands"
                                 >
                                     {copied
@@ -324,9 +324,9 @@ export function UpdateModal() {
                         </div>
                     )}
                     {failed && !done && (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/5 border border-red-500/20">
-                            <XCircle className="h-4 w-4 text-red-400 shrink-0" />
-                            <p className="text-sm text-red-400">Update failed. Check the log or update manually.</p>
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red/5 border border-red-500/20">
+                            <XCircle className="h-4 w-4 text-red shrink-0" />
+                            <p className="text-sm text-red">Update failed. Check the log or update manually.</p>
                         </div>
                     )}
 
@@ -337,7 +337,7 @@ export function UpdateModal() {
                                 href={versionInfo.releaseUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+                                className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors"
                             >
                                 <ExternalLink className="h-3 w-3" />
                                 View release
@@ -347,7 +347,7 @@ export function UpdateModal() {
                             {done ? (
                                 <button
                                     onClick={() => window.location.reload()}
-                                    className="h-8 px-3 text-xs rounded-lg bg-green-600 hover:bg-green-500 text-white font-medium transition-colors"
+                                    className="h-8 px-3 text-xs rounded-lg bg-green-600 hover:bg-green-500 text-text-primary font-medium transition-colors"
                                 >
                                     Reload Page
                                 </button>
@@ -356,7 +356,7 @@ export function UpdateModal() {
                                     <button
                                         onClick={() => setOpen(false)}
                                         disabled={updating}
-                                        className="h-8 px-3 text-xs rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-40"
+                                        className="h-8 px-3 text-xs rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-2 transition-colors disabled:opacity-40"
                                     >
                                         Later
                                     </button>
@@ -364,7 +364,7 @@ export function UpdateModal() {
                                         <button
                                             onClick={() => void handleUpdate()}
                                             disabled={updating}
-                                            className="h-8 px-3 text-xs rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                                            className="h-8 px-3 text-xs rounded-lg bg-violet-600 hover:bg-violet-500 text-text-primary font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
                                         >
                                             {updating ? (
                                                 <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating…</>

@@ -18,9 +18,9 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
     return (
         <button
             onClick={copy}
-            className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2/50 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors"
         >
-            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            {copied ? <Check size={12} className="text-emerald" /> : <Copy size={12} />}
             {copied ? 'Copied' : label}
         </button>
     )

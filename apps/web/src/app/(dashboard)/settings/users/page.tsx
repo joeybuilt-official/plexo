@@ -58,9 +58,9 @@ function initials(name: string | null, email: string): string {
 function RoleBadge({ role }: { role: MemberRole }) {
     const styles: Record<MemberRole, string> = {
         owner: 'border-yellow-700/50 bg-yellow-950/30 text-yellow-400',
-        admin: 'border-amber-700/50 bg-amber-950/30 text-amber-400',
-        member: 'border-zinc-700 bg-zinc-800/50 text-zinc-400',
-        viewer: 'border-zinc-800 bg-zinc-900 text-zinc-600',
+        admin: 'border-amber-700/50 bg-amber-950/30 text-amber',
+        member: 'border-border bg-surface-2/50 text-text-secondary',
+        viewer: 'border-border bg-surface-1 text-text-muted',
     }
     const icons: Record<MemberRole, React.ReactNode> = {
         owner: <Crown className="h-3 w-3" />,
@@ -125,13 +125,13 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
     const roles: MemberRole[] = ['viewer', 'member', 'admin']
 
     return (
-        <div className="rounded-xl border border-zinc-700/50 bg-zinc-900 p-5 flex flex-col gap-4">
+        <div className="rounded-xl border border-border/50 bg-surface-1 p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-medium text-zinc-200">
-                    <Link2 className="h-4 w-4 text-indigo-400" />
+                <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                    <Link2 className="h-4 w-4 text-indigo" />
                     Create invite link
                 </div>
-                <button onClick={onClose} className="text-zinc-600 hover:text-zinc-400 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center -mr-2 -mt-2">
+                <button onClick={onClose} className="text-text-muted hover:text-text-secondary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center -mr-2 -mt-2">
                     <X className="h-5 w-5 md:h-4 md:w-4" />
                 </button>
             </div>
@@ -139,26 +139,26 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
             {!invite ? (
                 <>
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-zinc-400">Email (optional — leave blank for open link)</label>
+                        <label className="text-xs font-medium text-text-secondary">Email (optional — leave blank for open link)</label>
                         <input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="colleague@example.com"
-                            className="min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                            className="min-h-[44px] rounded-lg border border-border bg-canvas px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-zinc-400">Role</label>
+                        <label className="text-xs font-medium text-text-secondary">Role</label>
                         <div className="flex gap-2">
                             {roles.map((r) => (
                                 <button
                                     key={r}
                                     onClick={() => setRole(r)}
                                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 min-h-[44px] md:min-h-0 text-xs capitalize transition-all ${role === r
-                                        ? 'border-indigo-500/50 bg-indigo-600/10 text-indigo-300'
-                                        : 'border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                                        ? 'border-indigo/50 bg-indigo/10 text-indigo-300'
+                                        : 'border-border text-text-muted hover:border-border'
                                         }`}
                                 >
                                     <RoleBadge role={r} />
@@ -168,7 +168,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                     </div>
 
                     {error && (
-                        <div className="flex items-center gap-2 rounded-lg border border-red-800/40 bg-red-950/20 px-3 py-2 text-xs text-red-400">
+                        <div className="flex items-center gap-2 rounded-lg border border-red-800/40 bg-red-950/20 px-3 py-2 text-xs text-red">
                             <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
                         </div>
                     )}
@@ -176,7 +176,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                     <button
                         onClick={() => void createInvite()}
                         disabled={creating}
-                        className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors min-h-[44px]"
+                        className="flex items-center justify-center gap-2 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors min-h-[44px]"
                     >
                         {creating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
                         Generate link
@@ -184,18 +184,18 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                 </>
             ) : (
                 <div className="flex flex-col gap-3">
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-text-muted">
                         Expires {timeAgo(invite.expiresAt)} — share this link with your teammate
                     </p>
-                    <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 pl-3">
-                        <span className="flex-1 truncate font-mono text-[16px] md:text-sm text-zinc-400">{invite.inviteUrl}</span>
-                        <button onClick={copyLink} className="shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] text-zinc-500 hover:text-zinc-300 transition-colors">
-                            {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                    <div className="flex items-center gap-2 rounded-lg border border-border bg-canvas pl-3">
+                        <span className="flex-1 truncate font-mono text-[16px] md:text-sm text-text-secondary">{invite.inviteUrl}</span>
+                        <button onClick={copyLink} className="shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] text-text-muted hover:text-text-secondary transition-colors">
+                            {copied ? <Check className="h-4 w-4 text-emerald" /> : <Copy className="h-4 w-4" />}
                         </button>
                     </div>
                     <button
                         onClick={() => setInvite(null)}
-                        className="text-[16px] md:text-sm min-h-[44px] md:min-h-0 text-zinc-600 hover:text-zinc-400 text-left transition-colors"
+                        className="text-[16px] md:text-sm min-h-[44px] md:min-h-0 text-text-muted hover:text-text-secondary text-left transition-colors"
                     >
                         Create another
                     </button>
@@ -333,7 +333,7 @@ export default function UsersPage() {
 
     if (!WS_ID) {
         return (
-            <div className="flex items-center justify-center py-20 text-sm text-zinc-500">
+            <div className="flex items-center justify-center py-20 text-sm text-text-muted">
                 No workspace selected. Choose a workspace from the sidebar.
             </div>
         )
@@ -345,14 +345,14 @@ export default function UsersPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Members</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">
+                    <p className="mt-0.5 text-sm text-text-muted">
                         {members.length} member{members.length !== 1 ? 's' : ''} in this workspace
                     </p>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button
                         onClick={() => setShowInvite((v) => !v)}
-                        className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                        className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                     >
                         <UserPlus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         Invite
@@ -360,7 +360,7 @@ export default function UsersPage() {
                     <button
                         onClick={() => void fetchMembers()}
                         disabled={loading}
-                        className="flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors min-h-[44px] min-w-[44px] shrink-0"
+                        className="flex items-center justify-center rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors min-h-[44px] min-w-[44px] shrink-0"
                     >
                         <RefreshCw className={`h-4 w-4 sm:h-3.5 sm:w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
@@ -388,17 +388,17 @@ export default function UsersPage() {
                 {/* Left — member list */}
                 <div className="w-full md:w-[260px] shrink-0 flex flex-row md:flex-col gap-2 md:gap-1 overflow-x-auto md:overflow-y-auto pb-2 md:pb-0 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {loading ? (
-                        <div className="flex items-center justify-center py-12 text-sm text-zinc-600 min-w-[200px] shrink-0 snap-start">
+                        <div className="flex items-center justify-center py-12 text-sm text-text-muted min-w-[200px] shrink-0 snap-start">
                             <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Loading…
                         </div>
                     ) : displayed.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600 text-center px-4 min-w-[200px] shrink-0 snap-start">
+                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-text-muted text-center px-4 min-w-[200px] shrink-0 snap-start">
                             <Users className="h-6 w-6 text-zinc-700" />
                             {lf.hasFilters ? 'No members match your filters' : 'No members yet'}
                             {lf.hasFilters && (
                                 <button
                                     onClick={clearAll}
-                                    className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 min-h-[44px] min-w-[44px]"
+                                    className="mt-2 text-xs text-indigo hover:text-indigo-300 min-h-[44px] min-w-[44px]"
                                 >
                                     Clear filters
                                 </button>
@@ -411,19 +411,19 @@ export default function UsersPage() {
                                 key={m.userId}
                                 onClick={() => selectMember(m)}
                                 className={`text-left rounded-xl border p-3 transition-all shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${active
-                                    ? 'border-indigo-500/50 bg-zinc-900 shadow-sm shadow-indigo-500/10'
-                                    : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700'
+                                    ? 'border-indigo/50 bg-surface-1 shadow-sm shadow-indigo-500/10'
+                                    : 'border-border bg-surface-1/40 hover:border-border'
                                     }`}
                             >
                                 <div className="flex items-center gap-2.5">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600/20 text-xs font-bold text-indigo-400 shrink-0">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo/20 text-xs font-bold text-indigo shrink-0">
                                         {initials(m.name, m.email)}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-medium text-zinc-200 truncate">
+                                        <p className="text-sm font-medium text-text-primary truncate">
                                             {m.name ?? m.email.split('@')[0]}
                                         </p>
-                                        <p className="text-[10px] text-zinc-600 truncate">{m.email}</p>
+                                        <p className="text-[10px] text-text-muted truncate">{m.email}</p>
                                     </div>
                                     <RoleBadge role={m.role} />
                                 </div>
@@ -433,33 +433,33 @@ export default function UsersPage() {
                 </div>
 
                 {/* Right — member detail */}
-                <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-y-auto max-w-[100vw] sm:max-w-none">
+                <div className="flex-1 rounded-xl border border-border bg-surface-1/40 overflow-y-auto max-w-[100vw] sm:max-w-none">
                     {!selected ? (
                         <div className="flex h-full items-center justify-center py-20">
                             <div className="text-center">
                                 <Users className="mx-auto mb-3 h-8 w-8 text-zinc-700" />
-                                <p className="text-sm text-zinc-500">Select a member to manage their access</p>
+                                <p className="text-sm text-text-muted">Select a member to manage their access</p>
                             </div>
                         </div>
                     ) : (
                         <div className="p-5 flex flex-col gap-5">
                             {/* Member header */}
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-4 border-b border-zinc-800">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-4 border-b border-border">
                                 <div className="flex flex-row items-center gap-3">
-                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600/20 text-xl font-bold text-indigo-400 shrink-0">
+                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo/20 text-xl font-bold text-indigo shrink-0">
                                         {initials(selected.name, selected.email)}
                                     </div>
                                     <div>
-                                        <h2 className="text-base font-semibold text-zinc-100 break-all">
+                                        <h2 className="text-base font-semibold text-text-primary break-all">
                                             {selected.name ?? selected.email.split('@')[0]}
                                         </h2>
                                         <div className="flex items-center gap-1.5 mt-1">
-                                            <Mail className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
-                                            <span className="text-sm text-zinc-500 break-all">{selected.email}</span>
+                                            <Mail className="h-3.5 w-3.5 text-text-muted shrink-0" />
+                                            <span className="text-sm text-text-muted break-all">{selected.email}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5 mt-0.5">
-                                            <Clock className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
-                                            <span className="text-xs text-zinc-600">Joined {timeAgo(selected.joinedAt)}</span>
+                                            <Clock className="h-3.5 w-3.5 text-text-muted shrink-0" />
+                                            <span className="text-xs text-text-muted">Joined {timeAgo(selected.joinedAt)}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -469,22 +469,22 @@ export default function UsersPage() {
                             {/* Role editor */}
                             {selected.role !== 'owner' && (
                                 <div className="flex flex-col gap-1.5">
-                                    <label className="text-sm font-medium text-zinc-300">Workspace role</label>
+                                    <label className="text-sm font-medium text-text-secondary">Workspace role</label>
                                     <div className="flex gap-2 flex-wrap">
                                         {(['viewer', 'member', 'admin'] as MemberRole[]).map((r) => (
                                             <button
                                                 key={r}
                                                 onClick={() => setEditRole(r)}
                                                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[16px] md:text-sm transition-all min-h-[44px] md:min-h-0 ${editRole === r
-                                                    ? 'border-indigo-500/50 bg-indigo-600/10 text-indigo-300'
-                                                    : 'border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                                                    ? 'border-indigo/50 bg-indigo/10 text-indigo-300'
+                                                    : 'border-border text-text-muted hover:border-border'
                                                     }`}
                                             >
                                                 <RoleBadge role={r} />
                                             </button>
                                         ))}
                                     </div>
-                                    <p className="text-xs text-zinc-600">
+                                    <p className="text-xs text-text-muted">
                                         {editRole === 'admin' && 'Can manage workspace settings, channels, and members.'}
                                         {editRole === 'member' && 'Can create tasks and view all workspace data.'}
                                         {editRole === 'viewer' && 'Read-only access to workspace data.'}
@@ -499,13 +499,13 @@ export default function UsersPage() {
                             )}
 
                             {/* Member ID */}
-                            <div className="rounded-lg bg-zinc-950 px-3 py-2 flex items-center justify-between">
-                                <span className="text-xs text-zinc-600">User ID</span>
-                                <span className="font-mono text-[11px] text-zinc-500">{selected.userId}</span>
+                            <div className="rounded-lg bg-canvas px-3 py-2 flex items-center justify-between">
+                                <span className="text-xs text-text-muted">User ID</span>
+                                <span className="font-mono text-[11px] text-text-muted">{selected.userId}</span>
                             </div>
 
                             {error && (
-                                <div className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2.5 text-sm text-red-400">
+                                <div className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2.5 text-sm text-red">
                                     <AlertCircle className="h-4 w-4 shrink-0" />{error}
                                 </div>
                             )}
@@ -516,15 +516,15 @@ export default function UsersPage() {
                                         <button
                                             onClick={() => void handleSaveRole()}
                                             disabled={saving || editRole === selected.role}
-                                            className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                                            className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                                         >
-                                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald-400" /> : null}
+                                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald" /> : null}
                                             {saved ? 'Saved' : 'Save role'}
                                         </button>
                                         <button
                                             onClick={() => void handleRemove()}
                                             disabled={removing || ownerCount === members.length}
-                                            className="flex items-center justify-center gap-1.5 rounded-lg border border-red-800/40 bg-red-950/20 px-3 py-2 text-sm text-red-400 hover:bg-red-950/40 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                                            className="flex items-center justify-center gap-1.5 rounded-lg border border-red-800/40 bg-red-950/20 px-3 py-2 text-sm text-red hover:bg-red-950/40 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                                         >
                                             {removing ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                                             Remove

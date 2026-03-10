@@ -63,9 +63,9 @@ function timeAgo(iso: string): string {
 }
 
 function StatusIcon({ status }: { status: CronJob['lastRunStatus'] }) {
-    if (status === 'success') return <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-    if (status === 'failure') return <XCircle className="h-4 w-4 text-red-400" />
-    return <Clock className="h-4 w-4 text-zinc-600" />
+    if (status === 'success') return <CheckCircle2 className="h-4 w-4 text-emerald" />
+    if (status === 'failure') return <XCircle className="h-4 w-4 text-red" />
+    return <Clock className="h-4 w-4 text-text-muted" />
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -259,7 +259,7 @@ export default function CronPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Scheduled Jobs</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">
+                    <p className="mt-0.5 text-sm text-text-muted">
                         {loading
                             ? '…'
                             : `${displayed.length}${displayed.length !== jobs.length ? ` of ${jobs.length}` : ''} job${jobs.length === 1 ? '' : 's'}`}
@@ -269,13 +269,13 @@ export default function CronPage() {
                     <button
                         onClick={() => void fetchJobs()}
                         disabled={loading}
-                        className="rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                        className="rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                     <button
                         onClick={() => setAdding(true)}
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         Add job
@@ -284,18 +284,18 @@ export default function CronPage() {
             </div>
 
             {message && (
-                <div className={`rounded-lg border px-3 py-2.5 text-sm ${message.ok ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald-400' : 'border-red-800/50 bg-red-950/30 text-red-400'}`}>
+                <div className={`rounded-lg border px-3 py-2.5 text-sm ${message.ok ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald' : 'border-red-800/50 bg-red-950/30 text-red'}`}>
                     {message.text}
                 </div>
             )}
 
             {/* Add form */}
             {adding && (
-                <div className="rounded-xl border border-indigo-500/30 bg-zinc-900/60 p-4 flex flex-col gap-4">
-                    <h2 className="text-sm font-semibold text-zinc-200">New scheduled job</h2>
+                <div className="rounded-xl border border-indigo/30 bg-surface-1/60 p-4 flex flex-col gap-4">
+                    <h2 className="text-sm font-semibold text-text-primary">New scheduled job</h2>
 
                     <div className="flex flex-col gap-2">
-                        <label className="text-xs font-medium text-zinc-400">Describe the schedule in plain English</label>
+                        <label className="text-xs font-medium text-text-secondary">Describe the schedule in plain English</label>
                         <div className="flex gap-2">
                             <input
                                 type="text"
@@ -303,19 +303,19 @@ export default function CronPage() {
                                 onChange={(e) => setNlText(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') void handleParseNl() }}
                                 placeholder='e.g. "every Monday at 9am" or "daily at midnight"'
-                                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                             />
                             <button
                                 onClick={() => void handleParseNl()}
                                 disabled={nlParsing || !nlText.trim()}
-                                className="flex items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-600/20 px-3 py-2 text-xs font-medium text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-50 transition-colors"
+                                className="flex items-center gap-1.5 rounded-lg border border-indigo/40 bg-indigo/20 px-3 py-2 text-xs font-medium text-indigo-300 hover:bg-indigo/30 disabled:opacity-50 transition-colors"
                             >
                                 {nlParsing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                                 Parse
                             </button>
                         </div>
                         {nlParsed && (
-                            <div className="flex items-center gap-2 text-xs text-emerald-400">
+                            <div className="flex items-center gap-2 text-xs text-emerald">
                                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                                 Parsed: <code className="font-mono">{nlParsed.cron}</code> — {nlParsed.description}
                             </div>
@@ -324,23 +324,23 @@ export default function CronPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-medium text-zinc-400">Job name</label>
+                            <label className="text-xs font-medium text-text-secondary">Job name</label>
                             <input
                                 type="text"
                                 value={newName}
                                 onChange={(e) => setNewName(e.target.value)}
                                 placeholder="Daily digest"
-                                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                             />
                         </div>
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-medium text-zinc-400">Cron expression</label>
+                            <label className="text-xs font-medium text-text-secondary">Cron expression</label>
                             <input
                                 type="text"
                                 value={newSchedule}
                                 onChange={(e) => setNewSchedule(e.target.value)}
                                 placeholder="0 9 * * 1"
-                                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-mono text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
                             />
                         </div>
                     </div>
@@ -351,8 +351,8 @@ export default function CronPage() {
                                 key={p.value}
                                 onClick={() => setNewSchedule(p.value)}
                                 className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${newSchedule === p.value
-                                    ? 'border-indigo-500/50 bg-indigo-600/20 text-indigo-300'
-                                    : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                                    ? 'border-indigo/50 bg-indigo/20 text-indigo-300'
+                                    : 'border-border text-text-muted hover:text-text-secondary'
                                     }`}
                             >
                                 {p.label}
@@ -364,14 +364,14 @@ export default function CronPage() {
                         <button
                             onClick={() => void handleAdd()}
                             disabled={saving || !newName.trim() || !newSchedule.trim()}
-                            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-1.5 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors"
                         >
                             {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                             {saving ? 'Saving…' : 'Schedule'}
                         </button>
                         <button
                             onClick={() => { setAdding(false); setMessage(null) }}
-                            className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+                            className="rounded-lg border border-border px-3 py-2 text-sm text-text-muted hover:text-text-secondary transition-colors"
                         >
                             Cancel
                         </button>
@@ -397,45 +397,45 @@ export default function CronPage() {
 
             {/* Job table */}
             {loading ? (
-                <div className="flex items-center gap-2 py-8 text-sm text-zinc-600">
+                <div className="flex items-center gap-2 py-8 text-sm text-text-muted">
                     <RefreshCw className="h-4 w-4 animate-spin" /> Loading…
                 </div>
             ) : jobs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3 rounded-xl border border-dashed border-zinc-800">
+                <div className="flex flex-col items-center justify-center py-16 gap-3 rounded-xl border border-dashed border-border">
                     <Clock className="h-8 w-8 text-zinc-700" />
-                    <p className="text-sm text-zinc-600">No scheduled jobs — add one above</p>
+                    <p className="text-sm text-text-muted">No scheduled jobs — add one above</p>
                 </div>
             ) : displayed.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center">
-                    <p className="text-sm text-zinc-500">No jobs match your filters</p>
+                <div className="rounded-xl border border-border bg-surface-1/40 py-12 text-center">
+                    <p className="text-sm text-text-muted">No jobs match your filters</p>
                     <button
                         onClick={lf.clearAll}
-                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto"
+                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto"
                     >
                         Clear filters
                     </button>
                 </div>
             ) : (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                <div className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
                     <table className="w-full">
-                        <thead className="border-b border-zinc-800">
+                        <thead className="border-b border-border">
                             <tr>
                                 {['Name', 'Schedule', 'Last run', 'Status', 'Failures', ''].map((h) => (
-                                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-zinc-600">{h}</th>
+                                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-text-muted">{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
                             {displayed.map((job) => (
-                                <tr key={job.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors">
+                                <tr key={job.id} className="border-b border-border-subtle hover:bg-surface-2/20 transition-colors">
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
-                                            <div className={`h-2 w-2 rounded-full shrink-0 ${job.enabled ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
-                                            <span className="text-sm font-medium text-zinc-200">{job.name}</span>
+                                            <div className={`h-2 w-2 rounded-full shrink-0 ${job.enabled ? 'bg-emerald' : 'bg-surface-3'}`} />
+                                            <span className="text-sm font-medium text-text-primary">{job.name}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3 font-mono text-xs text-zinc-400">{job.schedule}</td>
-                                    <td className="px-4 py-3 text-xs text-zinc-500">
+                                    <td className="px-4 py-3 font-mono text-xs text-text-secondary">{job.schedule}</td>
+                                    <td className="px-4 py-3 text-xs text-text-muted">
                                         {job.lastRunAt ? timeAgo(job.lastRunAt) : '—'}
                                     </td>
                                     <td className="px-4 py-3">
@@ -443,7 +443,7 @@ export default function CronPage() {
                                     </td>
                                     <td className="px-4 py-3">
                                         {job.consecutiveFailures > 0 ? (
-                                            <span className="flex items-center gap-1 text-xs text-red-400">
+                                            <span className="flex items-center gap-1 text-xs text-red">
                                                 <AlertCircle className="h-3.5 w-3.5" />
                                                 {job.consecutiveFailures}
                                             </span>
@@ -457,7 +457,7 @@ export default function CronPage() {
                                                 onClick={() => void handleTrigger(job)}
                                                 disabled={triggering === job.id}
                                                 title="Manual trigger"
-                                                className="rounded p-1.5 text-zinc-600 hover:text-indigo-400 transition-colors"
+                                                className="rounded p-1.5 text-text-muted hover:text-indigo transition-colors"
                                             >
                                                 {triggering === job.id
                                                     ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -467,19 +467,19 @@ export default function CronPage() {
                                                 onClick={() => void handleToggle(job)}
                                                 disabled={toggling === job.id}
                                                 title={job.enabled ? 'Disable' : 'Enable'}
-                                                className="rounded p-1.5 text-zinc-600 hover:text-zinc-300 transition-colors"
+                                                className="rounded p-1.5 text-text-muted hover:text-text-secondary transition-colors"
                                             >
                                                 {toggling === job.id
                                                     ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                                                     : job.enabled
-                                                        ? <ToggleRight className="h-4 w-4 text-emerald-400" />
+                                                        ? <ToggleRight className="h-4 w-4 text-emerald" />
                                                         : <ToggleLeft className="h-4 w-4" />}
                                             </button>
                                             <button
                                                 onClick={() => void handleDelete(job.id)}
                                                 disabled={deleting === job.id}
                                                 title="Delete"
-                                                className="rounded p-1.5 text-zinc-700 hover:text-red-400 transition-colors"
+                                                className="rounded p-1.5 text-zinc-700 hover:text-red transition-colors"
                                             >
                                                 {deleting === job.id
                                                     ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />

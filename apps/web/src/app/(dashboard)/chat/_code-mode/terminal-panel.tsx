@@ -64,7 +64,7 @@ export function TerminalPanel({ lines, filterLabel, className = '' }: TerminalPa
 
     if (filtered.length === 0) {
         return (
-            <div className={`flex items-center justify-center h-full text-xs text-zinc-500 font-mono select-none ${className}`}>
+            <div className={`flex items-center justify-center h-full text-xs text-text-muted font-mono select-none ${className}`}>
                 <span className="opacity-50">waiting for output…</span>
             </div>
         )
@@ -74,9 +74,9 @@ export function TerminalPanel({ lines, filterLabel, className = '' }: TerminalPa
         <div
             ref={containerRef}
             onScroll={handleScroll}
-            className={`overflow-auto h-full bg-zinc-950 px-3 py-2 ${className}`}
+            className={`overflow-auto h-full bg-canvas px-3 py-2 ${className}`}
         >
-            <pre className="text-xs font-mono leading-relaxed text-zinc-200 whitespace-pre-wrap break-all">
+            <pre className="text-xs font-mono leading-relaxed text-text-primary whitespace-pre-wrap break-all">
                 {filtered.map((l, i) => (
                     <span
                         key={i}

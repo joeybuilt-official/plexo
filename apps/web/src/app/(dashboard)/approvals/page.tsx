@@ -39,10 +39,10 @@ interface Approval {
 type SortKey = 'newest' | 'oldest' | 'risk_desc' | 'risk_asc'
 
 const RISK_CONFIG = {
-    low: { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-800/40', dot: 'bg-emerald-400', order: 0, label: 'Low' },
-    medium: { color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-800/40', dot: 'bg-amber-400', order: 1, label: 'Medium' },
-    high: { color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-800/40', dot: 'bg-orange-400', order: 2, label: 'High' },
-    critical: { color: 'text-red-400', bg: 'bg-red-500/10 border-red-800/40', dot: 'bg-red-400', order: 3, label: 'Critical' },
+    low: { color: 'text-emerald', bg: 'bg-emerald-dim border-emerald-800/40', dot: 'bg-emerald', order: 0, label: 'Low' },
+    medium: { color: 'text-amber', bg: 'bg-amber-dim border-amber-800/40', dot: 'bg-amber', order: 1, label: 'Medium' },
+    high: { color: 'text-orange-400', bg: 'bg-amber/10 border-orange-800/40', dot: 'bg-orange-400', order: 2, label: 'High' },
+    critical: { color: 'text-red', bg: 'bg-red-dim border-red-800/40', dot: 'bg-red', order: 3, label: 'Critical' },
 }
 
 const RISK_ORDER: Record<Approval['riskLevel'], number> = { low: 0, medium: 1, high: 2, critical: 3 }
@@ -187,9 +187,9 @@ export default function ApprovalsPage() {
             key: 'decision',
             label: 'Decision',
             options: [
-                { value: 'pending', label: 'Pending', icon: <Clock className="h-3.5 w-3.5 text-amber-500 mr-1 shrink-0" />, dimmed: !availableDecisions.has('pending') },
-                { value: 'approved', label: 'Approved', icon: <CheckCircle className="h-3.5 w-3.5 text-emerald-500 mr-1 shrink-0" />, dimmed: !availableDecisions.has('approved') },
-                { value: 'rejected', label: 'Rejected', icon: <XCircle className="h-3.5 w-3.5 text-red-500 mr-1 shrink-0" />, dimmed: !availableDecisions.has('rejected') },
+                { value: 'pending', label: 'Pending', icon: <Clock className="h-3.5 w-3.5 text-amber mr-1 shrink-0" />, dimmed: !availableDecisions.has('pending') },
+                { value: 'approved', label: 'Approved', icon: <CheckCircle className="h-3.5 w-3.5 text-emerald mr-1 shrink-0" />, dimmed: !availableDecisions.has('approved') },
+                { value: 'rejected', label: 'Rejected', icon: <XCircle className="h-3.5 w-3.5 text-red mr-1 shrink-0" />, dimmed: !availableDecisions.has('rejected') },
             ],
         },
         {
@@ -216,12 +216,12 @@ export default function ApprovalsPage() {
                     <div className="flex items-center gap-2">
                         <h1 className="text-xl font-bold tracking-tight text-zinc-50">Approvals</h1>
                         {items.length > 0 && (
-                            <span className="rounded-full bg-amber-500/15 border border-amber-700/40 px-2 py-0.5 text-xs font-semibold text-amber-400">
+                            <span className="rounded-full bg-amber/15 border border-amber-700/40 px-2 py-0.5 text-xs font-semibold text-amber">
                                 {items.length}
                             </span>
                         )}
                     </div>
-                    <p className="mt-0.5 text-sm text-zinc-500">
+                    <p className="mt-0.5 text-sm text-text-muted">
                         One-way door operations waiting for your decision before the agent proceeds.
                     </p>
                 </div>
@@ -230,7 +230,7 @@ export default function ApprovalsPage() {
                         onClick={() => void fetchApprovals()}
                         disabled={loading}
                         title="Refresh"
-                        className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors disabled:opacity-40"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                         <span className="hidden sm:inline">Refresh</span>
@@ -240,7 +240,7 @@ export default function ApprovalsPage() {
 
             {/* Toast */}
             {toast && (
-                <div className={`rounded-lg border px-4 py-2.5 text-sm ${toast.ok ? 'border-emerald-800/50 bg-emerald-950/20 text-emerald-400' : 'border-red-800/50 bg-red-950/20 text-red-400'}`}>
+                <div className={`rounded-lg border px-4 py-2.5 text-sm ${toast.ok ? 'border-emerald-800/50 bg-emerald-950/20 text-emerald' : 'border-red-800/50 bg-red-950/20 text-red'}`}>
                     {toast.text}
                 </div>
             )}
@@ -260,14 +260,14 @@ export default function ApprovalsPage() {
 
             {/* Bulk actions */}
             {filtered.length > 1 && (
-                <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
-                    <span className="text-xs text-zinc-500 flex-1">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-1/50 px-3 py-2">
+                    <span className="text-xs text-text-muted flex-1">
                         {filtered.length} {filterValues.risk || search ? 'matching' : 'pending'} approval{filtered.length !== 1 ? 's' : ''}
                     </span>
                     <button
                         onClick={() => void bulkDecide('reject')}
                         disabled={bulkActing}
-                        className="flex items-center gap-1.5 rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:border-red-800/60 hover:text-red-400 disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:border-red-800/60 hover:text-red disabled:opacity-50 transition-colors"
                     >
                         <Ban className="h-3 w-3" />
                         Reject all
@@ -275,7 +275,7 @@ export default function ApprovalsPage() {
                     <button
                         onClick={() => void bulkDecide('approve')}
                         disabled={bulkActing}
-                        className="flex items-center gap-1.5 rounded-md bg-emerald-600/20 border border-emerald-700/40 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-600/30 disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-1.5 rounded-md bg-emerald-600/20 border border-emerald-700/40 px-3 py-1.5 text-xs font-medium text-emerald hover:bg-emerald-600/30 disabled:opacity-50 transition-colors"
                     >
                         <CheckCheck className="h-3 w-3" />
                         Approve all
@@ -285,22 +285,22 @@ export default function ApprovalsPage() {
 
             {/* List */}
             {loading ? (
-                <div className="flex items-center justify-center py-16 text-sm text-zinc-600">
+                <div className="flex items-center justify-center py-16 text-sm text-text-muted">
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                     Loading…
                 </div>
             ) : items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3 text-sm text-zinc-600">
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-sm text-text-muted">
                     <CheckCircle className="h-8 w-8 text-zinc-800" />
                     <div className="text-center">
-                        <p className="font-medium text-zinc-500">No pending approvals</p>
+                        <p className="font-medium text-text-muted">No pending approvals</p>
                         <p className="mt-0.5 text-xs text-zinc-700">The agent will ask for your review before performing irreversible operations.</p>
                     </div>
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center">
-                    <p className="text-sm text-zinc-500">No results match your filters.</p>
-                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto">
+                <div className="rounded-xl border border-border bg-surface-1/40 py-12 text-center">
+                    <p className="text-sm text-text-muted">No results match your filters.</p>
+                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto">
                         Clear filters
                     </button>
                 </div>
@@ -312,17 +312,17 @@ export default function ApprovalsPage() {
                         const isActing = !!acting[item.id]
 
                         return (
-                            <div key={item.id} className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+                            <div key={item.id} className="rounded-xl border border-border bg-surface-1/60 overflow-hidden">
                                 {/* Row — always visible */}
                                 <button
                                     onClick={() => toggleExpand(item.id)}
-                                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-800/30 transition-colors"
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/30 transition-colors"
                                 >
                                     {/* Risk dot */}
                                     <span className={`h-2 w-2 rounded-full shrink-0 ${risk.dot}`} title={risk.label} />
 
                                     {/* Operation */}
-                                    <span className="text-sm font-mono font-medium text-zinc-200 flex-1 truncate">
+                                    <span className="text-sm font-mono font-medium text-text-primary flex-1 truncate">
                                         {item.operation}
                                     </span>
 
@@ -333,12 +333,12 @@ export default function ApprovalsPage() {
                                     </span>
 
                                     {/* Task ID */}
-                                    <span className="hidden md:block text-xs font-mono text-zinc-600 shrink-0">
+                                    <span className="hidden md:block text-xs font-mono text-text-muted shrink-0">
                                         {item.taskId.slice(0, 8)}
                                     </span>
 
                                     {/* Age */}
-                                    <span className="flex items-center gap-1 text-[11px] text-zinc-600 shrink-0">
+                                    <span className="flex items-center gap-1 text-[11px] text-text-muted shrink-0">
                                         <Clock className="h-3 w-3" />
                                         {timeAgo(item.createdAt)}
                                     </span>
@@ -349,7 +349,7 @@ export default function ApprovalsPage() {
                                             onClick={() => void decide(item.id, 'approve')}
                                             disabled={isActing}
                                             title="Approve"
-                                            className="rounded-md bg-emerald-600/20 border border-emerald-700/40 px-2.5 py-1 text-xs font-medium text-emerald-400 hover:bg-emerald-600/30 disabled:opacity-50 transition-colors"
+                                            className="rounded-md bg-emerald-600/20 border border-emerald-700/40 px-2.5 py-1 text-xs font-medium text-emerald hover:bg-emerald-600/30 disabled:opacity-50 transition-colors"
                                         >
                                             {isActing ? <RefreshCw className="h-3 w-3 animate-spin" /> : '✓'}
                                         </button>
@@ -357,7 +357,7 @@ export default function ApprovalsPage() {
                                             onClick={() => void decide(item.id, 'reject')}
                                             disabled={isActing}
                                             title="Reject"
-                                            className="rounded-md border border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-500 hover:border-red-700/60 hover:text-red-400 disabled:opacity-50 transition-colors"
+                                            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text-muted hover:border-red-700/60 hover:text-red disabled:opacity-50 transition-colors"
                                         >
                                             ✕
                                         </button>
@@ -365,8 +365,8 @@ export default function ApprovalsPage() {
 
                                     {/* Expand chevron */}
                                     {isExpanded
-                                        ? <ChevronUp className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
-                                        : <ChevronDown className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+                                        ? <ChevronUp className="h-3.5 w-3.5 text-text-muted shrink-0" />
+                                        : <ChevronDown className="h-3.5 w-3.5 text-text-muted shrink-0" />
                                     }
                                 </button>
 
@@ -374,36 +374,36 @@ export default function ApprovalsPage() {
                                 {isExpanded && (
                                     <div className={`border-t px-4 py-4 flex flex-col gap-4 ${risk.bg}`}>
                                         <div>
-                                            <p className="text-[10px] uppercase tracking-wide text-zinc-600 mb-1">What the agent wants to do</p>
-                                            <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{item.description}</p>
+                                            <p className="text-[10px] uppercase tracking-wide text-text-muted mb-1">What the agent wants to do</p>
+                                            <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">{item.description}</p>
                                         </div>
 
                                         <div className="flex items-center gap-4">
                                             <div>
-                                                <p className="text-[10px] uppercase tracking-wide text-zinc-600 mb-0.5">Task</p>
+                                                <p className="text-[10px] uppercase tracking-wide text-text-muted mb-0.5">Task</p>
                                                 <a
                                                     href={`/tasks/${item.taskId}`}
-                                                    className="text-xs font-mono text-indigo-400 hover:text-indigo-300 transition-colors"
+                                                    className="text-xs font-mono text-indigo hover:text-indigo-300 transition-colors"
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
                                                     {item.taskId.slice(0, 8)}…
                                                 </a>
                                             </div>
                                             <div>
-                                                <p className="text-[10px] uppercase tracking-wide text-zinc-600 mb-0.5">Risk</p>
+                                                <p className="text-[10px] uppercase tracking-wide text-text-muted mb-0.5">Risk</p>
                                                 <span className={`text-xs font-semibold ${risk.color}`}>{risk.label}</span>
                                             </div>
                                             <div>
-                                                <p className="text-[10px] uppercase tracking-wide text-zinc-600 mb-0.5">Requested</p>
-                                                <span className="text-xs text-zinc-500">{new Date(item.createdAt).toLocaleString()}</span>
+                                                <p className="text-[10px] uppercase tracking-wide text-text-muted mb-0.5">Requested</p>
+                                                <span className="text-xs text-text-muted">{new Date(item.createdAt).toLocaleString()}</span>
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-2 pt-1 border-t border-zinc-800/60">
+                                        <div className="flex gap-2 pt-1 border-t border-border/60">
                                             <button
                                                 onClick={() => void decide(item.id, 'approve')}
                                                 disabled={isActing}
-                                                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+                                                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-text-primary hover:bg-emerald disabled:opacity-50 transition-colors"
                                             >
                                                 <CheckCircle className="h-3.5 w-3.5" />
                                                 {isActing ? 'Processing…' : 'Approve'}
@@ -411,7 +411,7 @@ export default function ApprovalsPage() {
                                             <button
                                                 onClick={() => void decide(item.id, 'reject')}
                                                 disabled={isActing}
-                                                className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 hover:border-red-800/60 hover:text-red-400 disabled:opacity-50 transition-colors"
+                                                className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-secondary hover:border-red-800/60 hover:text-red disabled:opacity-50 transition-colors"
                                             >
                                                 <XCircle className="h-3.5 w-3.5" />
                                                 Reject
@@ -426,12 +426,12 @@ export default function ApprovalsPage() {
             )}
 
             {/* Info panel */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
+            <div className="rounded-xl border border-border bg-surface-1/30 p-4">
                 <div className="flex items-start gap-3">
-                    <ShieldAlert className="h-4 w-4 text-zinc-500 shrink-0 mt-0.5" />
+                    <ShieldAlert className="h-4 w-4 text-text-muted shrink-0 mt-0.5" />
                     <div>
-                        <p className="text-xs font-medium text-zinc-400">What are one-way doors?</p>
-                        <p className="mt-1 text-xs text-zinc-600 leading-relaxed">
+                        <p className="text-xs font-medium text-text-secondary">What are one-way doors?</p>
+                        <p className="mt-1 text-xs text-text-muted leading-relaxed">
                             These are operations the agent cannot undo — schema migrations, file deletions, external API calls with side effects, and force-pushes. The agent pauses and waits up to 30 minutes for your approval. Auto-rejected after 1 hour.
                         </p>
                     </div>

@@ -95,7 +95,7 @@ const PROVIDERS: ProviderConfig[] = [
         name: 'OpenRouter',
         description: '200+ models via single API key — free tier available, no credits required',
         badge: 'RECOMMENDED',
-        badgeColor: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+        badgeColor: 'bg-amber/15 text-amber border border-amber-500/30',
         requiresKey: true,
         staticModels: [
             // Free tier (no credits needed — ~50 req/day; some require Model Training enabled in OR privacy settings)
@@ -167,7 +167,7 @@ const PROVIDERS: ProviderConfig[] = [
         name: 'Ollama',
         description: 'Run models locally — no API key required',
         badge: 'Local',
-        badgeColor: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+        badgeColor: 'bg-emerald/15 text-emerald border border-emerald-500/30',
         requiresKey: false,
     },
     {
@@ -276,10 +276,10 @@ function getDefaultModelsForProvider(providerKey: ProviderKey): Record<TaskType,
 // ── Status indicator ──────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: ProviderStatus }) {
-    if (status === 'configured') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-    if (status === 'untested') return <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
-    if (status === 'borrowed') return <Link2 className="h-3.5 w-3.5 text-indigo-400" />
-    return <Circle className="h-3.5 w-3.5 text-zinc-600" />
+    if (status === 'configured') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald" />
+    if (status === 'untested') return <AlertCircle className="h-3.5 w-3.5 text-amber" />
+    if (status === 'borrowed') return <Link2 className="h-3.5 w-3.5 text-indigo" />
+    return <Circle className="h-3.5 w-3.5 text-text-muted" />
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -805,16 +805,16 @@ export default function AIProvidersPage() {
             {/* Header */}
             <div>
                 <h1 className="text-xl font-bold text-zinc-50">AI Providers</h1>
-                <p className="mt-0.5 text-sm text-zinc-500">
+                <p className="mt-0.5 text-sm text-text-muted">
                     Configure which AI providers Plexo uses for task execution and routing.
                 </p>
             </div>
 
             {loadError && (
-                <div className="rounded-lg border border-amber-800/50 bg-amber-950/20 px-3 py-2 text-xs text-amber-400">{loadError}</div>
+                <div className="rounded-lg border border-amber-800/50 bg-amber-950/20 px-3 py-2 text-xs text-amber">{loadError}</div>
             )}
             {!WS_ID && (
-                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-xs text-red-400">NEXT_PUBLIC_DEFAULT_WORKSPACE not set — changes will not be persisted.</div>
+                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-xs text-red">NEXT_PUBLIC_DEFAULT_WORKSPACE not set — changes will not be persisted.</div>
             )}
 
             <ListToolbar
@@ -833,12 +833,12 @@ export default function AIProvidersPage() {
                 {/* Left panel — provider grid */}
                 <div className="w-full md:w-[280px] shrink-0 flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto pb-2 md:pb-0 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {displayedProviders.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600 text-center px-4 w-full">
+                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-text-muted text-center px-4 w-full">
                             {lf.hasFilters ? 'No providers match your filters' : 'No providers found'}
                             {lf.hasFilters && (
                                 <button
                                     onClick={clearAll}
-                                    className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 min-h-[44px] px-2"
+                                    className="mt-2 text-xs text-indigo hover:text-indigo-300 min-h-[44px] px-2"
                                 >
                                     Clear filters
                                 </button>
@@ -854,23 +854,23 @@ export default function AIProvidersPage() {
                                 key={p.key}
                                 onClick={() => setSelectedProvider(p.key)}
                                 className={`text-left rounded-xl border p-3 transition-all shrink-0 w-[280px] sm:w-[320px] md:w-auto snap-start ${active
-                                    ? 'border-indigo-500/50 bg-zinc-900 shadow-sm shadow-indigo-500/10'
-                                    : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900/70'
+                                    ? 'border-indigo/50 bg-surface-1 shadow-sm shadow-indigo-500/10'
+                                    : 'border-border bg-surface-1/40 hover:border-border hover:bg-surface-1/70'
                                     } ${isDisabled ? 'opacity-50' : ''}`}
                             >
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-center gap-2.5">
-                                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-xs font-bold ${isDisabled ? 'text-zinc-600' : 'text-zinc-300'}`}>
+                                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 text-xs font-bold ${isDisabled ? 'text-text-muted' : 'text-text-secondary'}`}>
                                             {p.name.slice(0, 2).toUpperCase()}
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-1.5">
-                                                <p className={`text-sm font-medium ${isDisabled ? 'text-zinc-500 line-through decoration-zinc-600' : 'text-zinc-200'}`}>{p.name}</p>
+                                                <p className={`text-sm font-medium ${isDisabled ? 'text-text-muted line-through decoration-zinc-600' : 'text-text-primary'}`}>{p.name}</p>
                                                 {primaryProvider === p.key && !isDisabled && (
-                                                    <Star className="h-3 w-3 text-indigo-400 fill-indigo-400" />
+                                                    <Star className="h-3 w-3 text-indigo fill-indigo-400" />
                                                 )}
                                                 {isDisabled && (
-                                                    <span className="text-[9px] font-semibold tracking-wide rounded px-1 py-px bg-zinc-800 text-zinc-600 border border-zinc-700">DISABLED</span>
+                                                    <span className="text-[9px] font-semibold tracking-wide rounded px-1 py-px bg-surface-2 text-text-muted border border-border">DISABLED</span>
                                                 )}
                                             </div>
                                             {p.badge && (
@@ -883,9 +883,9 @@ export default function AIProvidersPage() {
                                     <StatusDot status={pState.status} />
                                 </div>
                                 {modelLabel ? (
-                                    <p className={`mt-1.5 text-[10px] font-mono pl-10 truncate ${isDisabled ? 'text-zinc-700' : 'text-zinc-500'}`} title={modelLabel}>{modelLabel}</p>
+                                    <p className={`mt-1.5 text-[10px] font-mono pl-10 truncate ${isDisabled ? 'text-zinc-700' : 'text-text-muted'}`} title={modelLabel}>{modelLabel}</p>
                                 ) : (
-                                    <p className="mt-1.5 text-xs text-zinc-600 pl-10 truncate">{p.description}</p>
+                                    <p className="mt-1.5 text-xs text-text-muted pl-10 truncate">{p.description}</p>
                                 )}
                             </button>
                         )
@@ -893,18 +893,18 @@ export default function AIProvidersPage() {
                 </div>
 
                 {/* Right panel — provider config */}
-                <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 overflow-y-auto">
+                <div className="flex-1 rounded-xl border border-border bg-surface-1/40 p-5 overflow-y-auto">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-800 text-sm font-bold text-zinc-300">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-2 text-sm font-bold text-text-secondary">
                                 {selected.name.slice(0, 2).toUpperCase()}
                             </div>
                             <div>
-                                <h2 className="text-base font-semibold text-zinc-100">{selected.name}</h2>
+                                <h2 className="text-base font-semibold text-text-primary">{selected.name}</h2>
                                 <div className="flex items-center gap-1.5">
                                     <StatusDot status={state.status} />
-                                    <span className="text-xs text-zinc-500 capitalize">{state.status}</span>
+                                    <span className="text-xs text-text-muted capitalize">{state.status}</span>
                                 </div>
                             </div>
                         </div>
@@ -919,8 +919,8 @@ export default function AIProvidersPage() {
                                         await handleSave({ [selectedProvider]: { enabled: next } } as Partial<Record<ProviderKey, Partial<ProviderState>>>)
                                     }}
                                     title={state.enabled ? 'Disable this provider' : 'Enable this provider'}
-                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${
-                                        state.enabled ? 'bg-indigo-600' : 'bg-zinc-700'
+                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-indigo/40 ${
+                                        state.enabled ? 'bg-indigo' : 'bg-zinc-700'
                                     }`}
                                 >
                                     <span
@@ -934,8 +934,8 @@ export default function AIProvidersPage() {
                                 onClick={() => { setPrimaryProvider(selectedProvider); setModelRouting({ ...getDefaultModelsForProvider(selectedProvider) }) }}
                                 disabled={!state.enabled && state.status !== 'unconfigured'}
                                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${primaryProvider === selectedProvider
-                                    ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-400'
-                                    : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                                    ? 'border-indigo/50 bg-indigo-dim text-indigo'
+                                    : 'border-border bg-surface-2 text-text-secondary hover:border-zinc-600 hover:text-text-primary'
                                     }`}
                             >
                                 <Star className={`h-3.5 w-3.5 ${primaryProvider === selectedProvider ? 'fill-indigo-400' : ''}`} />
@@ -951,19 +951,19 @@ export default function AIProvidersPage() {
 
                                 {/* OpenRouter-specific: free tier notice */}
                                 {selectedProvider === 'openrouter' && editingKey[selectedProvider] && (
-                                    <div className="flex flex-col gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                                    <div className="flex flex-col gap-2 rounded-xl border border-emerald-500/20 bg-emerald/5 p-4">
                                         <div className="flex items-start gap-3">
-                                            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                                            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald" />
                                             <div>
                                                 <p className="text-sm font-medium text-emerald-300">Free tier available — no credits required</p>
-                                                <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
+                                                <p className="mt-1 text-xs text-text-muted leading-relaxed">
                                                     OpenRouter blocks accounts with no purchase history from paid models (402 error).
-                                                    Free models with the <code className="text-zinc-400">:free</code> suffix work with any key — no credit card needed.
+                                                    Free models with the <code className="text-text-secondary">:free</code> suffix work with any key — no credit card needed.
                                                     Plexo tries multiple free models in order until one works.
                                                 </p>
-                                                <p className="mt-1.5 text-xs text-zinc-500 leading-relaxed">
-                                                    <strong className="text-zinc-400">Privacy note:</strong> Some free models require{' '}
-                                                    <a href="https://openrouter.ai/settings/privacy" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Model Training</a>
+                                                <p className="mt-1.5 text-xs text-text-muted leading-relaxed">
+                                                    <strong className="text-text-secondary">Privacy note:</strong> Some free models require{' '}
+                                                    <a href="https://openrouter.ai/settings/privacy" target="_blank" rel="noopener noreferrer" className="text-indigo hover:text-indigo-300 underline underline-offset-2">Model Training</a>
                                                     {' '}enabled in your OR settings. If all free models fail, enable it or add credits.
                                                     Free limit: ~50 req/day ($10+ in credits raises it to 1,000/day).
                                                 </p>
@@ -974,19 +974,19 @@ export default function AIProvidersPage() {
 
                                 {/* Anthropic-specific: subscription token policy notice */}
                                 {selectedProvider === 'anthropic' && editingKey[selectedProvider] && (
-                                    <div className="flex flex-col gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+                                    <div className="flex flex-col gap-2 rounded-xl border border-amber-500/25 bg-amber/5 p-4">
                                         <div className="flex items-start gap-3">
-                                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
+                                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber" />
                                             <div>
                                                 <p className="text-sm font-medium text-amber-300">API key required — subscription tokens are blocked</p>
-                                                <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
-                                                    As of January 2026, Anthropic blocks OAuth tokens (<code className="text-zinc-400">sk-ant-oat01-*</code>) obtained
+                                                <p className="mt-1 text-xs text-text-muted leading-relaxed">
+                                                    As of January 2026, Anthropic blocks OAuth tokens (<code className="text-text-secondary">sk-ant-oat01-*</code>) obtained
                                                     from Claude Free, Pro, or Max subscriptions from being used in third-party tools.
                                                     This is enforced server-side and violates their ToS. Attempting to use one will result in a 405 error.
                                                 </p>
-                                                <p className="mt-1.5 text-xs text-zinc-500 leading-relaxed">
-                                                    Use a paid API key (<code className="text-zinc-400">sk-ant-api03-*</code>) from{' '}
-                                                    <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">console.anthropic.com</a>.
+                                                <p className="mt-1.5 text-xs text-text-muted leading-relaxed">
+                                                    Use a paid API key (<code className="text-text-secondary">sk-ant-api03-*</code>) from{' '}
+                                                    <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noopener noreferrer" className="text-indigo hover:text-indigo-300 underline underline-offset-2">console.anthropic.com</a>.
                                                     These bill per token.
                                                 </p>
                                             </div>
@@ -1001,14 +1001,14 @@ export default function AIProvidersPage() {
                                             <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-sky-400" />
                                             <div>
                                                 <p className="text-sm font-medium text-sky-300">Free tier available — sign in at ollama.com</p>
-                                                <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
+                                                <p className="mt-1 text-xs text-text-muted leading-relaxed">
                                                     Ollama Cloud gives you access to large hosted models (gpt-oss, deepseek, kimi, glm…)
                                                     without running them locally. The free plan covers light usage — chat, quick
                                                     questions, and trying models.
                                                 </p>
-                                                <p className="mt-1.5 text-xs text-zinc-500 leading-relaxed">
+                                                <p className="mt-1.5 text-xs text-text-muted leading-relaxed">
                                                     Get your API key at{' '}
-                                                    <a href="https://ollama.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">ollama.com/settings/keys</a>.
+                                                    <a href="https://ollama.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-indigo hover:text-indigo-300 underline underline-offset-2">ollama.com/settings/keys</a>.
                                                     After saving, Plexo will fetch your available cloud models automatically.
                                                 </p>
                                             </div>
@@ -1019,13 +1019,13 @@ export default function AIProvidersPage() {
                                 {/* API key / subscription token field */}
                                 <div className="flex flex-col gap-1.5 min-h-[44px]">
                                     <div className="flex items-center justify-between min-h-[44px]">
-                                        <label className="text-sm font-medium text-zinc-300">API Key</label>
+                                        <label className="text-sm font-medium text-text-secondary">API Key</label>
                                         {PROVIDER_LINKS[selectedProvider] && (
                                             <a
                                                 href={PROVIDER_LINKS[selectedProvider]!.url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="flex items-center gap-1 min-h-[44px] px-2 text-xs text-zinc-500 hover:text-indigo-400 transition-colors"
+                                                className="flex items-center gap-1 min-h-[44px] px-2 text-xs text-text-muted hover:text-indigo transition-colors"
                                             >
                                                 {PROVIDER_LINKS[selectedProvider]!.label}
                                                 <ExternalLink className="h-3 w-3" />
@@ -1037,12 +1037,12 @@ export default function AIProvidersPage() {
                                     {state.status !== 'unconfigured' && !editingKey[selectedProvider] ? (
                                         <div className="flex flex-col gap-1.5">
                                             {/* Key pill */}
-                                            <div className="flex items-center gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 px-3 py-2">
-                                                <span className="text-zinc-600 tracking-[0.3em] text-sm select-none flex-1">••••••••••••••••••••</span>
+                                            <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-surface-2/40 px-3 py-2">
+                                                <span className="text-text-muted tracking-[0.3em] text-sm select-none flex-1">••••••••••••••••••••</span>
                                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
                                                     state.status === 'configured'
-                                                        ? 'bg-emerald-900/40 text-emerald-400'
-                                                        : 'bg-amber-900/40 text-amber-400'
+                                                        ? 'bg-emerald-900/40 text-emerald'
+                                                        : 'bg-amber-900/40 text-amber'
                                                 }`}>
                                                     {state.status === 'configured' ? 'Verified' : 'Saved'}
                                                 </span>
@@ -1050,7 +1050,7 @@ export default function AIProvidersPage() {
                                             {/* Actions row */}
                                             {clearConfirm === selectedProvider ? (
                                                 <div className="flex items-center gap-2 mt-2">
-                                                    <span className="text-[11px] text-zinc-500">Remove stored key?</span>
+                                                    <span className="text-[11px] text-text-muted">Remove stored key?</span>
                                                     <button
                                                         onClick={async () => {
                                                             setClearConfirm(null)
@@ -1058,13 +1058,13 @@ export default function AIProvidersPage() {
                                                             await handleSave({ [selectedProvider]: { apiKey: '__CLEAR__', status: 'unconfigured' } } as Partial<Record<ProviderKey, Partial<ProviderState>>>)
                                                             updateState(selectedProvider, { apiKey: '' })
                                                         }}
-                                                        className="text-[11px] min-h-[44px] px-3 font-medium text-red-400 hover:text-red-300 transition-colors border border-red-900/50 rounded-lg hover:bg-red-950/20"
+                                                        className="text-[11px] min-h-[44px] px-3 font-medium text-red hover:text-red-300 transition-colors border border-red-900/50 rounded-lg hover:bg-red-950/20"
                                                     >
                                                         Remove
                                                     </button>
                                                     <button
                                                         onClick={() => setClearConfirm(null)}
-                                                        className="text-[11px] min-h-[44px] px-3 text-zinc-400 hover:text-zinc-200 transition-colors border border-zinc-700/50 rounded-lg hover:bg-zinc-800"
+                                                        className="text-[11px] min-h-[44px] px-3 text-text-secondary hover:text-text-primary transition-colors border border-border/50 rounded-lg hover:bg-surface-2"
                                                     >
                                                         Cancel
                                                     </button>
@@ -1073,13 +1073,13 @@ export default function AIProvidersPage() {
                                                 <div className="flex items-center gap-3">
                                                     <button
                                                         onClick={() => setEditingKey((prev) => ({ ...prev, [selectedProvider]: true }))}
-                                                        className="text-[12px] min-h-[44px] px-3 border border-indigo-500/20 bg-indigo-500/10 rounded-lg font-medium text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+                                                        className="text-[12px] min-h-[44px] px-3 border border-indigo/20 bg-indigo-dim rounded-lg font-medium text-indigo hover:bg-indigo-dim transition-colors"
                                                     >
                                                         Change key
                                                     </button>
                                                     <button
                                                         onClick={() => setClearConfirm(selectedProvider)}
-                                                        className="text-[12px] min-h-[44px] px-3 border border-zinc-800 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-red-400 transition-colors"
+                                                        className="text-[12px] min-h-[44px] px-3 border border-border rounded-lg text-text-secondary hover:bg-surface-2 hover:text-red transition-colors"
                                                     >
                                                         Remove
                                                     </button>
@@ -1097,7 +1097,7 @@ export default function AIProvidersPage() {
                                                 placeholder="sk-ant-api03-••••••••"
                                                 autoFocus
                                                 autoComplete="new-password"
-                                                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 min-h-[44px] text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30"
                                             />
                                             {editingKey[selectedProvider] && (
                                                 <button
@@ -1105,7 +1105,7 @@ export default function AIProvidersPage() {
                                                         setEditingKey((prev) => ({ ...prev, [selectedProvider]: false }))
                                                         updateState(selectedProvider, { apiKey: '' })
                                                     }}
-                                                    className="text-zinc-600 hover:text-zinc-400 transition-colors min-h-[44px] min-w-[44px] flex justify-center items-center"
+                                                    className="text-text-muted hover:text-text-secondary transition-colors min-h-[44px] min-w-[44px] flex justify-center items-center"
                                                     title="Cancel"
                                                 >
                                                     <X className="h-4 w-4" />
@@ -1114,7 +1114,7 @@ export default function AIProvidersPage() {
                                         </div>
                                     )}
 
-                                    <p className="text-xs text-zinc-600">
+                                    <p className="text-xs text-text-muted">
                                         Encrypted at rest (AES-256-GCM). Leave blank to keep the existing key.
                                     </p>
                                 </div>
@@ -1123,14 +1123,14 @@ export default function AIProvidersPage() {
                             <div className="flex flex-col gap-3">
                                 <div className="flex flex-col gap-1.5">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-sm font-medium text-zinc-300">Base URL</label>
-                                        <span className="text-[10px] text-zinc-600">Local or remote — any reachable Ollama instance</span>
+                                        <label className="text-sm font-medium text-text-secondary">Base URL</label>
+                                        <span className="text-[10px] text-text-muted">Local or remote — any reachable Ollama instance</span>
                                     </div>
                                     {state.status === 'borrowed' ? (
                                         /* Read-only URL for borrowed providers */
                                         <div className="flex items-center gap-2 rounded-lg border border-indigo-800/30 bg-indigo-950/10 px-3 py-2">
-                                            <span className="flex-1 text-sm font-mono text-zinc-300">{state.baseUrl || 'http://localhost:11434'}</span>
-                                            <span className="text-[10px] text-indigo-400">from source workspace</span>
+                                            <span className="flex-1 text-sm font-mono text-text-secondary">{state.baseUrl || 'http://localhost:11434'}</span>
+                                            <span className="text-[10px] text-indigo">from source workspace</span>
                                         </div>
                                     ) : (
                                         <div className="flex gap-2">
@@ -1140,13 +1140,13 @@ export default function AIProvidersPage() {
                                                 onChange={(e) => updateState(selectedProvider, { baseUrl: e.target.value, dynamicModels: [], status: 'unconfigured' })}
                                                 onKeyDown={(e) => e.key === 'Enter' && void handleConnect()}
                                                 placeholder="http://localhost:11434"
-                                                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 min-h-[44px] text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 w-full"
+                                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 w-full"
                                             />
                                             {state.dynamicModels.length === 0 && (
                                                 <button
                                                     onClick={() => void handleConnect()}
                                                     disabled={connecting || !state.baseUrl}
-                                                    className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-4 min-h-[44px] text-sm font-medium text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-50 shrink-0"
+                                                    className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-4 min-h-[44px] text-sm font-medium text-text-primary hover:bg-zinc-700 transition-colors disabled:opacity-50 shrink-0"
                                                 >
                                                     {connecting
                                                         ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Connecting…</>
@@ -1157,8 +1157,8 @@ export default function AIProvidersPage() {
                                         </div>
                                     )}
                                     {state.status !== 'borrowed' && (
-                                        <p className="text-xs text-zinc-600">
-                                            Plexo will call <code className="text-zinc-500">/api/tags</code> to discover models and <code className="text-zinc-500">/v1</code> for inference.
+                                        <p className="text-xs text-text-muted">
+                                            Plexo will call <code className="text-text-muted">/api/tags</code> to discover models and <code className="text-text-muted">/v1</code> for inference.
                                             No API key required — network connectivity is sufficient.
                                         </p>
                                     )}
@@ -1168,11 +1168,11 @@ export default function AIProvidersPage() {
 
                         {(selected.staticModels || state.dynamicModels.length > 0) && (
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-zinc-300 mt-2">Default model</label>
+                                <label className="text-sm font-medium text-text-secondary mt-2">Default model</label>
                                 <select
                                     value={state.selectedModel}
                                     onChange={(e) => updateState(selectedProvider, { selectedModel: e.target.value })}
-                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 min-h-[44px] text-[16px] md:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30"
                                 >
                                     <option value="">Use task routing defaults</option>
                                     {(selected.staticModels ?? state.dynamicModels).map((m) => (
@@ -1185,7 +1185,7 @@ export default function AIProvidersPage() {
                                     </div>
                                 )}
                                 {state.dynamicModels.length > 0 && !selected.staticModels && (
-                                    <p className="text-xs text-zinc-600">
+                                    <p className="text-xs text-text-muted">
                                         {state.dynamicModels.length} models available {selectedProvider === 'ollama_cloud' ? 'from Ollama Cloud' : 'from your Ollama instance'}.
                                     </p>
                                 )}
@@ -1196,13 +1196,13 @@ export default function AIProvidersPage() {
                         {selectedProvider === 'ollama' && (state.status === 'configured' || state.status === 'borrowed') && state.dynamicModels.length > 0 && (
                             <div className="rounded-lg border border-indigo-800/30 bg-indigo-950/20 px-3 py-3 flex flex-col gap-1.5">
                                 <div className="flex items-center gap-2">
-                                    <Users className="h-3.5 w-3.5 text-indigo-400" />
-                                    <p className="text-xs font-semibold text-indigo-400">Used for quality ensemble</p>
-                                    <span className="ml-auto text-[10px] rounded px-1.5 py-0.5 bg-indigo-900/40 text-indigo-400">
+                                    <Users className="h-3.5 w-3.5 text-indigo" />
+                                    <p className="text-xs font-semibold text-indigo">Used for quality ensemble</p>
+                                    <span className="ml-auto text-[10px] rounded px-1.5 py-0.5 bg-indigo-900/40 text-indigo">
                                         up to {Math.min(3, state.dynamicModels.length)} judges
                                     </span>
                                 </div>
-                                <p className="text-[11px] text-zinc-600 leading-relaxed">
+                                <p className="text-[11px] text-text-muted leading-relaxed">
                                     After each task, Plexo runs the deliverable through {Math.min(3, state.dynamicModels.length)} local model
                                     {Math.min(3, state.dynamicModels.length) !== 1 ? 's' : ''} in
                                     parallel and aggregates a consensus quality score. If judges disagree, a cloud model arbitrates.
@@ -1210,10 +1210,10 @@ export default function AIProvidersPage() {
                                 {state.dynamicModels.slice(0, 5).length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-0.5">
                                         {state.dynamicModels.slice(0, 5).map((m) => (
-                                            <span key={m} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">{m}</span>
+                                            <span key={m} className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-secondary">{m}</span>
                                         ))}
                                         {state.dynamicModels.length > 5 && (
-                                            <span className="text-[10px] text-zinc-600">+{state.dynamicModels.length - 5} more</span>
+                                            <span className="text-[10px] text-text-muted">+{state.dynamicModels.length - 5} more</span>
                                         )}
                                     </div>
                                 )}
@@ -1226,7 +1226,7 @@ export default function AIProvidersPage() {
                                 <button
                                     onClick={() => void handleTest()}
                                     disabled={testing || saving}
-                                    className="flex items-center justify-center w-full md:w-auto gap-2 rounded-lg bg-indigo-600 px-6 min-h-[44px] text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                    className="flex items-center justify-center w-full md:w-auto gap-2 rounded-lg bg-indigo px-6 min-h-[44px] text-sm font-medium text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-50"
                                 >
                                     {testing
                                         ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -1239,8 +1239,8 @@ export default function AIProvidersPage() {
 
                         {state.testResult && (
                             <div className={`rounded-lg border px-3 py-2 text-sm font-mono ${state.testResult.startsWith('✓')
-                                ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald-400'
-                                : 'border-red-800/50 bg-red-950/30 text-red-400'
+                                ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald'
+                                : 'border-red-800/50 bg-red-950/30 text-red'
                                 }`}>
                                 {state.testResult}
                             </div>
@@ -1252,14 +1252,14 @@ export default function AIProvidersPage() {
                             if (!borrow) return null
                             return (
                                 <div className="flex items-center gap-3 rounded-xl border border-indigo-800/30 bg-indigo-950/10 px-4 py-3">
-                                    <Link2 className="h-4 w-4 text-indigo-400 shrink-0" />
+                                    <Link2 className="h-4 w-4 text-indigo shrink-0" />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-medium text-indigo-300">Borrowed from <span className="font-semibold">{borrow.sourceWorkspace?.name ?? 'another workspace'}</span></p>
-                                        <p className="text-[10px] text-zinc-600 mt-0.5">Key stays encrypted in the source workspace — not copied here.</p>
+                                        <p className="text-[10px] text-text-muted mt-0.5">Key stays encrypted in the source workspace — not copied here.</p>
                                     </div>
                                     <button
                                         onClick={() => void handleStopBorrowing(selectedProvider)}
-                                        className="text-[12px] min-h-[44px] px-3 border border-red-900/50 rounded-lg text-red-500 hover:bg-red-950/30 transition-colors shrink-0"
+                                        className="text-[12px] min-h-[44px] px-3 border border-red-900/50 rounded-lg text-red hover:bg-red-950/30 transition-colors shrink-0"
                                     >
                                         Stop borrowing
                                     </button>
@@ -1272,11 +1272,11 @@ export default function AIProvidersPage() {
                             const sharedCount = lending.filter((s) => s.providerKey === selectedProvider).length
                             const sharingOn = sharedCount > 0
                             return (
-                                <div className="flex flex-col gap-2 pt-1 border-t border-zinc-800/60">
+                                <div className="flex flex-col gap-2 pt-1 border-t border-border/60">
                                     <div className="flex items-center gap-2">
-                                        <p className="text-xs font-medium text-zinc-500">Share with workspaces</p>
+                                        <p className="text-xs font-medium text-text-muted">Share with workspaces</p>
                                         {sharedCount > 0 && (
-                                            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-indigo-900/40 text-indigo-400 font-medium">{sharedCount}</span>
+                                            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-indigo-900/40 text-indigo font-medium">{sharedCount}</span>
                                         )}
                                         <button
                                             role="switch"
@@ -1289,7 +1289,7 @@ export default function AIProvidersPage() {
                                                 }
                                             }}
                                             className={`ml-auto relative inline-flex h-6 w-11 md:h-5 md:w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                                                sharingOn ? 'bg-indigo-600' : 'bg-zinc-700'
+                                                sharingOn ? 'bg-indigo' : 'bg-zinc-700'
                                             }`}
                                         >
                                             <span className={`pointer-events-none inline-block h-5 w-5 md:h-4 md:w-4 rounded-full bg-white shadow transform transition-transform duration-200 ${
@@ -1301,7 +1301,7 @@ export default function AIProvidersPage() {
                                     {ownWorkspaces.length === 0 ? (
                                         <p className="text-[11px] text-zinc-700">
                                             No other workspaces.{' '}
-                                            <a href="/settings" className="text-indigo-500 hover:text-indigo-400">Create one in Settings.</a>
+                                            <a href="/settings" className="text-indigo hover:text-indigo">Create one in Settings.</a>
                                         </p>
                                     ) : (
                                         <div className="flex flex-col gap-1 max-w-xs">
@@ -1313,8 +1313,8 @@ export default function AIProvidersPage() {
                                                         key={ws.id}
                                                         className={`flex items-center gap-3 rounded-lg border px-3 py-3 md:py-2 min-h-[44px] cursor-pointer transition-colors ${
                                                             isShared
-                                                                ? 'border-indigo-500/40 bg-indigo-500/5'
-                                                                : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700'
+                                                                ? 'border-indigo/40 bg-indigo-500/5'
+                                                                : 'border-border bg-surface-1/40 hover:border-border'
                                                         } ${busy ? 'opacity-60 pointer-events-none' : ''}`}
                                                     >
                                                         <input
@@ -1324,9 +1324,9 @@ export default function AIProvidersPage() {
                                                             onChange={() => void handleToggleShare(ws.id, selectedProvider)}
                                                             className="accent-indigo-500 h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 cursor-pointer"
                                                         />
-                                                        <span className="text-xs text-zinc-300 flex-1 truncate">{ws.name}</span>
-                                                        {busy && <RefreshCw className="h-3 w-3 text-zinc-600 animate-spin shrink-0" />}
-                                                        {isShared && !busy && <span className="text-[10px] text-indigo-400 shrink-0">Shared</span>}
+                                                        <span className="text-xs text-text-secondary flex-1 truncate">{ws.name}</span>
+                                                        {busy && <RefreshCw className="h-3 w-3 text-text-muted animate-spin shrink-0" />}
+                                                        {isShared && !busy && <span className="text-[10px] text-indigo shrink-0">Shared</span>}
                                                     </label>
                                                 )
                                             })}
@@ -1341,13 +1341,13 @@ export default function AIProvidersPage() {
 
             {/* ── Global Routing ─────────────────────────────────── */}
             {configuredProviders.length > 0 && (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                <div className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
                     <button
                         onClick={() => setShowFallback((v) => !v)}
-                        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/30 transition-colors"
+                        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface-2/30 transition-colors"
                     >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <h2 className="text-sm font-semibold text-zinc-200 shrink-0">Fallback Chain</h2>
+                            <h2 className="text-sm font-semibold text-text-primary shrink-0">Fallback Chain</h2>
                             {/* Inline chain pill strip — always visible */}
                             <div className="flex items-center gap-1 flex-wrap min-w-0">
                                 {activeChainProviders.map((p, idx) => (
@@ -1355,12 +1355,12 @@ export default function AIProvidersPage() {
                                         {idx > 0 && <span className="text-zinc-700 text-[10px] select-none">›</span>}
                                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border ${
                                             primaryProvider === p.key
-                                                ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'
-                                                : 'border-zinc-700/80 bg-zinc-800/80 text-zinc-400'
+                                                ? 'border-indigo/40 bg-indigo-dim text-indigo-300'
+                                                : 'border-border/80 bg-surface-2/80 text-text-secondary'
                                         }`}>
                                             {borrowing.find((s) => s.providerKey === p.key)
-                                                ? <Link2 className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
-                                                : <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 shrink-0" />}
+                                                ? <Link2 className="h-2.5 w-2.5 text-indigo shrink-0" />
+                                                : <span className="h-1.5 w-1.5 rounded-full bg-emerald/80 shrink-0" />}
                                             {p.name}
                                         </span>
                                     </div>
@@ -1368,8 +1368,8 @@ export default function AIProvidersPage() {
                                 {warnChainProviders.map((p) => (
                                     <div key={p.key} className="flex items-center gap-1">
                                         <span className="text-zinc-700 text-[10px] select-none">›</span>
-                                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border border-zinc-800 text-zinc-600 opacity-50">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500/50 shrink-0" />
+                                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border border-border text-text-muted opacity-50">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-amber/50 shrink-0" />
                                             {p.name}
                                         </span>
                                     </div>
@@ -1379,12 +1379,12 @@ export default function AIProvidersPage() {
                         <div className="flex items-center gap-2 shrink-0 ml-2">
                             <button
                                 onClick={(e) => { e.stopPropagation(); setShowFallback(true); setShowRouting((v) => !v) }}
-                                className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors px-2 min-h-[44px] md:min-h-0 md:py-1 rounded hover:bg-zinc-800"
+                                className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-secondary transition-colors px-2 min-h-[44px] md:min-h-0 md:py-1 rounded hover:bg-surface-2"
                             >
                                 Model routing
                                 {showRouting ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                             </button>
-                            {showFallback ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />}
+                            {showFallback ? <ChevronDown className="h-3.5 w-3.5 text-text-muted" /> : <ChevronRight className="h-3.5 w-3.5 text-text-muted" />}
                         </div>
                     </button>
                     {showFallback && <div className="px-5 pb-5">
@@ -1395,28 +1395,28 @@ export default function AIProvidersPage() {
                                 key={p.key}
                                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
                                     primaryProvider === p.key
-                                        ? 'border-indigo-500/40 bg-indigo-500/8'
-                                        : 'border-zinc-700 bg-zinc-900/60'
+                                        ? 'border-indigo/40 bg-indigo-500/8'
+                                        : 'border-border bg-surface-1/60'
                                     }`}
                             >
-                                <span className="text-xs text-zinc-600 font-mono w-4 text-center">{idx + 1}</span>
+                                <span className="text-xs text-text-muted font-mono w-4 text-center">{idx + 1}</span>
                                 <StatusDot status={providerStates[p.key].status} />
-                                <span className="text-sm text-zinc-300">{p.name}</span>
+                                <span className="text-sm text-text-secondary">{p.name}</span>
                                 {primaryProvider === p.key && (
-                                    <span className="text-[10px] text-indigo-400 font-medium">primary</span>
+                                    <span className="text-[10px] text-indigo font-medium">primary</span>
                                 )}
                                 <div className="flex ml-1 gap-1">
-                                    <button onClick={() => moveFallback(p.key, -1)} disabled={idx === 0} className="text-zinc-500 hover:text-zinc-300 disabled:opacity-20 flex items-center justify-center min-w-[40px] md:min-w-0 md:px-0.5" aria-label="Move earlier">◀</button>
-                                    <button onClick={() => moveFallback(p.key, 1)} disabled={idx === activeChainProviders.length - 1} className="text-zinc-500 hover:text-zinc-300 disabled:opacity-20 flex items-center justify-center min-w-[40px] md:min-w-0 md:px-0.5" aria-label="Move later">▶</button>
-                                    <button onClick={() => removeFromFallback(p.key)} className="text-zinc-500 hover:text-red-400 flex items-center justify-center min-w-[40px] md:min-w-0 md:ml-1 md:px-0.5 transition-colors" aria-label="Remove from chain" title="Remove from chain">×</button>
+                                    <button onClick={() => moveFallback(p.key, -1)} disabled={idx === 0} className="text-text-muted hover:text-text-secondary disabled:opacity-20 flex items-center justify-center min-w-[40px] md:min-w-0 md:px-0.5" aria-label="Move earlier">◀</button>
+                                    <button onClick={() => moveFallback(p.key, 1)} disabled={idx === activeChainProviders.length - 1} className="text-text-muted hover:text-text-secondary disabled:opacity-20 flex items-center justify-center min-w-[40px] md:min-w-0 md:px-0.5" aria-label="Move later">▶</button>
+                                    <button onClick={() => removeFromFallback(p.key)} className="text-text-muted hover:text-red flex items-center justify-center min-w-[40px] md:min-w-0 md:ml-1 md:px-0.5 transition-colors" aria-label="Remove from chain" title="Remove from chain">×</button>
                                 </div>
                             </div>
                         ))}
                         {warnChainProviders.map((p) => (
-                            <div key={p.key} className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 opacity-50" title={`${p.name} — not tested. Click to configure.`}>
+                            <div key={p.key} className="flex items-center gap-2 rounded-lg border border-border bg-surface-1/30 px-3 py-2 opacity-50" title={`${p.name} — not tested. Click to configure.`}>
                                 <StatusDot status={providerStates[p.key].status} />
-                                <button onClick={() => setSelectedProvider(p.key)} className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">{p.name}</button>
-                                <button onClick={() => removeFromFallback(p.key)} className="ml-1 text-zinc-600 hover:text-red-400 leading-none px-0.5 transition-colors" aria-label="Remove from chain" title="Remove from chain">×</button>
+                                <button onClick={() => setSelectedProvider(p.key)} className="text-sm text-text-muted hover:text-text-secondary transition-colors">{p.name}</button>
+                                <button onClick={() => removeFromFallback(p.key)} className="ml-1 text-text-muted hover:text-red leading-none px-0.5 transition-colors" aria-label="Remove from chain" title="Remove from chain">×</button>
                             </div>
                         ))}
                     </div>
@@ -1431,25 +1431,25 @@ export default function AIProvidersPage() {
                         ]
                         const defaults = getDefaultModelsForProvider(primaryProvider)
                         return (
-                            <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
-                                <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between">
-                                    <p className="text-xs text-zinc-500">Per-task model override. Defaults are chosen for your active provider.</p>
+                            <div className="mt-4 rounded-xl border border-border bg-surface-1/40 overflow-hidden">
+                                <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
+                                    <p className="text-xs text-text-muted">Per-task model override. Defaults are chosen for your active provider.</p>
                                     <button
                                         onClick={() => setModelRouting({ ...getDefaultModelsForProvider(primaryProvider) })}
-                                        className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                                        className="text-[10px] text-text-muted hover:text-text-secondary transition-colors"
                                     >Reset to defaults</button>
                                 </div>
                                 <table className="w-full text-sm">
-                                    <thead><tr className="border-b border-zinc-800"><th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Task type</th><th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Model</th></tr></thead>
+                                    <thead><tr className="border-b border-border"><th className="px-4 py-2.5 text-left text-xs font-medium text-text-muted">Task type</th><th className="px-4 py-2.5 text-left text-xs font-medium text-text-muted">Model</th></tr></thead>
                                     <tbody>
                                         {(Object.entries(TASK_LABELS) as [TaskType, string][]).map(([taskType, label]) => (
-                                            <tr key={taskType} className="border-b border-zinc-800/50 last:border-0">
-                                                <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap">{label}</td>
+                                            <tr key={taskType} className="border-b border-border-subtle last:border-0">
+                                                <td className="px-4 py-2.5 text-text-secondary whitespace-nowrap">{label}</td>
                                                 <td className="px-4 py-2.5">
                                                     <select
                                                         value={modelRouting[taskType]}
                                                         onChange={(e) => setModelRouting((prev) => ({ ...prev, [taskType]: e.target.value }))}
-                                                        className="w-[200px] md:w-full rounded border border-zinc-700 bg-zinc-900 px-2 min-h-[44px] md:min-h-[32px] text-[16px] md:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                                                        className="w-[200px] md:w-full rounded border border-border bg-surface-1 px-2 min-h-[44px] md:min-h-[32px] text-[16px] md:text-sm text-text-primary focus:border-indigo focus:outline-none"
                                                     >
                                                         <option value="">Provider default ({defaults[taskType]})</option>
                                                         {routingModels.map((m) => (
@@ -1469,21 +1469,21 @@ export default function AIProvidersPage() {
             )}
 
             {/* ── Cost Defaults ──────────────────────────────────────────── */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+            <div className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
                 <button
                     onClick={() => setShowCostDefaults((v) => !v)}
-                    className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/30 transition-colors"
+                    className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface-2/30 transition-colors"
                 >
                     <div className="flex items-center gap-4 min-w-0 flex-1">
-                        <h2 className="text-sm font-semibold text-zinc-200 shrink-0">Cost Defaults</h2>
+                        <h2 className="text-sm font-semibold text-text-primary shrink-0">Cost Defaults</h2>
                         {/* Inline stat summary — always visible */}
                         <div className="flex items-center gap-3">
                             <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-zinc-600 uppercase tracking-wide font-medium">ceiling</span>
+                                <span className="text-[10px] text-text-muted uppercase tracking-wide font-medium">ceiling</span>
                                 <span className={`text-xs font-mono font-medium ${
                                     wsDefaultCostCeiling && parseFloat(wsDefaultCostCeiling) > 0
-                                        ? 'text-zinc-300'
-                                        : 'text-zinc-600'
+                                        ? 'text-text-secondary'
+                                        : 'text-text-muted'
                                 }`}>
                                     {wsDefaultCostCeiling && parseFloat(wsDefaultCostCeiling) > 0
                                         ? `$${parseFloat(wsDefaultCostCeiling).toFixed(2)}`
@@ -1492,11 +1492,11 @@ export default function AIProvidersPage() {
                             </div>
                             <span className="text-zinc-800 text-[10px]">·</span>
                             <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-zinc-600 uppercase tracking-wide font-medium">tokens</span>
+                                <span className="text-[10px] text-text-muted uppercase tracking-wide font-medium">tokens</span>
                                 <span className={`text-xs font-mono font-medium ${
                                     wsDefaultTokenBudget && parseInt(wsDefaultTokenBudget, 10) > 0
-                                        ? 'text-zinc-300'
-                                        : 'text-zinc-600'
+                                        ? 'text-text-secondary'
+                                        : 'text-text-muted'
                                 }`}>
                                     {wsDefaultTokenBudget && parseInt(wsDefaultTokenBudget, 10) > 0
                                         ? parseInt(wsDefaultTokenBudget, 10).toLocaleString()
@@ -1505,14 +1505,14 @@ export default function AIProvidersPage() {
                             </div>
                         </div>
                     </div>
-                    {showCostDefaults ? <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-zinc-500 shrink-0" />}
+                    {showCostDefaults ? <ChevronDown className="h-3.5 w-3.5 text-text-muted shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-text-muted shrink-0" />}
                 </button>
                 {showCostDefaults && <div className="px-5 pb-5">
                 <div className="grid grid-cols-2 gap-4 mt-1">
                     <div className="flex flex-col gap-1.5">
-                        <label htmlFor="ws-cost-ceiling" className="text-xs font-medium text-zinc-400">Cost ceiling per task (USD)</label>
+                        <label htmlFor="ws-cost-ceiling" className="text-xs font-medium text-text-secondary">Cost ceiling per task (USD)</label>
                         <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-sm">$</span>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
                             <input
                                 id="ws-cost-ceiling"
                                 type="number"
@@ -1521,13 +1521,13 @@ export default function AIProvidersPage() {
                                 placeholder="0.50"
                                 value={wsDefaultCostCeiling}
                                 onChange={(e) => setWsDefaultCostCeiling(e.target.value)}
-                                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 pl-7 pr-3 min-h-[44px] text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                className="w-full rounded-lg border border-border bg-surface-1 pl-7 pr-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30"
                             />
                         </div>
-                        <p className="text-[11px] text-zinc-600">Chat &amp; channel tasks with no explicit ceiling. Hierarchy: task › project › workspace.</p>
+                        <p className="text-[11px] text-text-muted">Chat &amp; channel tasks with no explicit ceiling. Hierarchy: task › project › workspace.</p>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                        <label htmlFor="ws-token-budget" className="text-xs font-medium text-zinc-400">Token budget per call (output)</label>
+                        <label htmlFor="ws-token-budget" className="text-xs font-medium text-text-secondary">Token budget per call (output)</label>
                         <input
                             id="ws-token-budget"
                             type="number"
@@ -1536,19 +1536,19 @@ export default function AIProvidersPage() {
                             placeholder="8192"
                             value={wsDefaultTokenBudget}
                             onChange={(e) => setWsDefaultTokenBudget(e.target.value)}
-                            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 min-h-[44px] text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                            className="w-full rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30"
                         />
-                        <p className="text-[11px] text-zinc-600">Max output tokens per LLM call. 0 = no cap (model default).</p>
+                        <p className="text-[11px] text-text-muted">Max output tokens per LLM call. 0 = no cap (model default).</p>
                     </div>
                 </div>
                 <div className="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <p className="text-[11px] text-zinc-600">
+                    <p className="text-[11px] text-text-muted">
                         Ceiling hierarchy: task explicit › project › workspace › weekly cap.
                     </p>
                     <button
                         onClick={() => void handleSave()}
                         disabled={saving}
-                        className="flex w-full md:w-auto items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-1.5 min-h-[44px] md:min-h-[32px] text-[16px] md:text-xs font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50 shrink-0"
+                        className="flex w-full md:w-auto items-center justify-center gap-2 rounded-lg bg-indigo px-3.5 py-1.5 min-h-[44px] md:min-h-[32px] text-[16px] md:text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-50 shrink-0"
                     >
                         <Save className="h-4 w-4 md:h-3 md:w-3" />
                         {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}

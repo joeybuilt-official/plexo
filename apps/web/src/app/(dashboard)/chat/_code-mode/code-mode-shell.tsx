@@ -90,11 +90,11 @@ function AgentStatusBar({
     const failed = testResults.filter((r) => !r.pass).length
 
     return (
-        <div className="flex items-center gap-4 px-3 h-8 bg-zinc-950 border-t border-zinc-800 text-xs font-mono text-zinc-500 flex-shrink-0">
+        <div className="flex items-center gap-4 px-3 h-8 bg-canvas border-t border-border text-xs font-mono text-text-muted flex-shrink-0">
             {/* Agent pulse */}
             <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'}`} />
-                <span className={isRunning ? 'text-emerald-400' : 'text-zinc-600'}>
+                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-emerald animate-pulse' : 'bg-surface-3'}`} />
+                <span className={isRunning ? 'text-emerald' : 'text-text-muted'}>
                     {isRunning ? 'agent active' : 'idle'}
                 </span>
             </div>
@@ -104,8 +104,8 @@ function AgentStatusBar({
                 <>
                     <div className="flex items-center gap-1">
                         <GitBranch className="w-3 h-3" />
-                        <span className="text-zinc-400">{repo}</span>
-                        {branch && <span className="text-zinc-600">• {branch}</span>}
+                        <span className="text-text-secondary">{repo}</span>
+                        {branch && <span className="text-text-muted">• {branch}</span>}
                     </div>
                     <span className="text-zinc-700">|</span>
                 </>
@@ -116,8 +116,8 @@ function AgentStatusBar({
             {testResults.length > 0 && (
                 <>
                     <span className="text-zinc-700">|</span>
-                    <span className="text-emerald-400">{passed}✓</span>
-                    {failed > 0 && <span className="text-red-400">{failed}✗</span>}
+                    <span className="text-emerald">{passed}✓</span>
+                    {failed > 0 && <span className="text-red">{failed}✗</span>}
                 </>
             )}
             {/* Task ID */}
@@ -228,24 +228,24 @@ export function CodeModeShell({
     const hasRepo = !!context.repo
 
     return (
-        <div className="flex flex-col h-full bg-zinc-900 text-zinc-200 overflow-hidden relative">
+        <div className="flex flex-col h-full bg-surface-1 text-text-primary overflow-hidden relative">
             {/* ── Toolbar ─────────────────────────────────────────────────── */}
-            <div className="flex items-center gap-1 px-2 h-9 bg-zinc-900 border-b border-zinc-800 flex-shrink-0">
+            <div className="flex items-center gap-1 px-2 h-9 bg-surface-1 border-b border-border flex-shrink-0">
                 {/* Sidebar toggle */}
                 <button
                     onClick={() => setShowSidebar((v) => !v)}
                     title="Toggle file tree"
-                    className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-200 transition-colors"
+                    className="p-1.5 rounded hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors"
                 >
                     <Layers className="w-3.5 h-3.5" />
                 </button>
 
                 {/* Repo badge */}
                 {context.repo && (
-                    <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-400 ml-1">
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono bg-surface-2 text-text-secondary ml-1">
                         <GitBranch className="w-3 h-3" />
                         <span>{context.repo}</span>
-                        {context.branch && <span className="text-zinc-600">@{context.branch}</span>}
+                        {context.branch && <span className="text-text-muted">@{context.branch}</span>}
                     </div>
                 )}
 
@@ -278,8 +278,8 @@ export function CodeModeShell({
                             }}
                             className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
                                 showBottom && bottomTab === tab
-                                    ? 'bg-zinc-700 text-zinc-100'
-                                    : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'
+                                    ? 'bg-zinc-700 text-text-primary'
+                                    : 'text-text-muted hover:text-text-primary hover:bg-surface-2'
                             }`}
                         >
                             <Icon className="w-3 h-3" />
@@ -287,8 +287,8 @@ export function CodeModeShell({
                             {counts[tab] !== undefined && (
                                 <span className={`px-1 rounded text-xs ${
                                     tab === 'tests' && testResults.filter((r) => !r.pass).length > 0
-                                        ? 'bg-red-900/50 text-red-400'
-                                        : 'bg-zinc-700 text-zinc-400'
+                                        ? 'bg-red-900/50 text-red'
+                                        : 'bg-zinc-700 text-text-secondary'
                                 }`}>
                                     {counts[tab]}
                                 </span>
@@ -297,13 +297,13 @@ export function CodeModeShell({
                     )
                 })}
 
-                <div className="w-px h-4 bg-zinc-800 mx-1" />
+                <div className="w-px h-4 bg-surface-2 mx-1" />
 
                 {/* Close code mode */}
                 <button
                     onClick={onClose}
                     title="Exit code mode"
-                    className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors"
+                    className="p-1.5 rounded hover:bg-surface-2 text-text-muted hover:text-red transition-colors"
                 >
                     <X className="w-3.5 h-3.5" />
                 </button>
@@ -314,7 +314,7 @@ export function CodeModeShell({
                 {/* File tree sidebar */}
                 {showSidebar && (
                     <div
-                        className="flex flex-col border-r border-zinc-800 bg-zinc-950 flex-shrink-0"
+                        className="flex flex-col border-r border-border bg-canvas flex-shrink-0"
                         style={{ width: sidebarWidth }}
                     >
                         {hasRepo || files.length > 0
@@ -334,25 +334,25 @@ export function CodeModeShell({
                 <div className="flex flex-col flex-1 overflow-hidden">
                     {/* File editor (shown when a file is selected) */}
                     {selectedFile && (
-                        <div className="border-b border-zinc-800 bg-zinc-950 overflow-hidden flex flex-col" style={{ height: 300 }}>
+                        <div className="border-b border-border bg-canvas overflow-hidden flex flex-col" style={{ height: 300 }}>
                             {/* Tab bar */}
-                            <div className="flex items-center gap-1 px-2 h-8 border-b border-zinc-800 bg-zinc-900 text-xs font-mono">
-                                <Code2 className="w-3 h-3 text-zinc-500" />
-                                <span className="text-zinc-400 flex-1 truncate">{selectedFile}</span>
+                            <div className="flex items-center gap-1 px-2 h-8 border-b border-border bg-surface-1 text-xs font-mono">
+                                <Code2 className="w-3 h-3 text-text-muted" />
+                                <span className="text-text-secondary flex-1 truncate">{selectedFile}</span>
                                 {modifiedPaths.has(selectedFile) && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Modified by agent" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber" title="Modified by agent" />
                                 )}
-                                <button onClick={() => { setSelectedFile(undefined); setFileContent(null) }} className="p-0.5 hover:text-zinc-200">
+                                <button onClick={() => { setSelectedFile(undefined); setFileContent(null) }} className="p-0.5 hover:text-text-primary">
                                     <X className="w-3 h-3" />
                                 </button>
                             </div>
                             {/* Content */}
-                            <div className="flex-1 overflow-auto bg-zinc-950 p-3">
+                            <div className="flex-1 overflow-auto bg-canvas p-3">
                                 {isLoadingFile
-                                    ? <span className="text-xs text-zinc-500 font-mono animate-pulse">loading…</span>
+                                    ? <span className="text-xs text-text-muted font-mono animate-pulse">loading…</span>
                                     : fileContent !== null
-                                    ? <pre className="text-xs font-mono text-zinc-300 whitespace-pre leading-relaxed">{fileContent}</pre>
-                                    : <span className="text-xs text-zinc-500 font-mono">File not available</span>
+                                    ? <pre className="text-xs font-mono text-text-secondary whitespace-pre leading-relaxed">{fileContent}</pre>
+                                    : <span className="text-xs text-text-muted font-mono">File not available</span>
                                 }
                             </div>
                         </div>
@@ -368,7 +368,7 @@ export function CodeModeShell({
             {/* ── Bottom panel ────────────────────────────────────────────── */}
             {showBottom && (
                 <div
-                    className="border-t border-zinc-800 bg-zinc-950 flex-shrink-0 flex flex-col overflow-hidden"
+                    className="border-t border-border bg-canvas flex-shrink-0 flex flex-col overflow-hidden"
                     style={{ height: bottomHeight }}
                 >
                     {bottomTab === 'terminal' && (

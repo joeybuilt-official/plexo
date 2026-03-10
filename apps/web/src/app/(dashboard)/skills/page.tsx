@@ -67,71 +67,71 @@ function SkillCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: string
 
     return (
         <div className={`rounded-xl border transition-all ${plugin.enabled
-            ? 'border-zinc-700/60 bg-zinc-900/60'
-            : 'border-zinc-800/40 bg-zinc-900/20 opacity-70'
+            ? 'border-border/60 bg-surface-1/60'
+            : 'border-border/40 bg-surface-1/20 opacity-70'
             }`}>
             <div
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer"
                 onClick={() => setExpanded((e) => !e)}
             >
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${plugin.enabled ? 'bg-indigo-600/20' : 'bg-zinc-800'}`}>
-                    <Zap className={`h-4 w-4 ${plugin.enabled ? 'text-indigo-400' : 'text-zinc-600'}`} />
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${plugin.enabled ? 'bg-indigo/20' : 'bg-surface-2'}`}>
+                    <Zap className={`h-4 w-4 ${plugin.enabled ? 'text-indigo' : 'text-text-muted'}`} />
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-zinc-200 truncate">{plugin.name}</span>
-                        <span className="text-[10px] font-mono text-zinc-600 shrink-0">v{plugin.version}</span>
-                        <span className="text-[10px] text-zinc-600 shrink-0">kapsel@{plugin.kapselVersion}</span>
+                        <span className="text-sm font-medium text-text-primary truncate">{plugin.name}</span>
+                        <span className="text-[10px] font-mono text-text-muted shrink-0">v{plugin.version}</span>
+                        <span className="text-[10px] text-text-muted shrink-0">kapsel@{plugin.kapselVersion}</span>
                         {plugin.settings?.isGenerated === true && (
-                            <span className="text-[10px] font-medium text-indigo-400 border border-indigo-400/30 rounded px-1.5 py-0.5 shrink-0">
+                            <span className="text-[10px] font-medium text-indigo border border-indigo-400/30 rounded px-1.5 py-0.5 shrink-0">
                                 ✦ Custom
                             </span>
                         )}
                     </div>
                     {manifest?.description && (
-                        <p className="text-xs text-zinc-500 truncate">{manifest.description}</p>
+                        <p className="text-xs text-text-muted truncate">{manifest.description}</p>
                     )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     <button
                         onClick={(e) => { e.stopPropagation(); void handleToggle() }}
                         disabled={toggling}
-                        className="flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1 text-xs transition-colors hover:border-zinc-600 disabled:opacity-40"
+                        className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs transition-colors hover:border-zinc-600 disabled:opacity-40"
                     >
                         {toggling ? (
-                            <RefreshCw className="h-3.5 w-3.5 animate-spin text-zinc-500" />
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin text-text-muted" />
                         ) : plugin.enabled ? (
-                            <><ToggleRight className="h-4 w-4 text-indigo-400" /><span className="text-indigo-400">Enabled</span></>
+                            <><ToggleRight className="h-4 w-4 text-indigo" /><span className="text-indigo">Enabled</span></>
                         ) : (
-                            <><ToggleLeft className="h-4 w-4 text-zinc-600" /><span className="text-zinc-500">Disabled</span></>
+                            <><ToggleLeft className="h-4 w-4 text-text-muted" /><span className="text-text-muted">Disabled</span></>
                         )}
                     </button>
                     {expanded
-                        ? <ChevronDown className="h-3.5 w-3.5 text-zinc-600" />
-                        : <ChevronRight className="h-3.5 w-3.5 text-zinc-600" />
+                        ? <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
+                        : <ChevronRight className="h-3.5 w-3.5 text-text-muted" />
                     }
                 </div>
             </div>
 
             {expanded && (
-                <div className="border-t border-zinc-800 px-4 py-3 flex flex-col gap-3">
+                <div className="border-t border-border px-4 py-3 flex flex-col gap-3">
                     {skills.length > 0 && (
                         <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">Skills provided</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-2">Skills provided</p>
                             <div className="flex flex-col gap-1.5">
                                 {skills.map((s, i) => (
-                                    <div key={i} className="rounded-lg bg-zinc-800/60 px-3 py-2">
+                                    <div key={i} className="rounded-lg bg-surface-2/60 px-3 py-2">
                                         <div className="flex items-center gap-2">
-                                            <Zap className="h-3 w-3 text-indigo-400 shrink-0" />
-                                            <span className="text-xs font-mono font-medium text-zinc-300">{s.name}</span>
+                                            <Zap className="h-3 w-3 text-indigo shrink-0" />
+                                            <span className="text-xs font-mono font-medium text-text-secondary">{s.name}</span>
                                         </div>
                                         {s.description && (
-                                            <p className="mt-0.5 text-[11px] text-zinc-500 pl-5">{s.description}</p>
+                                            <p className="mt-0.5 text-[11px] text-text-muted pl-5">{s.description}</p>
                                         )}
                                         {s.triggers && s.triggers.length > 0 && (
                                             <div className="mt-1 pl-5 flex flex-wrap gap-1">
                                                 {s.triggers.map((t) => (
-                                                    <span key={t} className="rounded bg-zinc-700 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">{t}</span>
+                                                    <span key={t} className="rounded bg-zinc-700 px-1.5 py-0.5 text-[10px] font-mono text-text-secondary">{t}</span>
                                                 ))}
                                             </div>
                                         )}
@@ -142,17 +142,17 @@ function SkillCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: string
                     )}
                     {(manifest?.permissions ?? []).length > 0 && (
                         <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">Permissions</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Permissions</p>
                             <div className="flex flex-wrap gap-1">
                                 {manifest!.permissions!.map((p) => (
-                                    <span key={p} className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-0.5 text-[10px] font-mono text-amber-400">{p}</span>
+                                    <span key={p} className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-0.5 text-[10px] font-mono text-amber">{p}</span>
                                 ))}
                             </div>
                         </div>
                     )}
-                    <div className="flex items-center gap-4 text-[11px] text-zinc-600">
+                    <div className="flex items-center gap-4 text-[11px] text-text-muted">
                         <span>Installed {new Date(plugin.installedAt).toLocaleDateString()}</span>
-                        {manifest?.minHostLevel && <span>Requires host level: <span className="text-zinc-400">{manifest.minHostLevel}</span></span>}
+                        {manifest?.minHostLevel && <span>Requires host level: <span className="text-text-secondary">{manifest.minHostLevel}</span></span>}
                     </div>
                 </div>
             )}
@@ -223,7 +223,7 @@ export default function SkillsPage() {
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-xl font-bold tracking-tight text-zinc-50">Skills</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">
+                    <p className="mt-0.5 text-sm text-text-muted">
                         Kapsel skill extensions — autonomous capabilities the agent can invoke
                     </p>
                 </div>
@@ -231,7 +231,7 @@ export default function SkillsPage() {
                     onClick={() => void fetchPlugins()}
                     disabled={loading}
                     title="Refresh"
-                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors disabled:opacity-40"
                 >
                     <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">Refresh</span>
@@ -240,10 +240,10 @@ export default function SkillsPage() {
 
             {/* Info banner */}
             <div className="rounded-xl border border-indigo-800/30 bg-indigo-950/20 px-4 py-3 flex items-start gap-3">
-                <Info className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+                <Info className="h-4 w-4 text-indigo shrink-0 mt-0.5" />
                 <div>
                     <p className="text-xs font-medium text-indigo-300 mb-0.5">Kapsel Skill Extensions</p>
-                    <p className="text-xs text-indigo-400/70">
+                    <p className="text-xs text-indigo/70">
                         Skills are Kapsel-packaged extensions that grant the agent new autonomous capabilities. Install via the Marketplace, then enable here.
                         Each skill declares triggers, permissions, and tools via its <code className="text-indigo-300">kapsel.json</code> manifest.
                     </p>
@@ -251,7 +251,7 @@ export default function SkillsPage() {
             </div>
 
             {error && (
-                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 flex items-center gap-2 text-xs text-red-400">
+                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 flex items-center gap-2 text-xs text-red">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {error}
                 </div>
@@ -271,29 +271,29 @@ export default function SkillsPage() {
 
             {loading ? (
                 <div className="flex items-center justify-center py-16">
-                    <RefreshCw className="h-5 w-5 text-zinc-600 animate-spin" />
+                    <RefreshCw className="h-5 w-5 text-text-muted animate-spin" />
                 </div>
             ) : skillPlugins.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
                     <ZapOff className="h-10 w-10 text-zinc-700" />
                     <div className="text-center">
-                        <p className="text-sm font-medium text-zinc-500">No skill extensions installed</p>
-                        <p className="text-xs text-zinc-600 mt-1">
-                            Install Kapsel skill packages from the <a href="/marketplace" className="text-indigo-400 hover:underline">Marketplace</a> to extend the agent.
+                        <p className="text-sm font-medium text-text-muted">No skill extensions installed</p>
+                        <p className="text-xs text-text-muted mt-1">
+                            Install Kapsel skill packages from the <a href="/marketplace" className="text-indigo hover:underline">Marketplace</a> to extend the agent.
                         </p>
                     </div>
                 </div>
             ) : filteredPlugins.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center">
-                    <p className="text-sm text-zinc-500">No results match your filters.</p>
-                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors mx-auto">
+                <div className="rounded-xl border border-border bg-surface-1/40 py-12 text-center">
+                    <p className="text-sm text-text-muted">No results match your filters.</p>
+                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto">
                         Clear search
                     </button>
                 </div>
             ) : (
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs text-zinc-600">{skillPlugins.filter((p) => p.enabled).length} / {skillPlugins.length} enabled</p>
+                        <p className="text-xs text-text-muted">{skillPlugins.filter((p) => p.enabled).length} / {skillPlugins.length} enabled</p>
                     </div>
                     {filteredPlugins.map((p) => (
                         <SkillCard key={p.id} plugin={p} onToggle={handleToggle} />
@@ -303,12 +303,12 @@ export default function SkillsPage() {
 
             {/* All-plugins fallback — show non-skill types too if any */}
             {!loading && plugins.length > 0 && skillPlugins.length === 0 && plugins.some((p) => p.type !== 'skill') && (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+                <div className="rounded-xl border border-border bg-surface-1/40 px-4 py-3">
                     <div className="flex items-center gap-2 mb-2">
-                        <Package className="h-4 w-4 text-zinc-600" />
-                        <p className="text-xs font-medium text-zinc-400">Other installed extensions</p>
+                        <Package className="h-4 w-4 text-text-muted" />
+                        <p className="text-xs font-medium text-text-secondary">Other installed extensions</p>
                     </div>
-                    <p className="text-xs text-zinc-600">
+                    <p className="text-xs text-text-muted">
                         {plugins.length} extension(s) installed but none have type=&quot;skill&quot;. Check the Marketplace or plugin type.
                     </p>
                 </div>
