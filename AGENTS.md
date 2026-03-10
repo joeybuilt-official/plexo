@@ -117,6 +117,16 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03 — P0: Every Task Failed — OpenAI Responses API Rejects discriminatedUnion Schema
+
+- **Root cause**: `planTask()` in `packages/agent/src/planner/index.ts` called `generateObject()` with a Zod `discriminatedUnion` schema (`anyOf` in JSON Schema). OpenAI's Responses API (`@ai-sdk/openai@3.x` default) requires the top-level schema to be `type: "object"` — a discriminated union produces `type: null` ("None"), which the API rejects with HTTP 400: `Invalid schema for response_format 'response': schema must be a JSON Schema of 'type: "object"', got 'type: "None"'`.
+- **Why the fallback didn't trigger**: The catch block checked `errMsg.includes('response format')` but the actual error text was `response_format` (underscore, not space) — the string match never fired. Even if it had, the `withFallback()` wrapper only retries on rate-limit/timeout errors — a 400 is non-retryable and propagates immediately, bypassing the inner catch entirely.
+- **Impact**: Every task queued against a workspace with OpenAI as primary provider was blocked immediately in the planning phase. All 30+ prior tasks have `status: blocked` with this error.
+- **Fix**: Replaced `generateObject` with `generateText` + explicit JSON shape instructions in the prompt, universally. `generateText` works on every provider without schema format restrictions. The fallback try/catch block is removed — there's nothing to fall back from.
+- **Lesson**: `generateObject` with `discriminatedUnion` / `anyOf` schemas is not portable across providers. Always use `generateText` + JSON prompting for structured outputs that need to work on OpenAI, Anthropic, and others. Add the JSON shape as a concrete example in the prompt — LLMs follow examples better than abstract schemas.
+
+---
+
 ### 2026-03 — Chat Experience: Over-Clarification, Confirmation Theater, Bad Descriptions
 
 - **Root cause 1 (Conversation system prompt)**: The system prompt explicitly told the model to "ask clarifying questions first" and "only agree to start a task or project when the scope is clear." This made the model interrogate users instead of answering.
