@@ -13,7 +13,7 @@
  * returns a ClarificationRequest instead of a plan — the queue treats this as
  * status: 'blocked' and surfaces the alternatives to the user via their channel.
  */
-import { generateObject, generateText } from 'ai'
+import { generateText } from 'ai'
 import { z } from 'zod'
 import { withFallback } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
@@ -130,29 +130,32 @@ export async function planTask(
         },
     })
 
+    const JSON_INSTRUCTIONS = `
+
+Respond with ONLY valid JSON matching exactly one of these two shapes. No markdown fences, no commentary.
+
+Shape 1 — plan (use when the task is achievable with available tools):
+{"type":"plan","goal":"<overall goal>","steps":[{"stepNumber":1,"description":"<what to do>","toolsRequired":["<tool>"],"verificationMethod":"<how to verify>","isOneWayDoor":false}],"oneWayDoors":[],"estimatedDurationMs":30000,"confidenceScore":0.9,"risks":[]}
+
+Shape 2 — clarification (use when a required capability is missing):
+{"type":"clarification","message":"<explain the gap in 1-2 sentences>","alternatives":[{"label":"<short label>","description":"<one sentence>","taskDescription":"<full task description>"}]}`
+
     const raw = await withFallback(settings, 'planning', async (model) => {
-        try {
-            return await generateObject({
-                model,
-                system: systemPrompt,
-                prompt: userPrompt,
-                schema: PlannerOutputSchema,
-            })
-        } catch (structuredErr) {
-            const errMsg = (structuredErr as Error).message ?? ''
-            if (errMsg.includes('json_schema') || errMsg.includes('response format') || errMsg.includes('structured output')) {
-                const jsonInstruction = `\n\nRespond with ONLY valid JSON — no markdown, no commentary. Use exactly one of these shapes:\n{"type":"plan","goal":string,"steps":[{"stepNumber":number,"description":string,"toolsRequired":string[],"verificationMethod":string,"isOneWayDoor":boolean}],"oneWayDoors":[],"estimatedDurationMs":number,"confidenceScore":number,"risks":string[]}\nor\n{"type":"clarification","message":string,"alternatives":[{"label":string,"description":string,"taskDescription":string}]}`
-                const textResult = await generateText({
-                    model,
-                    system: systemPrompt,
-                    prompt: userPrompt + jsonInstruction,
-                })
-                const raw = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-                const jsonObj = JSON.parse(raw)
-                return { object: PlannerOutputSchema.parse(jsonObj) }
-            }
-            throw structuredErr
-        }
+        // Use generateText universally — generateObject with discriminatedUnion schemas
+        // fails on OpenAI's Responses API (anyOf is rejected as type:"None").
+        // Text + JSON parsing works on every provider.
+        const textResult = await generateText({
+            model,
+            system: systemPrompt,
+            prompt: userPrompt + JSON_INSTRUCTIONS,
+            abortSignal: AbortSignal.timeout(30_000),
+        })
+        const cleaned = textResult.text
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim()
+        const jsonObj = JSON.parse(cleaned)
+        return { object: PlannerOutputSchema.parse(jsonObj) }
     })
 
     // Clarification path — return as-is for the queue to handle
