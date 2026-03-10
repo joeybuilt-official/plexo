@@ -79,7 +79,8 @@ ${capabilityBlock}
 
 ${contextBlock ? `CONTEXT:\n${contextBlock}\n` : ''}
 RULES:
-- If the task requires capabilities NOT listed in the manifest above (e.g. video_generation, image_generation, audio_generation, voice_synthesis, or any service not in Active connections), you MUST return type: "clarification" — never attempt a plan for work you cannot deliver.
+- If the task requires capabilities NOT listed in the manifest above (e.g. video_generation, image_generation, audio_generation, voice_synthesis), you MUST return type: "clarification" — never attempt a plan for work you cannot deliver.
+- IMPORTANT EXCEPTION: If the task requires connecting to a third-party service/API that has no existing connection, and "synthesize_kapsel_skill" is listed in the manifest tools, you MUST use synthesize_kapsel_skill to build that connection. This is the self-extension mechanism — it creates new skills and connections autonomously. Never return clarification for service integration tasks when synthesize_kapsel_skill is available.
 - When returning clarification: provide 1–4 concrete alternatives you CAN deliver with the available tools. Always include a written/text alternative.
 - When returning a plan: prefer reversible actions, flag irreversible ones as one-way doors.
 - Break work into atomic steps that can be verified independently.
@@ -111,11 +112,11 @@ export async function planTask(
 
     // Build capability manifest (Phase D)
     const manifest = await buildCapabilityManifest(ctx.workspaceId).catch(() => ({
-        tools: ['read_file', 'write_file', 'shell', 'task_complete', 'write_asset'],
+        tools: ['read_file', 'write_file', 'shell', 'task_complete', 'write_asset', 'synthesize_kapsel_skill'],
         connections: [],
         models: [{ provider: 'anthropic', model: 'claude', supports: ['text', 'code'], missing: ['image_generation', 'video_generation'] }],
         skills: [],
-        allCapabilities: new Set(['read_file', 'write_file', 'shell', 'text', 'code']),
+        allCapabilities: new Set(['read_file', 'write_file', 'shell', 'text', 'code', 'synthesize_kapsel_skill']),
     }))
 
     const capabilityBlock = manifestToPromptBlock(manifest)
