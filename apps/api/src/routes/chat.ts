@@ -134,12 +134,14 @@ When in doubt, use CONVERSATION. Only classify as TASK or PROJECT when the user'
 // ── POST /api/chat/message ────────────────────────────────────────────────────
 
 chatRouter.post('/message', async (req, res) => {
-    const { workspaceId, message, sessionId, forceConversation, images } = req.body as {
+    const { workspaceId, message, sessionId, forceConversation, images, files } = req.body as {
         workspaceId?: string
         message?: string
         sessionId?: string
         forceConversation?: boolean
         images?: Array<{ data: string; mimeType: string; name: string }>
+        /** PDF files as base64 data URLs */
+        files?: Array<{ data: string; mimeType: string; name: string }>
     }
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
@@ -147,7 +149,7 @@ chatRouter.post('/message', async (req, res) => {
         return
     }
 
-    // Validate images if present
+    // Validate images (raster only — SVG is handled client-side as text)
     const validImages: Array<{ data: string; mimeType: string; name: string }> = []
     if (Array.isArray(images)) {
         if (images.length > 5) {
@@ -159,14 +161,41 @@ chatRouter.post('/message', async (req, res) => {
                 res.status(400).json({ error: { code: 'INVALID_IMAGE', message: 'Images must be base64 data URLs (data:image/...)' } })
                 return
             }
+            // Block SVG from the image path — it must go through the text path
+            if (img.mimeType === 'image/svg+xml') {
+                res.status(400).json({ error: { code: 'INVALID_IMAGE', message: 'SVG must be sent as a text document, not an image' } })
+                return
+            }
             validImages.push(img)
         }
     }
 
+    // Validate files (PDF)
+    const ALLOWED_FILE_MIME = new Set(['application/pdf'])
+    const validFiles: Array<{ data: string; mimeType: string; name: string }> = []
+    if (Array.isArray(files)) {
+        if (files.length > 3) {
+            res.status(400).json({ error: { code: 'TOO_MANY_FILES', message: 'Maximum 3 files per message' } })
+            return
+        }
+        for (const f of files) {
+            if (typeof f.data !== 'string' || !f.data.startsWith('data:')) {
+                res.status(400).json({ error: { code: 'INVALID_FILE', message: 'Files must be base64 data URLs' } })
+                return
+            }
+            if (!ALLOWED_FILE_MIME.has(f.mimeType)) {
+                res.status(400).json({ error: { code: 'UNSUPPORTED_FILE_TYPE', message: `Unsupported file type: ${f.mimeType}. Supported: PDF` } })
+                return
+            }
+            validFiles.push(f)
+        }
+    }
+
     const hasImages = validImages.length > 0
+    const hasFiles = validFiles.length > 0
     const textMessage = (message ?? '').trim()
 
-    if (!hasImages && textMessage.length === 0) {
+    if (!hasImages && !hasFiles && textMessage.length === 0) {
         res.status(400).json({ error: { code: 'MISSING_MESSAGE', message: 'message or images required' } })
         return
     }
@@ -239,12 +268,15 @@ chatRouter.post('/message', async (req, res) => {
             if (t.reply) history.push({ role: 'assistant', content: t.reply })
         }
 
-        const trimmedMsg = textMessage || (hasImages ? `[Image${validImages.length > 1 ? 's' : ''} attached]` : '')
+        const trimmedMsg = textMessage || (hasImages ? `[Image${validImages.length > 1 ? 's' : ''} attached]` : hasFiles ? `[File${validFiles.length > 1 ? 's' : ''} attached]` : '')
 
         // Build multimodal user content for AI SDK v6
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        type ContentPart = { type: 'text'; text: string } | { type: 'image'; image: string; mimeType: string }
-        const userContent: ContentPart[] = hasImages
+        type ContentPart =
+            | { type: 'text'; text: string }
+            | { type: 'image'; image: string; mimeType: string }
+            | { type: 'file'; data: string; mediaType: string }
+        const userContent: ContentPart[] = hasImages || hasFiles
             ? [
                 { type: 'text', text: trimmedMsg },
                 ...validImages.map((img) => ({
@@ -252,6 +284,12 @@ chatRouter.post('/message', async (req, res) => {
                     // strip the data URL prefix — AI SDK expects raw base64
                     image: img.data.replace(/^data:image\/[^;]+;base64,/, ''),
                     mimeType: img.mimeType,
+                })),
+                ...validFiles.map((f) => ({
+                    type: 'file' as const,
+                    // strip the data URL prefix — AI SDK expects raw base64
+                    data: f.data.replace(/^data:[^;]+;base64,/, ''),
+                    mediaType: f.mimeType,
                 })),
               ]
             : [{ type: 'text', text: trimmedMsg }]

@@ -52,11 +52,15 @@ const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL 
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/** 'image' = raster (jpeg/png/gif/webp), 'svg' = SVG text, 'pdf' = PDF binary */
+type FileKind = 'image' | 'svg' | 'pdf'
+
 interface PastedImage {
     id: string
     dataUrl: string
     mimeType: string
     name: string
+    kind: FileKind
 }
 
 interface PastedDocument {
@@ -74,7 +78,7 @@ interface Message {
     id: string
     role: 'user' | 'agent'
     content: string
-    images?: PastedImage[]
+    images?: PastedImage[]   // raster + svg + pdf previews
     docs?: PastedDocument[]
     taskId?: string
     status?: 'queued' | 'running' | 'complete' | 'failed' | 'pending' | 'confirm_action'
@@ -122,17 +126,28 @@ function MessageBubble({
 }) {
     const [copied, setCopied] = useState(false)
 
-    // Image previews in user bubbles
+    // File previews in user bubbles
     const imageStrip = msg.role === 'user' && msg.images && msg.images.length > 0 ? (
         <div className="flex flex-wrap gap-2 mb-2">
             {msg.images.map((img) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                    key={img.id}
-                    src={img.dataUrl}
-                    alt={img.name}
-                    className="max-h-40 max-w-[200px] rounded-lg border border-border object-cover"
-                />
+                img.kind === 'image' ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                        key={img.id}
+                        src={img.dataUrl}
+                        alt={img.name}
+                        className="max-h-40 max-w-[200px] rounded-lg border border-border object-cover"
+                    />
+                ) : (
+                    <div
+                        key={img.id}
+                        className="flex items-center gap-2 rounded-lg border border-zinc-600/60 bg-surface-2/60 px-3 py-2 text-xs text-text-secondary"
+                    >
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-indigo" />
+                        <span className="font-medium truncate max-w-[160px]">{img.name}</span>
+                        <span className="text-text-muted shrink-0 uppercase text-[10px] font-bold">{img.kind}</span>
+                    </div>
+                )
             ))}
         </div>
     ) : null
@@ -879,17 +894,25 @@ function ChatContent() {
         ))
     }
 
-    // ── Image paste / drag-drop handling ──────────────────────────────────────
+    // ── File paste / drag-drop handling ───────────────────────────────────────
+
+    function kindFromMime(mime: string): FileKind | null {
+        if (mime === 'image/svg+xml') return 'svg'
+        if (mime === 'application/pdf') return 'pdf'
+        if (mime.startsWith('image/')) return 'image'
+        return null
+    }
 
     function extractImagesFromDataTransfer(dt: DataTransfer): PastedImage[] {
         const imgs: PastedImage[] = []
         for (const item of Array.from(dt.items)) {
-            if (!item.type.startsWith('image/')) continue
+            const kind = kindFromMime(item.type)
+            if (!kind) continue
             const file = item.getAsFile()
             if (!file) continue
             const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`
             const dataUrl = URL.createObjectURL(file)
-            imgs.push({ id, dataUrl, mimeType: file.type, name: file.name || `image.${file.type.split('/')[1] ?? 'png'}` })
+            imgs.push({ id, dataUrl, mimeType: file.type, name: file.name || `file.${file.type.split('/')[1] ?? 'bin'}`, kind })
         }
         return imgs
     }
@@ -969,14 +992,17 @@ function ChatContent() {
     function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
         const files = Array.from(e.target.files ?? [])
         const imgs: Promise<PastedImage>[] = files
-            .filter((f) => f.type.startsWith('image/'))
+            .filter((f) => kindFromMime(f.type) !== null)
             .map(
                 (file) =>
                     new Promise<PastedImage>((resolve) => {
                         const reader = new FileReader()
                         const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`
+                        const kind = kindFromMime(file.type)!
                         reader.onload = () =>
-                            resolve({ id, dataUrl: reader.result as string, mimeType: file.type, name: file.name })
+                            resolve({ id, dataUrl: reader.result as string, mimeType: file.type, name: file.name, kind })
+                        // SVG is XML text — read as data URL (produces data:image/svg+xml;base64,...)
+                        // PDF and raster images also read as data URL
                         reader.readAsDataURL(file)
                     })
             )
@@ -1017,7 +1043,7 @@ function ChatContent() {
             id: `u-${Date.now()}`,
             role: 'user',
             content: text || (docs && docs.length > 0 ? `📄 ${docs.map(d => d.name).join(', ')}` : ''),
-            images: images && images.length > 0 ? images : undefined,
+            images: images && images.length > 0 ? images : undefined,  // all kinds
             docs: docs && docs.length > 0 ? docs : undefined,
             at: Date.now(),
         }
@@ -1034,20 +1060,45 @@ function ChatContent() {
         setMessages((prev) => [...prev, userMsg, pendingMsg])
 
         try {
+            // Separate attached files by kind for the API
+            const rasterImages = images?.filter(f => f.kind === 'image') ?? []
+            // SVGs are sent as text documents so any model can read them
+            const svgDocs = images?.filter(f => f.kind === 'svg') ?? []
+            const pdfFiles = images?.filter(f => f.kind === 'pdf') ?? []
+
+            // Build effective text with SVG source injected as code blocks
+            let textWithSvg = effectiveText
+            if (svgDocs.length > 0) {
+                const svgBlocks = await Promise.all(
+                    svgDocs.map(async (f) => {
+                        // data URL → raw SVG text
+                        const resp = await fetch(f.dataUrl)
+                        const text = await resp.text()
+                        return `--- ${f.name} (SVG) ---\n\`\`\`svg\n${text}\n\`\`\`\n---`
+                    })
+                ).catch(() => [] as string[])
+                textWithSvg = textWithSvg
+                    ? `${textWithSvg}\n\n${svgBlocks.join('\n\n')}`
+                    : svgBlocks.join('\n\n')
+            }
+
             const res = await fetch(`${API}/api/v1/chat/message`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     workspaceId: WS_ID,
-                    message: effectiveText,
+                    message: textWithSvg,
                     sessionId: sessionId.current,
                     // Inject Code Mode repo context if active
                     ...(codeMode && codeModeContext.repo ? {
                         repo: codeModeContext.repo,
                         branch: codeModeContext.branch,
                     } : {}),
-                    images: images && images.length > 0
-                        ? images.map((img) => ({ data: img.dataUrl, mimeType: img.mimeType, name: img.name }))
+                    images: rasterImages.length > 0
+                        ? rasterImages.map((img) => ({ data: img.dataUrl, mimeType: img.mimeType, name: img.name }))
+                        : undefined,
+                    files: pdfFiles.length > 0
+                        ? pdfFiles.map((f) => ({ data: f.dataUrl, mimeType: f.mimeType, name: f.name }))
                         : undefined,
                 }),
             })
@@ -1230,13 +1281,20 @@ function ChatContent() {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 min-h-0">
                 {messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-                        {/* Idle agent orb */}
-                        <div className={`relative h-16 w-16 rounded-full   flex items-center justify-center transition-all duration-300 ${isListening ? 'scale-110 shadow-[0_0_32px_rgba(99,102,241,0.5)]' : ''
-                            }`}>
-                            <Bot className="h-8 w-8 text-text-primary" />
+                    <div className="flex flex-col items-center justify-center h-full gap-5 text-center">
+                        {/* Brand mark — idle breathe at rest, working pulse while listening */}
+                        <div className={`relative flex items-center justify-center transition-all duration-500 ${
+                            isListening
+                                ? 'drop-shadow-[0_0_28px_rgba(99,102,241,0.6)]'
+                                : 'drop-shadow-[0_0_12px_rgba(99,102,241,0.2)]'
+                        }`}>
+                            <PlexoMark
+                                className="h-16 w-16"
+                                idle={!isListening}
+                                working={isListening}
+                            />
                             {isListening && (
-                                <div className="absolute inset-0 rounded-full border-2 border-indigo-400 animate-ping opacity-40" />
+                                <div className="absolute inset-0 rounded-full border border-indigo/40 animate-ping" />
                             )}
                         </div>
                         <div>
@@ -1269,7 +1327,7 @@ function ChatContent() {
                             </div>
                         )}
                         {isListening && (
-                            <div className="mt-2">
+                            <div className="mt-1">
                                 <VoiceWaveform active={isListening} level={voice.level} />
                             </div>
                         )}
@@ -1370,21 +1428,31 @@ function ChatContent() {
 
             {/* Input area */}
             <div className="shrink-0 flex flex-col gap-2 pt-3 border-t border-border">
-                {/* Pasted image previews */}
+                {/* Pasted file previews (images, SVG, PDF) */}
                 {pastedImages.length > 0 && (
                     <div className="flex flex-wrap gap-2 px-1">
                         {pastedImages.map((img) => (
                             <div key={img.id} className="relative group">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={img.dataUrl}
-                                    alt={img.name}
-                                    className="h-20 w-20 rounded-lg border border-border object-cover"
-                                />
+                                {img.kind === 'image' ? (
+                                    <>
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={img.dataUrl}
+                                            alt={img.name}
+                                            className="h-20 w-20 rounded-lg border border-border object-cover"
+                                        />
+                                    </>
+                                ) : (
+                                    <div className="h-20 w-28 rounded-lg border border-zinc-600/60 bg-surface-2/60 flex flex-col items-center justify-center gap-1 px-2">
+                                        <FileText className="h-6 w-6 text-indigo shrink-0" />
+                                        <span className="text-[10px] text-text-muted font-bold uppercase tracking-wide">{img.kind}</span>
+                                        <span className="text-[10px] text-text-secondary truncate max-w-full px-1 text-center leading-tight">{img.name}</span>
+                                    </div>
+                                )}
                                 <button
                                     onClick={() => removeImage(img.id)}
                                     className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-surface-2 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-red hover:border-red-400 transition-all opacity-0 group-hover:opacity-100"
-                                    aria-label="Remove image"
+                                    aria-label="Remove attachment"
                                 >
                                     <X className="h-3 w-3" />
                                 </button>
@@ -1437,21 +1505,21 @@ function ChatContent() {
                         </button>
                     )}
 
-                    {/* Image attach button */}
+                    {/* File attach button (images, SVG, PDF) */}
                     <button
                         id="image-attach-btn"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={sending || isListening}
-                        title="Attach image"
+                        title="Attach image, SVG, or PDF"
                         className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border text-text-muted hover:text-text-secondary hover:border-zinc-500 bg-surface-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Attach image"
+                        aria-label="Attach file"
                     >
                         <ImageIcon className="h-4 w-4" />
                     </button>
                     <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/*,image/svg+xml,application/pdf"
                         multiple
                         className="hidden"
                         onChange={handleFileInput}
