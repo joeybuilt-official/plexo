@@ -83,10 +83,11 @@ type SprintLogEvent =
     | 'planning_start' | 'planning_complete'
     | 'wave_start' | 'wave_complete'
     | 'task_queued' | 'task_running' | 'task_complete' | 'task_failed' | 'task_timeout'
-    | 'pr_created' | 'pr_failed'
+    | 'pr_created' | 'pr_failed' | 'pr_skipped'
     | 'conflict_detected' | 'budget_check' | 'budget_ceiling_hit'
-    | 'sprint_complete' | 'sprint_failed'
+    | 'sprint_complete' | 'sprint_failed' | 'sprint_cancelled'
     | 'branch_created' | 'branch_failed'
+    | 'routing_trace' | 'quality_forecast'
 
 interface SprintLogEntry {
     id: string
@@ -139,6 +140,10 @@ const LOG_EVENT_CONFIG: Record<SprintLogEvent, {
     sprint_failed: { icon: XCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'Failed' },
     branch_created: { icon: GitBranch, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Branch' },
     branch_failed: { icon: AlertCircle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Branch Err' },
+    pr_skipped: { icon: GitPullRequest, color: 'text-text-muted', bgColor: 'bg-surface-2/60 border-border/30', label: 'PR Skipped' },
+    sprint_cancelled: { icon: StopCircle, color: 'text-text-muted', bgColor: 'bg-surface-2/60 border-border/30', label: 'Cancelled' },
+    routing_trace: { icon: Zap, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Routing' },
+    quality_forecast: { icon: TrendingUp, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Forecast' },
 }
 
 const LEVEL_COLORS: Record<SprintLogLevel, string> = {
