@@ -40,7 +40,7 @@ const STATUS_DOT: Record<string, string> = {
     planning: 'bg-purple-500',
     running: 'bg-blue-500 animate-pulse',
     finalizing: 'bg-blue-400 animate-pulse',
-    complete: 'bg-emerald',
+    complete: 'bg-azure',
     failed: 'bg-red',
     cancelled: 'bg-surface-3',
 }
@@ -49,7 +49,7 @@ const STATUS_TEXT: Record<string, string> = {
     planning: 'text-purple-400',
     running: 'text-blue-400',
     finalizing: 'text-blue-300',
-    complete: 'text-emerald',
+    complete: 'text-azure',
     failed: 'text-red',
     cancelled: 'text-text-muted',
 }
@@ -96,7 +96,7 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
     return (
         <Link
             href={`/projects/${sprint.id}`}
-            className="group block rounded-xl border border-border bg-surface-1/60 p-4 transition-all hover:border-indigo/40 hover:bg-surface-1"
+            className="group block rounded-xl border border-border bg-surface-1/60 p-4 transition-all hover:border-azure/40 hover:bg-surface-1"
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5 min-w-0">
@@ -122,7 +122,7 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
                         {['cancelled', 'failed'].includes(sprint.status) && (
                             <button
                                 onClick={(e) => { e.preventDefault(); onAction('start', sprint.id) }}
-                                className="p-1.5 rounded-md hover:bg-surface-2 text-text-muted hover:text-indigo transition-colors"
+                                className="p-1.5 rounded-md hover:bg-surface-2 text-text-muted hover:text-azure transition-colors"
                                 title="Restart project"
                             >
                                 <Play className="h-4 w-4" />
@@ -151,7 +151,7 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
             {sprint.totalTasks > 0 && (
                 <div className="mt-3">
                     <div className="h-1 rounded-full bg-surface-2">
-                        <div className="h-1 rounded-full bg-emerald transition-all" style={{ width: `${pct}%` }} />
+                        <div className="h-1 rounded-full bg-azure transition-all" style={{ width: `${pct}%` }} />
                     </div>
                     <div className="mt-1.5 flex items-center gap-3 text-[11px] text-text-muted">
                         <span>{sprint.completedTasks}/{sprint.totalTasks} {def.unitPlural.toLowerCase()}</span>
@@ -324,7 +324,7 @@ export default function ProjectsPage() {
                     </button>
                     <Link
                         href="/projects/new"
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         New Project
@@ -382,7 +382,7 @@ export default function ProjectsPage() {
                         <p className="text-sm font-medium text-text-secondary">No projects yet</p>
                         <p className="mt-1 text-xs text-text-muted">Create a project to run parallel AI work — code, research, writing, and more.</p>
                     </div>
-                    <Link href="/projects/new" className="flex items-center gap-2 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 transition-colors">
+                    <Link href="/projects/new" className="flex items-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors">
                         <Plus className="h-4 w-4" />
                         Create first project
                     </Link>

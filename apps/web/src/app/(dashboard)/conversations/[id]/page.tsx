@@ -48,7 +48,7 @@ const SOURCE_LABEL: Record<string, { icon: string; label: string }> = {
 }
 
 const STATUS_CFG = {
-    complete: { icon: CheckCircle, cls: 'text-emerald', label: 'Completed' },
+    complete: { icon: CheckCircle, cls: 'text-azure', label: 'Completed' },
     failed: { icon: XCircle, cls: 'text-red', label: 'Failed' },
     pending: { icon: Clock, cls: 'text-amber', label: 'Pending' },
 }
@@ -122,7 +122,7 @@ export default function ConversationDetailPage() {
                                 {srcMeta.icon} {srcMeta.label}
                             </span>
                             {conv.intent && conv.intent !== 'CONVERSATION' && (
-                                <span className="text-xs bg-indigo-900/40 border border-indigo-800/50 rounded px-2 py-0.5 text-indigo capitalize">
+                                <span className="text-xs bg-azure-900/40 border border-azure-800/50 rounded px-2 py-0.5 text-azure capitalize">
                                     {conv.intent.toLowerCase()}
                                 </span>
                             )}
@@ -144,7 +144,7 @@ export default function ConversationDetailPage() {
                         )}
                         <Link
                             href={`/chat?context=${encodeURIComponent(conv.id)}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
                         >
                             <MessageCircle className="h-3.5 w-3.5" />
                             Continue
@@ -167,7 +167,7 @@ export default function ConversationDetailPage() {
                         <User className="h-4 w-4 text-text-secondary" />
                     </div>
                     <div className="flex flex-col gap-1 max-w-[85%] items-end">
-                        <div className="rounded-2xl rounded-tr-md px-4 py-2.5 text-sm leading-relaxed bg-indigo text-text-primary">
+                        <div className="rounded-2xl rounded-tr-md px-4 py-2.5 text-sm leading-relaxed bg-azure text-text-primary">
                             {conv.message}
                         </div>
                     </div>

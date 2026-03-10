@@ -72,7 +72,7 @@ export function ParallelStatusPanel() {
         <div className="rounded-xl border border-border bg-surface-1/40 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                    <Server className="h-4 w-4 text-indigo" />
+                    <Server className="h-4 w-4 text-azure" />
                     <h2 className="text-sm font-semibold text-text-primary">Parallel Execution Control</h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -91,7 +91,7 @@ export function ParallelStatusPanel() {
                         return (
                             <div key={slot.taskId} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-surface-2/20">
                                 <div className="flex items-center gap-3">
-                                    <Activity className="h-4 w-4 text-emerald" />
+                                    <Activity className="h-4 w-4 text-azure" />
                                     <div>
                                         <p className="text-[13px] text-text-primary truncate max-w-[200px]">{slot.resourceKey}</p>
                                         <p className="text-[11px] text-text-muted">TTL: {remaining}s</p>
@@ -115,7 +115,7 @@ export function ParallelStatusPanel() {
                 <button
                     onClick={() => void claimBatch()}
                     disabled={claiming}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-indigo-dim text-indigo hover:bg-indigo-dim hover:text-indigo-300 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-azure-dim text-azure hover:bg-azure-dim hover:text-azure py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
                 >
                     <Play className={`h-3.5 w-3.5 ${claiming ? 'animate-pulse' : ''}`} />
                     Claim Batch

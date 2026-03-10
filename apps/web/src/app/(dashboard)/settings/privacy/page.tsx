@@ -54,7 +54,7 @@ function Toggle({ id, checked, onChange }: { id: string; checked: boolean; onCha
             role="switch"
             aria-checked={checked}
             onClick={() => onChange(!checked)}
-            className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo min-h-[44px] ${checked ? 'bg-indigo' : 'bg-zinc-700'
+            className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-azure min-h-[44px] ${checked ? 'bg-azure' : 'bg-zinc-700'
                 }`}
         >
             <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform duration-200 ml-1 ${checked ? 'translate-x-[24px]' : 'translate-x-0'
@@ -128,7 +128,7 @@ function PayloadModal({ open, onClose, enabled }: { open: boolean; onClose: () =
                 <p className="py-6 text-center text-sm text-text-muted">No reports recorded yet.</p>
             )}
             {!loading && payload && (
-                <pre className="overflow-auto rounded-xl bg-canvas border border-border p-4 text-xs font-mono text-emerald leading-relaxed max-h-96">
+                <pre className="overflow-auto rounded-xl bg-canvas border border-border p-4 text-xs font-mono text-azure leading-relaxed max-h-96">
                     {JSON.stringify(payload, null, 2)}
                 </pre>
             )}
@@ -158,7 +158,7 @@ function RegenerateModal({ open, onClose, onConfirm, loading }: {
                     id="privacy-confirm-regenerate"
                     onClick={onConfirm}
                     disabled={loading}
-                    className="flex-1 rounded-xl bg-indigo py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2 min-h-[44px]"
+                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2 min-h-[44px]"
                 >
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                     {loading ? 'Regenerating…' : 'Regenerate ID'}
@@ -265,7 +265,7 @@ export default function PrivacyPage() {
                 {/* Page header */}
                 <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="flex h-12 w-12 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-surface-2 border border-border">
-                        <ShieldCheck className="h-6 w-6 sm:h-5 sm:w-5 text-indigo" />
+                        <ShieldCheck className="h-6 w-6 sm:h-5 sm:w-5 text-azure" />
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-zinc-50">Privacy</h1>
@@ -299,7 +299,7 @@ export default function PrivacyPage() {
                         <button
                             id="privacy-view-last-report"
                             onClick={() => setShowPayload(true)}
-                            className="mt-3 text-sm sm:text-xs text-indigo hover:text-indigo-300 transition-colors min-h-[44px] px-2 -mx-2 flex flex-col justify-center w-fit"
+                            className="mt-3 text-sm sm:text-xs text-azure hover:text-azure transition-colors min-h-[44px] px-2 -mx-2 flex flex-col justify-center w-fit"
                         >
                             View last report →
                         </button>
@@ -323,7 +323,7 @@ export default function PrivacyPage() {
                                 title="Copy to clipboard"
                                 className="flex items-center justify-center rounded-lg border border-border bg-canvas p-2 text-text-muted hover:text-text-primary transition-colors min-h-[44px] sm:min-w-[44px] w-full sm:w-auto"
                             >
-                                {copied ? <Check className="h-4 w-4 text-emerald mr-2 sm:mr-0" /> : <Copy className="h-4 w-4 mr-2 sm:mr-0" />}
+                                {copied ? <Check className="h-4 w-4 text-azure mr-2 sm:mr-0" /> : <Copy className="h-4 w-4 mr-2 sm:mr-0" />}
                                 <span className="sm:hidden text-sm font-medium">{copied ? 'Copied' : 'Copy'}</span>
                             </button>
                         </div>
@@ -361,7 +361,7 @@ export default function PrivacyPage() {
                                     'Zero connected services',
                                 ].map(item => (
                                     <div key={item} className="flex items-center gap-2 text-xs text-text-muted">
-                                        <div className="h-1.5 w-1.5 rounded-full bg-emerald/60" />
+                                        <div className="h-1.5 w-1.5 rounded-full bg-azure/60" />
                                         {item}
                                     </div>
                                 ))}

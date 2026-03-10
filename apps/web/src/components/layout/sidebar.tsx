@@ -140,6 +140,7 @@ function loadCollapsedState(groups: NavGroup[]): Record<string, boolean> {
 }
 
 import { PlexoMark } from '@web/components/plexo-logo'
+import { ThemeToggle } from '@web/components/theme-toggle'
 
 // ── WorkspaceSwitcher ──────────────────────────────────────────────────────────
 
@@ -413,10 +414,11 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
             {/* Footer */}
             <div className="relative flex flex-col border-t border-border-subtle p-2">
                 <UserFooter user={user} />
-                <div className="mt-1 px-2.5 pb-1">
+                <div className="mt-1 flex items-center justify-between px-2.5 pb-1">
                     <span className="text-[9px] font-medium text-zinc-700">
                         &copy; 2026 Joeybuilt LLC
                     </span>
+                    <ThemeToggle />
                 </div>
             </div>
         </aside>
@@ -432,6 +434,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
             <div className="flex-1 w-full max-w-[240px]">
                 <WorkspaceSwitcher />
             </div>
+            <ThemeToggle className="mr-3 shrink-0" />
         </header>
 
         {/* Mobile Bottom Tab Bar */}

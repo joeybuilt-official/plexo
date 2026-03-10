@@ -117,6 +117,20 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03 — Light/Dark Mode (Feature-Flagged, Pending Design Review)
+
+- **Status**: Implemented, gated behind `NEXT_PUBLIC_THEME_TOGGLE=true`. Toggle and Appearance settings page section are invisible until the flag is set.
+- **Architecture**: `next-themes` already installed. `ThemeProvider` wraps the app in `layout.tsx`; `defaultTheme` changed from `"dark"` → `"system"`, `storageKey="plexo-theme"`. `suppressHydrationWarning` on `<html>` was already present.
+- **Tailwind v4**: Dark mode class variant declared via `@variant dark (&:where(.dark, .dark *))` in `globals.css`. This is Tailwind v4 syntax — VS Code's CSS linter flags it as unknown (ignore, PostCSS handles it correctly).
+- **Light palette**: Defined in `.light { }` block in `globals.css`. Overrides surface, border, and text tokens only. Accent colors (azure, amber, red), radius, and font tokens are unchanged. **Provisional — do not ship to users until design approves.**
+- **Raw `zinc-*` classes**: Many sidebar and dropdown components use `zinc-800`, `zinc-700`, etc. directly. These are hardcoded dark values — they will not adapt to light mode automatically. Light mode refinement requires a component-level pass once the palette is approved.
+- **Toggle placement**: `ThemeToggle` (sun/moon icon) placed in the desktop sidebar footer (next to copyright) and in the mobile top header. Both render `null` when the flag is unset.
+- **Settings Appearance section**: `AppearanceSection` added to `/settings` page as a tab. Gated via both the flag check in `ThemeToggle.tsx` and a `flagged: true` filter on the `SECTIONS` array.
+- **To activate for design review**: Set `NEXT_PUBLIC_THEME_TOGGLE=true` in `.env.local` and restart the dev server.
+- **To ship**: Remove the `if (process.env.NEXT_PUBLIC_THEME_TOGGLE !== 'true') return null` guards from `theme-toggle.tsx` and delete the `flagged` filter from `settings/page.tsx`.
+
+---
+
 ### 2026-03 — P0: Every Task Failed — OpenAI Responses API Rejects discriminatedUnion Schema
 
 - **Root cause**: `planTask()` in `packages/agent/src/planner/index.ts` called `generateObject()` with a Zod `discriminatedUnion` schema (`anyOf` in JSON Schema). OpenAI's Responses API (`@ai-sdk/openai@3.x` default) requires the top-level schema to be `type: "object"` — a discriminated union produces `type: null` ("None"), which the API rejects with HTTP 400: `Invalid schema for response_format 'response': schema must be a JSON Schema of 'type: "object"', got 'type: "None"'`.

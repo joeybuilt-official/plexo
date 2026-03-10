@@ -46,12 +46,12 @@ export function RegisterForm({ isFirstRun }: { isFirstRun: boolean }) {
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
-            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo/10 via-canvas to-canvas" />
+            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-azure/10 via-canvas to-canvas" />
 
             <div className="relative w-full max-w-sm">
                 <div className="mb-8 text-center">
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
-                        <PlexoMark className="w-10 h-10 text-indigo drop-shadow-lg" />
+                        <PlexoMark className="w-10 h-10 text-azure drop-shadow-lg" />
                     </div>
                     <h1 className="text-lg font-semibold tracking-tight">
                         {isFirstRun ? 'Setup your admin account' : 'Create your account'}
@@ -75,7 +75,7 @@ export function RegisterForm({ isFirstRun }: { isFirstRun: boolean }) {
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                     placeholder="Your name"
-                                    className="w-full rounded-lg border border-border bg-canvas py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo/50 focus:outline-none focus:ring-1 focus:ring-indigo/50"
+                                    className="w-full rounded-lg border border-border bg-canvas py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure/50 focus:outline-none focus:ring-1 focus:ring-azure/50"
                                     required
                                 />
                             </div>
@@ -92,7 +92,7 @@ export function RegisterForm({ isFirstRun }: { isFirstRun: boolean }) {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="you@example.com"
-                                    className="w-full rounded-lg border border-border bg-canvas py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo/50 focus:outline-none focus:ring-1 focus:ring-indigo/50"
+                                    className="w-full rounded-lg border border-border bg-canvas py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure/50 focus:outline-none focus:ring-1 focus:ring-azure/50"
                                     required
                                 />
                             </div>
@@ -107,7 +107,7 @@ export function RegisterForm({ isFirstRun }: { isFirstRun: boolean }) {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="Min 12 characters"
-                                className="w-full rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo/50 focus:outline-none focus:ring-1 focus:ring-indigo/50"
+                                className="w-full rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure/50 focus:outline-none focus:ring-1 focus:ring-azure/50"
                                 required
                                 minLength={12}
                             />
@@ -123,7 +123,7 @@ export function RegisterForm({ isFirstRun }: { isFirstRun: boolean }) {
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo/90 disabled:opacity-50"
+                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-azure px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-azure/90 disabled:opacity-50"
                         >
                             {isLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />

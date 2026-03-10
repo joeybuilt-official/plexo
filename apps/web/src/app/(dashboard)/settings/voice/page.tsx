@@ -37,8 +37,8 @@ interface VoiceSettings {
 // ── Status indicator ──────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: TestStatus }) {
-    if (status === 'testing') return <Loader2 className="h-4 w-4 animate-spin text-indigo" />
-    if (status === 'ok') return <CheckCircle2 className="h-4 w-4 text-emerald" />
+    if (status === 'testing') return <Loader2 className="h-4 w-4 animate-spin text-azure" />
+    if (status === 'ok') return <CheckCircle2 className="h-4 w-4 text-azure" />
     if (status === 'error') return <AlertCircle className="h-4 w-4 text-red" />
     return <Circle className="h-4 w-4 text-text-muted" />
 }
@@ -181,13 +181,13 @@ export default function VoiceSettingsPage() {
                 {/* Card header */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-4 sm:px-6 py-4 sm:py-5 border-b border-border">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-dim border border-indigo/20">
-                            <Mic className="h-5 w-5 text-indigo" />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-azure-dim border border-azure/20">
+                            <Mic className="h-5 w-5 text-azure" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
                                 <span className="text-base font-semibold text-text-primary">Deepgram</span>
-                                <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide bg-emerald/15 text-emerald border border-emerald-500/30">
+                                <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide bg-azure/15 text-azure border border-azure/30">
                                     RECOMMENDED
                                 </span>
                             </div>
@@ -208,10 +208,10 @@ export default function VoiceSettingsPage() {
                 <div className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-5">
 
                     {/* Free credits callout */}
-                    <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald/5 p-4">
-                        <Volume2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald" />
+                    <div className="flex items-start gap-3 rounded-xl border border-azure/20 bg-azure/5 p-4">
+                        <Volume2 className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
                         <div>
-                            <p className="text-sm font-medium text-emerald-300">$200 in free credits — no credit card required to start</p>
+                            <p className="text-sm font-medium text-azure-300">$200 in free credits — no credit card required to start</p>
                             <p className="mt-1 text-xs text-text-muted leading-relaxed">
                                 Deepgram&apos;s Nova-3 model delivers best-in-class transcription accuracy. Free credits cover
                                 approximately 20,000 minutes of audio. Create a free account, generate an API key, and paste
@@ -221,7 +221,7 @@ export default function VoiceSettingsPage() {
                                 href="https://console.deepgram.com/signup"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="mt-2 inline-flex items-center gap-1.5 text-xs text-indigo hover:text-indigo-300 transition-colors"
+                                className="mt-2 inline-flex items-center gap-1.5 text-xs text-azure hover:text-azure transition-colors"
                             >
                                 Create free Deepgram account
                                 <ExternalLink className="h-3 w-3" />
@@ -237,7 +237,7 @@ export default function VoiceSettingsPage() {
                                 href="https://console.deepgram.com/project/keys"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-indigo hover:text-indigo-300 transition-colors"
+                                className="flex items-center gap-1 text-xs text-azure hover:text-azure transition-colors"
                             >
                                 Get API key
                                 <ExternalLink className="h-3 w-3" />
@@ -248,8 +248,8 @@ export default function VoiceSettingsPage() {
                             // Configured state — show locked field + Change button
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2">
                                 <div className="flex-1 flex items-center gap-3 rounded-lg border border-border/50 bg-surface-2/30 px-3 py-2.5 min-h-[44px]">
-                                    <CheckCircle2 className="h-4 w-4 text-emerald shrink-0" />
-                                    <span className="text-xs text-emerald font-medium whitespace-nowrap">Key saved and verified</span>
+                                    <CheckCircle2 className="h-4 w-4 text-azure shrink-0" />
+                                    <span className="text-xs text-azure font-medium whitespace-nowrap">Key saved and verified</span>
                                     <span className="ml-auto font-mono text-xs text-text-muted truncate max-w-[50px] sm:max-w-none">••••••••••••••••••••••••</span>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -281,7 +281,7 @@ export default function VoiceSettingsPage() {
                                             onChange={e => setKeyInput(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && void saveAndTest()}
                                             placeholder="Paste your Deepgram API key…"
-                                            className="w-full rounded-lg border border-border bg-surface-2/60 px-3 py-2.5 pr-11 text-[16px] sm:text-sm text-text-primary placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo focus:border-indigo transition-colors font-mono min-h-[44px]"
+                                            className="w-full rounded-lg border border-border bg-surface-2/60 px-3 py-2.5 pr-11 text-[16px] sm:text-sm text-text-primary placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo focus:border-azure transition-colors font-mono min-h-[44px]"
                                         />
                                         <button
                                             type="button"
@@ -296,7 +296,7 @@ export default function VoiceSettingsPage() {
                                         <button
                                             onClick={() => void saveAndTest()}
                                             disabled={saving || (!keyInput.trim() && !settings?.configured)}
-                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-lg bg-indigo hover:bg-indigo/90 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-medium text-text-primary transition-colors whitespace-nowrap min-h-[44px]"
+                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-lg bg-azure hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-medium text-text-primary transition-colors whitespace-nowrap min-h-[44px]"
                                         >
                                             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                                             Save &amp; Test
@@ -323,7 +323,7 @@ export default function VoiceSettingsPage() {
                     {testMessage && (
                         <div className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-xs ${
                             testStatus === 'ok'
-                                ? 'bg-emerald-dim border border-emerald-500/20 text-emerald-300'
+                                ? 'bg-azure-dim border border-azure/20 text-azure-300'
                                 : 'bg-red-dim border border-red-500/20 text-red-300'
                         }`}>
                             {testStatus === 'ok'
@@ -341,17 +341,17 @@ export default function VoiceSettingsPage() {
                 <div className="flex flex-col gap-4">
                     {[
                         {
-                            icon: <Mic className="h-4 w-4 text-indigo" />,
+                            icon: <Mic className="h-4 w-4 text-azure" />,
                             title: 'Web chat',
                             desc: 'Click the microphone button in Chat. Audio is recorded in your browser and sent to Deepgram for transcription. The transcript is inserted into the message field — you can review before sending.',
                         },
                         {
-                            icon: <Radio className="h-4 w-4 text-indigo" />,
+                            icon: <Radio className="h-4 w-4 text-azure" />,
                             title: 'Channels & integrations',
                             desc: 'Voice messages sent via Telegram, Slack, Discord, or any future channel are automatically downloaded, transcribed, and routed through the same intent classification pipeline as text. No per-channel configuration needed — one Deepgram key covers everything.',
                         },
                         {
-                            icon: <Volume2 className="h-4 w-4 text-indigo" />,
+                            icon: <Volume2 className="h-4 w-4 text-azure" />,
                             title: 'Token isolation',
                             desc: 'Voice transcription uses a completely separate Deepgram API key and budget. It never touches your LLM provider credits — a Deepgram outage cannot affect task execution.',
                         },

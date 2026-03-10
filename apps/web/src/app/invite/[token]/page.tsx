@@ -88,7 +88,7 @@ export default function InvitePage() {
                 {/* Logo / brand */}
                 <div className="flex items-center gap-2 justify-center mb-2">
                     <div className="h-8 w-8 flex items-center justify-center">
-                        <PlexoMark className="h-6 w-6 text-indigo drop-shadow-lg" />
+                        <PlexoMark className="h-6 w-6 text-azure drop-shadow-lg" />
                     </div>
                     <span className="font-semibold text-text-primary text-lg">Plexo</span>
                 </div>
@@ -124,7 +124,7 @@ export default function InvitePage() {
 
                         <button
                             onClick={() => void accept()}
-                            className="flex items-center justify-center gap-2 rounded-xl bg-indigo py-3 text-sm font-semibold text-white hover:bg-indigo/90 transition-colors"
+                            className="flex items-center justify-center gap-2 rounded-xl bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors"
                         >
                             Accept invitation
                         </button>
@@ -133,14 +133,14 @@ export default function InvitePage() {
 
                 {status === 'accepting' && (
                     <div className="flex flex-col items-center gap-3 py-4">
-                        <RefreshCw className="h-6 w-6 animate-spin text-indigo" />
+                        <RefreshCw className="h-6 w-6 animate-spin text-azure" />
                         <p className="text-sm text-text-secondary">Joining workspace…</p>
                     </div>
                 )}
 
                 {status === 'done' && (
                     <div className="flex flex-col items-center gap-3 py-4 text-center">
-                        <CheckCircle className="h-8 w-8 text-emerald" />
+                        <CheckCircle className="h-8 w-8 text-azure" />
                         <div>
                             <p className="text-base font-semibold text-text-primary">You&apos;re in!</p>
                             <p className="text-sm text-text-muted mt-1">Redirecting to your workspace…</p>
@@ -155,7 +155,7 @@ export default function InvitePage() {
                             <p className="text-base font-semibold text-text-primary">Invite invalid</p>
                             <p className="text-sm text-text-muted mt-1">{errorMsg}</p>
                         </div>
-                        <Link href="/" className="mt-2 text-sm text-indigo hover:text-indigo-300 transition-colors">
+                        <Link href="/" className="mt-2 text-sm text-azure hover:text-azure transition-colors">
                             Go to dashboard →
                         </Link>
                     </div>

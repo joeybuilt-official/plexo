@@ -63,12 +63,12 @@ const ROUTE_CHECKS: RouteCheck[] = [
 function ServiceBadge({ name, health }: { name: string; health: ServiceHealth }) {
     return (
         <div className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${health.ok
-            ? 'border-emerald-800/40 bg-emerald-950/20'
+            ? 'border-emerald-800/40 bg-azure/20'
             : 'border-red-800/40 bg-red-950/20'
             }`}>
             <div className="flex items-center gap-2">
                 {health.ok
-                    ? <CheckCircle2 className="h-4 w-4 text-emerald" />
+                    ? <CheckCircle2 className="h-4 w-4 text-azure" />
                     : <XCircle className="h-4 w-4 text-red" />
                 }
                 <span className="text-sm font-medium capitalize text-text-primary">{name}</span>
@@ -98,7 +98,7 @@ function RouteRow({ check, result, wsId }: { check: RouteCheck; result: { ok: bo
                 {!result ? (
                     <RefreshCw className="h-3.5 w-3.5 animate-spin text-text-muted" />
                 ) : (
-                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${result.ok ? 'text-emerald' : 'text-red'
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${result.ok ? 'text-azure' : 'text-red'
                         }`}>
                         {result.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
                         {result.status}
@@ -123,7 +123,7 @@ function CopyButton({ value }: { value: string }) {
             }}
             className="rounded p-1 text-text-muted hover:text-text-secondary transition-colors"
         >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-azure" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
     )
 }
@@ -316,7 +316,7 @@ export default function DebugPage() {
                         </div>
                     ) : health ? (
                         <div className="flex flex-col gap-2">
-                            <div className={`mb-1 text-xs font-semibold uppercase tracking-wider ${health.status === 'ok' ? 'text-emerald' : 'text-red'
+                            <div className={`mb-1 text-xs font-semibold uppercase tracking-wider ${health.status === 'ok' ? 'text-azure' : 'text-red'
                                 }`}>{health.status.toUpperCase()}</div>
                             {Object.entries(health.services).map(([name, svc]) => (
                                 <ServiceBadge key={name} name={name} health={svc} />
@@ -336,7 +336,7 @@ export default function DebugPage() {
                             <span className="text-sm font-semibold text-text-primary">SSE Stream</span>
                         </div>
                         <div className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${sseStatus === 'open'
-                            ? 'bg-emerald/15 text-emerald'
+                            ? 'bg-azure/15 text-azure'
                             : sseStatus === 'connecting'
                                 ? 'bg-amber/15 text-amber'
                                 : 'bg-red/15 text-red'
@@ -438,7 +438,7 @@ export default function DebugPage() {
                         <select
                             value={rpcMethod}
                             onChange={(e) => setRpcMethod(e.target.value)}
-                            className="flex-1 rounded-lg border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-secondary focus:border-indigo focus:outline-none"
+                            className="flex-1 rounded-lg border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-secondary focus:border-azure focus:outline-none"
                         >
                             {['ping', 'queue.stats', 'memory.list', 'memory.run_improvement', 'agent.status'].map((m) => (
                                 <option key={m} value={m}>{m}</option>
@@ -447,7 +447,7 @@ export default function DebugPage() {
                         <button
                             onClick={() => void runRpc()}
                             disabled={rpcLoading}
-                            className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-xs text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-xs text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
                         >
                             <Play className="h-3 w-3" />
                             {rpcLoading ? 'Running…' : 'Run'}
@@ -458,7 +458,7 @@ export default function DebugPage() {
                         onChange={(e) => setRpcParams(e.target.value)}
                         placeholder='Optional JSON params e.g. {"workspaceId": "..."}'
                         rows={2}
-                        className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs font-mono text-text-secondary placeholder:text-zinc-700 focus:border-indigo focus:outline-none resize-none"
+                        className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs font-mono text-text-secondary placeholder:text-zinc-700 focus:border-azure focus:outline-none resize-none"
                     />
                     {rpcResult && (
                         <pre className="rounded-lg bg-canvas p-3 text-[11px] font-mono text-text-secondary overflow-auto max-h-48 whitespace-pre-wrap">{rpcResult}</pre>

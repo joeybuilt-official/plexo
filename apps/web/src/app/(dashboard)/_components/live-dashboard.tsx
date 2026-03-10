@@ -84,12 +84,12 @@ const ACTIVITY_POLL_MS = 10_000
 const CHANNEL_POLL_MS = 30_000
 
 const STATUS_COLORS: Record<string, string> = {
-    complete: 'bg-emerald/20 text-emerald border-emerald-500/30',
+    complete: 'bg-azure/20 text-azure border-azure/30',
     running: 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse',
     queued: 'bg-amber/20 text-amber border-amber-500/30',
     blocked: 'bg-red/20 text-red border-red-500/30',
     cancelled: 'bg-zinc-500/20 text-text-secondary border-zinc-500/30',
-    claimed: 'bg-indigo-dim text-indigo border-indigo/30',
+    claimed: 'bg-azure-dim text-azure border-azure/30',
 }
 
 function timeAgo(iso: string): string {
@@ -226,10 +226,10 @@ export function LiveDashboard() {
             title: 'Agent Status',
             subtitle: isRunning ? 'Running' : (summary ? 'Idle' : 'Connecting…'),
             icon: Activity,
-            accent: isRunning ? 'bg-emerald' : 'bg-emerald',
-            dot: isRunning ? 'bg-emerald animate-pulse' : 'bg-surface-3',
+            accent: isRunning ? 'bg-azure' : 'bg-azure',
+            dot: isRunning ? 'bg-azure animate-pulse' : 'bg-surface-3',
             content: !WS_ID
-                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-indigo hover:text-indigo-300 transition-colors">Configure AI provider <ArrowRight className="h-3 w-3" /></Link>
+                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-azure hover:text-azure transition-colors">Configure AI provider <ArrowRight className="h-3 w-3" /></Link>
                 : running > 0
                     ? `${running} task${running !== 1 ? 's' : ''} running · ${queued} queued`
                     : queued > 0
@@ -256,10 +256,10 @@ export function LiveDashboard() {
             title: 'Channels',
             subtitle: channels.length > 0 ? `${channels.filter(c => c.status === 'active').length} active` : 'Monitoring',
             icon: MessageSquare,
-            accent: 'bg-indigo',
+            accent: 'bg-azure',
             dot: channels.some(c => c.status === 'active') ? 'bg-blue-400 animate-pulse' : 'bg-surface-3',
             content: channels.length === 0
-                ? <Link href="/settings/channels" className="flex items-center gap-1 text-indigo hover:text-indigo-300 transition-colors">Add a channel <ArrowRight className="h-3 w-3" /></Link>
+                ? <Link href="/settings/channels" className="flex items-center gap-1 text-azure hover:text-azure transition-colors">Add a channel <ArrowRight className="h-3 w-3" /></Link>
                 : channels.map(c => c.name).join(' · '),
         },
         {
@@ -267,7 +267,7 @@ export function LiveDashboard() {
             title: 'API Cost',
             subtitle: 'This week',
             icon: DollarSign,
-            accent: pct > 80 ? 'bg-red' : pct > 50 ? 'bg-amber' : 'bg-indigo',
+            accent: pct > 80 ? 'bg-red' : pct > 50 ? 'bg-amber' : 'bg-azure',
             dot: pct > 80 ? 'bg-red animate-pulse' : 'bg-surface-3',
             content: !summary
                 ? 'Loading…'
@@ -291,7 +291,7 @@ export function LiveDashboard() {
             icon: GitBranch,
             accent: 'bg-surface-3',
             dot: 'bg-surface-3',
-            content: <Link href="/projects" className="flex items-center gap-1 text-indigo hover:text-indigo-300 transition-colors">View Projects <ArrowRight className="h-3 w-3" /></Link>,
+            content: <Link href="/projects" className="flex items-center gap-1 text-azure hover:text-azure transition-colors">View Projects <ArrowRight className="h-3 w-3" /></Link>,
         },
         {
             id: 'ensemble',
@@ -301,9 +301,9 @@ export function LiveDashboard() {
                 : 'No data yet',
             icon: Users,
             accent: '',
-            dot: (summary?.ensemble?.total ?? 0) > 0 ? 'bg-indigo-400' : 'bg-surface-3',
+            dot: (summary?.ensemble?.total ?? 0) > 0 ? 'bg-azure' : 'bg-surface-3',
             content: !summary?.ensemble || summary.ensemble.total === 0
-                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-indigo hover:text-indigo-300 transition-colors">Configure Ollama <ArrowRight className="h-3 w-3" /></Link>
+                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-azure hover:text-azure transition-colors">Configure Ollama <ArrowRight className="h-3 w-3" /></Link>
                 : (() => {
                     const { byMode, avgDelta } = summary.ensemble
                     const ensembleCount = (byMode['ensemble'] ?? 0) + (byMode['ensemble+arbitration'] ?? 0)

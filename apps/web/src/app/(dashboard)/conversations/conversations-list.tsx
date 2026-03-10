@@ -49,7 +49,7 @@ const FILTER_KEYS = ['status', 'source'] as const
 
 const STATUS_ICON: Record<string, React.ReactElement> = {
     pending: <Clock className="h-3.5 w-3.5 text-amber" />,
-    complete: <CheckCircle className="h-3.5 w-3.5 text-emerald" />,
+    complete: <CheckCircle className="h-3.5 w-3.5 text-azure" />,
     failed: <XCircle className="h-3.5 w-3.5 text-red" />,
 }
 
@@ -58,7 +58,7 @@ const ALL_STATUSES = ['pending', 'complete', 'failed'] as const
 const SOURCE_BADGE: Record<string, { icon: string; label: string; className: string }> = {
     telegram: { icon: '✈️', label: 'Telegram', className: 'bg-sky-900/40 text-sky-400 border border-sky-800/50' },
     slack: { icon: '⚡', label: 'Slack', className: 'bg-purple-900/40 text-purple-400 border border-purple-800/50' },
-    discord: { icon: '💬', label: 'Discord', className: 'bg-indigo-900/40 text-indigo border border-indigo-800/50' },
+    discord: { icon: '💬', label: 'Discord', className: 'bg-azure-900/40 text-azure border border-azure-800/50' },
     github: { icon: '🐙', label: 'GitHub', className: 'bg-surface-2 text-text-secondary border border-border/50' },
     dashboard: { icon: '🖥', label: 'Dashboard', className: 'bg-surface-2/60 text-text-muted border border-border/40' },
     api: { icon: '🔗', label: 'API', className: 'bg-surface-2/60 text-text-muted border border-border/40' },
@@ -332,7 +332,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                                     {badge.icon} {badge.label}
                                                 </span>
                                                 {item.intent && item.intent !== 'CONVERSATION' && (
-                                                    <span className="rounded bg-indigo-900/40 border border-indigo-800/50 px-1.5 py-0.5 text-[9px] text-indigo capitalize">
+                                                    <span className="rounded bg-azure-900/40 border border-azure-800/50 px-1.5 py-0.5 text-[9px] text-azure capitalize">
                                                         {item.intent.toLowerCase()}
                                                     </span>
                                                 )}
@@ -373,7 +373,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                             {/* Continue in chat */}
                                             <Link
                                                 href={continueHref(item)}
-                                                className="rounded-lg p-1.5 text-text-muted hover:text-indigo hover:bg-surface-2 transition-colors"
+                                                className="rounded-lg p-1.5 text-text-muted hover:text-azure hover:bg-surface-2 transition-colors"
                                                 title="Continue conversation"
                                             >
                                                 <MessageCircle className="h-4 w-4" />

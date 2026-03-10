@@ -74,7 +74,7 @@ const PLUGIN_TYPE_LABELS: Record<string, string> = {
 }
 
 const STATUS_DOT: Record<string, string> = {
-    active: 'bg-emerald',
+    active: 'bg-azure',
     error: 'bg-red',
     expired: 'bg-amber',
     disconnected: 'bg-zinc-500',
@@ -83,7 +83,7 @@ const STATUS_DOT: Record<string, string> = {
 const PLUGIN_TYPE_COLOR: Record<string, string> = {
     agent: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
     skill: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
-    channel: 'bg-emerald/15 text-emerald border border-emerald-500/30',
+    channel: 'bg-azure/15 text-azure border border-azure/30',
     tool: 'bg-amber/15 text-amber border border-amber-500/30',
     'mcp-server': 'bg-rose-500/15 text-rose-400 border border-rose-500/30',
 }
@@ -143,7 +143,7 @@ function IntegrationCard({
                     <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-sm font-semibold text-text-primary truncate">{item.name}</h3>
                         {item.is_core && (
-                            <span className="shrink-0 rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo border border-indigo/30">
+                            <span className="shrink-0 rounded-full bg-azure-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-azure border border-azure/30">
                                 Core
                             </span>
                         )}
@@ -197,7 +197,7 @@ function IntegrationCard({
                                         type={field.type === 'password' ? 'password' : 'text'}
                                         value={creds[field.key] ?? ''}
                                         onChange={(e) => setCreds((p) => ({ ...p, [field.key]: e.target.value }))}
-                                        className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                                        className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                                         placeholder={`Enter ${field.label.toLowerCase()}`}
                                     />
                                 </div>
@@ -212,7 +212,7 @@ function IntegrationCard({
                     <button
                         onClick={hasSetupFields ? (open ? handleInstall : () => setOpen(true)) : handleInstall}
                         disabled={pending}
-                        className="w-full rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40"
+                        className="w-full rounded-lg bg-azure px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-40"
                     >
                         {pending ? 'Installing…' : hasSetupFields && !open ? 'Configure' : 'Install'}
                     </button>
@@ -276,7 +276,7 @@ function ExtensionCard({
                 <button
                     onClick={handleToggle}
                     disabled={pending}
-                    className={`flex items-center gap-1.5 text-xs transition-colors disabled:opacity-40 ${plugin.enabled ? 'text-emerald' : 'text-text-muted'}`}
+                    className={`flex items-center gap-1.5 text-xs transition-colors disabled:opacity-40 ${plugin.enabled ? 'text-azure' : 'text-text-muted'}`}
                 >
                     {pending
                         ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -390,7 +390,7 @@ function IntegrationsTab({
             />
 
             <div className="flex items-center gap-4 text-xs text-text-muted">
-                <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald" />{installed.length} connected</span>
+                <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-azure" />{installed.length} connected</span>
                 <span>{filtered.length} available</span>
             </div>
 
@@ -502,7 +502,7 @@ function ExtensionsTab({
                     href="https://kapsel.dev"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-indigo hover:text-indigo-300 underline underline-offset-2"
+                    className="text-xs text-azure hover:text-azure underline underline-offset-2"
                 >
                     Browse the Kapsel registry →
                 </a>
@@ -526,7 +526,7 @@ function ExtensionsTab({
 
             <div className="flex items-center gap-4 text-xs text-text-muted">
                 <span>{plugins.length} installed</span>
-                <span className="text-emerald">{plugins.filter(p => p.enabled).length} active</span>
+                <span className="text-azure">{plugins.filter(p => p.enabled).length} active</span>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -576,27 +576,27 @@ export default function MarketplaceClient({
                 <button
                     onClick={() => setTab('integrations')}
                     className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'integrations'
-                        ? 'border-indigo text-indigo'
+                        ? 'border-azure text-azure'
                         : 'border-transparent text-text-muted hover:text-text-secondary'
                         }`}
                 >
                     <Package className="h-3.5 w-3.5" />
                     Integrations
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'integrations' ? 'bg-indigo-900/40 text-indigo' : 'bg-surface-2 text-text-muted'}`}>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'integrations' ? 'bg-azure-900/40 text-azure' : 'bg-surface-2 text-text-muted'}`}>
                         {registry.length}
                     </span>
                 </button>
                 <button
                     onClick={() => setTab('extensions')}
                     className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'extensions'
-                        ? 'border-indigo text-indigo'
+                        ? 'border-azure text-azure'
                         : 'border-transparent text-text-muted hover:text-text-secondary'
                         }`}
                 >
                     <Puzzle className="h-3.5 w-3.5" />
                     Extensions
                     {plugins.length > 0 && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'extensions' ? 'bg-indigo-900/40 text-indigo' : 'bg-surface-2 text-text-muted'}`}>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'extensions' ? 'bg-azure-900/40 text-azure' : 'bg-surface-2 text-text-muted'}`}>
                             {plugins.length}
                         </span>
                     )}

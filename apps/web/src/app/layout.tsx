@@ -40,8 +40,9 @@ export default async function RootLayout({
       <body className="min-h-screen bg-canvas font-sans text-text-primary antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark"
+          defaultTheme="system"
           enableSystem
+          storageKey="plexo-theme"
           disableTransitionOnChange
         >
           <PostHogProvider

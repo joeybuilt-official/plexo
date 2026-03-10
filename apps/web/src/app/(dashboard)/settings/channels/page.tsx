@@ -66,8 +66,8 @@ interface Channel {
 
 const CHANNEL_META: Record<ChannelType, { label: string; icon: React.ElementType; color: string; docFields: string[] }> = {
     telegram: { label: 'Telegram', icon: Send, color: 'text-sky-400', docFields: ['bot_token', 'webhook_secret'] },
-    slack: { label: 'Slack', icon: Hash, color: 'text-emerald', docFields: ['bot_token', 'signing_secret', 'app_token'] },
-    discord: { label: 'Discord', icon: MessageSquare, color: 'text-indigo', docFields: ['application_id', 'public_key', 'bot_token'] },
+    slack: { label: 'Slack', icon: Hash, color: 'text-azure', docFields: ['bot_token', 'signing_secret', 'app_token'] },
+    discord: { label: 'Discord', icon: MessageSquare, color: 'text-azure', docFields: ['application_id', 'public_key', 'bot_token'] },
     whatsapp: { label: 'WhatsApp', icon: MessageSquare, color: 'text-green-400', docFields: ['phone_number_id', 'access_token', 'verify_token'] },
     signal: { label: 'Signal', icon: Send, color: 'text-blue-400', docFields: ['phone_number'] },
     matrix: { label: 'Matrix', icon: Hash, color: 'text-purple-400', docFields: ['homeserver', 'access_token', 'user_id'] },
@@ -143,7 +143,7 @@ function TelegramWizard({
                     </a>
                     <button
                         onClick={() => setStep(1)}
-                        className="self-start rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 transition-colors"
+                        className="self-start rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
                     >
                         I have my token →
                     </button>
@@ -161,12 +161,12 @@ function TelegramWizard({
                             value={fields.bot_token ?? ''}
                             onChange={(e) => onChange('bot_token', e.target.value)}
                             placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
-                            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none font-mono"
+                            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none font-mono"
                             autoComplete="new-password"
                         />
                     </div>
                     {verifyResult && (
-                        <div className={`rounded-lg border px-3 py-2 text-sm ${verifyResult.ok ? 'border-emerald-800/50 bg-emerald-950/20 text-emerald' : 'border-red-800/50 bg-red-950/20 text-red'}`}>
+                        <div className={`rounded-lg border px-3 py-2 text-sm ${verifyResult.ok ? 'border-azure/30 bg-azure/20 text-azure' : 'border-red-800/50 bg-red-950/20 text-red'}`}>
                             {verifyResult.ok ? `✓ ${verifyResult.botName ?? 'Bot verified'}` : '✗ Invalid token — check and try again'}
                         </div>
                     )}
@@ -174,7 +174,7 @@ function TelegramWizard({
                         <button
                             onClick={() => void verifyToken()}
                             disabled={verifying || !fields.bot_token?.trim()}
-                            className="rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors flex flex-1 sm:flex-initial items-center justify-center min-h-[44px]"
+                            className="rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors flex flex-1 sm:flex-initial items-center justify-center min-h-[44px]"
                         >
                             {verifying ? 'Verifying…' : 'Verify token'}
                         </button>
@@ -190,7 +190,7 @@ function TelegramWizard({
             content: (
                 <div className="flex flex-col gap-4">
                     {verifyResult?.ok && (
-                        <div className="rounded-lg border border-emerald-800/50 bg-emerald-950/20 px-3 py-2 text-sm text-emerald">
+                        <div className="rounded-lg border border-azure/30 bg-azure/20 px-3 py-2 text-sm text-azure">
                             ✓ {verifyResult.botName} connected
                         </div>
                     )}
@@ -201,7 +201,7 @@ function TelegramWizard({
                             value={fields.webhook_secret ?? ''}
                             onChange={(e) => onChange('webhook_secret', e.target.value)}
                             placeholder="Random secret for verifying webhook authenticity"
-                            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none font-mono"
+                            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none font-mono"
                             autoComplete="new-password"
                         />
                         <p className="text-xs text-text-muted">Leave blank to auto-generate one. Plexo will register the webhook automatically on save.</p>
@@ -219,7 +219,7 @@ function TelegramWizard({
                     <div key={i} className="flex items-center gap-2">
                         <button
                             onClick={() => i < step && setStep(i)}
-                            className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium transition-colors ${i === step ? 'bg-indigo text-text-primary' : i < step ? 'bg-emerald-600/30 text-emerald cursor-pointer' : 'bg-surface-2 text-text-muted'
+                            className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium transition-colors ${i === step ? 'bg-azure text-text-primary' : i < step ? 'bg-azure-600/30 text-azure cursor-pointer' : 'bg-surface-2 text-text-muted'
                                 }`}
                         >
                             {i < step ? '✓' : i + 1}
@@ -398,11 +398,11 @@ export default function ChannelsPage() {
         <div className="flex flex-col gap-6 h-full">
             {/* Webchat embed snippet */}
             {WS_ID && (
-                <div className="rounded-xl border border-indigo/20 bg-indigo-950/10 p-4 flex flex-col gap-3">
+                <div className="rounded-xl border border-azure/20 bg-azure/10 p-4 flex flex-col gap-3">
                     <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-indigo" />
-                        <h2 className="text-sm font-semibold text-indigo-300">Webchat widget</h2>
-                        <span className="ml-auto text-[11px] text-indigo">Paste this snippet into any website to add a chat bubble</span>
+                        <Globe className="h-4 w-4 text-azure" />
+                        <h2 className="text-sm font-semibold text-azure">Webchat widget</h2>
+                        <span className="ml-auto text-[11px] text-azure">Paste this snippet into any website to add a chat bubble</span>
                     </div>
                     <div className="relative group">
                         <pre className="rounded-lg bg-canvas border border-border p-3 text-[11px] font-mono text-text-secondary overflow-x-auto whitespace-pre-wrap break-all">{`<script src="${API_BASE}/api/v1/chat/widget.js"
@@ -437,7 +437,7 @@ export default function ChannelsPage() {
                     </button>
                     <button
                         onClick={() => { setAdding(true); setSelected(null) }}
-                        className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                        className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                     >
                         <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         Add channel
@@ -472,7 +472,7 @@ export default function ChannelsPage() {
                             {lf.hasFilters && (
                                 <button
                                     onClick={clearAll}
-                                    className="mt-2 text-xs text-indigo hover:text-indigo-300 min-h-[44px] px-4 -mx-4"
+                                    className="mt-2 text-xs text-azure hover:text-azure min-h-[44px] px-4 -mx-4"
                                 >
                                     Clear filters
                                 </button>
@@ -491,7 +491,7 @@ export default function ChannelsPage() {
                                 key={ch.id}
                                 onClick={() => { setSelected(ch); setAdding(false) }}
                                 className={`text-left rounded-xl border p-3 transition-all min-w-[200px] md:min-w-0 shrink-0 min-h-[44px] ${active
-                                    ? 'border-indigo/50 bg-surface-1'
+                                    ? 'border-azure/50 bg-surface-1'
                                     : 'border-border bg-surface-1/40 hover:border-border'
                                     }`}
                             >
@@ -508,7 +508,7 @@ export default function ChannelsPage() {
                                             </span>
                                         )}
                                         {ch.enabled
-                                            ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald" />
+                                            ? <CheckCircle2 className="h-3.5 w-3.5 text-azure" />
                                             : <div className="h-2 w-2 rounded-full bg-surface-3" />
                                         }
                                         {active && <ChevronRight className="h-3.5 w-3.5 text-text-muted" />}
@@ -539,7 +539,7 @@ export default function ChannelsPage() {
                                                 key={t}
                                                 onClick={() => setAddState((s) => ({ ...s, type: t }))}
                                                 className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 transition-all min-h-[44px] ${addState.type === t
-                                                    ? 'border-indigo/50 bg-surface-2'
+                                                    ? 'border-azure/50 bg-surface-2'
                                                     : 'border-border hover:border-border'
                                                     }`}
                                             >
@@ -559,7 +559,7 @@ export default function ChannelsPage() {
                                     value={addState.name}
                                     onChange={(e) => setAddState((s) => ({ ...s, name: e.target.value }))}
                                     placeholder={`My ${CHANNEL_META[addState.type].label} bot`}
-                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                                 />
                             </div>
 
@@ -579,14 +579,14 @@ export default function ChannelsPage() {
                                             onChange={(e) => setAddState((s) => ({ ...s, fields: { ...s.fields, [field]: e.target.value } }))}
                                             placeholder={field.includes('token') || field.includes('secret') ? '••••••••' : ''}
                                             autoComplete="new-password"
-                                            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none font-mono"
+                                            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none font-mono"
                                         />
                                     </div>
                                 ))
                             )}
 
                             {message && (
-                                <div className={`rounded-lg border px-3 py-2 text-sm ${message.ok ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald' : 'border-red-800/50 bg-red-950/30 text-red'}`}>
+                                <div className={`rounded-lg border px-3 py-2 text-sm ${message.ok ? 'border-azure/30 bg-azure/30 text-azure' : 'border-red-800/50 bg-red-950/30 text-red'}`}>
                                     {message.text}
                                 </div>
                             )}
@@ -595,7 +595,7 @@ export default function ChannelsPage() {
                                 <button
                                     onClick={() => void handleAdd()}
                                     disabled={saving || !addState.name.trim()}
-                                    className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                                    className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                                 >
                                     {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                                     {saving ? 'Adding…' : 'Add'}
@@ -637,10 +637,10 @@ export default function ChannelsPage() {
                                         {toggling === selected.id
                                             ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin text-text-muted" />
                                             : selected.enabled
-                                                ? <ToggleRight className="h-5 w-5 sm:h-4 sm:w-4 text-emerald" />
+                                                ? <ToggleRight className="h-5 w-5 sm:h-4 sm:w-4 text-azure" />
                                                 : <ToggleLeft className="h-5 w-5 sm:h-4 sm:w-4 text-text-muted" />
                                         }
-                                        <span className={selected.enabled ? 'text-emerald' : 'text-text-muted'}>
+                                        <span className={selected.enabled ? 'text-azure' : 'text-text-muted'}>
                                             {selected.enabled ? 'Enabled' : 'Disabled'}
                                         </span>
                                     </button>
@@ -662,7 +662,7 @@ export default function ChannelsPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="rounded-lg bg-surface-1 border border-border p-3">
                                     <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1">Status</p>
-                                    <p className={`text-sm font-semibold ${selected.enabled ? 'text-emerald' : 'text-text-muted'}`}>
+                                    <p className={`text-sm font-semibold ${selected.enabled ? 'text-azure' : 'text-text-muted'}`}>
                                         {selected.enabled ? 'Active' : 'Disabled'}
                                     </p>
                                 </div>

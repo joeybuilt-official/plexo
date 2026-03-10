@@ -96,7 +96,7 @@ GITHUB_CLIENT_SECRET=your_client_secret_here`}</code>
 export default function GithubSetupPage() {
     return (
         <div className="min-h-screen bg-canvas px-4 py-16">
-            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/10 via-zinc-950 to-zinc-950" />
+            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-azure/5 via-zinc-950 to-zinc-950" />
 
             <div className="relative mx-auto max-w-2xl">
                 {/* Back */}

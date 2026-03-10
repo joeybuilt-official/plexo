@@ -131,14 +131,14 @@ function formatTokens(n: number): string {
 // ── Subcomponents ─────────────────────────────────────────────────────────────
 
 function ProviderStatus({ status }: { status: ProviderSnapshot['status'] }) {
-    if (status === 'primary') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald" />
+    if (status === 'primary') return <CheckCircle2 className="h-3.5 w-3.5 text-azure" />
     if (status === 'fallback') return <CheckCircle2 className="h-3.5 w-3.5 text-sky-400" />
     if (status === 'configured') return <CheckCircle2 className="h-3.5 w-3.5 text-text-muted" />
     return <Circle className="h-3.5 w-3.5 text-zinc-700" />
 }
 
 function ConnectionStatus({ status }: { status: ConnectionSnapshot['status'] }) {
-    if (status === 'active') return <span className="text-[10px] font-medium text-emerald bg-emerald/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-full">active</span>
+    if (status === 'active') return <span className="text-[10px] font-medium text-azure bg-azure/10 border border-azure/20 px-1.5 py-0.5 rounded-full">active</span>
     if (status === 'error') return <span className="text-[10px] font-medium text-red bg-red/10 border border-red-400/20 px-1.5 py-0.5 rounded-full">error</span>
     if (status === 'expired') return <span className="text-[10px] font-medium text-amber bg-amber/10 border border-amber-400/20 px-1.5 py-0.5 rounded-full">expired</span>
     return <span className="text-[10px] font-medium text-text-muted bg-zinc-500/10 border border-zinc-500/20 px-1.5 py-0.5 rounded-full">pending</span>
@@ -146,7 +146,7 @@ function ConnectionStatus({ status }: { status: ConnectionSnapshot['status'] }) 
 
 function Chip({ label }: { label: string }) {
     return (
-        <span className="text-[9px] font-medium text-indigo bg-indigo-400/10 border border-indigo-400/20 px-1.5 py-0.5 rounded-full">
+        <span className="text-[9px] font-medium text-azure bg-azure/10 border border-azure/20 px-1.5 py-0.5 rounded-full">
             {label}
         </span>
     )
@@ -172,7 +172,7 @@ function Section({
                 onClick={() => setOpen((o) => !o)}
                 className="flex w-full items-center gap-2.5 px-4 py-3 hover:bg-surface-2/40 transition-colors min-h-[44px]"
             >
-                <Icon className="h-4 w-4 text-indigo shrink-0" />
+                <Icon className="h-4 w-4 text-azure shrink-0" />
                 <span className="flex-1 text-left text-sm font-semibold text-text-primary">{title}</span>
                 {count !== undefined && (
                     <span className="text-[10px] font-medium text-text-muted bg-surface-2 rounded-full px-2 py-0.5">
@@ -252,7 +252,7 @@ export default function IntelligencePage() {
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
                     <h1 className="text-xl font-bold text-text-primary flex items-center gap-2">
-                        <BrainCircuit className="h-5 w-5 text-indigo shrink-0" />
+                        <BrainCircuit className="h-5 w-5 text-azure shrink-0" />
                         Agent Intelligence
                     </h1>
                     <p className="text-sm text-text-muted mt-0.5">
@@ -270,16 +270,16 @@ export default function IntelligencePage() {
             </div>
 
             {/* Identity card */}
-            <div className="rounded-xl border border-indigo/20  from-indigo-950/40 to-zinc-900/60 p-4 sm:p-5">
+            <div className="rounded-xl border border-azure/20  from-azure/5 to-zinc-900/60 p-4 sm:p-5">
                 <div className="flex sm:items-center gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl   text-xl font-bold text-text-primary shadow-lg shadow-indigo-500/20">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl   text-xl font-bold text-text-primary shadow-lg shadow-azure/20">
                         {snapshot.agentName.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                             <h2 className="text-base font-bold text-text-primary truncate">{snapshot.agentName}</h2>
                             {snapshot.activeProvider && (
-                                <span className="text-[10px] font-semibold bg-indigo-dim text-indigo-300 border border-indigo/30 rounded-full px-2 py-0.5 truncate max-w-full">
+                                <span className="text-[10px] font-semibold bg-azure-dim text-azure border border-azure/30 rounded-full px-2 py-0.5 truncate max-w-full">
                                     {snapshot.activeProvider}{snapshot.activeModel ? ` / ${snapshot.activeModel}` : ''}
                                 </span>
                             )}
@@ -319,13 +319,13 @@ export default function IntelligencePage() {
                                 .map((p) => (
                                     <div
                                         key={p.key}
-                                        className={`rounded-lg border px-3 py-2 ${p.key === snapshot.activeProvider ? 'border-indigo/30 bg-indigo-950/20' : 'border-border/60 bg-surface-1/30'}`}
+                                        className={`rounded-lg border px-3 py-2 ${p.key === snapshot.activeProvider ? 'border-azure/30 bg-azure/20' : 'border-border/60 bg-surface-1/30'}`}
                                     >
                                         <div className="flex items-center gap-2">
                                             <ProviderStatus status={p.status} />
                                             <span className="flex-1 text-sm font-medium text-text-primary">{p.name}</span>
                                             {p.key === snapshot.activeProvider && (
-                                                <span className="text-[9px] font-bold text-indigo-300 bg-indigo-400/10 border border-indigo-400/20 px-1.5 py-0.5 rounded-full uppercase tracking-wide">Active</span>
+                                                <span className="text-[9px] font-bold text-azure bg-azure/10 border border-azure/20 px-1.5 py-0.5 rounded-full uppercase tracking-wide">Active</span>
                                             )}
                                             {p.status === 'fallback' && p.key !== snapshot.activeProvider && (
                                                 <span className="text-[9px] font-medium text-sky-300 bg-sky-400/10 border border-sky-400/20 px-1.5 py-0.5 rounded-full">Fallback</span>
@@ -343,7 +343,7 @@ export default function IntelligencePage() {
                                     </div>
                                 ))}
                             <div className="pt-1">
-                                <Link href="/settings/ai-providers" className="flex items-center min-h-[44px] px-2 -mx-2 text-sm sm:text-[11px] text-indigo hover:text-indigo-300 transition-colors w-fit">
+                                <Link href="/settings/ai-providers" className="flex items-center min-h-[44px] px-2 -mx-2 text-sm sm:text-[11px] text-azure hover:text-azure transition-colors w-fit">
                                     Manage providers →
                                 </Link>
                             </div>
@@ -398,7 +398,7 @@ export default function IntelligencePage() {
                             {/* Progress bar */}
                             <div className="h-2 w-full rounded-full bg-surface-2 overflow-hidden">
                                 <div
-                                    className={`h-full rounded-full transition-all ${costPct >= 80 ? 'bg-red' : costPct >= 60 ? 'bg-amber' : 'bg-emerald'}`}
+                                    className={`h-full rounded-full transition-all ${costPct >= 80 ? 'bg-red' : costPct >= 60 ? 'bg-amber' : 'bg-azure'}`}
                                     style={{ width: `${costPct}%` }}
                                 />
                             </div>
@@ -462,7 +462,7 @@ export default function IntelligencePage() {
                                     ))}
                                 </div>
                             )}
-                            <Link href="/insights" className="flex items-center text-sm sm:text-[11px] text-indigo hover:text-indigo-300 transition-colors min-h-[44px] px-2 -mx-2 w-fit pt-1">
+                            <Link href="/insights" className="flex items-center text-sm sm:text-[11px] text-azure hover:text-azure transition-colors min-h-[44px] px-2 -mx-2 w-fit pt-1">
                                 View memory →
                             </Link>
                         </div>
@@ -502,7 +502,7 @@ export default function IntelligencePage() {
                             <AlertCircle className="h-4 w-4 text-zinc-700 shrink-0" />
                             <span>No connections installed.</span>
                         </div>
-                        <Link href="/settings/connections" className="flex items-center min-h-[44px] px-4 -mx-4 sm:px-0 sm:mx-0 text-indigo hover:text-indigo-300 not-italic sm:ml-auto w-fit">
+                        <Link href="/settings/connections" className="flex items-center min-h-[44px] px-4 -mx-4 sm:px-0 sm:mx-0 text-azure hover:text-azure not-italic sm:ml-auto w-fit">
                             Browse integrations →
                         </Link>
                     </div>

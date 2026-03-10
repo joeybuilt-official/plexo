@@ -230,7 +230,7 @@ export const CATEGORIES: CategoryDef[] = [
         label: 'Data',
         description: 'Query, transform, or analyze datasets',
         icon: 'BarChart2',
-        accent: 'bg-indigo',
+        accent: 'bg-azure',
         unitSingular: 'Query',
         unitPlural: 'Queries',
         runLabel: 'Pipeline',

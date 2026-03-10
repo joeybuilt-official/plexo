@@ -74,8 +74,8 @@ function SkillCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: string
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer"
                 onClick={() => setExpanded((e) => !e)}
             >
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${plugin.enabled ? 'bg-indigo/20' : 'bg-surface-2'}`}>
-                    <Zap className={`h-4 w-4 ${plugin.enabled ? 'text-indigo' : 'text-text-muted'}`} />
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${plugin.enabled ? 'bg-azure/20' : 'bg-surface-2'}`}>
+                    <Zap className={`h-4 w-4 ${plugin.enabled ? 'text-azure' : 'text-text-muted'}`} />
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -83,7 +83,7 @@ function SkillCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: string
                         <span className="text-[10px] font-mono text-text-muted shrink-0">v{plugin.version}</span>
                         <span className="text-[10px] text-text-muted shrink-0">kapsel@{plugin.kapselVersion}</span>
                         {plugin.settings?.isGenerated === true && (
-                            <span className="text-[10px] font-medium text-indigo border border-indigo-400/30 rounded px-1.5 py-0.5 shrink-0">
+                            <span className="text-[10px] font-medium text-azure border border-azure/30 rounded px-1.5 py-0.5 shrink-0">
                                 ✦ Custom
                             </span>
                         )}
@@ -101,7 +101,7 @@ function SkillCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: string
                         {toggling ? (
                             <RefreshCw className="h-3.5 w-3.5 animate-spin text-text-muted" />
                         ) : plugin.enabled ? (
-                            <><ToggleRight className="h-4 w-4 text-indigo" /><span className="text-indigo">Enabled</span></>
+                            <><ToggleRight className="h-4 w-4 text-azure" /><span className="text-azure">Enabled</span></>
                         ) : (
                             <><ToggleLeft className="h-4 w-4 text-text-muted" /><span className="text-text-muted">Disabled</span></>
                         )}
@@ -122,7 +122,7 @@ function SkillCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: string
                                 {skills.map((s, i) => (
                                     <div key={i} className="rounded-lg bg-surface-2/60 px-3 py-2">
                                         <div className="flex items-center gap-2">
-                                            <Zap className="h-3 w-3 text-indigo shrink-0" />
+                                            <Zap className="h-3 w-3 text-azure shrink-0" />
                                             <span className="text-xs font-mono font-medium text-text-secondary">{s.name}</span>
                                         </div>
                                         {s.description && (
@@ -246,13 +246,13 @@ export default function SkillsPage() {
             </div>
 
             {/* Info banner */}
-            <div className="rounded-xl border border-indigo-800/30 bg-indigo-950/20 px-4 py-3 flex items-start gap-3">
-                <Info className="h-4 w-4 text-indigo shrink-0 mt-0.5" />
+            <div className="rounded-xl border border-azure-800/30 bg-azure/20 px-4 py-3 flex items-start gap-3">
+                <Info className="h-4 w-4 text-azure shrink-0 mt-0.5" />
                 <div>
-                    <p className="text-xs font-medium text-indigo-300 mb-0.5">Kapsel Skill Extensions</p>
-                    <p className="text-xs text-indigo/70">
+                    <p className="text-xs font-medium text-azure mb-0.5">Kapsel Skill Extensions</p>
+                    <p className="text-xs text-azure/70">
                         Skills are Kapsel-packaged extensions that grant the agent new autonomous capabilities. Install via the Marketplace, then enable here.
-                        Each skill declares triggers, permissions, and tools via its <code className="text-indigo-300">kapsel.json</code> manifest.
+                        Each skill declares triggers, permissions, and tools via its <code className="text-azure">kapsel.json</code> manifest.
                     </p>
                 </div>
             </div>
@@ -295,7 +295,7 @@ export default function SkillsPage() {
                     <div className="text-center">
                         <p className="text-sm font-medium text-text-muted">No skill extensions installed</p>
                         <p className="text-xs text-text-muted mt-1">
-                            Install Kapsel skill packages from the <a href="/marketplace" className="text-indigo hover:underline">Marketplace</a> to extend the agent.
+                            Install Kapsel skill packages from the <a href="/marketplace" className="text-azure hover:underline">Marketplace</a> to extend the agent.
                         </p>
                     </div>
                 </div>

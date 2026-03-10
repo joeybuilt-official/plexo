@@ -77,9 +77,9 @@ export async function DashboardCards() {
             subtitle: data?.agent.status === 'running' ? 'Running' : 'Idle',
             icon: Activity,
             accent: data?.agent.status === 'running'
-                ? 'bg-emerald'
-                : 'bg-emerald',
-            dot: data?.agent.status === 'running' ? 'bg-emerald animate-pulse' : 'bg-surface-3',
+                ? 'bg-azure'
+                : 'bg-azure',
+            dot: data?.agent.status === 'running' ? 'bg-azure animate-pulse' : 'bg-surface-3',
             content: running > 0
                 ? `${running} task${running !== 1 ? 's' : ''} running · ${queued} queued`
                 : queued > 0
@@ -102,7 +102,7 @@ export async function DashboardCards() {
             title: 'Channels',
             subtitle: 'Telegram · API',
             icon: MessageSquare,
-            accent: 'bg-indigo',
+            accent: 'bg-azure',
             dot: 'bg-surface-3',
             content: data?.agent.connectedClients
                 ? `${data.agent.connectedClients} live connection${data.agent.connectedClients !== 1 ? 's' : ''}`
@@ -116,7 +116,7 @@ export async function DashboardCards() {
                 ? 'bg-red'
                 : pct > 50
                     ? 'bg-amber'
-                    : 'bg-indigo',
+                    : 'bg-azure',
             dot: pct > 80 ? 'bg-red animate-pulse' : 'bg-surface-3',
             content: `$${weekCost.toFixed(4)} / $${ceiling.toFixed(2)} (${Math.round(pct)}% used)`,
         },

@@ -32,7 +32,7 @@ interface LogEntry {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-    complete: 'bg-emerald-950 text-emerald border-emerald-800',
+    complete: 'bg-azure-950 text-azure border-emerald-800',
     running: 'bg-blue-950 text-blue-400 border-blue-800',
     queued: 'bg-surface-2 text-text-secondary border-border',
     blocked: 'bg-amber-950 text-amber border-amber-800',
@@ -45,7 +45,7 @@ const SOURCE_COLOR: Record<string, string> = {
     telegram: 'text-sky-400',
     cron: 'text-amber',
     api: 'text-text-secondary',
-    sprint: 'text-emerald',
+    sprint: 'text-azure',
 }
 
 function taskDescription(ctx: Record<string, unknown>): string {
@@ -254,7 +254,7 @@ export default function LogsPage() {
                                     )}
                                     {dur && <span className="hidden lg:block w-12 text-right">{dur}</span>}
                                     {log.qualityScore != null && (
-                                        <span className={log.qualityScore >= 0.8 ? 'text-emerald hidden sm:block w-8 text-right' : log.qualityScore >= 0.5 ? 'text-amber hidden sm:block w-8 text-right' : 'text-red hidden sm:block w-8 text-right'}>
+                                        <span className={log.qualityScore >= 0.8 ? 'text-azure hidden sm:block w-8 text-right' : log.qualityScore >= 0.5 ? 'text-amber hidden sm:block w-8 text-right' : 'text-red hidden sm:block w-8 text-right'}>
                                             {Math.round(log.qualityScore * 100)}%
                                         </span>
                                     )}

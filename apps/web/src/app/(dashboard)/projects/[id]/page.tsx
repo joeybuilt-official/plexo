@@ -107,7 +107,7 @@ const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string; label: string }> = {
     queued: { bg: 'bg-zinc-700/50', text: 'text-text-secondary', dot: 'bg-zinc-500', label: 'Queued' },
     running: { bg: 'bg-blue-500/15', text: 'text-blue-400', dot: 'bg-blue-400 animate-pulse', label: 'Running' },
-    complete: { bg: 'bg-emerald/15', text: 'text-emerald', dot: 'bg-emerald', label: 'Complete' },
+    complete: { bg: 'bg-azure/15', text: 'text-azure', dot: 'bg-azure', label: 'Complete' },
     blocked: { bg: 'bg-amber/15', text: 'text-amber', dot: 'bg-amber', label: 'Blocked' },
     failed: { bg: 'bg-red/15', text: 'text-red', dot: 'bg-red', label: 'Failed' },
     planning: { bg: 'bg-purple-500/15', text: 'text-purple-400', dot: 'bg-purple-400 animate-pulse', label: 'Planning' },
@@ -126,18 +126,18 @@ const LOG_EVENT_CONFIG: Record<SprintLogEvent, {
     planning_start: { icon: Sparkles, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Planning' },
     planning_complete: { icon: CheckCheck, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Plan Ready' },
     wave_start: { icon: Layers, color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/20', label: 'Wave' },
-    wave_complete: { icon: CheckCheck, color: 'text-emerald', bgColor: 'bg-emerald-dim border-emerald-500/20', label: 'Wave Done' },
+    wave_complete: { icon: CheckCheck, color: 'text-azure', bgColor: 'bg-azure-dim border-azure/20', label: 'Wave Done' },
     task_queued: { icon: Play, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Queued' },
     task_running: { icon: Cpu, color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/20', label: 'Running' },
-    task_complete: { icon: CheckCircle2, color: 'text-emerald', bgColor: 'bg-emerald-dim border-emerald-500/20', label: 'Done' },
+    task_complete: { icon: CheckCircle2, color: 'text-azure', bgColor: 'bg-azure-dim border-azure/20', label: 'Done' },
     task_failed: { icon: XCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'Failed' },
     task_timeout: { icon: Clock, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Timeout' },
-    pr_created: { icon: GitPullRequest, color: 'text-emerald', bgColor: 'bg-emerald-dim border-emerald-500/20', label: 'PR' },
+    pr_created: { icon: GitPullRequest, color: 'text-azure', bgColor: 'bg-azure-dim border-azure/20', label: 'PR' },
     pr_failed: { icon: AlertCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'PR Failed' },
     conflict_detected: { icon: AlertTriangle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Conflict' },
     budget_check: { icon: BadgeDollarSign, color: 'text-text-secondary', bgColor: 'bg-surface-2/60 border-border/30', label: 'Budget' },
     budget_ceiling_hit: { icon: AlertTriangle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Budget Limit' },
-    sprint_complete: { icon: CheckCheck, color: 'text-emerald', bgColor: 'bg-emerald-dim border-emerald-500/20', label: 'Complete' },
+    sprint_complete: { icon: CheckCheck, color: 'text-azure', bgColor: 'bg-azure-dim border-azure/20', label: 'Complete' },
     sprint_failed: { icon: XCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'Failed' },
     branch_created: { icon: GitBranch, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Branch' },
     branch_failed: { icon: AlertCircle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Branch Err' },
@@ -437,7 +437,7 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-text-muted">{logs.length} events</span>
                     {isActive && (
-                        <div className={`flex items-center gap-1.5 text-[10px] font-medium ${liveConnected ? 'text-emerald' : 'text-text-muted'}`}>
+                        <div className={`flex items-center gap-1.5 text-[10px] font-medium ${liveConnected ? 'text-azure' : 'text-text-muted'}`}>
                             <Wifi className="h-2.5 w-2.5" />
                             {liveConnected ? 'Live' : 'Polling'}
                         </div>
@@ -458,7 +458,7 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
                                 scrollRef.current.scrollTop = scrollRef.current.scrollHeight
                             }
                         }}
-                        className={`text-[11px] transition-colors flex items-center gap-1 ${autoScroll ? 'text-indigo' : 'text-text-muted hover:text-text-secondary'}`}
+                        className={`text-[11px] transition-colors flex items-center gap-1 ${autoScroll ? 'text-azure' : 'text-text-muted hover:text-text-secondary'}`}
                     >
                         <ChevronDown className="h-2.5 w-2.5" />
                         {autoScroll ? 'Auto-scroll on' : 'Scroll to bottom'}
@@ -638,7 +638,7 @@ export default function ProjectControlRoom() {
     if (notFound) return (
         <div className="flex flex-col items-center gap-4 py-16">
             <p className="text-text-secondary">Project not found</p>
-            <Link href="/projects" className="text-sm text-indigo hover:text-indigo-300">← Back to Projects</Link>
+            <Link href="/projects" className="text-sm text-azure hover:text-azure">← Back to Projects</Link>
         </div>
     )
 
@@ -693,7 +693,7 @@ export default function ProjectControlRoom() {
                         <button
                             onClick={() => void handleRetry()}
                             disabled={retrying}
-                            className="flex items-center gap-1.5 rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald hover:bg-emerald-900/40 hover:border-emerald-700 hover:text-emerald-300 transition-all disabled:opacity-40"
+                            className="flex items-center gap-1.5 rounded-lg border border-emerald-800/60 bg-azure/30 px-3 py-1.5 text-xs text-azure hover:bg-azure-900/40 hover:border-emerald-700 hover:text-azure-300 transition-all disabled:opacity-40"
                         >
                             <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
                             {retrying ? 'Retrying…' : 'Retry Failed'}
@@ -728,7 +728,7 @@ export default function ProjectControlRoom() {
             {/* Metrics row */}
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
                 {[
-                    { icon: CheckCircle2, label: 'Complete', value: String(sprint.completedTasks), sub: `of ${sprint.totalTasks}`, color: 'text-emerald' },
+                    { icon: CheckCircle2, label: 'Complete', value: String(sprint.completedTasks), sub: `of ${sprint.totalTasks}`, color: 'text-azure' },
                     { icon: XCircle, label: 'Failed', value: String(sprint.failedTasks), sub: 'tasks', color: sprint.failedTasks > 0 ? 'text-red' : 'text-text-muted' },
                     { icon: AlertTriangle, label: 'Conflicts', value: String(sprint.conflictCount), sub: 'merges', color: sprint.conflictCount > 0 ? 'text-amber' : 'text-text-muted' },
                     { icon: Clock, label: 'Elapsed', value: formatMs(isActive ? elapsedMs : sprint.wallClockMs), sub: '', color: 'text-text-secondary' },
@@ -739,7 +739,7 @@ export default function ProjectControlRoom() {
                         label: 'Forecast',
                         value: `${Math.round((sprint.metadata.forecastScore as number) * 100)}%`,
                         sub: 'quality',
-                        color: (sprint.metadata.forecastScore as number) >= 0.7 ? 'text-emerald' : (sprint.metadata.forecastScore as number) >= 0.4 ? 'text-amber' : 'text-red',
+                        color: (sprint.metadata.forecastScore as number) >= 0.7 ? 'text-azure' : (sprint.metadata.forecastScore as number) >= 0.4 ? 'text-amber' : 'text-red',
                     }] : []),
                 ].map(({ icon: Icon, label, value, sub, color }) => (
                     <div key={label} className="rounded-xl border border-border bg-surface-1/40 p-3 flex flex-col gap-1">
@@ -761,7 +761,7 @@ export default function ProjectControlRoom() {
                 </div>
                 <div className="h-2 rounded-full bg-surface-2">
                     <div
-                        className={`h-2 rounded-full transition-all duration-700 ${sprint.failedTasks > 0 ? 'bg-gradient-to-r bg-emerald' : 'bg-emerald'}`}
+                        className={`h-2 rounded-full transition-all duration-700 ${sprint.failedTasks > 0 ? 'bg-gradient-to-r bg-azure' : 'bg-azure'}`}
                         style={{ width: `${progressPct}%` }}
                     />
                 </div>
@@ -805,14 +805,14 @@ export default function ProjectControlRoom() {
                             key={id}
                             onClick={() => setTab(id)}
                             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${tab === id
-                                ? 'border-indigo text-text-primary'
+                                ? 'border-azure text-text-primary'
                                 : 'border-transparent text-text-muted hover:text-text-secondary'
                                 }`}
                         >
                             {id === 'log' && <Terminal className="h-3 w-3" />}
                             {label}
                             {badge && (
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald animate-pulse" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-azure animate-pulse" />
                             )}
                         </button>
                     ))}
@@ -890,7 +890,7 @@ export default function ProjectControlRoom() {
                         ) : (
                             sprint.featuresCompleted.map((f, i) => (
                                 <div key={i} className="flex items-start gap-2 rounded-lg border border-border bg-surface-1/40 px-4 py-3">
-                                    <Zap className="h-3.5 w-3.5 text-emerald shrink-0 mt-0.5" />
+                                    <Zap className="h-3.5 w-3.5 text-azure shrink-0 mt-0.5" />
                                     <p className="text-sm text-text-secondary">{f}</p>
                                 </div>
                             ))

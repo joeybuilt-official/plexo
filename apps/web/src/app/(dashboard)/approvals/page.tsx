@@ -39,7 +39,7 @@ interface Approval {
 type SortKey = 'newest' | 'oldest' | 'risk_desc' | 'risk_asc'
 
 const RISK_CONFIG = {
-    low: { color: 'text-emerald', bg: 'bg-emerald-dim border-emerald-800/40', dot: 'bg-emerald', order: 0, label: 'Low' },
+    low: { color: 'text-azure', bg: 'bg-azure-dim border-emerald-800/40', dot: 'bg-azure', order: 0, label: 'Low' },
     medium: { color: 'text-amber', bg: 'bg-amber-dim border-amber-800/40', dot: 'bg-amber', order: 1, label: 'Medium' },
     high: { color: 'text-orange-400', bg: 'bg-amber/10 border-orange-800/40', dot: 'bg-orange-400', order: 2, label: 'High' },
     critical: { color: 'text-red', bg: 'bg-red-dim border-red-800/40', dot: 'bg-red', order: 3, label: 'Critical' },
@@ -188,7 +188,7 @@ export default function ApprovalsPage() {
             label: 'Decision',
             options: [
                 { value: 'pending', label: 'Pending', icon: <Clock className="h-3.5 w-3.5 text-amber mr-1 shrink-0" />, dimmed: !availableDecisions.has('pending') },
-                { value: 'approved', label: 'Approved', icon: <CheckCircle className="h-3.5 w-3.5 text-emerald mr-1 shrink-0" />, dimmed: !availableDecisions.has('approved') },
+                { value: 'approved', label: 'Approved', icon: <CheckCircle className="h-3.5 w-3.5 text-azure mr-1 shrink-0" />, dimmed: !availableDecisions.has('approved') },
                 { value: 'rejected', label: 'Rejected', icon: <XCircle className="h-3.5 w-3.5 text-red mr-1 shrink-0" />, dimmed: !availableDecisions.has('rejected') },
             ],
         },
@@ -240,7 +240,7 @@ export default function ApprovalsPage() {
 
             {/* Toast */}
             {toast && (
-                <div className={`rounded-lg border px-4 py-2.5 text-sm ${toast.ok ? 'border-emerald-800/50 bg-emerald-950/20 text-emerald' : 'border-red-800/50 bg-red-950/20 text-red'}`}>
+                <div className={`rounded-lg border px-4 py-2.5 text-sm ${toast.ok ? 'border-azure/30 bg-azure/20 text-azure' : 'border-red-800/50 bg-red-950/20 text-red'}`}>
                     {toast.text}
                 </div>
             )}
@@ -275,7 +275,7 @@ export default function ApprovalsPage() {
                     <button
                         onClick={() => void bulkDecide('approve')}
                         disabled={bulkActing}
-                        className="flex items-center gap-1.5 rounded-md bg-emerald-600/20 border border-emerald-700/40 px-3 py-1.5 text-xs font-medium text-emerald hover:bg-emerald-600/30 disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-1.5 rounded-md bg-azure-600/20 border border-emerald-700/40 px-3 py-1.5 text-xs font-medium text-azure hover:bg-azure-600/30 disabled:opacity-50 transition-colors"
                     >
                         <CheckCheck className="h-3 w-3" />
                         Approve all
@@ -349,7 +349,7 @@ export default function ApprovalsPage() {
                                             onClick={() => void decide(item.id, 'approve')}
                                             disabled={isActing}
                                             title="Approve"
-                                            className="rounded-md bg-emerald-600/20 border border-emerald-700/40 px-2.5 py-1 text-xs font-medium text-emerald hover:bg-emerald-600/30 disabled:opacity-50 transition-colors"
+                                            className="rounded-md bg-azure-600/20 border border-emerald-700/40 px-2.5 py-1 text-xs font-medium text-azure hover:bg-azure-600/30 disabled:opacity-50 transition-colors"
                                         >
                                             {isActing ? <RefreshCw className="h-3 w-3 animate-spin" /> : '✓'}
                                         </button>
@@ -383,7 +383,7 @@ export default function ApprovalsPage() {
                                                 <p className="text-[10px] uppercase tracking-wide text-text-muted mb-0.5">Task</p>
                                                 <a
                                                     href={`/tasks/${item.taskId}`}
-                                                    className="text-xs font-mono text-indigo hover:text-indigo-300 transition-colors"
+                                                    className="text-xs font-mono text-azure hover:text-azure transition-colors"
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
                                                     {item.taskId.slice(0, 8)}…
@@ -403,7 +403,7 @@ export default function ApprovalsPage() {
                                             <button
                                                 onClick={() => void decide(item.id, 'approve')}
                                                 disabled={isActing}
-                                                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-text-primary hover:bg-emerald disabled:opacity-50 transition-colors"
+                                                className="flex items-center gap-1.5 rounded-lg bg-azure-600 px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure disabled:opacity-50 transition-colors"
                                             >
                                                 <CheckCircle className="h-3.5 w-3.5" />
                                                 {isActing ? 'Processing…' : 'Approve'}

@@ -48,7 +48,7 @@ export function DiffViewer({ events, className = '' }: DiffViewerProps) {
                     <details key={i} open={i === events.length - 1}>
                         <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-surface-1/60 list-none select-text">
                             <span className="font-mono text-xs text-text-secondary flex-1 truncate">{ev.path}</span>
-                            <span className="text-xs text-emerald font-mono">+{addCount}</span>
+                            <span className="text-xs text-azure font-mono">+{addCount}</span>
                             <span className="text-xs text-red font-mono">-{removeCount}</span>
                             <span className="text-xs text-text-muted">{relativeTime(ev.ts)}</span>
                         </summary>
@@ -60,7 +60,7 @@ export function DiffViewer({ events, className = '' }: DiffViewerProps) {
                                             key={j}
                                             className={
                                                 l.type === 'add'
-                                                    ? 'bg-emerald-950/40'
+                                                    ? 'bg-azure/40'
                                                     : l.type === 'remove'
                                                     ? 'bg-red-950/40'
                                                     : l.type === 'header'
@@ -71,7 +71,7 @@ export function DiffViewer({ events, className = '' }: DiffViewerProps) {
                                             <td
                                                 className={`pl-3 pr-4 select-none w-4 ${
                                                     l.type === 'add'
-                                                        ? 'text-emerald'
+                                                        ? 'text-azure'
                                                         : l.type === 'remove'
                                                         ? 'text-red'
                                                         : 'text-text-muted'

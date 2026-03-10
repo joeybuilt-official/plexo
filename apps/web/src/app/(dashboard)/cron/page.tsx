@@ -63,7 +63,7 @@ function timeAgo(iso: string): string {
 }
 
 function StatusIcon({ status }: { status: CronJob['lastRunStatus'] }) {
-    if (status === 'success') return <CheckCircle2 className="h-4 w-4 text-emerald" />
+    if (status === 'success') return <CheckCircle2 className="h-4 w-4 text-azure" />
     if (status === 'failure') return <XCircle className="h-4 w-4 text-red" />
     return <Clock className="h-4 w-4 text-text-muted" />
 }
@@ -275,7 +275,7 @@ export default function CronPage() {
                     </button>
                     <button
                         onClick={() => setAdding(true)}
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         Add job
@@ -284,14 +284,14 @@ export default function CronPage() {
             </div>
 
             {message && (
-                <div className={`rounded-lg border px-3 py-2.5 text-sm ${message.ok ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald' : 'border-red-800/50 bg-red-950/30 text-red'}`}>
+                <div className={`rounded-lg border px-3 py-2.5 text-sm ${message.ok ? 'border-azure/30 bg-azure/30 text-azure' : 'border-red-800/50 bg-red-950/30 text-red'}`}>
                     {message.text}
                 </div>
             )}
 
             {/* Add form */}
             {adding && (
-                <div className="rounded-xl border border-indigo/30 bg-surface-1/60 p-4 flex flex-col gap-4">
+                <div className="rounded-xl border border-azure/30 bg-surface-1/60 p-4 flex flex-col gap-4">
                     <h2 className="text-sm font-semibold text-text-primary">New scheduled job</h2>
 
                     <div className="flex flex-col gap-2">
@@ -303,19 +303,19 @@ export default function CronPage() {
                                 onChange={(e) => setNlText(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') void handleParseNl() }}
                                 placeholder='e.g. "every Monday at 9am" or "daily at midnight"'
-                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                             />
                             <button
                                 onClick={() => void handleParseNl()}
                                 disabled={nlParsing || !nlText.trim()}
-                                className="flex items-center gap-1.5 rounded-lg border border-indigo/40 bg-indigo/20 px-3 py-2 text-xs font-medium text-indigo-300 hover:bg-indigo/30 disabled:opacity-50 transition-colors"
+                                className="flex items-center gap-1.5 rounded-lg border border-azure/40 bg-azure/20 px-3 py-2 text-xs font-medium text-azure hover:bg-azure/30 disabled:opacity-50 transition-colors"
                             >
                                 {nlParsing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                                 Parse
                             </button>
                         </div>
                         {nlParsed && (
-                            <div className="flex items-center gap-2 text-xs text-emerald">
+                            <div className="flex items-center gap-2 text-xs text-azure">
                                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                                 Parsed: <code className="font-mono">{nlParsed.cron}</code> — {nlParsed.description}
                             </div>
@@ -330,7 +330,7 @@ export default function CronPage() {
                                 value={newName}
                                 onChange={(e) => setNewName(e.target.value)}
                                 placeholder="Daily digest"
-                                className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                                className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                             />
                         </div>
                         <div className="flex flex-col gap-1.5">
@@ -340,7 +340,7 @@ export default function CronPage() {
                                 value={newSchedule}
                                 onChange={(e) => setNewSchedule(e.target.value)}
                                 placeholder="0 9 * * 1"
-                                className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                                className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                             />
                         </div>
                     </div>
@@ -351,7 +351,7 @@ export default function CronPage() {
                                 key={p.value}
                                 onClick={() => setNewSchedule(p.value)}
                                 className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${newSchedule === p.value
-                                    ? 'border-indigo/50 bg-indigo/20 text-indigo-300'
+                                    ? 'border-azure/50 bg-azure/20 text-azure'
                                     : 'border-border text-text-muted hover:text-text-secondary'
                                     }`}
                             >
@@ -364,7 +364,7 @@ export default function CronPage() {
                         <button
                             onClick={() => void handleAdd()}
                             disabled={saving || !newName.trim() || !newSchedule.trim()}
-                            className="flex items-center gap-1.5 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors"
                         >
                             {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                             {saving ? 'Saving…' : 'Schedule'}
@@ -430,7 +430,7 @@ export default function CronPage() {
                                 <tr key={job.id} className="border-b border-border-subtle hover:bg-surface-2/20 transition-colors">
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
-                                            <div className={`h-2 w-2 rounded-full shrink-0 ${job.enabled ? 'bg-emerald' : 'bg-surface-3'}`} />
+                                            <div className={`h-2 w-2 rounded-full shrink-0 ${job.enabled ? 'bg-azure' : 'bg-surface-3'}`} />
                                             <span className="text-sm font-medium text-text-primary">{job.name}</span>
                                         </div>
                                     </td>
@@ -457,7 +457,7 @@ export default function CronPage() {
                                                 onClick={() => void handleTrigger(job)}
                                                 disabled={triggering === job.id}
                                                 title="Manual trigger"
-                                                className="rounded p-1.5 text-text-muted hover:text-indigo transition-colors"
+                                                className="rounded p-1.5 text-text-muted hover:text-azure transition-colors"
                                             >
                                                 {triggering === job.id
                                                     ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -472,7 +472,7 @@ export default function CronPage() {
                                                 {toggling === job.id
                                                     ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                                                     : job.enabled
-                                                        ? <ToggleRight className="h-4 w-4 text-emerald" />
+                                                        ? <ToggleRight className="h-4 w-4 text-azure" />
                                                         : <ToggleLeft className="h-4 w-4" />}
                                             </button>
                                             <button

@@ -110,7 +110,7 @@ function categoryColor(cat: string): string {
         code: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
         developer: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
         communication: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
-        productivity: 'bg-emerald/15 text-emerald border border-emerald-500/30',
+        productivity: 'bg-azure/15 text-azure border border-azure/30',
         finance: 'bg-amber/15 text-amber border border-amber-500/30',
         analytics: 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30',
         storage: 'bg-amber/15 text-orange-400 border border-orange-500/30',
@@ -150,14 +150,14 @@ function CopySnippet({ code }: { code: string }) {
                 onClick={() => { void navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
                 className="absolute right-2 top-2 p-1.5 rounded-md bg-surface-2 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity hover:text-text-primary"
             >
-                {copied ? <Check className="h-3 w-3 text-emerald" /> : <Copy className="h-3 w-3" />}
+                {copied ? <Check className="h-3 w-3 text-azure" /> : <Copy className="h-3 w-3" />}
             </button>
         </div>
     )
 }
 
 function StatusDot({ status }: { status: ConnectionStatus }) {
-    if (status === 'active') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald" />
+    if (status === 'active') return <CheckCircle2 className="h-3.5 w-3.5 text-azure" />
     if (status === 'error') return <AlertCircle className="h-3.5 w-3.5 text-red" />
     return <Circle className="h-3.5 w-3.5 text-text-muted" />
 }
@@ -435,7 +435,7 @@ export default function IntegrationsPage() {
                                         key={r.id}
                                         onClick={() => { setSelected(r); setActiveTab('overview') }}
                                         className={`text-left rounded-xl border px-3 py-2.5 transition-all text-sm shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${active
-                                            ? 'border-indigo/50 bg-surface-1 shadow-sm shadow-indigo-500/10'
+                                            ? 'border-azure/50 bg-surface-1 shadow-sm shadow-azure/10'
                                             : 'border-border/60 bg-surface-1/30 hover:border-border hover:bg-surface-1/60'
                                             }`}
                                     >
@@ -511,7 +511,7 @@ export default function IntegrationsPage() {
                                         {isConnected && (
                                             <>
                                                 <StatusDot status={connectedItem!.status} />
-                                                <span className="text-xs text-emerald">Connected</span>
+                                                <span className="text-xs text-azure">Connected</span>
                                             </>
                                         )}
                                     </div>
@@ -542,7 +542,7 @@ export default function IntegrationsPage() {
                                     <button
                                         onClick={() => void handleInstall()}
                                         disabled={installing || !WS_ID}
-                                        className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-4 py-2 sm:px-3 sm:py-1.5 text-sm sm:text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-[2] sm:flex-initial"
+                                        className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-4 py-2 sm:px-3 sm:py-1.5 text-sm sm:text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-[2] sm:flex-initial"
                                     >
                                         <Link2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                                         {installing ? 'Connecting…' : 'Connect'}
@@ -563,7 +563,7 @@ export default function IntegrationsPage() {
                                         key={id}
                                         onClick={() => setActiveTab(id)}
                                         className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${activeTab === id
-                                            ? 'border-indigo text-indigo'
+                                            ? 'border-azure text-azure'
                                             : 'border-transparent text-text-muted hover:text-text-secondary'
                                             }`}
                                     >
@@ -629,7 +629,7 @@ export default function IntegrationsPage() {
                                                                 href={field.tokenUrl}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="flex items-center gap-1 text-[11px] text-indigo hover:text-indigo-300 transition-colors"
+                                                                className="flex items-center gap-1 text-[11px] text-azure hover:text-azure transition-colors"
                                                             >
                                                                 <ExternalLink className="h-3 w-3" />
                                                                 Create token
@@ -641,7 +641,7 @@ export default function IntegrationsPage() {
                                                         value={fieldValues[field.key] ?? ''}
                                                         onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                                                         placeholder={field.placeholder ?? ''}
-                                                        className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                                                        className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                                                     />
                                                 </div>
                                             ))}
@@ -667,7 +667,7 @@ export default function IntegrationsPage() {
                                                 {linkedChannels.map((ch) => (
                                                     <div key={ch.id} className="flex items-center justify-between">
                                                         <span className="text-[11px] text-teal-400/70">{ch.name}</span>
-                                                        <span className={`text-[10px] font-medium ${ch.enabled ? 'text-emerald' : 'text-text-muted'}`}>
+                                                        <span className={`text-[10px] font-medium ${ch.enabled ? 'text-azure' : 'text-text-muted'}`}>
                                                             {ch.enabled ? 'enabled' : 'disabled'}
                                                         </span>
                                                     </div>
@@ -749,7 +749,7 @@ export default function IntegrationsPage() {
                                                             <span className="text-sm font-mono text-text-secondary truncate">{tool}</span>
                                                         </div>
                                                         {enabled
-                                                            ? <ToggleRight className="h-6 w-6 sm:h-5 sm:w-5 text-indigo shrink-0" />
+                                                            ? <ToggleRight className="h-6 w-6 sm:h-5 sm:w-5 text-azure shrink-0" />
                                                             : <ToggleLeft className="h-6 w-6 sm:h-5 sm:w-5 text-zinc-700 shrink-0" />
                                                         }
                                                     </button>
@@ -803,7 +803,7 @@ export default function IntegrationsPage() {
                                                         value={fieldValues[field.key] ?? ''}
                                                         onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                                                         placeholder="Leave blank to keep current value"
-                                                        className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                                                        className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                                                     />
                                                 </div>
                                             ))}

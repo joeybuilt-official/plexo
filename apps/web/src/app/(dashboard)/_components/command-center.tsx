@@ -182,8 +182,8 @@ function ActiveWorkItem({ task }: { task: Task }) {
                 <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] text-text-primary">{description}</p>
                     <div className="flex items-center gap-2 text-[11px] text-text-muted">
-                        <span className={`inline-flex items-center gap-1 ${isRunning ? 'text-indigo' : 'text-amber'}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? 'bg-indigo animate-pulse' : 'bg-amber'}`} />
+                        <span className={`inline-flex items-center gap-1 ${isRunning ? 'text-azure' : 'text-amber'}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? 'bg-azure animate-pulse' : 'bg-amber'}`} />
                             {task.status}
                         </span>
                         <span>·</span>
@@ -225,7 +225,7 @@ function ProjectCard({ sprint, tasks: sprintTasks }: { sprint: Sprint; tasks: Ta
     const STATUS_BG: Record<string, string> = {
         planning: 'bg-amber/20 text-amber',
         running: 'bg-blue-500/20 text-blue-400',
-        complete: 'bg-emerald/20 text-emerald',
+        complete: 'bg-azure/20 text-azure',
         failed: 'bg-red/20 text-red',
     }
 
@@ -245,7 +245,7 @@ function ProjectCard({ sprint, tasks: sprintTasks }: { sprint: Sprint; tasks: Ta
             {/* Progress bar */}
             <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
                 {done > 0 && (
-                    <div className="bg-emerald transition-all" style={{ width: `${(done / total) * 100}%` }} />
+                    <div className="bg-azure transition-all" style={{ width: `${(done / total) * 100}%` }} />
                 )}
                 {running > 0 && (
                     <div className="bg-blue-500 transition-all" style={{ width: `${(running / total) * 100}%` }} />
@@ -255,7 +255,7 @@ function ProjectCard({ sprint, tasks: sprintTasks }: { sprint: Sprint; tasks: Ta
                 )}
             </div>
             <div className="mt-2 flex gap-3 text-[10px] text-text-muted">
-                {done > 0 && <span className="text-emerald">{done} done</span>}
+                {done > 0 && <span className="text-azure">{done} done</span>}
                 {running > 0 && <span className="text-blue-400">{running} active</span>}
                 {blocked > 0 && <span className="text-red">{blocked} blocked</span>}
                 {linked.length === 0 && <span>No tasks yet</span>}
@@ -271,7 +271,7 @@ function CompletedItem({ task }: { task: Task }) {
     return (
         <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 px-3 py-3 md:py-2.5 group shrink-0 min-h-[44px]">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-dim text-emerald">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-azure-dim text-azure">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -456,12 +456,12 @@ export function CommandCenter() {
                 {/* Status Card */}
                 <div className="flex flex-col w-1/3 min-w-[300px] gap-4">
                     <div className="rounded-xl border border-border/60 bg-surface-1/40 p-5 shadow-lg flex flex-col items-center">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl  from-indigo-500/20 to-violet-500/20 text-indigo mb-4 ring-1 ring-inset ring-indigo/30">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl  from-azure/15 to-azure/5 text-azure mb-4 ring-1 ring-inset ring-azure/30">
                             <Zap className="h-8 w-8" />
                         </div>
                         <h2 className="text-lg font-bold text-text-primary mb-1">Plexo</h2>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-dim text-emerald text-xs font-medium mb-6">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald animate-pulse"></span>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-azure-dim text-azure text-xs font-medium mb-6">
+                            <span className="h-1.5 w-1.5 rounded-full bg-azure animate-pulse"></span>
                             Online & Ready
                         </span>
 
@@ -505,7 +505,7 @@ export function CommandCenter() {
                 <HeroStat
                     label="Active Tasks"
                     value={activeTasks.length}
-                    accent="bg-indigo"
+                    accent="bg-azure"
                     icon={Zap}
                     href="/tasks"
                     pulse={runningTasks.length > 0}
@@ -527,7 +527,7 @@ export function CommandCenter() {
                 <HeroStat
                     label="Active Projects"
                     value={activeSprints.length}
-                    accent={activeSprints.length > 0 ? 'bg-indigo' : ''}
+                    accent={activeSprints.length > 0 ? 'bg-azure' : ''}
                     icon={FolderOpen}
                     href="/projects"
                 />
@@ -568,7 +568,7 @@ export function CommandCenter() {
                     <div className="rounded-xl border border-border/60 bg-surface-1/40 backdrop-blur-sm shadow-sm overflow-hidden h-[330px] flex flex-col">
                             <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3 shrink-0 bg-canvas/30">
                                 <div className="flex items-center gap-2">
-                                    <div className={`h-1.5 w-1.5 rounded-full ${hasActiveWork ? 'bg-blue-400 animate-pulse' : 'bg-emerald'}`} />
+                                    <div className={`h-1.5 w-1.5 rounded-full ${hasActiveWork ? 'bg-blue-400 animate-pulse' : 'bg-azure'}`} />
                                     <h3 className="text-[13px] font-semibold text-text-primary">Current Focus</h3>
                                 </div>
                                 <Link href="/tasks" className="text-[11px] text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1 group">
@@ -583,7 +583,7 @@ export function CommandCenter() {
                                 </div>
                             ) : (
                                 <div className="py-8 px-4 text-center flex flex-col items-center flex-1 justify-center">
-                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl  from-emerald-500/10 to-teal-500/10 text-emerald mb-3 border border-emerald-500/20">
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl  from-azure/10 to-azure/5 text-azure mb-3 border border-azure/20">
                                         <CheckCircle2 className="h-6 w-6" />
                                     </div>
                                     <h4 className="text-sm font-medium text-text-secondary mb-1">Queue Empty</h4>

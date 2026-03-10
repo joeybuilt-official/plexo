@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/*
+ * Dark mode via class strategy (next-themes adds class="dark" / class="light" to <html>).
+ * Tailwind v4: declare the variant explicitly so dark: utilities resolve to .dark selector.
+ */
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* Colors */
   --color-canvas:       #0C0E14;
@@ -106,4 +112,44 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/*
+ * ── Light mode palette ─────────────────────────────────────────────────────────
+ * PROVISIONAL — pending design review. Do not ship to users until approved.
+ * Activated when next-themes sets class="light" on <html>.
+ *
+ * Strategy: warm off-white backgrounds, deep slate text, same azure/amber accent.
+ * The @theme block holds the dark (default) values; this block overrides only
+ * the surface, border, and text tokens — accent/radius/font tokens are unchanged.
+ */
+.light {
+  /* Surfaces — light, warm neutrals */
+  --color-canvas:        #F7F8FA;
+  --color-surface-1:     #FFFFFF;
+  --color-surface-2:     #F0F2F5;
+  --color-surface-3:     #E8EBF0;
+
+  /* Borders */
+  --color-border:        #D1D5E0;
+  --color-border-subtle: #E4E7EF;
+
+  /* Text — dark slate, not pure black */
+  --color-text-primary:   #111827;
+  --color-text-secondary: #4B5563;
+  --color-text-muted:     #9CA3AF;
+
+  /* Accent dims need lighter alpha on white backgrounds */
+  --color-azure-dim:    rgba(59,130,246,0.10);
+  --color-azure-glow:   rgba(59,130,246,0.04);
+  --color-indigo-dim:   rgba(59,130,246,0.10);
+  --color-indigo-glow:  rgba(59,130,246,0.04);
+  --color-amber-dim:    rgba(245,158,11,0.10);
+  --color-red-dim:      rgba(239,68,68,0.08);
+}
+
+/* Light mode global base overrides */
+.light body {
+  background-color: var(--color-canvas);
+  color: var(--color-text-primary);
 }

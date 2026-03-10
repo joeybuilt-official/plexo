@@ -80,7 +80,7 @@ const STATUS_CONFIG: Record<string, { icon: React.ReactNode; label: string; colo
     queued: { icon: <Clock className="h-4 w-4" />, label: 'Queued', color: 'text-amber', bg: 'bg-amber-dim border-amber-500/20' },
     running: { icon: <Loader2 className="h-4 w-4 animate-spin" />, label: 'Running', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
     claimed: { icon: <Loader2 className="h-4 w-4 animate-spin" />, label: 'Running', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-    complete: { icon: <CheckCircle2 className="h-4 w-4" />, label: 'Complete', color: 'text-emerald', bg: 'bg-emerald-dim border-emerald-500/20' },
+    complete: { icon: <CheckCircle2 className="h-4 w-4" />, label: 'Complete', color: 'text-azure', bg: 'bg-azure-dim border-azure/20' },
     failed: { icon: <XCircle className="h-4 w-4" />, label: 'Failed', color: 'text-red', bg: 'bg-red-dim border-red-500/20' },
     blocked: { icon: <AlertTriangle className="h-4 w-4" />, label: 'Blocked', color: 'text-red', bg: 'bg-red-dim border-red-500/20' },
     cancelled: { icon: <XCircle className="h-4 w-4" />, label: 'Cancelled', color: 'text-text-muted', bg: 'bg-surface-2/60 border-border/40' },
@@ -139,7 +139,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                         {task.projectId && (
                             <Link
                                 href={`/projects/${task.projectId}`}
-                                className="inline-flex items-center gap-1 rounded border border-indigo-800/30 bg-indigo-900/20 px-2 py-0.5 text-[11px] text-indigo hover:text-indigo-300 transition-colors"
+                                className="inline-flex items-center gap-1 rounded border border-azure-800/30 bg-azure-900/20 px-2 py-0.5 text-[11px] text-azure hover:text-azure transition-colors"
                             >
                                 <FolderOpen className="h-3 w-3" />
                                 {task.project ?? 'Project'}
@@ -167,8 +167,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
             {/* Outcome — primary */}
             {task.outcomeSummary ? (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald/5 p-4">
-                    <p className="mb-1.5 text-[11px] font-medium text-emerald-600 uppercase tracking-wider">Outcome</p>
+                <div className="rounded-xl border border-azure/20 bg-azure/5 p-4">
+                    <p className="mb-1.5 text-[11px] font-medium text-azure-600 uppercase tracking-wider">Outcome</p>
                     <p className="text-sm text-text-primary leading-relaxed">{task.outcomeSummary}</p>
                 </div>
             ) : task.status === 'running' || task.status === 'claimed' ? (
@@ -191,7 +191,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                             return (
                                 <details key={asset.filename} className="rounded-lg border border-zinc-700/60 bg-zinc-800/40 overflow-hidden group/a">
                                     <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-zinc-700/40 transition-colors list-none">
-                                        <FileText className="h-3.5 w-3.5 shrink-0 text-indigo-400" />
+                                        <FileText className="h-3.5 w-3.5 shrink-0 text-azure" />
                                         <span className="flex-1 text-xs font-medium text-text-primary font-mono truncate">{asset.filename}</span>
                                         <span className="text-[10px] text-text-muted shrink-0">{sizeLabel}</span>
                                         <span className="text-[10px] text-text-muted shrink-0 group-open/a:hidden">▸</span>
@@ -251,13 +251,13 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 const verPct = task.qualityScore != null ? Math.round(task.qualityScore * 100) : null
                 const delta = selfPct != null && verPct != null ? verPct - selfPct : null
                 return (
-                    <div className="rounded-xl border border-indigo-800/30 bg-indigo-950/20 p-4 flex flex-col gap-3">
+                    <div className="rounded-xl border border-azure-800/30 bg-azure/20 p-4 flex flex-col gap-3">
                         <div className="flex items-center gap-2">
-                            <Users className="h-3.5 w-3.5 text-indigo" />
-                            <span className="text-[11px] font-semibold text-indigo uppercase tracking-wider">
+                            <Users className="h-3.5 w-3.5 text-azure" />
+                            <span className="text-[11px] font-semibold text-azure uppercase tracking-wider">
                                 Quality ensemble
                             </span>
-                            <span className="ml-auto text-[10px] text-indigo/60 capitalize">
+                            <span className="ml-auto text-[10px] text-azure/60 capitalize">
                                 {judge.mode?.replace('+', ' + ')}
                             </span>
                         </div>
@@ -268,12 +268,12 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                             </div>
                             <div className="flex flex-col gap-0.5">
                                 <span className="text-[10px] text-text-muted">Verified</span>
-                                <span className="text-sm font-semibold text-emerald">{verPct != null ? `${verPct}%` : '—'}</span>
+                                <span className="text-sm font-semibold text-azure">{verPct != null ? `${verPct}%` : '—'}</span>
                             </div>
                             <div className="flex flex-col gap-0.5">
                                 <span className="text-[10px] text-text-muted">Delta</span>
                                 <span className={`text-sm font-semibold ${delta == null ? 'text-text-muted'
-                                        : delta > 0 ? 'text-emerald'
+                                        : delta > 0 ? 'text-azure'
                                             : delta < 0 ? 'text-rose-400'
                                                 : 'text-text-secondary'
                                     }`}>
@@ -328,11 +328,11 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                             <div key={step.id} className="rounded-xl border border-border bg-surface-1/30 p-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <span className={`text-[11px] font-medium ${step.ok ? 'text-emerald' : 'text-red'}`}>
+                                        <span className={`text-[11px] font-medium ${step.ok ? 'text-azure' : 'text-red'}`}>
                                             Step {step.stepNumber}
                                         </span>
                                         {step.model && (
-                                            <span className="rounded border border-indigo-800/40 bg-indigo-950/30 px-1.5 py-0.5 text-[10px] font-mono text-indigo">
+                                            <span className="rounded border border-azure-800/40 bg-azure/30 px-1.5 py-0.5 text-[10px] font-mono text-azure">
                                                 {step.model}
                                             </span>
                                         )}

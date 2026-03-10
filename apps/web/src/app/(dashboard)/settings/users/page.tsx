@@ -128,7 +128,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
         <div className="rounded-xl border border-border/50 bg-surface-1 p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                    <Link2 className="h-4 w-4 text-indigo" />
+                    <Link2 className="h-4 w-4 text-azure" />
                     Create invite link
                 </div>
                 <button onClick={onClose} className="text-text-muted hover:text-text-secondary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center -mr-2 -mt-2">
@@ -145,7 +145,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="colleague@example.com"
-                            className="min-h-[44px] rounded-lg border border-border bg-canvas px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                            className="min-h-[44px] rounded-lg border border-border bg-canvas px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                         />
                     </div>
 
@@ -157,7 +157,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                                     key={r}
                                     onClick={() => setRole(r)}
                                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 min-h-[44px] md:min-h-0 text-xs capitalize transition-all ${role === r
-                                        ? 'border-indigo/50 bg-indigo/10 text-indigo-300'
+                                        ? 'border-azure/50 bg-azure/10 text-azure'
                                         : 'border-border text-text-muted hover:border-border'
                                         }`}
                                 >
@@ -176,7 +176,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                     <button
                         onClick={() => void createInvite()}
                         disabled={creating}
-                        className="flex items-center justify-center gap-2 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors min-h-[44px]"
+                        className="flex items-center justify-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px]"
                     >
                         {creating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
                         Generate link
@@ -190,7 +190,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                     <div className="flex items-center gap-2 rounded-lg border border-border bg-canvas pl-3">
                         <span className="flex-1 truncate font-mono text-[16px] md:text-sm text-text-secondary">{invite.inviteUrl}</span>
                         <button onClick={copyLink} className="shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] text-text-muted hover:text-text-secondary transition-colors">
-                            {copied ? <Check className="h-4 w-4 text-emerald" /> : <Copy className="h-4 w-4" />}
+                            {copied ? <Check className="h-4 w-4 text-azure" /> : <Copy className="h-4 w-4" />}
                         </button>
                     </div>
                     <button
@@ -352,7 +352,7 @@ export default function UsersPage() {
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button
                         onClick={() => setShowInvite((v) => !v)}
-                        className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                        className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                     >
                         <UserPlus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         Invite
@@ -398,7 +398,7 @@ export default function UsersPage() {
                             {lf.hasFilters && (
                                 <button
                                     onClick={clearAll}
-                                    className="mt-2 text-xs text-indigo hover:text-indigo-300 min-h-[44px] min-w-[44px]"
+                                    className="mt-2 text-xs text-azure hover:text-azure min-h-[44px] min-w-[44px]"
                                 >
                                     Clear filters
                                 </button>
@@ -411,12 +411,12 @@ export default function UsersPage() {
                                 key={m.userId}
                                 onClick={() => selectMember(m)}
                                 className={`text-left rounded-xl border p-3 transition-all shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${active
-                                    ? 'border-indigo/50 bg-surface-1 shadow-sm shadow-indigo-500/10'
+                                    ? 'border-azure/50 bg-surface-1 shadow-sm shadow-azure/10'
                                     : 'border-border bg-surface-1/40 hover:border-border'
                                     }`}
                             >
                                 <div className="flex items-center gap-2.5">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo/20 text-xs font-bold text-indigo shrink-0">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-azure/20 text-xs font-bold text-azure shrink-0">
                                         {initials(m.name, m.email)}
                                     </div>
                                     <div className="min-w-0 flex-1">
@@ -446,7 +446,7 @@ export default function UsersPage() {
                             {/* Member header */}
                             <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-4 border-b border-border">
                                 <div className="flex flex-row items-center gap-3">
-                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo/20 text-xl font-bold text-indigo shrink-0">
+                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-azure/20 text-xl font-bold text-azure shrink-0">
                                         {initials(selected.name, selected.email)}
                                     </div>
                                     <div>
@@ -476,7 +476,7 @@ export default function UsersPage() {
                                                 key={r}
                                                 onClick={() => setEditRole(r)}
                                                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[16px] md:text-sm transition-all min-h-[44px] md:min-h-0 ${editRole === r
-                                                    ? 'border-indigo/50 bg-indigo/10 text-indigo-300'
+                                                    ? 'border-azure/50 bg-azure/10 text-azure'
                                                     : 'border-border text-text-muted hover:border-border'
                                                     }`}
                                             >
@@ -516,9 +516,9 @@ export default function UsersPage() {
                                         <button
                                             onClick={() => void handleSaveRole()}
                                             disabled={saving || editRole === selected.role}
-                                            className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                                            className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                                         >
-                                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald" /> : null}
+                                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-azure" /> : null}
                                             {saved ? 'Saved' : 'Save role'}
                                         </button>
                                         <button

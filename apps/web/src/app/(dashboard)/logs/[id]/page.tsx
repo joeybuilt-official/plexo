@@ -33,7 +33,7 @@ interface TaskDetail {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-    complete: 'bg-emerald-950 text-emerald border-emerald-800',
+    complete: 'bg-azure-950 text-azure border-emerald-800',
     running: 'bg-blue-950 text-blue-400 border-blue-800',
     queued: 'bg-surface-2 text-text-secondary border-border',
     blocked: 'bg-amber-950 text-amber border-amber-800',

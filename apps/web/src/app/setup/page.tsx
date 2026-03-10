@@ -178,7 +178,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
                     id="setup-telemetry-save"
                     onClick={() => void save()}
                     disabled={saving}
-                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                     {saving ? 'Saving…' : 'Save and continue'}
@@ -313,7 +313,7 @@ export default function SetupPage() {
                             <button
                                 id="setup-get-started"
                                 onClick={() => setStep('workspace')}
-                                className="mt-2 w-full rounded-xl bg-azure py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors"
+                                className="mt-2 w-full rounded-xl bg-azure py-3 text-sm font-semibold text-text-primary hover:bg-azure/90 transition-colors"
                             >
                                 Get started
                             </button>
@@ -349,7 +349,7 @@ export default function SetupPage() {
                                 id="setup-create-workspace"
                                 onClick={() => void createWorkspace()}
                                 disabled={!workspaceName.trim() || saving}
-                                className="w-full rounded-xl bg-azure py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                className="w-full rounded-xl bg-azure py-3 text-sm font-semibold text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                             >
                                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                                 {saving ? 'Creating…' : 'Continue'}
@@ -420,7 +420,7 @@ export default function SetupPage() {
                                     id="setup-provider-save"
                                     onClick={() => void saveProvider()}
                                     disabled={saving}
-                                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                                 >
                                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                                     {saving ? 'Saving…' : 'Save & continue'}
@@ -467,7 +467,7 @@ export default function SetupPage() {
                                 <button
                                     id="setup-test-continue"
                                     onClick={() => setStep('telemetry')}
-                                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors"
+                                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-azure/90 transition-colors"
                                 >
                                     {testResult === 'ok' ? 'Continue →' : 'Skip'}
                                 </button>
@@ -493,7 +493,7 @@ export default function SetupPage() {
                             <Link
                                 id="setup-open-dashboard"
                                 href="/"
-                                className="w-full rounded-xl bg-azure py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors block"
+                                className="w-full rounded-xl bg-azure py-3 text-sm font-semibold text-text-primary hover:bg-azure/90 transition-colors block"
                             >
                                 Open dashboard →
                             </Link>

@@ -84,13 +84,13 @@ function ToolRow({ tool, enabled, onToggle }: { tool: string; enabled: boolean; 
             {onToggle ? (
                 <button onClick={onToggle} className="shrink-0">
                     {enabled
-                        ? <ToggleRight className="h-5 w-5 text-indigo" />
+                        ? <ToggleRight className="h-5 w-5 text-azure" />
                         : <ToggleLeft className="h-5 w-5 text-zinc-700" />
                     }
                 </button>
             ) : (
                 enabled
-                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald shrink-0" />
+                    ? <CheckCircle2 className="h-3.5 w-3.5 text-azure shrink-0" />
                     : <Circle className="h-3.5 w-3.5 text-zinc-700 shrink-0" />
             )}
         </div>
@@ -334,9 +334,9 @@ export default function ToolsPage() {
                         <p className="text-sm font-medium text-text-muted">No tools available</p>
                         <p className="text-xs text-text-muted mt-1">
                             Connect services in{' '}
-                            <a href="/settings/connections" className="text-indigo hover:underline">Integrations</a>{' '}
+                            <a href="/settings/connections" className="text-azure hover:underline">Integrations</a>{' '}
                             or install Kapsel plugins from the{' '}
-                            <a href="/marketplace" className="text-indigo hover:underline">Marketplace</a>.
+                            <a href="/marketplace" className="text-azure hover:underline">Marketplace</a>.
                         </p>
                     </div>
                 </div>

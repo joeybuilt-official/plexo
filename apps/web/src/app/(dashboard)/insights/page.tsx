@@ -36,10 +36,10 @@ interface SearchResult {
 
 const PATTERN_STYLE: Record<string, { dot: string; label: string }> = {
     failure_pattern: { dot: 'bg-red', label: 'Failure pattern' },
-    success_pattern: { dot: 'bg-emerald', label: 'Success pattern' },
+    success_pattern: { dot: 'bg-azure', label: 'Success pattern' },
     tool_preference: { dot: 'bg-blue-500', label: 'Tool preference' },
     scope_adjustment: { dot: 'bg-amber', label: 'Scope adjustment' },
-    skill_proposal: { dot: 'bg-indigo-500', label: 'Skill Proposal' },
+    skill_proposal: { dot: 'bg-azure-500', label: 'Skill Proposal' },
     plugin_proposal: { dot: 'bg-purple-500', label: 'Plugin Proposal' },
     agent_proposal: { dot: 'bg-fuchsia-500', label: 'Agent Proposal' },
 }
@@ -175,7 +175,7 @@ export default function InsightsPage() {
                     <button
                         onClick={() => void runCycle()}
                         disabled={running || !WS_ID}
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-xs font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-40 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 disabled:opacity-40 transition-colors"
                     >
                         {running ? <PlexoMark className="h-3.5 w-3.5" idle={false} working /> : <PlayCircle className="h-3.5 w-3.5" />}
                         {running ? 'Running…' : 'Run improvement cycle'}
@@ -184,7 +184,7 @@ export default function InsightsPage() {
             </div>
 
             {runMsg && (
-                <div className={`rounded-lg border px-3 py-2 text-sm ${runMsg.ok ? 'border-emerald-800/50 bg-emerald-950/20 text-emerald' : 'border-red-800/50 bg-red-950/20 text-red'}`}>
+                <div className={`rounded-lg border px-3 py-2 text-sm ${runMsg.ok ? 'border-azure/30 bg-azure/20 text-azure' : 'border-red-800/50 bg-red-950/20 text-red'}`}>
                     {runMsg.text}
                 </div>
             )}
@@ -200,7 +200,7 @@ export default function InsightsPage() {
                         value={searchQ}
                         onChange={(e) => setSearchQ(e.target.value)}
                         placeholder="Semantic search across agent memory…"
-                        className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                        className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                     />
                     <button
                         type="submit"
@@ -286,14 +286,14 @@ export default function InsightsPage() {
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
                                             {entry.applied ? (
-                                                <span className="rounded-full bg-emerald-dim px-2 py-0.5 text-[10px] font-medium text-emerald">
+                                                <span className="rounded-full bg-azure-dim px-2 py-0.5 text-[10px] font-medium text-azure">
                                                     applied
                                                 </span>
                                             ) : (
                                                 <button
                                                     onClick={() => void applyImprovement(entry.id)}
                                                     disabled={applying === entry.id}
-                                                    className="rounded-lg bg-indigo/20 border border-indigo/30 px-2.5 py-1 text-[11px] font-medium text-indigo hover:bg-indigo/30 disabled:opacity-40 transition-colors"
+                                                    className="rounded-lg bg-azure/20 border border-azure/30 px-2.5 py-1 text-[11px] font-medium text-azure hover:bg-azure/30 disabled:opacity-40 transition-colors"
                                                 >
                                                     {applying === entry.id ? 'Applying…' : 'Apply'}
                                                 </button>

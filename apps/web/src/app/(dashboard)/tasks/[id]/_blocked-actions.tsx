@@ -96,7 +96,7 @@ function ClarificationPanel({ taskId, clarification }: {
 
     if (chosen !== null) {
         return (
-            <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/30 px-4 py-3 flex items-center gap-2 text-sm text-emerald">
+            <div className="rounded-xl border border-emerald-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 Alternative queued — redirecting to new task…
             </div>
@@ -127,7 +127,7 @@ function ClarificationPanel({ taskId, clarification }: {
                             disabled={choosing !== null}
                             className="group flex items-center gap-3 rounded-lg border border-border/60 bg-surface-1/60 px-3.5 py-3 text-left hover:bg-surface-2/80 hover:border-border/60 transition-all disabled:opacity-50"
                         >
-                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-azure-500/15 text-azure">
                                 {choosing === idx ? (
                                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                                 ) : (
@@ -227,7 +227,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
 
     if (retried) {
         return (
-            <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/30 px-4 py-3 flex items-center gap-2 text-sm text-emerald">
+            <div className="rounded-xl border border-emerald-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
                 <RefreshCw className="h-4 w-4 animate-spin" />
                 Task re-queued — redirecting…
             </div>
@@ -276,7 +276,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
                             href={resolution.fixHref}
                             className={`group flex items-start gap-3 px-4 py-3.5 transition-colors ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-surface-2/40'}`}
                         >
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo mt-0.5">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-azure-500/15 text-azure mt-0.5">
                                 <ExternalLink className="h-3.5 w-3.5" />
                             </div>
                             <div className="min-w-0 flex-1">

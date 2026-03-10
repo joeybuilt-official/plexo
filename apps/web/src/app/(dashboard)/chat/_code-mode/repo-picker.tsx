@@ -76,14 +76,14 @@ function GitHubNotConnected() {
                     <div className="rounded-xl border border-border bg-surface-1/60 p-4 mb-5 text-xs text-text-secondary leading-relaxed">
                         <p className="font-semibold text-text-primary mb-1">What you need</p>
                         <ul className="space-y-1 list-disc list-inside text-text-muted">
-                            <li>A GitHub Personal Access Token with <code className="text-indigo">repo</code> scope</li>
+                            <li>A GitHub Personal Access Token with <code className="text-azure">repo</code> scope</li>
                             <li>Or connect via OAuth from the Integrations page</li>
                         </ul>
                     </div>
 
                     <Link
                         href="/settings/connections"
-                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold bg-indigo hover:bg-indigo/90 text-white transition-all group"
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold bg-azure hover:bg-azure/90 text-white transition-all group"
                     >
                         <Github className="w-4 h-4" />
                         Connect GitHub
@@ -94,7 +94,7 @@ function GitHubNotConnected() {
                         <p className="text-center text-xs text-text-muted mt-4">
                             or use a{' '}
                             <button
-                                className="text-indigo hover:underline"
+                                className="text-azure hover:underline"
                                 onClick={() => {
                                     // Scroll past this wall — parent will detect LOCAL_MODE and show local tab
                                     // We signal this by dispatching a custom event that the parent picker listens to
@@ -182,7 +182,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
             <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500" onClick={(e) => e.stopPropagation()}>
                 <div className="bg-surface-2/60 backdrop-blur-xl border border-border/60 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
                     {/* Top glow */}
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-indigo/20 blur-[50px] pointer-events-none rounded-full" />
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-azure/20 blur-[50px] pointer-events-none rounded-full" />
 
                     {/* Close button */}
                     {onClose && (
@@ -196,8 +196,8 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                     )}
 
                     <div className="text-center mb-6 relative">
-                        <div className="w-12 h-12 rounded-xl bg-surface-3 border border-border flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:border-indigo/30 group-hover:bg-indigo-dim transition-all duration-500">
-                            <FolderGit2 className="w-6 h-6 text-indigo" />
+                        <div className="w-12 h-12 rounded-xl bg-surface-3 border border-border flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:border-azure/30 group-hover:bg-azure-dim transition-all duration-500">
+                            <FolderGit2 className="w-6 h-6 text-azure" />
                         </div>
                         <h3 className="text-xl font-bold text-text-primary tracking-tight font-display">Workspace Configuration</h3>
                         <p className="text-sm text-text-muted mt-1.5">
@@ -254,7 +254,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                         value={localPath}
                                         onChange={(e) => setLocalPath(e.target.value)}
                                         placeholder="/home/user/my-project"
-                                        className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
+                                        className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
                                         onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
                                         autoFocus
                                     />
@@ -277,7 +277,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                             value={tab === 'existing' ? repo : newRepo}
                                             onChange={(e) => tab === 'existing' ? setRepo(e.target.value) : setNewRepo(e.target.value)}
                                             placeholder={tab === 'existing' ? 'owner/repo (e.g. joeybuilt-official/plexo)' : 'my-awesome-project'}
-                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
+                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
                                             onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
                                             autoFocus
                                         />
@@ -296,7 +296,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                             value={tab === 'existing' ? branch : newBranch}
                                             onChange={(e) => tab === 'existing' ? setBranch(e.target.value) : setNewBranch(e.target.value)}
                                             placeholder="main"
-                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono shadow-sm"
+                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-indigo/20 transition-all font-mono shadow-sm"
                                             onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
                                         />
                                     </div>
@@ -310,8 +310,8 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                         disabled={!isValid}
                         className={`w-full mt-6 py-3 px-4 rounded-xl text-sm font-semibold text-white transition-all flex items-center justify-center gap-2 group relative z-10 overflow-hidden ${
                             tab === 'new'
-                                ? 'bg-emerald hover:bg-emerald-600 focus:ring-emerald/50'
-                                : 'bg-indigo hover:bg-indigo/90 focus:ring-indigo/50'
+                                ? 'bg-azure hover:bg-azure-600 focus:ring-emerald/50'
+                                : 'bg-azure hover:bg-azure/90 focus:ring-azure/50'
                         } disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2`}
                     >
                         <span className="relative z-10 flex items-center gap-2">

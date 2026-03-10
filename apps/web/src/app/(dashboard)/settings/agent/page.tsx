@@ -113,7 +113,7 @@ function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputEleme
     'use no memo';
     return (
         <input
-            className={`min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 disabled:opacity-40 w-full ${className ?? ''}`}
+            className={`min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30 disabled:opacity-40 w-full ${className ?? ''}`}
             {...props}
         />
     )
@@ -123,7 +123,7 @@ function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLText
     'use no memo';
     return (
         <textarea
-            className={`min-h-[44px] w-full resize-none rounded-lg border border-border bg-surface-1 px-3 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 leading-relaxed ${className ?? ''}`}
+            className={`min-h-[44px] w-full resize-none rounded-lg border border-border bg-surface-1 px-3 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30 leading-relaxed ${className ?? ''}`}
             {...props}
         />
     )
@@ -135,7 +135,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
         <button
             type="button"
             onClick={onChange}
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo focus:ring-offset-2 focus:ring-offset-zinc-950 min-h-[44px] ${checked ? 'bg-indigo' : 'bg-zinc-700'}`}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-azure focus:ring-offset-2 focus:ring-offset-zinc-950 min-h-[44px] ${checked ? 'bg-azure' : 'bg-zinc-700'}`}
         >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
         </button>
@@ -214,26 +214,26 @@ function RuleValueEditor({ val, locked, onChange }: { val: RuleValue; locked: bo
             return (
                 <input type="number" value={val.value as number} min={val.min} max={val.max}
                     onChange={e => onChange({ ...val, value: parseFloat(e.target.value) })}
-                    className="w-full sm:w-24 min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none"
+                    className="w-full sm:w-24 min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus:outline-none"
                 />
             )
         case 'enum':
             return (
                 <select value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
-                    className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none">
+                    className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus:outline-none">
                     {(val.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
             )
         case 'string':
             return (
                 <input type="text" value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
-                    className="flex-1 w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none"
+                    className="flex-1 w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus:outline-none"
                 />
             )
         case 'text_block':
             return (
                 <textarea value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })} rows={3}
-                    className="flex-1 w-full resize-none min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none leading-relaxed"
+                    className="flex-1 w-full resize-none min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus:outline-none leading-relaxed"
                 />
             )
         default:
@@ -297,7 +297,7 @@ function RuleRow({ rule, onUpdate, onDelete, showSource = false, overriddenBy }:
                     </div>
                     {needsTextSave && dirty && (
                         <button onClick={() => void handleSave()} disabled={saving}
-                            className="text-[16px] sm:text-xs bg-indigo text-text-primary min-h-[44px] min-w-[44px] rounded-lg hover:bg-indigo/90 disabled:opacity-50 flex flex-col items-center justify-center shrink-0">
+                            className="text-[16px] sm:text-xs bg-azure text-text-primary min-h-[44px] min-w-[44px] rounded-lg hover:bg-azure/90 disabled:opacity-50 flex flex-col items-center justify-center shrink-0">
                             {saving ? <RefreshCw className="h-4 w-4 sm:h-3 sm:w-3 animate-spin" /> : <Check className="h-4 w-4 sm:h-3 sm:w-3" />}
                         </button>
                     )}
@@ -344,14 +344,14 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                     <label className="text-xs text-text-muted mb-1 block">Label</label>
                     <input type="text" value={label} onChange={e => setLabel(e.target.value)} autoFocus
                         placeholder="e.g. Always use TypeScript strict mode"
-                        className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                        className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                     />
                     {autoKey && <p className="text-[10px] text-zinc-700 mt-1 sm:mt-0.5 font-mono">key: {autoKey}</p>}
                 </div>
                 <div>
                     <label className="text-xs text-text-muted mb-1 block">Type</label>
                     <select value={valueType} onChange={e => setValueType(e.target.value as RuleValue['type'])}
-                        className="w-full sm:w-auto min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-indigo focus:outline-none">
+                        className="w-full sm:w-auto min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus:outline-none">
                         <option value="text_block">Text block</option>
                         <option value="string">Short string</option>
                         <option value="boolean">Toggle</option>
@@ -367,12 +367,12 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                 {valueType === 'text_block' ? (
                     <textarea rows={3} value={value} onChange={e => setValue(e.target.value)}
                         placeholder="Enter the rule content…"
-                        className="w-full resize-none min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                        className="w-full resize-none min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                     />
                 ) : (
                     <input type={valueType === 'number' ? 'number' : 'text'} value={value} onChange={e => setValue(e.target.value)}
                         placeholder={valueType === 'enum' ? 'option1, option2, option3' : ''}
-                        className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                        className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                     />
                 )}
             </div>
@@ -380,14 +380,14 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                 <label className="text-xs text-text-muted mb-1 block">Description (optional)</label>
                 <input type="text" value={description} onChange={e => setDescription(e.target.value)}
                     placeholder="What does this rule do?"
-                    className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                    className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                 />
             </div>
             <div className="flex flex-col sm:flex-row gap-2 justify-end mt-2">
                 <button onClick={onCancel} className="text-[16px] sm:text-xs text-text-secondary hover:text-text-primary min-h-[44px] px-4 rounded-lg transition-colors border border-border sm:border-transparent">Cancel</button>
                 <button onClick={() => { if (!label.trim()) return; onAdd({ type, key: autoKey, label: label.trim(), description, value: buildValue() }) }}
                     disabled={!label.trim()}
-                    className="flex justify-center items-center text-[16px] sm:text-xs bg-indigo text-text-primary min-h-[44px] px-4 rounded-lg hover:bg-indigo/90 disabled:opacity-40 transition-colors cursor-pointer">
+                    className="flex justify-center items-center text-[16px] sm:text-xs bg-azure text-text-primary min-h-[44px] px-4 rounded-lg hover:bg-azure/90 disabled:opacity-40 transition-colors cursor-pointer">
                     Add rule
                 </button>
             </div>
@@ -549,7 +549,7 @@ function HistoryTab({ workspaceId }: { workspaceId: string }) {
                 <div className="flex flex-col gap-1.5">
                     {snapshots.map(s => (
                         <div key={s.id}
-                            className={`rounded-lg border px-4 py-3 cursor-pointer transition-colors ${selected?.id === s.id ? 'border-indigo/40 bg-indigo-950/10' : 'border-border hover:border-border'}`}
+                            className={`rounded-lg border px-4 py-3 cursor-pointer transition-colors ${selected?.id === s.id ? 'border-azure/40 bg-azure/10' : 'border-border hover:border-border'}`}
                             onClick={() => setSelected(selected?.id === s.id ? null : s)}>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-text-secondary capitalize">{s.triggeredBy.replace('_', ' ')}</span>
@@ -730,7 +730,7 @@ function AgentSettingsContent() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl   text-xl shadow-lg shadow-indigo-500/20 shrink-0">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl   text-xl shadow-lg shadow-azure/20 shrink-0">
                         {settings.agentAvatar ?? '🤖'}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -745,8 +745,8 @@ function AgentSettingsContent() {
                     </button>
                     {showSaveButton && (
                         <button onClick={() => void handleSave()} disabled={saving || loading || !workspaceId}
-                            className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial">
-                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald" /> : <Save className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
+                            className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial">
+                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-azure" /> : <Save className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                             {saved ? 'Saved' : 'Save changes'}
                         </button>
                     )}
@@ -757,7 +757,7 @@ function AgentSettingsContent() {
             {agentStatus && (
                 <div className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border px-4 py-3 ${agentStatus.status === 'running' ? 'border-green-800/40 bg-green-950/20' : 'border-border bg-surface-1/40'}`}>
                     <div className="flex items-center gap-3 min-w-0">
-                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${agentStatus.status === 'running' ? 'bg-emerald animate-pulse' : 'bg-surface-3'}`} />
+                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${agentStatus.status === 'running' ? 'bg-azure animate-pulse' : 'bg-surface-3'}`} />
                         <div className="text-sm truncate">
                             <span className="font-medium text-text-primary capitalize">{agentStatus.status}</span>
                             {agentStatus.currentTask && <span className="text-text-muted ml-2">· task {agentStatus.currentTask.slice(0, 8)}</span>}
@@ -779,7 +779,7 @@ function AgentSettingsContent() {
             <div className="flex gap-1 border-b border-border overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {TABS.map(({ id, label, icon: Icon }) => (
                     <button key={id} onClick={() => setTab(id)}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px shrink-0 w-auto min-h-[44px] ${tab === id ? 'border-indigo text-indigo' : 'border-transparent text-text-muted hover:text-text-secondary'}`}>
+                        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px shrink-0 w-auto min-h-[44px] ${tab === id ? 'border-azure text-azure' : 'border-transparent text-text-muted hover:text-text-secondary'}`}>
                         <Icon className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         {label}
                     </button>
@@ -799,14 +799,14 @@ function AgentSettingsContent() {
                                     <div className="flex flex-row justify-between sm:justify-start gap-1.5 w-full overflow-x-auto pb-2 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                                         {['🤖', '🧠', '⚡', '🦾', '🌟', '👾', '🔱', '🦊', '🐉', '🔮'].map((emoji) => (
                                             <button key={emoji} onClick={() => updateSetting('agentAvatar', emoji)}
-                                                className={`min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji ? 'bg-indigo/30 ring-1 ring-indigo' : 'bg-surface-2 hover:bg-zinc-700'}`}>
+                                                className={`min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji ? 'bg-azure/30 ring-1 ring-indigo' : 'bg-surface-2 hover:bg-zinc-700'}`}>
                                                 {emoji}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-1.5 sm:ml-auto w-full sm:w-auto pt-4 sm:pt-0 border-t border-border sm:border-0 order-first sm:order-none">
-                                    <div className="flex h-16 w-16 sm:h-14 sm:w-14 items-center justify-center rounded-full   text-3xl shadow-lg shadow-indigo-500/20">
+                                    <div className="flex h-16 w-16 sm:h-14 sm:w-14 items-center justify-center rounded-full   text-3xl shadow-lg shadow-azure/20">
                                         {settings.agentAvatar ?? '🤖'}
                                     </div>
                                     <span className="text-sm sm:text-xs text-text-primary sm:text-text-muted font-medium">{settings.agentName || 'Plexo'}</span>
@@ -864,8 +864,8 @@ function AgentSettingsContent() {
 
                     <div className="flex items-center justify-end gap-2">
                         <button onClick={() => void handleSave()} disabled={saving || !workspaceId}
-                            className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors">
-                            {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5 text-emerald" /> : <Save className="h-3.5 w-3.5" />}
+                            className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors">
+                            {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5 text-azure" /> : <Save className="h-3.5 w-3.5" />}
                             {saved ? 'Saved' : 'Save changes'}
                         </button>
                     </div>
@@ -895,7 +895,7 @@ function AgentSettingsContent() {
                                         <span className="text-zinc-700">— later layers override earlier ones</span>
                                     </div>
                                     <button onClick={() => setInheritanceMode(m => !m)}
-                                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${inheritanceMode ? 'border-indigo/40 bg-indigo-950/20 text-indigo' : 'border-border text-text-muted hover:text-text-secondary'}`}>
+                                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${inheritanceMode ? 'border-azure/40 bg-azure/20 text-azure' : 'border-border text-text-muted hover:text-text-secondary'}`}>
                                         <ArrowLeftRight className="h-3.5 w-3.5" />
                                         {inheritanceMode ? 'Inheritance view' : 'Inheritance view'}
                                     </button>
@@ -948,7 +948,7 @@ function AgentSettingsContent() {
                                                         fetchBehavior()
                                                     }
                                                     input.click()
-                                                }} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo/30 bg-indigo-950/20 hover:bg-indigo-950/40 text-xs text-indigo-300 transition-colors whitespace-nowrap">
+                                                }} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-azure/30 bg-azure/20 hover:bg-azure/40 text-xs text-azure transition-colors whitespace-nowrap">
                                                     Import AGENTS.md
                                                 </button>
                                             </div>
@@ -988,7 +988,7 @@ function AgentSettingsContent() {
                                     <select
                                         value={settings.maxRetries ?? 3}
                                         onChange={e => updateSetting('maxRetries', parseInt(e.target.value))}
-                                        className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none w-fit"
+                                        className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure focus:outline-none w-fit"
                                     >
                                         {[0, 1, 2, 3, 5].map((v) => (
                                             <option key={v} value={v}>{v}</option>
@@ -1020,7 +1020,7 @@ function AgentSettingsContent() {
                                         else if (v === 'always_ask') updateSetting('autoApproveThreshold', 0.0)
                                         else updateSetting('autoApproveThreshold', 0.5)
                                     }}
-                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none w-fit"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure focus:outline-none w-fit"
                                 >
                                     <option value="auto">Auto-approve (default)</option>
                                     <option value="manual">Ask me when uncertain</option>
@@ -1059,7 +1059,7 @@ function AgentSettingsContent() {
                                 <select
                                     value={settings.ensembleSize ?? 3}
                                     onChange={e => updateSetting('ensembleSize', parseInt(e.target.value))}
-                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none w-fit"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure focus:outline-none w-fit"
                                 >
                                     {[1, 2, 3, 4, 5].map(n => (
                                         <option key={n} value={n}>{n} judge{n !== 1 ? 's' : ''}</option>
@@ -1071,7 +1071,7 @@ function AgentSettingsContent() {
                                 <select
                                     value={settings.dissentThreshold ?? 0.25}
                                     onChange={e => updateSetting('dissentThreshold', parseFloat(e.target.value))}
-                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none w-fit"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure focus:outline-none w-fit"
                                 >
                                     {[0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50].map(v => (
                                         <option key={v} value={v}>{Math.round(v * 100)}pp</option>
@@ -1084,15 +1084,15 @@ function AgentSettingsContent() {
                             <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">How it works</p>
                             <ol className="flex flex-col gap-2 text-xs text-text-muted list-none">
                                 <li className="flex items-start gap-2">
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo">1</span>
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-azure-900/50 text-[9px] font-bold text-azure">1</span>
                                     Task completes → executor calls <code className="text-text-secondary">judgeQuality()</code>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo">2</span>
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-azure-900/50 text-[9px] font-bold text-azure">2</span>
                                     Ollama <code className="text-text-secondary">/api/tags</code> queried → up to <strong className="text-text-secondary">{settings.ensembleSize ?? 3}</strong> small models recruited
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-900/50 text-[9px] font-bold text-indigo">3</span>
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-azure-900/50 text-[9px] font-bold text-azure">3</span>
                                     All judges score the deliverable in parallel — weighted by their <code className="text-text-secondary">reliabilityScore</code>
                                 </li>
                                 <li className="flex items-start gap-2">
@@ -1100,7 +1100,7 @@ function AgentSettingsContent() {
                                     If any judge diverges &gt; <strong className="text-amber">{Math.round((settings.dissentThreshold ?? 0.25) * 100)}pp</strong> from consensus → cloud arbitrator resolves
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-900/50 text-[9px] font-bold text-emerald">5</span>
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-azure-900/50 text-[9px] font-bold text-azure">5</span>
                                     Result stored in task context · each judge's <code className="text-text-secondary">reliabilityScore</code> nudged ±0.5–1% based on agreement
                                 </li>
                             </ol>
@@ -1120,7 +1120,7 @@ function AgentSettingsContent() {
                             <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Fallback modes</p>
                             <div className="flex flex-col gap-1.5 text-xs text-text-muted">
                                 {[
-                                    { mode: 'ensemble', color: 'bg-indigo-900/30 text-indigo', label: 'Ollama configured + models available + consensus reached' },
+                                    { mode: 'ensemble', color: 'bg-azure-900/30 text-azure', label: 'Ollama configured + models available + consensus reached' },
                                     { mode: 'ensemble+arbitration', color: 'bg-amber-900/30 text-amber', label: 'Ensemble ran but judges disagreed — cloud resolved' },
                                     { mode: 'single', color: 'bg-surface-2 text-text-secondary', label: 'Ollama not configured — single cheap cloud model judges' },
                                     { mode: 'fallback', color: 'bg-surface-2 text-text-muted', label: 'All judges failed — self-reported score passed through' },
@@ -1135,7 +1135,7 @@ function AgentSettingsContent() {
 
                         <a
                             href="/settings/ai-providers"
-                            className="inline-flex items-center gap-1.5 text-xs text-indigo hover:text-indigo-300 transition-colors"
+                            className="inline-flex items-center gap-1.5 text-xs text-azure hover:text-azure transition-colors"
                         >
                             <Zap className="h-3.5 w-3.5" />
                             Configure Ollama in AI Providers →

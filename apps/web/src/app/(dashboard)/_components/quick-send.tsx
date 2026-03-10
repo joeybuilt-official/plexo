@@ -64,21 +64,21 @@ export function QuickSend() {
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder="Describe a task for your agent…"
-                    className="flex-1 rounded-lg border border-border bg-canvas px-3 py-2.5 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo/50 focus:outline-none focus:ring-1 focus:ring-indigo/50 disabled:opacity-50 min-h-[44px]"
+                    className="flex-1 rounded-lg border border-border bg-canvas px-3 py-2.5 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure/50 focus:outline-none focus:ring-1 focus:ring-azure/50 disabled:opacity-50 min-h-[44px]"
                     disabled={status === 'sending'}
                 />
                 <button
                     type="submit"
                     disabled={!text.trim() || status === 'sending'}
-                    className="rounded-lg bg-indigo px-4 py-2.5 text-[16px] md:text-sm font-medium text-text-primary transition-all hover:bg-indigo/90 disabled:cursor-not-allowed disabled:opacity-40 min-h-[44px]"
+                    className="rounded-lg bg-azure px-4 py-2.5 text-[16px] md:text-sm font-medium text-text-primary transition-all hover:bg-azure/90 disabled:cursor-not-allowed disabled:opacity-40 min-h-[44px]"
                 >
                     {status === 'sending' ? '…' : 'Send'}
                 </button>
             </form>
             {status === 'sent' && taskId && (
-                <p className="mt-2 text-[11px] text-emerald">
+                <p className="mt-2 text-[11px] text-azure">
                     ✓ Task queued —{' '}
-                    <Link href={`/tasks/${taskId}`} className="underline hover:text-emerald transition-colors">
+                    <Link href={`/tasks/${taskId}`} className="underline hover:text-azure transition-colors">
                         view {taskId.slice(0, 8)}…
                     </Link>
                 </p>

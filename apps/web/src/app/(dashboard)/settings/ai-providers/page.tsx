@@ -167,7 +167,7 @@ const PROVIDERS: ProviderConfig[] = [
         name: 'Ollama',
         description: 'Run models locally — no API key required',
         badge: 'Local',
-        badgeColor: 'bg-emerald/15 text-emerald border border-emerald-500/30',
+        badgeColor: 'bg-azure/15 text-azure border border-azure/30',
         requiresKey: false,
     },
     {
@@ -276,9 +276,9 @@ function getDefaultModelsForProvider(providerKey: ProviderKey): Record<TaskType,
 // ── Status indicator ──────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: ProviderStatus }) {
-    if (status === 'configured') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald" />
+    if (status === 'configured') return <CheckCircle2 className="h-3.5 w-3.5 text-azure" />
     if (status === 'untested') return <AlertCircle className="h-3.5 w-3.5 text-amber" />
-    if (status === 'borrowed') return <Link2 className="h-3.5 w-3.5 text-indigo" />
+    if (status === 'borrowed') return <Link2 className="h-3.5 w-3.5 text-azure" />
     return <Circle className="h-3.5 w-3.5 text-text-muted" />
 }
 
@@ -838,7 +838,7 @@ export default function AIProvidersPage() {
                             {lf.hasFilters && (
                                 <button
                                     onClick={clearAll}
-                                    className="mt-2 text-xs text-indigo hover:text-indigo-300 min-h-[44px] px-2"
+                                    className="mt-2 text-xs text-azure hover:text-azure min-h-[44px] px-2"
                                 >
                                     Clear filters
                                 </button>
@@ -854,7 +854,7 @@ export default function AIProvidersPage() {
                                 key={p.key}
                                 onClick={() => setSelectedProvider(p.key)}
                                 className={`text-left rounded-xl border p-3 transition-all shrink-0 w-[280px] sm:w-[320px] md:w-auto snap-start ${active
-                                    ? 'border-indigo/50 bg-surface-1 shadow-sm shadow-indigo-500/10'
+                                    ? 'border-azure/50 bg-surface-1 shadow-sm shadow-azure/10'
                                     : 'border-border bg-surface-1/40 hover:border-border hover:bg-surface-1/70'
                                     } ${isDisabled ? 'opacity-50' : ''}`}
                             >
@@ -867,7 +867,7 @@ export default function AIProvidersPage() {
                                             <div className="flex items-center gap-1.5">
                                                 <p className={`text-sm font-medium ${isDisabled ? 'text-text-muted line-through decoration-zinc-600' : 'text-text-primary'}`}>{p.name}</p>
                                                 {primaryProvider === p.key && !isDisabled && (
-                                                    <Star className="h-3 w-3 text-indigo fill-indigo-400" />
+                                                    <Star className="h-3 w-3 text-azure fill-azure" />
                                                 )}
                                                 {isDisabled && (
                                                     <span className="text-[9px] font-semibold tracking-wide rounded px-1 py-px bg-surface-2 text-text-muted border border-border">DISABLED</span>
@@ -919,8 +919,8 @@ export default function AIProvidersPage() {
                                         await handleSave({ [selectedProvider]: { enabled: next } } as Partial<Record<ProviderKey, Partial<ProviderState>>>)
                                     }}
                                     title={state.enabled ? 'Disable this provider' : 'Enable this provider'}
-                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-indigo/40 ${
-                                        state.enabled ? 'bg-indigo' : 'bg-zinc-700'
+                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-azure/40 ${
+                                        state.enabled ? 'bg-azure' : 'bg-zinc-700'
                                     }`}
                                 >
                                     <span
@@ -934,11 +934,11 @@ export default function AIProvidersPage() {
                                 onClick={() => { setPrimaryProvider(selectedProvider); setModelRouting({ ...getDefaultModelsForProvider(selectedProvider) }) }}
                                 disabled={!state.enabled && state.status !== 'unconfigured'}
                                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${primaryProvider === selectedProvider
-                                    ? 'border-indigo/50 bg-indigo-dim text-indigo'
+                                    ? 'border-azure/50 bg-azure-dim text-azure'
                                     : 'border-border bg-surface-2 text-text-secondary hover:border-zinc-600 hover:text-text-primary'
                                     }`}
                             >
-                                <Star className={`h-3.5 w-3.5 ${primaryProvider === selectedProvider ? 'fill-indigo-400' : ''}`} />
+                                <Star className={`h-3.5 w-3.5 ${primaryProvider === selectedProvider ? 'fill-azure' : ''}`} />
                                 {primaryProvider === selectedProvider ? 'Primary provider' : 'Set as primary'}
                             </button>
                         </div>
@@ -951,11 +951,11 @@ export default function AIProvidersPage() {
 
                                 {/* OpenRouter-specific: free tier notice */}
                                 {selectedProvider === 'openrouter' && editingKey[selectedProvider] && (
-                                    <div className="flex flex-col gap-2 rounded-xl border border-emerald-500/20 bg-emerald/5 p-4">
+                                    <div className="flex flex-col gap-2 rounded-xl border border-azure/20 bg-azure/5 p-4">
                                         <div className="flex items-start gap-3">
-                                            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald" />
+                                            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
                                             <div>
-                                                <p className="text-sm font-medium text-emerald-300">Free tier available — no credits required</p>
+                                                <p className="text-sm font-medium text-azure-300">Free tier available — no credits required</p>
                                                 <p className="mt-1 text-xs text-text-muted leading-relaxed">
                                                     OpenRouter blocks accounts with no purchase history from paid models (402 error).
                                                     Free models with the <code className="text-text-secondary">:free</code> suffix work with any key — no credit card needed.
@@ -963,7 +963,7 @@ export default function AIProvidersPage() {
                                                 </p>
                                                 <p className="mt-1.5 text-xs text-text-muted leading-relaxed">
                                                     <strong className="text-text-secondary">Privacy note:</strong> Some free models require{' '}
-                                                    <a href="https://openrouter.ai/settings/privacy" target="_blank" rel="noopener noreferrer" className="text-indigo hover:text-indigo-300 underline underline-offset-2">Model Training</a>
+                                                    <a href="https://openrouter.ai/settings/privacy" target="_blank" rel="noopener noreferrer" className="text-azure hover:text-azure underline underline-offset-2">Model Training</a>
                                                     {' '}enabled in your OR settings. If all free models fail, enable it or add credits.
                                                     Free limit: ~50 req/day ($10+ in credits raises it to 1,000/day).
                                                 </p>
@@ -986,7 +986,7 @@ export default function AIProvidersPage() {
                                                 </p>
                                                 <p className="mt-1.5 text-xs text-text-muted leading-relaxed">
                                                     Use a paid API key (<code className="text-text-secondary">sk-ant-api03-*</code>) from{' '}
-                                                    <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noopener noreferrer" className="text-indigo hover:text-indigo-300 underline underline-offset-2">console.anthropic.com</a>.
+                                                    <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noopener noreferrer" className="text-azure hover:text-azure underline underline-offset-2">console.anthropic.com</a>.
                                                     These bill per token.
                                                 </p>
                                             </div>
@@ -1008,7 +1008,7 @@ export default function AIProvidersPage() {
                                                 </p>
                                                 <p className="mt-1.5 text-xs text-text-muted leading-relaxed">
                                                     Get your API key at{' '}
-                                                    <a href="https://ollama.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-indigo hover:text-indigo-300 underline underline-offset-2">ollama.com/settings/keys</a>.
+                                                    <a href="https://ollama.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-azure hover:text-azure underline underline-offset-2">ollama.com/settings/keys</a>.
                                                     After saving, Plexo will fetch your available cloud models automatically.
                                                 </p>
                                             </div>
@@ -1025,7 +1025,7 @@ export default function AIProvidersPage() {
                                                 href={PROVIDER_LINKS[selectedProvider]!.url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="flex items-center gap-1 min-h-[44px] px-2 text-xs text-text-muted hover:text-indigo transition-colors"
+                                                className="flex items-center gap-1 min-h-[44px] px-2 text-xs text-text-muted hover:text-azure transition-colors"
                                             >
                                                 {PROVIDER_LINKS[selectedProvider]!.label}
                                                 <ExternalLink className="h-3 w-3" />
@@ -1041,7 +1041,7 @@ export default function AIProvidersPage() {
                                                 <span className="text-text-muted tracking-[0.3em] text-sm select-none flex-1">••••••••••••••••••••</span>
                                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
                                                     state.status === 'configured'
-                                                        ? 'bg-emerald-900/40 text-emerald'
+                                                        ? 'bg-azure-900/40 text-azure'
                                                         : 'bg-amber-900/40 text-amber'
                                                 }`}>
                                                     {state.status === 'configured' ? 'Verified' : 'Saved'}
@@ -1073,7 +1073,7 @@ export default function AIProvidersPage() {
                                                 <div className="flex items-center gap-3">
                                                     <button
                                                         onClick={() => setEditingKey((prev) => ({ ...prev, [selectedProvider]: true }))}
-                                                        className="text-[12px] min-h-[44px] px-3 border border-indigo/20 bg-indigo-dim rounded-lg font-medium text-indigo hover:bg-indigo-dim transition-colors"
+                                                        className="text-[12px] min-h-[44px] px-3 border border-azure/20 bg-azure-dim rounded-lg font-medium text-azure hover:bg-azure-dim transition-colors"
                                                     >
                                                         Change key
                                                     </button>
@@ -1097,7 +1097,7 @@ export default function AIProvidersPage() {
                                                 placeholder="sk-ant-api03-••••••••"
                                                 autoFocus
                                                 autoComplete="new-password"
-                                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30"
+                                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                                             />
                                             {editingKey[selectedProvider] && (
                                                 <button
@@ -1128,9 +1128,9 @@ export default function AIProvidersPage() {
                                     </div>
                                     {state.status === 'borrowed' ? (
                                         /* Read-only URL for borrowed providers */
-                                        <div className="flex items-center gap-2 rounded-lg border border-indigo-800/30 bg-indigo-950/10 px-3 py-2">
+                                        <div className="flex items-center gap-2 rounded-lg border border-azure-800/30 bg-azure/10 px-3 py-2">
                                             <span className="flex-1 text-sm font-mono text-text-secondary">{state.baseUrl || 'http://localhost:11434'}</span>
-                                            <span className="text-[10px] text-indigo">from source workspace</span>
+                                            <span className="text-[10px] text-azure">from source workspace</span>
                                         </div>
                                     ) : (
                                         <div className="flex gap-2">
@@ -1140,7 +1140,7 @@ export default function AIProvidersPage() {
                                                 onChange={(e) => updateState(selectedProvider, { baseUrl: e.target.value, dynamicModels: [], status: 'unconfigured' })}
                                                 onKeyDown={(e) => e.key === 'Enter' && void handleConnect()}
                                                 placeholder="http://localhost:11434"
-                                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 w-full"
+                                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30 w-full"
                                             />
                                             {state.dynamicModels.length === 0 && (
                                                 <button
@@ -1172,7 +1172,7 @@ export default function AIProvidersPage() {
                                 <select
                                     value={state.selectedModel}
                                     onChange={(e) => updateState(selectedProvider, { selectedModel: e.target.value })}
-                                    className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                                 >
                                     <option value="">Use task routing defaults</option>
                                     {(selected.staticModels ?? state.dynamicModels).map((m) => (
@@ -1194,11 +1194,11 @@ export default function AIProvidersPage() {
 
                         {/* Ensemble quality judge badge — Ollama only (configured or borrowed) */}
                         {selectedProvider === 'ollama' && (state.status === 'configured' || state.status === 'borrowed') && state.dynamicModels.length > 0 && (
-                            <div className="rounded-lg border border-indigo-800/30 bg-indigo-950/20 px-3 py-3 flex flex-col gap-1.5">
+                            <div className="rounded-lg border border-azure-800/30 bg-azure/20 px-3 py-3 flex flex-col gap-1.5">
                                 <div className="flex items-center gap-2">
-                                    <Users className="h-3.5 w-3.5 text-indigo" />
-                                    <p className="text-xs font-semibold text-indigo">Used for quality ensemble</p>
-                                    <span className="ml-auto text-[10px] rounded px-1.5 py-0.5 bg-indigo-900/40 text-indigo">
+                                    <Users className="h-3.5 w-3.5 text-azure" />
+                                    <p className="text-xs font-semibold text-azure">Used for quality ensemble</p>
+                                    <span className="ml-auto text-[10px] rounded px-1.5 py-0.5 bg-azure-900/40 text-azure">
                                         up to {Math.min(3, state.dynamicModels.length)} judges
                                     </span>
                                 </div>
@@ -1226,7 +1226,7 @@ export default function AIProvidersPage() {
                                 <button
                                     onClick={() => void handleTest()}
                                     disabled={testing || saving}
-                                    className="flex items-center justify-center w-full md:w-auto gap-2 rounded-lg bg-indigo px-6 min-h-[44px] text-sm font-medium text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-50"
+                                    className="flex items-center justify-center w-full md:w-auto gap-2 rounded-lg bg-azure px-6 min-h-[44px] text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
                                 >
                                     {testing
                                         ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -1239,7 +1239,7 @@ export default function AIProvidersPage() {
 
                         {state.testResult && (
                             <div className={`rounded-lg border px-3 py-2 text-sm font-mono ${state.testResult.startsWith('✓')
-                                ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald'
+                                ? 'border-azure/30 bg-azure/30 text-azure'
                                 : 'border-red-800/50 bg-red-950/30 text-red'
                                 }`}>
                                 {state.testResult}
@@ -1251,10 +1251,10 @@ export default function AIProvidersPage() {
                             const borrow = borrowing.find((s) => s.providerKey === selectedProvider)
                             if (!borrow) return null
                             return (
-                                <div className="flex items-center gap-3 rounded-xl border border-indigo-800/30 bg-indigo-950/10 px-4 py-3">
-                                    <Link2 className="h-4 w-4 text-indigo shrink-0" />
+                                <div className="flex items-center gap-3 rounded-xl border border-azure-800/30 bg-azure/10 px-4 py-3">
+                                    <Link2 className="h-4 w-4 text-azure shrink-0" />
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-indigo-300">Borrowed from <span className="font-semibold">{borrow.sourceWorkspace?.name ?? 'another workspace'}</span></p>
+                                        <p className="text-xs font-medium text-azure">Borrowed from <span className="font-semibold">{borrow.sourceWorkspace?.name ?? 'another workspace'}</span></p>
                                         <p className="text-[10px] text-text-muted mt-0.5">Key stays encrypted in the source workspace — not copied here.</p>
                                     </div>
                                     <button
@@ -1276,7 +1276,7 @@ export default function AIProvidersPage() {
                                     <div className="flex items-center gap-2">
                                         <p className="text-xs font-medium text-text-muted">Share with workspaces</p>
                                         {sharedCount > 0 && (
-                                            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-indigo-900/40 text-indigo font-medium">{sharedCount}</span>
+                                            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-azure-900/40 text-azure font-medium">{sharedCount}</span>
                                         )}
                                         <button
                                             role="switch"
@@ -1289,7 +1289,7 @@ export default function AIProvidersPage() {
                                                 }
                                             }}
                                             className={`ml-auto relative inline-flex h-6 w-11 md:h-5 md:w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                                                sharingOn ? 'bg-indigo' : 'bg-zinc-700'
+                                                sharingOn ? 'bg-azure' : 'bg-zinc-700'
                                             }`}
                                         >
                                             <span className={`pointer-events-none inline-block h-5 w-5 md:h-4 md:w-4 rounded-full bg-white shadow transform transition-transform duration-200 ${
@@ -1301,7 +1301,7 @@ export default function AIProvidersPage() {
                                     {ownWorkspaces.length === 0 ? (
                                         <p className="text-[11px] text-zinc-700">
                                             No other workspaces.{' '}
-                                            <a href="/settings" className="text-indigo hover:text-indigo">Create one in Settings.</a>
+                                            <a href="/settings" className="text-azure hover:text-azure">Create one in Settings.</a>
                                         </p>
                                     ) : (
                                         <div className="flex flex-col gap-1 max-w-xs">
@@ -1313,7 +1313,7 @@ export default function AIProvidersPage() {
                                                         key={ws.id}
                                                         className={`flex items-center gap-3 rounded-lg border px-3 py-3 md:py-2 min-h-[44px] cursor-pointer transition-colors ${
                                                             isShared
-                                                                ? 'border-indigo/40 bg-indigo-500/5'
+                                                                ? 'border-azure/40 bg-azure-500/5'
                                                                 : 'border-border bg-surface-1/40 hover:border-border'
                                                         } ${busy ? 'opacity-60 pointer-events-none' : ''}`}
                                                     >
@@ -1322,11 +1322,11 @@ export default function AIProvidersPage() {
                                                             checked={isShared}
                                                             disabled={busy}
                                                             onChange={() => void handleToggleShare(ws.id, selectedProvider)}
-                                                            className="accent-indigo-500 h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 cursor-pointer"
+                                                            className="accent-azure h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 cursor-pointer"
                                                         />
                                                         <span className="text-xs text-text-secondary flex-1 truncate">{ws.name}</span>
                                                         {busy && <RefreshCw className="h-3 w-3 text-text-muted animate-spin shrink-0" />}
-                                                        {isShared && !busy && <span className="text-[10px] text-indigo shrink-0">Shared</span>}
+                                                        {isShared && !busy && <span className="text-[10px] text-azure shrink-0">Shared</span>}
                                                     </label>
                                                 )
                                             })}
@@ -1355,12 +1355,12 @@ export default function AIProvidersPage() {
                                         {idx > 0 && <span className="text-zinc-700 text-[10px] select-none">›</span>}
                                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border ${
                                             primaryProvider === p.key
-                                                ? 'border-indigo/40 bg-indigo-dim text-indigo-300'
+                                                ? 'border-azure/40 bg-azure-dim text-azure'
                                                 : 'border-border/80 bg-surface-2/80 text-text-secondary'
                                         }`}>
                                             {borrowing.find((s) => s.providerKey === p.key)
-                                                ? <Link2 className="h-2.5 w-2.5 text-indigo shrink-0" />
-                                                : <span className="h-1.5 w-1.5 rounded-full bg-emerald/80 shrink-0" />}
+                                                ? <Link2 className="h-2.5 w-2.5 text-azure shrink-0" />
+                                                : <span className="h-1.5 w-1.5 rounded-full bg-azure/80 shrink-0" />}
                                             {p.name}
                                         </span>
                                     </div>
@@ -1395,7 +1395,7 @@ export default function AIProvidersPage() {
                                 key={p.key}
                                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
                                     primaryProvider === p.key
-                                        ? 'border-indigo/40 bg-indigo-500/8'
+                                        ? 'border-azure/40 bg-azure-500/8'
                                         : 'border-border bg-surface-1/60'
                                     }`}
                             >
@@ -1403,7 +1403,7 @@ export default function AIProvidersPage() {
                                 <StatusDot status={providerStates[p.key].status} />
                                 <span className="text-sm text-text-secondary">{p.name}</span>
                                 {primaryProvider === p.key && (
-                                    <span className="text-[10px] text-indigo font-medium">primary</span>
+                                    <span className="text-[10px] text-azure font-medium">primary</span>
                                 )}
                                 <div className="flex ml-1 gap-1">
                                     <button onClick={() => moveFallback(p.key, -1)} disabled={idx === 0} className="text-text-muted hover:text-text-secondary disabled:opacity-20 flex items-center justify-center min-w-[40px] md:min-w-0 md:px-0.5" aria-label="Move earlier">◀</button>
@@ -1449,7 +1449,7 @@ export default function AIProvidersPage() {
                                                     <select
                                                         value={modelRouting[taskType]}
                                                         onChange={(e) => setModelRouting((prev) => ({ ...prev, [taskType]: e.target.value }))}
-                                                        className="w-[200px] md:w-full rounded border border-border bg-surface-1 px-2 min-h-[44px] md:min-h-[32px] text-[16px] md:text-sm text-text-primary focus:border-indigo focus:outline-none"
+                                                        className="w-[200px] md:w-full rounded border border-border bg-surface-1 px-2 min-h-[44px] md:min-h-[32px] text-[16px] md:text-sm text-text-primary focus:border-azure focus:outline-none"
                                                     >
                                                         <option value="">Provider default ({defaults[taskType]})</option>
                                                         {routingModels.map((m) => (
@@ -1521,7 +1521,7 @@ export default function AIProvidersPage() {
                                 placeholder="0.50"
                                 value={wsDefaultCostCeiling}
                                 onChange={(e) => setWsDefaultCostCeiling(e.target.value)}
-                                className="w-full rounded-lg border border-border bg-surface-1 pl-7 pr-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30"
+                                className="w-full rounded-lg border border-border bg-surface-1 pl-7 pr-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                             />
                         </div>
                         <p className="text-[11px] text-text-muted">Chat &amp; channel tasks with no explicit ceiling. Hierarchy: task › project › workspace.</p>
@@ -1536,7 +1536,7 @@ export default function AIProvidersPage() {
                             placeholder="8192"
                             value={wsDefaultTokenBudget}
                             onChange={(e) => setWsDefaultTokenBudget(e.target.value)}
-                            className="w-full rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30"
+                            className="w-full rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                         />
                         <p className="text-[11px] text-text-muted">Max output tokens per LLM call. 0 = no cap (model default).</p>
                     </div>
@@ -1548,7 +1548,7 @@ export default function AIProvidersPage() {
                     <button
                         onClick={() => void handleSave()}
                         disabled={saving}
-                        className="flex w-full md:w-auto items-center justify-center gap-2 rounded-lg bg-indigo px-3.5 py-1.5 min-h-[44px] md:min-h-[32px] text-[16px] md:text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-50 shrink-0"
+                        className="flex w-full md:w-auto items-center justify-center gap-2 rounded-lg bg-azure px-3.5 py-1.5 min-h-[44px] md:min-h-[32px] text-[16px] md:text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 shrink-0"
                     >
                         <Save className="h-4 w-4 md:h-3 md:w-3" />
                         {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}

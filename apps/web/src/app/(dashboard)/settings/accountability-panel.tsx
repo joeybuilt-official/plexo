@@ -146,8 +146,8 @@ export function AccountabilityPanel() {
                                             {p.anomalyType.replace('_', ' ').toUpperCase()}
                                         </span>
                                         <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-medium tracking-wider
-                                            ${p.status === 'pending' ? 'text-indigo bg-indigo-400/10' :
-                                              p.status === 'approved' ? 'text-emerald bg-emerald/10' :
+                                            ${p.status === 'pending' ? 'text-azure bg-azure/10' :
+                                              p.status === 'approved' ? 'text-azure bg-azure/10' :
                                               'text-text-secondary bg-surface-2'}
                                         `}>
                                             {p.status}
@@ -163,7 +163,7 @@ export function AccountabilityPanel() {
 
                             <div className="p-4 bg-surface-1/40">
                                 <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">Proposed Protocol Change</p>
-                                <pre className="text-xs text-indigo-300 font-mono overflow-auto bg-canvas p-3 rounded-lg border border-border/80">
+                                <pre className="text-xs text-azure font-mono overflow-auto bg-canvas p-3 rounded-lg border border-border/80">
                                     {JSON.stringify(p.proposedChange, null, 2)}
                                 </pre>
 
@@ -172,11 +172,11 @@ export function AccountabilityPanel() {
                                     const sr = shadowResults[p.id]!
                                     const delta = sr.qualityDelta
                                     const DeltaIcon = delta === null ? Minus : delta > 0 ? TrendingUp : TrendingDown
-                                    const deltaColor = delta === null ? 'text-text-muted' : delta > 0 ? 'text-emerald' : 'text-red'
+                                    const deltaColor = delta === null ? 'text-text-muted' : delta > 0 ? 'text-azure' : 'text-red'
                                     return (
                                         <div className="mt-4 pt-4 border-t border-border-subtle">
                                             <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wide flex items-center gap-1.5">
-                                                <CheckCircle className="h-3.5 w-3.5 text-emerald" />
+                                                <CheckCircle className="h-3.5 w-3.5 text-azure" />
                                                 Shadow Test Results ({sr.taskCount} tasks)
                                             </p>
                                             <div className="grid grid-cols-3 gap-3">
@@ -210,7 +210,7 @@ export function AccountabilityPanel() {
                                             type="button"
                                             onClick={() => void handleAction(p.id, 'approve')}
                                             disabled={!!actionLoading}
-                                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald px-3 py-2 text-xs font-medium border border-emerald-600/30 transition-colors disabled:opacity-50"
+                                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-azure-600/20 hover:bg-azure-600/30 text-azure px-3 py-2 text-xs font-medium border border-azure/30 transition-colors disabled:opacity-50"
                                         >
                                             {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                                             Run Shadow Mode

@@ -93,8 +93,8 @@ function AgentStatusBar({
         <div className="flex items-center gap-4 px-3 h-8 bg-canvas border-t border-border text-xs font-mono text-text-muted flex-shrink-0">
             {/* Agent pulse */}
             <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-emerald animate-pulse' : 'bg-surface-3'}`} />
-                <span className={isRunning ? 'text-emerald' : 'text-text-muted'}>
+                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-azure animate-pulse' : 'bg-surface-3'}`} />
+                <span className={isRunning ? 'text-azure' : 'text-text-muted'}>
                     {isRunning ? 'agent active' : 'idle'}
                 </span>
             </div>
@@ -116,7 +116,7 @@ function AgentStatusBar({
             {testResults.length > 0 && (
                 <>
                     <span className="text-zinc-700">|</span>
-                    <span className="text-emerald">{passed}✓</span>
+                    <span className="text-azure">{passed}✓</span>
                     {failed > 0 && <span className="text-red">{failed}✗</span>}
                 </>
             )}
@@ -262,7 +262,7 @@ export function CodeModeShell({
                 ) : (
                     <button
                         onClick={() => setRepoModalOpen(true)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 ml-1 rounded-md bg-indigo/10 hover:bg-indigo/20 border border-indigo/30 hover:border-indigo/50 text-xs font-medium text-indigo transition-all"
+                        className="flex items-center gap-1.5 px-2.5 py-1 ml-1 rounded-md bg-azure/10 hover:bg-azure/20 border border-azure/30 hover:border-azure/50 text-xs font-medium text-azure transition-all"
                     >
                         <GitBranch className="w-3 h-3" />
                         Connect repository

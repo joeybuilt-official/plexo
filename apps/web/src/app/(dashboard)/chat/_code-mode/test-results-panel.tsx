@@ -14,7 +14,7 @@ interface TestResultsPanelProps {
 function StatusDot({ pass }: { pass: boolean }) {
     return (
         <span
-            className={`inline-block w-2 h-2 rounded-full flex-shrink-0 mt-0.5 ${pass ? 'bg-emerald' : 'bg-red'}`}
+            className={`inline-block w-2 h-2 rounded-full flex-shrink-0 mt-0.5 ${pass ? 'bg-azure' : 'bg-red'}`}
         />
     )
 }
@@ -37,7 +37,7 @@ export function TestResultsPanel({ results, onRerun, className = '' }: TestResul
         <div className={`flex flex-col h-full ${className}`}>
             {/* Summary bar */}
             <div className="flex items-center gap-3 px-3 py-2 border-b border-border text-xs font-mono">
-                <span className="text-emerald">{passed.length} passed</span>
+                <span className="text-azure">{passed.length} passed</span>
                 <span className="text-text-muted">·</span>
                 <span className="text-red">{failed.length} failed</span>
                 {failed.length > 0 && onRerun && (

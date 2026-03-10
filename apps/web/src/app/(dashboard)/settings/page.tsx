@@ -7,12 +7,14 @@ import { useState, useEffect, useCallback } from 'react'
 import { Key, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn, LogOut, Server, Terminal, Puzzle, Copy, Activity, Trash2, ShieldCheck } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { AccountabilityPanel } from './accountability-panel'
+import { AppearanceSection } from '@web/components/theme-toggle'
 
 interface Section {
     id: string
     label: string
     icon: React.ElementType
     nativeOnly?: boolean
+    flagged?: boolean  // only show when NEXT_PUBLIC_THEME_TOGGLE=true
 }
 
 const SECTIONS: Section[] = [
@@ -22,6 +24,7 @@ const SECTIONS: Section[] = [
     { id: 'cli', label: 'CLI', icon: Terminal },
     { id: 'mcp', label: 'MCP', icon: Puzzle },
     { id: 'accountability', label: 'Accountability', icon: ShieldCheck },
+    { id: 'appearance', label: 'Appearance', icon: Activity, flagged: true },
     { id: 'system', label: 'System', icon: Activity },
     { id: 'app', label: 'App Settings', icon: LogIn, nativeOnly: true },
 ]
@@ -49,7 +52,7 @@ function CodeSnippet({ label, code }: { label?: string; code: string }) {
                     className="absolute right-2 top-2 p-1.5 rounded-md bg-surface-2/80 text-text-secondary opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity hover:text-text-primary hover:bg-zinc-700 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center"
                     title="Copy code"
                 >
-                    {copied ? <Check className="h-3.5 w-3.5 text-emerald" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? <Check className="h-3.5 w-3.5 text-azure" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
             </div>
         </div>
@@ -70,7 +73,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     return (
         <input
             {...props}
-            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 disabled:opacity-50 min-h-[44px] md:min-h-[36px]"
+            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30 disabled:opacity-50 min-h-[44px] md:min-h-[36px]"
         />
     )
 }
@@ -82,7 +85,7 @@ function SaveButton({ saved, saving }: { saved: boolean; saving: boolean }) {
         <button
             type="submit"
             disabled={saving}
-            className="flex items-center justify-center gap-2 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-50 min-h-[44px] md:min-h-[36px] w-full md:w-auto"
+            className="flex items-center justify-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] md:min-h-[36px] w-full md:w-auto"
         >
             {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
             {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
@@ -291,13 +294,16 @@ export default function SettingsPage() {
             <nav className="shrink-0 w-full md:w-44 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
                 <p className="mb-2 text-[10px] uppercase tracking-widest text-text-muted hidden md:block">Settings</p>
                 <div className="flex flex-row md:flex-col gap-1.5 md:gap-0.5 min-w-max md:min-w-0">
-                    {SECTIONS.filter(s => !s.nativeOnly || (typeof window !== 'undefined' && getRuntimeContext() !== 'browser')).map(({ id, label, icon: Icon }) => (
+                    {SECTIONS.filter(s =>
+                        (!s.nativeOnly || (typeof window !== 'undefined' && getRuntimeContext() !== 'browser')) &&
+                        (!s.flagged || process.env.NEXT_PUBLIC_THEME_TOGGLE === 'true')
+                    ).map(({ id, label, icon: Icon }) => (
                         <button
                             key={id}
                             onClick={() => setActive(id)}
                             className={`flex items-center gap-2.5 rounded-lg px-4 md:px-3 py-2.5 md:py-2 text-sm text-left transition-colors min-h-[44px] md:min-h-[32px] ${active === id ? 'bg-surface-2 text-text-primary' : 'text-text-muted hover:bg-surface-1 hover:text-text-secondary'}`}
                         >
-                            <Icon className={`h-4 w-4 shrink-0 ${active === id ? 'text-indigo' : 'text-text-muted'}`} />
+                            <Icon className={`h-4 w-4 shrink-0 ${active === id ? 'text-azure' : 'text-text-muted'}`} />
                             {label}
                         </button>
                     ))}
@@ -343,7 +349,7 @@ export default function SettingsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setCreatingWs((v) => !v)}
-                                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-[32px] text-sm md:text-[12px] text-text-secondary hover:border-indigo-600/50 hover:text-indigo transition-colors"
+                                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-[32px] text-sm md:text-[12px] text-text-secondary hover:border-azure-600/50 hover:text-azure transition-colors"
                                 >
                                     <Plus className="h-4 w-4 md:h-3.5 md:w-3.5" />
                                     New workspace
@@ -351,7 +357,7 @@ export default function SettingsPage() {
                             </div>
 
                             {creatingWs && (
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-xl border border-indigo-800/40 bg-indigo-950/20 px-4 py-3">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-xl border border-azure-800/40 bg-azure/20 px-4 py-3">
                                     <input
                                         autoFocus
                                         value={newWsName}
@@ -368,7 +374,7 @@ export default function SettingsPage() {
                                             type="button"
                                             onClick={() => void handleCreateWorkspace()}
                                             disabled={creating || !newWsName.trim()}
-                                            className="flex items-center justify-center gap-1 rounded-lg bg-indigo px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 text-sm sm:text-[12px] font-semibold text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors flex-1 sm:flex-none"
+                                            className="flex items-center justify-center gap-1 rounded-lg bg-azure px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 text-sm sm:text-[12px] font-semibold text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors flex-1 sm:flex-none"
                                         >
                                             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                                             Create
@@ -391,9 +397,9 @@ export default function SettingsPage() {
                                         return (
                                             <div
                                                 key={ws.id}
-                                                className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-border' : ''} ${isActive ? 'bg-indigo-950/20' : 'hover:bg-surface-1/40'} transition-colors`}
+                                                className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-border' : ''} ${isActive ? 'bg-azure/20' : 'hover:bg-surface-1/40'} transition-colors`}
                                             >
-                                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo/20 text-[11px] font-bold text-indigo">
+                                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-azure/20 text-[11px] font-bold text-azure">
                                                     {ws.name.slice(0, 1).toUpperCase()}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -401,7 +407,7 @@ export default function SettingsPage() {
                                                     <p className="text-[10px] font-mono text-text-muted truncate">{ws.id}</p>
                                                 </div>
                                                 {isActive ? (
-                                                    <span className="flex items-center gap-1 rounded-full bg-indigo-900/40 border border-indigo-700/30 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-indigo shrink-0">
+                                                    <span className="flex items-center gap-1 rounded-full bg-azure-900/40 border border-azure-700/30 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-azure shrink-0">
                                                         <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
                                                         Active
                                                     </span>
@@ -430,7 +436,7 @@ export default function SettingsPage() {
                                                         <button
                                                             type="button"
                                                             onClick={() => setWorkspace(ws.id, ws.name)}
-                                                            className="flex items-center justify-center gap-1 rounded-lg border border-border px-3 sm:px-2.5 py-2 sm:py-1 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[11px] text-text-secondary hover:border-indigo-600/50 hover:text-indigo transition-colors"
+                                                            className="flex items-center justify-center gap-1 rounded-lg border border-border px-3 sm:px-2.5 py-2 sm:py-1 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[11px] text-text-secondary hover:border-azure-600/50 hover:text-azure transition-colors"
                                                         >
                                                             <LogIn className="h-4 w-4 sm:h-3 sm:w-3 shrink-0" />
                                                             Switch
@@ -461,16 +467,16 @@ export default function SettingsPage() {
                             <p className="mt-0.5 text-sm text-text-muted">Configure credentials for AI providers.</p>
                         </div>
                         <div className="rounded-xl border border-border bg-surface-1/40 p-6 flex flex-col gap-4">
-                            <div className="flex items-start gap-3 rounded-lg border border-indigo-800/40 bg-indigo-950/20 px-4 py-3">
-                                <AlertCircle className="h-4 w-4 shrink-0 text-indigo mt-0.5" />
+                            <div className="flex items-start gap-3 rounded-lg border border-azure-800/40 bg-azure/20 px-4 py-3">
+                                <AlertCircle className="h-4 w-4 shrink-0 text-azure mt-0.5" />
                                 <div>
-                                    <p className="text-sm text-indigo-300 font-medium">Manage keys in AI Providers</p>
-                                    <p className="mt-1 text-xs text-indigo/70">
+                                    <p className="text-sm text-azure font-medium">Manage keys in AI Providers</p>
+                                    <p className="mt-1 text-xs text-azure/70">
                                         API keys, model selection, provider testing, and the fallback chain are all managed in the dedicated AI Providers page.
                                     </p>
                                     <a
                                         href="/settings/ai-providers"
-                                        className="mt-2 inline-flex items-center gap-1 text-sm sm:text-xs font-medium text-indigo hover:text-indigo-300 transition-colors min-h-[44px] px-2 -mx-2 sm:min-h-0 sm:px-0 sm:mx-0 w-fit"
+                                        className="mt-2 inline-flex items-center gap-1 text-sm sm:text-xs font-medium text-azure hover:text-azure transition-colors min-h-[44px] px-2 -mx-2 sm:min-h-0 sm:px-0 sm:mx-0 w-fit"
                                     >
                                         Go to AI Providers →
                                     </a>
@@ -504,7 +510,7 @@ GROQ_API_KEY=gsk_…`}
                                 <button
                                     type="button"
                                     onClick={() => setCreatingApiKey((v) => !v)}
-                                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-0 text-sm md:text-[12px] text-text-secondary hover:border-indigo-600/50 hover:text-indigo transition-colors"
+                                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-0 text-sm md:text-[12px] text-text-secondary hover:border-azure-600/50 hover:text-azure transition-colors"
                                 >
                                     <Plus className="h-4 w-4 md:h-3.5 md:w-3.5" />
                                     <span className="hidden sm:inline">New API Key</span>
@@ -513,7 +519,7 @@ GROQ_API_KEY=gsk_…`}
                             </div>
 
                             {creatingApiKey && (
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-xl border border-indigo-800/40 bg-indigo-950/20 px-4 py-3 mt-1">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-xl border border-azure-800/40 bg-azure/20 px-4 py-3 mt-1">
                                     <input
                                         autoFocus
                                         value={newApiKeyName}
@@ -530,7 +536,7 @@ GROQ_API_KEY=gsk_…`}
                                                 type="button"
                                                 onClick={() => void handleCreateApiKey()}
                                                 disabled={creatingKey || !newApiKeyName.trim()}
-                                                className="flex flex-1 sm:flex-none items-center justify-center gap-1 rounded-lg bg-indigo px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[12px] font-semibold text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors"
+                                                className="flex flex-1 sm:flex-none items-center justify-center gap-1 rounded-lg bg-azure px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[12px] font-semibold text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors"
                                             >
                                             {creatingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                                             Create
@@ -622,7 +628,7 @@ GROQ_API_KEY=gsk_…`}
                         </div>
                         <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center gap-2.5 mb-1">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-dim text-emerald">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-azure-dim text-azure">
                                     <Terminal className="h-3.5 w-3.5" />
                                 </div>
                                 <div>
@@ -686,7 +692,7 @@ GROQ_API_KEY=gsk_…`}
                                             { name: 'plexo_remember', desc: 'Store memory (memory:write)' },
                                         ].map((t) => (
                                             <div key={t.name} className="flex items-start gap-2 py-0.5">
-                                                <code className="text-[10px] text-indigo-300 font-mono shrink-0">{t.name}</code>
+                                                <code className="text-[10px] text-azure font-mono shrink-0">{t.name}</code>
                                                 <span className="text-[10px] text-text-muted">{t.desc}</span>
                                             </div>
                                         ))}
@@ -700,6 +706,8 @@ GROQ_API_KEY=gsk_…`}
 
                 {active === 'accountability' && <AccountabilityPanel />}
 
+                {active === 'appearance' && <AppearanceSection />}
+
                 {active === 'system' && (
                     <div className="flex flex-col gap-6">
                         <div>
@@ -710,7 +718,7 @@ GROQ_API_KEY=gsk_…`}
                         {/* Instance Health */}
                         <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center gap-2.5 mb-1">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-dim text-indigo">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-azure-dim text-azure">
                                     <Activity className="h-3.5 w-3.5" />
                                 </div>
                                 <div>
@@ -722,8 +730,8 @@ GROQ_API_KEY=gsk_…`}
                                 <div className="rounded-lg border border-border/80 bg-canvas/50 p-3">
                                     <p className="text-[10px] uppercase tracking-widest text-text-muted mb-1">Status</p>
                                     <div className="flex items-center gap-2">
-                                        <div className={`flex h-2 w-2 items-center justify-center rounded-full ${health?.status === 'ok' ? 'bg-emerald/20' : 'bg-red/20'}`}>
-                                            <div className={`h-1.5 w-1.5 rounded-full ${health?.status === 'ok' ? 'bg-emerald' : 'bg-red'}`} />
+                                        <div className={`flex h-2 w-2 items-center justify-center rounded-full ${health?.status === 'ok' ? 'bg-azure/20' : 'bg-red/20'}`}>
+                                            <div className={`h-1.5 w-1.5 rounded-full ${health?.status === 'ok' ? 'bg-azure' : 'bg-red'}`} />
                                         </div>
                                         <span className="text-xs font-medium text-text-primary">{health?.status === 'ok' ? 'Healthy' : health?.status ? 'Degraded' : 'Unknown'}</span>
                                     </div>

@@ -33,12 +33,12 @@ async function fetchRecent(workspaceId: string): Promise<Task[]> {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-    complete: 'bg-emerald/20 text-emerald border-emerald-500/30',
+    complete: 'bg-azure/20 text-azure border-azure/30',
     running: 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse',
     queued: 'bg-amber/20 text-amber border-amber-500/30',
     blocked: 'bg-red/20 text-red border-red-500/30',
     cancelled: 'bg-zinc-500/20 text-text-secondary border-zinc-500/30',
-    claimed: 'bg-indigo-dim text-indigo border-indigo/30',
+    claimed: 'bg-azure-dim text-azure border-azure/30',
 }
 
 function timeAgo(iso: string): string {
