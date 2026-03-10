@@ -54,15 +54,10 @@ const ENV_SPEC: EnvVar[] = [
         validate: (v) => v.length >= 32,
         validateMsg: 'Must be at least 32 characters — generate with: openssl rand -hex 32',
     },
-    // ── Optional — AI providers (at least one must be present for agent tasks) ─
-    {
-        key: 'ANTHROPIC_API_KEY',
-        description: 'Anthropic API key (primary AI provider)',
-        required: false,
-    },
+    // ── Optional — AI providers (configured per-workspace in the UI) ────────────
     {
         key: 'OPENAI_API_KEY',
-        description: 'OpenAI API key (fallback AI provider)',
+        description: 'OpenAI API key (env-level fallback; prefer workspace UI config)',
         required: false,
     },
     // ── Optional — OAuth ──────────────────────────────────────────────────────
@@ -133,19 +128,8 @@ export function validateEnv(): void {
         }
     }
 
-    // At least one AI provider must be set for tasks to work
-    const hasAiProvider =
-        !!process.env.ANTHROPIC_API_KEY ||
-        !!process.env.OPENAI_API_KEY ||
-        !!process.env.GEMINI_API_KEY ||
-        !!process.env.GROQ_API_KEY ||
-        !!process.env.MISTRAL_API_KEY
-
-    if (!hasAiProvider) {
-        warnings.push(
-            '  ⚠ No AI provider key set — agent tasks will fail. Set at least one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, MISTRAL_API_KEY',
-        )
-    }
+    // AI provider keys are optional at the env level — they can be configured
+    // per-workspace in the UI. A missing env-level key is not a startup error.
 
     // Print warnings (non-fatal)
     if (warnings.length > 0) {

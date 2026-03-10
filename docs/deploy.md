@@ -24,7 +24,7 @@ cd plexo
 # 2. Configure environment
 cp .env.example .env
 # Edit .env — fill in POSTGRES_PASSWORD, SESSION_SECRET, PUBLIC_URL,
-# PUBLIC_DOMAIN, and at least one AI provider key (ANTHROPIC_API_KEY etc.)
+# PUBLIC_DOMAIN, and generate ENCRYPTION_SECRET (openssl rand -hex 32)
 
 # 3. Start
 docker compose -f docker/compose.yml up -d
@@ -44,7 +44,8 @@ See `.env.example` for the full list with descriptions.
 - `SESSION_SECRET` — generate with `openssl rand -hex 64`
 - `PUBLIC_URL` — full URL including protocol, e.g. `https://plexo.example.com`
 - `PUBLIC_DOMAIN` — domain only, e.g. `plexo.example.com`
-- At least one AI provider key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, etc.)
+- `ENCRYPTION_SECRET` — generate with `openssl rand -hex 32`
+- AI provider keys are configured in-app via **Settings → AI Providers** (not required at deploy time)
 
 **Optional** (unlock features when set):
 - `GITHUB_CLIENT_ID/SECRET` — GitHub login + GitHub Actions connection

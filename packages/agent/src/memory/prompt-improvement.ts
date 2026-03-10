@@ -61,8 +61,14 @@ export async function proposePromptImprovements(params: {
 }): Promise<PromptPatch[]> {
     const { workspaceId, lookbackDays = 14, minSamples = 5 } = params
 
-    const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY
-    if (!apiKey) {
+    const hasProvider = !!(
+        process.env.OPENAI_API_KEY ??
+        process.env.OPENROUTER_API_KEY ??
+        process.env.GEMINI_API_KEY ??
+        process.env.GROQ_API_KEY ??
+        process.env.MISTRAL_API_KEY
+    )
+    if (!hasProvider) {
         logger.warn('No AI provider API key — cannot run prompt improvement analysis')
         return []
     }

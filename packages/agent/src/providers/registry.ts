@@ -249,15 +249,14 @@ export async function resolveModel(
  * Resolve a model from environment variables — for internal code paths
  * (sprint planner, memory modules) that run without a user session / workspace settings.
  *
- * Priority: ANTHROPIC_API_KEY → OPENAI_API_KEY → OPENROUTER_API_KEY → Ollama local
+ * Priority: OPENAI_API_KEY → OPENROUTER_API_KEY → Ollama local
  *
- * @param modelId  Optional explicit model ID override (e.g. 'claude-haiku-4-5').
+ * @param modelId  Optional explicit model ID override.
  *                 When omitted the DEFAULT_MODEL_ROUTING for the task type is used.
  */
 export function resolveModelFromEnv(modelId?: string): AnyLanguageModel {
     const id = modelId ?? DEFAULT_MODEL_ROUTING.summarization
 
-    if (process.env.ANTHROPIC_API_KEY) return anthropic(id)
     if (process.env.OPENAI_API_KEY) {
         // Map claude model IDs to an OpenAI equivalent when using OpenAI as fallback
         const openaiId = id.startsWith('claude') ? 'gpt-4o-mini' : id

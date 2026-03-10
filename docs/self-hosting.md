@@ -20,7 +20,9 @@ Edit `.env` and fill in 5 required values:
 2. `PUBLIC_URL` — e.g. `https://plexo.yourdomain.com`
 3. `PUBLIC_DOMAIN` — e.g. `plexo.yourdomain.com`
 4. `SESSION_SECRET` — generate with `openssl rand -hex 64`
-5. `ANTHROPIC_API_KEY` — from console.anthropic.com
+5. `ENCRYPTION_SECRET` — generate with `openssl rand -hex 32`
+
+AI provider keys (OpenAI, OpenRouter, Groq, etc.) are configured in-app via **Settings → AI Providers** after first launch. No AI key is required to start.
 
 Then start:
 

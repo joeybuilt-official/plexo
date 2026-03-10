@@ -183,7 +183,6 @@ export default function SettingsPage() {
     }, [active, loadApiKeys])
 
     // API key state (write-only — never read back)
-    const [anthropicKey, setAnthropicKey] = useState('')
     const [openaiKey, setOpenaiKey] = useState('')
 
     async function handleDeleteWorkspace(id: string) {
@@ -266,7 +265,6 @@ export default function SettingsPage() {
             } else if (active === 'api-keys') {
                 // Store non-empty keys into workspace settings (API encrypts at rest)
                 const apiKeys: Record<string, string> = {}
-                if (anthropicKey.trim()) apiKeys.anthropic = anthropicKey.trim()
                 if (openaiKey.trim()) apiKeys.openai = openaiKey.trim()
                 if (Object.keys(apiKeys).length > 0) {
                     const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}`, {
@@ -276,7 +274,6 @@ export default function SettingsPage() {
                     })
                     if (!res.ok) throw new Error('Failed to save keys')
                 }
-                setAnthropicKey('')
                 setOpenaiKey('')
             }
             setSaved(true)
@@ -486,8 +483,7 @@ export default function SettingsPage() {
                             <div className="pt-2 border-t border-border">
                                 <p className="text-xs font-medium text-text-secondary mb-2">Self-hosted environment variables</p>
                                 <code className="block rounded-lg bg-canvas border border-border p-3 text-[11px] font-mono text-text-secondary whitespace-pre leading-relaxed">
-                                    {`ANTHROPIC_API_KEY=sk-ant-api03-…
-OPENAI_API_KEY=sk-…
+                                    {`OPENAI_API_KEY=sk-…
 OPENROUTER_API_KEY=sk-or-v1-…
 GROQ_API_KEY=gsk_…`}
                                 </code>

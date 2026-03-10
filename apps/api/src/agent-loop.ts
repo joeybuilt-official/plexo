@@ -416,9 +416,9 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         sprintGoal,
         sprintName,
         // Runtime identity — resolved provider/model so executor knows who it is
-        activeProvider: aiSettings?.primaryProvider ?? 'anthropic',
+        activeProvider: aiSettings?.primaryProvider ?? 'openai',
         activeModel: (aiSettings?.providers as Record<string, { model?: string } | undefined> | undefined)
-            ?.[aiSettings?.primaryProvider ?? 'anthropic']?.model ?? 'claude-sonnet-4-5',
+            ?.[aiSettings?.primaryProvider ?? 'openai']?.model ?? 'gpt-4o',
         // Per-task override (Mode 4): forces this model ID over workspace settings
         modelOverrideId,
         // Sprint coding context
