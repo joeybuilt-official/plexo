@@ -113,7 +113,9 @@ const BUILTIN_TOOLS = [
     'shell',
     'task_complete',
     'write_asset',
+    'synthesize_kapsel_skill',
 ]
+
 
 // ── Builder ────────────────────────────────────────────────────────────────────
 

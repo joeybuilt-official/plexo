@@ -142,6 +142,7 @@ const BUILTIN_TOOLS = [
     'task_complete',
     'write_asset',
     'self_reflect',
+    'synthesize_kapsel_skill',
 ] as const
 
 // ── Local version reader ──────────────────────────────────────────────────────
