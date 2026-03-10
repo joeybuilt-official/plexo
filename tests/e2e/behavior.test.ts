@@ -13,7 +13,7 @@ test.describe('Behavior API', () => {
   test('GET /api/v1/behavior/:workspaceId returns rules and groups', async ({ request }) => {
     // Get a real workspace to submit against
     const wsRes = await request.get(`${API_URL}/api/v1/workspaces`)
-    if (!wsRes.ok) return // Skip if no auth
+    if (!wsRes.ok()) return // Skip if no auth
     const wsData = await wsRes.json() as { items: { id: string }[] }
     if (!wsData.items?.length) return
     const wsId = wsData.items[0]!.id
@@ -32,7 +32,7 @@ test.describe('Behavior API', () => {
 
   test('POST /api/v1/behavior/:workspaceId/rules creates a rule', async ({ request }) => {
     const wsRes = await request.get(`${API_URL}/api/v1/workspaces`)
-    if (!wsRes.ok) return
+    if (!wsRes.ok()) return
     const wsData = await wsRes.json() as { items: { id: string }[] }
     if (!wsData.items?.length) return
     const wsId = wsData.items[0]!.id
@@ -58,7 +58,7 @@ test.describe('Behavior API', () => {
 
   test('PATCH /api/v1/behavior/:workspaceId/rules/:ruleId updates a rule', async ({ request }) => {
     const wsRes = await request.get(`${API_URL}/api/v1/workspaces`)
-    if (!wsRes.ok) return
+    if (!wsRes.ok()) return
     const wsData = await wsRes.json() as { items: { id: string }[] }
     if (!wsData.items?.length) return
     const wsId = wsData.items[0]!.id

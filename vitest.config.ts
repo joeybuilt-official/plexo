@@ -14,7 +14,7 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'node',
-        setupFiles: ['./tests/setup.ts'],
+        setupFiles: [resolve(__dirname, './tests/setup.ts')],
         // Exclude integration tests from the unit suite — they run via pnpm test:integration
         exclude: ['tests/integration/**', 'node_modules/**'],
         pool: 'forks',
