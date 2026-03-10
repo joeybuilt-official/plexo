@@ -112,22 +112,31 @@ export function detectAnomalies(recentTasks: any[]): RSIAnomaly[] {
         }
     }
 
-    // 3. Check for 'cost_spikes' against a rolling average mechanism (simplified for scope: hardcoded reference)
-    const costAggregations = recentTasks.filter(t => t.costUsd && t.costUsd > 0.0)
-    if (costAggregations.length >= 5) {
-        // Evaluate historical vs current window. Here we simulate a >2x check context
-        const avgCost = costAggregations.reduce((acc, t) => acc + (t.costUsd || 0), 0) / costAggregations.length
-        
-        // Let's pretend the historical avg is hardcoded derived to $0.50 per task as a baseline
-        const historicalAvg = 0.50
-        
-        if (avgCost > (historicalAvg * 2.0)) {
-            proposals.push({
-                type: 'cost_spikes',
-                hypothesis: `Average task cost spiked to $${avgCost.toFixed(2)}. Clarification loops may be unbounded.`,
-                proposedChange: { action: 'cap_clarification_loops', target: 'soul_protocol', threshold: 2 },
-                risk: 'high'
-            })
+    // 3. Cost spikes — compare current window avg against prior 30-day window avg
+    const costTasks = recentTasks.filter(t => t.costUsd && t.costUsd > 0.0)
+    if (costTasks.length >= 5) {
+        const currentAvgCost = costTasks.reduce((acc, t) => acc + (t.costUsd || 0), 0) / costTasks.length
+
+        // Derive historical baseline from the prior window in the dataset (the oldest half)
+        const sorted = [...costTasks].sort((a, b) =>
+            (a.completedAt?.getTime() ?? 0) - (b.completedAt?.getTime() ?? 0)
+        )
+        const halfPoint = Math.floor(sorted.length / 2)
+        const priorHalf = sorted.slice(0, halfPoint)
+        const recentHalf = sorted.slice(halfPoint)
+
+        if (priorHalf.length >= 2 && recentHalf.length >= 2) {
+            const priorAvg = priorHalf.reduce((s, t) => s + (t.costUsd ?? 0), 0) / priorHalf.length
+            const recentAvg = recentHalf.reduce((s, t) => s + (t.costUsd ?? 0), 0) / recentHalf.length
+
+            if (priorAvg > 0 && recentAvg > priorAvg * 2.0) {
+                proposals.push({
+                    type: 'cost_spikes',
+                    hypothesis: `Average task cost spiked to $${recentAvg.toFixed(2)} vs prior avg $${priorAvg.toFixed(2)}. Clarification loops may be unbounded.`,
+                    proposedChange: { action: 'cap_clarification_loops', target: 'soul_protocol', threshold: 2 },
+                    risk: 'high'
+                })
+            }
         }
     }
 
