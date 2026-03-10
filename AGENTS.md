@@ -117,6 +117,20 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03 — Chat Experience: Over-Clarification, Confirmation Theater, Bad Descriptions
+
+- **Root cause 1 (Conversation system prompt)**: The system prompt explicitly told the model to "ask clarifying questions first" and "only agree to start a task or project when the scope is clear." This made the model interrogate users instead of answering.
+- **Fix 1**: Replaced with a direct, no-nonsense system prompt: never ask for confirmation before answering, never ask clarifying questions unless genuinely ambiguous and a reasonable assumption cannot be made, act immediately on jokes/trivia/creative requests.
+- **Root cause 2 (Confirmation theater)**: TASK intent triggered a `confirm_action` response requiring the user to click a button before anything happened. Every task required an extra confirmation — even when the user had already said "yes" multiple times in conversation.
+- **Fix 2**: TASK now auto-queues server-side immediately. No confirmation step. The user says "do it" → it does it. Only PROJECT still shows one confirm (because it spins up a multi-step sprint worth saving before commit).
+- **Root cause 3 (Bad task description)**: The `description` passed to `execute-action` was the raw user utterance at the moment of confirmation — "No. Just freaking do it." became the task and project description stored in the DB.
+- **Fix 3**: Before queuing, the API runs a description synthesizer LLM call that crafts a clean, third-person task description from the full conversation context. The frustrated utterance is discarded; the actual intent is captured.
+- **Root cause 4 (Classifier too aggressive)**: "Tell me a joke" was classified as TASK. The classifier was biased toward action over conversation.
+- **Fix 4**: Classifier now has explicit rule: jokes, `"Tell me X"`, `"What is X"`, short confirmations after CONVERSATION exchanges → always CONVERSATION. TASK requires explicit, unambiguous request for a multi-step deliverable.
+- **Lesson**: A chat experience is only as good as its system prompt. Advisory or hedging language in the system prompt produces an advisory, hedging model. The prompt must be prescriptive and prohibitive.
+
+---
+
 ### 2026-03 — P0 Kill-Chain: Every Task Failed at ≤4 Tool Steps + Assets Never Visible
 
 - **Root cause 1 (Step limit)**: `SAFETY_LIMITS.maxConsecutiveToolCalls` was hardcoded to 4. Vercel AI SDK v6 `stopWhen: stepCountIs(4)` stops the model after exactly 4 steps — before any realistic task could complete. Every non-trivial task (research, writing, code) requires 8–20+ steps minimum.
