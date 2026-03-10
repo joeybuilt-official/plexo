@@ -167,8 +167,8 @@ export default function SkillsPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    const lf = useListFilter([], 'name_asc')
-    const { search, clearAll } = lf
+    const lf = useListFilter(['status'], 'name_asc')
+    const { search, filterValues, clearAll } = lf
 
     const fetchPlugins = useCallback(async () => {
         if (!WS_ID) return
@@ -204,6 +204,13 @@ export default function SkillsPage() {
     )
 
     const filteredPlugins = skillPlugins.filter((p) => {
+        const matchStatus = (() => {
+            if (!filterValues.status) return true
+            if (filterValues.status === 'enabled') return p.enabled
+            if (filterValues.status === 'disabled') return !p.enabled
+            return true
+        })()
+        if (!matchStatus) return false
         if (!search.trim()) return true
         const q = search.toLowerCase()
         return (
@@ -260,7 +267,16 @@ export default function SkillsPage() {
             <ListToolbar
                 hook={lf}
                 placeholder="Search skills..."
-                dimensions={[]}
+                dimensions={[
+                    {
+                        key: 'status',
+                        label: 'Status',
+                        options: [
+                            { value: 'enabled', label: 'Enabled', dimmed: skillPlugins.every((p) => !p.enabled) },
+                            { value: 'disabled', label: 'Disabled', dimmed: skillPlugins.every((p) => p.enabled) },
+                        ],
+                    },
+                ]}
                 sortOptions={[
                     { label: 'Name: A → Z', value: 'name_asc' },
                     { label: 'Name: Z → A', value: 'name_desc' },

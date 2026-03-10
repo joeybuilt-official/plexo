@@ -136,8 +136,8 @@ export default function ToolsPage() {
     const [error, setError] = useState<string | null>(null)
     const [savingConn, setSavingConn] = useState<string | null>(null)
 
-    const lf = useListFilter([], 'name_asc')
-    const { search, clearAll } = lf
+    const lf = useListFilter(['source'], 'name_asc')
+    const { search, filterValues, clearAll } = lf
 
     const fetchAll = useCallback(async () => {
         if (!WS_ID) return
@@ -244,8 +244,9 @@ export default function ToolsPage() {
         }
     })
 
-    const connSections = rawConnSections.filter((s) => s.total > 0 && s.filteredCount > 0)
-    const pluginSections = rawPluginSections.filter((s) => s.total > 0 && s.filteredCount > 0)
+    const sourceFilter = filterValues.source ?? null
+    const connSections = rawConnSections.filter((s) => s.total > 0 && s.filteredCount > 0 && (!sourceFilter || sourceFilter === 'connections'))
+    const pluginSections = rawPluginSections.filter((s) => s.total > 0 && s.filteredCount > 0 && (!sourceFilter || sourceFilter === 'plugins'))
 
     const allSections = [...connSections, ...pluginSections].sort((a, b) => {
         if (lf.sort === 'name_desc') return b.label.localeCompare(a.label)
@@ -297,7 +298,16 @@ export default function ToolsPage() {
             <ListToolbar
                 hook={lf}
                 placeholder="Search tools..."
-                dimensions={[]}
+                dimensions={[
+                    {
+                        key: 'source',
+                        label: 'Source',
+                        options: [
+                            { value: 'connections', label: 'Connections', dimmed: rawConnSections.filter((s) => s.total > 0).length === 0 },
+                            { value: 'plugins', label: 'Plugins', dimmed: rawPluginSections.filter((s) => s.total > 0).length === 0 },
+                        ],
+                    },
+                ]}
                 sortOptions={[
                     { label: 'Source: A → Z', value: 'name_asc' },
                     { label: 'Source: Z → A', value: 'name_desc' },
