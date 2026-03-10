@@ -63,7 +63,7 @@ const ROUTE_CHECKS: RouteCheck[] = [
 function ServiceBadge({ name, health }: { name: string; health: ServiceHealth }) {
     return (
         <div className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${health.ok
-            ? 'border-emerald-800/40 bg-azure/20'
+            ? 'border-azure-800/40 bg-azure/20'
             : 'border-red-800/40 bg-red-950/20'
             }`}>
             <div className="flex items-center gap-2">

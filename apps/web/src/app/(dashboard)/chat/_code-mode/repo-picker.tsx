@@ -254,7 +254,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                         value={localPath}
                                         onChange={(e) => setLocalPath(e.target.value)}
                                         placeholder="/home/user/my-project"
-                                        className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
+                                        className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono"
                                         onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
                                         autoFocus
                                     />
@@ -277,7 +277,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                             value={tab === 'existing' ? repo : newRepo}
                                             onChange={(e) => tab === 'existing' ? setRepo(e.target.value) : setNewRepo(e.target.value)}
                                             placeholder={tab === 'existing' ? 'owner/repo (e.g. joeybuilt-official/plexo)' : 'my-awesome-project'}
-                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
+                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono"
                                             onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
                                             autoFocus
                                         />
@@ -296,7 +296,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                             value={tab === 'existing' ? branch : newBranch}
                                             onChange={(e) => tab === 'existing' ? setBranch(e.target.value) : setNewBranch(e.target.value)}
                                             placeholder="main"
-                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-indigo/20 transition-all font-mono shadow-sm"
+                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono shadow-sm"
                                             onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
                                         />
                                     </div>
@@ -310,7 +310,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                         disabled={!isValid}
                         className={`w-full mt-6 py-3 px-4 rounded-xl text-sm font-semibold text-white transition-all flex items-center justify-center gap-2 group relative z-10 overflow-hidden ${
                             tab === 'new'
-                                ? 'bg-azure hover:bg-azure-600 focus:ring-emerald/50'
+                                ? 'bg-azure hover:bg-azure-600 focus:ring-azure/50'
                                 : 'bg-azure hover:bg-azure/90 focus:ring-azure/50'
                         } disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2`}
                     >

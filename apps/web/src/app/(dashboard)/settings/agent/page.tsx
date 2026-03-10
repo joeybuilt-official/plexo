@@ -799,7 +799,7 @@ function AgentSettingsContent() {
                                     <div className="flex flex-row justify-between sm:justify-start gap-1.5 w-full overflow-x-auto pb-2 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                                         {['🤖', '🧠', '⚡', '🦾', '🌟', '👾', '🔱', '🦊', '🐉', '🔮'].map((emoji) => (
                                             <button key={emoji} onClick={() => updateSetting('agentAvatar', emoji)}
-                                                className={`min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji ? 'bg-azure/30 ring-1 ring-indigo' : 'bg-surface-2 hover:bg-zinc-700'}`}>
+                                                className={`min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji ? 'bg-azure/30 ring-1 ring-azure' : 'bg-surface-2 hover:bg-zinc-700'}`}>
                                                 {emoji}
                                             </button>
                                         ))}

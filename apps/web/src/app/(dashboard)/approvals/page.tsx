@@ -39,7 +39,7 @@ interface Approval {
 type SortKey = 'newest' | 'oldest' | 'risk_desc' | 'risk_asc'
 
 const RISK_CONFIG = {
-    low: { color: 'text-azure', bg: 'bg-azure-dim border-emerald-800/40', dot: 'bg-azure', order: 0, label: 'Low' },
+    low: { color: 'text-azure', bg: 'bg-azure-dim border-azure-800/40', dot: 'bg-azure', order: 0, label: 'Low' },
     medium: { color: 'text-amber', bg: 'bg-amber-dim border-amber-800/40', dot: 'bg-amber', order: 1, label: 'Medium' },
     high: { color: 'text-orange-400', bg: 'bg-amber/10 border-orange-800/40', dot: 'bg-orange-400', order: 2, label: 'High' },
     critical: { color: 'text-red', bg: 'bg-red-dim border-red-800/40', dot: 'bg-red', order: 3, label: 'Critical' },
@@ -275,7 +275,7 @@ export default function ApprovalsPage() {
                     <button
                         onClick={() => void bulkDecide('approve')}
                         disabled={bulkActing}
-                        className="flex items-center gap-1.5 rounded-md bg-azure-600/20 border border-emerald-700/40 px-3 py-1.5 text-xs font-medium text-azure hover:bg-azure-600/30 disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-1.5 rounded-md bg-azure-600/20 border border-azure-700/40 px-3 py-1.5 text-xs font-medium text-azure hover:bg-azure-600/30 disabled:opacity-50 transition-colors"
                     >
                         <CheckCheck className="h-3 w-3" />
                         Approve all
@@ -349,7 +349,7 @@ export default function ApprovalsPage() {
                                             onClick={() => void decide(item.id, 'approve')}
                                             disabled={isActing}
                                             title="Approve"
-                                            className="rounded-md bg-azure-600/20 border border-emerald-700/40 px-2.5 py-1 text-xs font-medium text-azure hover:bg-azure-600/30 disabled:opacity-50 transition-colors"
+                                            className="rounded-md bg-azure-600/20 border border-azure-700/40 px-2.5 py-1 text-xs font-medium text-azure hover:bg-azure-600/30 disabled:opacity-50 transition-colors"
                                         >
                                             {isActing ? <RefreshCw className="h-3 w-3 animate-spin" /> : '✓'}
                                         </button>

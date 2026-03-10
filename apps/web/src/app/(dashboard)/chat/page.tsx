@@ -398,7 +398,6 @@ function StatusChip({ status }: { status: Message['status'] }) {
     if (status === 'running' || status === 'pending') {
         return (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-azure">
-                <PlexoMark className="h-3.5 w-3.5" idle={false} working />
                 {status === 'running' ? 'Working…' : 'Waiting…'}
             </span>
         )
@@ -1550,7 +1549,7 @@ function ChatContent() {
             {(suggestion || wantsAttachment) && !sending && !isListening && (
                 <div className="shrink-0 flex flex-col gap-2 mb-3 px-2">
                     {suggestion && (
-                        <div className="flex items-start gap-3 rounded-xl border border-azure/30 bg-azure-dim px-4 py-3 text-sm text-azure shadow-sm shadow-indigo-500/5 transition-all">
+                        <div className="flex items-start gap-3 rounded-xl border border-azure/30 bg-azure-dim px-4 py-3 text-sm text-azure shadow-sm shadow-azure-500/5 transition-all">
                             <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
                             <div className="flex-1">
                                 <span className="font-semibold block text-azure-200">Suggested Model: {suggestion.suggestedModel}</span>

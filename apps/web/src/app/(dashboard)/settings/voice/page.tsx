@@ -303,7 +303,7 @@ export default function VoiceSettingsPage() {
                                             onChange={e => setKeyInput(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && void saveAndTest()}
                                             placeholder="Paste your Deepgram API key…"
-                                            className="w-full rounded-lg border border-border bg-surface-2/60 px-3 py-2.5 pr-11 text-[16px] sm:text-sm text-text-primary placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo focus:border-azure transition-colors font-mono min-h-[44px]"
+                                            className="w-full rounded-lg border border-border bg-surface-2/60 px-3 py-2.5 pr-11 text-[16px] sm:text-sm text-text-primary placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-azure focus:border-azure transition-colors font-mono min-h-[44px]"
                                         />
                                         <button
                                             type="button"

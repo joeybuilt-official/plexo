@@ -96,7 +96,7 @@ function ClarificationPanel({ taskId, clarification }: {
 
     if (chosen !== null) {
         return (
-            <div className="rounded-xl border border-emerald-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
+            <div className="rounded-xl border border-azure-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 Alternative queued — redirecting to new task…
             </div>
@@ -227,7 +227,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
 
     if (retried) {
         return (
-            <div className="rounded-xl border border-emerald-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
+            <div className="rounded-xl border border-azure-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
                 <RefreshCw className="h-4 w-4 animate-spin" />
                 Task re-queued — redirecting…
             </div>

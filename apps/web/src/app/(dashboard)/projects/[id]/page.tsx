@@ -695,7 +695,7 @@ export default function ProjectControlRoom() {
                         <button
                             onClick={() => void handleRetry()}
                             disabled={retrying}
-                            className="flex items-center gap-1.5 rounded-lg border border-emerald-800/60 bg-azure/30 px-3 py-1.5 text-xs text-azure hover:bg-azure-900/40 hover:border-emerald-700 hover:text-azure-300 transition-all disabled:opacity-40"
+                            className="flex items-center gap-1.5 rounded-lg border border-azure-800/60 bg-azure/30 px-3 py-1.5 text-xs text-azure hover:bg-azure-900/40 hover:border-azure-700 hover:text-azure-300 transition-all disabled:opacity-40"
                         >
                             <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
                             {retrying ? 'Retrying…' : 'Retry Failed'}
