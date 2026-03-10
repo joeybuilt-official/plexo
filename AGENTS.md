@@ -117,6 +117,22 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03 — P0 Kill-Chain: Every Task Failed at ≤4 Tool Steps + Assets Never Visible
+
+- **Root cause 1 (Step limit)**: `SAFETY_LIMITS.maxConsecutiveToolCalls` was hardcoded to 4. Vercel AI SDK v6 `stopWhen: stepCountIs(4)` stops the model after exactly 4 steps — before any realistic task could complete. Every non-trivial task (research, writing, code) requires 8–20+ steps minimum.
+- **Fix 1**: Raised to 25. Retry loop restarts up to 3× if model fails to call `task_complete` — total ceiling is 75 tool calls per task.
+- **Root cause 2 (Invisible assets)**: `write_asset` saved files to `/tmp/plexo-assets/{taskId}/`. The chat UI never fetched that endpoint. The task detail page never fetched it. Assets were saved but had zero surface — the user only ever saw the 1-3 sentence `outcomeSummary`.
+- **Fix 2**: On `complete` SSE event in `pollReply`, chat page fetches `/api/v1/tasks/{taskId}/assets` and attaches files to the message. `AssetCard` component renders them inline with expand/copy. Task detail page (`/tasks/[id]`) fetches assets server-side in `fetchAssets()` and renders a "Deliverables" panel above the stats row.
+- **Root cause 3 (No write_asset mandate)**: System prompt said "Use write_asset to save deliverables" as advisory text. Model often skipped it and put content directly in `task_complete.summary`, which is capped at a sentence or two.
+- **Fix 3**: For all non-coding-sprint task types (research/writing/ops/data/marketing/general/automation), system prompt now includes a `MANDATORY OUTPUT REQUIREMENT` block that explicitly forbids calling `task_complete` before at least one `write_asset` call.
+- **Root cause 4 (Shell env secrets exposure)**: `spawnSync` spread `process.env` into the subshell, including `ENCRYPTION_SECRET`, `ANTHROPIC_API_KEY`, `DATABASE_URL`, etc. Any shell command the agent ran could exfiltrate these.
+- **Fix 4**: Allowlist (`SAFE_ENV_KEYS`) replaces the spread. Only safe env vars (PATH, HOME, USER, GIT_*, PNPM_HOME, NODE_ENV, TMP*) are passed to the subshell.
+- **Lesson 1**: `maxConsecutiveToolCalls: 4` is a silent kill switch. If this constant changes, every task silently dies. Check it before debugging perceived "agent stupidity".
+- **Lesson 2**: Asset creation ≠ asset visibility. Trace the full path: agent tool → filesystem → API endpoint → UI fetch → render. Any break in that chain means the user sees nothing.
+- **Lesson 3**: Advisory system prompt language for output requirements is ignored. Use mandatory phrasing with explicit prohibition on calling task_complete without the required tool call.
+
+---
+
 ### 2026-03-09 — migrate exits 1: SyntaxError invoking .bin/tsx shell wrapper as JS
 
 - **Root cause**: `docker/migrate.sh` called `node --max-old-space-size=200 /app/packages/db/node_modules/.bin/tsx src/migrate.ts`. The `.bin/tsx` file is a POSIX shell shebang wrapper (`#!/bin/sh`, starts with `basedir=$(dirname...)`). Node.js interprets that shell script as JavaScript, hitting `SyntaxError: missing ) after argument list` on the first line.
