@@ -15,6 +15,7 @@ import {
     ExternalLink,
     Loader2,
     AlertCircle,
+    X,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -28,6 +29,7 @@ export interface RepoSelection {
 interface RepoPickerProps {
     workspaceId: string
     onSelect: (selection: RepoSelection) => void
+    onClose?: () => void
     className?: string
 }
 
@@ -114,7 +116,7 @@ function GitHubNotConnected() {
 
 type Tab = 'existing' | 'new' | 'local'
 
-export function RepoPicker({ workspaceId, onSelect, className = '' }: RepoPickerProps) {
+export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: RepoPickerProps) {
     const [checkState, setCheckState] = useState<CheckState>('loading')
     const [forceLocal, setForceLocal] = useState(false)
 
@@ -181,6 +183,17 @@ export function RepoPicker({ workspaceId, onSelect, className = '' }: RepoPicker
                 <div className="bg-surface-2/60 backdrop-blur-xl border border-border/60 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
                     {/* Top glow */}
                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-indigo/20 blur-[50px] pointer-events-none rounded-full" />
+
+                    {/* Close button */}
+                    {onClose && (
+                        <button
+                            onClick={onClose}
+                            aria-label="Close"
+                            className="absolute top-4 right-4 z-10 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-3 transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
 
                     <div className="text-center mb-6 relative">
                         <div className="w-12 h-12 rounded-xl bg-surface-3 border border-border flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:border-indigo/30 group-hover:bg-indigo-dim transition-all duration-500">
