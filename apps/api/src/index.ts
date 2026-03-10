@@ -62,6 +62,7 @@ import { voiceRouter } from './routes/voice.js'
 import { introspectRouter } from './routes/introspect.js'
 import { codeRouter } from './routes/code.js'
 import { rsiRouter } from './routes/rsi.js'
+import { parallelRouter } from './routes/parallel.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
@@ -112,6 +113,7 @@ v1.use('/sse', sseRouter)
 v1.use('/auth', authLimiter, authRouter)
 v1.use('/oauth', oauthRouter)
 v1.use('/tasks', taskCreationLimiter, workspaceRateLimit, tasksRouter)
+v1.use('/parallel', parallelRouter)
 v1.use('/tasks/:taskId/clarification', clarificationRouter)
 v1.use('/sprints', sprintsRouter)
 v1.use('/sprints', sprintRunnerRouter)

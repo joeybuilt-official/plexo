@@ -1,0 +1,134 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Server, Activity, ArrowRight, Play, Trash2, Shield } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
+
+interface ParallelSlot {
+    taskId: string
+    resourceKey: string
+    expiresAt: number
+}
+
+interface ParallelStatus {
+    slots: ParallelSlot[]
+    maxSlots: number
+}
+
+const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
+
+export function ParallelStatusPanel() {
+    const { workspaceId } = useWorkspace()
+    const [status, setStatus] = useState<ParallelStatus | null>(null)
+    const [claiming, setClaiming] = useState(false)
+    const [clearing, setClearing] = useState(false)
+
+    const fetchStatus = async () => {
+        try {
+            const res = await fetch(`${API}/api/v1/parallel/status?workspaceId=${workspaceId}`)
+            if (res.ok) setStatus(await res.json())
+        } catch (e) {
+            console.error('Failed to fetch parallel status', e)
+        }
+    }
+
+    useEffect(() => {
+        if (!workspaceId) return
+        void fetchStatus()
+        const t = setInterval(fetchStatus, 5000)
+        return () => clearInterval(t)
+    }, [workspaceId])
+
+    const claimBatch = async () => {
+        setClaiming(true)
+        try {
+            await fetch(`${API}/api/v1/parallel/claim-batch?workspaceId=${workspaceId}`, { method: 'POST' })
+            await fetchStatus()
+        } finally {
+            setClaiming(false)
+        }
+    }
+
+    const clearSlots = async () => {
+        setClearing(true)
+        try {
+            await fetch(`${API}/api/v1/parallel/clear?workspaceId=${workspaceId}`, { method: 'POST' })
+            await fetchStatus()
+        } finally {
+            setClearing(false)
+        }
+    }
+
+    const releaseSlot = async (taskId: string) => {
+        try {
+            await fetch(`${API}/api/v1/parallel/release/${taskId}?workspaceId=${workspaceId}`, { method: 'POST' })
+            await fetchStatus()
+        } catch {}
+    }
+
+    if (!status) return null
+
+    return (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <Server className="h-4 w-4 text-indigo-400" />
+                    <h2 className="text-sm font-semibold text-zinc-200">Parallel Execution Control</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">{status.slots.length} / {status.maxSlots} slots</span>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+                {status.slots.length === 0 ? (
+                    <div className="text-xs text-zinc-500 italic py-2 border border-zinc-800/50 rounded-lg text-center bg-zinc-950/30">
+                        No active parallel tasks. Empty slots ready.
+                    </div>
+                ) : (
+                    status.slots.map((slot) => {
+                        const remaining = Math.max(0, Math.floor(slot.expiresAt - Date.now() / 1000))
+                        return (
+                            <div key={slot.taskId} className="flex items-center justify-between p-3 rounded-lg border border-zinc-700/50 bg-zinc-800/20">
+                                <div className="flex items-center gap-3">
+                                    <Activity className="h-4 w-4 text-emerald-400" />
+                                    <div>
+                                        <p className="text-[13px] text-zinc-200 truncate max-w-[200px]">{slot.resourceKey}</p>
+                                        <p className="text-[11px] text-zinc-500">TTL: {remaining}s</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <a href={`/tasks/${slot.taskId}`} className="p-1.5 rounded hover:bg-zinc-700/50 text-zinc-400 transition-colors">
+                                        <ArrowRight className="h-4 w-4" />
+                                    </a>
+                                    <button onClick={() => void releaseSlot(slot.taskId)} className="p-1.5 rounded hover:bg-red-900/40 text-red-400 hover:text-red-300 transition-colors">
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })
+                )}
+            </div>
+
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-zinc-800/60">
+                <button
+                    onClick={() => void claimBatch()}
+                    disabled={claiming}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
+                >
+                    <Play className={`h-3.5 w-3.5 ${claiming ? 'animate-pulse' : ''}`} />
+                    Claim Batch
+                </button>
+                <button
+                    onClick={() => void clearSlots()}
+                    disabled={clearing}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-red-900/40 hover:text-red-400 px-4 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
+                >
+                    <Shield className="h-3.5 w-3.5" />
+                    Force Clear
+                </button>
+            </div>
+        </div>
+    )
+}

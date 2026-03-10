@@ -11,11 +11,12 @@ import {
     Zap, RefreshCw, Save, Check, AlertCircle, Brain, Shield, Sparkles,
     User, Settings2, MessageSquare, BookOpen, Wrench, Target, Lock,
     Plus, Trash2, ChevronDown, Eye, EyeOff, History, Layers,
-    ArrowLeftRight, X, Bot, DollarSign, Users,
+    ArrowLeftRight, X, Bot, DollarSign, Users, Cpu,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { getModelCapabilities } from '@web/lib/models'
 import { CapabilityList } from '@web/components/capabilities'
+import { ParallelStatusPanel } from './_components/parallel-status-panel'
 
 const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
@@ -165,13 +166,14 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.E
 
 // ── Tab nav ───────────────────────────────────────────────────────────────────
 
-type Tab = 'identity' | 'behavior' | 'limits' | 'quality' | 'history'
+type Tab = 'identity' | 'behavior' | 'limits' | 'quality' | 'orchestration' | 'history'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'identity', label: 'Identity', icon: User },
     { id: 'behavior', label: 'Behavior', icon: Sparkles },
     { id: 'limits', label: 'Limits', icon: Shield },
     { id: 'quality', label: 'Quality', icon: Users },
+    { id: 'orchestration', label: 'Orchestration', icon: Cpu },
     { id: 'history', label: 'History', icon: History },
 ]
 
@@ -1142,6 +1144,13 @@ function AgentSettingsContent() {
                 </div>
             )}
 
+
+            {/* ── Orchestration tab ── */}
+            {tab === 'orchestration' && (
+                <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <ParallelStatusPanel />
+                </div>
+            )}
 
             {/* ── History tab ── */}
             {tab === 'history' && WS_ID && <HistoryTab workspaceId={WS_ID} />}

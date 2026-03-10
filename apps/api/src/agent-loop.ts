@@ -16,13 +16,13 @@ import { logger } from './logger.js'
 import { emit } from './sse-emitter.js'
 
 import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
+import { claimBatch, releaseSlot } from './parallel-executor.js'
 
 const POLL_INTERVAL_MS = 2_000
 const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
 
 let running = true
-let activeAbort: AbortController | null = null
-let activeTaskId: string | null = null
+let activeTasks: Map<string, AbortController> = new Map()
 let sessionCount = 0
 let lastActivity: string | null = null
 
@@ -36,7 +36,8 @@ export function getAgentStatus(): {
     sessionCount: number
     lastActivity: string | null
 } {
-    return { activeTaskId, currentModel: null, sessionCount, lastActivity }
+    const firstActive = Array.from(activeTasks.keys())[0] ?? null
+    return { activeTaskId: firstActive, currentModel: null, sessionCount, lastActivity }
 }
 
 /**
@@ -45,8 +46,9 @@ export function getAgentStatus(): {
  * next signal-check boundary instead of finishing the current step.
  */
 export function cancelActiveTask(taskId: string): boolean {
-    if (activeTaskId !== taskId || !activeAbort) return false
-    activeAbort.abort()
+    const abort = activeTasks.get(taskId)
+    if (!abort) return false
+    abort.abort()
     logger.info({ taskId }, 'Active task abort signalled via cancelActiveTask')
     return true
 }
@@ -211,9 +213,7 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
     return { credential: null, aiSettings }
 }
 
-async function processOneTask(): Promise<boolean> {
-    const task = await claimTask('agent-loop-1')
-    if (!task) return false
+async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> {
     const taskStartMs = Date.now()
 
     logger.info({ taskId: task.id, type: task.type }, 'Task claimed')
@@ -229,7 +229,8 @@ async function processOneTask(): Promise<boolean> {
         await blockTask(task.id, 'No AI credential configured for workspace')
         emit({ type: 'task_blocked', taskId: task.id, reason: 'No AI credential' })
         logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId }, 'No credential — task blocked')
-        return true
+        await releaseSlot(task.id)
+        return
     }
 
     // ── Pre-flight: workspace weekly ceiling ──────────────────────────────────
@@ -245,7 +246,8 @@ async function processOneTask(): Promise<boolean> {
             await blockTask(task.id, `Workspace weekly cost ceiling reached: $${costRow.costUsd.toFixed(4)} / $${costRow.ceilingUsd.toFixed(2)}`)
             emit({ type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING' })
             logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd }, 'Workspace ceiling — task blocked')
-            return true
+            await releaseSlot(task.id)
+            return
         }
     } catch (costErr) {
         logger.warn({ costErr }, 'Pre-flight cost check failed non-fatally — continuing')
@@ -380,8 +382,7 @@ async function processOneTask(): Promise<boolean> {
     }
 
     const abort = new AbortController()
-    activeAbort = abort
-    activeTaskId = task.id
+    activeTasks.set(task.id, abort)
     sessionCount++
     lastActivity = new Date().toISOString()
 
@@ -456,7 +457,7 @@ async function processOneTask(): Promise<boolean> {
                 taskId: task.id,
                 reason: plannerResult.message,
             })
-            return true
+            return
         }
 
         const plan = plannerResult.plan
@@ -629,8 +630,10 @@ async function processOneTask(): Promise<boolean> {
 
         emit({ type: 'task_failed', taskId: task.id, error: message })
     } finally {
-        activeAbort = null
-        activeTaskId = null
+        activeTasks.delete(task.id)
+        
+        // Release Redis slot
+        await releaseSlot(task.id)
         // Deregister Code Mode context
         unregisterCodeContext(task.id)
         // Clean up cloned repo temp dir for coding tasks
@@ -643,7 +646,6 @@ async function processOneTask(): Promise<boolean> {
         }
     }
 
-    return true
 }
 
 export function startAgentLoop(): void {
@@ -652,9 +654,18 @@ export function startAgentLoop(): void {
     async function poll(): Promise<void> {
         while (running) {
             try {
-                await processOneTask()
+                // Claim batch handles limits internally
+                const batch = await claimBatch()
+                if (batch.length > 0) {
+                    logger.info({ batchSize: batch.length, msg: 'Starting batch execution' })
+                    // Fire-and-forget, the promise settles in background, poll loop continues immediately
+                    // The Claim step ensures we won't oversubscribe
+                    for (const t of batch) {
+                        buildTaskContext(t).catch(e => logger.error({ err: e }, 'Task wrapper error'))
+                    }
+                }
             } catch (err) {
-                logger.error({ err }, 'Queue loop error')
+                logger.error({ err }, 'Queue loop error (batch claim)')
             }
             await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
         }
@@ -665,6 +676,8 @@ export function startAgentLoop(): void {
 
 export function stopAgentLoop(): void {
     running = false
-    activeAbort?.abort()
+    for (const abort of activeTasks.values()) {
+        abort.abort()
+    }
     logger.info('Agent queue loop stopped')
 }
