@@ -146,6 +146,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                                 {task.project ?? 'Project'}
                             </Link>
                         )}
+                        <CopyId id={task.id} label="task" />
                     </div>
                 </div>
                 {(task.status === 'pending' || task.status === 'running' || task.status === 'queued') && (

@@ -39,6 +39,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { getCategoryDef } from '@web/lib/project-categories'
+import { CopyId } from '@web/components/copy-id'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -683,6 +684,7 @@ export default function ProjectControlRoom() {
                         </h1>
                         <StatusBadge status={sprint.status} />
                         <CategoryBadge category={sprint.category ?? 'code'} />
+                        <CopyId id={sprint.id} label="project" />
                     </div>
                     {isCode && sprint.repo && (
                         <p className="pl-6 text-sm font-mono text-text-muted">{sprint.repo}</p>
