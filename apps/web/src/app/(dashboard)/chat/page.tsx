@@ -209,17 +209,11 @@ function MessageBubble({
                         : 'bg-surface-2 text-text-primary rounded-tl-md'
                     }`}>
                     {msg.status === 'queued' ? (
-                        <div className="flex items-center gap-2.5 py-0.5">
-                            <PlexoMark className="h-5 w-5 shrink-0" idle={false} working />
-                            <span className="text-text-muted text-sm italic">Queued…</span>
-                        </div>
+                        <span className="text-text-muted text-sm italic py-0.5 block">Queued…</span>
                     ) : msg.status === 'running' ? (
-                        <div className="flex items-start gap-2.5">
-                            <PlexoMark className="h-5 w-5 shrink-0 mt-0.5" idle={false} working />
-                            <span className="text-text-secondary text-sm italic">
-                                {msg.content || 'Working…'}
-                            </span>
-                        </div>
+                        <span className="text-text-secondary text-sm italic">
+                            {msg.content || 'Working…'}
+                        </span>
                     ) : msg.status === 'failed' ? (
                         <div className="flex flex-col gap-2">
                             <div className="flex items-start gap-1.5">
@@ -974,10 +968,15 @@ function ChatContent() {
     }
 
     function handleDrop(e: React.DragEvent<HTMLTextAreaElement>) {
-        const imgs = extractImagesFromDataTransfer(e.dataTransfer)
-        if (imgs.length === 0) return
+        // Handled by the page-level drop zone
         e.preventDefault()
-        void Promise.all(
+    }
+
+    /** Shared: resolve blobs from a DataTransfer into PastedImage objects (with PDF extraction) */
+    async function processDroppedDataTransfer(dt: DataTransfer): Promise<void> {
+        const imgs = extractImagesFromDataTransfer(dt)
+        if (imgs.length === 0) return
+        const resolved = await Promise.all(
             imgs.map((img) =>
                 fetch(img.dataUrl)
                     .then((r) => r.blob())
@@ -989,9 +988,9 @@ function ChatContent() {
                                     URL.revokeObjectURL(img.dataUrl)
                                     const dataUrl = reader.result as string
                                     if (img.kind === 'pdf') {
-                                        extractPdfText(dataUrl).then((r) => {
-                                            resolve({ ...img, dataUrl, extractedText: r.text })
-                                        }).catch(() => resolve({ ...img, dataUrl }))
+                                        extractPdfText(dataUrl)
+                                            .then((r) => resolve({ ...img, dataUrl, extractedText: r.text }))
+                                            .catch(() => resolve({ ...img, dataUrl }))
                                     } else {
                                         resolve({ ...img, dataUrl })
                                     }
