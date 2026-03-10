@@ -149,6 +149,9 @@ interface WorkspaceSummary {
 }
 
 const VERSION = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? '0.8.0-beta.1'}`
+const SHORT_SHA = process.env.NEXT_PUBLIC_SOURCE_COMMIT
+    ? process.env.NEXT_PUBLIC_SOURCE_COMMIT.slice(0, 7)
+    : null
 
 function WorkspaceSwitcher({ className = '' }: { className?: string }) {
     const { workspaceId, workspaceName, setWorkspace } = useWorkspace()
@@ -209,15 +212,18 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
             <button
                 id="workspace-switcher"
                 onClick={() => setOpen((o) => !o)}
-                className={`flex h-14 w-full items-center gap-3 px-3 hover:bg-surface-1/60 transition-colors ${className}`}
+                className={`flex h-16 w-full items-center gap-3 px-3 hover:bg-surface-1/60 transition-colors ${className}`}
             >
                 {/* App icon */}
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo/10 ring-1 ring-inset ring-indigo/20">
-                    <PlexoMark className="w-6 h-6 text-indigo" />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo/10 ring-1 ring-inset ring-indigo/20">
+                    <PlexoMark className="w-7 h-7 text-indigo" />
                 </div>
                 <div className="flex min-w-0 flex-col text-left">
-                    <span className="text-[13px] font-semibold leading-tight tracking-tight text-text-primary truncate">{displayName}</span>
-                    <span className="text-[10px] text-text-muted leading-tight">{VERSION}</span>
+                    <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate">{displayName}</span>
+                    <span className="text-[11px] text-text-muted leading-tight mt-0.5">{VERSION}</span>
+                    {SHORT_SHA && (
+                        <span className="text-[10px] text-text-muted/60 font-mono leading-tight">{SHORT_SHA}</span>
+                    )}
                 </div>
                 <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0 text-text-muted" />
             </button>

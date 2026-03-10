@@ -132,6 +132,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.web
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     restart: unless-stopped
     depends_on:
       api:
