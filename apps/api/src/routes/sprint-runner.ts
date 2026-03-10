@@ -110,12 +110,6 @@ import { runSprintRetry } from '@plexo/agent/sprint/retry'
 
 sprintRunnerRouter.post('/:id/retry', async (req, res) => {
     const { id: sprintId } = req.params
-    const { workspaceId } = req.body as { workspaceId?: string }
-
-    if (!workspaceId || !UUID_RE.test(workspaceId)) {
-        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
-        return
-    }
 
     const [sprint] = await db.select().from(sprints).where(eq(sprints.id, sprintId)).limit(1)
     if (!sprint) {
@@ -127,6 +121,9 @@ sprintRunnerRouter.post('/:id/retry', async (req, res) => {
         res.status(409).json({ error: { code: 'ALREADY_RUNNING', message: 'Sprint is already running' } })
         return
     }
+
+    // Use the authoritative workspaceId from the sprint row
+    const workspaceId = sprint.workspaceId!
 
     runSprintRetry(sprintId, workspaceId).catch((err: unknown) => {
         logger.error({ err, sprintId }, 'Sprint retry failed')
