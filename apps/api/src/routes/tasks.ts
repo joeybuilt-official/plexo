@@ -187,8 +187,8 @@ tasksRouter.post('/:id/retry', async (req, res) => {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
             return
         }
-        if (task.status !== 'blocked') {
-            res.status(400).json({ error: { code: 'NOT_BLOCKED', message: 'Only blocked tasks can be retried' } })
+        if (task.status !== 'blocked' && task.status !== 'cancelled') {
+            res.status(400).json({ error: { code: 'NOT_BLOCKED_OR_FAILED', message: 'Only blocked or failed tasks can be retried' } })
             return
         }
 

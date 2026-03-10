@@ -132,9 +132,9 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 )}
             </div>
 
-            {/* Blocked action panel */}
-            {task.status === 'blocked' && (
-                <BlockedActions taskId={task.id} outcomeSummary={task.outcomeSummary} />
+            {/* Blocked or failed action panel */}
+            {(task.status === 'blocked' || task.status === 'cancelled') && (
+                <BlockedActions taskId={task.id} outcomeSummary={task.outcomeSummary} status={task.status} />
             )}
 
             {/* What was asked */}

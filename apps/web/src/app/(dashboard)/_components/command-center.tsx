@@ -13,6 +13,7 @@ import {
     ChevronRight,
     ExternalLink,
     CheckCircle2,
+    XCircle,
     Loader2,
     Clock,
     Activity,
@@ -365,7 +366,7 @@ export function CommandCenter() {
     // ── Derived data ──────────────────────────────────────────────────────────
 
     const activeTasks = allTasks.filter(t => t.status === 'running' || t.status === 'claimed' || t.status === 'queued')
-    const blockedTasks = allTasks.filter(t => t.status === 'blocked')
+    const blockedTasks = allTasks.filter(t => t.status === 'blocked' || t.status === 'cancelled')
     const completedTasks = allTasks.filter(t => t.status === 'complete').slice(0, 5)
     const runningTasks = allTasks.filter(t => t.status === 'running' || t.status === 'claimed')
     const queuedTasks = allTasks.filter(t => t.status === 'queued')
@@ -406,9 +407,9 @@ export function CommandCenter() {
 
         attentionItems.push({
             id: `blocked-${task.id}`,
-            icon: AlertTriangle,
-            iconColor: 'bg-red-500/20 text-red-400',
-            label: outcome || `Blocked: ${task.type} task`,
+            icon: task.status === 'cancelled' ? XCircle : AlertTriangle,
+            iconColor: task.status === 'cancelled' ? 'bg-zinc-800/40 text-zinc-400' : 'bg-red-500/20 text-red-400',
+            label: outcome || `${task.status === 'cancelled' ? 'Failed/Cancelled' : 'Blocked'}: ${task.type} task`,
             meta: `${task.source} · ${timeAgo(task.createdAt)}`,
             href: fixHref,
             actionLabel: fixLabel,

@@ -157,9 +157,10 @@ function ClarificationPanel({ taskId, clarification }: {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function BlockedActions({ taskId, outcomeSummary }: {
+export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
     taskId: string
     outcomeSummary: string | null
+    status?: string
 }) {
     const router = useRouter()
     const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
@@ -248,26 +249,32 @@ export function BlockedActions({ taskId, outcomeSummary }: {
                 <ClarificationPanel taskId={taskId} clarification={clarification} />
             )}
 
-            {/* Standard blocked panel */}
-            <div className="rounded-xl border border-red-900/40 bg-red-950/20 overflow-hidden">
+            {/* Standard blocked or failed panel */}
+            <div className={`rounded-xl border overflow-hidden ${status === 'blocked' ? 'border-red-900/40 bg-red-950/20' : 'border-zinc-800/60 bg-zinc-900/30'}`}>
                 {/* Header */}
-                <div className="flex items-center gap-2.5 border-b border-red-900/30 px-4 py-3">
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
+                <div className={`flex items-center gap-2.5 border-b px-4 py-3 ${status === 'blocked' ? 'border-red-900/30' : 'border-zinc-800/40'}`}>
+                    {status === 'blocked' ? (
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
+                    ) : (
+                        <XCircle className="h-4 w-4 shrink-0 text-zinc-500" />
+                    )}
                     <div>
-                        <p className="text-[13px] font-semibold text-red-300">This task is blocked</p>
-                        <p className="text-[11px] text-red-500/70 mt-0.5">
+                        <p className={`text-[13px] font-semibold ${status === 'blocked' ? 'text-red-300' : 'text-zinc-300'}`}>
+                            {status === 'blocked' ? 'This task is blocked' : 'This task was cancelled or failed'}
+                        </p>
+                        <p className={`text-[11px] mt-0.5 ${status === 'blocked' ? 'text-red-500/70' : 'text-zinc-500'}`}>
                             {outcomeSummary ?? 'The agent could not continue. Choose an action below.'}
                         </p>
                     </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-col divide-y divide-red-900/20">
+                <div className={`flex flex-col divide-y ${status === 'blocked' ? 'divide-red-900/20' : 'divide-zinc-800/40'}`}>
                     {/* Fix root cause — only shown when we know what to fix */}
                     {resolution && (
                         <Link
                             href={resolution.fixHref}
-                            className="group flex items-start gap-3 px-4 py-3.5 hover:bg-red-950/40 transition-colors"
+                            className={`group flex items-start gap-3 px-4 py-3.5 transition-colors ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-zinc-800/40'}`}
                         >
                             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo-400 mt-0.5">
                                 <ExternalLink className="h-3.5 w-3.5" />
@@ -289,7 +296,7 @@ export function BlockedActions({ taskId, outcomeSummary }: {
                         <button
                             onClick={() => void handleRetry()}
                             disabled={retrying || dismissing}
-                            className="group flex items-start gap-3 px-4 py-3.5 hover:bg-red-950/40 transition-colors text-left disabled:opacity-40"
+                            className={`group flex items-start gap-3 px-4 py-3.5 transition-colors text-left disabled:opacity-40 ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-zinc-800/40'}`}
                         >
                             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-400 mt-0.5">
                                 <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
@@ -311,7 +318,7 @@ export function BlockedActions({ taskId, outcomeSummary }: {
                     <button
                         onClick={() => void handleDismiss()}
                         disabled={retrying || dismissing}
-                        className="group flex items-start gap-3 px-4 py-3.5 hover:bg-red-950/40 transition-colors text-left disabled:opacity-40"
+                        className={`group flex items-start gap-3 px-4 py-3.5 transition-colors text-left disabled:opacity-40 ${status === 'blocked' ? 'hover:bg-red-950/40' : 'hover:bg-zinc-800/40'}`}
                     >
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-500/15 text-zinc-500 mt-0.5">
                             <XCircle className="h-3.5 w-3.5" />
@@ -329,7 +336,7 @@ export function BlockedActions({ taskId, outcomeSummary }: {
 
                 {/* Inline error */}
                 {error && (
-                    <div className="border-t border-red-900/30 px-4 py-2 text-[11px] text-red-400 bg-red-950/20">
+                    <div className={`border-t px-4 py-2 text-[11px] ${status === 'blocked' ? 'border-red-900/30 text-red-400 bg-red-950/20' : 'border-zinc-800/40 text-rose-400 bg-rose-950/20'}`}>
                         {error}
                     </div>
                 )}
