@@ -26,12 +26,14 @@ import { sprints, sprintTasks, tasks, taskSteps } from '@plexo/db'
 import { push as pushTask } from '@plexo/queue'
 import { planSprint, type PlanResult } from './planner.js'
 import { detectStaticConflicts, detectDynamicConflicts } from './conflicts.js'
+import { SprintIntelligence } from './sprint-intelligence.js'
 import { buildGitHubClientForWorkspace } from '../github/client.js'
 import {
     logSprintEvent,
     registerSprintWorkspace,
     unregisterSprintWorkspace,
 } from './logger.js'
+import { refreshSprintPatterns } from './sprint-ledger.js'
 
 const logger = pino({ name: 'sprint-runner' })
 
@@ -184,6 +186,17 @@ async function runCodeSprint(
             waveCount: plan.executionOrder.length,
             tasks: plan.tasks.map((t) => ({ id: t.id, description: t.description, branch: t.branch })),
         },
+    })
+
+    const intel = new SprintIntelligence(repo)
+    const filesInScope = Array.from(new Set(plan.tasks.flatMap(t => t.scope)))
+    const forecastScore = await intel.forecastQuality(sprintId, opts.request, filesInScope)
+
+    await logSprintEvent({
+        sprintId,
+        event: 'quality_forecast',
+        message: `Quality forecast score: ${forecastScore.toFixed(2)}`,
+        metadata: { forecastScore },
     })
 
     const staticConflicts = detectStaticConflicts(
@@ -425,6 +438,8 @@ async function runCodeSprint(
     })
 
     logger.info({ sprintId, sprintStatus, completedCount, failedCount }, 'Code sprint complete')
+
+    await refreshSprintPatterns(repo, sprintId)
 
     opts.onComplete?.({
         taskCount: finalTasks.length,

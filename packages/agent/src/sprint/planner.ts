@@ -14,6 +14,7 @@ import { resolveModelFromEnv, withFallback, AnyLanguageModel } from '../provider
 import { MODEL_ROUTING } from '../constants.js'
 import { categoryPlannerPrompt } from './categories.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
+import { SprintIntelligence } from './sprint-intelligence.js'
 
 const logger = pino({ name: 'sprint-planner' })
 
@@ -89,10 +90,17 @@ export async function planSprint(params: {
         // Non-fatal — planner proceeds without it
     }
 
+    let priorIntelligence = ''
+    if (repo) {
+        const intel = new SprintIntelligence(repo)
+        priorIntelligence = await intel.getPriorIntelligence()
+    }
+
     const userMessage = [
         repo ? `Repository: ${repo}` : null,
         `Request: ${request}`,
         contextFiles.length > 0 ? `\nKey files in repo:\n${contextFiles.slice(0, 50).join('\n')}` : null,
+        priorIntelligence || null,
         agentsMdBlock || null,
     ].filter((s): s is string => s !== null).join('\n')
 

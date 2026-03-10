@@ -127,6 +127,13 @@
       "when": 1773110338210,
       "tag": "0017_living_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1773111795836,
+      "tag": "0018_organic_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }

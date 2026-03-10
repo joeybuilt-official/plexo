@@ -140,6 +140,10 @@ export const rsiStatusEnum = pgEnum('rsi_status', [
     'rejected',
 ])
 
+export const sprintFileEventTypeEnum = pgEnum('sprint_file_event_type', ['lock', 'conflict', 'change', 'build_error', 'ts_error'])
+export const sprintPatternTypeEnum = pgEnum('sprint_pattern_type', ['conflict_hotspot', 'complexity_signal', 'recurring_error'])
+
+
 export const rsiRiskEnum = pgEnum('rsi_risk', [
     'low',
     'medium',
@@ -392,6 +396,57 @@ export const sprintTasks = pgTable('sprint_tasks', {
     completedAt: timestamp('completed_at', { mode: 'date' }),
 }, (table) => [
     index('sprint_tasks_sprint_idx').on(table.sprintId),
+])
+
+export const sprintHandoffs = pgTable('sprint_handoffs', {
+    id: text('id').primaryKey(),
+    sprintId: text('sprint_id')
+        .notNull()
+        .references(() => sprints.id, { onDelete: 'cascade' }),
+    taskId: text('task_id')
+        .references(() => sprintTasks.id, { onDelete: 'cascade' }),
+    summary: text('summary').notNull(),
+    filesChanged: jsonb('files_changed').default('[]').notNull(),
+    concerns: jsonb('concerns').default('[]').notNull(),
+    suggestions: jsonb('suggestions').default('[]').notNull(),
+    tokensUsed: integer('tokens_used').default(0).notNull(),
+    toolCalls: integer('tool_calls').default(0).notNull(),
+    durationMs: integer('duration_ms').default(0).notNull(),
+    suspicious: boolean('suspicious').default(false).notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('sprint_handoffs_sprint_idx').on(table.sprintId),
+])
+
+export const sprintFileEvents = pgTable('sprint_file_events', {
+    id: text('id').primaryKey(),
+    sprintId: text('sprint_id')
+        .notNull()
+        .references(() => sprints.id, { onDelete: 'cascade' }),
+    repo: text('repo').notNull(),
+    eventType: sprintFileEventTypeEnum('event_type').notNull(),
+    filePath: text('file_path').notNull(),
+    message: text('message'),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('sprint_file_events_sprint_idx').on(table.sprintId),
+    index('sprint_file_events_repo_path_idx').on(table.repo, table.filePath),
+])
+
+export const sprintPatterns = pgTable('sprint_patterns', {
+    id: text('id').primaryKey(),
+    repo: text('repo').notNull(),
+    patternType: sprintPatternTypeEnum('pattern_type').notNull(),
+    subject: text('subject').notNull(),
+    occurrences: integer('occurrences').default(1).notNull(),
+    avgDurationMs: integer('avg_duration_ms'),
+    avgQuality: real('avg_quality'),
+    data: jsonb('data').default('{}').notNull(),
+    lastSeenAt: timestamp('last_seen_at', { mode: 'date' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('sprint_patterns_repo_idx').on(table.repo),
+    uniqueIndex('sprint_patterns_repo_type_subject_idx').on(table.repo, table.patternType, table.subject),
 ])
 
 export const plugins = pgTable('plugins', {

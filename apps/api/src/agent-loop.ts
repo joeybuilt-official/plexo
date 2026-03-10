@@ -17,6 +17,7 @@ import { emit } from './sse-emitter.js'
 
 import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
 import { claimBatch, releaseSlot } from './parallel-executor.js'
+import { logSprintHandoff } from '@plexo/agent/sprint/sprint-ledger'
 
 const POLL_INTERVAL_MS = 2_000
 const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
@@ -566,6 +567,19 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                     })
                     .where(eq(sprintTasks.id, sprintTaskId))
                 logger.info({ taskId: task.id, sprintTaskId }, 'Sprint task marked complete')
+                
+                // Track handoff quality for intelligence
+                await logSprintHandoff({
+                    sprintId: String(taskCtxForSprint?.sprintId ?? sprintTaskId),
+                    taskId: sprintTaskId,
+                    summary: result.outcomeSummary,
+                    filesChanged: [], // Cannot natively trace all files here easily without diffing
+                    concerns: [],
+                    suggestions: [],
+                    tokensUsed: (result.totalTokensIn ?? 0) + (result.totalTokensOut ?? 0),
+                    toolCalls: result.steps?.length ?? 1,
+                    durationMs: Date.now() - taskStartMs,
+                })
             }
         } catch (stErr) {
             logger.warn({ err: stErr, taskId: task.id }, 'Failed to update sprint_tasks status — non-fatal')
