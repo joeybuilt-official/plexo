@@ -90,44 +90,34 @@ function classifyAIError(err: unknown): ClassifiedError {
 
 // ── Intent classification ────────────────────────────────────────────────────
 
-const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
-Decide if the user's message is a TASK, PROJECT, MEMORY, or CONVERSATION.
+const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent platform.
+Classify the user's message as TASK, PROJECT, MEMORY, or CONVERSATION.
 
-CONVERSATION: Use this as the default. Questions, queries, troubleshooting help, greetings, status checks, information requests ("what is X", "show me", "list", "how do I"), small talk, vague or ambiguous messages, or any message where the user is asking FOR information rather than asking the agent TO DO something. Also use this when the user is rejecting or dismissing a prior proposal.
+Default to CONVERSATION. Use it for: questions, jokes, small talk, greetings, vague requests, opinions,
+anything that can be answered in a single reply, and anything where you are unsure.
 
-TASK: The user is EXPLICITLY and unambiguously asking the agent to perform a specific, distinct, actionable operation — e.g. "create X", "fix Y", "deploy Z", "send an email to", "run the migration". There must be a clear deliverable or outcome. Pure questions, lookups, and summaries are NOT tasks — those are CONVERSATION. Also use TASK when the user is confirming ("yes", "go ahead", "do it") a previous explicit task proposal.
+TASK: Only when the user is explicitly and unambiguously requesting an autonomous multi-step operation
+that produces a deliverable — e.g. "write a full report on X", "research Y and send me a summary",
+"build me a marketing plan for Z". NOT for jokes, questions, simple lookups, or anything conversational.
+Also TASK when user says yes/confirm/go ahead/do it after a prior TASK proposal.
 
-PROJECT: The user is explicitly asking to start a large, multi-step goal requiring coordinated planning across multiple files/systems — e.g. "build a new feature", "refactor the entire auth system", "launch a new product". Also use PROJECT when the user confirms a prior project proposal. Single-step actions are TASK not PROJECT.
+PROJECT: Only for large multi-step engineering/creative goals spanning weeks of work —
+"build a new product feature", "launch a complete marketing campaign", "refactor the auth system".
+Also PROJECT when user confirms a prior PROJECT proposal.
 
-MEMORY: The user wants the agent to remember something or follow a behavioral rule going forward. Examples: "remember to always use TypeScript", "don't use semicolons", "always respond in bullet points", "prefer tabs over spaces", "never deploy on Fridays".
+MEMORY: User wants the agent to remember a behavioral rule — "always use TypeScript", "never deploy on Fridays".
 
-Also determine the complexity: SIMPLE or COMPLEX.
-COMPLEX means the task requires reasoning, complex coding, architecture, or multi-step logic.
-SIMPLE means it's a routine task, summary, reading, file editing, or basic query.
+Critical rules:
+- Jokes, riddles, fun requests → CONVERSATION
+- "Tell me X" → CONVERSATION  
+- "What is X" → CONVERSATION
+- Simple yes/no after a CONVERSATION exchange → CONVERSATION
+- Short confirmations ("yup", "go", "sure") only become TASK/PROJECT if the PRIOR message was a TASK/PROJECT proposal
+- When in doubt → CONVERSATION
 
-For PROJECT intent, also determine the best category from: code, research, writing, ops, data, marketing, general.
-- code: software development, coding, building apps, APIs, refactoring
-- research: investigation, analysis, competitive research, synthesis
-- writing: content creation, blog posts, documentation, copywriting
-- ops: infrastructure, deployment, DevOps, system operations
-- data: data analysis, queries, transformations, datasets
-- marketing: campaigns, social copy, launch plans, go-to-market
-- general: anything else
-
-For TASK or CONVERSATION: Reply with EXACTLY two words separated by a space:
-[INTENT] [COMPLEXITY]
-Example: TASK COMPLEX
-Example: CONVERSATION SIMPLE
-
-For MEMORY: Reply with EXACTLY two words:
-MEMORY SIMPLE
-
-For PROJECT: Reply with EXACTLY three words separated by spaces:
-PROJECT [COMPLEXITY] [CATEGORY]
-Example: PROJECT COMPLEX marketing
-Example: PROJECT SIMPLE general
-
-When in doubt, use CONVERSATION. Only classify as TASK or PROJECT when the user's intent to have the agent perform work is unmistakable.`
+For TASK or CONVERSATION: reply with EXACTLY: [INTENT] [SIMPLE|COMPLEX]
+For MEMORY: reply with EXACTLY: MEMORY SIMPLE
+For PROJECT: reply with EXACTLY: PROJECT [SIMPLE|COMPLEX] [code|research|writing|ops|data|marketing|general]`
 
 // Per-session conversation history now fetched dynamically per request from DB
 // to ensure persistence and full context even if the agent server restarts.
@@ -373,12 +363,21 @@ chatRouter.post('/message', async (req, res) => {
                 const result = await withFallback(aiSettings, 'summarization', async (model) =>
                     generateText({
                         model,
-                        system: `${personaPrefix}You are ${agentName}${taglineHint}, an AI agent. ${identityLine}
+                        system: `${personaPrefix}You are ${agentName}${taglineHint}. ${identityLine}
 
-Keep replies concise and friendly. If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. Only agree to start a task or project when the scope is clear.`,
+Personality: Warm, sharp, direct. You get things done. You do not hedge, over-explain, or ask unnecessary questions.
+
+Core rules — follow without exception:
+1. NEVER ask for confirmation before answering. Just answer.
+2. NEVER ask clarifying questions unless the request is genuinely ambiguous AND you cannot make a reasonable assumption.
+3. If you can make a reasonable assumption, state it briefly and proceed.
+4. For jokes, trivia, creative requests — just do it immediately.
+5. Keep replies concise. No filler phrases like "Certainly!", "Of course!", "Great question!".
+6. If the user expresses frustration, acknowledge it briefly and get to it — don't apologize excessively.
+7. When referencing prior context, use it naturally — don't re-summarize it back to the user.
+8. You are the agent. Act like one.`,
                         messages: [
                             ...history.map((m) => ({ role: m.role, content: m.content })),
-                            // Last message may include images as multimodal content
                             { role: 'user' as const, content: userContent },
                         ],
                         abortSignal: AbortSignal.timeout(30_000),
@@ -431,10 +430,52 @@ Keep replies concise and friendly. If the user proposes a single distinct action
         }
 
 
-        // TASK or PROJECT — Record the conversation exchange, no task yet (user must confirm)
-        const confirmReply = intent === 'TASK'
-            ? 'I can execute this as an automated task. Ready to start?' + recommendedSwitch
-            : `I can set up a **${suggestedCategory}** project to coordinate this work. Want me to create it?` + recommendedSwitch
+        // TASK: auto-queue immediately — no confirmation step. The user asked, we act.
+        // PROJECT: still show one confirm because it spins up a full multi-step sprint.
+        if (intent === 'TASK') {
+            // Synthesize a clean task description from conversation context
+            let cleanDescription = trimmedMsg
+            try {
+                const synth = await withFallback(aiSettings, 'summarization', async (model) =>
+                    generateText({
+                        model,
+                        system: 'You are a task description synthesizer. Given a conversation, output a single clear, specific, third-person task description in one sentence (max 150 chars) that captures what the user wants the agent to accomplish. No preamble, no quotes, just the description.',
+                        messages: [
+                            ...history.map(m => ({ role: m.role, content: m.content })),
+                            { role: 'user' as const, content: trimmedMsg },
+                        ],
+                        abortSignal: AbortSignal.timeout(8_000),
+                    })
+                )
+                if (synth.text?.trim()) cleanDescription = synth.text.trim().replace(/^"|"$/g, '')
+            } catch { /* use raw message as fallback */ }
+
+            const taskId = await pushTask({
+                workspaceId,
+                type: 'automation',
+                source: 'dashboard',
+                context: {
+                    description: cleanDescription,
+                    message: cleanDescription,
+                    sessionId: sid,
+                    channel: 'webchat',
+                },
+                priority: 2,
+            })
+            logger.info({ workspaceId, taskId, description: cleanDescription }, 'Webchat task auto-queued (no confirm step)')
+            emitToWorkspace(workspaceId, { type: 'task_queued', taskId, source: 'dashboard' })
+
+            const confirmReply = `On it.${recommendedSwitch}`
+            try {
+                await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent })
+            } catch { /* non-fatal */ }
+
+            res.json({ status: 'task_queued', taskId, reply: confirmReply })
+            return
+        }
+
+        // PROJECT — one confirm because it creates a full multi-task sprint
+        const confirmReply = `I'll set up a **${suggestedCategory}** project for this. Confirm to kick it off.${recommendedSwitch}`
         try {
             await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent })
         } catch (err) {
@@ -445,7 +486,7 @@ Keep replies concise and friendly. If the user proposes a single distinct action
             status: 'confirm_action',
             intent,
             description: trimmedMsg,
-            suggestedCategory: intent === 'PROJECT' ? suggestedCategory : undefined,
+            suggestedCategory,
         })
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/message failed')

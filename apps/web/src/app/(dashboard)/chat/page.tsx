@@ -295,49 +295,31 @@ function MessageBubble({
                                 </details>
                             )}
                         </div>
-                    ) : msg.status === 'confirm_action' && msg.intent ? (
+                    ) : msg.status === 'confirm_action' && msg.intent === 'PROJECT' ? (
                         <div className="flex flex-col gap-3">
                             <span className="font-medium text-text-primary">
-                                {msg.intent === 'TASK'
-                                    ? 'I can run this as an automated task.'
-                                    : 'I can set this up as a coordinated project.'}
+                                I can set this up as a coordinated project.
                             </span>
-                            <span className="text-sm text-text-secondary italic">&quot;{msg.actionDescription}&quot;</span>
 
-                            {/* Project category picker — only shown when PROJECT is selected */}
-                            {msg.intent === 'PROJECT' && (
-                                <div className="flex flex-wrap gap-1.5">
-                                    {PROJECT_CATS.map(({ id, label, Icon }) => (
-                                        <button
-                                            key={id}
-                                            onClick={() => onSelectCategory(msg.id, id)}
-                                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium border transition-all ${
-                                                sel === id
-                                                    ? 'bg-indigo border-indigo text-text-primary'
-                                                    : 'bg-zinc-700/50 border-zinc-600/50 text-text-secondary hover:border-zinc-500 hover:text-text-primary'
-                                            }`}
-                                        >
-                                            <Icon className="h-3 w-3" />
-                                            {label}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
+                            {/* Category picker */}
+                            <div className="flex flex-wrap gap-1.5">
+                                {PROJECT_CATS.map(({ id, label, Icon }) => (
+                                    <button
+                                        key={id}
+                                        onClick={() => onSelectCategory(msg.id, id)}
+                                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium border transition-all ${
+                                            sel === id
+                                                ? 'bg-indigo border-indigo text-text-primary'
+                                                : 'bg-zinc-700/50 border-zinc-600/50 text-text-secondary hover:border-zinc-500 hover:text-text-primary'
+                                        }`}
+                                    >
+                                        <Icon className="h-3 w-3" />
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
 
-                            {/* Three-option intent row */}
                             <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                    onClick={() => onExecute(msg.id, 'CONVERSATION', msg.actionDescription!, sel)}
-                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-3 transition-colors"
-                                >
-                                    Just answer
-                                </button>
-                                <button
-                                    onClick={() => onExecute(msg.id, 'TASK', msg.actionDescription!, sel)}
-                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-3 transition-colors"
-                                >
-                                    Create Task
-                                </button>
                                 <button
                                     onClick={() => onExecute(msg.id, 'PROJECT', msg.actionDescription!, sel)}
                                     className="rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
@@ -346,7 +328,7 @@ function MessageBubble({
                                 </button>
                                 <button
                                     onClick={() => onCancel(msg.id)}
-                                    className="ml-auto text-[11px] text-text-muted hover:text-text-secondary transition-colors"
+                                    className="text-[11px] text-text-muted hover:text-text-secondary transition-colors"
                                 >
                                     Dismiss
                                 </button>
@@ -1286,7 +1268,21 @@ function ChatContent() {
                 return
             }
 
-            // Task queued — poll for reply
+            // Task auto-queued (no confirmation needed) — show reply + start polling
+            if (data.status === 'task_queued' && data.taskId) {
+                setMessages((prev) => prev.map((m) =>
+                    m.id === pendingId ? {
+                        ...m,
+                        taskId: data.taskId!,
+                        status: 'running',
+                        content: (data as { reply?: string }).reply ?? 'On it.',
+                    } : m
+                ))
+                void pollReply(data.taskId, pendingId)
+                return
+            }
+
+            // Task queued via legacy path
             if (data.taskId) {
                 setMessages((prev) => prev.map((m) =>
                     m.id === pendingId ? { ...m, taskId: data.taskId!, status: 'running' } : m
