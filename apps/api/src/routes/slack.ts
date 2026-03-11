@@ -160,6 +160,12 @@ interface SlackEvent {
     thread_ts?: string
     bot_id?: string
     subtype?: string
+    files?: Array<{
+        id: string
+        name: string
+        mimetype: string
+        url_private: string
+    }>
 }
 
 interface SlackPayload {
@@ -172,36 +178,33 @@ interface SlackPayload {
 // ── POST /api/channels/slack/events ──────────────────────────────────────────
 
 slackRouter.post('/events', async (req: Request, res: Response) => {
-    // URL verification challenge (Slack sends this when you first configure the webhook)
+    // 1. URL verification challenge (Slack sends this when you first configure the webhook)
     const payload = req.body as SlackPayload
     if (payload.type === 'url_verification') {
         res.json({ challenge: payload.challenge })
         return
     }
 
-    // Verify signature on all non-challenge requests
+    // 2. Verify signature on all non-challenge requests
     if (!verifySlackSignature(req)) {
         logger.warn('Slack signature verification failed')
         res.status(403).json({ error: 'Invalid signature' })
         return
     }
 
-    // Acknowledge immediately — Slack requires <3s response
+    // 3. Acknowledge immediately — Slack requires <3s response
     res.json({ ok: true })
 
     const event = payload.event
     if (!event) return
 
-    // Ignore bot messages and message edits
+    // 4. Ignore bot messages and message edits
     if (event.bot_id || event.subtype) return
 
-    // Handle: app_mention (in channels) and message.im (direct messages)
+    // 5. Handle: app_mention (in channels) and message.im (direct messages)
     const isDirectMessage = event.channel_type === 'im' && event.type === 'message'
     const isMention = event.type === 'app_mention'
     if (!isDirectMessage && !isMention) return
-
-    const text = event.text?.replace(/<@[A-Z0-9]+>/g, '').trim()
-    if (!text) return
 
     const teamId = payload.team_id ?? ''
     const workspaceId = resolveWorkspace(teamId)
@@ -218,7 +221,78 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
         return
     }
 
-    logger.info({ teamId, workspaceId, text: text.slice(0, 80) }, 'Slack message received')
+    // ── Handle Voice / Audio Files ──────────────────────────────────────────
+    const audioFile = event.files?.find(f => f.mimetype.startsWith('audio/'))
+    if (audioFile && !event.text) {
+        if (!BOT_TOKEN) return
+
+        try {
+            // Check voice settings first
+            const apiBase = `http://localhost:${process.env.PORT ?? 3001}`
+            const settingsRes = await fetch(`${apiBase}/api/v1/voice/settings?workspaceId=${workspaceId}`, {
+                signal: AbortSignal.timeout(5000),
+            }).catch(() => null)
+            const voiceSettings = settingsRes?.ok ? await settingsRes.json() as { configured: boolean } : null
+
+            if (!voiceSettings?.configured) {
+                if (event.channel) {
+                    await postMessage(
+                        event.channel,
+                        '🎙️ I received your audio file, but voice transcription is not set up.\n\n' +
+                        'Go to *Settings → Voice* in your Plexo dashboard to add your Deepgram key.',
+                        event.ts
+                    )
+                }
+                return
+            }
+
+            // Download file from Slack
+            const fileRes = await fetch(audioFile.url_private, {
+                headers: { Authorization: `Bearer ${BOT_TOKEN}` },
+                signal: AbortSignal.timeout(30_000),
+            })
+            if (!fileRes.ok) throw new Error(`Slack file download failed: ${fileRes.status}`)
+            
+            const audioBuffer = Buffer.from(await fileRes.arrayBuffer())
+
+            // Transcribe
+            const transcribeRes = await fetch(`${apiBase}/api/v1/voice/transcribe?workspaceId=${workspaceId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': audioFile.mimetype },
+                body: audioBuffer,
+                signal: AbortSignal.timeout(35_000),
+            })
+
+            if (!transcribeRes.ok) {
+                const errorData = await transcribeRes.json().catch(() => ({})) as { error?: { message: string } }
+                throw new Error(errorData.error?.message || `Transcribe API Error ${transcribeRes.status}`)
+            }
+
+            const { transcript } = await transcribeRes.json() as { transcript: string }
+            if (!transcript?.trim()) {
+                if (event.channel) {
+                    await postMessage(event.channel, '🎙️ I received your audio, but couldn\'t hear anything clear. Please try again.', event.ts)
+                }
+                return
+            }
+
+            logger.info({ workspaceId, channel: event.channel, chars: transcript.length }, 'Slack audio transcribed')
+
+            // Re-invoke the handler with the transcript as text
+            req.body.event.text = transcript
+            // Recursion is messy for Express handlers, but we can just continue with the resolved text
+            event.text = transcript
+        } catch (err) {
+            logger.error({ err, workspaceId, channel: event.channel }, 'Slack transcription failed')
+            if (event.channel) {
+                await postMessage(event.channel, '❌ Failed to process that audio message. Please try text.', event.ts)
+            }
+            return
+        }
+    }
+
+    const text = event.text?.replace(/<@[A-Z0-9]+>/g, '').trim()
+    if (!text) return
 
     const threadId = event.thread_ts ?? event.ts ?? 'default'
     addToHistory(threadId, 'user', text)

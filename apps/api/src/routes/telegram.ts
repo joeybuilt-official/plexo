@@ -402,12 +402,30 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                 headers: { 'Content-Type': mimeType },
                 body: audioBuffer,
                 signal: AbortSignal.timeout(35_000),
+            }).catch(e => {
+                logger.error({ err: e, workspaceId }, 'Failed to reach transcription API')
+                throw e
             })
+
+            if (!transcribeRes.ok) {
+                const errorData = await transcribeRes.json().catch(() => ({})) as { error?: { message: string, code: string } }
+                const msg = errorData.error?.message || `API returned ${transcribeRes.status}`
+                logger.warn({ workspaceId, status: transcribeRes.status, errorData, mimeType }, 'Voice transcription API returned error')
+                
+                if (transcribeRes.status === 402 || (errorData.error?.code === 'NO_VOICE_KEY')) {
+                    await sendMessage(token, chatId, '🎙️ No Deepgram API key found. Go to *Settings → Voice* in your Plexo dashboard to enable voice messages.')
+                } else {
+                    await sendMessage(token, chatId, `❌ Sorry, I had trouble processing that audio: ${msg}`)
+                }
+                return
+            }
+
             const transcribeData = await transcribeRes.json() as { transcript?: string }
             transcript = transcribeData.transcript ?? null
 
             if (!transcript || transcript.trim() === '') {
-                await sendMessage(token, chatId, '🎙️ I received your voice message but couldn\'t understand the audio. Please try again or send text.')
+                logger.warn({ workspaceId, chatId }, 'Deepgram returned empty transcript for non-zero audio buffer')
+                await sendMessage(token, chatId, '🎙️ I received your voice message but transcribed it as silence. Please speak clearly or send text.')
                 return
             }
             logger.info({ chatId, workspaceId, chars: transcript.length }, 'Telegram voice message transcribed')
