@@ -16,9 +16,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **Artifact System interface** — Updated `TaskAsset` interface in chat page to support artifact versioning and ID tracking.
 
 ### Added
+- **GitHub Repository Selection** — Enhanced the code mode workspace configuration with a searchable repository dropdown. Users can now pick from their connected GitHub account instead of typing paths manually. Includes auto-detection of default branches and repository metadata previews.
 - **Agent Browsing awareness** — Updated Planning and Execution system prompts to explicitly categorize `web_search` and `web_fetch` as primary research tools, ensuring agents proactively use the live web for factual lookups.
-
-### Added
 - **Enhanced Agent Context Awareness** — Sub-agents now receive a comprehensive `CapabilityManifest` at task intake, covering active connections, model modalities, and available tools. `self_reflect` tool enables agents to introspect their own identity, setup, and memory status in real-time.
 - **Solution-Oriented Planning** — Planner system upgraded to encourage creative problem-solving; agents now prescribe necessary integrations or Kapsel skills to bridge digital gaps for the user.
 - **Multi-channel Voice support** — Added Deepgram-powered speech-to-text pipeline for Telegram, Slack, and Discord. One global API key in Settings → Voice covers all channels. Includes `detect_language=true` for robust global transcription support.

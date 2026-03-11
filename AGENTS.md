@@ -427,3 +427,16 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
     - **Chat UI Enhancements**: `MessageBubble` and `AssetCard` now render image previews and thumbnails for both user and agent messages. Conversation history correctly restores images from the database.
 - **Lesson**: Image handling in a text-driven agent requires a clear "attachment" contract between the executor, the log, and the delivery adapter. Never assume the model will mention the image in text; always poll the asset directory on completion.
 
+---
+
+### 2026-03 — UI: GitHub Repository Selection (Dropdown vs Manual Input)
+
+- **Problem**: Users were forced to manually type the full repository name (e.g., `owner/repo`) when connecting an existing project in Code Mode. This was error-prone and required looking up the repo on GitHub first.
+- **Fix (API)**: Added `GET /api/v1/connections/github/repos` which resolves the workspace's GitHub connection, decrypts the token, and fetches the user's repository list directly from the GitHub API.
+- **Fix (UI)**: Replaced the raw text input with a searchable premium dropdown (Combobox).
+- **Features**:
+    - **Search-as-you-type**: Real-time filtering of fetched repositories.
+    - **Auto-branching**: Selecting a repository automatically pre-fills the "Target Branch" field with the repository's `defaultBranch` (e.g., `main`).
+    - **Metadata Visibility**: Displays repository descriptions and "Private" badges in the selection list.
+- **Lesson**: Reducing friction in the tool-setup phase directly improves the "time-to-first-task" metric. Always prefer authenticated lookups over manual entry for connected services.
+
