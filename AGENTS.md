@@ -119,6 +119,20 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03 — UI: "Live Conversation" Mode Overhaul
+
+- **Status**: Implemented.
+- **Problem**: Voice interaction felt disjointed. Text-to-Speech (TTS) and Speech-to-Text (STT) were separate toggles, forcing users to manually manage turn-taking.
+- **Solution**: Replaced passive voice toggles with a unified "Live Conversation" mode.
+- **Features**:
+    - **Autonomous Turn-Taking**: Linked the `useTTS` `onEnd` callback directly to the microphone activation (`voice.start()`). The agent speaks, finishes, and then immediately re-opens the mic for the user.
+    - **Interruption Support**: Manually activating the microphone or toggling Live Mode off immediately cancels any active speech synthesis via `window.speechSynthesis.cancel()`.
+    - **Unified State**: Introduced `isLiveMode` in `ChatContent` as the single source of truth for conversational flow.
+    - **UI Refinement**: Removed the "History" link from the header to reduce clutter. Added an amber pulse indicator to the Live Conversation button.
+- **Lesson**: Conversational UI should aim for zero-latency turn-taking. The agent shouldn't just "talk"; it should "listen" automatically when it stops talking.
+
+---
+
 ### 2026-03 — Light/Dark Mode (Feature-Flagged, Pending Design Review)
 
 - **Status**: Implemented, gated behind `NEXT_PUBLIC_THEME_TOGGLE=true`. Toggle and Appearance settings page section are invisible until the flag is set.

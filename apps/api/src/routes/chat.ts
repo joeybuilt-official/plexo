@@ -149,9 +149,10 @@ Examples (follow these exactly):
 "Write me a haiku" → CONVERSATION SIMPLE
 "Research AI coding tools and create a 30-page market analysis report" → TASK COMPLEX
 "Scrape 500 websites and compile a dataset" → TASK COMPLEX
-"Build a full marketing plan with competitive analysis and ROI projections" → TASK COMPLEX
-"Build me a complete e-commerce site" → PROJECT COMPLEX code
+"Optimize this prompt for me" → CONVERSATION COMPLEX
+"Rewrite this prompt using first principles" → CONVERSATION COMPLEX
 "Remember: always reply in bullet points" → MEMORY SIMPLE
+"Build a full marketing plan with competitive analysis and ROI projections" → TASK COMPLEX
 
 Critical: when in doubt, use CONVERSATION. The cost of making something a TASK when it should be CONVERSATION is very high — the user gets a queued task instead of an immediate answer.
 
@@ -426,7 +427,7 @@ chatRouter.post('/message', async (req, res) => {
             if (!hasReasoning) {
                 // Find a reasoning model in DB from the same provider if possible, or OpenRouter
                 const [betterMatch] = await db.select().from(modelsKnowledge)
-                    .where(sql`${modelsKnowledge.strengths} ? 'reasoning'`)
+                    .where(sql`${modelsKnowledge.strengths} @> '["reasoning"]'::jsonb`)
                     .orderBy(desc(modelsKnowledge.reliabilityScore))
                     .limit(1)
 

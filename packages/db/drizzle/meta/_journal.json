@@ -148,6 +148,13 @@
       "when": 1773257690996,
       "tag": "0020_smiling_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1773268722664,
+      "tag": "0021_ordinary_mantis",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,10 @@ export const taskTypeEnum = pgEnum('task_type', [
     'report',
     'online',
     'automation',
+    'writing',
+    'general',
+    'data',
+    'marketing',
 ])
 
 export const taskStatusEnum = pgEnum('task_status', [

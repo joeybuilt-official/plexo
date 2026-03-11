@@ -411,10 +411,12 @@ function StatusChip({ status }: { status: Message['status'] }) {
 
 // ── Hook: Text-to-Speech ──────────────────────────────────────────────────
 
-function useTTS() {
+function useTTS(options?: { onEnd?: () => void; enabled?: boolean }) {
     const [speaking, setSpeaking] = useState(false)
-    const [enabled, setEnabled] = useState(true)
+    const enabled = options?.enabled ?? true
     const utterRef = useRef<SpeechSynthesisUtterance | null>(null)
+    const onEndRef = useRef(options?.onEnd)
+    onEndRef.current = options?.onEnd
 
     const speak = useCallback((text: string) => {
         if (!enabled || typeof window === 'undefined' || !window.speechSynthesis) return
@@ -430,8 +432,14 @@ function useTTS() {
         if (preferred) utterance.voice = preferred
         utterRef.current = utterance
         utterance.onstart = () => setSpeaking(true)
-        utterance.onend = () => setSpeaking(false)
-        utterance.onerror = () => setSpeaking(false)
+        utterance.onend = () => {
+            setSpeaking(false)
+            onEndRef.current?.()
+        }
+        utterance.onerror = () => {
+            setSpeaking(false)
+            onEndRef.current?.()
+        }
         window.speechSynthesis.speak(utterance)
     }, [enabled])
 
@@ -440,12 +448,7 @@ function useTTS() {
         setSpeaking(false)
     }, [])
 
-    const toggle = useCallback(() => {
-        if (speaking) stop()
-        setEnabled(e => !e)
-    }, [speaking, stop])
-
-    return { speaking, enabled, speak, stop, toggle }
+    return { speaking, enabled, speak, stop }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -476,6 +479,7 @@ function ChatContent() {
     const [error, setError] = useState<string | null>(null)
     const [agentModel, setAgentModel] = useState<string | null>(null)
     const [showVoiceSetupPrompt, setShowVoiceSetupPrompt] = useState(false)
+    const [isLiveMode, setIsLiveMode] = useState(false)
     const bottomRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -617,7 +621,14 @@ function ChatContent() {
 
 
 
-    const tts = useTTS()
+    const tts = useTTS({
+        enabled: isLiveMode,
+        onEnd: () => {
+            if (isLiveMode) {
+                void voice.start()
+            }
+        }
+    })
 
     const handleVoiceResult = useCallback((text: string) => {
         setInput(text)
@@ -1108,6 +1119,7 @@ function ChatContent() {
                 setMessages((prev) => prev.map((m) =>
                     m.id === pendingId ? { ...m, status: 'complete', content: data.reply! } : m
                 ))
+                if (tts.enabled) tts.speak(data.reply)
                 return
             }
 
@@ -1221,22 +1233,32 @@ function ChatContent() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    {/* TTS toggle */}
                     <button
-                        id="tts-toggle"
-                        onClick={tts.toggle}
-                        title={tts.enabled ? 'Voice responses on' : 'Voice responses off'}
-                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${tts.enabled
-                            ? 'bg-azure-dim text-azure border border-azure/20 hover:bg-azure-dim'
-                            : 'text-text-muted hover:text-text-secondary border border-transparent'
-                            }`}
+                        onClick={() => {
+                            const next = !isLiveMode
+                            setIsLiveMode(next)
+                            if (!next) {
+                                tts.stop()
+                                voice.stop()
+                            }
+                        }}
+                        className={`group relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                            isLiveMode
+                                ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20'
+                                : 'text-text-muted hover:text-text-secondary border border-transparent hover:border-border'
+                        }`}
                     >
-                        {tts.enabled
-                            ? <Volume2 className="h-3.5 w-3.5" />
-                            : <VolumeX className="h-3.5 w-3.5" />
-                        }
-                        <span>Voice</span>
+                        {isLiveMode && (
+                           <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                           </span>
+                        )}
+                        <Volume2 className={`h-3.5 w-3.5 ${isLiveMode ? 'animate-pulse' : ''}`} />
+                        <span>Live Conversation</span>
                     </button>
+
+
 
                     {messages.length > 0 && (
                         <button
@@ -1246,12 +1268,6 @@ function ChatContent() {
                             Clear
                         </button>
                     )}
-                    <Link
-                        href="/conversations"
-                        className="text-xs text-text-muted hover:text-text-secondary transition-colors"
-                    >
-                        History →
-                    </Link>
 
                     {/* Code Mode toggle */}
                     <button
@@ -1533,7 +1549,14 @@ function ChatContent() {
                         {voice.supported && (
                             <button
                                 id="voice-input-btn"
-                                onClick={() => isListening ? voice.stop() : void voice.start()}
+                                onClick={() => {
+                                    if (isListening) {
+                                        voice.stop()
+                                    } else {
+                                        tts.stop()
+                                        void voice.start()
+                                    }
+                                }}
                                 disabled={sending}
                                 title={isListening ? 'Stop recording' : 'Voice input'}
                                 className={`flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all duration-200 ${isListening
