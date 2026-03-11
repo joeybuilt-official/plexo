@@ -13,9 +13,10 @@
   "dependencies": {
     "@plexo/agent": "workspace:*",
     "@plexo/db": "workspace:*",
+    "@plexo/logger": "workspace:*",
     "@plexo/queue": "workspace:*",
     "@plexo/sdk": "workspace:*",
-    "@plexo/logger": "workspace:*",
+    "@plexo/storage": "workspace:*",
     "@sentry/node": "^10.42.0",
     "ai": "^6.0.111",
     "bcrypt": "^5.1",

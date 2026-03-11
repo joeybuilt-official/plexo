@@ -78,6 +78,9 @@ importers:
       '@plexo/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@plexo/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@sentry/node':
         specifier: ^10.42.0
         version: 10.42.0

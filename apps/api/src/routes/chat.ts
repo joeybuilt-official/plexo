@@ -277,20 +277,82 @@ chatRouter.post('/message', async (req, res) => {
         let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = 'CONVERSATION'
         const sid = sessionId ?? 'default'
         
+        // Build multimodal user content for AI SDK v6
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        type ContentPart = { type: 'text'; text: string } | { type: 'image'; image: string | URL; mimeType?: string }
+
         // Fetch full chat history reliably from the database instead of in-memory caching
         const dbTurns = await getSessionTurns(workspaceId, sid, 50)
         // Reconstruct messages array from the log
-        const history: Array<{ role: 'user' | 'assistant'; content: string }> = []
+        const history: any[] = []
         for (const t of dbTurns) {
-            if (t.message) history.push({ role: 'user', content: t.message })
+            if (t.message) {
+                const parts: ContentPart[] = []
+                const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g
+                let match
+                let lastIndex = 0
+                while ((match = imageRegex.exec(t.message)) !== null) {
+                    if (match.index > lastIndex) {
+                        parts.push({ type: 'text', text: t.message.substring(lastIndex, match.index) })
+                    }
+                    try {
+                        const url = new URL(match[2]!)
+                        parts.push({ type: 'image', image: url })
+                    } catch {
+                        parts.push({ type: 'text', text: match[0] }) // fallback
+                    }
+                    lastIndex = match.index + match[0].length
+                }
+                if (lastIndex < t.message.length) {
+                    parts.push({ type: 'text', text: t.message.substring(lastIndex) })
+                }
+                
+                // if we only have one text part, just use it to keep API simple, else use parts array
+                const firstPart = parts[0]
+                if (parts.length === 1 && firstPart?.type === 'text') {
+                    history.push({ role: 'user', content: firstPart.text })
+                } else if (parts.length > 0) {
+                    history.push({ role: 'user', content: parts })
+                }
+            }
             if (t.reply) history.push({ role: 'assistant', content: t.reply })
         }
 
-        const trimmedMsg = textMessage || (hasImages ? `[Image${validImages.length > 1 ? 's' : ''} attached]` : '')
+        const textHistory = history.map(m => ({
+            role: m.role,
+            content: Array.isArray(m.content)
+                ? m.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')
+                : m.content
+        }))
 
-        // Build multimodal user content for AI SDK v6
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        type ContentPart = { type: 'text'; text: string } | { type: 'image'; image: string; mimeType: string }
+        let finalMessageText = textMessage
+        const turnId = ulid()
+
+        if (hasImages) {
+            try {
+                const { uploadContent } = await import('@plexo/storage')
+                for (let i = 0; i < validImages.length; i++) {
+                    const img = validImages[i]!
+                    const b64 = img.data.replace(/^data:image\/[^;]+;base64,/, '')
+                    const buffer = Buffer.from(b64, 'base64')
+                    // Default filename safely handles empty string names
+                    const filename = img.name || `image-${i}.png`
+                    
+                    const res = await uploadContent({
+                        taskId: `chat-${sid}`, 
+                        filename: `${turnId}-${filename}`,
+                        content: buffer,
+                        contentType: img.mimeType
+                    })
+                    finalMessageText += `\n\n![${filename}](${res.url})`
+                }
+            } catch (err) {
+                logger.warn({ err }, 'Failed to upload chat images to storage')
+            }
+        }
+
+        const trimmedMsg = finalMessageText.trim() || (hasImages ? `[Image${validImages.length > 1 ? 's' : ''} attached]` : '')
+
         const userContent: ContentPart[] = hasImages
             ? [
                 { type: 'text', text: trimmedMsg },
@@ -310,11 +372,10 @@ chatRouter.post('/message', async (req, res) => {
             intent = intentOverride
         } else if (!forceConversation) {
             try {
-                // For classification we always use text-only (images don't affect intent)
                 const classifyMessages = [
-                    ...history.map(m => ({ role: m.role, content: m.content })),
+                    ...textHistory,
                     { role: 'user' as const, content: trimmedMsg }
-                ]
+                ] as any[]
 
                 const classifyResult = await withFallback(aiSettings, 'classification', async (model) =>
                     generateText({
@@ -433,8 +494,8 @@ Critical rules — follow without exception:
 9. You are the agent. Act like one. Produce results, not process descriptions.
 10. PROMPT OPTIMIZER: If the user asks you to optimize, improve, or write a prompt, DO NOT just write the prompt right away. Instead, act as a "first principles prompt optimizer": ask 2-3 specific, clarifying questions about their actual goals, context, target audience, and constraints. Only after they answer should you build the new optimized prompt.`,
                         messages: [
-                            ...history.map((m) => ({ role: m.role, content: m.content })),
-                            { role: 'user' as const, content: userContent },
+                            ...history,
+                            { role: 'user' as const, content: userContent as any },
                         ],
                         abortSignal: AbortSignal.timeout(30_000),
                     })
@@ -497,7 +558,7 @@ Critical rules — follow without exception:
                         model,
                         system: 'You are a task description synthesizer. Given a conversation, output a single clear, specific, third-person task description in one sentence (max 150 chars) that captures what the user wants the agent to accomplish. No preamble, no quotes, just the description.',
                         messages: [
-                            ...history.map(m => ({ role: m.role, content: m.content })),
+                            ...textHistory,
                             { role: 'user' as const, content: trimmedMsg },
                         ],
                         abortSignal: AbortSignal.timeout(8_000),
