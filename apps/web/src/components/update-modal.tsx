@@ -227,6 +227,13 @@ export function UpdateModal() {
         return () => { clearInterval(ticker); clearInterval(poller) }
     }, [versionInfo])
 
+    // Auto-start polling when update finishes
+    useEffect(() => {
+        if (done && versionInfo?.dockerEnabled && !awaitingRestart && !restartTimedOut) {
+            startRestartAndRefresh()
+        }
+    }, [done, versionInfo, awaitingRestart, restartTimedOut, startRestartAndRefresh])
+
     const manualCommands = `git pull\ndocker compose -f docker/compose.yml up -d --build`
 
     const copyCommands = () => {
@@ -439,9 +446,13 @@ export function UpdateModal() {
                                 versionInfo.dockerEnabled ? (
                                     // Docker: poll until container comes back up, then auto-reload
                                     <button
-                                        onClick={() => { if (!awaitingRestart) startRestartAndRefresh() }}
+                                        onClick={() => window.location.reload()}
                                         disabled={awaitingRestart && !restartTimedOut}
-                                        className="h-8 px-3 text-xs rounded-lg bg-azure hover:bg-azure/90 text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-75 disabled:cursor-wait"
+                                        className={cn("h-8 px-3 text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5",
+                                            awaitingRestart && !restartTimedOut 
+                                                ? "bg-surface-2 text-text-muted cursor-wait"
+                                                : "bg-azure hover:bg-azure/90 text-white"
+                                        )}
                                     >
                                         {awaitingRestart && !restartTimedOut ? (
                                             <><RotateCw className="h-3.5 w-3.5 animate-spin" /> Waiting… {restartSeconds}s</>
