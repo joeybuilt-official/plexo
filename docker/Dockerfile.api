@@ -13,6 +13,7 @@ COPY packages/agent/package.json        packages/agent/
 COPY packages/db/package.json           packages/db/
 COPY packages/queue/package.json        packages/queue/
 COPY packages/sdk/package.json          packages/sdk/
+COPY packages/logger/package.json       packages/logger/
 
 RUN pnpm install --frozen-lockfile --filter @plexo/api...
 
@@ -30,6 +31,7 @@ COPY --from=deps /app/packages/agent/node_modules  ./packages/agent/node_modules
 COPY --from=deps /app/packages/db/node_modules     ./packages/db/node_modules
 COPY --from=deps /app/packages/queue/node_modules  ./packages/queue/node_modules
 COPY --from=deps /app/packages/sdk/node_modules    ./packages/sdk/node_modules
+COPY --from=deps /app/packages/logger/node_modules ./packages/logger/node_modules
 
 # Source files
 COPY tsconfig.base.json ./
@@ -38,6 +40,7 @@ COPY packages/agent  ./packages/agent
 COPY packages/db     ./packages/db
 COPY packages/queue  ./packages/queue
 COPY packages/sdk    ./packages/sdk
+COPY packages/logger ./packages/logger
 
 # Root manifest — needed to read version field at build time
 COPY --from=deps /app/package.json ./
