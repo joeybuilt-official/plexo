@@ -65,10 +65,12 @@ import { VoiceWaveform } from '@web/components/voice-waveform'
 const LARGE_TEXT_THRESHOLD = 1000
 
 interface TaskAsset {
+    artifactId?: string
     filename: string
     bytes: number
     isText: boolean
     content: string | null
+    version?: number
 }
 
 interface Message {
