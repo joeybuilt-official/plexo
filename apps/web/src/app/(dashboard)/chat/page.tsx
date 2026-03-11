@@ -1431,15 +1431,15 @@ function ChatContent() {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 min-h-0">
                 {messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full gap-5 text-center">
+                    <div className="flex flex-col items-center justify-center h-full gap-2 mx-auto w-full max-w-2xl px-4 animate-in fade-in duration-700">
                         {/* Brand mark — idle breathe at rest, working pulse while listening */}
-                        <div className={`relative flex items-center justify-center transition-all duration-500 ${
+                        <div className={`relative flex items-center justify-center transition-all duration-500 mb-2 ${
                             isListening
                                 ? 'drop-shadow-[0_0_28px_rgba(99,102,241,0.6)]'
                                 : 'drop-shadow-[0_0_12px_rgba(99,102,241,0.2)]'
                         }`}>
                             <PlexoMark
-                                className="h-16 w-16"
+                                className="h-14 w-14"
                                 idle={!isListening}
                                 working={isListening}
                             />
@@ -1447,37 +1447,53 @@ function ChatContent() {
                                 <div className="absolute inset-0 rounded-full border border-azure/40 animate-ping" />
                             )}
                         </div>
-                        <div>
-                            <p className="text-base font-semibold text-text-secondary">
-                                {isListening ? 'Listening…' : 'Your agent is ready'}
-                            </p>
-                            <p className="text-sm text-text-muted mt-1">
+                        <div className="text-center mb-6">
+                            <h1 className="text-2xl md:text-[28px] font-serif font-medium text-text-primary tracking-tight mb-2 text-transparent bg-clip-text bg-gradient-to-br from-zinc-100 to-zinc-400">
+                                {isListening 
+                                    ? 'Listening…' 
+                                    : (() => {
+                                        const h = new Date().getHours()
+                                        const time = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+                                        return userName ? `${time}, ${userName.split(' ')[0]}` : time
+                                    })()
+                                }
+                            </h1>
+                            <p className="text-sm md:text-base text-text-muted">
                                 {isListening
-                                    ? 'Speak now — I\'ll send when you\'re done'
-                                    : 'Ask anything — or tap the mic to speak'
+                                    ? 'Speak now — I\'ll send when you\'re done.'
+                                    : 'What are we working on today?'
                                 }
                             </p>
                         </div>
                         {!isListening && (
-                            <div className="flex flex-wrap justify-center gap-2 max-w-md">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                                 {[
-                                    'Summarize recent task activity',
-                                    'What tools do you have?',
-                                    'Review my last failed task',
-                                    'What is in my memory store?',
-                                ].map((suggestion) => (
-                                    <button
-                                        key={suggestion}
-                                        onClick={() => { setInput(suggestion); inputRef.current?.focus() }}
-                                        className="rounded-full border border-border px-3 py-1.5 text-xs text-text-secondary hover:border-azure/50 hover:text-text-primary transition-colors"
-                                    >
-                                        {suggestion}
-                                    </button>
-                                ))}
+                                    { icon: Code2, label: 'Code', desc: 'Build or modify features', prompt: 'Write a React component that...' },
+                                    { icon: Search, label: 'Research', desc: 'Synthesize information', prompt: 'Research the latest developments in...' },
+                                    { icon: Server, label: 'Automate', desc: 'Set up pipelines or infra', prompt: 'Write a workflow to automate...' },
+                                    { icon: BarChart2, label: 'Analyze', desc: 'Process and visualize data', prompt: 'Analyze this dataset and...' },
+                                ].map((item) => {
+                                    const Icon = item.icon
+                                    return (
+                                        <button
+                                            key={item.label}
+                                            onClick={() => { setInput(item.prompt); inputRef.current?.focus() }}
+                                            className="group flex flex-col items-start gap-1.5 rounded-2xl border border-zinc-700/40 bg-surface-1/40 px-5 py-4 text-left transition-all duration-300 hover:border-azure/40 hover:bg-surface-2/60 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.2)]"
+                                        >
+                                            <div className="flex items-center gap-2.5 mb-0.5">
+                                                <div className="rounded-lg bg-zinc-800/80 p-1.5 text-text-secondary group-hover:text-azure group-hover:bg-azure/10 transition-colors shadow-sm border border-zinc-700/50">
+                                                    <Icon className="h-4 w-4" />
+                                                </div>
+                                                <span className="text-[13px] font-semibold text-text-secondary group-hover:text-text-primary transition-colors tracking-wide">{item.label}</span>
+                                            </div>
+                                            <span className="text-[13px] text-text-muted leading-relaxed max-w-[90%]">{item.desc}</span>
+                                        </button>
+                                    )
+                                })}
                             </div>
                         )}
                         {isListening && (
-                            <div className="mt-1">
+                            <div className="mt-4">
                                 <VoiceWaveform active={isListening} level={voice.level} />
                             </div>
                         )}
