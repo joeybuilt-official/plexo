@@ -2,10 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { redirect } from 'next/navigation'
-import { CommandCenter } from './_components/command-center'
-import { SystemHealth } from './_components/system-health'
 import { QuickSend } from './_components/quick-send'
-import { RSIProposalsPanel } from './_components/rsi-proposals-panel'
 import { DashboardRouter } from './_components/dashboard-router'
 import { Greeting } from './_components/greeting'
 
@@ -38,12 +35,6 @@ export default async function HomePage() {
                     </div>
                 </div>
 
-                {/* Dashboard Widgets below the fold */}
-                <div className="grid grid-cols-1 gap-6 w-full max-w-5xl mx-auto">
-                    <RSIProposalsPanel />
-                    <CommandCenter />
-                    <SystemHealth />
-                </div>
 
                 {/* Version */}
                 <p className="mt-8 text-center text-[10px] text-zinc-700">

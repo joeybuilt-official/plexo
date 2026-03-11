@@ -38,6 +38,7 @@ import {
     Mic,
     RefreshCw,
     Sparkles as _Sparkles, // kept for potential future use
+    Home,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
@@ -73,9 +74,10 @@ const NAV_GROUPS: NavGroup[] = [
     {
         label: 'Control',
         collapsible: true,
-        defaultOpen: false,
+        defaultOpen: true,
         items: [
-            { label: 'Overview', href: '/', icon: LayoutDashboard },
+            { label: 'Home', href: '/', icon: Home, exact: true },
+            { label: 'Overview', href: '/overview', icon: LayoutDashboard },
             { label: 'Tasks', href: '/tasks', icon: CheckSquare },
             { label: 'Projects', href: '/projects', icon: FolderOpen },
             { label: 'Cron Jobs', href: '/cron', icon: Clock },
@@ -507,7 +509,8 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
             }}
         >
             {[
-                { label: 'Overview', href: '/', icon: LayoutDashboard, exact: true },
+                { label: 'Home', href: '/', icon: Home, exact: true },
+                { label: 'Overview', href: '/overview', icon: LayoutDashboard },
                 { label: 'Chat', href: '/chat', icon: MessagesSquare, exact: false },
                 { label: 'Tasks', href: '/tasks', icon: CheckSquare, exact: false },
                 { label: 'Settings', href: '/settings', icon: SettingsIcon, exact: false },

@@ -39,6 +39,8 @@ import {
     FolderOpen,
     Code2 as CodeIcon,
     FileText,
+    Plus,
+    ArrowRight,
 } from 'lucide-react'
 import { CodeModeShell, type CodeModeContext } from './_code-mode/code-mode-shell'
 import Link from 'next/link'
@@ -1467,12 +1469,13 @@ function ChatContent() {
                         </div>
                         {!isListening && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                                {[
-                                    { icon: Code2, label: 'Code', desc: 'Build or modify features', prompt: 'Write a React component that...' },
-                                    { icon: Search, label: 'Research', desc: 'Synthesize information', prompt: 'Research the latest developments in...' },
-                                    { icon: Server, label: 'Automate', desc: 'Set up pipelines or infra', prompt: 'Write a workflow to automate...' },
-                                    { icon: BarChart2, label: 'Analyze', desc: 'Process and visualize data', prompt: 'Analyze this dataset and...' },
-                                ].map((item) => {
+                {[
+                    { icon: Code2, label: 'Code', desc: 'Build or modify features', prompt: 'Write a React component that...' },
+                    { icon: Search, label: 'Research', desc: 'Synthesize information', prompt: 'Research the latest developments in...' },
+                    { icon: Server, label: 'Ops', desc: 'Infrastructure & deployment', prompt: 'Audit all production servers for...' },
+                    { icon: BarChart2, label: 'Data', desc: 'Query and analyze', prompt: 'Identify all users who converted...' },
+                    { icon: PenLine, label: 'Writing', desc: 'Draft and generate content', prompt: 'Write a technical blog post explaining...' },
+                ].map((item) => {
                                     const Icon = item.icon
                                     return (
                                         <button
@@ -1490,6 +1493,20 @@ function ChatContent() {
                                         </button>
                                     )
                                 })}
+                                {/* 6th Slot - Start a Project */}
+                                <Link
+                                    href="/projects/new"
+                                    className="group flex flex-col items-start gap-1.5 rounded-2xl border border-dashed border-zinc-700/40 bg-surface-1/20 px-5 py-4 text-left transition-all duration-300 hover:border-azure/40 hover:bg-azure/5 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.15)]"
+                                >
+                                    <div className="flex items-center gap-2.5 mb-0.5 w-full">
+                                        <div className="rounded-lg bg-zinc-800/40 p-1.5 text-text-secondary group-hover:text-azure transition-colors border border-transparent group-hover:border-azure/20">
+                                            <Plus className="h-4 w-4" />
+                                        </div>
+                                        <span className="text-[13px] font-semibold text-text-secondary group-hover:text-text-primary transition-colors tracking-wide flex-1">More Options</span>
+                                        <ArrowRight className="h-4 w-4 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity translate-x-1 group-hover:translate-x-0" />
+                                    </div>
+                                    <span className="text-[13px] text-text-muted leading-relaxed max-w-[90%]">Start a complex project</span>
+                                </Link>
                             </div>
                         )}
                         {isListening && (
