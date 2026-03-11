@@ -91,7 +91,9 @@ Rules:
 - Minimize dependencies between parallel tasks
 - Each task needs a clear acceptance criterion
 - Use "branch" field for task ID (e.g., "task/research", "task/draft")
-- Maximum 8 tasks per project`,
+- Maximum 8 tasks per project
+- Think outside the box: Map abstract or physical problems (e.g., "plan a party") into achievable digital tasks (researching venues, drafting invites, building an itinerary). State what actions you plan to take in the task description.
+- Be solution-oriented: Prescribe integrations, connections, or apps the user could connect to you (via new Kapsel skills) to help complete the specific steps in the future.`,
     }
 
     return prompts[category] ?? prompts['general']!

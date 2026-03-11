@@ -378,3 +378,10 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 - **Fix 1**: Chained `.default([]).catch([])` onto the Zod `proposals` array and instructed the LLM prompt to explicitly return an empty array if no clear patterns exist.
 - **Root cause 2 (Memory completely empty on load)**: `GET /api/v1/memory/search` enforced a strict 400 error if the `q` parameter was empty. The `InsightsPage` UI prevented search entirely without a query. As a result, users never saw their historical memory entries natively.
 - **Fix 2**: Dropped the empty `q` check in the API. Modified `store.ts` to skip both ILIKE strings and embedding when the query is empty, substituting it for a straight order-by `memory_entries.createdAt` query. Finally, `InsightsPage.tsx` now calls a search with `q=` on mount to fetch the latest context natively.
+
+### 2026-03 — Overly Strict Capability Blocking in Planner
+
+- **Root cause**: The system prompt for the task planner (`packages/agent/src/planner/index.ts`) strictly mandated a `clarification` response if a requested capability was "NOT listed in the manifest above". This caused the agent to reject abstract, text-document, or real-world tasks (like "Plan a party") because physical capabilities (event organization, venue selection) were obviously missing from the digital tool manifest.
+- **Fix**: Updated the planner's `RULES` to limit the strict denial *only* to required digital media capabilities (e.g., video_generation, voice_synthesis). For abstract, physical, or real-world tasks, the planner is now instructed to leverage its text and research capabilities to deliver a strategy/schedule document, and optionally prescribe integrations rather than blocking the task.
+- **Lesson**: Do not let strict capability constraints inadvertently gate real-world text-planning workflows. When providing an LLM a list of explicit limitations, clearly distinguish between "cannot do this digital action" versus "cannot do this physical action".
+

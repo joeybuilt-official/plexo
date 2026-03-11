@@ -79,7 +79,9 @@ ${capabilityBlock}
 
 ${contextBlock ? `CONTEXT:\n${contextBlock}\n` : ''}
 RULES:
-- If the task requires capabilities NOT listed in the manifest above (e.g. video_generation, image_generation, audio_generation, voice_synthesis), you MUST return type: "clarification" — never attempt a plan for work you cannot deliver.
+- If the task strictly requires digital media capabilities NOT listed in the manifest above (e.g. video_generation, image_generation, audio_generation, voice_synthesis), you MUST return type: "clarification" — never attempt to deliver digital modalities you cannot produce.
+- Think outside the box: If a task seems unachievable directly (e.g. "plan a party", "run a marketing campaign", "buy plane tickets"), DO NOT return clarification immediately. Instead, map the real-world problem to achievable digital subtasks. You can always research, write schedules, draft emails, structure databases, or write scripts.
+- Be solution-oriented: When planning for abstract or physical tasks, clearly state any additional apps, APIs, or integrations the user might need to connect (or that you could build) to complete the final mile.
 - IMPORTANT EXCEPTION: If the task requires connecting to a third-party service/API that has no existing connection, and "synthesize_kapsel_skill" is listed in the manifest tools, you MUST use synthesize_kapsel_skill to build that connection. This is the self-extension mechanism — it creates new skills and connections autonomously. Never return clarification for service integration tasks when synthesize_kapsel_skill is available.
 - When returning clarification: provide 1–4 concrete alternatives you CAN deliver with the available tools. Always include a written/text alternative.
 - When returning a plan: prefer reversible actions, flag irreversible ones as one-way doors.
