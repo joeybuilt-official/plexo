@@ -6,10 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Fixed
+- **Voice Settings UI** — Improved configuration status detection, real-time Deepgram balance fetching, and better error feedback during API key testing.
 - **Chat classifier: vague campaign auto-queueing** — Updated the `CLASSIFY_SYSTEM` and conversational prompts to prevent vague noun phrases (e.g., "Wayfinders S2 Campaign") from being auto-queued as tasks or projects. The agent now treats these as `CONVERSATION` and explicitly asks for strategy, timeline, goals, and channels before proceeding.
 
-
 ### Added
+- **Multi-channel Voice support** — Added Deepgram-powered speech-to-text pipeline for Telegram, Slack, and Discord. One global API key in Settings → Voice covers all channels. Includes `detect_language=true` for robust global transcription support.
+- **Enhanced Dashboard QuickSend** — Expanded capability chips to include Marketing and General. Added a "More Options" link to the project creation page for complex multi-step requests.
+- **Chat Deliverables rendering** — The chat UI now renders `TaskAsset` objects (from `write_asset`) inline with copy-to-clipboard functionality, allowing immediate access to agent-generated files without leaving the thread.
+
 - **Agent Behavior Configuration System (Phase 5)** — Structured, layered agent behavior rules replace the flat AGENTS.md file:
   - **Schema** — `behavior_rules`, `behavior_groups`, `behavior_snapshots` tables (migration `0011_behavior_rules.sql`); `rule_type` and `rule_source` enums; self-referential `overrides_rule_id` for inheritance tracking
   - **Resolution engine** — `packages/agent/src/behavior/resolver.ts`: merges platform defaults → workspace rules → project rules → task context (later layers win on key conflicts); non-fatal DB errors on each layer; snapshot written on every merge

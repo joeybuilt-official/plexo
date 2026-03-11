@@ -78,8 +78,13 @@ export default function VoiceSettingsPage() {
         fetch(`${API_BASE}/api/v1/voice/settings?workspaceId=${workspaceId}`)
             .then(r => r.ok ? r.json() as Promise<VoiceSettings> : null)
             .then(data => {
-                if (data) setSettings(data)
-                if (data?.configured) fetchUsage(workspaceId)
+                if (data) {
+                    setSettings(data)
+                    if (data.configured) {
+                        setTestStatus('ok')
+                        fetchUsage(workspaceId)
+                    }
+                }
             })
             .catch(() => null)
             .finally(() => setLoading(false))
@@ -359,7 +364,7 @@ export default function VoiceSettingsPage() {
                                 ) : (
                                     <span className="text-xs text-text-muted">unavailable</span>
                                 )}
-                                {usageData && (
+                                {settings?.configured && (
                                     <button
                                         onClick={() => workspaceId && fetchUsage(workspaceId)}
                                         title="Refresh balance"

@@ -277,27 +277,11 @@ voiceRouter.get('/usage', async (req, res) => {
 // ── POST /api/voice/transcribe ────────────────────────────────────────────────
 
 // Accepts raw audio bytes. Client must set Content-Type to the audio MIME type.
-// Uses express.raw() — mounted per-route so JSON body parsing still works globally.
+import express from 'express'
 
 voiceRouter.post(
     '/transcribe',
-    // Parse raw body for this route only — limit 25 MB (Deepgram's max is 2GB but 25 MB is plenty for voice notes)
-    (req, res, next) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const contentType = (req.headers['content-type'] ?? '') as string
-        if (contentType.startsWith('application/json')) {
-            // Already parsed by global express.json() — pass through
-            next(); return
-        }
-        // Raw audio
-        const chunks: Buffer[] = []
-        req.on('data', (chunk: Buffer) => chunks.push(chunk))
-        req.on('end', () => {
-            req.body = Buffer.concat(chunks)
-            next()
-        })
-        req.on('error', next)
-    },
+    express.raw({ type: '*/*', limit: '25mb' }),
     async (req, res) => {
         const { workspaceId } = req.query as { workspaceId?: string }
         if (!workspaceId || !UUID_RE.test(workspaceId)) {
@@ -337,7 +321,8 @@ voiceRouter.post(
             deepgramUrl.searchParams.set('smart_format', 'true')
             deepgramUrl.searchParams.set('punctuate', 'true')
             deepgramUrl.searchParams.set('diarize', 'false')
-            deepgramUrl.searchParams.set('language', 'en')
+            // detect_language=true is more robust for global usage
+            deepgramUrl.searchParams.set('detect_language', 'true')
 
             const r = await fetch(deepgramUrl.toString(), {
                 method: 'POST',
@@ -350,13 +335,15 @@ voiceRouter.post(
             })
 
             if (!r.ok) {
-                const body = await r.text().catch(() => '')
-                logger.warn({ workspaceId, status: r.status, body: body.slice(0, 200) }, 'Deepgram transcription failed')
+                const body = await r.json().catch(() => ({ message: 'No error message in response body' })) as Record<string, any>
+                logger.warn({ workspaceId, status: r.status, error: body, contentType }, 'Deepgram transcription failed')
 
                 if (r.status === 401 || r.status === 403) {
                     res.status(401).json({ error: { code: 'INVALID_KEY', message: 'Deepgram API key is invalid or expired.' } })
+                } else if (r.status === 400 && body.err_code === 'UNSUPPORTED_ENCODING') {
+                     res.status(400).json({ error: { code: 'UNSUPPORTED_ENCODING', message: `Deepgram does not support the provided audio encoding (${contentType}). Try sending a different format.` } })
                 } else {
-                    res.status(502).json({ error: { code: 'DEEPGRAM_ERROR', message: `Deepgram returned ${r.status}: ${body.slice(0, 100)}` } })
+                    res.status(502).json({ error: { code: 'DEEPGRAM_ERROR', message: `Deepgram returned ${r.status}: ${body.err_msg || body.message || 'Unknown error'}` } })
                 }
                 return
             }
