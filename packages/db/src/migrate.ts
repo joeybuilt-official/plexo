@@ -21,6 +21,13 @@ const timer = setTimeout(() => {
 // Don't let the timer itself keep the event loop alive if everything finishes early.
 timer.unref()
 
+const MAX_RETRIES = 30
+const RETRY_DELAY_MS = 2000
+
+async function wait(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 async function runMigrations() {
     const connectionString = process.env.DATABASE_URL
     if (!connectionString) {
@@ -30,35 +37,83 @@ async function runMigrations() {
 
     const migrationsFolder = process.env.MIGRATIONS_DIR ?? './drizzle'
 
-    // Count pending migration files so the user can see progress context.
     let fileCount = 0
     try {
         fileCount = readdirSync(migrationsFolder).filter(f => f.endsWith('.sql')).length
     } catch {
-        // Non-fatal — folder check failure will surface during migrate() itself.
+        console.error(`[migrate] ERROR: Could not read migrations folder: ${migrationsFolder}`)
+        process.exit(1)
     }
 
     console.log(`[migrate] Starting — ${fileCount} migration file(s) in ${migrationsFolder}`)
-    console.log(`[migrate] Connecting to Postgres...`)
 
-    const sql = postgres(connectionString, {
-        max: 1,
-        connect_timeout: 30, // seconds — fast-fail if DB is unreachable
-        idle_timeout: 60,
-    })
-    const db = drizzle(sql)
+    let lastError: any = null
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            if (attempt > 1) {
+                console.log(`[migrate] Retry attempt ${attempt}/${MAX_RETRIES}...`)
+            } else {
+                console.log(`[migrate] Connecting to Postgres...`)
+            }
 
-    const start = Date.now()
-    await migrate(db, { migrationsFolder })
-    const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+            const sql = postgres(connectionString, {
+                max: 1,
+                connect_timeout: 10, // faster fail for retries
+                idle_timeout: 60,
+                onnotice: () => { }, // suppress notices
+            })
 
-    console.log(`[migrate] Complete in ${elapsed}s`)
-    await sql.end()
-    clearTimeout(timer)
-    process.exit(0)
+            const db = drizzle(sql)
+            const start = Date.now()
+
+            // The migrate() call is the one that actually establishes the connection
+            await migrate(db, { migrationsFolder })
+
+            const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+            console.log(`[migrate] Complete in ${elapsed}s`)
+
+            await sql.end()
+            clearTimeout(timer)
+            process.exit(0)
+        } catch (err: any) {
+            lastError = err
+            const msg = err instanceof Error ? err.message : String(err)
+            const code = err?.code
+
+            // Connection refused / DB starting up
+            if (code === 'ECONNREFUSED' || msg.includes('connection refused') || msg.includes('starting up')) {
+                console.warn(`[migrate] Database is not ready yet. Waiting ${RETRY_DELAY_MS}ms...`)
+            }
+            // Password authentication failed (28P01)
+            else if (code === '28P01' || msg.includes('password authentication failed')) {
+                console.warn(`[migrate] Authentication failed. This might be transient during first boot. Waiting ${RETRY_DELAY_MS}ms...`)
+
+                if (attempt > 10) {
+                    console.error('[migrate] BOTTLENECK IDENTIFIED: Authentication is consistently failing.')
+                    console.error('[migrate] TROUBLESHOOTING:')
+                    console.error('  1. Check if you changed POSTGRES_PASSWORD in .env while an existing pgdata volume exists.')
+                    console.error('  2. If so, your DB still uses the OLD password. Use the old one or delete the volume (DANGEROUS).')
+                    console.error('  3. Verify DATABASE_URL format in docker/compose.yml matches your password.')
+                }
+            }
+            // Database does not exist yet (3D000)
+            else if (code === '3D000' || msg.includes('does not exist')) {
+                console.warn(`[migrate] Database does not exist yet (still initializing?). Waiting ${RETRY_DELAY_MS}ms...`)
+            }
+            else {
+                // Unexpected error — fail immediately
+                console.error('[migrate] UNEXPECTED FAILURE:', msg)
+                process.exit(1)
+            }
+
+            await wait(RETRY_DELAY_MS)
+        }
+    }
+
+    console.error(`[migrate] FAILED: Could not complete migrations after ${MAX_RETRIES} attempts.`)
+    console.error('[migrate] LAST ERROR:', lastError?.message || lastError)
+    process.exit(1)
 }
 
-runMigrations().catch((err) => {
-    console.error('[migrate] FAILED:', err instanceof Error ? err.message : err)
-    process.exit(1)
-})
+runMigrations()
+

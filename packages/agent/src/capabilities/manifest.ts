@@ -116,6 +116,8 @@ const BUILTIN_TOOLS = [
     'synthesize_kapsel_skill',
     'web_search',
     'web_fetch',
+    'web_screenshot',
+    'image_search',
 ]
 
 

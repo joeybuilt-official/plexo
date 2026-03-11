@@ -589,12 +589,23 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             stepCount: result.steps?.length ?? plan.steps.length,
         })
 
+        // Fetch assets to include in event
+        let assets: string[] = []
+        try {
+            const { readdirSync, existsSync } = await import('node:fs')
+            const dir = `/tmp/plexo-assets/${task.id}`
+            if (existsSync(dir)) {
+                assets = readdirSync(dir)
+            }
+        } catch { /* skip */ }
+
         emit({
             type: 'task_complete',
             taskId: task.id,
             qualityScore: result.qualityScore,
             costUsd: result.totalCostUsd,
             summary: result.outcomeSummary,
+            assets,
         })
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err)

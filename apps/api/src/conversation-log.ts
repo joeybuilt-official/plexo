@@ -38,6 +38,7 @@ export interface RecordConversationParams {
     intent?: string | null
     taskId?: string | null
     channelRef?: ChannelRef | null
+    attachments?: { url: string; type: string; alt?: string }[] | null
 }
 
 // ── Record a single conversation turn ─────────────────────────────────────────
@@ -56,6 +57,7 @@ export async function recordConversation(params: RecordConversationParams): Prom
         intent: params.intent ?? null,
         taskId: params.taskId ?? null,
         channelRef: params.channelRef ?? null,
+        attachments: params.attachments ?? [],
     })
     return id
 }
@@ -114,6 +116,7 @@ export async function replyToChannel(
     channelRef: ChannelRef,
     text: string,
     channelToken?: string,
+    attachments?: { url: string; type: string; alt?: string }[] | null,
 ): Promise<void> {
     if (channelRef.channel === 'telegram') {
         if (!channelToken) {
@@ -121,6 +124,29 @@ export async function replyToChannel(
             return
         }
         try {
+            const hasImages = (attachments ?? []).some(a => a.type === 'image' || a.url.match(/\.(png|jpg|jpeg|gif|webp)$/i))
+            
+            if (hasImages) {
+                // Send as photos. For now, we take the first image or send all as individual photos.
+                // Telegram supports media groups, but for simplicity we'll send the text + first image.
+                const firstImg = (attachments ?? []).find(a => a.type === 'image' || a.url.match(/\.(png|jpg|jpeg|gif|webp)$/i))
+                if (firstImg) {
+                    await fetch(`${TELEGRAM_API}${channelToken}/sendPhoto`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: channelRef.chatId,
+                            photo: firstImg.url,
+                            caption: `💬 *From Plexo web:*\n${text}`,
+                            parse_mode: 'Markdown',
+                        }),
+                        signal: AbortSignal.timeout(15_000),
+                    })
+                    return
+                }
+            }
+
+            // Default to sendMessage
             await fetch(`${TELEGRAM_API}${channelToken}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -132,7 +158,7 @@ export async function replyToChannel(
                 signal: AbortSignal.timeout(10_000),
             })
         } catch (err) {
-            logger.warn({ err, channelRef }, 'replyToChannel: Telegram sendMessage failed')
+            logger.warn({ err, channelRef }, 'replyToChannel: Telegram sendMessage/sendPhoto failed')
         }
     }
     // TODO: Slack and Discord adapters can be added here following the same pattern

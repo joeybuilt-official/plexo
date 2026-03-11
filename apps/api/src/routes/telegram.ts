@@ -206,6 +206,8 @@ interface TelegramUpdate {
         voice?: { file_id: string; duration: number; mime_type?: string; file_size?: number }
         audio?: { file_id: string; duration: number; mime_type?: string; file_size?: number; title?: string }
         video_note?: { file_id: string; duration: number; file_size?: number }
+        photo?: Array<{ file_id: string; width: number; height: number; file_size?: number }>
+        caption?: string
     }
     callback_query?: {
         id: string
@@ -282,12 +284,36 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
 
                     await sendMessage(token, chatId, `⏳ Queueing Task… _(${taskId.slice(0, 8)})_`)
 
-                    const unsub = onAgentEvent((event) => {
+                    const unsub = onAgentEvent(async (event) => {
                         if (event.taskId !== taskId) return
                         if (event.type === 'task_complete') {
                             unsub()
-                            const result = (event.result as string | undefined) ?? 'Done.'
-                            sendMessage(token, chatId, `✅ ${result}`).catch(() => null)
+                            const result = (event.summary as string | undefined) ?? (event.result as string | undefined) ?? 'Done.'
+                            const assets = (event.assets as string[] | undefined) ?? []
+                            
+                            const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000'
+                            const assetAttachments = assets.filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f)).map(f => ({
+                                url: `${publicUrl}/api/v1/tasks/${taskId}/assets/${f}`,
+                                type: 'image',
+                                alt: f
+                            }))
+
+                            if (assetAttachments.length > 0) {
+                                // Send the first image with the result as caption
+                                await fetch(`${TELEGRAM_API}${token}/sendPhoto`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        chat_id: chatId,
+                                        photo: assetAttachments[0]!.url,
+                                        caption: `✅ ${result}`,
+                                        parse_mode: 'Markdown'
+                                    }),
+                                }).catch(() => null)
+                            } else {
+                                sendMessage(token, chatId, `✅ ${result}`).catch(() => null)
+                            }
+
                             addToHistory(channelId, chatId, 'assistant', result)
                             // Record the completion turn in conversations
                             recordConversation({
@@ -300,10 +326,11 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                                 intent: 'TASK',
                                 taskId,
                                 channelRef: { channel: 'telegram', channelId, chatId },
+                                attachments: assetAttachments.length > 0 ? assetAttachments : undefined,
                             }).catch(() => null)
                         } else if (event.type === 'task_failed' || event.type === 'task_blocked') {
                             unsub()
-                            const reason = (event.reason as string | undefined) ?? 'Unknown error'
+                            const reason = (event.error as string | undefined) ?? (event.reason as string | undefined) ?? 'Unknown error'
                             sendMessage(token, chatId, `❌ ${reason}`).catch(() => null)
                             recordConversation({
                                 workspaceId,
@@ -362,6 +389,30 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     const chatId = String(msg.chat.id)
     const channelRef: ChannelRef = { channel: 'telegram', channelId, chatId }
     const sessionId = telegramSessionId(channelId, chatId)
+    const attachments: { url: string; type: string; alt?: string }[] = []
+
+    // ── Photo / Image ─────────────────────────────────────────────────────────
+    const photos = msg.photo
+    if (photos && photos.length > 0) {
+        try {
+            // Get the largest photo (last in array)
+            const largest = photos[photos.length - 1]!
+            const fileInfoRes = await fetch(`${TELEGRAM_API}${token}/getFile?file_id=${largest.file_id}`)
+            const fileInfo = await fileInfoRes.json() as { ok: boolean; result?: { file_path?: string } }
+            const filePath = fileInfo.result?.file_path
+            
+            if (filePath) {
+                const imageUrl = `https://api.telegram.org/file/bot${token}/${filePath}`
+                attachments.push({ 
+                    url: imageUrl, 
+                    type: 'image', 
+                    alt: msg.caption || 'Telegram photo' 
+                })
+            }
+        } catch (err) {
+            logger.warn({ err }, 'Failed to process Telegram photo')
+        }
+    }
 
     // ── Voice / Audio ─────────────────────────────────────────────────────────
     const voiceFile = msg.voice ?? msg.audio ?? msg.video_note
@@ -443,8 +494,12 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         return
     }
 
-    if (!msg.text) return
-    const text = msg.text.trim()
+    if (!msg.text && msg.caption) {
+        msg.text = msg.caption
+    }
+
+    if (!msg.text && attachments.length === 0) return
+    const text = msg.text?.trim() || (attachments.length > 0 ? '[Image]' : '')
 
     if (text === '/start') {
         await sendMessage(token, chatId,
@@ -499,6 +554,7 @@ Critical rules — follow without exception:
             errorMsg: result.error ? `AI error: ${result.error}` : null,
             intent: 'CONVERSATION',
             channelRef,
+            attachments: attachments.length > 0 ? attachments : undefined,
         }).catch((err: Error) => logger.warn({ err }, 'Failed to record Telegram conversation'))
 
         await sendMessage(token, chatId, replyText)
@@ -523,6 +579,7 @@ Critical rules — follow without exception:
             status: 'complete',
             intent,
             channelRef,
+            attachments: attachments.length > 0 ? attachments : undefined,
         })
         emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'telegram' })
     } catch (err) {

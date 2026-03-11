@@ -95,6 +95,7 @@ conversationsRouter.get('/', async (req, res) => {
                 intent: row.intent,
                 taskId: row.task_id,
                 channelRef: row.channel_ref,
+                attachments: row.attachments,
                 createdAt: row.created_at,
                 turn_count: row.turn_count,
             }))

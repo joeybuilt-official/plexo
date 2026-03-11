@@ -99,6 +99,79 @@ connectionsRouter.get('/registry/:id', async (req, res) => {
 
 // ── GET /api/connections/installed ───────────────────────────────────────────
 
+connectionsRouter.get('/github/repos', async (req, res) => {
+    const { workspaceId } = req.query as Record<string, string>
+
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+
+    try {
+        const [row] = await db.select({
+            credentials: installedConnections.credentials,
+        }).from(installedConnections)
+            .where(and(
+                eq(installedConnections.workspaceId, workspaceId),
+                eq(installedConnections.registryId, 'github'),
+                eq(installedConnections.status, 'active'),
+            ))
+            .limit(1)
+
+        if (!row) {
+            res.status(404).json({ error: { code: 'NOT_CONNECTED', message: 'GitHub not connected for this workspace' } })
+            return
+        }
+
+        let token = ''
+        const raw = row.credentials as Record<string, unknown>
+        if (raw.encrypted) {
+            const decrypted = decrypt(raw.encrypted as string, workspaceId)
+            const creds = JSON.parse(decrypted) as Record<string, string>
+            token = creds.access_token ?? creds.token ?? Object.values(creds).find(v => v) ?? ''
+        }
+
+        if (!token) {
+            res.status(400).json({ error: { code: 'NO_TOKEN', message: 'No access token found' } })
+            return
+        }
+
+        // Fetch repos from GitHub
+        const ghRes = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28',
+                'User-Agent': 'Plexo/1.0',
+            },
+        })
+
+        if (!ghRes.ok) {
+            const errText = await ghRes.text()
+            logger.error({ err: errText, status: ghRes.status }, 'GitHub API failed')
+            res.status(ghRes.status).json({ error: { code: 'GITHUB_ERROR', message: 'Failed to fetch repositories from GitHub' } })
+            return
+        }
+
+        const data = await ghRes.json() as any[]
+        const repos = data.map(r => ({
+            id: r.id,
+            fullName: r.full_name,
+            name: r.name,
+            owner: r.owner.login,
+            description: r.description,
+            private: r.private,
+            updatedAt: r.updated_at,
+            defaultBranch: r.default_branch,
+        }))
+
+        res.json({ items: repos, total: repos.length })
+    } catch (err: unknown) {
+        logger.error({ err }, 'GET /api/connections/github/repos failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch repositories' } })
+    }
+})
+
 connectionsRouter.get('/installed', async (req, res) => {
     const { workspaceId } = req.query as Record<string, string>
 

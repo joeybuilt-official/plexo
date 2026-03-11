@@ -16,8 +16,12 @@ import {
     Loader2,
     AlertCircle,
     X,
+    Search,
+    Check,
+    ChevronDown,
 } from 'lucide-react'
 import Link from 'next/link'
+import { cn } from '@plexo/ui'
 
 export interface RepoSelection {
     repo: string       // owner/repo OR absolute local path
@@ -138,10 +142,36 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
     const [newBranch, setNewBranch] = useState('main')
     const [localPath, setLocalPath] = useState('')
 
+    // GitHub repos
+    const [repos, setRepos] = useState<any[]>([])
+    const [loadingRepos, setLoadingRepos] = useState(false)
+    const [repoSearch, setRepoSearch] = useState('')
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+
     // Check GitHub connection on mount
     useEffect(() => {
-        checkGitHubConnection(workspaceId).then(setCheckState)
+        checkGitHubConnection(workspaceId).then((state) => {
+            setCheckState(state)
+            if (state === 'connected') {
+                fetchRepos()
+            }
+        })
     }, [workspaceId])
+
+    async function fetchRepos() {
+        setLoadingRepos(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/connections/github/repos?workspaceId=${workspaceId}`)
+            if (res.ok) {
+                const data = await res.json()
+                setRepos(data.items || [])
+            }
+        } catch (err) {
+            console.error('Failed to fetch repos:', err)
+        } finally {
+            setLoadingRepos(false)
+        }
+    }
 
     // Local-mode bypass from the not-connected wall
     useEffect(() => {
@@ -276,23 +306,113 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                             </div>
                         ) : (
                             <>
-                                <div className="space-y-1.5 relative z-10">
+                                <div className="space-y-1.5 relative z-20">
                                     <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
-                                        {tab === 'existing' ? 'Repository Path' : 'Project Name'}
+                                        {tab === 'existing' ? 'Repository' : 'Project Name'}
                                     </label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
-                                            <Github className="w-4 h-4" />
-                                        </span>
-                                        <input
-                                            value={tab === 'existing' ? repo : newRepo}
-                                            onChange={(e) => tab === 'existing' ? setRepo(e.target.value) : setNewRepo(e.target.value)}
-                                            placeholder={tab === 'existing' ? 'owner/repo (e.g. joeybuilt-official/plexo)' : 'my-awesome-project'}
-                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono"
-                                            onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
-                                            autoFocus
-                                        />
-                                    </div>
+                                    
+                                    {tab === 'existing' ? (
+                                        <div className="relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                                className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-10 py-3 text-sm text-text-primary text-left outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono min-h-[46px] group"
+                                            >
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+                                                    <Github className="w-4 h-4" />
+                                                </span>
+                                                <span className={cn(
+                                                    "block truncate",
+                                                    !repo && "text-text-muted/50"
+                                                )}>
+                                                    {repo || 'Select a repository...'}
+                                                </span>
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted group-hover:text-text-secondary transition-colors">
+                                                    <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", isDropdownOpen && "rotate-180")} />
+                                                </span>
+                                            </button>
+
+                                            {isDropdownOpen && (
+                                                <div className="absolute top-full left-0 right-0 mt-2 bg-surface-2 border border-border/60 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                                                    <div className="p-2 border-b border-border/40 bg-surface-3/50">
+                                                        <div className="relative">
+                                                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+                                                            <input
+                                                                value={repoSearch}
+                                                                onChange={(e) => setRepoSearch(e.target.value)}
+                                                                placeholder="Search repositories..."
+                                                                className="w-full bg-surface-1 border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-text-primary outline-none focus:border-azure transition-all"
+                                                                autoFocus
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="max-h-60 overflow-y-auto p-1 custom-scrollbar">
+                                                        {loadingRepos ? (
+                                                            <div className="flex items-center justify-center py-8">
+                                                                <Loader2 className="w-4 h-4 text-text-muted animate-spin" />
+                                                            </div>
+                                                        ) : repos.length === 0 ? (
+                                                            <div className="py-8 text-center text-xs text-text-muted">
+                                                                No repositories found
+                                                            </div>
+                                                        ) : (
+                                                            repos
+                                                                .filter(r => r.fullName.toLowerCase().includes(repoSearch.toLowerCase()))
+                                                                .map((r) => (
+                                                                    <button
+                                                                        key={r.id}
+                                                                        onClick={() => {
+                                                                            setRepo(r.fullName)
+                                                                            setBranch(r.defaultBranch || 'main')
+                                                                            setIsDropdownOpen(false)
+                                                                            setRepoSearch('')
+                                                                        }}
+                                                                        className={cn(
+                                                                            "w-full flex items-center justify-between px-3 py-2 text-left text-xs rounded-lg transition-colors",
+                                                                            repo === r.fullName ? "bg-azure-dim text-azure" : "text-text-secondary hover:bg-surface-3 hover:text-text-primary"
+                                                                        )}
+                                                                    >
+                                                                        <div className="flex flex-col min-w-0">
+                                                                            <span className="font-medium truncate">{r.fullName}</span>
+                                                                            {r.description && <span className="text-[10px] text-text-muted truncate mt-0.5">{r.description}</span>}
+                                                                        </div>
+                                                                        {repo === r.fullName && <Check className="w-3.5 h-3.5 shrink-0 ml-2" />}
+                                                                        {r.private && <span className="ml-2 px-1 rounded bg-surface-3 text-[9px] text-text-muted border border-border">Private</span>}
+                                                                    </button>
+                                                                ))
+                                                        )}
+                                                        {!loadingRepos && repos.length > 0 && repos.filter(r => r.fullName.toLowerCase().includes(repoSearch.toLowerCase())).length === 0 && (
+                                                            <div className="py-8 text-center text-xs text-text-muted">
+                                                                No matches for "{repoSearch}"
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {isDropdownOpen && (
+                                                <div 
+                                                    className="fixed inset-0 z-40" 
+                                                    onClick={() => setIsDropdownOpen(false)}
+                                                />
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+                                                <Github className="w-4 h-4" />
+                                            </span>
+                                            <input
+                                                value={newRepo}
+                                                onChange={(e) => setNewRepo(e.target.value)}
+                                                placeholder="my-awesome-project"
+                                                className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono"
+                                                onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
+                                                autoFocus
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="space-y-1.5 relative z-10">

@@ -71,6 +71,7 @@ interface TaskAsset {
     isText: boolean
     content: string | null
     version?: number
+    url?: string
 }
 
 interface Message {
@@ -114,19 +115,29 @@ const PROJECT_CATS = [
 
 // ── AssetCard — renders a write_asset file inline in the chat ────────────────
 
-function AssetCard({ asset, onOpen }: { asset: TaskAsset; onOpen?: (asset: TaskAsset) => void }) {
+function AssetCard({ asset, taskId, onOpen }: { asset: TaskAsset; taskId?: string; onOpen?: (asset: TaskAsset) => void }) {
     const sizeLabel = asset.bytes < 1024 ? `${asset.bytes}B` : asset.bytes < 1024 * 1024 ? `${(asset.bytes / 1024).toFixed(1)}KB` : `${(asset.bytes / (1024 * 1024)).toFixed(1)}MB`
+    const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(asset.filename)
+    const assetUrl = asset.url || (taskId ? `/api/v1/tasks/${taskId}/assets/${asset.filename}` : null)
 
     return (
         <button 
            onClick={() => onOpen?.(asset)}
-           className="group/asset flex items-center justify-between gap-2 rounded-lg border border-zinc-700/60 bg-zinc-800/50 px-3 py-2 cursor-pointer hover:bg-zinc-700/40 transition-colors list-none select-none text-left w-full"
+           className="group/asset flex flex-col gap-2 rounded-xl border border-zinc-700/60 bg-zinc-800/50 p-2 cursor-pointer hover:bg-zinc-700/40 transition-all list-none select-none text-left w-full max-w-[280px]"
         >
-            <div className="flex items-center gap-2 overflow-hidden">
-                <FileText className="h-3.5 w-3.5 shrink-0 text-azure" />
-                <span className="flex-1 text-xs font-medium text-text-primary font-mono truncate">{asset.filename}</span>
+            {isImage && assetUrl && (
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-zinc-900/50 border border-zinc-700/30">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={assetUrl} alt={asset.filename} className="h-full w-full object-cover transition-transform group-hover/asset:scale-105" />
+                </div>
+            )}
+            <div className="flex items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-2 overflow-hidden">
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-azure" />
+                    <span className="flex-1 text-[11px] font-medium text-text-primary font-mono truncate">{asset.filename}</span>
+                </div>
+                <span className="text-[10px] text-text-muted shrink-0 break-keep">{sizeLabel}</span>
             </div>
-            <span className="text-[10px] text-text-muted shrink-0 break-keep">{sizeLabel}</span>
         </button>
     )
 }
@@ -150,9 +161,9 @@ function MessageBubble({
 }) {
     const [copied, setCopied] = useState(false)
 
-    // File previews in user bubbles
-    const imageStrip = msg.role === 'user' && msg.images && msg.images.length > 0 ? (
-        <div className="flex flex-wrap gap-2 mb-2">
+    // File previews in bubbles
+    const imageStrip = msg.images && msg.images.length > 0 ? (
+        <div className={`flex flex-wrap gap-2 mb-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.images.map((img) => (
                 img.kind === 'image' ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -160,7 +171,7 @@ function MessageBubble({
                         key={img.id}
                         src={img.dataUrl}
                         alt={img.name}
-                        className="max-h-40 max-w-[200px] rounded-lg border border-border object-cover"
+                        className="max-h-60 max-w-[300px] rounded-lg border border-border/50 object-cover shadow-sm transition-transform hover:scale-[1.02]"
                     />
                 ) : (
                     <div
@@ -321,6 +332,7 @@ function MessageBubble({
                                         <AssetCard 
                                             key={asset.filename} 
                                             asset={asset} 
+                                            taskId={msg.taskId}
                                             onOpen={(a) => msg.taskId && onOpenAsset(msg.taskId, a)}
                                         />
                                     ))}
@@ -520,10 +532,26 @@ function ChatContent() {
                     const turns = data.items ?? []
                     const loaded: Message[] = []
                     for (const turn of turns) {
+                        const attachments = (turn as any).attachments as any[] | null
+                        const turnImages = attachments?.filter(a => a.type === 'image').map(a => ({
+                            id: a.url,
+                            dataUrl: a.url,
+                            kind: 'image',
+                            name: a.alt || 'Image'
+                        }))
+                        const turnAssets = attachments?.filter(a => a.type !== 'image').map(a => ({
+                            filename: a.alt || 'Asset',
+                            bytes: 0,
+                            isText: false,
+                            content: null,
+                            url: a.url
+                        }))
+
                         loaded.push({
                             id: `ctx-user-${turn.id}`,
                             role: 'user',
                             content: turn.message,
+                            images: turn.reply ? undefined : (turnImages as any[]), // If there's a reply, images might belong to the reply
                             status: 'complete',
                             at: Date.now(),
                         })
@@ -535,6 +563,8 @@ function ChatContent() {
                                 content: body,
                                 status: (turn.status === 'failed' && turn.errorMsg) ? 'failed' : 'complete',
                                 taskId: turn.taskId ?? undefined,
+                                images: (turnImages as any[]),
+                                assets: (turnAssets as any[]),
                                 at: Date.now() + 1,
                             })
                         }

@@ -16,6 +16,7 @@ import { getPromptOverrides } from '../memory/prompt-improvement.js'
 import { requestApproval, waitForDecision } from '../one-way-door.js'
 import { searchMemory } from '../memory/store.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
+import { join } from 'node:path'
 
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
@@ -502,6 +503,86 @@ function buildTools(ctx: ExecutionContext) {
                 if (focus === 'all') return JSON.stringify(snapshot, null, 2)
                 const section = sections[focus as keyof typeof sections]
                 return section ? JSON.stringify(section, null, 2) : JSON.stringify(snapshot, null, 2)
+            },
+        }),
+        web_screenshot: tool({
+            description: 'Capture a screenshot of a URL using headless Chrome. Use this to "see" what a website looks like, verify UI changes, or capture visual content. The image is saved as an asset and its path is returned. Best for verifying that a web page rendered correctly or capturing a snapshot of a dashboard/report.',
+            inputSchema: z.object({
+                url: z.string().url().describe('The URL to screenshot'),
+                fullPage: z.boolean().optional().default(false).describe('Whether to capture the full page or just the initial viewport (default: false). Full page captures might be very large.'),
+                width: z.number().optional().default(1280).describe('Browser window width (default: 1280)'),
+                height: z.number().optional().default(720).describe('Browser window height (default: 720)'),
+            }),
+            execute: async ({ url, fullPage, width = 1280, height = 720 }) => {
+                const filename = `screenshot_${ulid()}.png`
+                const assetDir = `/tmp/plexo-assets/${ctx.taskId}`
+                const filePath = join(assetDir, filename)
+                
+                try {
+                    const { spawnSync } = await import('node:child_process')
+                    const { mkdirSync, existsSync } = await import('node:fs')
+                    
+                    mkdirSync(assetDir, { recursive: true })
+                    const args = [
+                        '--headless',
+                        '--no-sandbox',
+                        '--disable-gpu',
+                        `--window-size=${width},${height}`,
+                        `--screenshot=${filePath}`,
+                        url
+                    ]
+                    
+                    const res = spawnSync('google-chrome', args, { timeout: 30000 })
+                    
+                    if (res.error) throw res.error
+                    if (res.status !== 0) {
+                        return `Screenshot failed (exit code ${res.status}): ${res.stderr?.toString() || 'unknown error'}`
+                    }
+
+                    // Check if file exists
+                    if (!existsSync(filePath)) {
+                        return `Screenshot failed: Output file ${filePath} was not created.`
+                    }
+
+                    return `Screenshot saved as asset: ${filename}\nView it at: /api/v1/tasks/${ctx.taskId}/assets/${filename}`
+                } catch (err) {
+                    return `ERROR: ${err instanceof Error ? err.message : String(err)}`
+                }
+            },
+        }),
+        image_search: tool({
+            description: 'Search for images on the web. Returns a list of image URLs and their sources. Use this to find visual examples, icons, or specific images requested by the user.',
+            inputSchema: z.object({
+                query: z.string().describe('The image search query'),
+            }),
+            execute: async ({ query }) => {
+                try {
+                    // We use DuckDuckGo's "i.js" API or similar scraping approach.
+                    // For maximum reliability in this environment, we'll try to fetch the HTML and extract image links.
+                    const res = await fetch(`https://www.google.com/search?q=${encodeURIComponent(query)}&tbm=isch`, {
+                        headers: { 
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' 
+                        },
+                        signal: AbortSignal.timeout(15000)
+                    })
+                    const html = await res.text()
+                    
+                    // Basic regex to find image URLs in the result. 
+                    // This is a simplified extraction of high-res image patterns.
+                    const matches = html.matchAll(/https:\/\/[^"']+\.(png|jpg|jpeg|gif|webp)/gi)
+                    const urls = Array.from(new Set(Array.from(matches).map(m => m[0])))
+                        .filter(u => !u.includes('gstatic.com')) // skip icons
+                        .slice(0, 8)
+                    
+                    if (urls.length === 0) {
+                        return 'No images found for this query.'
+                    }
+
+                    return `Found ${urls.length} images for "${query}":\n\n` + 
+                        urls.map((u, i) => `${i+1}. ![Image ${i+1}](${u})\nSource: ${u}`).join('\n\n')
+                } catch (err) {
+                    return `ERROR: ${err instanceof Error ? err.message : String(err)}`
+                }
             },
         }),
     }

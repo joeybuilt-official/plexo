@@ -329,6 +329,7 @@ export const conversations = pgTable('conversations', {
      * Used to route web-initiated replies back to the originating channel.
      */
     channelRef: jsonb('channel_ref').$type<{ channel: string; channelId: string; chatId: string } | null>().default(null),
+    attachments: jsonb('attachments').$type<{ url: string; type: string; alt?: string }[]>().default([]).notNull(),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
     index('conversations_workspace_idx').on(table.workspaceId),

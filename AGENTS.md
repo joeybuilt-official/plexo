@@ -173,7 +173,17 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
-### 2026-03-09 — migrate exits 1: SyntaxError invoking .bin/tsx shell wrapper as JS
+### 2026-03 — Installer Bottleneck: Database Authentication Fails on First Run
+
+- **Root cause**: `migrate` service depended on `postgres: service_healthy`, but `pg_isready` in the healthcheck only verifies the server is accepting connections for the user/db; it does NOT verify password readiness during the initial entrypoint setup. If `migrate` fired during a transient state in the initialization script (e.g., while re-reading hba.conf), it failed with `28P01` (password authentication failed).
+- **Secondary cause (Stale Volumes)**: If a user runs `install.sh` multiple times, it generates a new `POSTGRES_PASSWORD` in `.env`. However, Docker's `pgdata` volume is already initialized with the *old* password. The database does not update its internal credentials when the environment variable changes; `migrate` then fails because it uses the new password from `.env` against the old password in the volume.
+- **Fix 1 (Retry Loop)**: Added a robust retry loop to `packages/db/src/migrate.ts`. It now attempts up to 30 connections with 2s delays. Specific handlers for `28P01` (Auth), `3D000` (DB missing), and `ECONNREFUSED` ensure it waits for the initialization script to finish.
+- **Fix 2 (Troubleshooting Hints)**: If authentication fails for more than 10 attempts, `migrate` now prints an explicit "BOTTLENECK IDENTIFIED" block in the logs with three clear steps: check for stale volumes, verify `.env` parity, and check `docker/compose.yml` string interpolation.
+- **Lesson**: `depends_on: service_healthy` is not a guarantee of "application readiness" for authentication. Always implement application-level retries in migration/seeding scripts that run during initial deployment.
+
+---
+
+### 2026-03 — migrate exits 1: SyntaxError invoking .bin/tsx shell wrapper as JS
 
 - **Root cause**: `docker/migrate.sh` called `node --max-old-space-size=200 /app/packages/db/node_modules/.bin/tsx src/migrate.ts`. The `.bin/tsx` file is a POSIX shell shebang wrapper (`#!/bin/sh`, starts with `basedir=$(dirname...)`). Node.js interprets that shell script as JavaScript, hitting `SyntaxError: missing ) after argument list` on the first line.
 - **Impact**: `docker-migrate-1` exited code 1. All services with `depends_on: migrate / condition: service_completed_successfully` (`caddy`, `api`, `web`) stayed in `Created` state. VPS unreachable.
@@ -403,4 +413,19 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 - **Fix 3 (Flow)**: The agent is instructed to gather these details first and *then* ask the user if they'd like to initiate a formal project.
 - **Lesson**: Vague noun phrases are invitations for a strategy session, not a trigger for execution. The agent must bridge the gap between "I have an idea" and "Do this work" by first asking for the 'Why' and 'When'.
 
+
+
+---
+
+### 2026-03 — Plexo Image Handling & Visual Capabilities (Spec/Plan)
+
+- **Status**: Planning stage. Spec created in `specs/plexo_image_handling.md`.
+- **Core Goal**: Bridge the visual gap for text-only models/channels. Enable the agent to find and capture images (screenshot/search) and deliver them via `attachments` in the conversation log.
+- **Architectural Changes**:
+    - `conversations` table: New `attachments` (JSONB) column for media metadata.
+    - `RecordConversationParams`: Added `attachments` support.
+    - `replyToChannel`: Updated to handle `attachments` (e.g., `sendPhoto` for Telegram).
+    - New Tools: `web_screenshot` (Playwright) and `image_search` (DuckDuckGo).
+    - Manifest: `BUILTIN_TOOLS` expanded to include visual retrieval capabilities.
+- **Verification**: TBD after implementation.
 
