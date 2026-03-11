@@ -43,8 +43,8 @@ export const powerUser: Persona = {
         await page.click('#send-btn')
         await session.logEvent('sent_complex_prompt', { content: 'Let us plan a new marketing campaign for Discord launch.' })
         
-        // Wait for confirmation button OR automatic execution
-        await page.waitForSelector('button:has-text("Create Project"), .lucide-plexo-mark:not(.animate-spin)', { timeout: 45000 })
+        // Wait for confirmation button OR automatic execution (textarea becomes enabled again)
+        await page.waitForSelector('button:has-text("Create Project"), textarea:not([disabled])', { timeout: 45000 })
         const btn = await page.locator('button:has-text("Create Project")').isVisible()
         if (btn) {
             await page.click('button:has-text("Create Project")')
