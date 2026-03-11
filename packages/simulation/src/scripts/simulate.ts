@@ -37,8 +37,9 @@ async function main() {
         console.log(`[${p.id}] Running: ${p.name}...`)
         const [w, h] = (p.viewport ? `${p.viewport.width}x${p.viewport.height}` : options.viewport).split('x').map(Number)
         
+        let handle: Awaited<ReturnType<typeof launchPersona>> | null = null
         try {
-            const handle = await launchPersona({
+            handle = await launchPersona({
                 personaId: p.id,
                 headless: options.headless === 'true',
                 viewport: { width: w, height: h },
@@ -52,12 +53,12 @@ async function main() {
 
             await handle.session.complete('Simulation completed successfully')
             console.log(`[${p.id}] Success!`)
-            await handle.cleanup()
         } catch (err) {
             console.error(`[${p.id}] Failed:`, err)
-            // Error logged by the runner or within the persona run itself
+        } finally {
+            if (handle) await handle.cleanup().catch(() => {})
         }
     }
 }
 
-main().catch(console.error)
+main().catch(console.error).finally(() => process.exit(0))
