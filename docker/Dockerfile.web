@@ -7,6 +7,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY apps/web/package.json apps/web/
 COPY packages/ui/package.json packages/ui/
 COPY packages/logger/package.json packages/logger/
+COPY packages/db/package.json packages/db/
 RUN pnpm install --frozen-lockfile --filter @plexo/web...
 
 FROM base AS builder
@@ -15,10 +16,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
 COPY --from=deps /app/packages/logger/node_modules ./packages/logger/node_modules
+COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
 COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages/ui ./packages/ui
 COPY packages/logger ./packages/logger
+COPY packages/db ./packages/db
 ARG SOURCE_COMMIT=unknown
 ENV NEXT_PUBLIC_SOURCE_COMMIT=$SOURCE_COMMIT
 RUN pnpm --filter @plexo/web build
