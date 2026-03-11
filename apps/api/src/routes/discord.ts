@@ -129,7 +129,7 @@ interface AiResult {
     error: string | null
 }
 
-async function chatWithAI(workspaceId: string, messages: ChatMessage[], system?: string): Promise<AiResult> {
+async function chatWithAI(workspaceId: string, messages: ChatMessage[], system?: string, includeSnapshot = false): Promise<AiResult> {
     const { credential, aiSettings } = await loadWorkspaceAISettings(workspaceId)
     if (!credential || !aiSettings) return { text: null, error: 'no_credential' }
 
@@ -138,10 +138,19 @@ async function chatWithAI(workspaceId: string, messages: ChatMessage[], system?:
     if (!config) return { text: null, error: `no config for provider ${providerKey}` }
 
     try {
+        let finalSystem = system ?? 'You are Plexo, an AI agent assistant.'
+        
+        if (includeSnapshot) {
+            const { buildIntrospectionSnapshot } = await import('@plexo/agent/introspection')
+            const resolvedModel = config.model ?? '(unknown)'
+            const snapshot = await buildIntrospectionSnapshot(workspaceId, providerKey, resolvedModel)
+            finalSystem += `\n\nYour identity: you are Plexo, running on provider "${providerKey}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.\n\nHere is your full state and self-awareness snapshot (tools, agents, skills, memory, integrations, channels, exact model, provider, and workspace):\n${JSON.stringify(snapshot, null, 2)}`
+        }
+
         const model = buildModel(providerKey, config, 'summarization', aiSettings)
         const result = await generateText({
             model,
-            system: system ?? 'You are Plexo, an AI agent assistant.',
+            system: finalSystem,
             messages: messages.map(m => ({ role: m.role, content: m.content })),
             abortSignal: AbortSignal.timeout(30_000),
         })
@@ -236,11 +245,15 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
                 const result = await chatWithAI(
                     workspaceId,
                     history,
-                    'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
-                    + 'If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. '
-                    + 'If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. '
-                    + 'If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. '
-                    + 'Only agree to start a task or project when the scope is clear.'
+                    `You are Plexo, a helpful AI agent. Personality: Warm, sharp, direct. You get things done. Never hedge, over-explain, or ask unnecessary questions.
+
+Critical rules — follow without exception:
+1. NEVER ask for confirmation before answering. Just answer.
+2. NEVER ask clarifying questions unless the request is genuinely ambiguous AND a reasonable assumption cannot be made.
+3. Keep replies concise. No filler: no "Certainly!", "Of course!", "Great question!", "I'd be happy to help!".
+4. If the user mentions a large initiative without supplying details, ALWAYS ask about strategy, timeline, goals, and ask if they'd like to start a project.
+5. You are the agent. Act like one. Produce results, not process descriptions.`,
+                    true
                 )
 
                 if (result.error) {
