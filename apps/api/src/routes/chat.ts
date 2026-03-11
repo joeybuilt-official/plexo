@@ -170,12 +170,14 @@ Reply with EXACTLY one of:
 // ── POST /api/chat/message ────────────────────────────────────────────────────
 
 chatRouter.post('/message', async (req, res) => {
-    const { workspaceId, message, sessionId, forceConversation, images } = req.body as {
+    const { workspaceId, message, sessionId, forceConversation, images, intentOverride, categoryOverride } = req.body as {
         workspaceId?: string
         message?: string
         sessionId?: string
         forceConversation?: boolean
         images?: Array<{ data: string; mimeType: string; name: string }>
+        intentOverride?: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION'
+        categoryOverride?: string
     }
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
@@ -301,10 +303,12 @@ chatRouter.post('/message', async (req, res) => {
               ]
             : [{ type: 'text', text: trimmedMsg }]
 
-        let isComplex = false
-        let suggestedCategory = 'general'
+        let isComplex = !!intentOverride
+        let suggestedCategory = categoryOverride || 'general'
 
-        if (!forceConversation) {
+        if (intentOverride) {
+            intent = intentOverride
+        } else if (!forceConversation) {
             try {
                 // For classification we always use text-only (images don't affect intent)
                 const classifyMessages = [
@@ -426,7 +430,8 @@ Critical rules — follow without exception:
 6. Keep replies concise. No filler: no "Certainly!", "Of course!", "Great question!", "I'd be happy to help!".
 7. If the user expresses frustration, acknowledge it in one word and get to it.
 8. If the user mentions a large initiative (like a "Campaign" or "Project") without supplying details, ALWAYS ask about strategy, timeline, goals/priorities, and channels, and ask if they'd like to start a project.
-9. You are the agent. Act like one. Produce results, not process descriptions.`,
+9. You are the agent. Act like one. Produce results, not process descriptions.
+10. PROMPT OPTIMIZER: If the user asks you to optimize, improve, or write a prompt, DO NOT just write the prompt right away. Instead, act as a "first principles prompt optimizer": ask 2-3 specific, clarifying questions about their actual goals, context, target audience, and constraints. Only after they answer should you build the new optimized prompt.`,
                         messages: [
                             ...history.map((m) => ({ role: m.role, content: m.content })),
                             { role: 'user' as const, content: userContent },
