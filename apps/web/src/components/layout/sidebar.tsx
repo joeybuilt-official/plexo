@@ -331,7 +331,21 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
 
     function toggleGroup(label: string) {
         setCollapsed((prev) => {
-            const next = { ...prev, [label]: !prev[label] }
+            const currentlyCollapsed = prev[label] ?? true
+            const isOpening = currentlyCollapsed
+            let next = { ...prev }
+
+            // If we are opening a management group, close all other management groups
+            if (isOpening && label !== 'Chat') {
+                NAV_GROUPS.forEach((g) => {
+                    if (g.label !== 'Chat' && g.label !== label) {
+                        next[g.label] = true // True means collapsed
+                    }
+                })
+            }
+
+            next[label] = !currentlyCollapsed
+
             try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
             return next
         })
