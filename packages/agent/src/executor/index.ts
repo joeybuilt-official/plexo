@@ -3,8 +3,9 @@
 
 import { generateText, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
-import { db, sql } from '@plexo/db'
-import { taskSteps } from '@plexo/db'
+import { db, sql, eq, and } from '@plexo/db'
+import { taskSteps, artifacts, artifactVersions } from '@plexo/db'
+import { ulid } from 'ulid'
 import { withFallback, resolveModel } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError, LogicError } from '../errors.js'
@@ -319,6 +320,67 @@ function buildTools(ctx: ExecutionContext) {
                         storageUrl = result.url
                     } catch { /* non-fatal — /tmp path still served by assets API */ }
                 }
+                // Persist to DB (Phase 4)
+                try {
+                    const ext = (input.filename as string).split('.').pop()?.toLowerCase() || ''
+                    const type = 
+                        ['md', 'markdown', 'mdx'].includes(ext) ? 'markdown' :
+                        ['js', 'ts', 'tsx', 'py', 'go', 'rs', 'c', 'cpp', 'java'].includes(ext) ? 'code' :
+                        ['mermaid', 'mmd'].includes(ext) ? 'diagram' :
+                        ext === 'html' ? 'html' :
+                        ['png', 'jpg', 'jpeg', 'svg', 'gif'].includes(ext) ? 'image' : 'file'
+
+                    // Check for existing artifact with this name in this task/project
+                    const [existing] = await db.select()
+                        .from(artifacts)
+                        .where(
+                            and(
+                                eq(artifacts.workspaceId, ctx.workspaceId),
+                                ctx.sprintId ? eq(artifacts.projectId, ctx.sprintId) : eq(artifacts.taskId, ctx.taskId),
+                                eq(artifacts.filename, input.filename as string)
+                            )
+                        )
+                        .limit(1)
+
+                    if (existing) {
+                        const newVersion = existing.currentVersion + 1
+                        await db.transaction(async (tx) => {
+                            await tx.update(artifacts)
+                                .set({ currentVersion: newVersion, updatedAt: new Date() })
+                                .where(eq(artifacts.id, existing.id))
+                            
+                            await tx.insert(artifactVersions).values({
+                                artifactId: existing.id,
+                                version: newVersion,
+                                content: input.content as string,
+                                changeDescription: 'Updated by agent',
+                            })
+                        })
+                    } else {
+                        const artifactId = ulid()
+                        await db.transaction(async (tx) => {
+                            await tx.insert(artifacts).values({
+                                id: artifactId,
+                                workspaceId: ctx.workspaceId,
+                                taskId: ctx.taskId,
+                                projectId: ctx.sprintId ?? null,
+                                filename: input.filename as string,
+                                type,
+                                currentVersion: 1,
+                            })
+
+                            await tx.insert(artifactVersions).values({
+                                artifactId,
+                                version: 1,
+                                content: input.content as string,
+                                changeDescription: 'Initial creation',
+                            })
+                        })
+                    }
+                } catch (dbErr) {
+                    console.error('Failed to persist artifact to DB:', dbErr)
+                }
+
                 const note = storageUrl ? ` | S3: ${storageUrl}` : ''
                 return `Asset saved: ${filePath} (${(input.content as string).length} bytes)${note}`
             },

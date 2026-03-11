@@ -3,7 +3,7 @@
 
 import { Router, type Router as RouterType } from 'express'
 import { db, desc, eq, and, sql } from '@plexo/db'
-import { tasks, taskSteps } from '@plexo/db'
+import { tasks, taskSteps, artifacts, artifactVersions } from '@plexo/db'
 import { push, list } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { emitToWorkspace } from '../sse-emitter.js'
@@ -213,31 +213,60 @@ tasksRouter.post('/:id/retry', async (req, res) => {
 })
 
 // ── GET /api/tasks/:id/assets ──────────────────────────────────────────────
-// Lists agent-produced assets for a task (files in /tmp/plexo-assets/{taskId}).
-// Returns filenames + inline content for text files (≤200KB).
-
+// Lists agent-produced assets for a task. 
+// Prioritizes versioned artifacts from DB (Phase 4), falls back to /tmp filesystem.
 tasksRouter.get('/:id/assets', async (req, res) => {
     const { id } = req.params
     if (!id || id.length > 64) {
         res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid task id' } })
         return
     }
+
     try {
-        const { readdirSync, statSync, readFileSync } = await import('node:fs')
+        // 1. Fetch from DB first (Phase 4)
+        const dbArtifacts = await db.select({
+            id: artifacts.id,
+            filename: artifacts.filename,
+            type: artifacts.type,
+            currentVersion: artifacts.currentVersion,
+            updatedAt: artifacts.updatedAt,
+            content: artifactVersions.content,
+        })
+        .from(artifacts)
+        .innerJoin(artifactVersions, and(
+            eq(artifactVersions.artifactId, artifacts.id),
+            eq(artifactVersions.version, artifacts.currentVersion)
+        ))
+        .where(eq(artifacts.taskId, id))
+
+        if (dbArtifacts.length > 0) {
+            res.json({
+                items: dbArtifacts.map(a => ({
+                    artifactId: a.id,
+                    filename: a.filename,
+                    bytes: Buffer.byteLength(a.content || ''),
+                    isText: true,
+                    content: a.content,
+                    version: a.currentVersion,
+                    updatedAt: a.updatedAt,
+                }))
+            })
+            return
+        }
+
+        // 2. Fallback to /tmp filesystem (Phase 1)
+        const { readdirSync, statSync, readFileSync, existsSync } = await import('node:fs')
         const { join, extname } = await import('node:path')
 
         const dir = `/tmp/plexo-assets/${id}`
-        let files: string[]
-        try {
-            files = readdirSync(dir)
-        } catch {
-            // No assets directory — task produced no file assets
+        if (!existsSync(dir)) {
             res.json({ items: [] })
             return
         }
 
-        const TEXT_EXTS = new Set(['.txt', '.md', '.json', '.csv', '.html', '.xml', '.yaml', '.yml', '.toml', '.sh', '.py', '.ts', '.js', '.sql'])
-        const MAX_INLINE = 200 * 1024 // 200KB
+        const files = readdirSync(dir)
+        const TEXT_EXTS = new Set(['.txt', '.md', '.json', '.csv', '.html', '.xml', '.yaml', '.yml', '.toml', '.sh', '.py', '.ts', '.js', '.sql', '.mermaid', '.mmd'])
+        const MAX_INLINE = 5 * 1024 * 1024 // 5MB for DB-backed
 
         const items = files.map((filename) => {
             const filePath = join(dir, filename)
@@ -263,6 +292,145 @@ tasksRouter.get('/:id/assets', async (req, res) => {
     } catch (err) {
         logger.error({ err, id }, 'GET /api/tasks/:id/assets failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list assets' } })
+    }
+})
+
+// ── GET /api/tasks/:id/artifacts/:artifactId/versions ───────────────────────
+// Returns version history for a specific artifact.
+tasksRouter.get('/:id/artifacts/:artifactId/versions', async (req, res) => {
+    const { artifactId } = req.params
+    try {
+        const versions = await db.select({
+            version: artifactVersions.version,
+            changeDescription: artifactVersions.changeDescription,
+            createdAt: artifactVersions.createdAt,
+            // Don't return full content in list
+        })
+        .from(artifactVersions)
+        .where(eq(artifactVersions.artifactId, artifactId))
+        .orderBy(desc(artifactVersions.version))
+
+        res.json({ versions })
+    } catch (err) {
+        logger.error({ err, artifactId }, 'GET artifact versions failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch version history' } })
+    }
+})
+
+// ── GET /api/tasks/:id/artifacts/:artifactId/versions/:version ──────────────
+// Returns a specific version of an artifact.
+tasksRouter.get('/:id/artifacts/:artifactId/versions/:version', async (req, res) => {
+    const { artifactId, version } = req.params
+    try {
+        const [ver] = await db.select()
+            .from(artifactVersions)
+            .where(and(
+                eq(artifactVersions.artifactId, artifactId),
+                eq(artifactVersions.version, parseInt(version, 10))
+            ))
+            .limit(1)
+
+        if (!ver) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Version not found' } })
+            return
+        }
+
+        res.json({ version: ver })
+    } catch (err) {
+        logger.error({ err, artifactId, version }, 'GET artifact version failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch version' } })
+    }
+})
+
+// ── POST /api/tasks/:id/assets/export ──────────────────────────────────────────────
+// Exports a text asset to PDF or DOCX format.
+
+tasksRouter.post('/:id/assets/export', async (req, res) => {
+    const { id } = req.params
+    const { filename, format } = req.body as { filename: string, format: 'pdf' | 'docx' }
+
+    if (!id || !filename || !format) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'id, filename, and format are required' } })
+        return
+    }
+
+    try {
+        const { existsSync, readFileSync } = await import('node:fs')
+        // @ts-ignore
+        const { join } = await import('node:path')
+        
+        const filePath = join(`/tmp/plexo-assets/${id}`, filename)
+        if (!existsSync(filePath)) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } })
+            return
+        }
+
+        const content = readFileSync(filePath, 'utf8')
+        
+        if (format === 'pdf') {
+            const { marked } = await import('marked')
+            const puppeteer = await import('puppeteer')
+            
+            const htmlContent = await marked.parse(content)
+            const wrappedHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 2em; max-width: 800px; margin: 0 auto; color: #333; }
+                    code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; font-family: monospace; }
+                    pre { background: #f4f4f4; padding: 1em; border-radius: 5px; overflow-x: auto; font-family: monospace; }
+                    blockquote { border-left: 4px solid #ccc; padding-left: 1em; color: #666; }
+                    h1, h2, h3, h4 { color: #111; border-bottom: 1px solid #eaeaea; padding-bottom: 0.3em; }
+                    img { max-width: 100%; }
+                </style>
+            </head>
+            <body>
+                ${htmlContent}
+            </body>
+            </html>
+            `
+            
+            const browser = await puppeteer.default.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
+            const page = await browser.newPage()
+            await page.setContent(wrappedHtml, { waitUntil: 'networkidle0' })
+            const pdfBuffer = await page.pdf({ format: 'A4', margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' } })
+            await browser.close()
+            
+            res.setHeader('Content-Type', 'application/pdf')
+            res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/\.[^/.]+$/, "")}.pdf"`)
+            res.send(Buffer.from(pdfBuffer))
+            return
+        }
+        
+        if (format === 'docx') {
+            const { Document, Packer, Paragraph, TextRun } = await import('docx')
+            
+            // Naive plain text fallback wrapper
+            const lines = content.split('\n')
+            
+            const doc = new Document({
+                sections: [{
+                    properties: {},
+                    children: lines.map((line: string) => new Paragraph({
+                        children: [
+                            new TextRun(line)
+                        ],
+                    })),
+                }],
+            })
+            
+            const b64string = await Packer.toBase64String(doc)
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+            res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/\.[^/.]+$/, "")}.docx"`)
+            res.send(Buffer.from(b64string, 'base64'))
+            return
+        }
+
+        res.status(400).json({ error: { code: 'UNSUPPORTED_FORMAT', message: 'Unsupported format' } })
+    } catch (err) {
+        logger.error({ err, id }, 'POST /api/tasks/:id/assets/export failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to export asset' } })
     }
 })
 

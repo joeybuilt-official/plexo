@@ -945,3 +945,37 @@ export const sessionLogs = pgTable('session_logs', {
     outputSummary: text('output_summary'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 })
+
+// ── Artifacts System (Phase 4) ────────────────────────────────────────────────
+
+export const artifacts = pgTable('artifacts', {
+    id: text('id').primaryKey(), // ulid
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+    projectId: text('project_id').references(() => sprints.id, { onDelete: 'set null' }),
+    filename: text('filename').notNull(),
+    type: text('type').notNull(), // 'markdown' | 'code' | 'diagram' | 'html' | 'image' | 'file'
+    currentVersion: integer('current_version').default(1).notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('artifacts_workspace_idx').on(table.workspaceId),
+    index('artifacts_task_idx').on(table.taskId),
+    index('artifacts_project_idx').on(table.projectId),
+])
+
+export const artifactVersions = pgTable('artifact_versions', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    artifactId: text('artifact_id')
+        .notNull()
+        .references(() => artifacts.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    content: text('content').notNull(),
+    changeDescription: text('change_description'),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('artifact_versions_artifact_idx').on(table.artifactId),
+    uniqueIndex('artifact_versions_artifact_version_uq').on(table.artifactId, table.version),
+])

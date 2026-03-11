@@ -1623,13 +1623,8 @@ function ChatContent() {
                 )}
                 <ArtifactPanel 
                     asset={openArtifactData?.asset ?? null} 
-                    onClose={() => setOpenArtifactData(null)} 
-                    onPreview={(path) => { 
-                        setPreviewPath(path)
-                        setBottomTab('preview')
-                        setShowBottom(true)
-                        setCodeMode(true)
-                    }} 
+                    taskId={openArtifactData?.taskId}
+                    onClose={() => setOpenArtifactData(null)}
                 />
             </div>
         </div>

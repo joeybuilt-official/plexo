@@ -141,6 +141,13 @@
       "when": 1773184346775,
       "tag": "0019_shallow_whizzer",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1773257690996,
+      "tag": "0020_smiling_paladin",
+      "breakpoints": true
     }
   ]
 }

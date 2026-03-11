@@ -143,6 +143,8 @@ const BUILTIN_TOOLS = [
     'write_asset',
     'self_reflect',
     'synthesize_kapsel_skill',
+    'web_search',
+    'web_fetch',
 ] as const
 
 // ── Local version reader ──────────────────────────────────────────────────────
