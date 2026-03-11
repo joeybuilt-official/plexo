@@ -470,6 +470,7 @@ function ChatContent() {
     const userInitial = userName ? userName.trim().charAt(0).toUpperCase() : ''
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
     const [pastedImages, setPastedImages] = useState<PastedImage[]>([])
     const [pastedDocs, setPastedDocs] = useState<PastedDocument[]>([])
     const [sending, setSending] = useState(false)
@@ -921,6 +922,7 @@ function ChatContent() {
 
         setError(null)
         setSending(true)
+        setSelectedCategory(null)
 
         // If there are doc attachments, append them to the message text so the agent
         // sees the full content, while the UI only shows a compact pill.
@@ -1000,6 +1002,11 @@ function ChatContent() {
                     ...(codeMode && codeModeContext.repo ? {
                         repo: codeModeContext.repo,
                         branch: codeModeContext.branch,
+                    } : {}),
+                    // If the user selected a chip during chatting, treat as project creation intent natively
+                    ...(selectedCategory ? {
+                        intentOverride: 'PROJECT',
+                        categoryOverride: selectedCategory
                     } : {}),
                     images: rasterImages.length > 0
                         ? rasterImages.map((img) => ({ data: img.dataUrl, mimeType: img.mimeType, name: img.name }))
@@ -1256,28 +1263,40 @@ function ChatContent() {
                         {!isListening && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                 {[
-                    { icon: Code2, label: 'Code', desc: 'Build or modify features', prompt: 'Write a React component that...' },
-                    { icon: Search, label: 'Research', desc: 'Synthesize information', prompt: 'Research the latest developments in...' },
-                    { icon: Server, label: 'Ops', desc: 'Infrastructure & deployment', prompt: 'Audit all production servers for...' },
-                    { icon: BarChart2, label: 'Data', desc: 'Query and analyze', prompt: 'Identify all users who converted...' },
-                    { icon: PenLine, label: 'Writing', desc: 'Draft and generate content', prompt: 'Write a technical blog post explaining...' },
-                    { icon: Megaphone, label: 'Marketing', desc: 'Plan growth campaigns', prompt: 'Plan a product launch campaign for...' },
-                    { icon: FolderOpen, label: 'General', desc: 'Other complex requests', prompt: 'Help me organize my upcoming...' },
+                    { id: 'code', icon: Code2, label: 'Code', desc: 'Build or modify features', prompt: 'Write a React component that...' },
+                    { id: 'research', icon: Search, label: 'Research', desc: 'Synthesize information', prompt: 'Research the latest developments in...' },
+                    { id: 'ops', icon: Server, label: 'Ops', desc: 'Infrastructure & deployment', prompt: 'Audit all production servers for...' },
+                    { id: 'data', icon: BarChart2, label: 'Data', desc: 'Query and analyze', prompt: 'Identify all users who converted...' },
+                    { id: 'writing', icon: PenLine, label: 'Writing', desc: 'Draft and generate content', prompt: 'Write a technical blog post explaining...' },
+                    { id: 'marketing', icon: Megaphone, label: 'Marketing', desc: 'Plan growth campaigns', prompt: 'Plan a product launch campaign for...' },
+                    { id: 'general', icon: FolderOpen, label: 'General', desc: 'Other complex requests', prompt: 'Help me organize my upcoming...' },
                 ].map((item) => {
                                     const Icon = item.icon
+                                    const isSelected = selectedCategory === item.id
                                     return (
                                         <button
                                             key={item.label}
-                                            onClick={() => { setInput(item.prompt); inputRef.current?.focus() }}
-                                            className="group flex flex-col items-start gap-1.5 rounded-2xl border border-zinc-700/40 bg-surface-1/40 px-5 py-4 text-left transition-all duration-300 hover:border-azure/40 hover:bg-surface-2/60 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.2)]"
+                                            onClick={() => {
+                                                if (isSelected) {
+                                                    setSelectedCategory(null)
+                                                    setInput('')
+                                                    if (item.id === 'code') setCodeMode(false)
+                                                } else {
+                                                    setSelectedCategory(item.id)
+                                                    setInput(item.prompt)
+                                                    if (item.id === 'code') setCodeMode(true)
+                                                    setTimeout(() => inputRef.current?.focus(), 10)
+                                                }
+                                            }}
+                                            className={`group flex flex-col items-start gap-1.5 rounded-2xl border bg-surface-1/40 px-5 py-4 text-left transition-all duration-300 hover:border-azure/40 hover:bg-surface-2/60 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.2)] ${isSelected ? 'border-azure bg-azure/10 ring-1 ring-azure/30 shadow-[0_0_20px_-5px_rgba(99,102,241,0.15)]' : 'border-zinc-700/40'}`}
                                         >
                                             <div className="flex items-center gap-2.5 mb-0.5">
-                                                <div className="rounded-lg bg-zinc-800/80 p-1.5 text-text-secondary group-hover:text-azure group-hover:bg-azure/10 transition-colors shadow-sm border border-zinc-700/50">
+                                                <div className={`rounded-lg p-1.5 transition-colors shadow-sm border ${isSelected ? 'bg-azure text-canvas border-azure shadow-md' : 'bg-zinc-800/80 text-text-secondary border-zinc-700/50 group-hover:text-azure group-hover:bg-azure/10'}`}>
                                                     <Icon className="h-4 w-4" />
                                                 </div>
-                                                <span className="text-[13px] font-semibold text-text-secondary group-hover:text-text-primary transition-colors tracking-wide">{item.label}</span>
+                                                <span className={`text-[13px] font-semibold transition-colors tracking-wide ${isSelected ? 'text-azure' : 'text-text-secondary group-hover:text-text-primary'}`}>{item.label}</span>
                                             </div>
-                                            <span className="text-[13px] text-text-muted leading-relaxed max-w-[90%]">{item.desc}</span>
+                                            <span className={`text-[13px] leading-relaxed max-w-[90%] ${isSelected ? 'text-azure/80' : 'text-text-muted'}`}>{item.desc}</span>
                                         </button>
                                     )
                                 })}

@@ -23,6 +23,7 @@ export function QuickSend() {
     const [taskId, setTaskId] = useState<string | null>(null)
     const [pastedImages, setPastedImages] = useState<PastedImage[]>([])
     const [pastedDocs, setPastedDocs] = useState<PastedDocument[]>([])
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
     const [showVoiceSetupPrompt, setShowVoiceSetupPrompt] = useState(false)
     const [wantsAttachment, setWantsAttachment] = useState(false)
     const [suggestion, setSuggestion] = useState<{ suggestedModel: string; reason: string } | null>(null)
@@ -78,6 +79,16 @@ export function QuickSend() {
 
             if (!wsId) throw new Error('No workspace found')
 
+            const typeMap: Record<string, string> = {
+                code: 'coding',
+                research: 'research',
+                ops: 'ops',
+                data: 'report',
+                writing: 'research',
+                marketing: 'online',
+                general: 'automation'
+            }
+
             // Build attachments context
             const attachments = [
                 ...pastedImages.map(img => ({
@@ -99,7 +110,7 @@ export function QuickSend() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     workspaceId: wsId,
-                    type: 'automation',
+                    type: selectedCategory ? typeMap[selectedCategory] || 'automation' : 'automation',
                     source: 'dashboard',
                     context: { 
                         description: message.trim(),
@@ -116,6 +127,7 @@ export function QuickSend() {
             setText('')
             setPastedImages([])
             setPastedDocs([])
+            setSelectedCategory(null)
             setTimeout(() => setStatus('idle'), 4000)
         } catch {
             setStatus('error')
@@ -318,31 +330,38 @@ export function QuickSend() {
             {/* Prompt Chips */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 w-full px-1">
                 {[
-                    { icon: Code2, label: 'Code', desc: 'Build or modify features', prompt: 'Write a React component that...' },
-                    { icon: Search, label: 'Research', desc: 'Synthesize information', prompt: 'Research the latest developments in...' },
-                    { icon: Server, label: 'Ops', desc: 'Infrastructure & deployment', prompt: 'Audit all production servers for...' },
-                    { icon: BarChart2, label: 'Data', desc: 'Query and analyze', prompt: 'Identify all users who converted...' },
-                    { icon: PenLine, label: 'Writing', desc: 'Draft and generate content', prompt: 'Write a technical blog post explaining...' },
-                    { icon: Megaphone, label: 'Marketing', desc: 'Plan growth campaigns', prompt: 'Plan a product launch campaign for...' },
-                    { icon: FolderOpen, label: 'General', desc: 'Other complex requests', prompt: 'Help me organize my upcoming...' },
+                    { id: 'code', icon: Code2, label: 'Code', desc: 'Build or modify features', prompt: 'Write a React component that...' },
+                    { id: 'research', icon: Search, label: 'Research', desc: 'Synthesize information', prompt: 'Research the latest developments in...' },
+                    { id: 'ops', icon: Server, label: 'Ops', desc: 'Infrastructure & deployment', prompt: 'Audit all production servers for...' },
+                    { id: 'data', icon: BarChart2, label: 'Data', desc: 'Query and analyze', prompt: 'Identify all users who converted...' },
+                    { id: 'writing', icon: PenLine, label: 'Writing', desc: 'Draft and generate content', prompt: 'Write a technical blog post explaining...' },
+                    { id: 'marketing', icon: Megaphone, label: 'Marketing', desc: 'Plan growth campaigns', prompt: 'Plan a product launch campaign for...' },
+                    { id: 'general', icon: FolderOpen, label: 'General', desc: 'Other complex requests', prompt: 'Help me organize my upcoming...' },
                 ].map((item) => {
                     const Icon = item.icon
+                    const isSelected = selectedCategory === item.id
                     return (
                         <button
                             key={item.label}
                             onClick={() => { 
-                                setText(item.prompt)
-                                setTimeout(() => inputRef.current?.focus(), 10)
+                                if (isSelected) {
+                                    setSelectedCategory(null)
+                                    setText('')
+                                } else {
+                                    setSelectedCategory(item.id)
+                                    setText(item.prompt)
+                                    setTimeout(() => inputRef.current?.focus(), 10)
+                                }
                             }}
-                            className="group flex flex-col items-start gap-1.5 rounded-2xl border border-zinc-700/40 bg-surface-1/40 px-4 py-3.5 text-left transition-all duration-300 hover:border-azure/40 hover:bg-surface-2/60 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.2)]"
+                            className={`group flex flex-col items-start gap-1.5 rounded-2xl border bg-surface-1/40 px-4 py-3.5 text-left transition-all duration-300 hover:border-azure/40 hover:bg-surface-2/60 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.2)] ${isSelected ? 'border-azure bg-azure/10 ring-1 ring-azure/30 shadow-[0_0_20px_-5px_rgba(99,102,241,0.15)]' : 'border-zinc-700/40'}`}
                         >
                             <div className="flex items-center gap-2.5 mb-0.5">
-                                <div className="rounded-lg bg-zinc-800/80 p-1.5 text-text-secondary group-hover:text-azure group-hover:bg-azure/10 transition-colors shadow-sm border border-zinc-700/50">
+                                <div className={`rounded-lg p-1.5 transition-colors shadow-sm border ${isSelected ? 'bg-azure text-canvas border-azure shadow-md' : 'bg-zinc-800/80 text-text-secondary border-zinc-700/50 group-hover:text-azure group-hover:bg-azure/10'}`}>
                                     <Icon className="h-3.5 w-3.5" />
                                 </div>
-                                <span className="text-[13px] font-semibold text-text-secondary group-hover:text-text-primary transition-colors tracking-wide">{item.label}</span>
+                                <span className={`text-[13px] font-semibold transition-colors tracking-wide ${isSelected ? 'text-azure' : 'text-text-secondary group-hover:text-text-primary'}`}>{item.label}</span>
                             </div>
-                            <span className="text-[12px] text-text-muted leading-relaxed line-clamp-1">{item.desc}</span>
+                            <span className={`text-[12px] leading-relaxed line-clamp-1 ${isSelected ? 'text-azure/80' : 'text-text-muted'}`}>{item.desc}</span>
                         </button>
                     )
                 })}
