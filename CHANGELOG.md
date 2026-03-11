@@ -8,6 +8,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ### Fixed
 - **Voice Settings UI** — Improved configuration status detection, real-time Deepgram balance fetching, and better error feedback during API key testing.
 - **Chat classifier: vague campaign auto-queueing** — Updated the `CLASSIFY_SYSTEM` and conversational prompts to prevent vague noun phrases (e.g., "Wayfinders S2 Campaign") from being auto-queued as tasks or projects. The agent now treats these as `CONVERSATION` and explicitly asks for strategy, timeline, goals, and channels before proceeding.
+- **Artifact System interface** — Updated `TaskAsset` interface in chat page to support artifact versioning and ID tracking.
+
+### Added
+- **Agent Browsing awareness** — Updated Planning and Execution system prompts to explicitly categorize `web_search` and `web_fetch` as primary research tools, ensuring agents proactively use the live web for factual lookups.
 
 ### Added
 - **Enhanced Agent Context Awareness** — Sub-agents now receive a comprehensive `CapabilityManifest` at task intake, covering active connections, model modalities, and available tools. `self_reflect` tool enables agents to introspect their own identity, setup, and memory status in real-time.
