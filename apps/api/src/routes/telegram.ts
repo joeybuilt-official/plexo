@@ -421,6 +421,16 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
 
                     await sendMessage(token, chatId, `✅ Project created: *${projectName}*\n\nYou can view it in the dashboard.`)
 
+                    captureLifecycleEvent('channel.project_created', 'info', {
+                        channel: 'telegram',
+                        sprintId: sprint!.id,
+                        projectName,
+                        workspaceId: action.workspaceId,
+                        sessionId: telegramSessionId(channelId, chatId),
+                        conversationId: action.conversationId || undefined,
+                        chatId,
+                    })
+
                     // Subscribe to sprint lifecycle events so we notify Telegram on completion/failure
                     const sprintId = sprint!.id
                     const unsub = onAgentEvent(async (event) => {
@@ -659,6 +669,14 @@ Critical rules — follow without exception:
 
         await sendMessage(token, chatId, replyText)
         emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'telegram' })
+        captureLifecycleEvent('channel.conversation_turn', 'info', {
+            channel: 'telegram',
+            workspaceId,
+            sessionId,
+            intent: 'CONVERSATION',
+            chatId: String(chatId),
+            hasError: !!result.error,
+        })
         return
     }
 
