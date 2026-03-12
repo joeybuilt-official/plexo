@@ -18,6 +18,7 @@ import { proposePromptImprovements, applyPromptPatch } from '@plexo/agent/memory
 import { loadDecryptedAIProviders } from './ai-provider-creds.js'
 import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from '../logger.js'
+import { captureLifecycleEvent } from '../sentry.js'
 
 export const memoryRouter: RouterType = Router()
 
@@ -134,6 +135,8 @@ memoryRouter.post('/improvements/run', async (req, res) => {
         // Reload the improvement log so UI can display results immediately
         const log = await getImprovementLog(workspaceId, 30)
 
+        captureLifecycleEvent('memory.improvement_cycle_complete', 'info', { workspaceId, proposals: result.proposals, applied: result.applied })
+
         res.json({
             ok: true,
             count: result.proposals,
@@ -142,6 +145,7 @@ memoryRouter.post('/improvements/run', async (req, res) => {
             proposals: log,
         })
     } catch (err: unknown) {
+        captureLifecycleEvent('memory.improvement_cycle_failed', 'error', { workspaceId, error: err instanceof Error ? err.message : String(err) })
         logger.error({ err, workspaceId }, 'Self-improvement cycle failed')
         res.status(500).json({ error: { code: 'CYCLE_FAILED', message: 'Self-improvement cycle failed' } })
     }

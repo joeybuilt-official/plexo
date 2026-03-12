@@ -35,7 +35,7 @@ import {
     getSessionTurns,
 } from '../conversation-log.js'
 import { getTelegramToken } from './telegram.js'
-import { captureException } from '../sentry.js'
+import { captureException, captureLifecycleEvent } from '../sentry.js'
 
 export const chatRouter: RouterType = Router()
 
@@ -608,6 +608,7 @@ Critical rules — follow without exception:
         })
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/message failed')
+        captureLifecycleEvent('channel.error', 'error', { channel: 'webchat', error: 'message_handler_failed' })
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to queue message' } })
     }
 })
@@ -702,6 +703,7 @@ chatRouter.post('/execute-action', async (req, res) => {
                 aiSettings,
             }).catch((err: unknown) => {
                 logger.error({ err, sprintId: sprint.id }, 'Sprint run failed')
+                captureLifecycleEvent('sprint.failed', 'error', { channel: 'webchat', sprintId: sprint.id, workspaceId })
                 captureException(err, { sprintId: sprint.id, workspaceId, category: resolvedCategory })
 
                 // Report the failure back to the originating conversation/session
@@ -734,6 +736,7 @@ chatRouter.post('/execute-action', async (req, res) => {
         }
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/execute-action failed')
+        captureLifecycleEvent('channel.error', 'error', { channel: 'webchat', error: 'execute_action_failed' })
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to execute action' } })
     }
 })

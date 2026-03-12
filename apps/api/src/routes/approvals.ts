@@ -5,6 +5,7 @@ import { Router, type Router as RouterType } from 'express'
 import { listPending, getDecision, resolveDecision } from '@plexo/agent/one-way-door'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { logger } from '../logger.js'
+import { captureLifecycleEvent } from '../sentry.js'
 
 export const owdRouter: RouterType = Router()
 
@@ -52,6 +53,7 @@ owdRouter.post('/:id/approve', async (req, res) => {
             return
         }
         emitToWorkspace(updated.workspaceId, { type: 'owd_approved', id: updated.id, operation: updated.operation })
+        captureLifecycleEvent('approval.approved', 'info', { approvalId: updated.id, operation: updated.operation, decidedBy, workspaceId: updated.workspaceId })
         logger.info({ id: updated.id, decidedBy }, 'One-way door approved')
         res.json(updated)
     } catch (err) {
@@ -71,6 +73,7 @@ owdRouter.post('/:id/reject', async (req, res) => {
             return
         }
         emitToWorkspace(updated.workspaceId, { type: 'owd_rejected', id: updated.id, operation: updated.operation })
+        captureLifecycleEvent('approval.rejected', 'warning', { approvalId: updated.id, operation: updated.operation, decidedBy, workspaceId: updated.workspaceId })
         logger.info({ id: updated.id, decidedBy }, 'One-way door rejected')
         res.json(updated)
     } catch (err) {

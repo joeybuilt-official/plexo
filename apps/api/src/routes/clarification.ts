@@ -15,6 +15,7 @@ import { db, eq } from '@plexo/db'
 import { tasks } from '@plexo/db'
 import { push } from '@plexo/queue'
 import type { ClarificationRequest } from '@plexo/agent/types'
+import { captureLifecycleEvent } from '../sentry.js'
 
 export const clarificationRouter: ExpressRouter = Router({ mergeParams: true })
 
@@ -91,5 +92,12 @@ clarificationRouter.post('/respond', async (req, res) => {
         },
     })
 
+    captureLifecycleEvent('task.clarification_response', 'info', {
+        originalTaskId: taskId,
+        newTaskId,
+        alternativeIndex: idx,
+        chosenLabel: chosen.label,
+        workspaceId: row.workspaceId,
+    })
     res.json({ newTaskId, chosen })
 })

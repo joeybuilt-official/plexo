@@ -19,6 +19,7 @@ import { Router, type Router as RouterType, type Request, type Response } from '
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { push as pushTask, completeTask } from '@plexo/queue'
 import { logger } from '../logger.js'
+import { captureLifecycleEvent } from '../sentry.js'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
@@ -284,6 +285,7 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
             event.text = transcript
         } catch (err) {
             logger.error({ err, workspaceId, channel: event.channel }, 'Slack transcription failed')
+            captureLifecycleEvent('channel.error', 'error', { channel: 'slack', error: 'transcription_failed', workspaceId })
             if (event.channel) {
                 await postMessage(event.channel, '❌ Failed to process that audio message. Please try text.', event.ts)
             }
@@ -387,6 +389,7 @@ Critical rules — follow without exception:
         })
     } catch (err) {
         logger.error({ err, channel: event.channel }, 'Failed to queue Slack task')
+        captureLifecycleEvent('channel.error', 'error', { channel: 'slack', error: 'task_queue_failed' })
         if (event.channel) {
             await postMessage(event.channel, '❌ Failed to queue task. Please try again.', event.ts)
         }

@@ -8,6 +8,7 @@ import { push, list } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { cancelActiveTask } from '../agent-loop.js'
+import { captureLifecycleEvent } from '../sentry.js'
 
 export const tasksRouter: RouterType = Router()
 
@@ -109,6 +110,7 @@ tasksRouter.post('/', async (req, res) => {
             projectId,
         })
         emitToWorkspace(workspaceId, { type: 'task_queued', taskId: id, source })
+        captureLifecycleEvent('task.queued', 'info', { taskId: id, type, source, workspaceId })
         res.status(201).json({ id })
     } catch (err) {
         logger.error({ err }, 'POST /api/tasks failed')
@@ -165,6 +167,7 @@ tasksRouter.delete('/:id', async (req, res) => {
         logger.info({ taskId: id, aborted }, 'Task cancelled')
 
         emitToWorkspace(existing.workspaceId, { type: 'task_cancelled', taskId: id })
+        captureLifecycleEvent('task.cancelled', 'warning', { taskId: id, workspaceId: existing.workspaceId, previousStatus: existing.status })
         res.json({ ok: true, aborted })
     } catch (err) {
         logger.error({ err }, 'DELETE /api/tasks/:id failed')
@@ -204,6 +207,7 @@ tasksRouter.post('/:id/retry', async (req, res) => {
         // Cancel the blocked original
         await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, id))
 
+        captureLifecycleEvent('task.retry', 'info', { originalId: id, newId, type: task.type, source: task.source, workspaceId: task.workspaceId })
         logger.info({ originalId: id, newId }, 'Task retried')
         res.status(201).json({ id: newId })
     } catch (err) {

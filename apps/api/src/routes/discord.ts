@@ -26,6 +26,7 @@ import { db, eq } from '@plexo/db'
 import { installedConnections } from '@plexo/db'
 import { push as pushTask, completeTask } from '@plexo/queue'
 import { logger } from '../logger.js'
+import { captureLifecycleEvent } from '../sentry.js'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
@@ -290,6 +291,7 @@ Critical rules — follow without exception:
                     emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'discord' })
                 } catch (err) {
                     logger.error({ err }, 'Failed to log Discord conversation to DB')
+                    captureLifecycleEvent('channel.error', 'error', { channel: 'discord', error: 'conversation_log_failed' })
                 }
                 return
             }
@@ -320,6 +322,7 @@ Critical rules — follow without exception:
                 logger.info({ taskId, workspaceId, username }, 'Discord /task queued')
             } catch (err) {
                 logger.error({ err }, 'Discord /task push failed')
+                captureLifecycleEvent('channel.error', 'error', { channel: 'discord', error: 'task_push_failed' })
                 await sendFollowUp(
                     interaction.application_id,
                     interaction.token,

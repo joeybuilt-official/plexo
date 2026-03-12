@@ -35,6 +35,7 @@ import { db, eq } from '@plexo/db'
 import { workspaces } from '@plexo/db'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
+import { captureLifecycleEvent } from '../sentry.js'
 
 export const voiceRouter: RouterType = Router()
 
@@ -365,11 +366,13 @@ voiceRouter.post(
             const duration = data.metadata?.duration ?? 0
 
             logger.info({ workspaceId, chars: transcript.length, words: wordCount, duration }, 'Voice transcription complete')
+            captureLifecycleEvent('voice.transcription_completed', 'info', { workspaceId, words: wordCount, durationSec: duration })
 
             res.json({ transcript, words: wordCount, duration })
         } catch (err) {
             const message = err instanceof Error ? err.message.slice(0, 200) : 'Transcription failed'
             logger.error({ err, workspaceId }, 'Voice transcription error')
+            captureLifecycleEvent('voice.transcription_failed', 'error', { workspaceId, error: message })
             res.status(500).json({ error: { code: 'TRANSCRIPTION_ERROR', message } })
         }
     }

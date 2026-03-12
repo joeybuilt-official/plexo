@@ -130,6 +130,13 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         })
     })
 
+    captureLifecycleEvent('sprint.started', 'info', {
+        sprintId,
+        workspaceId,
+        category: sprint.category,
+        repo: sprint.repo ?? undefined,
+    })
+
     res.status(202).json({ sprintId, status: 'started', message: 'Sprint execution started — follow progress via SSE' })
 })
 
@@ -157,6 +164,13 @@ sprintRunnerRouter.post('/:id/retry', async (req, res) => {
     runSprintRetry(sprintId, workspaceId).catch((err: unknown) => {
         logger.error({ err, sprintId }, 'Sprint retry failed')
         captureException(err, { sprintId, workspaceId, category: sprint.category })
+    })
+
+    captureLifecycleEvent('sprint.started', 'info', {
+        sprintId,
+        workspaceId,
+        category: sprint.category,
+        repo: sprint.repo ?? undefined,
     })
 
     res.status(202).json({ sprintId, status: 'started', message: 'Sprint retry started — follow progress via SSE' })
@@ -264,6 +278,12 @@ sprintRunnerRouter.delete('/:id', async (req, res) => {
 
         logger.info({ sprintId, cancelledTasks: allTaskIds.length, abortedCount }, 'Sprint cancelled')
         emitToWorkspace(sprint.workspaceId ?? '', { type: 'sprint_cancelled', sprintId })
+        captureLifecycleEvent('sprint.cancelled', 'warning', {
+            sprintId,
+            workspaceId: sprint.workspaceId,
+            cancelledTasks: allTaskIds.length,
+            abortedCount,
+        })
 
         res.json({ ok: true, cancelledTasks: allTaskIds.length, abortedCount })
     } catch (err) {

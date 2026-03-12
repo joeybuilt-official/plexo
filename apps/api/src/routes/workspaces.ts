@@ -4,6 +4,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, desc } from '@plexo/db'
 import { workspaces } from '@plexo/db'
+import { captureLifecycleEvent } from '../sentry.js'
 
 export const workspacesRouter: RouterType = Router()
 
@@ -113,6 +114,7 @@ workspacesRouter.delete('/:id', async (req, res) => {
         }
 
         await db.delete(workspaces).where(eq(workspaces.id, id))
+        captureLifecycleEvent('workspace.deleted', 'warning', { workspaceId: id })
         res.json({ ok: true })
     } catch (err) {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete workspace' } })

@@ -17,6 +17,7 @@ import { db, eq, and } from '@plexo/db'
 import { connectionsRegistry, installedConnections } from '@plexo/db'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
+import { captureLifecycleEvent } from '../sentry.js'
 
 /**
  * Maps connections registry IDs → MCP server binding metadata.
@@ -310,6 +311,7 @@ connectionsRouter.post('/install', async (req, res) => {
         }).returning({ id: installedConnections.id })
 
         logger.info({ workspaceId, registryId, name: reg.name }, 'Connection installed')
+        captureLifecycleEvent('connection.installed', 'info', { workspaceId, registryId: reg.id, name: reg.name })
         res.status(201).json({ id: installed!.id, message: 'Connection installed' })
     } catch (err: unknown) {
         logger.error({ err }, 'POST /api/connections/install failed')
@@ -347,6 +349,7 @@ connectionsRouter.patch('/installed/:id', async (req, res) => {
             .set(update)
             .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
 
+        if (status) captureLifecycleEvent('connection.status_updated', 'info', { connectionId: id, workspaceId, status })
         res.json({ ok: true })
     } catch (err: unknown) {
         logger.error({ err, id }, 'PATCH /api/connections/installed/:id failed')
@@ -406,6 +409,7 @@ connectionsRouter.delete('/installed/:id', async (req, res) => {
             .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
 
         logger.info({ id, workspaceId }, 'Connection uninstalled')
+        captureLifecycleEvent('connection.uninstalled', 'info', { connectionId: id, workspaceId })
         res.json({ ok: true })
     } catch (err: unknown) {
         logger.error({ err, id }, 'DELETE /api/connections/installed/:id failed')

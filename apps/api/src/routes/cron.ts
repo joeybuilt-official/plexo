@@ -15,6 +15,7 @@ import { Router, type Router as RouterType } from 'express'
 import { db, eq, and, desc } from '@plexo/db'
 import { cronJobs } from '@plexo/db'
 import { logger } from '../logger.js'
+import { captureLifecycleEvent } from '../sentry.js'
 
 export const cronRouter: RouterType = Router()
 
@@ -144,6 +145,7 @@ cronRouter.post('/', async (req, res) => {
             enabled: true,
         }).returning()
         logger.info({ workspaceId, name, schedule }, 'Cron job created')
+        captureLifecycleEvent('cron.created', 'info', { workspaceId, name, schedule })
         res.status(201).json(created)
     } catch (err) {
         logger.error({ err }, 'POST /api/cron failed')
@@ -212,6 +214,7 @@ cronRouter.delete('/:id', async (req, res) => {
         await db.delete(cronJobs)
             .where(and(eq(cronJobs.id, id), eq(cronJobs.workspaceId, workspaceId)))
         logger.info({ id, workspaceId }, 'Cron job deleted')
+        captureLifecycleEvent('cron.deleted', 'info', { cronId: id, workspaceId })
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err, id }, 'DELETE /api/cron/:id failed')
@@ -251,6 +254,7 @@ cronRouter.post('/:id/trigger', async (req, res) => {
             .where(eq(cronJobs.id, id))
 
         logger.info({ id, workspaceId, name: job.name }, 'Cron job manually triggered')
+        captureLifecycleEvent('cron.triggered', 'info', { cronId: id, workspaceId, name: job.name })
         res.json({ ok: true, message: `${job.name} triggered` })
     } catch (err) {
         logger.error({ err, id }, 'POST /api/cron/:id/trigger failed')

@@ -230,6 +230,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
     if (!credential) {
         await blockTask(task.id, 'No AI credential configured for workspace')
         emit({ type: 'task_blocked', taskId: task.id, reason: 'No AI credential' })
+        captureLifecycleEvent('task.blocked', 'warning', { taskId: task.id, reason: 'no_ai_credential', workspaceId: taskWorkspaceId })
         logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId }, 'No credential — task blocked')
         await releaseSlot(task.id)
         return
@@ -247,6 +248,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         if (costRow && costRow.costUsd >= costRow.ceilingUsd) {
             await blockTask(task.id, `Workspace weekly cost ceiling reached: $${costRow.costUsd.toFixed(4)} / $${costRow.ceilingUsd.toFixed(2)}`)
             emit({ type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING' })
+            captureLifecycleEvent('task.blocked', 'warning', { taskId: task.id, reason: 'cost_ceiling', costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd, workspaceId: taskWorkspaceId })
             logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd }, 'Workspace ceiling — task blocked')
             await releaseSlot(task.id)
             return
@@ -449,6 +451,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         // Phase D: capability pre-flight — planner returned a clarification request
         if (plannerResult.type === 'clarification') {
             logger.info({ taskId: task.id, alternatives: plannerResult.alternatives.length }, 'Planner returned clarification — capability gap detected')
+            captureLifecycleEvent('task.blocked', 'info', { taskId: task.id, reason: 'clarification_needed', alternatives: plannerResult.alternatives.length, workspaceId: taskWorkspaceId })
             await blockTask(task.id, plannerResult.message)
             // Store clarification payload so UI + channels can surface alternatives
             await db.update(tasks).set({
@@ -619,6 +622,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         logger.error({ taskId: task.id, err }, 'Task failed')
+        captureLifecycleEvent('task.failed', 'error', { taskId: task.id, error: message, workspaceId: taskWorkspaceId })
         await blockTask(task.id, message)
 
         emitTaskOutcome({

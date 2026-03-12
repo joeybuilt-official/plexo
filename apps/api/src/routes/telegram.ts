@@ -30,6 +30,7 @@
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
 import { pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
+import { captureLifecycleEvent } from '../sentry.js'
 import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
 import { db, eq, sql } from '@plexo/db'
 import { channels, sprints } from '@plexo/db'
@@ -86,6 +87,7 @@ async function setWebhook(token: string, url: string, secret: string): Promise<v
     const data = await res.json() as { ok: boolean; description?: string }
     if (data.ok) logger.info({ url }, 'Telegram webhook registered')
     else logger.error({ description: data.description }, 'Telegram webhook registration failed')
+    if (!data?.ok) captureLifecycleEvent('channel.error', 'error', { channel: 'telegram', error: 'webhook_registration_failed' })
 }
 
 async function deleteWebhook(token: string): Promise<void> {
@@ -350,6 +352,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                     emitToWorkspace(action.workspaceId, { type: 'task_queued_via_telegram', taskId, chatId, text: action.description.slice(0, 200) })
                 } catch (err) {
                     logger.error({ err, chatId }, 'Failed to queue Telegram task')
+                    captureLifecycleEvent('channel.error', 'error', { channel: 'telegram', error: 'task_queue_failed', chatId })
                     await sendMessage(token, chatId, '❌ Failed to queue task. Please try again.')
                 }
             } else if (action.intent === 'PROJECT') {
@@ -411,6 +414,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                     setTimeout(() => unsub(), 24 * 60 * 60 * 1000)
                 } catch (err) {
                     logger.error({ err, chatId }, 'Failed to create Telegram project')
+                    captureLifecycleEvent('channel.error', 'error', { channel: 'telegram', error: 'project_creation_failed', chatId })
                     await sendMessage(token, chatId, '❌ Failed to create project. Please try again.')
                 }
             }
@@ -521,6 +525,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
             logger.info({ chatId, workspaceId, chars: transcript.length }, 'Telegram voice message transcribed')
         } catch (err) {
             logger.error({ err, chatId, workspaceId }, 'Telegram voice transcription failed')
+            captureLifecycleEvent('channel.error', 'error', { channel: 'telegram', error: 'voice_transcription_failed', workspaceId })
             await sendMessage(token, chatId, '❌ Failed to transcribe your voice message. Please try again or send text.')
             return
         }

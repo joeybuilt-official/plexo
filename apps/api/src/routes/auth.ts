@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { db, eq, sql, and } from '@plexo/db'
 import { users, accounts, workspaces, workspaceMembers } from '@plexo/db'
 import { logger } from '../logger.js'
+import { captureLifecycleEvent } from '../sentry.js'
 
 export const authRouter: RouterType = Router()
 
@@ -59,6 +60,7 @@ authRouter.post('/register', async (req, res) => {
         return
     }
 
+    captureLifecycleEvent('user.registered', 'info', { userId: user.id, role: 'admin' })
     logger.info({ userId: user.id }, 'First user registered (admin)')
     res.status(201).json({ id: user.id, email: user.email })
 })
@@ -203,6 +205,7 @@ authRouter.post('/workspace', async (req, res) => {
             role: 'owner',
         }).onConflictDoNothing()
 
+        captureLifecycleEvent('workspace.created', 'info', { workspaceId: ws!.workspaceId, name: name.trim() })
         logger.info({ name: name.trim(), ownerId: resolvedOwnerId }, 'Workspace created')
         res.status(201).json({ workspaceId: ws!.workspaceId, name: name.trim() })
     } catch (err) {
