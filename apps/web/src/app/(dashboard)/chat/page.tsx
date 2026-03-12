@@ -1277,7 +1277,7 @@ function ChatContent() {
             )}
 
             {/* Header */}
-            <div className="flex items-center justify-between px-8 py-4 border-b border-border shrink-0 bg-surface-1/20">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0 bg-surface-1/20">
                 <div>
                     <div className="flex items-center gap-3">
                         <h1 className="text-xl font-bold text-zinc-50">Chat</h1>
@@ -1459,7 +1459,7 @@ function ChatContent() {
 
             {/* Real-time Input Ingestion Helpers */}
             {(suggestion || wantsAttachment) && !sending && !isListening && (
-                <div className="shrink-0 flex flex-col gap-2 mb-3 px-8">
+                <div className="shrink-0 flex flex-col gap-2 mb-3 px-6">
                     {suggestion && (
                         <div className="flex items-start gap-3 rounded-xl border border-azure/30 bg-azure-dim px-4 py-3 text-sm text-azure shadow-sm shadow-azure-500/5 transition-all">
                             <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
@@ -1490,7 +1490,10 @@ function ChatContent() {
             )}
 
             {/* Input area */}
-            <div className={`shrink-0 flex flex-col items-center gap-3 px-6 pt-5 pb-6 border-t border-border bg-surface-1/5 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] backdrop-blur-md`}>
+            <div 
+                className={`shrink-0 flex flex-col items-center gap-3 px-6 pt-5 border-t border-border bg-surface-1/5 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] backdrop-blur-md`}
+                style={{ paddingBottom: 'calc(1.5rem + var(--safe-bottom))' }}
+            >
                 <div className={`flex flex-col gap-3 w-full ${(!isWorkbenchOpen || !isPinned) ? 'max-w-3xl' : ''}`}>
                     {/* Pasted file previews */}
                     {(pastedImages.length > 0 || pastedDocs.length > 0) && (

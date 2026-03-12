@@ -69,7 +69,7 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
             >
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 min-w-0">
-                        <StatusBadge status={sprint.status} className="mt-1 shrink-0" />
+                        <StatusBadge status={sprint.status} size="sm" className="mt-1 shrink-0" />
                         
                         <div className="min-w-0">
                             <h3 className="truncate text-sm font-semibold text-text-primary group-hover:text-azure transition-colors leading-6">

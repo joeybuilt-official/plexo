@@ -8,6 +8,7 @@ import { DashboardRefresher } from './_components/dashboard-refresher'
 import { WorkspaceProvider } from '@web/context/workspace'
 import { UpdateModal } from '@web/components/update-modal'
 import { getWorkspaceId } from '@web/lib/workspace'
+import { DashboardMain } from './_components/dashboard-main'
 
 export default async function DashboardLayout({
     children,
@@ -35,19 +36,13 @@ export default async function DashboardLayout({
                 <MobileHeader user={session?.user ?? undefined} />
                 <div className="flex flex-1 overflow-hidden">
                     <Sidebar user={session?.user ?? undefined} />
-                    <main 
-                        className="flex-1 overflow-auto relative z-0 p-4 pb-[calc(72px+1rem+var(--safe-bottom))] md:p-6 md:pb-[calc(1.5rem+var(--safe-bottom))]"
-                        style={{
-                            '--safe-top': 'env(safe-area-inset-top)',
-                            '--safe-bottom': 'env(safe-area-inset-bottom)'
-                        } as React.CSSProperties}
-                    >
+                    <DashboardMain>
                         {/* SSE listener — refreshes server components on task events */}
                         <DashboardRefresher />
                         {/* Version check — opens modal automatically when behind */}
                         <UpdateModal />
                         {children}
-                    </main>
+                    </DashboardMain>
                 </div>
             </div>
         </WorkspaceProvider>
