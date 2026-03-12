@@ -263,11 +263,14 @@ export function manifestToPromptBlock(manifest: CapabilityManifest): string {
         lines.push('  Active skills: none')
     }
 
+    // Explicitly call out Web Automation/Browser as a meta-capability
+    lines.push('  Web Automation: ENABLED (You can interact with ANY website using browser_* tools to perform signups, posts, or configuration, even if no direct connection is listed above.)')
+
     // Highlight common gaps
     const gapChecks = ['image_generation', 'video_generation', 'audio_generation', 'voice_synthesis']
     const gaps = gapChecks.filter((g) => !manifest.allCapabilities.has(g))
     if (gaps.length > 0) {
-        lines.push(`  NOT capable of (no tool/connection installed): ${gaps.join(', ')}`)
+        lines.push(`  NOT capable of (no specialized generator tool/connection installed): ${gaps.join(', ')}`)
     }
 
     return lines.join('\n')

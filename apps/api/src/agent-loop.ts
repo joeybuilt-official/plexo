@@ -675,8 +675,30 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
 }
 
+/** Cancel stale blocked/queued tasks older than 7 days so they stop cluttering the dashboard. */
+async function cleanupStaleTasks(): Promise<void> {
+    try {
+        const result = await db.execute(sql`
+            UPDATE tasks
+            SET status = 'cancelled',
+                outcome_summary = COALESCE(outcome_summary, 'Auto-cancelled: stale after 7 days')
+            WHERE status IN ('blocked', 'queued')
+              AND created_at < NOW() - INTERVAL '7 days'
+            RETURNING id
+        `)
+        const count = Array.isArray(result) ? result.length : 0
+        if (count > 0) logger.info({ count }, 'Cleaned up stale blocked/queued tasks')
+    } catch (err) {
+        logger.warn({ err }, 'Stale task cleanup failed — non-fatal')
+    }
+}
+
 export function startAgentLoop(): void {
     logger.info('Agent queue loop started')
+
+    // Clean up stale blocked tasks at startup + every 6 hours
+    cleanupStaleTasks()
+    setInterval(() => cleanupStaleTasks(), 6 * 60 * 60 * 1000)
 
     async function poll(): Promise<void> {
         while (running) {

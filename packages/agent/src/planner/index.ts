@@ -94,13 +94,15 @@ RULES:
 - Think outside the box: If a task seems unachievable directly (e.g. "plan a party", "run a marketing campaign", "buy plane tickets"), DO NOT return clarification immediately. Instead, map the real-world problem to achievable digital subtasks. You can always research, write schedules, draft emails, structure databases, write scripts, or automate web workflows.
 - Be solution-oriented: When planning for abstract or physical tasks, clearly state any additional apps, APIs, or integrations the user might need to connect (or that you could build) to complete the final mile.
 - IMPORTANT EXCEPTION: If the task requires connecting to a third-party service/API that has no existing connection, and "synthesize_kapsel_skill" is listed in the manifest tools, you MUST use synthesize_kapsel_skill to build that connection. This is the self-extension mechanism — it creates new skills and connections autonomously. Never return clarification for service integration tasks when synthesize_kapsel_skill is available.
+- NEVER decline a task for a website or service simply because it is not listed in the "Active connections" section of the manifest. Most websites and services (social media, SaaS, forms, dashboards) can be interacted with via BROWSER AUTOMATION tools without needing a direct API connection. If a task requires interacting with a website, it is ACHIEVABLE.
+- NEVER return clarification for a task that can be accomplished via a browser, even if the user didn't explicitly say "use the browser". If they ask to "create a profile" or "post a message", assume the browser is a valid fulfillment path.
 - When returning clarification: provide 1–4 concrete alternatives you CAN deliver with the available tools. Always include a written/text alternative.
 - When returning a plan: prefer reversible actions, flag irreversible ones as one-way doors. Website interactions (account creation, form submissions, public posts) are one-way doors — flag them.
 - Break work into atomic steps that can be verified independently.
 - Research: Use web_search and web_fetch to gather information, read documentation, or verify facts. These are your "eyes" on the live web. Use browser_* tools when you need to interact with web pages (click, fill, navigate).
 - Be conservative with confidence scores — only give 0.9+ if the path is fully clear.
-- Steps should reference only tools listed in the capability manifest.`
-}
+- Steps should reference only tools listed in the capability manifest.
+- If you are unsure, default to returning a 'plan' with a research and browser-based discovery phase rather than declining.}
 
 // ── Default workspace AI settings ─────────────────────────────────────────────
 
@@ -126,11 +128,19 @@ export async function planTask(
 
     // Build capability manifest (Phase D)
     const manifest = await buildCapabilityManifest(ctx.workspaceId).catch(() => ({
-        tools: ['read_file', 'write_file', 'shell', 'task_complete', 'write_asset', 'synthesize_kapsel_skill', 'web_search', 'web_fetch'],
+        tools: [
+            'read_file', 'write_file', 'shell', 'task_complete', 'write_asset', 'synthesize_kapsel_skill',
+            'web_search', 'web_fetch', 'web_screenshot', 'image_search',
+            'browser_navigate', 'browser_click', 'browser_type', 'browser_select', 'browser_extract', 'browser_screenshot', 'browser_eval', 'browser_wait'
+        ],
         connections: [],
-        models: [{ provider: 'anthropic', model: 'claude', supports: ['text', 'code'], missing: ['image_generation', 'video_generation'] }],
+        models: [{ provider: 'anthropic', model: 'claude', supports: ['text', 'code', 'vision'], missing: ['image_generation', 'video_generation'] }],
         skills: [],
-        allCapabilities: new Set(['read_file', 'write_file', 'shell', 'text', 'code', 'synthesize_kapsel_skill', 'web_search', 'web_fetch']),
+        allCapabilities: new Set([
+            'read_file', 'write_file', 'shell', 'text', 'code', 'vision', 'synthesize_kapsel_skill',
+            'web_search', 'web_fetch', 'web_screenshot', 'image_search',
+            'browser_navigate', 'browser_click', 'browser_type', 'browser_select', 'browser_extract', 'browser_screenshot', 'browser_eval', 'browser_wait'
+        ]),
     }))
 
     const capabilityBlock = manifestToPromptBlock(manifest)

@@ -31,7 +31,7 @@ import { Router, type Router as RouterType, type Request, type Response } from '
 import { pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
-import { db, eq } from '@plexo/db'
+import { db, eq, sql } from '@plexo/db'
 import { channels, sprints } from '@plexo/db'
 import { ulid } from 'ulid'
 import { generateText } from 'ai'
@@ -784,7 +784,17 @@ export async function initTelegramWebhook(): Promise<void> {
     const envToken = process.env.TELEGRAM_BOT_TOKEN
     if (envToken) {
         // Env-var override: treat as a synthetic channel with a fixed ID
-        await registerTelegramChannel('env-default', envToken, process.env.DEFAULT_WORKSPACE_ID ?? '')
+        let wsId = process.env.DEFAULT_WORKSPACE_ID ?? ''
+        if (!wsId) {
+            // Auto-resolve: pick the first workspace so conversations are always linked
+            try {
+                const [row] = await db.execute<{ id: string }>(sql`SELECT id FROM workspaces LIMIT 1`)
+                if (row?.id) wsId = row.id
+            } catch { /* fall through with empty wsId */ }
+            if (wsId) logger.info({ workspaceId: wsId }, 'Telegram env-default: auto-resolved workspace from DB')
+            else logger.warn('Telegram env-default: no DEFAULT_WORKSPACE_ID and no workspaces in DB — conversations will be orphaned')
+        }
+        await registerTelegramChannel('env-default', envToken, wsId)
         return
     }
 
