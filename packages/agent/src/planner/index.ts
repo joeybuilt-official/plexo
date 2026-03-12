@@ -163,8 +163,10 @@ Respond with ONLY valid JSON matching exactly one of these two shapes. No markdo
 Shape 1 — plan (use when the task is achievable with available tools):
 {"type":"plan","goal":"<overall goal>","steps":[{"stepNumber":1,"description":"<what to do>","toolsRequired":["<tool>"],"verificationMethod":"<how to verify>","isOneWayDoor":false}],"oneWayDoors":[],"estimatedDurationMs":30000,"confidenceScore":0.9,"risks":[]}
 
-Shape 2 — clarification (use when a required capability is missing):
-{"type":"clarification","message":"<explain the gap in 1-2 sentences>","alternatives":[{"label":"<short label>","description":"<one sentence>","taskDescription":"<full task description>"}]}`
+Shape 2 — clarification (use ONLY when a required capability is truly missing AND browser_* tools cannot solve it):
+{"type":"clarification","message":"<explain the gap in 1-2 sentences>","alternatives":[{"label":"<short label>","description":"<one sentence>","taskDescription":"<full task description>"}]}
+
+CRITICAL: If the task involves ANY website, web service, social media platform, SaaS tool, or online form — return a PLAN using browser_* tools. Do NOT return clarification. The browser IS the capability.`
 
     const raw = await withFallback(settings, 'planning', async (model) => {
         // Use generateText universally — generateObject with discriminatedUnion schemas
@@ -184,8 +186,45 @@ Shape 2 — clarification (use when a required capability is missing):
         return { object: PlannerOutputSchema.parse(jsonObj) }
     })
 
-    // Clarification path — return as-is for the queue to handle
+    // Clarification path — but intercept false rejections for browser-achievable tasks
     if (raw.object.type === 'clarification') {
+        const browserKeywords = /\b(account|sign.?up|register|login|profile|post|submit|form|website|social.?media|facebook|instagram|twitter|tiktok|linkedin|youtube|reddit|pinterest)\b/i
+        const taskText = `${taskDescription} ${JSON.stringify(taskContext)}`.toLowerCase()
+        const isBrowserAchievable = browserKeywords.test(taskText) && manifest.allCapabilities.has('browser_navigate')
+
+        if (isBrowserAchievable) {
+            // Force re-plan with explicit browser override prompt
+            try {
+                const retryResult = await withFallback(settings, 'planning', async (model) => {
+                    const textResult = await generateText({
+                        model,
+                        system: systemPrompt,
+                        prompt: userPrompt + `
+
+OVERRIDE: Your previous attempt returned a clarification, but this task IS achievable using browser_* tools. You MUST return a plan (type: "plan"), not a clarification. Use browser_navigate, browser_click, browser_type, etc. to interact with websites directly. Account creation, form filling, and social media interaction are all achievable via browser automation. Return a concrete plan NOW.` + JSON_INSTRUCTIONS,
+                        abortSignal: AbortSignal.timeout(30_000),
+                    })
+                    const cleaned = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+                    return { object: PlannerOutputSchema.parse(JSON.parse(cleaned)) }
+                })
+                if (retryResult.object.type === 'plan') {
+                    // Retry succeeded — use the plan
+                    const plan: ExecutionPlan = {
+                        taskId: ctx.taskId,
+                        goal: retryResult.object.goal,
+                        steps: retryResult.object.steps as PlanStep[],
+                        oneWayDoors: (retryResult.object.oneWayDoors ?? []) as OneWayDoor[],
+                        estimatedDurationMs: retryResult.object.estimatedDurationMs ?? 0,
+                        confidenceScore: Math.min(1, Math.max(0, retryResult.object.confidenceScore ?? 0.5)),
+                        risks: retryResult.object.risks ?? [],
+                    }
+                    return { type: 'plan', plan }
+                }
+            } catch {
+                // Retry failed — fall through to original clarification
+            }
+        }
+
         return {
             type: 'clarification',
             message: raw.object.message,
