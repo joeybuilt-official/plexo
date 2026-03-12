@@ -126,9 +126,10 @@ export function QuickSend() {
             if (!res.ok) throw new Error('API error')
             const data = await res.json() as { id: string }
 
-            // Navigate to chat — code mode if the user selected Code chip
+            // Navigate to chat with context
             const params = new URLSearchParams({ taskId: data.id })
-            if (selectedCategory === 'code') params.set('codeMode', '1')
+            if (selectedCategory === 'code') params.set('mode', 'code')
+            if (selectedCategory) params.set('category', selectedCategory)
             if (isLiveMode) params.set('live', '1')
             router.push(`/chat?${params.toString()}`)
         } catch {
@@ -265,7 +266,17 @@ export function QuickSend() {
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder={isListening ? "Listening..." : "Message your agent to start a task..."}
+                    placeholder={
+                        isListening ? "Listening..." :
+                        selectedCategory === 'code' ? 'Write a React component that...' :
+                        selectedCategory === 'research' ? 'Research the latest developments in...' :
+                        selectedCategory === 'ops' ? 'Audit all production servers for...' :
+                        selectedCategory === 'data' ? 'Identify all users who converted...' :
+                        selectedCategory === 'writing' ? 'Write a technical blog post explaining...' :
+                        selectedCategory === 'marketing' ? 'Plan a product launch campaign for...' :
+                        selectedCategory === 'general' ? 'Help me organize my upcoming...' :
+                        "Message your agent to start a task..."
+                    }
                     className="flex-1 resize-none bg-transparent px-4 pr-24 py-3 text-[16px] md:text-[15px] text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-50 min-h-[64px] leading-relaxed"
                     disabled={status === 'sending' || isListening}
                     rows={2}
@@ -392,13 +403,11 @@ export function QuickSend() {
                     return (
                         <button
                             key={item.label}
-                            onClick={() => { 
+                            onClick={() => {
                                 if (isSelected) {
                                     setSelectedCategory(null)
-                                    setText('')
                                 } else {
                                     setSelectedCategory(item.id)
-                                    setText(item.prompt)
                                     setTimeout(() => inputRef.current?.focus(), 10)
                                 }
                             }}

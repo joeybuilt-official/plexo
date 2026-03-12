@@ -447,6 +447,23 @@ function useTTS(options?: { onEnd?: () => void; enabled?: boolean }) {
     const utterRef = useRef<SpeechSynthesisUtterance | null>(null)
     const onEndRef = useRef(options?.onEnd)
     onEndRef.current = options?.onEnd
+    const voiceRef = useRef<SpeechSynthesisVoice | null>(null)
+
+    // Pre-load voices (they load async in many browsers)
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.speechSynthesis) return
+        const pickVoice = () => {
+            const voices = window.speechSynthesis.getVoices()
+            if (voices.length > 0) {
+                voiceRef.current = voices.find(v =>
+                    v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Natural')
+                ) ?? voices[0]
+            }
+        }
+        pickVoice()
+        window.speechSynthesis.addEventListener('voiceschanged', pickVoice)
+        return () => window.speechSynthesis.removeEventListener('voiceschanged', pickVoice)
+    }, [])
 
     const speak = useCallback((text: string) => {
         if (!enabledRef.current || typeof window === 'undefined' || !window.speechSynthesis) return
@@ -454,12 +471,7 @@ function useTTS(options?: { onEnd?: () => void; enabled?: boolean }) {
         const utterance = new SpeechSynthesisUtterance(text)
         utterance.rate = 1.05
         utterance.pitch = 1.0
-        // Prefer a natural-sounding voice
-        const voices = window.speechSynthesis.getVoices()
-        const preferred = voices.find(v =>
-            v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Natural')
-        ) ?? voices[0]
-        if (preferred) utterance.voice = preferred
+        if (voiceRef.current) utterance.voice = voiceRef.current
         utterRef.current = utterance
         utterance.onstart = () => setSpeaking(true)
         utterance.onend = () => {
@@ -532,10 +544,12 @@ function ChatContent() {
     const lastRunningTaskId = messages.find((m) => m.status === 'running')?.taskId
     const [openArtifactData, setOpenArtifactData] = useState<{ asset: TaskAsset, taskId: string } | null>(null)
 
-    // Sync mode with URL
+    // Sync mode/category with URL
     useEffect(() => {
         const mode = searchParams.get('mode')
+        const cat = searchParams.get('category')
         if (mode === 'code') setIsWorkbenchOpen(true)
+        if (cat) setSelectedCategory(cat)
     }, [searchParams])
 
     // Fetch the active agent model
@@ -1281,6 +1295,20 @@ function ChatContent() {
                 <div>
                     <div className="flex items-center gap-3">
                         <h1 className="text-xl font-bold text-zinc-50">Chat</h1>
+                        {/* Workbench Toggle — next to title for visibility */}
+                        <button
+                            id="workbench-toggle"
+                            onClick={() => setIsWorkbenchOpen((v) => !v)}
+                            title={isWorkbenchOpen ? 'Hide Workbench' : 'Show Workbench'}
+                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                                isWorkbenchOpen
+                                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20'
+                                    : 'text-text-muted hover:text-text-secondary border border-transparent hover:border-border'
+                            }`}
+                        >
+                            <Layout className="h-3.5 w-3.5" />
+                            <span>Workbench</span>
+                        </button>
                         {agentModel && (
                             <div className="flex items-center gap-2">
                                 <span className="text-[11px] font-mono font-medium text-text-secondary bg-surface-1 border border-border px-2 py-0.5 rounded-full">
@@ -1304,21 +1332,6 @@ function ChatContent() {
                             Clear
                         </button>
                     )}
-
-                    {/* Workbench Toggle (Visual only, state managed via mode switcher or auto-open) */}
-                    <button
-                        id="workbench-toggle"
-                        onClick={() => setIsWorkbenchOpen((v) => !v)}
-                        title={isWorkbenchOpen ? 'Hide Workbench' : 'Show Workbench'}
-                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                            isWorkbenchOpen
-                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20'
-                                : 'text-text-muted hover:text-text-secondary border border-transparent hover:border-border'
-                        }`}
-                    >
-                        <Layout className="h-3.5 w-3.5" />
-                        <span>Workbench</span>
-                    </button>
                 </div>
             </div>
 
@@ -1378,10 +1391,9 @@ function ChatContent() {
                                                 onClick={() => {
                                                     if (isSelected) {
                                                         setSelectedCategory(null)
-                                                        setInput('')
+                                                        if (item.id === 'code') setIsWorkbenchOpen(false)
                                                     } else {
                                                         setSelectedCategory(item.id)
-                                                        setInput(item.prompt)
                                                         if (item.id === 'code') setIsWorkbenchOpen(true)
                                                         setTimeout(() => inputRef.current?.focus(), 10)
                                                     }
@@ -1581,7 +1593,17 @@ function ChatContent() {
                             onPaste={handlePaste}
                             onDrop={handleDrop}
                             onDragOver={(e) => e.preventDefault()}
-                            placeholder={isListening ? 'Listening…' : 'Message your agent…'}
+                            placeholder={
+                                isListening ? 'Listening…' :
+                                selectedCategory === 'code' ? 'Write a React component that...' :
+                                selectedCategory === 'research' ? 'Research the latest developments in...' :
+                                selectedCategory === 'ops' ? 'Audit all production servers for...' :
+                                selectedCategory === 'data' ? 'Identify all users who converted...' :
+                                selectedCategory === 'writing' ? 'Write a technical blog post explaining...' :
+                                selectedCategory === 'marketing' ? 'Plan a product launch campaign for...' :
+                                selectedCategory === 'general' ? 'Help me organize my upcoming...' :
+                                'Message your agent…'
+                            }
                             rows={1}
                             disabled={sending || isListening}
                             className="flex-1 resize-none rounded-xl border border-border bg-surface-1/80 px-4 py-3 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-azure/60 focus:ring-4 focus:ring-azure/5 disabled:opacity-50 max-h-32 leading-relaxed transition-all shadow-sm"
