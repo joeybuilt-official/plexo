@@ -1639,7 +1639,7 @@ function ChatContent() {
 
             {/* Floating Artifact Preview (Alternative for single assets if workbench is closed) */}
             {openArtifactData && !isWorkbenchOpen && (
-                <div className="absolute inset-4 left-auto w-[600px] z-50 bg-zinc-900/80 backdrop-blur-xl rounded-2xl border border-border/40 shadow-2xl animate-in slide-in-from-right fade-in duration-500">
+                <div className="absolute top-0 right-0 bottom-0 left-auto w-[600px] z-50 bg-zinc-900/90 backdrop-blur-xl border-l border-border/40 shadow-2xl animate-in slide-in-from-right fade-in duration-500">
                     <ArtifactPanel 
                         asset={openArtifactData.asset} 
                         taskId={openArtifactData.taskId}

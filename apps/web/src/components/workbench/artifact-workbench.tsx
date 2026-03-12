@@ -190,7 +190,7 @@ export function ArtifactWorkbench({
             className={`flex flex-col h-full overflow-hidden transition-all duration-500 ease-in-out ${
                 isPinned 
                     ? 'border-l border-border/40 bg-zinc-900/60 backdrop-blur-md' 
-                    : 'absolute right-4 top-4 bottom-4 w-[600px] max-w-[calc(100vw-340px)] z-30 rounded-2xl border border-border/40 bg-zinc-900/80 backdrop-blur-xl shadow-2xl'
+                    : 'absolute right-0 top-0 bottom-0 w-[600px] max-w-[calc(100vw-340px)] z-30 rounded-none border-l border-border/40 bg-zinc-900/90 backdrop-blur-xl shadow-2xl'
             }`}
         >
             {/* ── Toolbar ─────────────────────────────────────────────────── */}
