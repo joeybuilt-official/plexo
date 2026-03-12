@@ -174,6 +174,12 @@ async function dispatchTool(
                     'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL',
                     'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL',
                     'PNPM_HOME', 'npm_config_cache',
+                    // Connection tokens needed for git push, MCP servers, etc.
+                    'GITHUB_TOKEN', 'GITHUB_PERSONAL_ACCESS_TOKEN',
+                    'GITLAB_PERSONAL_ACCESS_TOKEN', 'GITLAB_TOKEN',
+                    'NPM_TOKEN', 'VERCEL_TOKEN', 'NETLIFY_AUTH_TOKEN',
+                    // Allow workspace-scoped custom env (set by connection bridge)
+                    'PLEXO_WORKSPACE_ID',
                 ])
                 const safeEnv: Record<string, string> = {}
                 for (const [k, v] of Object.entries(process.env)) {

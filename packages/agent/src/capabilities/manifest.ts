@@ -51,23 +51,45 @@ export interface CapabilityManifest {
 // Maps registry IDs → what the agent can do with them.
 
 const CONNECTION_CAPABILITIES: Record<string, string[]> = {
+    // ── Code & DevOps ────────────────────────────────────────────────────────
     github: ['read_code', 'write_code', 'create_file', 'push_commits', 'create_branch', 'delete_branch', 'create_pr', 'merge_pr', 'review_pr', 'list_issues', 'create_issue', 'update_issue', 'search_code', 'list_prs', 'get_ci_status', 'manage_releases', 'fork_repo'],
-    slack: ['send_message', 'list_channels', 'read_messages'],
-    discord: ['send_message', 'read_messages'],
-    stripe: ['read_payments', 'read_revenue'],
-    vercel: ['list_deployments', 'get_deployment_status'],
-    cloudflare: ['purge_cache', 'list_dns'],
-    google_drive: ['file_upload', 'create_doc', 'read_doc'],
-    notion: ['create_page', 'read_page', 'append_blocks'],
+    gitlab: ['read_code', 'write_code', 'create_file', 'push_commits', 'create_branch', 'delete_branch', 'create_mr', 'merge_mr', 'list_issues', 'create_issue', 'update_issue', 'search_code'],
+    vercel: ['list_deployments', 'get_deployment_status', 'trigger_deploy'],
+    netlify: ['list_deployments', 'get_deployment_status', 'trigger_deploy'],
+
+    // ── Communication ────────────────────────────────────────────────────────
+    slack: ['send_message', 'post_to_channel', 'list_channels', 'read_messages'],
+    discord: ['send_message', 'read_messages', 'queue_task'],
+    telegram: ['send_message', 'receive_task'],
+
+    // ── Project Management ───────────────────────────────────────────────────
+    linear: ['create_issue', 'update_issue', 'add_comment', 'list_issues', 'search_issues'],
+    jira: ['create_issue', 'update_issue', 'add_comment', 'list_issues', 'search_issues'],
+
+    // ── Knowledge & Docs ─────────────────────────────────────────────────────
+    notion: ['create_page', 'update_page', 'search_pages', 'read_page', 'append_blocks'],
+    'google-drive': ['file_upload', 'create_doc', 'read_doc', 'search_files'],
     airtable: ['read_records', 'create_record', 'update_record'],
+
+    // ── Payments & Infra ─────────────────────────────────────────────────────
+    stripe: ['read_payments', 'read_revenue', 'list_customers', 'list_subscriptions'],
+    cloudflare: ['purge_cache', 'list_dns', 'update_dns'],
+
+    // ── Messaging & Email ────────────────────────────────────────────────────
     sendgrid: ['send_email'],
     mailchimp: ['send_campaign', 'list_subscribers'],
     twilio: ['send_sms', 'make_call'],
+
+    // ── Ops & Observability ──────────────────────────────────────────────────
+    pagerduty: ['trigger_incident', 'resolve_incident', 'add_note'],
+    datadog: ['query_metrics', 'query_logs', 'create_event'],
+
+    // ── AI & Media ───────────────────────────────────────────────────────────
     replicate: ['image_generation', 'video_generation', 'audio_generation', 'image_upscaling'],
     'fal-ai': ['image_generation', 'video_generation', 'image_upscaling'],
     stability: ['image_generation', 'image_editing'],
     elevenlabs: ['voice_synthesis', 'audio_generation'],
-    openai: ['image_generation', 'vision', 'transcription'],
+    openai: ['image_generation', 'vision', 'transcription', 'embed_text'],
     deepgram: ['transcription', 'voice_synthesis'],
 }
 
