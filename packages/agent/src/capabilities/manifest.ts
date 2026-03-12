@@ -51,7 +51,7 @@ export interface CapabilityManifest {
 // Maps registry IDs → what the agent can do with them.
 
 const CONNECTION_CAPABILITIES: Record<string, string[]> = {
-    github: ['read_code', 'list_issues', 'create_issue', 'list_prs', 'check_ci'],
+    github: ['read_code', 'write_code', 'create_file', 'push_commits', 'create_branch', 'delete_branch', 'create_pr', 'merge_pr', 'review_pr', 'list_issues', 'create_issue', 'update_issue', 'search_code', 'list_prs', 'get_ci_status', 'manage_releases', 'fork_repo'],
     slack: ['send_message', 'list_channels', 'read_messages'],
     discord: ['send_message', 'read_messages'],
     stripe: ['read_payments', 'read_revenue'],
