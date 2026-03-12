@@ -14,7 +14,7 @@
  * This does NOT apply code changes to itself — it surfaces proposals
  * for the operator to review (one-way door gate for anything structural).
  */
-import { generateObject } from 'ai'
+import { generateText } from 'ai'
 import { z } from 'zod'
 import pino from 'pino'
 import { db, sql, desc, eq } from '@plexo/db'
@@ -168,11 +168,10 @@ export async function runSelfImprovementCycle(params: {
 
     let proposals: ImprovementProposal[] = []
     try {
-        const result = await generateObject({
+        const textResult = await generateText({
             model,
-            schema: ProposalsSchema,
             system: 'You are an AI operations analyst. Given task performance data, identify patterns that an AI agent could use to improve. Focus heavily on identifying when a repetitive workflow needs a Skill, an ad-hoc or dangerous boundary crossing needs a deterministic Plugin, or when context saturation/multi-modal needs call for a specialized Agent.',
-            prompt: `Analyze these recent task outcomes (${stratified.length} tasks) and identify up to 5 improvement patterns. 
+            prompt: `Analyze these recent task outcomes (${stratified.length} tasks) and identify up to 5 improvement patterns.
 
 Look specifically for:
 1. Friction & Flail (Knowledge Gaps): If you see high tool call counts for simple file modifications or repeated failures, propose a 'skill_proposal' (e.g. standardizing a deploy script or framework convention).
@@ -180,10 +179,15 @@ Look specifically for:
 3. Context Overload (Delegation Gaps): If token usage is consistently nearing limits or there is a massive read-to-write imbalance, propose an 'agent_proposal'.
 4. Standard behavior adjustments: 'failure_pattern', 'success_pattern', 'tool_preference', or 'scope_adjustment'.
 
-If there are no clear patterns or no tasks, return an empty array for proposals:\n${JSON.stringify(ledgerSummary, null, 2)}`,
-            maxOutputTokens: 1024,
+If there are no clear patterns or no tasks, return an empty array for proposals.
+
+Respond with ONLY valid JSON: { "proposals": [{ "pattern_type": "failure_pattern"|"success_pattern"|"tool_preference"|"scope_adjustment"|"skill_proposal"|"plugin_proposal"|"agent_proposal", "description": string, "evidence": string[], "proposed_change": string }] }
+
+${JSON.stringify(ledgerSummary, null, 2)}`,
+            abortSignal: AbortSignal.timeout(30_000),
         })
-        proposals = result.object.proposals
+        const cleaned = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+        proposals = ProposalsSchema.parse(JSON.parse(cleaned)).proposals
     } catch (err) {
         logger.error({ err }, 'LLM analysis failed in self-improvement cycle')
     }

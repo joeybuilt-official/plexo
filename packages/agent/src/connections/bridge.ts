@@ -58,11 +58,11 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
         github__create_issue: tool({
             description: 'Create a new GitHub issue.',
             inputSchema: z.object({
-                owner: z.string(),
-                repo: z.string(),
+                owner: z.string().describe('Repository owner (user or org)'),
+                repo: z.string().describe('Repository name'),
                 title: z.string().describe('Issue title'),
                 body: z.string().optional().describe('Issue body (markdown)'),
-                labels: z.array(z.string()).optional(),
+                labels: z.array(z.string()).optional().describe('Label names to apply'),
             }),
             execute: async ({ owner, repo, title, body, labels }) => {
                 const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
@@ -77,13 +77,13 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
         github__open_pr: tool({
             description: 'Open a pull request on GitHub.',
             inputSchema: z.object({
-                owner: z.string(),
-                repo: z.string(),
+                owner: z.string().describe('Repository owner (user or org)'),
+                repo: z.string().describe('Repository name'),
                 title: z.string().describe('PR title'),
                 body: z.string().optional().describe('PR description (markdown)'),
                 head: z.string().describe('Branch containing the changes'),
                 base: z.string().default('main').describe('Branch to merge into'),
-                draft: z.boolean().optional().default(false),
+                draft: z.boolean().optional().default(false).describe('Open as draft PR'),
             }),
             execute: async ({ owner, repo, title, body, head, base, draft }) => {
                 const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
@@ -102,8 +102,8 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
         github__merge_pr: tool({
             description: 'Merge a pull request (squash merge).',
             inputSchema: z.object({
-                owner: z.string(),
-                repo: z.string(),
+                owner: z.string().describe('Repository owner (user or org)'),
+                repo: z.string().describe('Repository name'),
                 pull_number: z.number().describe('PR number to merge'),
                 commit_message: z.string().optional().describe('Squash commit message'),
             }),
@@ -121,8 +121,8 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
         github__create_branch: tool({
             description: 'Create a new branch in a GitHub repository from a base branch or SHA.',
             inputSchema: z.object({
-                owner: z.string(),
-                repo: z.string(),
+                owner: z.string().describe('Repository owner (user or org)'),
+                repo: z.string().describe('Repository name'),
                 branch: z.string().describe('Name for the new branch'),
                 from_branch: z.string().optional().default('main').describe('Branch or SHA to branch from'),
             }),
@@ -149,9 +149,9 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
         github__get_ci_status: tool({
             description: 'Get latest CI/check status for a branch or commit SHA.',
             inputSchema: z.object({
-                owner: z.string(),
-                repo: z.string(),
-                branch: z.string().default('main'),
+                owner: z.string().describe('Repository owner (user or org)'),
+                repo: z.string().describe('Repository name'),
+                branch: z.string().default('main').describe('Branch name or commit SHA'),
             }),
             execute: async ({ owner, repo, branch }) => {
                 const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${branch}/check-runs`, { headers })
@@ -163,8 +163,8 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
         github__read_file: tool({
             description: 'Read a file from a GitHub repository at a given ref (branch or commit).',
             inputSchema: z.object({
-                owner: z.string(),
-                repo: z.string(),
+                owner: z.string().describe('Repository owner (user or org)'),
+                repo: z.string().describe('Repository name'),
                 path: z.string().describe('File path in the repo, e.g. src/index.ts'),
                 ref: z.string().optional().default('main').describe('Branch, tag, or commit SHA'),
             }),
@@ -185,8 +185,8 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
         github__push_file: tool({
             description: 'Create or update a file in a GitHub repository on a specific branch.',
             inputSchema: z.object({
-                owner: z.string(),
-                repo: z.string(),
+                owner: z.string().describe('Repository owner (user or org)'),
+                repo: z.string().describe('Repository name'),
                 path: z.string().describe('File path in the repo'),
                 content: z.string().describe('Full file content (UTF-8)'),
                 message: z.string().describe('Commit message'),

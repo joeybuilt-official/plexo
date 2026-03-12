@@ -20,7 +20,7 @@
  * The agent reads workspace_preferences['prompt_overrides'] at task start
  * to pick up approved prompt changes without a code deploy.
  */
-import { generateObject } from 'ai'
+import { generateText } from 'ai'
 import { z } from 'zod'
 import pino from 'pino'
 import { db, sql, desc, eq } from '@plexo/db'
@@ -118,9 +118,8 @@ export async function proposePromptImprovements(params: {
 
     let patches: PromptPatch[] = []
     try {
-        const result = await generateObject({
+        const textResult = await generateText({
             model,
-            schema: PatchesSchema,
             system: `You are an AI meta-evaluator. You review AI agent task performance data and the agent's current system prompt overrides, then propose targeted improvements to the prompt.
 
 Rules:
@@ -143,10 +142,13 @@ High-quality outcomes (${highQuality.length}): ${JSON.stringify(highQuality.slic
                 q: s.qualityScore,
             })))}
 
-Propose up to 3 prompt improvements.`,
-            maxOutputTokens: 2048,
+Propose up to 3 prompt improvements.
+
+Respond with ONLY valid JSON: { "patches": [{ "section": "tool_selection"|"error_handling"|"code_quality"|"planning"|"output_format", "original": string, "proposed": string, "rationale": string, "supportingTaskIds": string[] }] }`,
+            abortSignal: AbortSignal.timeout(30_000),
         })
-        patches = result.object.patches as PromptPatch[]
+        const cleaned = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+        patches = PatchesSchema.parse(JSON.parse(cleaned)).patches as PromptPatch[]
     } catch (err) {
         logger.error({ err }, 'Prompt improvement LLM call failed')
     }

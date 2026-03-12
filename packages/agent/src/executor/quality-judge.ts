@@ -21,7 +21,7 @@
  * selfScore) so the UI can surface the full picture. Never a hard dependency — falls back
  * to the agent's self-reported score on any unhandled failure.
  */
-import { generateObject } from 'ai'
+import { generateText } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
 import pino from 'pino'
@@ -240,8 +240,14 @@ async function runSingleJudge(
     model: any,
 ): Promise<number> {
     const { system, prompt } = buildJudgePrompt(params, rubric)
-    const result = await generateObject({ model, schema: JudgmentSchema, system, prompt, maxOutputTokens: 512 })
-    return computeWeightedScore(result.object, rubric, params.selfScore)
+    const textResult = await generateText({
+        model, system,
+        prompt: prompt + '\n\nRespond with ONLY valid JSON matching the schema: { "scores": [{ "dimension": string, "score": number, "rationale": string }], "overall_notes": string }',
+        abortSignal: AbortSignal.timeout(30_000),
+    })
+    const cleaned = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+    const judgment = JudgmentSchema.parse(JSON.parse(cleaned))
+    return computeWeightedScore(judgment, rubric, params.selfScore)
 }
 
 // ── Ensemble (N parallel calls) ───────────────────────────────────────────────
@@ -262,8 +268,14 @@ async function runEnsemble(
         modelNames.map(async (name): Promise<VerdictResult | null> => {
             try {
                 const model = ol(name)
-                const result = await generateObject({ model, schema: JudgmentSchema, system, prompt, maxOutputTokens: 512 })
-                const score = computeWeightedScore(result.object, rubric, params.selfScore)
+                const textResult = await generateText({
+                    model, system,
+                    prompt: prompt + '\n\nRespond with ONLY valid JSON matching the schema: { "scores": [{ "dimension": string, "score": number, "rationale": string }], "overall_notes": string }',
+                    abortSignal: AbortSignal.timeout(30_000),
+                })
+                const cleaned = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+                const judgment = JudgmentSchema.parse(JSON.parse(cleaned))
+                const score = computeWeightedScore(judgment, rubric, params.selfScore)
                 const weight = await getModelWeight(name)
                 logger.debug({ model: name, score: score.toFixed(3), weight }, 'Ensemble verdict')
                 return { modelId: name, score, weight }

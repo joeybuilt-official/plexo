@@ -359,9 +359,9 @@ chatRouter.post('/message', async (req, res) => {
                 { type: 'text', text: trimmedMsg },
                 ...validImages.map((img) => ({
                     type: 'image' as const,
-                    // strip the data URL prefix — AI SDK expects raw base64
-                    image: img.data.replace(/^data:image\/[^;]+;base64,/, ''),
-                    mimeType: img.mimeType,
+                    image: img.data.startsWith('data:')
+                        ? img.data  // keep full data URL — AI SDK handles both formats
+                        : `data:${img.mimeType};base64,${img.data}`,
                 })),
               ]
             : [{ type: 'text', text: trimmedMsg }]
