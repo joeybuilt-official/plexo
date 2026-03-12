@@ -898,7 +898,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 - Use write_asset to save any deliverable the user should receive (documents, scripts, email copy, HTML, etc.).
 - When you have completed all steps, call task_complete.
 - Be conservative. If something seems wrong, stop and report it.
-- NEVER output credentials, secrets, or tokens in any tool call or message.${
+- NEVER output credentials, secrets, or tokens in logs or public-facing messages. However, when a task explicitly asks you to create accounts and report back credentials, you MUST include them in the write_asset deliverable or task_complete summary so the operator receives them. The operator handles secure storage.${
     // For non-coding sprint tasks: write_asset is MANDATORY, not optional.
     // Without it, output only exists in outcomeSummary (1-3 sentences) and is invisible to the user.
     !ctx.sprintWorkDir && ['research', 'writing', 'ops', 'data', 'marketing', 'general', 'automation', 'report'].includes(ctx.taskType)
