@@ -11,6 +11,7 @@ import {
     Zap,
     Search,
     PlayCircle,
+    Clock,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { PlexoMark } from '@web/components/plexo-logo'
@@ -157,7 +158,7 @@ export default function InsightsPage() {
     const prefEntries = Object.entries(preferences)
 
     return (
-        <div className="flex flex-col gap-6 max-w-3xl">
+        <div className="flex flex-col gap-6 max-w-6xl">
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
@@ -188,124 +189,151 @@ export default function InsightsPage() {
                     {runMsg.text}
                 </div>
             )}
-
-            {/* Memory search */}
-            <section>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-2">
-                    <Brain className="h-3.5 w-3.5" />
-                    Memory Search
-                </h2>
-                <form onSubmit={handleSearch} className="flex gap-2">
-                    <input
-                        value={searchQ}
-                        onChange={(e) => setSearchQ(e.target.value)}
-                        placeholder="Semantic search across agent memory…"
-                        className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
-                    />
-                    <button
-                        type="submit"
-                        disabled={searching}
-                        className="flex items-center gap-1.5 rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-secondary hover:bg-zinc-700 disabled:opacity-40 transition-colors"
-                    >
-                        {searching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                        Search
-                    </button>
-                </form>
-                {searchResults !== null && (
-                    <div className="mt-3 flex flex-col gap-2">
-                        {searchResults.length === 0 ? (
-                            <p className="text-sm text-text-muted text-center py-6">No results found</p>
-                        ) : searchResults.map((r) => (
-                            <div key={r.id} className="rounded-lg border border-border bg-surface-1/40 p-3">
-                                <p className="text-sm text-text-secondary leading-relaxed">{r.content}</p>
-                                {r.similarity !== undefined && (
-                                    <p className="mt-1.5 text-[10px] text-text-muted">similarity: {(r.similarity * 100).toFixed(1)}%</p>
-                                )}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+                {/* Main Content (Left) */}
+                <div className="lg:col-span-7 flex flex-col gap-8">
+                    {/* Memory search */}
+                    <section>
+                        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-2">
+                            <Brain className="h-3.5 w-3.5" />
+                            Memory Search
+                        </h2>
+                        <form onSubmit={handleSearch} className="flex gap-2">
+                            <input
+                                value={searchQ}
+                                onChange={(e) => setSearchQ(e.target.value)}
+                                placeholder="Semantic search across agent memory…"
+                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
+                            />
+                            <button
+                                type="submit"
+                                disabled={searching}
+                                className="flex items-center gap-1.5 rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-secondary hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+                            >
+                                {searching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                                Search
+                            </button>
+                        </form>
+                        {searchResults !== null && (
+                            <div className="mt-3 flex flex-col gap-2">
+                                {searchResults.length === 0 ? (
+                                    <p className="text-sm text-text-muted text-center py-6">No results found</p>
+                                ) : searchResults.map((r) => (
+                                    <div key={r.id} className="rounded-lg border border-border bg-surface-1/40 p-3">
+                                        <p className="text-sm text-text-secondary leading-relaxed">{r.content}</p>
+                                        {r.similarity !== undefined && (
+                                            <p className="mt-1.5 text-[10px] text-text-muted">similarity: {(r.similarity * 100).toFixed(1)}%</p>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                )}
-            </section>
+                        )}
+                    </section>
 
-            {/* Preferences */}
-            <section>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-2">
-                    <Zap className="h-3.5 w-3.5" />
-                    Workspace Preferences
-                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">{prefEntries.length}</span>
-                </h2>
-                {prefEntries.length === 0 ? (
-                    <div className="rounded-xl border border-border bg-surface-1/40 p-6 text-center text-sm text-text-muted">
-                        No preferences learned yet. Preferences accumulate as the agent completes tasks.
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {prefEntries.map(([key, value]) => (
-                            <div key={key} className="rounded-lg border border-border bg-surface-1/60 p-3">
-                                <p className="text-[10px] font-mono text-text-muted truncate">{key}</p>
-                                <p className="mt-1 text-xs font-medium text-text-secondary break-all">
-                                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                                </p>
+                    {/* Preferences */}
+                    <section>
+                        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-2">
+                            <Zap className="h-3.5 w-3.5" />
+                            Workspace Preferences
+                            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">{prefEntries.length}</span>
+                        </h2>
+                        {prefEntries.length === 0 ? (
+                            <div className="rounded-xl border border-border bg-surface-1/40 p-6 text-center text-sm text-text-muted">
+                                No preferences learned yet. Preferences accumulate as the agent completes tasks.
                             </div>
-                        ))}
-                    </div>
-                )}
-            </section>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                {prefEntries.map(([key, value]) => (
+                                    <div key={key} className="rounded-lg border border-border bg-surface-1/60 p-3">
+                                        <p className="text-[10px] font-mono text-text-muted truncate">{key}</p>
+                                        <p className="mt-1 text-xs font-medium text-text-secondary break-all">
+                                            {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                </div>
 
-            {/* Improvement log */}
-            <section>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-2">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Improvement Proposals
-                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">{improvements.length}</span>
-                </h2>
+                {/* Sidebar (Right) */}
+                <div className="lg:col-span-5 flex flex-col gap-4 sticky top-6">
+                    <section className="rounded-2xl border border-border bg-surface-1/40 p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-2">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Improvement Proposals
+                            </h2>
+                            <span className="rounded-full bg-azure/10 px-2 py-0.5 text-[10px] font-bold text-azure ring-1 ring-inset ring-azure/20">
+                                {improvements.filter(i => !i.applied).length} pending
+                            </span>
+                        </div>
 
-                {improvements.length === 0 ? (
-                    <div className="rounded-xl border border-border bg-surface-1/40 py-10 text-center flex flex-col items-center gap-3">
-                        <Brain className="h-7 w-7 text-zinc-700" />
-                        <p className="text-sm text-text-muted">No improvement proposals yet.</p>
-                        <p className="text-xs text-text-muted">Click &apos;Run improvement cycle&apos; above after completing some tasks.</p>
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-2">
-                        {improvements.map((entry) => {
-                            const style = PATTERN_STYLE[entry.pattern_type] ?? { dot: 'bg-surface-3', label: entry.pattern_type }
-                            return (
-                                <div key={entry.id} className="rounded-xl border border-border bg-surface-1/60 p-4">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="flex items-start gap-2 min-w-0">
-                                            <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${style.dot}`} />
-                                            <div className="min-w-0">
-                                                <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">{style.label}</p>
-                                                <p className="mt-0.5 text-sm text-text-primary">{entry.description}</p>
-                                                {entry.proposed_change && (
-                                                    <p className="mt-1.5 text-xs text-text-muted italic">→ {entry.proposed_change}</p>
+                        {improvements.length === 0 ? (
+                            <div className="py-10 text-center flex flex-col items-center gap-3">
+                                <Brain className="h-7 w-7 text-zinc-700" />
+                                <p className="text-sm text-text-muted">No improvement proposals yet.</p>
+                                <p className="text-xs text-text-muted">Click &apos;Run improvement cycle&apos; above after completing some tasks.</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-3 max-h-[calc(100vh-250px)] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                                {improvements.map((entry) => {
+                                    const style = PATTERN_STYLE[entry.pattern_type] ?? { dot: 'bg-surface-3', label: entry.pattern_type }
+                                    const isPending = !entry.applied
+                                    return (
+                                        <div 
+                                            key={entry.id} 
+                                            className={`rounded-xl border transition-all ${isPending ? 'border-azure/30 bg-azure/5 shadow-sm shadow-azure/5' : 'border-border bg-surface-1/60 opacity-70'} p-3.5`}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex items-start gap-2.5 min-w-0">
+                                                    <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${style.dot} ${isPending ? 'animate-pulse' : ''}`} />
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-[10px] font-bold uppercase tracking-wide text-text-muted">{style.label}</p>
+                                                            {isPending && <span className="h-1 w-1 rounded-full bg-azure" />}
+                                                        </div>
+                                                        <p className="mt-1 text-sm font-medium text-text-primary leading-tight">{entry.description}</p>
+                                                        {entry.proposed_change && (
+                                                            <div className="mt-2 rounded-md bg-zinc-950/40 p-2 border border-border/50">
+                                                                <p className="text-[11px] text-text-muted italic leading-normal">
+                                                                    <span className="text-azure-dim not-italic font-bold mr-1">PROPOSAL:</span>
+                                                                    {entry.proposed_change}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        <p className="mt-2.5 text-[10px] text-text-muted/60 flex items-center gap-1">
+                                                            <Clock className="h-2.5 w-2.5" />
+                                                            {timeAgo(entry.created_at)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3.5 flex items-center justify-end border-t border-border/40 pt-3">
+                                                {entry.applied ? (
+                                                    <div className="flex items-center gap-1.5 text-azure">
+                                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                                        <span className="text-[11px] font-bold uppercase tracking-wider">Applied</span>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => void applyImprovement(entry.id)}
+                                                        disabled={applying === entry.id}
+                                                        className="w-full rounded-lg bg-azure px-3 py-1.5 text-[11px] font-bold text-white hover:bg-azure/90 disabled:opacity-40 transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-azure/20"
+                                                    >
+                                                        {applying === entry.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3 fill-current" />}
+                                                        {applying === entry.id ? 'Applying…' : 'Approve & Apply'}
+                                                    </button>
                                                 )}
-                                                <p className="mt-1.5 text-[10px] text-zinc-700">{timeAgo(entry.created_at)}</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            {entry.applied ? (
-                                                <span className="rounded-full bg-azure-dim px-2 py-0.5 text-[10px] font-medium text-azure">
-                                                    applied
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    onClick={() => void applyImprovement(entry.id)}
-                                                    disabled={applying === entry.id}
-                                                    className="rounded-lg bg-azure/20 border border-azure/30 px-2.5 py-1 text-[11px] font-medium text-azure hover:bg-azure/30 disabled:opacity-40 transition-colors"
-                                                >
-                                                    {applying === entry.id ? 'Applying…' : 'Apply'}
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-            </section>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </section>
+                </div>
+            </div>
         </div>
     )
 }

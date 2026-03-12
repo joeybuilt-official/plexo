@@ -1,40 +1,36 @@
-# Spec: Claude-Inspired "Artifact Workbench" Interface
+# Spec: Task & Project Finesse Overhaul
 
 ## Why
-Claude Desktop's interface has proven that a multi-pane, "Artifact-first" layout significantly improves agentic productivity. Users can see the agent's "thinking" (chat/logs) and "doing" (code/preview) simultaneously. Plexo currently toggles between these, which creates cognitive load and obscures the relationship between communication and execution.
+Current Task and Project interfaces are functional but lack consistency and premium polish. Code-heavy "Control Room" layouts feel cramped for non-technical tasks, and fragmented status configurations make UI maintenance difficult.
 
 ## How
 
-### 1. The Dynamic Artifact Workbench
-- **State**: The Workbench now has two primary states:
-    - **Floating Overlay**: A semi-transparent, glassmorphic panel that slides over the chat. Useful for quick checks or mobile.
-    - **Pinned Workspace**: A side-by-side layout (60/40) triggered by a "Pin" icon. Conversation remains the primary controller.
-- **Glassmorphism**: Use `backdrop-blur-md bg-surface-1/60 border-l border-border/40` for the workbench background.
+### 1. Centralized Design System (`packages/ui`)
+- Create a shared `StatusBadge` and `CategoryBadge` in `packages/ui` that consumes a unified config.
+- Eliminate hardcoded color/icon maps in `apps/web`.
 
-### 2. Global Modality: Mode Switcher Header
-- A persistent central switcher in the top header.
-- **Modes**:
-    - **Chat**: Optimized for standard dialogue and quick questions.
-    - **Code/Artifacts**: Activates the Workbench. User can select a specific Project/Repository scope from here.
-    - **Insights**: Full-screen introspection of memory and system status.
+### 2. Project List & Detail Optimizations
+- **List View**: Add "Quick Summary" snippets to cards. Show "Last Deliverable" link.
+- **Control Room**: Implement "Category-Aware" Tab priority.
+    - Research/Writing -> Deliverables tab is default.
+    - Code/Ops -> Workers/Logs tab is default.
+- **Micro-animations**: Pulse effects for active runs, slide-ins for log entries.
 
-### 3. Condensed Thought Traces
-- Agent "thinking" logs are rendered as ultra-compact inline pills in the chat stream.
-- Format: `[Icon] Action description` (e.g., `[Search] Scanning source...`).
-- Visible but non-obtrusive. Clicking them reveals a secondary "Log Overlay" on the workbench if needed.
+### 3. Task List Refinement
+- High-density table layout with better grouping.
+- "Action" hover state for immediate Cancel/Retry/Delete without opening details.
+- Clearer "Source" attribution (Chat vs API vs Scheduled).
 
-### 4. Implementation: The Sibling Refactor
-- Refactor `CodeModeShell` into a generic `ArtifactWorkbench`.
-- It will live as a sibling to the chat container in `ChatPage`, controlled by a `layoutMode` flag in a new `useWorkbenchState` hook.
-
+### 4. Visual Excellence Pass
+- Standardize on `zinc-900`/`surface-1` glassmorphism.
+- Use `azure` (primary), `amber` (warning), and `red` (error) accent tokens consistently.
+- Implement smooth transitions between list and detail views.
 
 ## Risks
-- **Screen Real Estate**: On 13" laptops, two columns can feel narrow.
-    - *Mitigation*: Enable horizontal collapse/expand buttons (like VS Code's sidebars).
-- **Mobile**: The two-pane view is impossible on mobile.
-    - *Mitigation*: Implement a bottom-sheet for the Workbench or keep the mobile view as a tabbed overlay.
+- **Data Density**: Adding too much "finesse" (animations/gradients) could slow down the UI on low-powered machines.
+- **Regression**: Changing shared badge logic might break filters if status strings are mapped incorrectly.
 
 ## Verification
-- [ ] User starts a task in "Chat" mode; agent suggests switching to "Code" mode.
-- [ ] In "Code" mode, agent writes a file; workbench automatically switches to the "Editor" tab and highlights the change.
-- [ ] Clicking a tool-trace block in the chat highlights the corresponding artifact in the workbench.
+- **Visual**: Side-by-side comparison of old vs new components.
+- **E2E**: Verify filtering functionality stays intact after centralizing labels.
+- **Performance**: Monitor DOM node count on high-volume task lists.

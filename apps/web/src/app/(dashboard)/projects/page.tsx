@@ -5,16 +5,17 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import {
-    Code2, Search, PenLine, Server, BarChart2, Megaphone, Sparkles,
     Plus, RefreshCw, X, Loader2, Play, Square, Trash2,
+    ChevronRight, BarChart3, Clock, DollarSign
 } from 'lucide-react'
 import { getCategoryDef } from '@web/lib/project-categories'
 import { useWorkspace } from '@web/context/workspace'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 import type { FilterDimension } from '@web/components/list-toolbar'
+import { StatusBadge, CategoryBadge, cn } from '@plexo/ui'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -36,46 +37,13 @@ interface Sprint {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const STATUS_DOT: Record<string, string> = {
-    planning: 'bg-purple-500',
-    running: 'bg-blue-500 animate-pulse',
-    finalizing: 'bg-blue-400 animate-pulse',
-    complete: 'bg-azure',
-    failed: 'bg-red',
-    cancelled: 'bg-surface-3',
-}
-
-const STATUS_TEXT: Record<string, string> = {
-    planning: 'text-purple-400',
-    running: 'text-blue-400',
-    finalizing: 'text-blue-300',
-    complete: 'text-azure',
-    failed: 'text-red',
-    cancelled: 'text-text-muted',
-}
-
-const CATEGORY_ICONS: Record<string, React.ElementType> = {
-    Code2, Search, PenLine, Server, BarChart2, Megaphone, Sparkles,
-}
-
 const ALL_STATUSES = ['planning', 'running', 'finalizing', 'complete', 'failed', 'cancelled'] as const
 const ALL_CATEGORIES = ['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general'] as const
 
 // Module-level constant for useListFilter initialiser
 const FILTER_KEYS = ['status', 'category'] as const
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function CategoryBadge({ category }: { category: string }) {
-    const def = getCategoryDef(category)
-    const Icon = CATEGORY_ICONS[def.icon] ?? Sparkles
-    return (
-        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ring-zinc-700/60 bg-surface-2/60 text-text-secondary">
-            <Icon className="h-2.5 w-2.5" />
-            {def.label}
-        </span>
-    )
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatAge(iso: string) {
     const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
@@ -94,75 +62,116 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
     const subtitle = sprint.category === 'code' && sprint.repo ? sprint.repo : null
 
     return (
-        <Link
-            href={`/projects/${sprint.id}`}
-            className="group block rounded-xl border border-border bg-surface-1/60 p-4 transition-all hover:border-azure/40 hover:bg-surface-1"
-        >
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2.5 min-w-0">
-                    <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[sprint.status] ?? 'bg-surface-3'}`} />
-                    <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-text-primary group-hover:text-text-primary transition-colors">
-                            {sprint.request.length > 80 ? sprint.request.slice(0, 80) + '…' : sprint.request}
-                        </p>
-                        <div className="mt-1 flex items-center gap-2 flex-wrap">
-                            <CategoryBadge category={sprint.category ?? 'code'} />
-                            {subtitle && (
-                                <p className="text-xs font-mono text-text-muted truncate">{subtitle}</p>
-                            )}
-                            <span className="text-[10px] text-zinc-700">{formatAge(sprint.createdAt)}</span>
+        <div className="relative group/row">
+            <Link
+                href={`/projects/${sprint.id}`}
+                className="block rounded-xl border border-border bg-surface-1/40 p-4 transition-all hover:border-azure/20 hover:bg-surface-1/70 group"
+            >
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4 min-w-0">
+                        <StatusBadge status={sprint.status} className="mt-1 shrink-0" />
+                        
+                        <div className="min-w-0">
+                            <h3 className="truncate text-sm font-semibold text-text-primary group-hover:text-azure transition-colors leading-6">
+                                {sprint.request}
+                            </h3>
+                            <div className="mt-1 flex items-center gap-2.5 flex-wrap">
+                                <CategoryBadge label={def.label} iconName={def.icon} />
+                                {subtitle && (
+                                    <span className="text-[10px] font-mono text-text-muted opacity-60 truncate">{subtitle}</span>
+                                )}
+                                <span className="text-[10px] text-zinc-600 font-mono flex items-center gap-1">
+                                    <Clock className="h-2.5 w-2.5" />
+                                    {formatAge(sprint.createdAt)}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <span className={`shrink-0 text-xs font-medium ${STATUS_TEXT[sprint.status] ?? 'text-text-secondary'}`}>
-                        {sprint.status}
-                    </span>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.preventDefault()}>
-                        {['cancelled', 'failed'].includes(sprint.status) && (
-                            <button
-                                onClick={(e) => { e.preventDefault(); onAction('start', sprint.id) }}
-                                className="p-1.5 rounded-md hover:bg-surface-2 text-text-muted hover:text-azure transition-colors"
-                                title="Restart project"
-                            >
-                                <Play className="h-4 w-4" />
-                            </button>
-                        )}
-                        {['planning', 'running', 'finalizing'].includes(sprint.status) && (
-                            <button
-                                onClick={(e) => { e.preventDefault(); onAction('stop', sprint.id) }}
-                                className="p-1.5 rounded-md hover:bg-surface-2 text-text-muted hover:text-amber transition-colors"
-                                title="Stop project"
-                            >
-                                <Square className="h-4 w-4" />
-                            </button>
-                        )}
-                        <button
-                            onClick={(e) => { e.preventDefault(); onAction('delete', sprint.id) }}
-                            className="p-1.5 rounded-md hover:bg-surface-2 text-text-muted hover:text-red transition-colors"
-                            title="Delete project"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </button>
-                    </div>
-                </div>
-            </div>
 
-            {sprint.totalTasks > 0 && (
-                <div className="mt-3">
-                    <div className="h-1 rounded-full bg-surface-2">
-                        <div className="h-1 rounded-full bg-azure transition-all" style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-3 text-[11px] text-text-muted">
-                        <span>{sprint.completedTasks}/{sprint.totalTasks} {def.unitPlural.toLowerCase()}</span>
-                        {sprint.failedTasks > 0 && <span className="text-red">{sprint.failedTasks} failed</span>}
-                        {sprint.conflictCount > 0 && <span className="text-amber">{sprint.conflictCount} conflicts</span>}
-                        {sprint.wallClockMs != null && sprint.wallClockMs > 0 && <span>{Math.round(sprint.wallClockMs / 1000)}s</span>}
-                        {sprint.costUsd != null && <span className="ml-auto">${sprint.costUsd.toFixed(4)}</span>}
+                    <div className="flex items-center gap-4 shrink-0">
+                        <div className="hidden sm:flex flex-col items-end text-[10px] font-mono text-zinc-600">
+                             {sprint.costUsd != null && sprint.costUsd > 0 && (
+                                <span className="flex items-center gap-1 text-zinc-500">
+                                    <DollarSign className="h-2.5 w-2.5" />
+                                    {sprint.costUsd.toFixed(4)}
+                                </span>
+                             )}
+                             {sprint.wallClockMs != null && sprint.wallClockMs > 0 && (
+                                <span className="opacity-60">{Math.round(sprint.wallClockMs / 1000)}s</span>
+                             )}
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-text-muted opacity-40 group-hover:opacity-100 transition-opacity" />
                     </div>
                 </div>
-            )}
-        </Link>
+
+                {sprint.totalTasks > 0 && (
+                    <div className="mt-4 pt-3 border-t border-border-subtle/50">
+                        <div className="flex items-baseline justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-text-secondary uppercase tracking-tight">Progress</span>
+                                <span className="text-[10px] text-text-muted">{sprint.completedTasks}/{sprint.totalTasks} {def.unitPlural.toLowerCase()}</span>
+                            </div>
+                            <span className="text-[10px] font-bold text-azure">{pct}%</span>
+                        </div>
+                        <div className="h-1 rounded-full bg-surface-2 overflow-hidden shadow-inner">
+                            <div 
+                                className={cn(
+                                    "h-full rounded-full transition-all duration-500 ease-out",
+                                    sprint.status === 'failed' ? "bg-red" : "bg-azure"
+                                )}
+                                style={{ width: `${pct}%` }} 
+                            />
+                        </div>
+                        
+                        {(sprint.failedTasks > 0 || sprint.conflictCount > 0) && (
+                            <div className="mt-2 flex items-center gap-3">
+                                {sprint.failedTasks > 0 && (
+                                    <span className="text-[9px] font-bold text-red uppercase tracking-wider flex items-center gap-1">
+                                        <X className="h-2.5 w-2.5" />
+                                        {sprint.failedTasks} failed
+                                    </span>
+                                )}
+                                {sprint.conflictCount > 0 && (
+                                    <span className="text-[9px] font-bold text-amber uppercase tracking-wider flex items-center gap-1">
+                                        <BarChart3 className="h-2.5 w-2.5" />
+                                        {sprint.conflictCount} conflicts
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </Link>
+
+            {/* Quick Actions (Floating on Hover) */}
+            <div className="absolute top-3 right-8 flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-all z-10">
+                {['cancelled', 'failed'].includes(sprint.status) && (
+                    <button
+                        onClick={(e) => { e.preventDefault(); onAction('start', sprint.id) }}
+                        className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-azure hover:border-azure/30 hover:bg-azure/5 shadow-xl transition-all"
+                        title="Restart project"
+                    >
+                        <Play className="h-3.5 w-3.5 fill-current" />
+                    </button>
+                )}
+                {['planning', 'running', 'finalizing'].includes(sprint.status) && (
+                    <button
+                        onClick={(e) => { e.preventDefault(); onAction('stop', sprint.id) }}
+                        className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-amber hover:border-amber/30 hover:bg-amber/5 shadow-xl transition-all"
+                        title="Stop project"
+                    >
+                        <Square className="h-3.5 w-3.5 fill-current" />
+                    </button>
+                )}
+                <button
+                    onClick={(e) => { e.preventDefault(); onAction('delete', sprint.id) }}
+                    className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-red hover:border-red-500/30 hover:bg-red-950/20 shadow-xl transition-all"
+                    title="Delete project"
+                >
+                    <Trash2 className="h-3.5 w-3.5" />
+                </button>
+            </div>
+        </div>
     )
 }
 
@@ -182,7 +191,7 @@ export default function ProjectsPage() {
     const { search, filterValues, hasFilters, clearAll } = lf
 
     // ── Data loading ──────────────────────────────────────────────────────────
-    async function load(quiet = false) {
+    const load = useCallback(async (quiet = false) => {
         if (!workspaceId) return
         if (!quiet) setLoading(true)
         else setRefreshing(true)
@@ -196,9 +205,9 @@ export default function ProjectsPage() {
             setLoading(false)
             setRefreshing(false)
         }
-    }
+    }, [workspaceId, apiBase])
 
-    useEffect(() => { void load() }, [workspaceId]) // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { void load() }, [load])
 
     // ── Actions ───────────────────────────────────────────────────────────────
     const handleAction = async (action: 'start'|'stop'|'delete', id: string) => {
@@ -228,7 +237,7 @@ export default function ProjectsPage() {
         if (!sprints.some((s) => ['planning', 'running', 'finalizing'].includes(s.status))) return
         const id = setInterval(() => void load(true), 5000)
         return () => clearInterval(id)
-    }, [sprints]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [sprints, load])
 
     // ── Derived ───────────────────────────────────────────────────────────────
     const displayed = useMemo(() => {
@@ -248,6 +257,7 @@ export default function ProjectsPage() {
             return true
         })
 
+        // Sorting
         result = [...result].sort((a, b) => {
             if (lf.sort === 'oldest') {
                 return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
@@ -255,23 +265,14 @@ export default function ProjectsPage() {
             if (lf.sort === 'cost_desc') {
                 return (b.costUsd ?? 0) - (a.costUsd ?? 0)
             }
-            if (lf.sort === 'progress_desc') {
-                const percA = a.totalTasks > 0 ? a.completedTasks / a.totalTasks : 0
-                const percB = b.totalTasks > 0 ? b.completedTasks / b.totalTasks : 0
-                return percB - percA
-            }
-            if (lf.sort === 'failures_desc') {
-                return b.failedTasks - a.failedTasks
-            }
+            // newest
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         })
 
         return result
     }, [sprints, search, filterValues.status, filterValues.category, lf.sort])
 
-    const availableCategories = useMemo(() => new Set(sprints.map((s) => s.category)), [sprints])
-
-    // ── Filter dimensions ─────────────────────────────────────────────────────
+    // ── Dimensions ────────────────────────────────────────────────────────────
     const dimensions = useMemo((): FilterDimension[] => [
         {
             key: 'status',
@@ -281,24 +282,9 @@ export default function ProjectsPage() {
         {
             key: 'category',
             label: 'Category',
-            options: ALL_CATEGORIES.map((c) => {
-                const def = getCategoryDef(c)
-                const Icon = CATEGORY_ICONS[def.icon] ?? Sparkles
-                return {
-                    value: c,
-                    label: def.label,
-                    icon: <Icon className="h-3 w-3 shrink-0" />,
-                    dimmed: !availableCategories.has(c),
-                }
-            }),
+            options: ALL_CATEGORIES.map((c) => ({ value: c, label: c })),
         },
-    ], [availableCategories])
-
-    // ── Summary stats ─────────────────────────────────────────────────────────
-    const completed = sprints.filter((s) => s.status === 'complete')
-    const finished = sprints.filter((s) => ['complete', 'failed', 'cancelled'].includes(s.status))
-    const totalCost = sprints.reduce((acc, s) => acc + (s.costUsd ?? 0), 0)
-    const successRate = finished.length > 0 ? Math.round((completed.length / finished.length) * 100) : null
+    ], [])
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
@@ -322,85 +308,45 @@ export default function ProjectsPage() {
                         <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
                         Refresh
                     </button>
-                    <Link
-                        href="/projects/new"
-                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
-                    >
-                        <Plus className="h-3.5 w-3.5" />
-                        New Project
-                    </Link>
+                    {/* Projects are usually created from Chat (CONVERSATION -> PROJECT intent) or Dashboard Quick Send */}
                 </div>
             </div>
 
-            {/* Stats row */}
-            {!loading && sprints.length > 0 && (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {([
-                        { label: 'Total', value: String(sprints.length) },
-                        { label: 'Completed', value: String(completed.length), sub: successRate != null ? `${successRate}% success` : undefined },
-                        { label: 'Active', value: String(sprints.filter((s) => ['planning', 'running', 'finalizing'].includes(s.status)).length) },
-                        { label: 'Total spend', value: totalCost > 0 ? `$${totalCost.toFixed(3)}` : '—' },
-                    ] as { label: string; value: string; sub?: string }[]).map(({ label, value, sub }) => (
-                        <div key={label} className="rounded-xl border border-border bg-surface-1/40 px-4 py-3">
-                            <p className="text-[11px] font-medium text-text-muted mb-1">{label}</p>
-                            <p className="text-xl font-bold text-text-primary">{value}</p>
-                            {sub && <p className="text-[10px] text-text-muted mt-0.5">{sub}</p>}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Search + filter + sort toolbar */}
+            {/* Toolbar */}
             <ListToolbar
                 hook={lf}
-                placeholder="Search by goal, repo, status, or category…"
+                placeholder="Search projects..."
                 dimensions={dimensions}
                 sortOptions={[
                     { label: 'Newest first', value: 'newest' },
                     { label: 'Oldest first', value: 'oldest' },
                     { label: 'Highest cost', value: 'cost_desc' },
-                    { label: 'Most progress', value: 'progress_desc' },
-                    { label: 'Most failures', value: 'failures_desc' },
                 ]}
             />
 
-            {/* Content */}
+            {/* List */}
             {loading ? (
                 <div className="flex items-center justify-center py-16 text-text-muted">
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
                 </div>
-            ) : displayed.length === 0 && sprints.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-surface-1/40 py-16 text-center gap-4">
-                    <div className="grid grid-cols-4 gap-2 opacity-40">
-                        {[Code2, Search, PenLine, Server].map((Icon, i) => (
-                            <div key={i} className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-2">
-                                <Icon className="h-4 w-4 text-text-secondary" />
-                            </div>
-                        ))}
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-text-secondary">No projects yet</p>
-                        <p className="mt-1 text-xs text-text-muted">Create a project to run parallel AI work — code, research, writing, and more.</p>
-                    </div>
-                    <Link href="/projects/new" className="flex items-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors">
-                        <Plus className="h-4 w-4" />
-                        Create first project
-                    </Link>
-                </div>
             ) : displayed.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
-                    <p className="text-sm text-text-muted">No projects match your filters</p>
-                    <button
-                        onClick={clearAll}
-                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto"
-                    >
-                        <X className="h-3.5 w-3.5" /> Clear filters
-                    </button>
+                    <p className="text-sm text-text-muted">
+                        {hasFilters ? 'No projects match your filters' : 'No projects found'}
+                    </p>
+                    {hasFilters && (
+                        <button
+                            onClick={clearAll}
+                            className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto"
+                        >
+                            <X className="h-3.5 w-3.5" /> Clear filters
+                        </button>
+                    )}
                 </div>
             ) : (
-                <div className="flex flex-col gap-3">
-                    {displayed.map((sprint) => (
-                        <ProjectCard key={sprint.id} sprint={sprint} onAction={handleAction} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {displayed.map((s) => (
+                        <ProjectCard key={s.id} sprint={s} onAction={handleAction} />
                     ))}
                 </div>
             )}

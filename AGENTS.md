@@ -531,3 +531,26 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
     - Added `ModeSwitcher` and global `Header` to the dashboard layout.
     - Refactored `ChatPage` to manage the workbench state (`isWorkbenchOpen`, `isPinned`, `workbenchContext`).
 - **Lesson**: Complex agentic workflows require a secondary "surface" for technical context. The chat remains the place for intent and dialogue, while the Workbench handles the heavy lifting of code visualization and execution feedback.
+
+### 2026-03 — UI/UX: Task & Project Finesse Overhaul
+
+- **Status**: Implemented.
+- **Problem**: Inconsistent status styling across components; Project views were over-indexed on code-centric layouts; Task lists lacked clear visual hierarchy and quick-action access.
+- **Solution**:
+    - **Centralized UI Tokens**: Created `@plexo/ui` with `StatusBadge` and `CategoryBadge` components. `STATUS_MAP` defines the source of truth for all status colors/icons.
+    - **Premium Layouts**: Refactored `Tasks`, `Projects`, and `Dashboard` (CommandCenter) with consistent card designs, hover effects, and micro-animations.
+    - **Category-Aware Detail Pages**: Project detail pages now adapt their default view based on the project category (e.g., Reports/Writing categories hide the "Code" tab by default and focus on "Deliverables").
+    - **High-Density Telemetry**: Refactored `LiveDashboard` and `CommandCenter` to provide high-density system health and task status in a "neural link" aesthetic.
+    - **Better Navigation**: Standardized breadcrumbs and status indicators across all dashboard sub-pages.
+- **Lesson**: UI consistency is as important as logic. Using a centralized component library for "status" and "category" prevents design drift and makes the system feel much more robust.
+
+### 2026-03 — UI/UX: Sidebar Navigation Indicators & Insights Overhaul
+
+- **Status**: Implemented.
+- **Problem**: Critical system states (blocked tasks, failed cron jobs, pending improvements) were buried, requiring multiple clicks to identify. The Insights page lacked prominence for its core value: improvement proposals.
+- **Solution**:
+    - **Sidebar Indicators**: Added real-time notification badges/dots to "Tasks" (blocked), "Memory/Insights" (pending improvements), "Cron Jobs" (failures), and "Workspace/Intelligence" (RSI anomalies).
+    - **Group Pulses**: Navigation group headers (Work, Capabilities, System) now pulse when child items require attention, ensuring visibility even when groups are collapsed.
+    - **Insights Layout**: Restructured `/insights` into a high-density two-column layout. Moved "Improvement Proposals" to a dedicated premium sidebar with filtered "Needs Review" pulses.
+    - **Real-time Count Tracking**: Updated the sidebar's `fetchCounts` loop to fetch and deduplicate counts for all new indicator types.
+- **Lesson**: Attention is a finite resource. If the system "needs" something from the user, it should signal that intent globally across the nav rather than waiting for the user to stumble upon the relevant page.

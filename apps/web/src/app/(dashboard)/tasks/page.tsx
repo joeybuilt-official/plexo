@@ -8,12 +8,12 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import {
-    CheckCircle, Clock, XCircle, Loader2, RefreshCw, ChevronRight,
-    FolderOpen, Plus, X, Send,
+    FolderOpen, Plus, X, Trash2, StopCircle, RefreshCw, ChevronRight, Loader2
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 import type { FilterDimension } from '@web/components/list-toolbar'
+import { StatusBadge, Button, cn } from '@plexo/ui'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,18 +41,7 @@ interface Sprint {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const STATUS_CONFIG = {
-    pending: { icon: Clock, color: 'text-amber', bg: 'bg-amber/10', label: 'Pending' },
-    queued: { icon: Clock, color: 'text-amber', bg: 'bg-amber/10', label: 'Queued' },
-    claimed: { icon: Loader2, color: 'text-azure/70', bg: 'bg-azure/10', label: 'Claimed' },
-    running: { icon: Loader2, color: 'text-azure', bg: 'bg-azure/10', label: 'Running' },
-    complete: { icon: CheckCircle, color: 'text-azure', bg: 'bg-azure/10', label: 'Complete' },
-    failed: { icon: XCircle, color: 'text-red', bg: 'bg-red/10', label: 'Failed' },
-    blocked: { icon: XCircle, color: 'text-orange-400', bg: 'bg-orange-400/10', label: 'Blocked' },
-    cancelled: { icon: XCircle, color: 'text-text-muted', bg: 'bg-zinc-500/10', label: 'Cancelled' },
-} as const
-
-const TASK_STATUSES = ['pending', 'running', 'complete', 'failed', 'blocked', 'cancelled'] as const
+const TASK_STATUSES = ['pending', 'queued', 'claimed', 'running', 'complete', 'failed', 'blocked', 'cancelled'] as const
 const TASK_TYPES = ['coding', 'deployment', 'research', 'ops', 'opportunity', 'monitoring', 'report', 'online', 'automation'] as const
 
 // Module-level constant → stable reference for useListFilter initialiser
@@ -247,7 +236,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                             disabled={submitting || !description.trim()}
                             className="flex items-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-white hover:bg-azure/90 disabled:opacity-50 transition-colors"
                         >
-                            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                             Create task
                         </button>
                     </div>
@@ -297,7 +286,7 @@ export default function TasksPage() {
             const res = await fetch(`${apiBase}/api/v1/tasks?${params}`, { cache: 'no-store' })
             if (res.ok) {
                 const data = await res.json() as { items: Task[] }
-                setTasks(data.items)
+                setTasks(data.items ?? [])
             }
         } finally {
             setLoading(false)
@@ -308,9 +297,11 @@ export default function TasksPage() {
     useEffect(() => { void load() }, [load])
 
     // Cancel a task via DELETE
-    const cancelTask = useCallback(async (taskId: string, e: React.MouseEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
+    const cancelTask = useCallback(async (taskId: string, e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault()
+            e.stopPropagation()
+        }
         try {
             await fetch(`${apiBase}/api/v1/tasks/${taskId}`, { method: 'DELETE' })
             void load(true)
@@ -474,69 +465,77 @@ export default function TasksPage() {
             ) : (
                 <div className="flex flex-col gap-2">
                     {displayed.map((task) => {
-                        const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.queued
-                        const Icon = cfg.icon
                         const sprint = task.projectId ? sprintMap[task.projectId] : null
                         const projectLabel = sprint ? sprintLabel(sprint) : task.project ?? null
-                        const isCancellable = task.status === 'running' || task.status === 'queued' || task.status === 'claimed' || task.status === 'pending'
+                        const isCancellable = ['running', 'queued', 'claimed', 'pending'].includes(task.status)
+                        
                         return (
                             <div key={task.id} className="relative group/row">
-                            <Link
-                                href={`/tasks/${task.id}`}
-                                className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-xl border border-border bg-surface-1/40 px-4 py-3.5 hover:border-border hover:bg-surface-1/70 transition-colors group"
-                            >
-                                <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto sm:flex-1 min-w-0">
-                                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg mt-0.5 sm:mt-0 ${cfg.bg}`}>
-                                        <Icon className={`h-4 w-4 ${cfg.color} ${task.status === 'running' || task.status === 'claimed' ? 'animate-spin' : ''}`} />
-                                    </span>
-
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap mb-1.5 sm:mb-0">
-                                            <span className="text-xs font-mono text-text-muted">{task.id.slice(0, 8)}</span>
-                                            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted capitalize">{task.type}</span>
-                                            <span className="rounded bg-surface-2/50 px-1.5 py-0.5 text-[10px] text-text-muted hidden sm:inline-block">{task.source}</span>
-                                            {projectLabel && (
-                                                <span className="flex items-center gap-1 rounded bg-azure/10 border border-azure/20 px-1.5 py-0.5 text-[10px] text-azure max-w-[140px] sm:max-w-[180px]">
-                                                    <FolderOpen className="h-2.5 w-2.5 shrink-0" />
-                                                    <span className="truncate">{projectLabel}</span>
-                                                </span>
-                                            )}
-                                        </div>
-                                        {task.outcomeSummary && (
-                                            <p className="sm:mt-1 text-sm sm:text-xs text-text-secondary sm:text-text-secondary line-clamp-2 sm:truncate">{task.outcomeSummary}</p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto pt-3 sm:pt-0 mt-2 sm:mt-0 border-t border-border-subtle sm:border-0 sm:shrink-0 text-left sm:text-right">
-                                    <div className="flex items-center gap-2">
-                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
-                                        {task.qualityScore !== null && (
-                                            <span className={`text-[10px] font-medium hidden sm:inline-block ${task.qualityScore >= 0.8 ? 'text-azure' : task.qualityScore >= 0.5 ? 'text-amber' : 'text-red'}`}>
-                                                Q:{Math.round(task.qualityScore * 100)}%
-                                            </span>
-                                        )}
-                                        {task.costUsd !== null && (
-                                            <span className="text-[10px] text-text-muted hidden sm:inline-block">${task.costUsd.toFixed(4)}</span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center justify-end gap-2 text-[10px] text-text-muted">
-                                        <span>{formatAge(task.createdAt)}</span>
-                                        <span>·</span>
-                                        <span>{formatDur(task.createdAt, task.completedAt)}</span>
-                                        <ChevronRight className="h-4 w-4 shrink-0 text-zinc-700 group-hover:text-text-muted transition-colors ml-1 sm:ml-2" />
-                                    </div>
-                                </div>
-                            </Link>
-                            {isCancellable && (
-                                <button
-                                    onClick={(e) => void cancelTask(task.id, e)}
-                                    title="Cancel task"
-                                    className="absolute top-2 right-2 z-10 opacity-0 group-hover/row:opacity-100 transition-opacity flex items-center gap-1 rounded-md border border-border bg-surface-1 px-2 py-1 text-[10px] text-text-secondary hover:border-red-700/50 hover:text-red hover:bg-red-950/20"
+                                <Link
+                                    href={`/tasks/${task.id}`}
+                                    className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-xl border border-border bg-surface-1/40 px-4 py-3.5 hover:border-azure/20 hover:bg-surface-1/70 transition-all group"
                                 >
-                                    <X className="h-3 w-3" /> Cancel
-                                </button>
-                            )}
+                                    <div className="flex items-start sm:items-center gap-4 flex-1 min-w-0">
+                                        <StatusBadge status={task.status} size="sm" className="mt-0.5 sm:mt-0 shrink-0" />
+
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                <span className="text-[10px] font-mono text-text-muted opacity-40 group-hover:opacity-100 transition-opacity">#{task.id.slice(0, 8)}</span>
+                                                <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[9px] font-semibold text-text-secondary uppercase tracking-tight">{task.type}</span>
+                                                <span className="rounded bg-surface-2/50 px-1.5 py-0.5 text-[9px] text-text-muted opacity-60 hidden sm:inline-block uppercase tracking-tight">{task.source}</span>
+                                                {projectLabel && (
+                                                    <span className="flex items-center gap-1 rounded bg-azure/5 border border-azure/10 px-1.5 py-0.5 text-[10px] text-azure/80 max-w-[140px] sm:max-w-[180px]">
+                                                        <FolderOpen className="h-2.5 w-2.5 shrink-0" />
+                                                        <span className="truncate">{projectLabel}</span>
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="truncate text-sm font-medium text-text-primary group-hover:text-azure transition-colors leading-normal">
+                                                {task.outcomeSummary ? task.outcomeSummary : 'Task in progress...'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto pt-2 sm:pt-0">
+                                        <div className="flex flex-col items-start sm:items-end text-[10px] text-zinc-600 font-mono">
+                                            <div className="flex items-center gap-2">
+                                                <span>{formatAge(task.createdAt)}</span>
+                                                <span className="text-zinc-800">·</span>
+                                                <span>{formatDur(task.createdAt, task.completedAt)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {task.qualityScore != null && (
+                                                    <span className={cn(
+                                                        "font-medium",
+                                                        task.qualityScore >= 0.8 ? "text-azure" : task.qualityScore >= 0.5 ? "text-amber" : "text-red"
+                                                    )}>
+                                                        Q:{Math.round(task.qualityScore * 100)}%
+                                                    </span>
+                                                )}
+                                                {task.costUsd != null && task.costUsd > 0 && (
+                                                    <span className="text-zinc-700 font-medium">${task.costUsd.toFixed(4)}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-1 text-text-muted">
+                                            <ChevronRight className="h-4 w-4" />
+                                        </div>
+                                    </div>
+                                </Link>
+
+                                {/* Action buttons overlaid on hover */}
+                                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-all z-10">
+                                    {isCancellable && (
+                                        <button
+                                            onClick={(e) => cancelTask(task.id, e)}
+                                            className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-red hover:border-red-500/30 hover:bg-red-950/20 shadow-xl transition-all"
+                                            title="Cancel task"
+                                        >
+                                            <StopCircle className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )
                     })}

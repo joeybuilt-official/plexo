@@ -374,18 +374,48 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
     }
 
     const [pendingApprovals, setPendingApprovals] = useState(0)
+    const [blockedTasks, setBlockedTasks] = useState(0)
+    const [pendingImprovements, setPendingImprovements] = useState(0)
+    const [failedCronJobs, setFailedCronJobs] = useState(0)
+    const [rsiPending, setRsiPending] = useState(0)
     const [systemWarning, setSystemWarning] = useState(false)
     const [capabilityWarning, setCapabilityWarning] = useState(false)
 
-    const fetchPending = useCallback(async () => {
+    const fetchCounts = useCallback(async () => {
         const wsId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
         const api = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
         if (!wsId) return
+
         try {
-            const res = await fetch(`${api}/api/v1/approvals?workspaceId=${wsId}`, { cache: 'no-store' })
-            if (!res.ok) return
-            const data = await res.json() as { total?: number }
-            setPendingApprovals(data.total ?? 0)
+            // Approvals
+            const appRes = await fetch(`${api}/api/v1/approvals?workspaceId=${wsId}`, { cache: 'no-store' })
+            if (appRes.ok) {
+                const data = await appRes.json() as { total?: number }
+                setPendingApprovals(data.total ?? 0)
+            }
+
+            // Task Stats (for blocked tasks)
+            const statsRes = await fetch(`${api}/api/v1/tasks/stats/summary?workspaceId=${wsId}`, { cache: 'no-store' })
+            if (statsRes.ok) {
+                const data = await statsRes.json() as { byStatus?: Record<string, number> }
+                setBlockedTasks(data.byStatus?.blocked ?? 0)
+            }
+
+            // Improvements (Memory)
+            const impRes = await fetch(`${api}/api/v1/memory/improvements?workspaceId=${wsId}&limit=100`, { cache: 'no-store' })
+            if (impRes.ok) {
+                const data = await impRes.json() as { items?: { applied: boolean }[] }
+                const pending = data.items?.filter(it => !it.applied).length ?? 0
+                setPendingImprovements(pending)
+            }
+
+            // Cron Jobs
+            const cronRes = await fetch(`${api}/api/v1/cron?workspaceId=${wsId}`, { cache: 'no-store' })
+            if (cronRes.ok) {
+                const data = await cronRes.json() as { items?: { lastRunStatus: string; consecutiveFailures: number }[] }
+                const failed = data.items?.filter(it => it.lastRunStatus === 'failure' || it.consecutiveFailures > 0).length ?? 0
+                setFailedCronJobs(failed)
+            }
         } catch { /* ignore */ }
     }, [])
 
@@ -401,6 +431,16 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                 setSystemWarning(data.status === 'degraded' || aiFailed)
             }
 
+            // Check RSI Proposals
+            if (wsId) {
+                const rsiRes = await fetch(`${api}/api/v1/workspaces/${wsId}/rsi/proposals`, { cache: 'no-store' })
+                if (rsiRes.ok) {
+                    const rsiData = await rsiRes.json() as { items: { status: string }[] }
+                    const pending = rsiData.items.filter(it => it.status === 'pending').length
+                    setRsiPending(pending)
+                }
+            }
+
             // Check Capabilities Health (Installed Connections)
             if (wsId) {
                 const connRes = await fetch(`${api}/api/v1/connections/installed?workspaceId=${wsId}`, { cache: 'no-store' })
@@ -414,15 +454,15 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
     }, [])
 
     useEffect(() => {
-        void fetchPending()
+        void fetchCounts()
         void fetchHealth()
-        const ivApprovals = setInterval(() => void fetchPending(), 10_000)
+        const ivCounts = setInterval(() => void fetchCounts(), 10_000)
         const ivHealth = setInterval(() => void fetchHealth(), 30_000)
         return () => {
-            clearInterval(ivApprovals)
+            clearInterval(ivCounts)
             clearInterval(ivHealth)
         }
-    }, [fetchPending, fetchHealth])
+    }, [fetchCounts, fetchHealth])
 
     // Load persisted collapse state after mount
     useEffect(() => {
@@ -453,9 +493,9 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
     }
 
     function getGroupStatus(groupLabel: string) {
-        if (groupLabel === 'Work') return pendingApprovals > 0 ? 'warning' : null
-        if (groupLabel === 'Capabilities') return capabilityWarning ? 'warning' : null
-        if (groupLabel === 'System') return systemWarning ? 'warning' : null
+        if (groupLabel === 'Work') return (pendingApprovals > 0 || blockedTasks > 0) ? 'warning' : null
+        if (groupLabel === 'Capabilities') return (capabilityWarning || pendingImprovements > 0 || failedCronJobs > 0) ? 'warning' : null
+        if (groupLabel === 'System') return (systemWarning || rsiPending > 0) ? 'warning' : null
         return null
     }
 
@@ -590,6 +630,36 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                                         <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />
                                                     )}
 
+                                                    {/* Blocked Tasks Badge */}
+                                                    {href === '/tasks' && blockedTasks > 0 && !sidebarCollapsed && (
+                                                        <span className="shrink-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-black">
+                                                            {blockedTasks}
+                                                        </span>
+                                                    )}
+                                                    {href === '/tasks' && blockedTasks > 0 && sidebarCollapsed && (
+                                                        <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                                    )}
+
+                                                    {/* Memory / Improvements Badge */}
+                                                    {href === '/insights' && pendingImprovements > 0 && !sidebarCollapsed && (
+                                                        <span className="shrink-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-azure px-1 text-[9px] font-bold text-white">
+                                                            {pendingImprovements}
+                                                        </span>
+                                                    )}
+                                                    {href === '/insights' && pendingImprovements > 0 && sidebarCollapsed && (
+                                                        <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-azure" />
+                                                    )}
+
+                                                    {/* Cron Jobs Badge */}
+                                                    {href === '/cron' && failedCronJobs > 0 && !sidebarCollapsed && (
+                                                        <span className="shrink-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                                                            {failedCronJobs}
+                                                        </span>
+                                                    )}
+                                                    {href === '/cron' && failedCronJobs > 0 && sidebarCollapsed && (
+                                                        <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />
+                                                    )}
+
                                                     {/* Integrations Warning */}
                                                     {href === '/settings/connections' && capabilityWarning && (
                                                         <span className={`h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ${sidebarCollapsed ? 'absolute top-1.5 right-1.5' : 'ml-1'}`} />
@@ -598,6 +668,16 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                                     {/* AI Providers Warning */}
                                                     {href === '/settings/ai-providers' && systemWarning && (
                                                         <span className={`h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ${sidebarCollapsed ? 'absolute top-1.5 right-1.5' : 'ml-1'}`} />
+                                                    )}
+
+                                                    {/* RSI Proposals / Accountability Badge */}
+                                                    {(href === '/settings' || href === '/settings/intelligence') && rsiPending > 0 && !sidebarCollapsed && (
+                                                        <span className="shrink-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-azure px-1 text-[9px] font-bold text-white">
+                                                            {rsiPending}
+                                                        </span>
+                                                    )}
+                                                    {(href === '/settings' || href === '/settings/intelligence') && rsiPending > 0 && sidebarCollapsed && (
+                                                        <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-azure" />
                                                     )}
                                                 </Link>
                                             )

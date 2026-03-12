@@ -7,11 +7,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ### Added
 - **Artifact Workbench** — Introduced a sidecar interface (`ArtifactWorkbench`) for technical context: Terminal logs, File trees, and Test results. Supports split-pane docking and floating overlay modes.
+- **Sidebar Notification Indicators** — Introduced real-time attention indicators for critical system states. Navigation items now display count badges for blocked tasks, failed cron jobs, pending memory improvements, and RSI anomalies.
+- **Attention-Aware Grouping** — Sidebar group headers (Work, Capabilities, System) now pulse when items within them require user input. Indicators condense to notification dots when the sidebar is collapsed.
 - **Global Header & Mode Switcher** — New persistent navigation for switching between Chat, Code, and Insights across the dashboard.
 - **Task Event Scoping** — Updated `agent-loop` to use `emitToWorkspace`, ensuring real-time status updates are isolated to the active workspace.
 - **Telegram Project Lifecycle** — Enhanced Telegram notifications for project-level events (cancellation, deletion, completion) with conversation epoch tracking.
 
 ### Changed
+- **Insights Page Overhaul** — Restructured the Memory & Insights dashboard into a high-visibility two-column layout. "Improvement Proposals" are now prominently featured in a dedicated right-hand sidebar with pulse indicators for pending items and pattern-type categorization (Skill, Plugin, etc.).
+- **Enhanced Visual Feedback** — Improved pulse animations and color-coded status badges for attention-requiring items across the navigation and Insights dashboard.
+- **Deduplicated Metrics** — Refined the sidebar's `fetchCounts` loop to efficiently track and deduplicate pending actions across all system layers.
+
 - **Split-Pane Architecture** — Redesigned the chat layout to support side-by-side artifact viewing with 60/40 responsive distribution.
 - **Condensed Thought Traces** — Replaced verbose tool-call logs with compact horizontal progress pills. Clicking a pill focuses the corresponding event in the Artifact Workbench.
 - **Integrated Canvas Chat UI** — Redesigned the chat interface for a more fluid workspace. Removed restrictive "box in a box" borders in favor of the side-by-side flex layout.

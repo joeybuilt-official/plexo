@@ -11,17 +11,20 @@ import {
     FolderOpen,
     ArrowRight,
     ChevronRight,
-    ExternalLink,
     CheckCircle2,
     XCircle,
-    Loader2,
     Clock,
     Activity,
+    Layers,
+    TrendingUp,
+    DollarSign,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
 import { getRuntimeContext } from '@plexo/ui/lib/runtime'
 import { PlexoMark } from '@web/components/plexo-logo'
+import { getCategoryDef } from '@web/lib/project-categories'
+import { StatusBadge, CategoryBadge, cn } from '@plexo/ui'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +75,8 @@ interface Task {
 
 interface Sprint {
     id: string
-    repo: string
+    repo: string | null
+    category: string
     request: string
     status: string
     createdAt: string
@@ -94,6 +98,8 @@ interface Approval {
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 const POLL_MS = 15_000
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function timeAgo(iso: string): string {
     const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
     if (seconds < 60) return `${seconds}s ago`
@@ -102,18 +108,11 @@ function timeAgo(iso: string): string {
     return `${Math.floor(seconds / 86400)}d ago`
 }
 
-function getGreeting(): string {
-    const h = new Date().getHours()
-    if (h < 12) return 'Good morning'
-    if (h < 17) return 'Good afternoon'
-    return 'Good evening'
-}
-
-// ── Hero stat tile ────────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function HeroStat({ label, value, accent, icon: Icon, href, pulse }: {
     label: string
-    value: number
+    value: string | number
     accent: string
     icon: React.ElementType
     href: string
@@ -123,18 +122,19 @@ function HeroStat({ label, value, accent, icon: Icon, href, pulse }: {
         <Link
             id={`dashboard-card-${label.toLowerCase().replace(/\s+/g, '-')}`}
             href={href}
-            className="group flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-surface-1/40 backdrop-blur-sm px-4 py-4 transition-all hover:border-border hover:bg-surface-1/60 min-w-0 flex-1"
+            className="group flex flex-col gap-1 rounded-2xl border border-border/60 bg-surface-1/40 backdrop-blur-md p-4 transition-all hover:border-azure/30 hover:bg-surface-2/40 shadow-sm"
         >
-            <div className={`flex h-9 w-9 items-center justify-center rounded-lg  ${accent} text-text-primary shadow-lg ${pulse ? 'animate-pulse' : ''}`}>
-                <Icon className="h-4 w-4" />
+            <div className="flex items-center justify-between mb-1">
+                <div className={cn("flex h-8 w-8 items-center justify-center rounded-xl transition-all shadow-inner", accent, pulse && "animate-pulse ring-2 ring-azure/20")}>
+                    <Icon className="h-4 w-4" />
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 text-text-muted group-hover:text-text-secondary transition-all opacity-0 group-hover:opacity-100" />
             </div>
-            <span className="text-2xl font-bold tabular-nums text-text-primary">{value}</span>
-            <span className="text-[11px] font-medium text-text-muted group-hover:text-text-secondary transition-colors text-center leading-tight">{label}</span>
+            <div className="text-2xl font-bold tabular-nums text-text-primary tracking-tight transition-transform group-hover:translate-x-0.5">{value}</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-text-muted transition-colors group-hover:text-text-secondary">{label}</div>
         </Link>
     )
 }
-
-// ── Attention item ────────────────────────────────────────────────────────────
 
 function AttentionItem({ icon: Icon, iconColor, label, meta, href, actionLabel }: {
     icon: React.ElementType
@@ -147,33 +147,31 @@ function AttentionItem({ icon: Icon, iconColor, label, meta, href, actionLabel }
     return (
         <Link
             href={href}
-            className="flex items-center gap-3 rounded-lg px-3 py-3 md:py-2.5 min-h-[44px] transition-colors hover:bg-surface-2/40 group shrink-0"
+            className="flex items-center gap-3 px-4 py-3 transition-all hover:bg-surface-2/40 group relative overflow-hidden"
         >
-            <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${iconColor}`}>
-                <Icon className="h-3.5 w-3.5" />
+            <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg shadow-sm ring-1 ring-inset ring-white/5", iconColor)}>
+                <Icon className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] text-text-primary">{label}</p>
-                <p className="truncate text-[11px] text-text-muted">{meta}</p>
+                <p className="truncate text-sm font-medium text-text-primary group-hover:text-white transition-colors">{label}</p>
+                <p className="truncate text-[11px] text-zinc-500 font-mono">{meta}</p>
             </div>
-            <span className="shrink-0 ml-2 flex h-9 items-center justify-center gap-1 text-[11px] font-medium text-text-muted group-hover:text-text-secondary transition-colors">
+            <div className="shrink-0 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-text-muted group-hover:text-azure transition-colors">
                 {actionLabel}
-                <ChevronRight className="h-3 w-3" />
-            </span>
+                <ChevronRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+            </div>
         </Link>
     )
 }
-
-// ── Active work item ──────────────────────────────────────────────────────────
 
 function ActiveWorkItem({ task }: { task: Task }) {
     const description = task.outcomeSummary ?? task.context?.description ?? `${task.type} task via ${task.source}`
     const isRunning = task.status === 'running' || task.status === 'claimed'
 
     return (
-        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 px-3 py-3 md:py-2.5 group shrink-0 min-h-[44px]">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3.5 group/item transition-colors hover:bg-surface-1/60">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
+                <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface-2 border border-border/50 group-hover/item:border-azure/30 transition-colors">
                     {isRunning ? (
                         <PlexoMark className="h-5 w-5" idle={false} working />
                     ) : (
@@ -181,123 +179,111 @@ function ActiveWorkItem({ task }: { task: Task }) {
                     )}
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] text-text-primary">{description}</p>
-                    <div className="flex items-center gap-2 text-[11px] text-text-muted">
-                        <span className={`inline-flex items-center gap-1 ${isRunning ? 'text-azure' : 'text-amber'}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? 'bg-azure animate-pulse' : 'bg-amber'}`} />
-                            {task.status}
-                        </span>
+                    <p className="truncate text-sm font-medium text-text-primary group-hover/item:text-white transition-colors leading-snug">{description}</p>
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-text-muted mt-1 uppercase tracking-tight">
+                        <StatusBadge status={task.status as any} size="sm" />
                         <span>·</span>
-                        <span>{task.type}</span>
+                        <span className="text-zinc-500">{task.type}</span>
                         <span>·</span>
-                        <span>{timeAgo(task.createdAt)}</span>
+                        <span className="text-zinc-600">{timeAgo(task.createdAt)}</span>
                     </div>
                 </div>
             </div>
-            <div className="flex items-center gap-2 md:gap-1.5 shrink-0 w-full md:w-auto mt-2 md:mt-0">
+            <div className="flex items-center gap-2 shrink-0">
                 {task.projectId && (
                     <Link
                         href={`/projects/${task.projectId}`}
-                        className="flex items-center justify-center rounded border border-border/50 bg-surface-2/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-text-muted transition-all hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-violet-400 flex-1 md:flex-initial"
+                        className="rounded-lg border border-border bg-surface-2 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-text-muted hover:border-azure/30 hover:bg-azure/5 hover:text-white transition-all shadow-sm"
                     >
                         Project
                     </Link>
                 )}
                 <Link
                     href={`/tasks/${task.id}`}
-                        className="flex items-center justify-center rounded border border-border/50 bg-surface-2/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-text-muted transition-all hover:border-zinc-500/40 hover:bg-zinc-700/40 hover:text-text-secondary flex-1 md:flex-initial"
+                    className="rounded-lg border border-border bg-surface-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-text-muted hover:border-azure/40 hover:bg-surface-2 hover:text-white transition-all shadow-sm"
                 >
-                    Task
+                    View
                 </Link>
             </div>
         </div>
     )
 }
 
-// ── Project card ──────────────────────────────────────────────────────────────
-
 function ProjectCard({ sprint, tasks: sprintTasks }: { sprint: Sprint; tasks: Task[] }) {
-    const linked = sprintTasks.filter(t => t.source === 'dashboard' || true) // all tasks linked to this sprint
+    const linked = sprintTasks.filter(t => t.source === sprint.id || t.projectId === sprint.id || true)
     const done = linked.filter(t => t.status === 'complete').length
     const running = linked.filter(t => t.status === 'running' || t.status === 'claimed').length
-    const blocked = linked.filter(t => t.status === 'blocked').length
     const total = linked.length || 1
-
-    const STATUS_BG: Record<string, string> = {
-        planning: 'bg-amber/20 text-amber',
-        running: 'bg-blue-500/20 text-blue-400',
-        complete: 'bg-azure/20 text-azure',
-        failed: 'bg-red/20 text-red',
-    }
+    const progressPct = Math.round((done / total) * 100)
+    const def = getCategoryDef(sprint.category)
 
     return (
         <Link
             href={`/projects/${sprint.id}`}
-            className="flex flex-col rounded-xl border border-border/60 bg-surface-1/40 backdrop-blur-sm p-4 transition-all hover:border-border hover:bg-surface-1/60 min-w-[280px] md:min-w-[240px] max-w-[320px] flex-1 shrink-0 snap-center md:snap-start"
+            className="group flex flex-col rounded-2xl border border-border/60 bg-surface-1/40 backdrop-blur-md p-4 transition-all hover:border-azure/30 hover:bg-surface-2/40 shadow-sm min-w-[260px] flex-1"
         >
-            <div className="flex items-center justify-between mb-2">
-                <h4 className="text-[13px] font-medium text-text-primary truncate">{sprint.repo || sprint.request.slice(0, 40)}</h4>
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${STATUS_BG[sprint.status] ?? STATUS_BG.planning}`}>
-                    {sprint.status}
-                </span>
+            <div className="flex items-center justify-between mb-3">
+                 <div className="flex flex-col min-w-0">
+                    <h4 className="text-sm font-bold text-text-primary truncate transition-colors group-hover:text-white leading-tight">
+                        {sprint.repo || sprint.request.slice(0, 32)}
+                    </h4>
+                    <span className="text-[10px] font-mono text-zinc-600 mt-0.5 uppercase tracking-tighter">PRJ_{sprint.id.slice(0, 8)}</span>
+                 </div>
+                 <StatusBadge status={sprint.status as any} size="sm" />
             </div>
-            <p className="text-[11px] text-text-muted truncate mb-3">{sprint.request}</p>
 
-            {/* Progress bar */}
-            <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-                {done > 0 && (
-                    <div className="bg-azure transition-all" style={{ width: `${(done / total) * 100}%` }} />
-                )}
-                {running > 0 && (
-                    <div className="bg-blue-500 transition-all" style={{ width: `${(running / total) * 100}%` }} />
-                )}
-                {blocked > 0 && (
-                    <div className="bg-red transition-all" style={{ width: `${(blocked / total) * 100}%` }} />
-                )}
-            </div>
-            <div className="mt-2 flex gap-3 text-[10px] text-text-muted">
-                {done > 0 && <span className="text-azure">{done} done</span>}
-                {running > 0 && <span className="text-blue-400">{running} active</span>}
-                {blocked > 0 && <span className="text-red">{blocked} blocked</span>}
-                {linked.length === 0 && <span>No tasks yet</span>}
+            <div className="space-y-2 mt-auto">
+                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-text-muted">
+                    <span>Infiltration</span>
+                    <span>{progressPct}%</span>
+                </div>
+                <div className="h-1 w-full rounded-full bg-surface-2 overflow-hidden ring-1 ring-inset ring-black/20">
+                    <div 
+                        className="h-full bg-gradient-to-r from-azure/40 to-azure transition-all duration-1000 shadow-[0_0_8px_var(--color-azure-dim)]" 
+                        style={{ width: `${progressPct}%` }} 
+                    />
+                </div>
+                <div className="flex items-center gap-3 pt-1">
+                    <CategoryBadge label={def.label} iconName={def.icon} />
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-600">
+                         {done > 0 && <span className="text-azure">{done} OK</span>}
+                         {running > 0 && <span className="text-blue-400 animate-pulse">{running} OP</span>}
+                    </div>
+                </div>
             </div>
         </Link>
     )
 }
 
-// ── Completed item ────────────────────────────────────────────────────────────
-
 function CompletedItem({ task }: { task: Task }) {
     const label = task.outcomeSummary ?? `${task.type} task via ${task.source}`
     return (
-        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 px-3 py-3 md:py-2.5 group shrink-0 min-h-[44px]">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 group/item transition-colors hover:bg-surface-1/60">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-azure-dim text-azure">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-azure/5 text-azure border border-azure/10 group-hover/item:border-azure/30 transition-colors">
+                    <CheckCircle2 className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] text-text-secondary">{label}</p>
-                    <div className="flex items-center gap-2 text-[11px] text-text-muted">
-                        <span>{task.type}</span>
-                        {task.completedAt && <><span>·</span><span>{timeAgo(task.completedAt)}</span></>}
-                        {task.qualityScore != null && <><span>·</span><span className="text-text-muted">Q {Math.round(task.qualityScore * 100)}%</span></>}
+                    <p className="truncate text-sm font-medium text-text-secondary group-hover/item:text-text-primary transition-colors leading-snug">{label}</p>
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-text-muted mt-1 uppercase tracking-tight">
+                        <span className="text-azure-dim font-bold">COMPLETED</span>
+                        <span>·</span>
+                        <span className="text-zinc-600">{timeAgo(task.completedAt || task.createdAt)}</span>
+                        {task.qualityScore != null && (
+                            <>
+                                <span>·</span>
+                                <span className="text-zinc-600">Q:{(task.qualityScore * 100).toFixed(0)}</span>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
-            <div className="flex items-center gap-2 md:gap-1.5 shrink-0 w-full md:w-auto mt-2 md:mt-0">
-                {task.projectId && (
-                    <Link
-                        href={`/projects/${task.projectId}`}
-                        className="flex items-center justify-center rounded border border-border/50 bg-surface-2/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-text-muted transition-all hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-violet-400 flex-1 md:flex-initial"
-                    >
-                        Project
-                    </Link>
-                )}
+            <div className="flex items-center gap-2 shrink-0">
                 <Link
                     href={`/tasks/${task.id}`}
-                    className="flex items-center justify-center rounded border border-border/50 bg-surface-2/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-text-muted transition-all hover:border-zinc-500/40 hover:bg-zinc-700/40 hover:text-text-secondary flex-1 md:flex-initial"
+                    className="rounded-lg border border-border bg-surface-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-text-muted hover:border-azure/40 hover:bg-surface-2 hover:text-white transition-all shadow-sm"
                 >
-                    Task
+                    Review
                 </Link>
             </div>
         </div>
@@ -344,16 +330,13 @@ export function CommandCenter() {
         setLoaded(true)
     }, [WS_ID])
 
-    // Initial load
     useEffect(() => { void fetchAll() }, [fetchAll])
 
-    // Polling
     useEffect(() => {
         const t = setInterval(() => void fetchAll(), POLL_MS)
         return () => clearInterval(t)
     }, [fetchAll])
 
-    // SSE for real-time updates
     useEffect(() => {
         if (!WS_ID || typeof window === 'undefined') return
         try {
@@ -367,52 +350,47 @@ export function CommandCenter() {
 
     // ── Derived data ──────────────────────────────────────────────────────────
 
-    const activeTasks = allTasks.filter(t => t.status === 'running' || t.status === 'claimed' || t.status === 'queued')
-    const blockedTasks = allTasks.filter(t => t.status === 'blocked' || t.status === 'cancelled')
-    const completedTasks = allTasks.filter(t => t.status === 'complete').slice(0, 5)
     const runningTasks = allTasks.filter(t => t.status === 'running' || t.status === 'claimed')
     const queuedTasks = allTasks.filter(t => t.status === 'queued')
-    const activeWork = [...runningTasks, ...queuedTasks].slice(0, 5)
-    const activeSprints = sprints.filter(s => s.status === 'planning' || s.status === 'running')
+    const activeTasksCount = runningTasks.length + queuedTasks.length
+    const blockedTasks = allTasks.filter(t => t.status === 'blocked' || t.status === 'cancelled')
+    const completedRecently = allTasks.filter(t => t.status === 'complete').slice(0, 10)
+    const currentFocus = [...runningTasks, ...queuedTasks].slice(0, 8)
+    const activeProjects = sprints.filter(s => ['planning', 'running', 'finalizing'].includes(s.status))
 
-    // Attention items: blockers + approvals
-    const attentionItems: { id: string; icon: React.ElementType; iconColor: string; label: string; meta: string; href: string; actionLabel: string; priority: number }[] = []
+    const attentionItems: any[] = []
 
     for (const approval of approvals.slice(0, 3)) {
         attentionItems.push({
             id: `approval-${approval.id}`,
             icon: ShieldAlert,
-            iconColor: 'bg-amber/20 text-amber',
-            label: `Approval needed: ${approval.operation}`,
-            meta: `${approval.riskLevel} risk · ${timeAgo(approval.createdAt)}`,
+            iconColor: 'bg-amber-dim text-amber',
+            label: `Authorization Required: ${approval.operation}`,
+            meta: `${approval.riskLevel.toUpperCase()} RISK · ${timeAgo(approval.createdAt)}`,
             href: `/approvals`,
-            actionLabel: 'Review',
+            actionLabel: 'Authorize',
             priority: 1,
         })
     }
 
     for (const task of blockedTasks.slice(0, 3)) {
-        // Detect known root causes and route directly to the fix
         const outcome = task.outcomeSummary ?? ''
         let fixHref = `/tasks/${task.id}`
-        let fixLabel = 'Fix'
+        let fixLabel = 'Intercept'
         if (/no ai credential/i.test(outcome)) {
-            fixHref = `/settings/ai-providers`
-            fixLabel = 'Configure'
+            fixHref = `/settings/ai-providers`; fixLabel = 'Credential'
         } else if (/rate limit/i.test(outcome)) {
-            fixHref = `/settings/ai-providers`
-            fixLabel = 'Review'
+            fixHref = `/settings/ai-providers`; fixLabel = 'Review'
         } else if (/no channel/i.test(outcome)) {
-            fixHref = `/settings/connections`
-            fixLabel = 'Fix'
+            fixHref = `/settings/connections`; fixLabel = 'Gateway'
         }
 
         attentionItems.push({
             id: `blocked-${task.id}`,
             icon: task.status === 'cancelled' ? XCircle : AlertTriangle,
-            iconColor: task.status === 'cancelled' ? 'bg-surface-2/40 text-text-secondary' : 'bg-red/20 text-red',
-            label: outcome || `${task.status === 'cancelled' ? 'Failed/Cancelled' : 'Blocked'}: ${task.type} task`,
-            meta: `${task.source} · ${timeAgo(task.createdAt)}`,
+            iconColor: task.status === 'cancelled' ? 'bg-surface-2 text-zinc-400' : 'bg-red-dim text-red',
+            label: outcome || `${task.status === 'cancelled' ? 'Termination' : 'Inhibition'}: ${task.type} unit`,
+            meta: `${task.source.toUpperCase()} SOURCE · ${timeAgo(task.createdAt)}`,
             href: fixHref,
             actionLabel: fixLabel,
             priority: 2,
@@ -421,20 +399,16 @@ export function CommandCenter() {
 
     attentionItems.sort((a, b) => a.priority - b.priority)
 
-    // ── Skeleton ──────────────────────────────────────────────────────────────
-
     if (!loaded) {
         return (
             <div className="flex flex-col gap-6 animate-pulse">
-                <div className="h-8 w-48 rounded bg-surface-2/50" />
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {[0, 1, 2, 3].map(i => (
-                        <div key={i} className="h-[100px] rounded-xl bg-surface-2/30 border border-border-subtle" />
-                    ))}
+                    {[0, 1, 2, 3].map(i => <div key={i} className="h-28 rounded-2xl bg-surface-2/30 border border-border" />)}
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                    <div className="lg:col-span-3 h-[180px] rounded-xl bg-surface-2/30 border border-border-subtle" />
-                    <div className="lg:col-span-2 h-[180px] rounded-xl bg-surface-2/30 border border-border-subtle" />
+                <div className="h-48 rounded-2xl bg-surface-2/30 border border-border" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2 h-72 rounded-2xl bg-surface-2/30 border border-border" />
+                    <div className="md:col-span-1 h-72 rounded-2xl bg-surface-2/30 border border-border" />
                 </div>
             </div>
         )
@@ -442,210 +416,199 @@ export function CommandCenter() {
 
     const runtime = typeof window !== 'undefined' ? getRuntimeContext() : 'browser'
 
-    const hasAttention = attentionItems.length > 0
-    const hasActiveWork = activeWork.length > 0
-    const hasProjects = activeSprints.length > 0
-    const hasCompletedRecently = completedTasks.length > 0
-
-    // ── Unified Desktop & Mobile Optimized Dashboard ──
-    const allFeedTasks = allTasks.slice(0, 30) // Limit feed so it doesn't dominate
-
     if (runtime === 'tauri') {
-        // Desktop Layout: Agent Status Card + Chat Side by Side
         return (
-            <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-120px)]">
-                {/* Status Card */}
-                <div className="flex flex-col w-1/3 min-w-[300px] gap-4">
-                    <div className="rounded-xl border border-border/60 bg-surface-1/40 p-5 shadow-lg flex flex-col items-center">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl  from-azure/15 to-azure/5 text-azure mb-4 ring-1 ring-inset ring-azure/30">
-                            <Zap className="h-8 w-8" />
-                        </div>
-                        <h2 className="text-lg font-bold text-text-primary mb-1">Plexo</h2>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-azure-dim text-azure text-xs font-medium mb-6">
-                            <span className="h-1.5 w-1.5 rounded-full bg-azure animate-pulse"></span>
-                            Online & Ready
-                        </span>
+            <div className="flex flex-col gap-6 animate-in fade-in duration-700">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     <div className="md:col-span-1 flex flex-col gap-6">
+                        <div className="rounded-3xl border border-border bg-surface-1/40 backdrop-blur-xl p-8 flex flex-col items-center text-center shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-azure to-transparent opacity-50" />
+                            <div className="relative mb-6">
+                                <div className="absolute inset-0 bg-azure blur-2xl opacity-20 animate-pulse" />
+                                <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-azure/20 to-azure/5 text-azure ring-1 ring-inset ring-azure/30 shadow-inner">
+                                    <PlexoMark className="h-10 w-10" working={runningTasks.length > 0} idle={runningTasks.length === 0} />
+                                </div>
+                            </div>
+                            <h2 className="text-2xl font-black text-zinc-50 tracking-tighter mb-1">SYSTEM ONLINE</h2>
+                            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-azure-dim text-azure text-[10px] font-bold uppercase tracking-widest mb-8 border border-azure/20 shadow-sm">
+                                <span className="h-1.5 w-1.5 rounded-full bg-azure animate-pulse" />
+                                Monitoring Layer Active
+                            </div>
 
-                        <div className="w-full grid grid-cols-2 gap-2 text-center text-sm">
-                            <div className="p-3 bg-canvas rounded-lg border border-border-subtle">
-                                <div className="font-bold text-text-primary">{activeTasks.length}</div>
-                                <div className="text-[10px] text-text-muted uppercase tracking-widest mt-1">Active Tasks</div>
-                            </div>
-                            <div className="p-3 bg-canvas rounded-lg border border-border-subtle">
-                                <div className="font-bold text-text-primary">{approvals.length}</div>
-                                <div className="text-[10px] text-text-muted uppercase tracking-widest mt-1">Approvals</div>
-                            </div>
-                        </div>
-                    </div>
-                    {/* Embedded task list if needed */}
-                    {hasAttention && (
-                        <div className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
-                            <h3 className="text-[13px] font-semibold text-amber mb-3 flex items-center gap-2">
-                                <ShieldAlert className="h-4 w-4" /> Attention Required
-                            </h3>
-                            <div className="divide-y divide-zinc-800/30">
-                                {attentionItems.map(item => (
-                                    <AttentionItem key={item.id} {...item} />
-                                ))}
+                            <div className="w-full grid grid-cols-2 gap-3">
+                                <Link href="/tasks" className="p-4 bg-black/40 rounded-2xl border border-border/50 hover:border-azure/40 transition-all group">
+                                    <div className="text-xl font-bold text-white group-hover:text-azure transition-colors">{activeTasksCount}</div>
+                                    <div className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mt-1">Pending</div>
+                                </Link>
+                                <Link href="/approvals" className="p-4 bg-black/40 rounded-2xl border border-border/50 hover:border-amber/40 transition-all group">
+                                    <div className="text-xl font-bold text-white group-hover:text-amber transition-colors">{approvals.length}</div>
+                                    <div className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mt-1">Interlock</div>
+                                </Link>
                             </div>
                         </div>
-                    )}
-                </div>
-                {/* Chat Frame */}
-                <div className="flex-1 rounded-xl border border-border/60 bg-canvas flex overflow-hidden">
-                    <iframe src="/chat" className="w-full h-full border-0" />
+
+                        {attentionItems.length > 0 && (
+                            <div className="rounded-2xl border border-red-500/20 bg-surface-1/20 overflow-hidden shadow-lg animate-in slide-in-from-left-4 duration-500">
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-red-500/10 bg-red/5">
+                                    <span className="text-[10px] font-black text-red uppercase tracking-widest flex items-center gap-2">
+                                        <ShieldAlert className="h-3 w-3" /> System Inhibitor
+                                    </span>
+                                    <span className="text-[10px] font-mono text-red/60">{attentionItems.length} EVT</span>
+                                </div>
+                                <div className="divide-y divide-border/30">
+                                    {attentionItems.map(item => <AttentionItem key={item.id} {...item} />)}
+                                </div>
+                            </div>
+                        )}
+                     </div>
+
+                     <div className="md:col-span-2 rounded-3xl border border-border bg-black/60 shadow-inner overflow-hidden flex flex-col h-[calc(100vh-160px)] ring-1 ring-inset ring-white/5">
+                        <iframe src="/chat" className="w-full h-full border-0" />
+                     </div>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="flex flex-col gap-6 pb-20 md:pb-4">
-            {/* Top Row: Hero Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="flex flex-col gap-6 pb-24 animate-in fade-in duration-500">
+            {/* Command Header Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <HeroStat
-                    label="Active Tasks"
-                    value={activeTasks.length}
-                    accent="bg-azure"
+                    label="Active Load"
+                    value={activeTasksCount}
+                    accent="bg-azure/10 text-azure"
                     icon={Zap}
                     href="/tasks"
                     pulse={runningTasks.length > 0}
                 />
                 <HeroStat
-                    label="Blocked"
+                    label="Inhibitors"
                     value={blockedTasks.length}
-                    accent={blockedTasks.length > 0 ? 'bg-red' : ''}
+                    accent={blockedTasks.length > 0 ? 'bg-red/10 text-red' : 'bg-surface-2 text-text-muted'}
                     icon={AlertTriangle}
                     href="/tasks"
                 />
                 <HeroStat
-                    label="Awaiting Approval"
+                    label="Interlocks"
                     value={approvals.length}
-                    accent={approvals.length > 0 ? 'bg-amber' : ''}
+                    accent={approvals.length > 0 ? 'bg-amber/10 text-amber' : 'bg-surface-2 text-text-muted'}
                     icon={ShieldAlert}
                     href="/approvals"
                 />
                 <HeroStat
                     label="Active Projects"
-                    value={activeSprints.length}
-                    accent={activeSprints.length > 0 ? 'bg-azure' : ''}
-                    icon={FolderOpen}
+                    value={activeProjects.length}
+                    accent="bg-azure/10 text-azure"
+                    icon={Layers}
                     href="/projects"
                 />
             </div>
 
-            {/* Attention Required - Moved outside grid to ensure perfect top-level alignment of focus/activity columns */}
-            {hasAttention && (
-                <div className="rounded-xl border border-red-500/20 bg-surface-1/40 backdrop-blur-sm shadow-sm overflow-hidden mb-6">
-                    <div className="flex items-center justify-between border-b border-red-500/10 px-4 py-3 bg-red/5">
-                        <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-red animate-pulse" />
-                            <h3 className="text-[13px] font-semibold text-red">Attention Required</h3>
+            {/* Global Inhibitor Alert */}
+            {attentionItems.length > 0 && (
+                <div className="rounded-2xl border border-red-500/20 bg-surface-1/30 backdrop-blur-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                    <div className="flex items-center justify-between border-b border-red-500/10 px-5 py-3.5 bg-red/10">
+                        <div className="flex items-center gap-2.5">
+                            <div className="h-2 w-2 rounded-full bg-red animate-pulse shadow-[0_0_8px_var(--color-red)]" />
+                            <h3 className="text-xs font-black text-red uppercase tracking-[0.2em]">Manual Overload Required</h3>
                         </div>
-                        <span className="text-[11px] font-medium text-red bg-red-dim px-2.5 py-0.5 rounded-full">{attentionItems.length} item{attentionItems.length !== 1 ? 's' : ''}</span>
+                        <span className="text-[10px] font-mono text-red/60 bg-red-dim px-2 py-0.5 rounded-md border border-red/20">{attentionItems.length} EXCEPTIONS</span>
                     </div>
-                    <div className="divide-y divide-zinc-800/30 p-1">
-                        {attentionItems.map(item => (
-                            <AttentionItem
-                                key={item.id}
-                                icon={item.icon}
-                                iconColor={item.iconColor}
-                                label={item.label}
-                                meta={item.meta}
-                                href={item.href}
-                                actionLabel={item.actionLabel}
-                            />
-                        ))}
+                    <div className="divide-y divide-border/20">
+                        {attentionItems.map(item => <AttentionItem key={item.id} {...item} />)}
                     </div>
                 </div>
             )}
 
-            {/* Main Layout Grid */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                
-                {/* Left Column: Essential Workflow */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+                {/* Workflow Column */}
                 <div className="xl:col-span-2 flex flex-col gap-6">
-                    {/* Active Work */}
-                    <div className="rounded-xl border border-border/60 bg-surface-1/40 backdrop-blur-sm shadow-sm overflow-hidden h-[330px] flex flex-col">
-                            <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3 shrink-0 bg-canvas/30">
-                                <div className="flex items-center gap-2">
-                                    <div className={`h-1.5 w-1.5 rounded-full ${hasActiveWork ? 'bg-blue-400 animate-pulse' : 'bg-azure'}`} />
-                                    <h3 className="text-[13px] font-semibold text-text-primary">Current Focus</h3>
-                                </div>
-                                <Link href="/tasks" className="text-[11px] text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1 group">
-                                    <span className="hidden sm:inline">View Tasks</span> <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
-                                </Link>
-                            </div>
-                            {hasActiveWork ? (
-                                <div className="divide-y divide-zinc-800/30 p-1 flex-1 overflow-y-auto custom-scrollbar">
-                                    {activeWork.map(task => (
-                                        <ActiveWorkItem key={task.id} task={task} />
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="py-8 px-4 text-center flex flex-col items-center flex-1 justify-center">
-                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl  from-azure/10 to-azure/5 text-azure mb-3 border border-azure/20">
-                                        <CheckCircle2 className="h-6 w-6" />
-                                    </div>
-                                    <h4 className="text-sm font-medium text-text-secondary mb-1">Queue Empty</h4>
-                                    <p className="text-[11px] text-text-muted">Your agent is online and awaiting instructions.</p>
-                                </div>
-                            )}
-                        </div>
-
-                    {/* Projects Overview */}
-                    {hasProjects && (
-                        <div>
-                            <div className="flex items-center justify-between mb-3 px-1">
-                                <h3 className="text-[13px] font-semibold text-text-secondary">Active Projects</h3>
-                                <Link href="/projects" className="text-[11px] text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1 group">
-                                    View all <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
-                                </Link>
-                            </div>
-                            <div className="flex flex-wrap sm:flex-nowrap gap-3">
-                                {activeSprints.slice(0, 3).map(sprint => (
-                                    <ProjectCard
-                                        key={sprint.id}
-                                        sprint={sprint}
-                                        tasks={allTasks.filter(t => t.source === sprint.id)}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Right Column: Recent Activity Feed */}
-                <div className="xl:col-span-1 flex flex-col h-[330px]">
-                    <div className="rounded-xl border border-border/60 bg-surface-1/40 backdrop-blur-sm shadow-sm flex flex-col h-full overflow-hidden">
-                        <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3 shrink-0 bg-canvas/30">
-                            <div className="flex items-center gap-2">
-                                <Activity className="h-3.5 w-3.5 text-text-secondary" />
-                                <h3 className="text-[12px] font-semibold text-text-primary uppercase tracking-widest">Recent Activity</h3>
-                            </div>
-                            <span className="flex h-4 items-center justify-center rounded-full bg-surface-2/50 px-2 text-[9px] font-medium uppercase tracking-wider text-text-secondary">
-                                {allFeedTasks.length} events
-                            </span>
+                    {/* Active Work Engine */}
+                    <div className="rounded-2xl border border-border bg-surface-1/40 backdrop-blur-md shadow-lg overflow-hidden flex flex-col min-h-[400px]">
+                        <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4 bg-canvas/40">
+                             <div className="flex items-center gap-3">
+                                <div className={cn("h-1.5 w-1.5 rounded-full", currentFocus.length > 0 ? "bg-azure animate-pulse shadow-[0_0_8px_var(--color-azure)]" : "bg-text-muted")} />
+                                <h3 className="text-xs font-black text-text-primary uppercase tracking-widest">Execution Engine</h3>
+                             </div>
+                             <Link href="/tasks" className="text-[10px] font-bold text-text-muted hover:text-white transition-all uppercase tracking-widest flex items-center gap-1.5 group">
+                                Task Stream <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
+                             </Link>
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto p-1 custom-scrollbar">
-                            {allFeedTasks.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-[11px] text-text-muted">
-                                    No activity yet.
-                                </div>
+                        <div className="flex-1 overflow-y-auto divide-y divide-border/20 custom-scrollbar">
+                            {currentFocus.length > 0 ? (
+                                currentFocus.map(task => <ActiveWorkItem key={task.id} task={task} />)
                             ) : (
-                                <div className="divide-y divide-zinc-800/30">
-                                    {allFeedTasks.map(t => (
-                                        t.status === 'complete' ? <CompletedItem key={t.id} task={t} /> : <ActiveWorkItem key={t.id} task={t} />
-                                    ))}
+                                <div className="h-[340px] flex flex-col items-center justify-center p-8 text-center gap-4">
+                                     <div className="h-16 w-16 items-center justify-center rounded-2xl bg-surface-2 text-zinc-700 flex">
+                                        <Zap className="h-8 w-8 opacity-20" />
+                                     </div>
+                                     <div className="max-w-xs">
+                                        <p className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-1">Grid Balanced</p>
+                                        <p className="text-xs text-text-muted leading-relaxed">No active operations detected. The agent is in observation mode.</p>
+                                     </div>
                                 </div>
                             )}
                         </div>
                     </div>
+
+                    {/* Project Grid */}
+                    {activeProjects.length > 0 && (
+                        <div className="flex flex-col gap-4">
+                             <div className="flex items-center justify-between px-1">
+                                <h3 className="text-xs font-black text-text-secondary uppercase tracking-widest">Macro Operations</h3>
+                                <Link href="/projects" className="text-[10px] font-bold text-text-muted hover:text-white transition-all uppercase tracking-widest group flex items-center gap-1.5">
+                                    All Projects <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
+                                </Link>
+                             </div>
+                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {activeProjects.slice(0, 3).map(sprint => (
+                                    <ProjectCard 
+                                        key={sprint.id} 
+                                        sprint={sprint} 
+                                        tasks={allTasks.filter(t => t.projectId === sprint.id)} 
+                                    />
+                                ))}
+                             </div>
+                        </div>
+                    )}
                 </div>
 
+                {/* Audit Column */}
+                <div className="xl:col-span-1">
+                    <div className="rounded-2xl border border-border bg-surface-1/40 backdrop-blur-md shadow-lg overflow-hidden flex flex-col h-[600px] xl:sticky xl:top-24">
+                        <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4 bg-canvas/40">
+                             <div className="flex items-center gap-3">
+                                <Activity className="h-4 w-4 text-text-muted" />
+                                <h3 className="text-xs font-black text-text-primary uppercase tracking-widest">Audit Logs</h3>
+                             </div>
+                             <span className="text-[9px] font-bold text-azure bg-azure-dim px-2 py-0.5 rounded-full border border-azure/20">LIVE</span>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto divide-y divide-border/20 custom-scrollbar">
+                            {allTasks.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center p-8 text-center text-text-muted italic text-[11px]">
+                                    No data packets received.
+                                </div>
+                            ) : (
+                                allTasks.slice(0, 15).map(t => (
+                                    t.status === 'complete' ? <CompletedItem key={t.id} task={t} /> : <ActiveWorkItem key={t.id} task={t} />
+                                ))
+                            )}
+                        </div>
+
+                        <div className="p-4 border-t border-border/50 bg-canvas/40">
+                            <Link 
+                                href="/tasks?status=complete"
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border bg-surface-2 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-white hover:border-azure/30 transition-all"
+                            >
+                                Historical Archive
+                            </Link>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     )
-
 }

@@ -3,7 +3,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
     GitBranch,
@@ -17,29 +17,39 @@ import {
     DollarSign,
     TrendingUp,
     ExternalLink,
-    Code2,
-    Search,
-    PenLine,
-    Server,
-    BarChart2,
-    Megaphone,
-    Sparkles,
     Terminal,
     ChevronDown,
-    GitPullRequest,
-    Cpu,
-    AlertCircle,
-    CheckCheck,
-    Play,
-    Layers,
-    BadgeDollarSign,
-    Wifi,
-    StopCircle,
     FileText,
+    ChevronRight,
+    StopCircle,
+    Settings,
+    LayoutGrid,
+    CheckCheck,
+    GitPullRequest,
+    BadgeDollarSign,
+    Sparkles,
+    Cpu,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useWorkspace } from '@web/context/workspace'
+import { ListToolbar } from '@web/components/list-toolbar'
 import { getCategoryDef } from '@web/lib/project-categories'
 import { CopyId } from '@web/components/copy-id'
+import { cn, StatusBadge, CategoryBadge } from '@plexo/ui'
+
+const formatAge = (date: string | null) => {
+    if (!date) return 'N/A'
+    const d = new Date(date)
+    const now = new Date()
+    const diff = now.getTime() - d.getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'Just now'
+    if (mins < 60) return `${mins}m ago`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.floor(hours / 24)
+    return `${days}d ago`
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,7 +60,7 @@ interface SprintTaskItem {
     acceptance: string
     branch: string
     priority: number
-    status: 'queued' | 'running' | 'complete' | 'blocked' | 'failed'
+    status: 'queued' | 'running' | 'complete' | 'blocked' | 'failed' | 'pending' | 'claimed' | 'cancelled'
     handoff: { prNumber?: number; prUrl?: string; taskId?: string } | null
     createdAt: string
     completedAt: string | null
@@ -105,136 +115,100 @@ interface SprintLogEntry {
 
 const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
-const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-    queued: { bg: 'bg-zinc-700/50', text: 'text-text-secondary', dot: 'bg-zinc-500', label: 'Queued' },
-    running: { bg: 'bg-blue-500/15', text: 'text-blue-400', dot: 'bg-blue-400 animate-pulse', label: 'Running' },
-    complete: { bg: 'bg-azure/15', text: 'text-azure', dot: 'bg-azure', label: 'Complete' },
-    blocked: { bg: 'bg-amber/15', text: 'text-amber', dot: 'bg-amber', label: 'Blocked' },
-    failed: { bg: 'bg-red/15', text: 'text-red', dot: 'bg-red', label: 'Failed' },
-    planning: { bg: 'bg-purple-500/15', text: 'text-purple-400', dot: 'bg-purple-400 animate-pulse', label: 'Planning' },
-    finalizing: { bg: 'bg-cyan-500/15', text: 'text-cyan-400', dot: 'bg-cyan-400 animate-pulse', label: 'Finalizing' },
-    cancelled: { bg: 'bg-zinc-700/30', text: 'text-text-muted', dot: 'bg-surface-3', label: 'Cancelled' },
-}
-
-// ── Log event config ──────────────────────────────────────────────────────────
-
-const LOG_EVENT_CONFIG: Record<SprintLogEvent, {
-    icon: React.ElementType
-    color: string
-    bgColor: string
-    label: string
-}> = {
-    planning_start: { icon: Sparkles, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Planning' },
-    planning_complete: { icon: CheckCheck, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Plan Ready' },
-    wave_start: { icon: Layers, color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/20', label: 'Wave' },
-    wave_complete: { icon: CheckCheck, color: 'text-azure', bgColor: 'bg-azure-dim border-azure/20', label: 'Wave Done' },
-    task_queued: { icon: Play, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Queued' },
-    task_running: { icon: Cpu, color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/20', label: 'Running' },
-    task_complete: { icon: CheckCircle2, color: 'text-azure', bgColor: 'bg-azure-dim border-azure/20', label: 'Done' },
-    task_failed: { icon: XCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'Failed' },
-    task_timeout: { icon: Clock, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Timeout' },
-    pr_created: { icon: GitPullRequest, color: 'text-azure', bgColor: 'bg-azure-dim border-azure/20', label: 'PR' },
-    pr_failed: { icon: AlertCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'PR Failed' },
-    conflict_detected: { icon: AlertTriangle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Conflict' },
-    budget_check: { icon: BadgeDollarSign, color: 'text-text-secondary', bgColor: 'bg-surface-2/60 border-border/30', label: 'Budget' },
-    budget_ceiling_hit: { icon: AlertTriangle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Budget Limit' },
-    sprint_complete: { icon: CheckCheck, color: 'text-azure', bgColor: 'bg-azure-dim border-azure/20', label: 'Complete' },
-    sprint_failed: { icon: XCircle, color: 'text-red', bgColor: 'bg-red-dim border-red-500/20', label: 'Failed' },
-    branch_created: { icon: GitBranch, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Branch' },
-    branch_failed: { icon: AlertCircle, color: 'text-amber', bgColor: 'bg-amber-dim border-amber-500/20', label: 'Branch Err' },
-    pr_skipped: { icon: GitPullRequest, color: 'text-text-muted', bgColor: 'bg-surface-2/60 border-border/30', label: 'PR Skipped' },
-    sprint_cancelled: { icon: StopCircle, color: 'text-text-muted', bgColor: 'bg-surface-2/60 border-border/30', label: 'Cancelled' },
-    routing_trace: { icon: Zap, color: 'text-violet-400', bgColor: 'bg-violet-500/10 border-violet-500/20', label: 'Routing' },
-    quality_forecast: { icon: TrendingUp, color: 'text-sky-400', bgColor: 'bg-sky-500/10 border-sky-500/20', label: 'Forecast' },
-}
-
 const LEVEL_COLORS: Record<SprintLogLevel, string> = {
     info: 'text-text-muted',
     warn: 'text-amber',
     error: 'text-red',
 }
 
-// ── Utility helpers ───────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: string }) {
-    const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.queued!
-    return (
-        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.text}`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-            {cfg.label}
-        </span>
-    )
+const LOG_EVENT_CONFIG: Record<string, { label: string; icon: any; color: string; bgColor: string }> = {
+    planning_start: { label: 'Planning', icon: Zap, color: 'text-purple-400', bgColor: 'bg-purple-500/10' },
+    planning_complete: { label: 'Ready', icon: CheckCircle2, color: 'text-purple-400', bgColor: 'bg-purple-500/10' },
+    wave_start: { label: 'Wave Start', icon: TrendingUp, color: 'text-azure', bgColor: 'bg-azure-dim/20' },
+    wave_complete: { label: 'Wave OK', icon: CheckCheck, color: 'text-azure', bgColor: 'bg-azure-dim/20' },
+    task_queued: { label: 'Queued', icon: Clock, color: 'text-text-muted', bgColor: 'bg-surface-2/40' },
+    task_running: { label: 'Working', icon: RefreshCw, color: 'text-azure', bgColor: 'bg-azure-dim/30' },
+    task_complete: { label: 'Task OK', icon: CheckCheck, color: 'text-azure', bgColor: 'bg-azure-dim/30' },
+    task_failed: { label: 'Task Fail', icon: XCircle, color: 'text-red', bgColor: 'bg-red-500/10' },
+    task_timeout: { label: 'Timeout', icon: Clock, color: 'text-red', bgColor: 'bg-red-500/10' },
+    pr_created: { label: 'PR Split', icon: GitPullRequest, color: 'text-azure', bgColor: 'bg-azure-dim/20' },
+    pr_failed: { label: 'PR Fail', icon: XCircle, color: 'text-red', bgColor: 'bg-red-500/10' },
+    budget_check: { label: 'Budget', icon: BadgeDollarSign, color: 'text-text-muted', bgColor: 'bg-surface-2/40' },
+    budget_ceiling_hit: { label: 'Ceiling', icon: AlertTriangle, color: 'text-red', bgColor: 'bg-red-500/10' },
+    conflict_detected: { label: 'Conflict', icon: AlertTriangle, color: 'text-amber', bgColor: 'bg-amber-dim/50' },
+    sprint_complete: { label: 'Success', icon: CheckCircle2, color: 'text-azure', bgColor: 'bg-azure-dim/20' },
+    sprint_failed: { label: 'Failed', icon: XCircle, color: 'text-red', bgColor: 'bg-red-500/10' },
+    branch_created: { label: 'Branch', icon: GitBranch, color: 'text-text-muted', bgColor: 'bg-surface-2/20' },
+    quality_forecast: { label: 'Forecast', icon: Sparkles, color: 'text-amber', bgColor: 'bg-amber-dim/20' },
 }
 
-function formatMs(ms: number | null | undefined): string {
-    if (!ms) return '—'
-    if (ms < 1000) return `${ms}ms`
-    if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
-    return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatMs(ms: number | null) {
+    if (ms == null || ms < 0) return '—'
+    const s = Math.round(ms / 1000)
+    if (s < 60) return `${s}s`
+    if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
+    return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
 }
 
-function timeAgo(iso: string): string {
-    const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-    if (s < 60) return `${s}s ago`
-    if (s < 3600) return `${Math.floor(s / 60)}m ago`
-    if (s < 86400) return `${Math.floor(s / 3600)}h ago`
-    return `${Math.floor(s / 86400)}d ago`
+function formatTime(iso: string) {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 }
 
-function formatTime(iso: string): string {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+function timeAgo(iso: string) {
+    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+    if (m < 1) return 'just now'
+    if (m < 60) return `${m}m ago`
+    const h = Math.round(m / 60)
+    if (h < 24) return `${h}h ago`
+    return `${Math.round(h / 24)}d ago`
 }
 
-// ── Worker Grid item ──────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function WorkerCard({ task }: { task: SprintTaskItem }) {
-    const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.queued!
-    void cfg
+    const isRunning = task.status === 'running'
     return (
-        <div className={`rounded-lg border ${task.status === 'running' ? 'border-blue-700/50' : 'border-border'} bg-surface-1/60 p-3 flex flex-col gap-2 transition-all`}>
-            <div className="flex items-center justify-between gap-2">
-                <StatusBadge status={task.status} />
-                <span className="text-[10px] font-mono text-text-muted">#{task.priority}</span>
-            </div>
-            <p className="text-xs text-text-secondary line-clamp-2 leading-relaxed">{task.description}</p>
-            <div className="flex items-center gap-1 text-[10px] font-mono text-text-muted">
-                <GitBranch className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate">{task.branch}</span>
-            </div>
-            {task.handoff?.prUrl && (
-                <a
-                    href={task.handoff.prUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                    <ExternalLink className="h-2.5 w-2.5" />
-                    PR #{task.handoff.prNumber}
-                </a>
+        <Link
+            href={`/tasks/${task.id}`}
+            className={cn(
+                "group flex flex-col justify-between rounded-xl border p-3.5 transition-all",
+                isRunning 
+                    ? "border-azure/30 bg-azure-dim/10 shadow-[0_0_15px_-5px_var(--color-azure)]" 
+                    : "border-border bg-surface-1/40 hover:border-border-hover"
             )}
-            {task.completedAt && (
-                <span className="text-[10px] text-text-muted">{timeAgo(task.completedAt)}</span>
-            )}
-        </div>
+        >
+            <div>
+                <div className="flex items-center justify-between mb-2.5">
+                    <StatusBadge status={task.status} size="sm" />
+                    <span className="text-[10px] font-mono text-text-muted opacity-40 group-hover:opacity-100 transition-opacity">#{task.id.slice(0, 8)}</span>
+                </div>
+                <p className="text-sm font-medium text-text-primary line-clamp-2 leading-snug mb-3 min-h-[2.8em]">
+                    {task.description}
+                </p>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                    {task.scope.slice(0, 3).map((s) => (
+                        <span key={s} className="rounded bg-surface-2 px-1.5 py-0.5 text-[9px] font-mono text-text-secondary border border-border/50 truncate max-w-[100px]">{s}</span>
+                    ))}
+                    {task.scope.length > 3 && (
+                        <span className="text-[9px] text-text-muted">+{task.scope.length - 3}</span>
+                    )}
+                </div>
+            </div>
+            
+            <div className="flex items-center justify-between mt-auto pt-3 border-t border-border-subtle/30">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-muted">
+                    <GitBranch className="h-2.5 w-2.5 shrink-0" />
+                    <span className="truncate max-w-[80px]">{task.branch}</span>
+                </div>
+                {task.completedAt && (
+                    <span className="text-[10px] text-text-muted">{timeAgo(task.completedAt)}</span>
+                )}
+            </div>
+        </Link>
     )
 }
-
-const CATEGORY_ICONS: Record<string, React.ElementType> = {
-    Code2, Search, PenLine, Server, BarChart2, Megaphone, Sparkles,
-}
-
-function CategoryBadge({ category }: { category: string }) {
-    const def = getCategoryDef(category)
-    const Icon = CATEGORY_ICONS[def.icon] ?? Sparkles
-    return (
-        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ring-zinc-700/60 bg-surface-2/60 text-text-secondary">
-            <Icon className="h-2.5 w-2.5" />
-            {def.label}
-        </span>
-    )
-}
-
-// ── Activity Log entry ────────────────────────────────────────────────────────
 
 function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) {
     const cfg = LOG_EVENT_CONFIG[entry.event] ?? LOG_EVENT_CONFIG.task_running
@@ -245,18 +219,16 @@ function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) 
 
     return (
         <div
-            className={`
-                group flex gap-3 px-3 py-2.5 rounded-lg border transition-all duration-300
-                ${cfg.bgColor}
-                ${isNew ? 'animate-[fadeSlideIn_0.3s_ease-out]' : ''}
-            `}
+            className={cn(
+                "group flex gap-3 px-3 py-2.5 rounded-lg border transition-all duration-300",
+                cfg.bgColor,
+                isNew ? "animate-[fadeSlideIn_0.3s_ease-out]" : ""
+            )}
         >
-            {/* Icon */}
             <div className={`shrink-0 mt-0.5 ${cfg.color}`}>
                 <Icon className="h-3.5 w-3.5" />
             </div>
 
-            {/* Content */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -277,13 +249,12 @@ function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) 
                                 onClick={() => setExpanded(!expanded)}
                                 className="text-text-muted hover:text-text-secondary transition-colors"
                             >
-                                <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                                <ChevronDown className={cn("h-3 w-3 transition-transform", expanded && "rotate-180")} />
                             </button>
                         )}
                     </div>
                 </div>
 
-                {/* Expandable metadata */}
                 {expanded && hasMetadata && (
                     <div className="mt-2 rounded bg-black/30 border border-border-subtle p-2">
                         <pre className="text-[10px] font-mono text-text-secondary whitespace-pre-wrap overflow-x-auto max-h-40">
@@ -292,201 +263,80 @@ function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) 
                     </div>
                 )}
 
-                {/* Branch inline display */}
                 {(entry.metadata?.branch as string) && !expanded && (
                     <div className="mt-1 flex items-center gap-1 text-[10px] font-mono text-text-muted">
                         <GitBranch className="h-2.5 w-2.5" />
                         {entry.metadata.branch as string}
                     </div>
                 )}
-
-                {/* PR link inline */}
-                {(entry.metadata?.prUrl as string) && (
-                    <a
-                        href={entry.metadata.prUrl as string}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`mt-1 inline-flex items-center gap-1 text-[10px] ${cfg.color} hover:opacity-80 transition-opacity`}
-                    >
-                        <ExternalLink className="h-2.5 w-2.5" />
-                        View PR #{entry.metadata.prNumber as number}
-                    </a>
-                )}
             </div>
         </div>
     )
 }
-
-// ── Activity Log panel ────────────────────────────────────────────────────────
 
 function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boolean }) {
-    const [logs, setLogs] = useState<SprintLogEntry[]>([])
+    const [entries, setEntries] = useState<SprintLogEntry[]>([])
     const [loading, setLoading] = useState(true)
-    const [newIds, setNewIds] = useState<Set<string>>(new Set())
-    const [autoScroll, setAutoScroll] = useState(true)
-    const [liveConnected, setLiveConnected] = useState(false)
-    const scrollRef = useRef<HTMLDivElement>(null)
-    const seenIds = useRef<Set<string>>(new Set())
+    const [error, setError] = useState(false)
+    const [connected, setConnected] = useState(false)
+    const logEndRef = useRef<HTMLDivElement>(null)
+    const lastIdRef = useRef<string | null>(null)
 
-    const fetchLogs = useCallback(async (silent = false) => {
+    const fetchLogs = useCallback(async () => {
         try {
-            if (!silent) setLoading(true)
-            const res = await fetch(`${API}/api/v1/sprints/${sprintId}/logs`)
-            if (!res.ok) return
-            const data = await res.json() as { logs: SprintLogEntry[] }
-            const incoming = data.logs ?? []
-
-            // Mark new entries for animation
-            const freshIds = new Set<string>()
-            for (const e of incoming) {
-                if (!seenIds.current.has(e.id)) {
-                    freshIds.add(e.id)
-                    seenIds.current.add(e.id)
-                }
+            const res = await fetch(`${API}/api/v1/sprints/${sprintId}/logs?limit=250`, { cache: 'no-store' })
+            if (res.ok) {
+                const logs = await res.json() as SprintLogEntry[]
+                setEntries(logs)
+                if (logs.length > 0) lastIdRef.current = logs[logs.length - 1].id
             }
-            if (freshIds.size > 0) setNewIds(freshIds)
-            setLogs(incoming)
-        } catch { /* silent */ } finally {
-            setLoading(false)
-        }
+        } catch { setError(true) } finally { setLoading(false) }
     }, [sprintId])
 
-    // Initial load
     useEffect(() => { void fetchLogs() }, [fetchLogs])
 
-    // SSE live updates
-    useEffect(() => {
-        const es = new EventSource(`${API}/api/v1/sse?workspaceId=sprint-${sprintId}`)
-        es.onopen = () => setLiveConnected(true)
-        es.onmessage = (e) => {
-            try {
-                const ev = JSON.parse(e.data as string) as { type: string; event?: string }
-                if (ev.type === 'sprint_log') {
-                    // Append live log entry directly
-                    const entry = ev as unknown as SprintLogEntry & { type: string }
-                    setLogs((prev) => {
-                        if (prev.some((p) => p.id === entry.id)) return prev
-                        seenIds.current.add(entry.id)
-                        setNewIds((n) => new Set([...n, entry.id]))
-                        return [...prev, entry]
-                    })
-                }
-            } catch { /* ignore */ }
-        }
-        es.onerror = () => {
-            setLiveConnected(false)
-            es.close()
-        }
-        return () => { es.close(); setLiveConnected(false) }
-    }, [sprintId])
-
-    // Polling fallback for active sprints
     useEffect(() => {
         if (!isActive) return
-        const t = setInterval(() => void fetchLogs(true), 8_000)
-        return () => clearInterval(t)
-    }, [isActive, fetchLogs])
-
-    // Auto-scroll to bottom
-    useEffect(() => {
-        if (autoScroll && scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+        const es = new EventSource(`${API}/api/v1/sprints/${sprintId}/logs/sse`)
+        es.onopen = () => setConnected(true)
+        es.onerror = () => setConnected(false)
+        es.onmessage = (e) => {
+            try {
+                const entry = JSON.parse(e.data) as SprintLogEntry
+                if (entry.id !== lastIdRef.current) {
+                    setEntries((prev) => [...prev, entry])
+                    lastIdRef.current = entry.id
+                }
+            } catch { /* skip */ }
         }
-    }, [logs, autoScroll])
+        return () => { es.close(); setConnected(false) }
+    }, [sprintId, isActive])
 
-    // Clear new animation flags after delay
     useEffect(() => {
-        if (newIds.size === 0) return
-        const t = setTimeout(() => setNewIds(new Set()), 800)
-        return () => clearTimeout(t)
-    }, [newIds])
-
-    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        const el = e.currentTarget
-        const isAtBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 40
-        setAutoScroll(isAtBottom)
-    }
-
-    if (loading && logs.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-text-muted">
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                <p className="text-sm">Loading activity log…</p>
-            </div>
-        )
-    }
-
-    if (logs.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-text-muted">
-                <Terminal className="h-8 w-8 opacity-30" />
-                <p className="text-sm">No activity yet — logs will appear as agents work</p>
-                {isActive && (
-                    <div className="flex items-center gap-1.5 text-xs text-violet-400">
-                        <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
-                        Agents are planning…
-                    </div>
-                )}
-            </div>
-        )
-    }
+        if (connected) logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, [entries, connected])
 
     return (
-        <div className="flex flex-col gap-3">
-            {/* Log toolbar */}
-            <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 max-h-[70vh] min-h-[400px]">
+            <div className="flex items-center justify-between px-1 mb-1">
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-text-muted">{logs.length} events</span>
-                    {isActive && (
-                        <div className={`flex items-center gap-1.5 text-[10px] font-medium ${liveConnected ? 'text-azure' : 'text-text-muted'}`}>
-                            <Wifi className="h-2.5 w-2.5" />
-                            {liveConnected ? 'Live' : 'Polling'}
-                        </div>
-                    )}
+                    <span className={cn("h-1.5 w-1.5 rounded-full shadow-[0_0_5px_var(--color-azure)]", connected ? "bg-azure" : "bg-text-muted")} />
+                    <span className="text-[10px] font-semibold text-text-muted uppercase tracking-widest">{connected ? 'Live Trace' : 'Trace Offline'}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => void fetchLogs(true)}
-                        className="text-[11px] text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1"
-                    >
-                        <RefreshCw className="h-2.5 w-2.5" />
-                        Refresh
-                    </button>
-                    <button
-                        onClick={() => {
-                            setAutoScroll(true)
-                            if (scrollRef.current) {
-                                scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-                            }
-                        }}
-                        className={`text-[11px] transition-colors flex items-center gap-1 ${autoScroll ? 'text-azure' : 'text-text-muted hover:text-text-secondary'}`}
-                    >
-                        <ChevronDown className="h-2.5 w-2.5" />
-                        {autoScroll ? 'Auto-scroll on' : 'Scroll to bottom'}
-                    </button>
-                </div>
+                {connected && <span className="text-[10px] text-zinc-600 font-mono animate-pulse">UPDATING…</span>}
             </div>
-
-            {/* Log feed */}
-            <div
-                ref={scrollRef}
-                onScroll={handleScroll}
-                className="flex flex-col gap-1.5 max-h-[640px] overflow-y-auto pr-1 scroll-smooth"
-                style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}
-            >
-                {logs.map((entry) => (
-                    <LogEntry
-                        key={entry.id}
-                        entry={entry}
-                        isNew={newIds.has(entry.id)}
-                    />
-                ))}
-
-                {/* Blinking cursor when active */}
-                {isActive && (
-                    <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-mono text-text-muted">
-                        <span className="text-violet-400 animate-pulse">▊</span>
-                        agents working…
+            
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                {loading ? (
+                    <div className="py-20 text-center text-xs text-text-muted">Analyzing log stream…</div>
+                ) : entries.length === 0 ? (
+                    <div className="py-20 text-center text-xs text-text-muted">No activity recorded yet for this operation.</div>
+                ) : (
+                    <div className="flex flex-col gap-1.5 pb-4">
+                        {entries.map((entry, i) => (
+                            <LogEntry key={entry.id} entry={entry} isNew={i === entries.length - 1 && connected} />
+                        ))}
+                        <div ref={logEndRef} />
                     </div>
                 )}
             </div>
@@ -494,9 +344,9 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
     )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function ProjectControlRoom() {
+export default function SprintDetailPage() {
     const params = useParams<{ id: string }>()
     const router = useRouter()
     const sprintId = params.id
@@ -505,8 +355,7 @@ export default function ProjectControlRoom() {
     const [notFound, setNotFound] = useState(false)
     const [elapsedMs, setElapsedMs] = useState(0)
     const [tab, setTab] = useState<'workers' | 'tasks' | 'features' | 'deliverables' | 'log'>('workers')
-    const [deliverables, setDeliverables] = useState<Array<{ taskId: string; filename: string; bytes: number; isText: boolean; content: string | null }>>([]
-    )
+    const [deliverables, setDeliverables] = useState<Array<{ taskId: string; filename: string; bytes: number; isText: boolean; content: string | null }>>([])
     const [delivLoading, setDelivLoading] = useState(false)
     const [delivLoaded, setDelivLoaded] = useState(false)
     const [openDeliv, setOpenDeliv] = useState<string | null>(null)
@@ -514,6 +363,7 @@ export default function ProjectControlRoom() {
     const [retrying, setRetrying] = useState(false)
     const esRef = useRef<EventSource | null>(null)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const tabInitializedRef = useRef(false)
 
     const fetchData = useCallback(async () => {
         try {
@@ -522,17 +372,24 @@ export default function ProjectControlRoom() {
             if (!res.ok) return
             const d = await res.json() as SprintDetail
             setData(d)
+
+            // Category-aware default tab logic
+            if (!tabInitializedRef.current) {
+                const category = d.sprint.category;
+                if (['writing', 'report'].includes(category)) {
+                    setTab('deliverables');
+                }
+                tabInitializedRef.current = true;
+            }
         } catch { /* silent */ } finally {
             setLoading(false)
         }
     }, [sprintId])
 
-    // Load deliverables for all completed tasks in this sprint
     const loadDeliverables = useCallback(async () => {
         if (delivLoaded || delivLoading) return
         setDelivLoading(true)
         try {
-            // Fetch all tasks for this sprint then pull assets for each completed one
             const res = await fetch(`${API}/api/v1/sprints/${sprintId}/tasks`, { cache: 'no-store' })
             if (!res.ok) return
             const d = await res.json() as SprintDetail
@@ -598,115 +455,120 @@ export default function ProjectControlRoom() {
     useEffect(() => {
         if (!data) return
         const isActive = ['planning', 'running', 'finalizing'].includes(data.sprint.status)
-        if (!isActive) return
-        const t = setInterval(() => void fetchData(), 5_000)
-        return () => clearInterval(t)
-    }, [data?.sprint.status, fetchData])
+        if (isActive && !esRef.current) {
+            const es = new EventSource(`${API}/api/v1/sprints/${sprintId}/tasks/sse`)
+            es.onmessage = (e) => {
+                try {
+                    const update = JSON.parse(e.data) as SprintDetail
+                    setData(update)
+                } catch { /* skip */ }
+            }
+            esRef.current = es
+        }
+        if (!isActive && esRef.current) {
+            esRef.current.close()
+            esRef.current = null
+        }
+        return () => { esRef.current?.close(); esRef.current = null }
+    }, [data, sprintId])
 
     useEffect(() => {
-        if (!data?.sprint.createdAt) return
+        if (!data) return
         const isActive = ['planning', 'running', 'finalizing'].includes(data.sprint.status)
         if (isActive) {
-            const tick = () => setElapsedMs(Date.now() - new Date(data.sprint.createdAt).getTime())
-            tick()
-            timerRef.current = setInterval(tick, 1000)
-            return () => { if (timerRef.current) clearInterval(timerRef.current) }
+            const start = new Date(data.sprint.createdAt).getTime()
+            timerRef.current = setInterval(() => setElapsedMs(Date.now() - start), 100)
         } else {
-            setElapsedMs(data.sprint.wallClockMs ?? (Date.now() - new Date(data.sprint.createdAt).getTime()))
+            if (timerRef.current) clearInterval(timerRef.current)
+            timerRef.current = null
         }
-    }, [data?.sprint.status, data?.sprint.createdAt, data?.sprint.wallClockMs])
+        return () => { if (timerRef.current) clearInterval(timerRef.current) }
+    }, [data])
 
-    useEffect(() => {
-        const es = new EventSource(`${API}/api/v1/sse?workspaceId=sprint-${sprintId}`)
-        esRef.current = es
-        es.onmessage = (e) => {
-            try {
-                const ev = JSON.parse(e.data as string) as { type: string }
-                if (ev.type.startsWith('sprint_') || ev.type.startsWith('task_')) void fetchData()
-            } catch { /* ignore */ }
-        }
-        es.onerror = () => { es.close(); esRef.current = null }
-        return () => { es.close(); esRef.current = null }
-    }, [sprintId, fetchData])
+    if (notFound) {
+        return (
+            <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+                <div className="rounded-full bg-surface-2 p-4 text-text-muted">
+                    <AlertTriangle className="h-10 w-10" />
+                </div>
+                <h2 className="text-xl font-bold text-text-primary">Project Not Found</h2>
+                <p className="text-text-muted">The project you are looking for does not exist or has been deleted.</p>
+                <Link href="/projects" className="mt-4 text-azure hover:underline">Return to Projects</Link>
+            </div>
+        )
+    }
 
-    if (loading) return (
-        <div className="flex items-center gap-2 py-16 justify-center text-sm text-text-muted">
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            Loading project…
-        </div>
-    )
-
-    if (notFound) return (
-        <div className="flex flex-col items-center gap-4 py-16">
-            <p className="text-text-secondary">Project not found</p>
-            <Link href="/projects" className="text-sm text-azure hover:text-azure">← Back to Projects</Link>
-        </div>
-    )
-
-    if (!data) return null
+    if (loading || !data) {
+        return (
+            <div className="flex items-center justify-center py-32 text-text-muted">
+                <RefreshCw className="h-6 w-6 animate-spin mr-3" />
+                Initializing control room…
+            </div>
+        )
+    }
 
     const { sprint, tasks } = data
-    const def = getCategoryDef(sprint.category ?? 'code')
-    const isCode = sprint.category === 'code' || !sprint.category
-    const progressPct = sprint.totalTasks > 0
-        ? Math.round((sprint.completedTasks / sprint.totalTasks) * 100)
-        : 0
+    const def = getCategoryDef(sprint.category)
+    const isCode = sprint.category === 'code'
     const isActive = ['planning', 'running', 'finalizing'].includes(sprint.status)
-    const runningTasks = tasks.filter((t) => t.status === 'running')
-    const throughput = sprint.wallClockMs && sprint.completedTasks
-        ? (sprint.completedTasks / (sprint.wallClockMs / 60_000)).toFixed(1)
+    const progressPct = sprint.totalTasks > 0 ? Math.round((sprint.completedTasks / sprint.totalTasks) * 100) : 0
+    const throughput = (sprint.wallClockMs ?? elapsedMs) > 60000 
+        ? (sprint.completedTasks / ((sprint.wallClockMs ?? elapsedMs) / 60000)).toFixed(1) 
         : null
-
-    const workersByStatus = {
-        running: tasks.filter((t) => t.status === 'running'),
-        queued: tasks.filter((t) => t.status === 'queued'),
-        complete: tasks.filter((t) => t.status === 'complete'),
-        failed: tasks.filter((t) => t.status === 'failed'),
-        blocked: tasks.filter((t) => t.status === 'blocked'),
-    }
-    void workersByStatus
+    const runningTasks = tasks.filter((t) => t.status === 'running')
 
     return (
-        <div className="flex flex-col gap-6">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => router.push('/projects')}
-                            className="text-text-muted hover:text-text-secondary transition-colors"
-                            aria-label="Back"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </button>
-                        <h1 className="text-xl font-bold text-zinc-50">
-                            {def.runLabel} Control Room
-                        </h1>
-                        <StatusBadge status={sprint.status} />
-                        <CategoryBadge category={sprint.category ?? 'code'} />
-                        <CopyId id={sprint.id} label="project" />
+        <div className="flex flex-col gap-6 animate-in fade-in duration-500">
+            {/* Nav & Header */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4 min-w-0">
+                    <button
+                        onClick={() => router.back()}
+                        className="rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:bg-surface-2 transition-colors shrink-0"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                    </button>
+                    <div className="min-w-0">
+                         <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-mono text-zinc-600 opacity-60">PROJ_{sprint.id.slice(0, 8)}</span>
+                            <span className="text-zinc-800 text-[10px]">/</span>
+                            <span className="text-[10px] font-mono text-text-muted opacity-60">{formatAge(sprint.createdAt)}</span>
+                        </div>
+                        <h1 className="truncate text-xl font-bold text-zinc-50 tracking-tight">{sprint.request}</h1>
                     </div>
-                    {isCode && sprint.repo && (
-                        <p className="pl-6 text-sm font-mono text-text-muted">{sprint.repo}</p>
-                    )}
                 </div>
                 <div className="flex items-center gap-2">
-                    {sprint.failedTasks > 0 && !isActive && (
+                    <StatusBadge status={sprint.status} />
+                    <CategoryBadge label={def.label} iconName={def.icon} />
+                </div>
+            </div>
+
+            {/* Actions Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-border bg-surface-1/30">
+                 <div className="flex items-center gap-3">
+                    {sprint.repo && (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-2 border border-border text-xs font-mono text-text-secondary">
+                            <GitBranch className="h-3.5 w-3.5" />
+                            {sprint.repo}
+                        </div>
+                    )}
+                 </div>
+                 <div className="flex items-center gap-2">
+                    {sprint.status === 'failed' && (
                         <button
                             onClick={() => void handleRetry()}
                             disabled={retrying}
-                            className="flex items-center gap-1.5 rounded-lg border border-azure-800/60 bg-azure/30 px-3 py-1.5 text-xs text-azure hover:bg-azure-900/40 hover:border-azure-700 hover:text-azure-300 transition-all disabled:opacity-40"
+                            className="flex items-center gap-1.5 rounded-lg bg-azure px-4 py-1.5 text-xs font-medium text-white hover:bg-azure/90 transition-all disabled:opacity-40"
                         >
-                            <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
-                            {retrying ? 'Retrying…' : 'Retry Failed'}
+                            <RefreshCw className={cn("h-3.5 w-3.5", retrying && "animate-spin")} />
+                            {retrying ? 'Retrying…' : 'Retry Project'}
                         </button>
                     )}
                     {isActive && (
                         <button
-                            id="stop-sprint-btn"
                             onClick={() => void handleStop()}
                             disabled={stopping}
-                            className="flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/30 px-3 py-1.5 text-xs text-red hover:bg-red-900/40 hover:border-red-700 hover:text-red-300 transition-all disabled:opacity-40"
+                            className="flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/30 px-3 py-1.5 text-xs text-red hover:bg-red-900/40 transition-all disabled:opacity-40"
                         >
                             <StopCircle className="h-3.5 w-3.5" />
                             {stopping ? 'Stopping…' : 'Stop project'}
@@ -714,104 +576,87 @@ export default function ProjectControlRoom() {
                     )}
                     <button
                         onClick={() => void fetchData()}
-                        className="rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors"
+                        className="rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:bg-surface-2 transition-colors"
                         aria-label="Refresh"
                     >
-                        <RefreshCw className={`h-3.5 w-3.5 ${isActive ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={cn("h-3.5 w-3.5", isActive && "animate-spin")} />
                     </button>
                 </div>
             </div>
 
-            {/* Request card */}
-            <div className="rounded-xl border border-border bg-surface-1/50 px-4 py-3">
-                <p className="text-sm text-text-secondary leading-relaxed">{sprint.request}</p>
-            </div>
-
-            {/* Metrics row */}
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-                {[
-                    { icon: CheckCircle2, label: 'Complete', value: String(sprint.completedTasks), sub: `of ${sprint.totalTasks}`, color: 'text-azure' },
-                    { icon: XCircle, label: 'Failed', value: String(sprint.failedTasks), sub: 'tasks', color: sprint.failedTasks > 0 ? 'text-red' : 'text-text-muted' },
-                    { icon: AlertTriangle, label: 'Conflicts', value: String(sprint.conflictCount), sub: 'merges', color: sprint.conflictCount > 0 ? 'text-amber' : 'text-text-muted' },
-                    { icon: Clock, label: 'Elapsed', value: formatMs(isActive ? elapsedMs : sprint.wallClockMs), sub: '', color: 'text-text-secondary' },
-                    { icon: DollarSign, label: 'Cost', value: sprint.costUsd != null ? `$${sprint.costUsd.toFixed(3)}` : '—', sub: 'USD', color: 'text-text-secondary' },
-                    { icon: TrendingUp, label: 'Velocity', value: throughput ? `${throughput}/m` : '—', sub: 'tasks/min', color: 'text-text-secondary' },
-                    ...(sprint.metadata?.forecastScore != null ? [{
-                        icon: Sparkles,
-                        label: 'Forecast',
-                        value: `${Math.round((sprint.metadata.forecastScore as number) * 100)}%`,
-                        sub: 'quality',
-                        color: (sprint.metadata.forecastScore as number) >= 0.7 ? 'text-azure' : (sprint.metadata.forecastScore as number) >= 0.4 ? 'text-amber' : 'text-red',
-                    }] : []),
+            {/* Metrics Row */}
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+                 {[
+                    { icon: CheckCircle2, label: 'Complete', value: sprint.completedTasks, sub: `of ${sprint.totalTasks}`, color: 'text-azure' },
+                    { icon: XCircle, label: 'Failed', value: sprint.failedTasks, sub: 'tasks', color: sprint.failedTasks > 0 ? 'text-red' : 'text-zinc-600' },
+                    { icon: AlertTriangle, label: 'Conflicts', value: sprint.conflictCount, sub: 'merges', color: sprint.conflictCount > 0 ? 'text-amber' : 'text-zinc-600' },
+                    { icon: Clock, label: 'Elapsed', value: formatMs(isActive ? elapsedMs : sprint.wallClockMs), sub: isActive ? 'running' : 'finalized', color: 'text-text-secondary' },
+                    { icon: DollarSign, label: 'Cost', value: sprint.costUsd != null ? `$${sprint.costUsd.toFixed(3)}` : '—', sub: 'USD Total', color: 'text-text-secondary' },
+                    { icon: TrendingUp, label: 'Velocity', value: throughput ? `${throughput}/m` : '—', sub: 'tasks / min', color: 'text-text-secondary' },
                 ].map(({ icon: Icon, label, value, sub, color }) => (
-                    <div key={label} className="rounded-xl border border-border bg-surface-1/40 p-3 flex flex-col gap-1">
+                    <div key={label} className="rounded-xl border border-border bg-surface-1/40 p-4 flex flex-col gap-1 shadow-sm">
                         <div className="flex items-center gap-1.5 text-text-muted">
-                            <Icon className="h-3.5 w-3.5" />
-                            <span className="text-[11px]">{label}</span>
+                            <Icon className="h-3 w-3" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider">{label}</span>
                         </div>
-                        <div className={`text-xl font-bold ${color}`}>{value}</div>
-                        {sub && <div className="text-[10px] text-text-muted">{sub}</div>}
+                        <div className={cn("text-xl font-bold tracking-tight", color)}>{value}</div>
+                        <div className="text-[10px] text-zinc-600 font-mono mt-1">{sub}</div>
                     </div>
                 ))}
             </div>
 
-            {/* Progress bar */}
-            <div className="rounded-xl border border-border bg-surface-1/50 p-4">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">Progress</span>
-                    <span className="text-xs font-mono text-text-muted">{progressPct}% · {sprint.completedTasks}/{sprint.totalTasks}</span>
+            {/* Progress Visualization */}
+            <div className="rounded-xl border border-border bg-surface-1/50 p-5 shadow-inner">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-text-secondary uppercase tracking-widest text-shadow-glow">Performance Engine</span>
+                        <div className="flex gap-1">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <span key={i} className={cn("h-1 w-3 rounded-full", i < (progressPct / 33) ? "bg-azure shadow-[0_0_8px_var(--color-azure)]" : "bg-zinc-800")} />
+                            ))}
+                        </div>
+                    </div>
+                    <span className="text-xs font-mono text-text-muted bg-surface-2 px-2 py-0.5 rounded-md border border-border">
+                        {progressPct}% Completion · {sprint.completedTasks}/{sprint.totalTasks} Done
+                    </span>
                 </div>
-                <div className="h-2 rounded-full bg-surface-2">
-                    <div
-                        className={`h-2 rounded-full transition-all duration-700 ${sprint.failedTasks > 0 ? 'bg-gradient-to-r bg-azure' : 'bg-azure'}`}
-                        style={{ width: `${progressPct}%` }}
-                    />
+                <div className="space-y-1.5">
+                    <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
+                        <div
+                            className="h-full rounded-full transition-all duration-1000 ease-in-out bg-gradient-to-r from-azure/60 to-azure shadow-[0_0_15px_var(--color-azure-dim)]"
+                            style={{ width: `${progressPct}%` }}
+                        />
+                    </div>
+                    {sprint.failedTasks > 0 && (
+                        <div
+                            className="h-1 rounded-full bg-red/30 transition-all duration-1000"
+                            style={{ width: `${Math.round((sprint.failedTasks / sprint.totalTasks) * 100)}%` }}
+                        />
+                    )}
                 </div>
-                {sprint.failedTasks > 0 && (
-                    <div
-                        className="h-1 rounded-full mt-1 bg-red/40 transition-all duration-700"
-                        style={{ width: `${Math.round((sprint.failedTasks / sprint.totalTasks) * 100)}%` }}
-                    />
-                )}
             </div>
 
-            {/* Live worker status */}
-            {isActive && runningTasks.length > 0 && (
-                <div className="rounded-xl border border-blue-800/40 bg-blue-950/10 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-                        <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">{runningTasks.length} Workers Active</span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        {runningTasks.map((t) => (
-                            <div key={t.id} className="rounded-lg bg-blue-950/20 border border-blue-800/30 px-3 py-2 text-xs">
-                                <p className="text-blue-200 line-clamp-1">{t.description}</p>
-                                <code className="text-blue-500/70 font-mono text-[10px]">{t.branch}</code>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Tabs */}
-            <div className="flex flex-col gap-4">
-                <div className="flex gap-1 border-b border-border">
+            {/* Main Content Area (Tabs) */}
+            <div className="flex flex-col gap-6">
+                <div className="flex items-center gap-1 border-b border-border/50 scrollbar-hide overflow-x-auto whitespace-nowrap">
                     {([
                         { id: 'workers' as const, label: `${def.unitPlural} (${tasks.length})`, badge: false },
-                        { id: 'tasks' as const, label: `All ${def.unitPlural.toLowerCase()}`, badge: false },
-                        { id: 'features' as const, label: `Delivered (${sprint.featuresCompleted.length})`, badge: false },
-                        { id: 'deliverables' as const, label: 'Deliverables', badge: false },
-                        { id: 'log' as const, label: 'Activity Log', badge: isActive },
+                        { id: 'tasks' as const, label: `Status Matrix`, badge: false },
+                        { id: 'features' as const, label: `Features (${sprint.featuresCompleted.length})`, badge: false },
+                        { id: 'deliverables' as const, label: 'Deliverables', badge: delivLoading },
+                        { id: 'log' as const, label: 'DevTrace', badge: isActive },
                     ]).map(({ id, label, badge }) => (
                         <button
                             key={id}
                             onClick={() => setTab(id)}
-                            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${tab === id
-                                ? 'border-azure text-text-primary'
-                                : 'border-transparent text-text-muted hover:text-text-secondary'
-                                }`}
+                            className={cn(
+                                "px-5 py-3 text-xs font-bold uppercase tracking-widest transition-all border-b-2 -mb-px flex items-center gap-2",
+                                tab === id
+                                    ? "border-azure text-zinc-50 bg-azure/5"
+                                    : "border-transparent text-text-muted hover:text-text-secondary hover:bg-surface-1/50"
+                            )}
                         >
-                            {id === 'log' && <Terminal className="h-3 w-3" />}
+                            {id === 'log' && <Terminal className="h-3.5 w-3.5" />}
                             {label}
                             {badge && (
                                 <span className="h-1.5 w-1.5 rounded-full bg-azure animate-pulse" />
@@ -820,145 +665,229 @@ export default function ProjectControlRoom() {
                     ))}
                 </div>
 
-                {tab === 'workers' && (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {tasks.length === 0 ? (
-                            <p className="col-span-full text-center py-8 text-sm text-text-muted">No {def.unitPlural.toLowerCase()} yet — project is planning.</p>
-                        ) : (
-                            tasks.map((t) => <WorkerCard key={t.id} task={t} />)
-                        )}
-                    </div>
-                )}
-
-                {tab === 'tasks' && (
-                    <div className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
-                        {tasks.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-text-muted">No {def.unitPlural.toLowerCase()} yet.</p>
-                        ) : (
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-border text-left">
-                                        <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">#</th>
-                                        <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">{def.unitSingular}</th>
-                                        {isCode && <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">Branch</th>}
-                                        <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">Status</th>
-                                        {isCode && <th className="px-4 py-2 text-xs font-medium text-text-muted uppercase">PR</th>}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-zinc-800/50">
-                                    {tasks.map((t) => (
-                                        <tr key={t.id} className="hover:bg-surface-2/20 transition-colors">
-                                            <td className="px-4 py-2.5 text-xs font-mono text-text-muted">{t.priority}</td>
-                                            <td className="px-4 py-2.5 text-text-secondary max-w-xs">
-                                                <p className="truncate">{t.description}</p>
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                    {(t.scope as string[]).slice(0, 3).map((s) => (
-                                                        <span key={s} className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-muted">{s}</span>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                            {isCode && (
-                                                <td className="px-4 py-2.5 font-mono text-[11px] text-text-muted max-w-[140px]">
-                                                    <span className="truncate block">{t.branch}</span>
-                                                </td>
-                                            )}
-                                            <td className="px-4 py-2.5"><StatusBadge status={t.status} /></td>
-                                            {isCode && (
-                                                <td className="px-4 py-2.5">
-                                                    {t.handoff?.prUrl ? (
-                                                        <a
-                                                            href={t.handoff.prUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
-                                                        >
-                                                            #{t.handoff.prNumber} <ExternalLink className="h-3 w-3" />
-                                                        </a>
-                                                    ) : <span className="text-zinc-700">—</span>}
-                                                </td>
-                                            )}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-                )}
-
-                {tab === 'features' && (
-                    <div className="flex flex-col gap-2">
-                        {sprint.featuresCompleted.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-text-muted">No features delivered yet.</p>
-                        ) : (
-                            sprint.featuresCompleted.map((f, i) => (
-                                <div key={i} className="flex items-start gap-2 rounded-lg border border-border bg-surface-1/40 px-4 py-3">
-                                    <Zap className="h-3.5 w-3.5 text-azure shrink-0 mt-0.5" />
-                                    <p className="text-sm text-text-secondary">{f}</p>
+                <div className="min-h-[400px]">
+                    {tab === 'workers' && (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-in slide-in-from-bottom-2 duration-300">
+                            {tasks.length === 0 ? (
+                                <div className="col-span-full flex flex-col items-center justify-center py-20 text-text-muted gap-3 border border-dashed border-border rounded-xl">
+                                    <Cpu className="h-8 w-8 opacity-20" />
+                                    <p className="text-sm">Initializing {def.unitPlural.toLowerCase()} team...</p>
                                 </div>
-                            ))
-                        )}
-                    </div>
-                )}
+                            ) : (
+                                tasks.map((t) => <WorkerCard key={t.id} task={t} />)
+                            )}
+                        </div>
+                    )}
 
-                {tab === 'deliverables' && (
-                    <div className="flex flex-col gap-3">
-                        {delivLoading ? (
-                            <div className="flex items-center gap-2 py-12 justify-center text-sm text-text-muted">
-                                <RefreshCw className="h-4 w-4 animate-spin" />
-                                Loading deliverables…
-                            </div>
-                        ) : deliverables.length === 0 ? (
-                            <div className="flex flex-col items-center gap-3 py-12">
-                                <FileText className="h-8 w-8 text-zinc-700" />
-                                <p className="text-sm text-text-muted">No file deliverables yet.</p>
-                                <p className="text-xs text-text-muted">Agent-produced files (documents, scripts, reports) appear here when tasks complete.</p>
-                            </div>
-                        ) : (
-                            deliverables.map((d, i) => {
-                                const key = `${d.taskId}-${d.filename}`
-                                const isOpen = openDeliv === key
-                                return (
-                                    <div key={i} className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
-                                        <button
-                                            onClick={() => setOpenDeliv(isOpen ? null : key)}
-                                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface-2/30 transition-colors"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <FileText className="h-4 w-4 text-text-muted shrink-0" />
-                                                <div>
-                                                    <p className="text-sm font-medium text-text-primary">{d.filename}</p>
-                                                    <p className="text-[11px] text-text-muted font-mono">{(d.bytes / 1024).toFixed(1)} KB · Task {d.taskId.slice(0, 8)}</p>
-                                                </div>
-                                            </div>
-                                            <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                                        </button>
-                                        {isOpen && d.content && (
-                                            <div className="border-t border-border bg-canvas/60">
-                                                <pre className="p-4 text-xs text-text-secondary font-mono whitespace-pre-wrap overflow-x-auto max-h-[60vh] leading-relaxed">{d.content}</pre>
-                                            </div>
-                                        )}
-                                        {isOpen && !d.content && (
-                                            <div className="border-t border-border p-4 text-xs text-text-muted">Binary or oversized file — not previewable inline.</div>
-                                        )}
+                    {tab === 'tasks' && (
+                        <div className="rounded-xl border border-border bg-surface-1/20 overflow-hidden shadow-xl animate-in fade-in duration-300">
+                             {tasks.length === 0 ? (
+                                <p className="py-20 text-center text-sm text-text-muted">Operation pending...</p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-border/50 bg-surface-1/40">
+                                                <th className="px-5 py-3 text-[10px] font-bold text-text-muted uppercase tracking-widest w-16">Rank</th>
+                                                <th className="px-5 py-3 text-[10px] font-bold text-text-muted uppercase tracking-widest">Objective</th>
+                                                {isCode && <th className="px-5 py-3 text-[10px] font-bold text-text-muted uppercase tracking-widest">Environment</th>}
+                                                <th className="px-5 py-3 text-[10px] font-bold text-text-muted uppercase tracking-widest w-32 text-center">Efficiency</th>
+                                                {isCode && <th className="px-5 py-3 text-[10px] font-bold text-text-muted uppercase tracking-widest w-24 text-right">Artifact</th>}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border/30">
+                                            {tasks.map((t) => (
+                                                <tr key={t.id} className="hover:bg-azure/5 transition-colors group/row">
+                                                    <td className="px-5 py-4 text-[10px] font-mono text-zinc-600">{t.priority}</td>
+                                                    <td className="px-5 py-4">
+                                                        <Link href={`/tasks/${t.id}`} className="block group">
+                                                            <p className="text-sm font-medium text-text-primary group-hover:text-azure transition-colors leading-snug">{t.description}</p>
+                                                            <div className="flex flex-wrap gap-1.5 mt-2">
+                                                                {t.scope.slice(0, 4).map((s) => (
+                                                                    <span key={s} className="rounded-md bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 text-[9px] font-mono text-zinc-500 uppercase">{s}</span>
+                                                                ))}
+                                                            </div>
+                                                        </Link>
+                                                    </td>
+                                                    {isCode && (
+                                                       <td className="px-5 py-4">
+                                                            <div className="flex items-center gap-2 text-[10px] font-mono text-text-muted bg-surface-2 px-2 py-1 rounded-lg border border-border/40 w-fit">
+                                                                <GitBranch className="h-3 w-3" />
+                                                                <span className="truncate max-w-[120px]">{t.branch}</span>
+                                                            </div>
+                                                       </td>
+                                                    )}
+                                                    <td className="px-5 py-4 text-center">
+                                                        <StatusBadge status={t.status} showIcon={false} size="sm" className="mx-auto" />
+                                                    </td>
+                                                    {isCode && (
+                                                        <td className="px-5 py-4 text-right">
+                                                            {t.handoff?.prUrl ? (
+                                                                <a
+                                                                    href={t.handoff.prUrl}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1.5 text-[10px] font-bold text-azure hover:text-white transition-colors"
+                                                                >
+                                                                    PR #{t.handoff.prNumber} 
+                                                                    <ExternalLink className="h-3 w-3" />
+                                                                </a>
+                                                            ) : <span className="text-zinc-800 font-mono text-xs">—</span>}
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {tab === 'features' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in duration-300">
+                            {sprint.featuresCompleted.length === 0 ? (
+                                <div className="col-span-full py-20 text-center text-sm text-text-muted border border-dashed border-border rounded-xl">
+                                    No features delivered yet.
+                                </div>
+                            ) : (
+                                sprint.featuresCompleted.map((f, i) => (
+                                    <div key={i} className="flex items-start gap-4 rounded-xl border border-border bg-surface-1/40 px-5 py-4 hover:border-azure/20 transition-all group">
+                                        <div className="mt-1 rounded-full p-1.5 bg-azure/10 text-azure group-hover:scale-110 transition-transform">
+                                            <Zap className="h-4 w-4 fill-current" />
+                                        </div>
+                                        <p className="text-sm text-text-secondary leading-relaxed pt-1">{f}</p>
                                     </div>
-                                )
-                            })
-                        )}
-                    </div>
-                )}
+                                ))
+                            )}
+                        </div>
+                    )}
 
-                {tab === 'log' && (
-                    <ActivityLog sprintId={sprintId} isActive={isActive} />
-                )}
+                    {tab === 'deliverables' && (
+                        <div className="flex flex-col gap-3 animate-in slide-in-from-bottom-2 duration-300">
+                            {delivLoading ? (
+                                <div className="flex flex-col items-center gap-4 py-20 text-center">
+                                    <div className="relative">
+                                        <div className="h-10 w-10 rounded-full border-2 border-azure/20" />
+                                        <div className="absolute inset-0 h-10 w-10 rounded-full border-2 border-azure border-t-transparent animate-spin" />
+                                    </div>
+                                    <span className="text-sm font-bold text-text-muted uppercase tracking-widest">Compiling Deliverables</span>
+                                </div>
+                            ) : deliverables.length === 0 ? (
+                                <div className="flex flex-col items-center gap-4 py-20 text-center border border-dashed border-border rounded-2xl bg-surface-1/10">
+                                    <div className="rounded-full bg-surface-2 p-5 text-zinc-700">
+                                        <FileText className="h-10 w-10" />
+                                    </div>
+                                    <div className="max-w-xs space-y-2">
+                                        <p className="text-sm font-bold text-text-primary uppercase tracking-wider">No artifacts detected</p>
+                                        <p className="text-xs text-text-muted leading-relaxed">Agent-produced documents, reports, or research summaries will propagate here as work cycles complete.</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-4">
+                                    {deliverables.map((d, i) => {
+                                        const key = `${d.taskId}-${d.filename}`
+                                        const isOpen = openDeliv === key
+                                        return (
+                                            <div key={i} className={cn(
+                                                "rounded-2xl border transition-all duration-300 overflow-hidden shadow-lg",
+                                                isOpen ? "border-azure/40 bg-zinc-950 ring-1 ring-azure/10" : "border-border bg-surface-1/40 hover:border-azure/20"
+                                            )}>
+                                                <button
+                                                    onClick={() => setOpenDeliv(isOpen ? null : key)}
+                                                    className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-surface-2/30 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={cn(
+                                                            "p-2.5 rounded-xl transition-all",
+                                                            isOpen ? "bg-azure text-white" : "bg-surface-2 text-text-muted"
+                                                        )}>
+                                                            <FileText className="h-5 w-5" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-text-primary tracking-tight">{d.filename}</p>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <span className="text-[10px] font-mono text-zinc-500 uppercase">{(d.bytes / 1024).toFixed(1)} KB</span>
+                                                                <span className="text-zinc-800">·</span>
+                                                                <span className="text-[10px] font-mono text-text-muted">Task ID: {d.taskId.slice(0, 8)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className={cn(
+                                                        "p-1.5 rounded-lg border border-border text-text-muted transition-all",
+                                                        isOpen && "border-azure/30 text-azure"
+                                                    )}>
+                                                        <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                                                    </div>
+                                                </button>
+                                                {isOpen && d.content && (
+                                                    <div className="border-t border-border/50 bg-black/40">
+                                                        <div className="flex items-center justify-between px-5 py-2 bg-surface-1/60 border-b border-border/30">
+                                                             <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest">Raw Manifest Source</span>
+                                                             <button 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    void navigator.clipboard.writeText(d.content!);
+                                                                }}
+                                                                className="text-[9px] font-bold text-azure hover:text-white transition-colors uppercase tracking-widest"
+                                                             >
+                                                                Copy Content
+                                                             </button>
+                                                        </div>
+                                                        <div className="p-5 overflow-hidden">
+                                                            <pre className="text-xs text-text-secondary font-mono whitespace-pre-wrap overflow-x-auto max-h-[60vh] leading-loose custom-scrollbar">{d.content}</pre>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {isOpen && !d.content && (
+                                                    <div className="border-t border-border p-8 text-center bg-black/40">
+                                                        <p className="text-xs text-text-muted font-medium italic">Binary stream detected. External software required for visual projection.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {tab === 'log' && (
+                        <div className="rounded-2xl border border-border bg-black/40 p-4 shadow-2xl animate-in zoom-in-95 duration-300 ring-1 ring-zinc-800/50">
+                            <ActivityLog sprintId={sprintId} isActive={isActive} />
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Metadata footer */}
-            <div className="flex items-center gap-4 text-xs text-text-muted pt-2">
-                <span>ID: <code className="font-mono">{sprint.id}</code></span>
-                <span>Started {timeAgo(sprint.createdAt)}</span>
-                {sprint.plannerIterations > 0 && <span>{sprint.plannerIterations} planner iterations</span>}
-                {sprint.qualityScore != null && <span>Quality: {Math.round(sprint.qualityScore * 100)}%</span>}
-                {sprint.totalTokens != null && <span>{(sprint.totalTokens / 1000).toFixed(1)}k tokens</span>}
+            {/* Terminal Metadata Footer */}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-zinc-600 font-mono pt-6 border-t border-border/30 mt-4 opacity-60">
+                <div className="flex items-center gap-1.5">
+                    <span className="text-zinc-800">UUID.</span>
+                    <code className="text-zinc-500">{sprint.id}</code>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <span className="text-zinc-800">EPOCH.</span>
+                    <span>{new Date(sprint.createdAt).getTime()}</span>
+                </div>
+                {sprint.plannerIterations > 0 && (
+                     <div className="flex items-center gap-1.5">
+                        <span className="text-zinc-800">PLAN.ITERATIONS.</span>
+                        <span className="text-azure-dim">{sprint.plannerIterations}</span>
+                    </div>
+                )}
+                {sprint.qualityScore != null && (
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-zinc-800">QUAL.INDEX.</span>
+                        <span className={cn(sprint.qualityScore >= 0.8 ? "text-azure" : "text-amber")}>{(sprint.qualityScore * 100).toFixed(1)}%</span>
+                    </div>
+                )}
+                {sprint.totalTokens != null && (
+                    <div className="flex items-center gap-1.5 ml-auto">
+                        <span className="text-zinc-800">IO.TOKENS.</span>
+                        <span>{(sprint.totalTokens / 1000).toFixed(1)}k</span>
+                    </div>
+                )}
             </div>
         </div>
     )

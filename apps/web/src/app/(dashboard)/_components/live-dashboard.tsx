@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
+import { StatusBadge, cn } from '@plexo/ui'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,15 +84,6 @@ const POLL_MS = 15_000
 const ACTIVITY_POLL_MS = 10_000
 const CHANNEL_POLL_MS = 30_000
 
-const STATUS_COLORS: Record<string, string> = {
-    complete: 'bg-azure/20 text-azure border-azure/30',
-    running: 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse',
-    queued: 'bg-amber/20 text-amber border-amber-500/30',
-    blocked: 'bg-red/20 text-red border-red-500/30',
-    cancelled: 'bg-zinc-500/20 text-text-secondary border-zinc-500/30',
-    claimed: 'bg-azure-dim text-azure border-azure/30',
-}
-
 function timeAgo(iso: string): string {
     const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
     if (seconds < 60) return `${seconds}s ago`
@@ -120,7 +112,7 @@ export function LiveDashboard() {
                 setSummary(await res.json() as DashboardSummary)
                 setLastUpdated(new Date())
             }
-        } catch { /* silent — keep stale data */ }
+        } catch { /* silent */ }
     }, [WS_ID])
 
     const fetchActivity = useCallback(async () => {
@@ -151,65 +143,46 @@ export function LiveDashboard() {
         setRefreshing(false)
     }, [fetchSummary, fetchActivity, fetchChannels])
 
-    // Initial load
     useEffect(() => {
         void fetchSummary()
         void fetchActivity()
         void fetchChannels()
     }, [fetchSummary, fetchActivity, fetchChannels])
 
-    // Poll summary every 15s
     useEffect(() => {
         const t = setInterval(() => void fetchSummary(), POLL_MS)
         return () => clearInterval(t)
     }, [fetchSummary])
 
-    // Poll activity every 10s
     useEffect(() => {
         const t = setInterval(() => void fetchActivity(), ACTIVITY_POLL_MS)
         return () => clearInterval(t)
     }, [fetchActivity])
 
-    // Poll channel health every 30s
     useEffect(() => {
         const t = setInterval(() => void fetchChannels(), CHANNEL_POLL_MS)
         return () => clearInterval(t)
     }, [fetchChannels])
 
-    // SSE for real-time task updates
     useEffect(() => {
         if (!WS_ID || typeof window === 'undefined') return
         const url = `${API_BASE}/api/v1/sse?workspaceId=${WS_ID}`
         try {
             const es = new EventSource(url)
             esRef.current = es
-
             es.onmessage = (e) => {
                 try {
                     const event = JSON.parse(e.data as string) as { type: string }
-                    // Re-fetch on any task or agent event
                     if (event.type.startsWith('task_') || event.type.startsWith('agent_')) {
                         void fetchSummary()
                         void fetchActivity()
                     }
-                } catch { /* malformed SSE */ }
+                } catch { /* skip */ }
             }
-
-            es.onerror = () => {
-                es.close()
-                esRef.current = null
-            }
-
-            return () => {
-                es.close()
-                esRef.current = null
-            }
-        } catch {
-            return undefined
-        }
+            es.onerror = () => { es.close(); esRef.current = null }
+            return () => { es.close(); esRef.current = null }
+        } catch { return undefined }
     }, [fetchSummary, fetchActivity])
-
-    // ── Derived values ────────────────────────────────────────────────────────
 
     const running = summary?.agent.activeTasks ?? 0
     const queued = summary?.agent.queuedTasks ?? 0
@@ -223,197 +196,114 @@ export function LiveDashboard() {
     const cards = [
         {
             id: 'agent',
-            title: 'Agent Status',
-            subtitle: isRunning ? 'Running' : (summary ? 'Idle' : 'Connecting…'),
+            title: 'Neural Link',
+            subtitle: isRunning ? 'Synchronized' : 'Quiescent',
             icon: Activity,
-            accent: isRunning ? 'bg-azure' : 'bg-azure',
-            dot: isRunning ? 'bg-azure animate-pulse' : 'bg-surface-3',
+            accent: isRunning ? 'bg-azure/10 text-azure' : 'bg-surface-2 text-zinc-500',
+            pulse: isRunning,
             content: !WS_ID
-                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-azure hover:text-azure transition-colors">Configure AI provider <ArrowRight className="h-3 w-3" /></Link>
+                ? <Link href="/settings/ai-providers" className="text-azure hover:underline">Link AI Provider</Link>
                 : running > 0
-                    ? `${running} task${running !== 1 ? 's' : ''} running · ${queued} queued`
-                    : queued > 0
-                        ? `${queued} task${queued !== 1 ? 's' : ''} queued`
-                        : 'Idle — waiting for tasks',
+                    ? `${running} active · ${queued} queued`
+                    : 'System idle',
         },
         {
             id: 'tasks',
-            title: 'Tasks',
-            subtitle: summary ? `${totalTasks} total` : '…',
+            title: 'Operations',
+            subtitle: `${totalTasks} total`,
             icon: Zap,
-            accent: 'bg-amber',
-            dot: (running + queued) > 0 ? 'bg-amber animate-pulse' : 'bg-surface-3',
-            content: !summary
-                ? 'Loading…'
-                : totalTasks === 0
-                    ? <span className="text-text-muted">No tasks yet — send a message below</span>
-                    : Object.entries(summary.tasks.byStatus)
-                        .map(([s, n]) => `${n} ${s}`)
-                        .join(' · '),
-        },
-        {
-            id: 'channels',
-            title: 'Channels',
-            subtitle: channels.length > 0 ? `${channels.filter(c => c.status === 'active').length} active` : 'Monitoring',
-            icon: MessageSquare,
-            accent: 'bg-azure',
-            dot: channels.some(c => c.status === 'active') ? 'bg-blue-400 animate-pulse' : 'bg-surface-3',
-            content: channels.length === 0
-                ? <Link href="/settings/channels" className="flex items-center gap-1 text-azure hover:text-azure transition-colors">Add a channel <ArrowRight className="h-3 w-3" /></Link>
-                : channels.map(c => c.name).join(' · '),
+            accent: 'bg-amber/10 text-amber',
+            content: Object.entries(summary?.tasks.byStatus ?? {})
+                .map(([s, n]) => `${n} ${s}`)
+                .slice(0, 3)
+                .join(' · ') || 'No operations',
         },
         {
             id: 'cost',
-            title: 'API Cost',
-            subtitle: 'This week',
+            title: 'Fiscal Load',
+            subtitle: `$${weekCost.toFixed(3)} used`,
             icon: DollarSign,
-            accent: pct > 80 ? 'bg-red' : pct > 50 ? 'bg-amber' : 'bg-azure',
-            dot: pct > 80 ? 'bg-red animate-pulse' : 'bg-surface-3',
-            content: !summary
-                ? 'Loading…'
-                : `$${weekCost.toFixed(4)} / $${ceiling.toFixed(2)} (${Math.round(pct)}% used)`,
+            accent: pct > 80 ? 'bg-red/10 text-red' : 'bg-azure/10 text-azure',
+            content: `${Math.round(pct)}% of $${ceiling.toFixed(2)} quota`,
         },
         {
-            id: 'steps',
-            title: 'Steps This Week',
-            subtitle: 'Agent executions',
+            id: 'performance',
+            title: 'Throughput',
+            subtitle: 'Last 7 days',
             icon: Clock,
-            accent: 'bg-surface-3',
-            dot: 'bg-surface-3',
-            content: summary
-                ? `${stepsThisWeek.toLocaleString()} steps · ${(summary.steps.tokensThisWeek / 1000).toFixed(1)}k tokens`
-                : 'Loading…',
-        },
-        {
-            id: 'projects',
-            title: 'Projects',
-            subtitle: 'Sprints',
-            icon: GitBranch,
-            accent: 'bg-surface-3',
-            dot: 'bg-surface-3',
-            content: <Link href="/projects" className="flex items-center gap-1 text-azure hover:text-azure transition-colors">View Projects <ArrowRight className="h-3 w-3" /></Link>,
-        },
-        {
-            id: 'ensemble',
-            title: 'Quality Ensemble',
-            subtitle: summary?.ensemble?.total
-                ? `${summary.ensemble.total} task${summary.ensemble.total !== 1 ? 's' : ''} verified`
-                : 'No data yet',
-            icon: Users,
-            accent: '',
-            dot: (summary?.ensemble?.total ?? 0) > 0 ? 'bg-azure' : 'bg-surface-3',
-            content: !summary?.ensemble || summary.ensemble.total === 0
-                ? <Link href="/settings/ai-providers" className="flex items-center gap-1 text-azure hover:text-azure transition-colors">Configure Ollama <ArrowRight className="h-3 w-3" /></Link>
-                : (() => {
-                    const { byMode, avgDelta } = summary.ensemble
-                    const ensembleCount = (byMode['ensemble'] ?? 0) + (byMode['ensemble+arbitration'] ?? 0)
-                    const singleCount = byMode['single'] ?? 0
-                    const deltaParts: string[] = []
-                    if (ensembleCount > 0) deltaParts.push(`${ensembleCount} ensemble`)
-                    if (singleCount > 0) deltaParts.push(`${singleCount} single`)
-                    const deltaStr = avgDelta != null
-                        ? ` · avg ${avgDelta >= 0 ? '+' : ''}${(avgDelta * 100).toFixed(1)}pp`
-                        : ''
-                    return deltaParts.join(' · ') + deltaStr
-                })(),
+            accent: 'bg-surface-2 text-zinc-500',
+            content: summary ? `${stepsThisWeek.toLocaleString()} steps executed` : 'Calculating...',
         },
     ]
 
     return (
-        <div className="flex flex-col gap-6">
-            {/* Cards */}
-            <div>
-                <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs text-text-muted">
-                        {lastUpdated ? `Updated ${timeAgo(lastUpdated.toISOString())}` : 'Loading…'}
-                    </p>
+        <div className="flex flex-col gap-8">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="h-1.5 w-1.5 rounded-full bg-azure animate-pulse shadow-[0_0_8px_var(--color-azure)]" />
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-primary">Live Telemetry</h3>
+                </div>
+                <div className="flex items-center gap-4">
+                    {lastUpdated && <span className="text-[10px] font-mono text-zinc-600">UPDT_{timeAgo(lastUpdated.toISOString()).toUpperCase()}</span>}
                     <button
                         onClick={() => void manualRefresh()}
                         disabled={refreshing}
-                        className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors disabled:opacity-50"
+                        className="text-text-muted hover:text-white transition-colors disabled:opacity-50"
                     >
-                        <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
-                        Refresh
+                        <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
                     </button>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {cards.map((card) => {
-                        const Icon = card.icon
-                        return (
-                            <div
-                                key={card.id}
-                                className="card-glow group rounded-xl border border-border bg-surface-1/50 backdrop-blur-sm transition-all hover:border-border"
-                            >
-                                <div className="flex items-center gap-3 border-b border-border-subtle p-4">
-                                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg  ${card.accent} text-text-primary shadow-lg`}>
-                                        <Icon className="h-4 w-4" />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <h3 className="text-[13px] font-semibold">{card.title}</h3>
-                                        <div className="flex items-center gap-1.5">
-                                            <span className={`inline-block h-1.5 w-1.5 rounded-full ${card.dot}`} />
-                                            <p className="text-[11px] text-text-muted">{card.subtitle}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="px-4 py-5">
-                                    <p className="text-sm text-text-secondary flex items-center gap-1">{card.content}</p>
-                                </div>
-                            </div>
-                        )
-                    })}
                 </div>
             </div>
 
-            {/* Task feed */}
-            <div className="rounded-xl border border-border bg-surface-1/50 backdrop-blur-sm">
-                <div className="border-b border-border-subtle px-4 py-3 flex items-center justify-between">
-                    <h2 className="text-[13px] font-semibold">Recent Tasks</h2>
-                    {(running + queued) > 0 && (
-                        <span className="flex items-center gap-1.5 text-[11px] text-blue-400">
-                            <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
-                            {running} running
-                        </span>
-                    )}
-                </div>
-                {tasks.length === 0 ? (
-                    <div className="px-4 py-6 text-center">
-                        <p className="text-sm text-text-muted">No tasks yet. Send a message below to get started.</p>
-                    </div>
-                ) : (
-                    <ul className="divide-y divide-zinc-800/50">
-                        {tasks.map((task) => (
-                            <li key={task.id} className="flex items-start gap-3 px-4 py-3">
-                                <span className={`mt-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${STATUS_COLORS[task.status] ?? STATUS_COLORS.queued}`}>
-                                    {task.status}
-                                </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {cards.map((card) => {
+                    const Icon = card.icon
+                    return (
+                        <div key={card.id} className="rounded-2xl border border-border bg-surface-1/40 p-4 shadow-sm group hover:border-azure/20 transition-all">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className={cn("flex h-8 w-8 items-center justify-center rounded-xl", card.accent)}>
+                                    <Icon className="h-4 w-4" />
+                                </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="truncate text-[13px] text-text-primary">
-                                        {task.outcomeSummary ?? `${task.type} task via ${task.source}`}
-                                    </p>
-                                    <div className="mt-0.5 flex gap-2 text-[11px] text-text-muted">
-                                        <span>{task.type}</span>
+                                    <h4 className="text-[11px] font-black uppercase tracking-widest text-text-primary">{card.title}</h4>
+                                    <p className="text-[10px] font-mono text-text-muted truncate">{card.subtitle}</p>
+                                </div>
+                            </div>
+                            <div className="text-sm font-medium text-text-secondary group-hover:text-white transition-colors">{card.content}</div>
+                        </div>
+                    )
+                })}
+            </div>
+
+            <div className="rounded-2xl border border-border bg-black/20 overflow-hidden shadow-xl">
+                <div className="border-b border-border/50 px-5 py-4 bg-surface-1/40 flex items-center justify-between">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-text-primary">Recent Signal Packets</h4>
+                    <Link href="/tasks" className="text-[10px] font-bold text-azure hover:text-white transition-colors flex items-center gap-1.5">
+                        VIEW ALL <ArrowRight className="h-3 w-3" />
+                    </Link>
+                </div>
+                <div className="divide-y divide-border/30">
+                    {tasks.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-text-muted italic">Awaiting first transmission...</div>
+                    ) : (
+                        tasks.map((task) => (
+                            <div key={task.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-1/40 transition-colors">
+                                <StatusBadge status={task.status as any} size="sm" />
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-medium text-text-secondary">{task.outcomeSummary ?? `${task.type} unit`}</p>
+                                    <div className="flex items-center gap-2 mt-0.5 text-[10px] font-mono text-zinc-600">
+                                        <span className="uppercase">{task.type}</span>
                                         <span>·</span>
-                                        <span>{timeAgo(task.createdAt)}</span>
-                                        {task.qualityScore != null && (
-                                            <>
-                                                <span>·</span>
-                                                <span>Q {Math.round(task.qualityScore * 100)}%</span>
-                                            </>
-                                        )}
-                                        {task.costUsd != null && task.costUsd > 0 && (
-                                            <>
-                                                <span>·</span>
-                                                <span>${task.costUsd.toFixed(4)}</span>
-                                            </>
-                                        )}
+                                        <span>{timeAgo(task.createdAt).toUpperCase()}</span>
                                     </div>
                                 </div>
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                                <Link href={`/tasks/${task.id}`} className="p-2 rounded-lg border border-border text-zinc-600 hover:text-white hover:border-azure/30 transition-all">
+                                    <ArrowRight className="h-3.5 w-3.5" />
+                                </Link>
+                            </div>
+                        ))
+                    )}
+                </div>
             </div>
         </div>
     )

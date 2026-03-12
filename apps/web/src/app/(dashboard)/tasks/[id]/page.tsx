@@ -19,6 +19,7 @@ import Link from 'next/link'
 import { CancelButton } from './_cancel-button'
 import { BlockedActions } from './_blocked-actions'
 import { CopyId } from '@web/components/copy-id'
+import { StatusBadge } from '@plexo/ui'
 
 interface TaskStep {
     id: string
@@ -76,16 +77,6 @@ async function fetchAssets(id: string): Promise<TaskAsset[]> {
     }
 }
 
-const STATUS_CONFIG: Record<string, { icon: React.ReactNode; label: string; color: string; bg: string }> = {
-    pending: { icon: <Clock className="h-4 w-4" />, label: 'Pending', color: 'text-amber', bg: 'bg-amber-dim border-amber-500/20' },
-    queued: { icon: <Clock className="h-4 w-4" />, label: 'Queued', color: 'text-amber', bg: 'bg-amber-dim border-amber-500/20' },
-    running: { icon: <Loader2 className="h-4 w-4 animate-spin" />, label: 'Running', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-    claimed: { icon: <Loader2 className="h-4 w-4 animate-spin" />, label: 'Running', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-    complete: { icon: <CheckCircle2 className="h-4 w-4" />, label: 'Complete', color: 'text-azure', bg: 'bg-azure-dim border-azure/20' },
-    failed: { icon: <XCircle className="h-4 w-4" />, label: 'Failed', color: 'text-red', bg: 'bg-red-dim border-red-500/20' },
-    blocked: { icon: <AlertTriangle className="h-4 w-4" />, label: 'Blocked', color: 'text-red', bg: 'bg-red-dim border-red-500/20' },
-    cancelled: { icon: <XCircle className="h-4 w-4" />, label: 'Cancelled', color: 'text-text-muted', bg: 'bg-surface-2/60 border-border/40' },
-}
 
 function humanSource(source: string, context: Record<string, unknown>): string {
     if (context?.channel === 'webchat' || source === 'dashboard') return 'Web chat'
@@ -111,7 +102,6 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     if (!data) notFound()
 
     const { task, steps } = data
-    const sc = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.pending
     const durationMs = task.completedAt
         ? new Date(task.completedAt).getTime() - new Date(task.createdAt).getTime()
         : null
@@ -128,10 +118,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                         <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
                     </Link>
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium ${sc.color} ${sc.bg}`}>
-                            {sc.icon}
-                            {sc.label}
-                        </span>
+                        <StatusBadge status={task.status} />
                         <span className="rounded bg-surface-2 px-2 py-0.5 text-[11px] capitalize text-text-secondary">{task.type}</span>
                         <span className="inline-flex items-center gap-1 rounded bg-surface-2/50 px-2 py-0.5 text-[11px] text-text-muted">
                             <MessageSquare className="h-3 w-3" />
