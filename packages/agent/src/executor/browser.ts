@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { ulid } from 'ulid'
 import { join } from 'node:path'
 import type { Browser, BrowserContext, Page } from 'playwright'
+import type { StepEvent } from '../types.js'
 
 // ── Shared browser lifecycle ────────────────────────────────────────────────
 
@@ -64,10 +65,45 @@ async function safeWaitForLoad(page: Page, timeout = 10_000): Promise<void> {
     }
 }
 
+// ── Screenshot helper: capture page and emit as base64 data URL ─────────────
+
+type EmitFn = (event: StepEvent) => void
+
+async function captureAndEmit(
+    page: Page,
+    taskId: string,
+    workspaceId: string,
+    label: string,
+    emit: EmitFn | undefined,
+): Promise<void> {
+    if (!emit) return
+    try {
+        const buf = await page.screenshot({ type: 'jpeg', quality: 60 })
+        const dataUrl = `data:image/jpeg;base64,${buf.toString('base64')}`
+        emit({
+            type: 'step.screenshot',
+            taskId,
+            workspaceId,
+            dataUrl,
+            label,
+            ts: Date.now(),
+        } satisfies import('../types.js').StepScreenshotEvent)
+    } catch {
+        // Non-fatal — screenshot emission is best-effort
+    }
+}
+
 // ── Tool definitions ────────────────────────────────────────────────────────
 
-export function buildBrowserTools(ctx: { taskId: string }) {
+export interface BrowserToolCtx {
+    taskId: string
+    workspaceId: string
+    emitStepEvent?: (event: StepEvent) => void
+}
+
+export function buildBrowserTools(ctx: BrowserToolCtx) {
     const assetDir = `/tmp/plexo-assets/${ctx.taskId}`
+    const emit = ctx.emitStepEvent
 
     return {
         browser_navigate: tool({
@@ -84,6 +120,7 @@ export function buildBrowserTools(ctx: { taskId: string }) {
                     if (waitFor) {
                         await page.waitForSelector(waitFor, { timeout: 10_000 }).catch(() => {})
                     }
+                    await captureAndEmit(page, ctx.taskId, ctx.workspaceId, `Navigate → ${url}`, emit)
                     return JSON.stringify({
                         title: await page.title(),
                         url: page.url(),
@@ -104,6 +141,7 @@ export function buildBrowserTools(ctx: { taskId: string }) {
                     const page = await ensureBrowser()
                     await page.click(selector, { timeout: 10_000 })
                     await safeWaitForLoad(page, 5_000)
+                    await captureAndEmit(page, ctx.taskId, ctx.workspaceId, `Click: ${selector}`, emit)
                     return JSON.stringify({
                         clicked: selector,
                         url: page.url(),
@@ -129,6 +167,7 @@ export function buildBrowserTools(ctx: { taskId: string }) {
                     if (pressEnter) {
                         await page.press(selector, 'Enter')
                         await safeWaitForLoad(page, 5_000)
+                        await captureAndEmit(page, ctx.taskId, ctx.workspaceId, `Type + Enter: ${text.slice(0, 30)}`, emit)
                     }
                     return JSON.stringify({ typed: text, selector, url: page.url() })
                 } catch (err) {
@@ -149,6 +188,7 @@ export function buildBrowserTools(ctx: { taskId: string }) {
                     // Try by value first, fall back to label
                     const selected = await page.selectOption(selector, value, { timeout: 10_000 })
                         .catch(() => page.selectOption(selector, { label: value }, { timeout: 10_000 }))
+                    await captureAndEmit(page, ctx.taskId, ctx.workspaceId, `Select: ${value}`, emit)
                     return JSON.stringify({ selected, selector })
                 } catch (err) {
                     return `ERROR: ${err instanceof Error ? err.message : String(err)}`
@@ -203,6 +243,8 @@ export function buildBrowserTools(ctx: { taskId: string }) {
                     const filename = `browser_${ulid()}.png`
                     const filePath = join(assetDir, filename)
                     await page.screenshot({ path: filePath, fullPage })
+                    // Also emit live screenshot event
+                    await captureAndEmit(page, ctx.taskId, ctx.workspaceId, `Screenshot: ${page.url()}`, emit)
                     return `Screenshot saved: ${filename}\nView at: /api/v1/tasks/${ctx.taskId}/assets/${filename}\nPage: ${page.url()}`
                 } catch (err) {
                     return `ERROR: ${err instanceof Error ? err.message : String(err)}`
@@ -238,6 +280,7 @@ export function buildBrowserTools(ctx: { taskId: string }) {
                     const page = await ensureBrowser()
                     if (selector) {
                         await page.waitForSelector(selector, { state, timeout })
+                        await captureAndEmit(page, ctx.taskId, ctx.workspaceId, `Wait: ${selector} is ${state}`, emit)
                         return `Element "${selector}" is now ${state}`
                     } else {
                         await page.waitForTimeout(Math.min(timeout, 15_000))

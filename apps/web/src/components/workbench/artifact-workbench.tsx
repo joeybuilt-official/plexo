@@ -6,9 +6,10 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
     Terminal, GitBranch, TestTube, FileText, Settings2,
-    Activity, X, ChevronLeft, ChevronRight, Layers, Split, Code2, Monitor, Pin, PinOff
+    Activity, X, ChevronLeft, ChevronRight, Layers, Split, Code2, Monitor, Pin, PinOff,
+    Globe, RefreshCcw, ExternalLink, Image as ImageIcon,
 } from 'lucide-react'
-import { useCodeStream, type StepShellLineEvent, type StepFileWriteEvent, type StepTestResultEvent } from './use-code-stream'
+import { useCodeStream, type StepShellLineEvent, type StepFileWriteEvent, type StepTestResultEvent, type StepScreenshotEvent } from './use-code-stream'
 import { TerminalPanel } from './terminal-panel'
 import { TestResultsPanel } from './test-results-panel'
 import { FileTree } from './file-tree'
@@ -43,17 +44,17 @@ interface ArtifactWorkbenchProps {
     onClose: () => void
     isPinned: boolean
     onTogglePin: () => void
-    
+
     // Optional tab state overrides
-    activeTab?: 'terminal' | 'tests' | 'diff' | 'preview'
-    setActiveTab?: (tab: 'terminal' | 'tests' | 'diff' | 'preview') => void
+    activeTab?: 'terminal' | 'tests' | 'diff' | 'preview' | 'browser'
+    setActiveTab?: (tab: 'terminal' | 'tests' | 'diff' | 'preview' | 'browser') => void
     showBottom?: boolean
     setShowBottom?: (show: boolean) => void
     previewPath?: string
     setPreviewPath?: (path: string) => void
 }
 
-type WorkbenchTab = 'terminal' | 'tests' | 'diff' | 'preview'
+type WorkbenchTab = 'terminal' | 'tests' | 'diff' | 'preview' | 'browser'
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
@@ -71,6 +72,99 @@ async function fetchFileContent(workspaceId: string, taskId: string, path: strin
     if (!res.ok) return null
     const data = await res.json() as { content?: string }
     return data.content ?? null
+}
+
+// ── Browser screenshot feed ───────────────────────────────────────────────────
+
+function BrowserPanel({ screenshots, isRunning }: { screenshots: StepScreenshotEvent[]; isRunning: boolean }) {
+    const lastScreenshot = screenshots[screenshots.length - 1]
+    const [selected, setSelected] = useState<number | null>(null)
+    const displayIdx = selected ?? (screenshots.length - 1)
+    const display = screenshots[displayIdx] ?? null
+
+    // Auto-scroll to bottom when new screenshot arrives
+    const listRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        if (selected === null && listRef.current) {
+            listRef.current.scrollTop = listRef.current.scrollHeight
+        }
+    }, [screenshots.length, selected])
+
+    if (screenshots.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-text-muted gap-3">
+                <Globe className="h-10 w-10 opacity-15" />
+                <div className="text-center">
+                    <p className="text-sm font-medium text-text-secondary mb-1">Browser Preview</p>
+                    <p className="text-xs text-text-muted leading-relaxed max-w-[220px]">
+                        {isRunning
+                            ? 'Waiting for the agent to open a browser…'
+                            : 'The agent will show live browser screenshots here when using web automation.'}
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Main screenshot viewer */}
+            <div className="flex-1 relative overflow-hidden bg-zinc-950/60 flex items-center justify-center min-h-0">
+                {display && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                        src={display.dataUrl}
+                        alt={display.label}
+                        className="max-w-full max-h-full object-contain"
+                        style={{ imageRendering: 'crisp-edges' }}
+                    />
+                )}
+                {/* Label overlay */}
+                {display && (
+                    <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+                        <span className="text-[10px] font-mono bg-zinc-900/80 text-text-muted px-2 py-0.5 rounded backdrop-blur-sm truncate max-w-[70%]">
+                            {display.label}
+                        </span>
+                        <span className="text-[9px] text-text-muted bg-zinc-900/80 px-1.5 py-0.5 rounded backdrop-blur-sm">
+                            {displayIdx + 1}/{screenshots.length}
+                        </span>
+                    </div>
+                )}
+                {/* Live indicator */}
+                {isRunning && selected === null && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-zinc-900/80 px-2 py-1 rounded-full backdrop-blur-sm">
+                        <span className="h-1.5 w-1.5 rounded-full bg-azure animate-pulse" />
+                        <span className="text-[9px] font-medium text-azure uppercase tracking-wider">Live</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Filmstrip */}
+            {screenshots.length > 1 && (
+                <div
+                    ref={listRef}
+                    className="flex gap-1.5 p-2 bg-zinc-900/40 border-t border-border/30 overflow-x-auto scrollbar-none flex-shrink-0"
+                    style={{ maxHeight: '72px' }}
+                >
+                    {screenshots.map((s, i) => (
+                        <button
+                            key={s.ts}
+                            onClick={() => setSelected(i === screenshots.length - 1 ? null : i)}
+                            className={`shrink-0 relative rounded overflow-hidden transition-all ${
+                                displayIdx === i
+                                    ? 'ring-2 ring-azure'
+                                    : 'opacity-50 hover:opacity-80'
+                            }`}
+                            style={{ width: 80, height: 52 }}
+                        >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={s.dataUrl} alt={s.label} className="w-full h-full object-cover" />
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -96,6 +190,7 @@ export function ArtifactWorkbench({
     const [shellLines, setShellLines] = useState<StepShellLineEvent[]>([])
     const [fileWrites, setFileWrites] = useState<StepFileWriteEvent[]>([])
     const [testResults, setTestResults] = useState<StepTestResultEvent[]>([])
+    const [screenshots, setScreenshots] = useState<StepScreenshotEvent[]>([])
 
     const modifiedPaths = useMemo(
         () => new Set(fileWrites.map((e) => e.path)),
@@ -111,6 +206,11 @@ export function ArtifactWorkbench({
             if (taskId) loadTree()
         }, [taskId]),
         onTestResult: useCallback((e: StepTestResultEvent) => setTestResults((p) => [...p, e]), []),
+        onScreenshot: useCallback((e: StepScreenshotEvent) => {
+            setScreenshots((p) => [...p, e])
+            // Auto-switch to browser tab when screenshots start coming in
+            setActiveTab('browser')
+        }, []),
     })
 
     // ── File tree ─────────────────────────────────────────────────────────────
@@ -173,6 +273,7 @@ export function ArtifactWorkbench({
             setFiles([])
             setSelectedFile(undefined)
             setFileContent(null)
+            setScreenshots([])
             prevTaskId.current = taskId
         }
     }, [taskId])
@@ -185,11 +286,20 @@ export function ArtifactWorkbench({
         onRepoSelect(sel)
     }
 
+    // Tab config
+    const tabs: { id: WorkbenchTab; Icon: React.ElementType; label: string }[] = [
+        { id: 'terminal', Icon: Terminal, label: 'Terminal' },
+        { id: 'tests', Icon: TestTube, label: 'Tests' },
+        { id: 'diff', Icon: FileText, label: 'Diff' },
+        { id: 'preview', Icon: Monitor, label: 'Preview' },
+        { id: 'browser', Icon: Globe, label: 'Browser' },
+    ]
+
     return (
-        <div 
+        <div
             className={`flex flex-col h-full overflow-hidden transition-all duration-500 ease-in-out ${
-                isPinned 
-                    ? 'border-l border-border/40 bg-zinc-900/60 backdrop-blur-md' 
+                isPinned
+                    ? 'border-l border-border/40 bg-zinc-900/60 backdrop-blur-md'
                     : 'absolute right-0 top-0 bottom-0 w-[600px] max-w-[calc(100vw-340px)] z-30 rounded-none border-l border-border/40 bg-zinc-900/90 backdrop-blur-xl shadow-2xl'
             }`}
         >
@@ -230,20 +340,23 @@ export function ArtifactWorkbench({
 
                 {/* Tab controls */}
                 <div className="flex items-center bg-zinc-800/50 p-1 rounded-lg mr-2">
-                    {(['terminal', 'tests', 'diff', 'preview'] as WorkbenchTab[]).map((tab) => {
-                        const icons = { terminal: Terminal, tests: TestTube, diff: FileText, preview: Monitor }
-                        const Icon = icons[tab]
-                        const active = activeTab === tab
+                    {tabs.map(({ id, Icon }) => {
+                        const active = activeTab === id
+                        // Show badge on browser tab if there are screenshots
+                        const hasBadge = id === 'browser' && screenshots.length > 0
                         return (
                             <button
-                                key={tab}
-                                onClick={() => { setActiveTab(tab); setShowBottom(true) }}
-                                className={`p-1.5 rounded-md transition-all ${
+                                key={id}
+                                onClick={() => { setActiveTab(id); setShowBottom(true) }}
+                                className={`relative p-1.5 rounded-md transition-all ${
                                     active ? 'bg-zinc-700 text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
                                 }`}
-                                title={tab}
+                                title={id}
                             >
                                 <Icon className="w-3.5 h-3.5" />
+                                {hasBadge && (
+                                    <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-azure" />
+                                )}
                             </button>
                         )
                     })}
@@ -318,14 +431,18 @@ export function ArtifactWorkbench({
                         {activeTab === 'tests' && <TestResultsPanel results={testResults} onRerun={onRerunTest} className="flex-1" />}
                         {activeTab === 'diff' && <DiffViewer events={fileWrites} className="flex-1" />}
                         {activeTab === 'preview' && <PreviewPanel workspaceId={workspaceId} taskId={taskId} path={previewPath} className="flex-1" />}
+                        {activeTab === 'browser' && <BrowserPanel screenshots={screenshots} isRunning={isTaskRunning} />}
                     </div>
                 </div>
             </div>
-            
+
             {/* ── Footer ─────────────────────────────────────────────────── */}
             <div className="flex items-center h-8 px-4 bg-zinc-950/40 border-t border-border/20 text-[10px] font-mono text-text-muted">
                 <Activity className="w-3 h-3 mr-2" />
                 <span>{shellLines.length} events • {fileWrites.length} writes</span>
+                {screenshots.length > 0 && (
+                    <span className="ml-2 text-azure/60">• {screenshots.length} browser frames</span>
+                )}
                 {taskId && <span className="ml-auto opacity-50">{taskId.slice(0, 8)}</span>}
             </div>
         </div>

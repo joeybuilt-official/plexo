@@ -593,7 +593,11 @@ function buildTools(ctx: ExecutionContext) {
             },
         }),
         // ── Interactive browser automation (Playwright) ─────────────
-        ...buildBrowserTools({ taskId: ctx.taskId }),
+        ...buildBrowserTools({
+            taskId: ctx.taskId,
+            workspaceId: ctx.workspaceId,
+            emitStepEvent: ctx.emitStepEvent,
+        }),
     }
 }
 

@@ -537,7 +537,7 @@ function ChatContent() {
     const [isPinned, setIsPinned] = useState(true) // Start pinned for "Code" mode
     const [workbenchContext, setWorkbenchContext] = useState<WorkbenchContext>({})
     const [previewPath, setPreviewPath] = useState('index.html')
-    const [activeTab, setActiveTab] = useState<'terminal' | 'tests' | 'diff' | 'preview'>('terminal')
+    const [activeTab, setActiveTab] = useState<'terminal' | 'tests' | 'diff' | 'preview' | 'browser'>('terminal')
     const [showBottom, setShowBottom] = useState(true)
 
     // Track last running task's taskId for Code Mode streaming
@@ -1625,38 +1625,43 @@ function ChatContent() {
 
     return (
         <div className="flex h-full w-full overflow-hidden bg-canvas relative">
-            <div className={`flex-1 flex flex-col min-w-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-                isWorkbenchOpen && isPinned ? 'max-w-[40%] lg:max-w-[50%] xl:max-w-[60%] border-r border-border/60' : 'w-full'
+            {/* Chat column */}
+            <div className={`flex flex-col min-w-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                isWorkbenchOpen && isPinned
+                    ? 'w-[42%] shrink-0 border-r border-border/60'
+                    : 'flex-1'
             }`}>
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 flex flex-col overflow-hidden h-full">
                     {chatPanel}
                 </div>
             </div>
 
-            {/* Artifact Workbench */}
+            {/* Artifact Workbench — flex-1 so it fills all remaining space to right edge */}
             {isWorkbenchOpen && (
-                <ArtifactWorkbench
-                    workspaceId={WS_ID}
-                    taskId={lastRunningTaskId}
-                    isTaskRunning={!!lastRunningTaskId}
-                    context={workbenchContext}
-                    onRepoSelect={(sel) => setWorkbenchContext({ repo: sel.repo, branch: sel.branch, isNew: sel.isNew })}
-                    onRerunTest={(testNames) => {
-                        const text = testNames.length === 1
-                            ? `Re-run the failing test: ${testNames[0]}`
-                            : `Re-run these failing tests: ${testNames.join(', ')}`
-                        void sendMessageWith(text)
-                    }}
-                    onClose={() => setIsWorkbenchOpen(false)}
-                    isPinned={isPinned}
-                    onTogglePin={() => setIsPinned((v) => !v)}
-                    activeTab={activeTab}
-                    setActiveTab={setActiveTab}
-                    showBottom={showBottom}
-                    setShowBottom={setShowBottom}
-                    previewPath={previewPath}
-                    setPreviewPath={setPreviewPath}
-                />
+                <div className={isPinned ? 'flex-1 min-w-0 h-full' : ''}>
+                    <ArtifactWorkbench
+                        workspaceId={WS_ID}
+                        taskId={lastRunningTaskId}
+                        isTaskRunning={!!lastRunningTaskId}
+                        context={workbenchContext}
+                        onRepoSelect={(sel) => setWorkbenchContext({ repo: sel.repo, branch: sel.branch, isNew: sel.isNew })}
+                        onRerunTest={(testNames) => {
+                            const text = testNames.length === 1
+                                ? `Re-run the failing test: ${testNames[0]}`
+                                : `Re-run these failing tests: ${testNames.join(', ')}`
+                            void sendMessageWith(text)
+                        }}
+                        onClose={() => setIsWorkbenchOpen(false)}
+                        isPinned={isPinned}
+                        onTogglePin={() => setIsPinned((v) => !v)}
+                        activeTab={activeTab}
+                        setActiveTab={setActiveTab}
+                        showBottom={showBottom}
+                        setShowBottom={setShowBottom}
+                        previewPath={previewPath}
+                        setPreviewPath={setPreviewPath}
+                    />
+                </div>
             )}
 
             {/* Floating Artifact Preview (Alternative for single assets if workbench is closed) */}
