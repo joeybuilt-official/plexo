@@ -54,6 +54,7 @@ images/internal/
 
 # Database dumps — NEVER commit production data
 *.sql
+!**/drizzle/*.sql
 *.dump
 *.pgdump
 *.sql.gz
