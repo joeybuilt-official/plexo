@@ -51,3 +51,10 @@ tmp/
 scripts/internal/
 images/internal/
 .gradle/
+
+# Database dumps — NEVER commit production data
+*.sql
+*.dump
+*.pgdump
+*.sql.gz
+*.sql.bz2
