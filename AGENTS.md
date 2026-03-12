@@ -254,6 +254,15 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 - **Fix 3**: Dashboard and task stats endpoints now read from `api_cost_tracking` (current ISO week, using `date_trunc('week', NOW())::date`) and `work_ledger` (all-time total, filtered by `completed_at`) — the same sources used by the Intelligence page introspection.
 - **Lesson**: There must be exactly ONE write path to any accumulator table. Any read of a cost/budget number must come from the same table the write path targets. If the Intelligence page shows correct numbers but the dashboard shows $0, trace the query — it's reading the wrong table.
 
+---
+
+### 2026-03 — P0: VPS Offline (Missing Migration due to .gitignore)
+
+- **Root Cause**: A blanket `*.sql` ignore in the root `.gitignore` (intended for DB dumps) accidentally matched Drizzle's migration scripts. While the files existed on the development machine, they were never committed to GitHub. When the VPS pulled the code and rebuilt, the migration container found the journal expecting `0022_overjoyed_killmonger.sql` but the file was missing from the build context.
+- **Fix**: Updated `.gitignore` to explicitly allow migration files (`!**/drizzle/*.sql`) and committed the missing files. 
+- **Lesson**: Be extremely specific with double-star patterns in `.gitignore`. Extension-based ignores (like `*.sql`) are dangerous in monorepos where those extensions are part of the application logic. 
+- **Verification**: `curl https://<vps>/health` → `200 OK`.
+
 
 ### 2026-03 — Sprint Failures Silent in Chat + No Sentry
 
