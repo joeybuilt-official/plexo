@@ -6,10 +6,13 @@
  * These are never overridable at runtime.
  */
 export const SAFETY_LIMITS = {
-    maxConsecutiveToolCalls: 25,
-    maxWallClockMs: 2 * 60 * 60 * 1000, // 2 hours
-    maxRetries: 3,
-    MAX_PLAN_STEPS: 20,
+    maxConsecutiveToolCalls: 200,
+    maxRetries: 5,
+    MAX_PLAN_STEPS: 100,
+    /** Stall detection: if no new tool calls are produced in this window, the task is stalled. */
+    stallWindowMs: 10 * 60 * 1000, // 10 minutes with no progress
+    /** Absolute ceiling — catch-all for runaway tasks. Well above normal. */
+    maxWallClockMs: 24 * 60 * 60 * 1000, // 24 hours
     noForcePush: true,
     noDeletionWithoutConfirmation: true,
     noCredentialsInLogs: true,

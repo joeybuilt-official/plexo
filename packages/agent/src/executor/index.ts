@@ -920,7 +920,11 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         let accumulatedSteps: any[] = []
         let lastResult: any
 
-        while (retries < 3) {
+        // Stall detection state
+        let lastProgressToolCount = 0
+        let lastProgressTime = Date.now()
+
+        while (retries < SAFETY_LIMITS.maxRetries) {
             const result = await generateText({
                 model: resolvedModel,
                 system: systemPrompt,
@@ -938,6 +942,37 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
             accumulatedUsage.outputTokens += outToks
             accumulatedSteps = accumulatedSteps.concat(result.steps)
 
+            // Progress tracking: count total meaningful tool calls (exclude no-ops)
+            const totalToolCalls = accumulatedSteps.reduce(
+                (n, s) => n + (s.toolCalls?.length ?? 0), 0
+            )
+
+            if (totalToolCalls > lastProgressToolCount) {
+                lastProgressToolCount = totalToolCalls
+                lastProgressTime = Date.now()
+            }
+
+            // Stall detection: no new tool calls produced in stallWindowMs → likely stuck
+            const stallDuration = Date.now() - lastProgressTime
+            if (stallDuration > SAFETY_LIMITS.stallWindowMs) {
+                throw new PlexoError(
+                    `Task stalled: no progress for ${Math.round(stallDuration / 60_000)} minutes (${totalToolCalls} total tool calls). Goal: ${plan.goal}`,
+                    'TASK_STALLED',
+                    'system',
+                    500,
+                )
+            }
+
+            // Absolute ceiling — catch-all for runaway tasks
+            if (Date.now() - startTime > SAFETY_LIMITS.maxWallClockMs) {
+                throw new PlexoError(
+                    `Absolute time ceiling reached (${Math.round(SAFETY_LIMITS.maxWallClockMs / 3_600_000)}h). Task was making progress but exceeded maximum allowed duration.`,
+                    'WALL_CLOCK_EXCEEDED',
+                    'system',
+                    500,
+                )
+            }
+
             const hasComplete = result.steps.some(s => s.toolCalls.some(tc => tc.toolName === 'task_complete'))
             if (hasComplete) {
                 lastResult = result
@@ -945,8 +980,8 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
             }
 
             retries++
-            if (retries >= 3) {
-                throw new LogicError('Model failed to complete the task: retry limit exhausted without calling task_complete.')
+            if (retries >= SAFETY_LIMITS.maxRetries) {
+                throw new LogicError(`Model failed to complete the task: ${SAFETY_LIMITS.maxRetries} continuations without calling task_complete.`)
             }
 
             messages = messages.concat(result.response.messages)
@@ -1055,11 +1090,6 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         costUsd,
         durationMs: stepDurationMs,
     })
-
-    // Hard wall clock check
-    if (Date.now() - startTime > SAFETY_LIMITS.maxWallClockMs) {
-        throw new PlexoError('Wall clock limit exceeded', 'WALL_CLOCK_EXCEEDED', 'system', 500)
-    }
 
     // Independent quality judge — decoupled from self-assessment to prevent reward hacking.
     // Runs non-blocking post-execution; replaces finalQuality if successful.
