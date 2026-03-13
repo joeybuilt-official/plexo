@@ -1,4 +1,4 @@
-{$PUBLIC_DOMAIN} {
+{$PUBLIC_DOMAIN::80} {
   # SSE — disable buffering (must be before generic /api/* catch)
   handle /api/sse {
     reverse_proxy api:3001 {
