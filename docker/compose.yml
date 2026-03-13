@@ -178,14 +178,15 @@ services:
   # ── Reverse Proxy ────────────────────────────────────────
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.caddy
     restart: unless-stopped
     # Ports removed for Coolify compatibility (Coolify provides its own reverse proxy on 80/443).
     # Traffic binds to internal port 80 dynamically via Coolify's router.
     environment:
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
     volumes:
-      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

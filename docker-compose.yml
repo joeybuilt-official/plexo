@@ -178,7 +178,9 @@ services:
   # ── Reverse Proxy ────────────────────────────────────────
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.caddy
     restart: unless-stopped
     ports:
       - "80:80"
@@ -187,7 +189,6 @@ services:
     environment:
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
     volumes:
-      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
