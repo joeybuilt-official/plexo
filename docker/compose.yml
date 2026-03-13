@@ -11,11 +11,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U plexo"]
+      test: pg_isready -U plexo
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 60s
+      retries: 20
+      start_period: 90s
     # Enforced cgroup limits (mem_limit/memswap_limit apply without Swarm mode)
     mem_limit: 512m
     memswap_limit: 1g

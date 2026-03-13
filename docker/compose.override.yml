@@ -1,7 +1,3 @@
 services:
-  postgres:
-    ports:
-      - "5432:5432"
-  redis:
-    ports:
-      - "6379:6379"
+  # Port mappings removed to prevent conflicts on production VPS.
+  # Use .env for configuration.
