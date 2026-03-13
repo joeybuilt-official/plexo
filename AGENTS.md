@@ -50,7 +50,7 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 - Deploy: `export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose build <service> && docker compose up -d <service>` (uses root `docker-compose.yml`)
 - `docker-compose.override.yml` is gitignored — operator customizations (external Postgres, custom ports) go there and survive `git pull`.
 - `/opt/plexo/.env` is the single source of truth for secrets.
-- `docker/compose.yml` is deprecated; use root `docker-compose.yml`.
+- `docker/compose.yml` is deprecated; use root `docker-compose.yml`. Note: Standalone shims (actual file copies) are maintained in `docker/` because Coolify's internal parser ignores the Docker Compose `include` directive, causing deployment failures.
 
 ## Critical Rules
 - packages/sdk is a public API. Breaking changes require major version bump + migration guide.
