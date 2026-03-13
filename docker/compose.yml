@@ -46,7 +46,7 @@ services:
         condition: service_started
     environment:
       DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@postgres:5432/plexo
-      MIGRATIONS_DIR: ./drizzle
+      MIGRATIONS_DIR: /app/packages/db/drizzle
     # 256m RAM + up to 256m swap = 512m ceiling total.
     # OOM-kill enforced by cgroup — prevents runaway swap consumption.
     mem_limit: 256m

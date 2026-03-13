@@ -36,16 +36,40 @@ async function runMigrations() {
     }
 
     const migrationsFolder = process.env.MIGRATIONS_DIR ?? './drizzle'
+    const absoluteMigrationsPath = migrationsFolder.startsWith('/') 
+        ? migrationsFolder 
+        : Buffer.from(process.cwd() + '/' + migrationsFolder).toString()
 
+    console.log(`[migrate] --- DIAGNOSTICS ---`)
+    console.log(`[migrate] CWD: ${process.cwd()}`)
+    console.log(`[migrate] MIGRATIONS_DIR (env): ${process.env.MIGRATIONS_DIR ?? 'not set'}`)
+    console.log(`[migrate] Resolved Path: ${absoluteMigrationsPath}`)
+    
     let fileCount = 0
+    let files: string[] = []
     try {
-        fileCount = readdirSync(migrationsFolder).filter(f => f.endsWith('.sql')).length
-    } catch {
+        files = readdirSync(migrationsFolder).filter(f => f.endsWith('.sql'))
+        fileCount = files.length
+        console.log(`[migrate] Files found: ${fileCount}`)
+        if (fileCount > 0) {
+            console.log(`[migrate] Sample: ${files.slice(0, 3).join(', ')}...`)
+        }
+    } catch (err: any) {
         console.error(`[migrate] ERROR: Could not read migrations folder: ${migrationsFolder}`)
+        console.error(`[migrate] Reason: ${err.message}`)
         process.exit(1)
     }
 
-    console.log(`[migrate] Starting — ${fileCount} migration file(s) in ${migrationsFolder}`)
+    // Redacted URL check
+    try {
+        const url = new URL(connectionString)
+        console.log(`[migrate] URL Check: Valid format. Protocol: ${url.protocol}, Host: ${url.host}, DB: ${url.pathname}`)
+    } catch {
+        console.error(`[migrate] ERROR: Invalid DATABASE_URL format. Check for special characters in password.`)
+        process.exit(1)
+    }
+
+    console.log(`[migrate] Starting migrations...`)
 
     let lastError: any = null
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -101,8 +125,10 @@ async function runMigrations() {
                 console.warn(`[migrate] Database does not exist yet (still initializing?). Waiting ${RETRY_DELAY_MS}ms...`)
             }
             else {
-                // For other errors, log them but continue retrying until MAX_RETRIES
-                console.warn(`[migrate] Connection error: ${msg}. Retrying...`)
+                // Unexpected error or migration conflict
+                console.error('[migrate] FAILURE ERROR:', msg)
+                if (err.stack) console.error(err.stack)
+                console.warn(`[migrate] Retrying in ${RETRY_DELAY_MS}ms...`)
             }
 
             await wait(RETRY_DELAY_MS)
