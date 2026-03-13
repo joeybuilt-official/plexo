@@ -6,16 +6,16 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: plexo
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plexo}
       POSTGRES_DB: plexo
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d plexo -U plexo || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U plexo"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 60s
     # Enforced cgroup limits (mem_limit/memswap_limit apply without Swarm mode)
     mem_limit: 512m
     memswap_limit: 1g
