@@ -443,11 +443,15 @@ function StatusChip({ status }: { status: Message['status'] }) {
 function useTTS(options?: { onEnd?: () => void; enabled?: boolean }) {
     const [speaking, setSpeaking] = useState(false)
     const enabledRef = useRef(options?.enabled ?? true)
-    enabledRef.current = options?.enabled ?? true
     const utterRef = useRef<SpeechSynthesisUtterance | null>(null)
     const onEndRef = useRef(options?.onEnd)
-    onEndRef.current = options?.onEnd
     const voiceRef = useRef<SpeechSynthesisVoice | null>(null)
+
+    // Update refs when options change
+    useEffect(() => {
+        enabledRef.current = options?.enabled ?? true
+        onEndRef.current = options?.onEnd
+    }, [options?.enabled, options?.onEnd])
 
     // Pre-load voices (they load async in many browsers)
     useEffect(() => {
@@ -490,7 +494,7 @@ function useTTS(options?: { onEnd?: () => void; enabled?: boolean }) {
         setSpeaking(false)
     }, [])
 
-    return { speaking, enabled: enabledRef.current, speak, stop }
+    return { speaking, enabled: options?.enabled ?? true, speak, stop }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ import {
     TrendingUp,
     DollarSign,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
 import { getRuntimeContext } from '@plexo/ui/lib/runtime'
@@ -91,6 +92,17 @@ interface Approval {
     riskLevel: string
     context?: Record<string, unknown>
     createdAt: string
+}
+
+interface AttentionItem {
+    id: string
+    icon: LucideIcon
+    iconColor: string
+    label: string
+    meta: string
+    href: string
+    actionLabel: string
+    priority: number
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -181,7 +193,7 @@ function ActiveWorkItem({ task }: { task: Task }) {
                 <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-text-primary group-hover/item:text-white transition-colors leading-snug">{description}</p>
                     <div className="flex items-center gap-2 text-[10px] font-mono text-text-muted mt-1 uppercase tracking-tight">
-                        <StatusBadge status={task.status as any} size="sm" />
+                        <StatusBadge status={task.status} size="sm" />
                         <span>·</span>
                         <span className="text-zinc-500">{task.type}</span>
                         <span>·</span>
@@ -229,7 +241,7 @@ function ProjectCard({ sprint, tasks: sprintTasks }: { sprint: Sprint; tasks: Ta
                     </h4>
                     <span className="text-[10px] font-mono text-zinc-600 mt-0.5 uppercase tracking-tighter">PRJ_{sprint.id.slice(0, 8)}</span>
                  </div>
-                 <StatusBadge status={sprint.status as any} size="sm" />
+                 <StatusBadge status={sprint.status} size="sm" />
             </div>
 
             <div className="space-y-2 mt-auto">
@@ -358,7 +370,7 @@ export function CommandCenter() {
     const currentFocus = [...runningTasks, ...queuedTasks].slice(0, 8)
     const activeProjects = sprints.filter(s => ['planning', 'running', 'finalizing'].includes(s.status))
 
-    const attentionItems: any[] = []
+    const attentionItems: AttentionItem[] = []
 
     for (const approval of approvals.slice(0, 3)) {
         attentionItems.push({

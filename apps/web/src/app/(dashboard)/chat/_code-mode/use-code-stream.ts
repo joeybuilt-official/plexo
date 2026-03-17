@@ -3,7 +3,7 @@
 
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 
 // ── Event types mirrored from packages/agent/src/types.ts ────────────────────
 
@@ -72,10 +72,12 @@ export function useCodeStream({
     onTestResult,
 }: UseCodeStreamOptions): void {
     const handlersRef = useRef({ onShellLine, onFileWrite, onScreenshot, onTestResult })
-    handlersRef.current = { onShellLine, onFileWrite, onScreenshot, onTestResult }
-
     const taskIdRef = useRef(taskId)
-    taskIdRef.current = taskId
+
+    useEffect(() => {
+        handlersRef.current = { onShellLine, onFileWrite, onScreenshot, onTestResult }
+        taskIdRef.current = taskId
+    })
 
     useEffect(() => {
         if (!workspaceId) return

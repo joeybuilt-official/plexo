@@ -166,18 +166,6 @@ export function CodeModeShell({
         [fileWrites]
     )
 
-    useCodeStream({
-        workspaceId,
-        taskId,
-        onShellLine: useCallback((e: StepShellLineEvent) => setShellLines((p) => [...p, e]), []),
-        onFileWrite: useCallback((e: StepFileWriteEvent) => {
-            setFileWrites((p) => [...p, e])
-            // Refresh file tree when agent writes
-            if (taskId) loadTree()
-        }, [taskId]),
-        onTestResult: useCallback((e: StepTestResultEvent) => setTestResults((p) => [...p, e]), []),
-    })
-
     // ── File tree ─────────────────────────────────────────────────────────────
     const [files, setFiles] = useState<FileNode[]>([])
     const [selectedFile, setSelectedFile] = useState<string | undefined>()
@@ -189,6 +177,18 @@ export function CodeModeShell({
         const f = await fetchFileTree(workspaceId, taskId)
         setFiles(f)
     }, [workspaceId, taskId])
+
+    useCodeStream({
+        workspaceId,
+        taskId,
+        onShellLine: useCallback((e: StepShellLineEvent) => setShellLines((p) => [...p, e]), []),
+        onFileWrite: useCallback((e: StepFileWriteEvent) => {
+            setFileWrites((p) => [...p, e])
+            // Refresh file tree when agent writes
+            if (taskId) loadTree()
+        }, [taskId, loadTree]),
+        onTestResult: useCallback((e: StepTestResultEvent) => setTestResults((p) => [...p, e]), []),
+    })
 
     useEffect(() => { loadTree() }, [loadTree])
 

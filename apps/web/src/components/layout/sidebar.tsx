@@ -205,7 +205,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
             <button
                 id="workspace-switcher"
                 onClick={() => setOpen((o) => !o)}
-                className={`flex h-16 w-full items-center ${collapsed ? "justify-center" : "gap-3 px-3"} hover:bg-surface-1/60 transition-colors ${className}`}
+                className={`flex h-16 w-full items-center ${collapsed ? "justify-center" : "gap-3 px-3"} hover:bg-surface-1/60 transition-colors cursor-pointer ${className}`}
             >
                 {/* App icon */}
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-azure/10 ring-1 ring-inset ring-azure/20">
@@ -214,7 +214,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                 {!collapsed && (
                     <>
                         <div className="flex min-w-0 flex-col text-left">
-                            <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate">{displayName}</span>
+                            <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate cursor-pointer">{displayName}</span>
                             <button
                                 type="button"
                                 title="Check for updates"

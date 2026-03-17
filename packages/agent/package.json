@@ -9,7 +9,6 @@
     "./types": "./src/types.ts",
     "./executor": "./src/executor/index.ts",
     "./planner": "./src/planner/index.ts",
-    "./ai/anthropic-oauth": "./src/ai/anthropic-oauth.ts",
     "./sprint/planner": "./src/sprint/planner.ts",
     "./sprint/runner": "./src/sprint/runner.ts",
     "./sprint/logger": "./src/sprint/logger.ts",

@@ -3,16 +3,16 @@ import { SAFETY_LIMITS, MODEL_ROUTING } from '../../packages/agent/src/constants
 
 describe('agent constants', () => {
     describe('SAFETY_LIMITS', () => {
-        it('MAX_PLAN_STEPS is 20', () => {
-            expect(SAFETY_LIMITS.MAX_PLAN_STEPS).toBe(20)
+        it('MAX_PLAN_STEPS is 100', () => {
+            expect(SAFETY_LIMITS.MAX_PLAN_STEPS).toBe(100)
         })
 
-        it('maxConsecutiveToolCalls is 4', () => {
-            expect(SAFETY_LIMITS.maxConsecutiveToolCalls).toBe(4)
+        it('maxConsecutiveToolCalls is 200', () => {
+            expect(SAFETY_LIMITS.maxConsecutiveToolCalls).toBe(200)
         })
 
-        it('maxWallClockMs is 2 hours', () => {
-            expect(SAFETY_LIMITS.maxWallClockMs).toBe(2 * 60 * 60 * 1000)
+        it('maxWallClockMs is 24 hours', () => {
+            expect(SAFETY_LIMITS.maxWallClockMs).toBe(24 * 60 * 60 * 1000)
         })
 
         it('noForcePush is always true — not configurable', () => {
