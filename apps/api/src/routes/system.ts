@@ -217,6 +217,32 @@ async function getContainers(): Promise<ContainerInfo[]> {
     return JSON.parse(res.body) as ContainerInfo[]
 }
 
+/** Fallback: find the API container across all compose projects (handles Coolify-generated project names). */
+async function findApiContainerAnyProject(): Promise<ContainerInfo | undefined> {
+    // Try by compose service label first (most reliable across project names)
+    const byService = await dockerRequest({
+        method: 'GET',
+        path: `/v1.41/containers/json?filters=${encodeURIComponent(JSON.stringify({ label: ['com.docker.compose.service=api'] }))}`,
+    })
+    const serviceMatches = JSON.parse(byService.body) as ContainerInfo[]
+    // Prefer containers whose image or name references plexo
+    const plexoApi = serviceMatches.find(c =>
+        c.Image.toLowerCase().includes('plexo') ||
+        c.Names.some(n => n.toLowerCase().includes('plexo'))
+    ) ?? serviceMatches[0]
+    if (plexoApi) return plexoApi
+
+    // Last resort: scan all running containers for one named *plexo*api* or *api*plexo*
+    const all = await dockerRequest({ method: 'GET', path: '/v1.41/containers/json' })
+    const allContainers = JSON.parse(all.body) as ContainerInfo[]
+    return allContainers.find(c =>
+        c.Names.some(n => {
+            const lower = n.toLowerCase()
+            return (lower.includes('plexo') && lower.includes('api')) || lower.includes('plexo-api')
+        })
+    )
+}
+
 async function pullImage(image: string, onChunk: (line: string) => void): Promise<void> {
     return new Promise((resolve, reject) => {
         const req = http.request(
@@ -357,20 +383,40 @@ systemRouter.post('/update', async (_req, res) => {
     try {
         if (isDocker) {
             send('status', { step: 'containers', message: 'Discovering host context…' })
-            const containers = await getContainers()
-            const apiContainer = containers.find(c => c.Names.some(n => n.includes('api')))
-            const workingDir = apiContainer?.Labels?.['com.docker.compose.project.working_dir']
-            
-            if (!workingDir) {
-                throw new Error('Could not determine host working directory. One-click update failed.')
-            }
-            
-            // Handle transition: if current containers are running from docker/ subdirectory,
-            // the root is one level up. If running from root, it is workingDir.
-            let hostRepoRoot = workingDir
-            if (workingDir.endsWith('/docker')) {
-                const { dirname } = await import('node:path')
-                hostRepoRoot = dirname(workingDir)
+
+            // Allow explicit override for managed hosts (Coolify, Render, etc.)
+            // where container labels may not reflect the actual host repo path.
+            let hostRepoRoot: string
+            const repoOverride = process.env.PLEXO_REPO_DIR
+            if (repoOverride) {
+                hostRepoRoot = repoOverride
+            } else {
+                // 1. Try project-scoped lookup first (standard self-hosted docker compose)
+                let apiContainer: ContainerInfo | undefined
+                const projectContainers = await getContainers()
+                apiContainer = projectContainers.find(c => c.Names.some(n => n.includes('api')))
+
+                // 2. If project filter returned nothing (Coolify generates its own project name),
+                //    scan all containers for the plexo API service.
+                if (!apiContainer) {
+                    apiContainer = await findApiContainerAnyProject()
+                }
+
+                const workingDir = apiContainer?.Labels?.['com.docker.compose.project.working_dir']
+                if (!workingDir) {
+                    throw new Error(
+                        'Could not determine host working directory. ' +
+                        'Set the PLEXO_REPO_DIR environment variable to the absolute path of your Plexo repo on the host (e.g. /home/user/plexo) and restart the API container.'
+                    )
+                }
+
+                // Handle transition: if current containers are running from docker/ subdirectory,
+                // the root is one level up. If running from root, it is workingDir.
+                hostRepoRoot = workingDir
+                if (workingDir.endsWith('/docker')) {
+                    const { dirname } = await import('node:path')
+                    hostRepoRoot = dirname(workingDir)
+                }
             }
             
             send('status', { step: 'pull', message: 'Preparing updater framework (this may take a few seconds)…' })
