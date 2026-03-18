@@ -21,7 +21,7 @@ const isLoopback = (ip: string | undefined) =>
 
 export const generalLimiter = rateLimit({
     windowMs: WINDOW_MS,
-    max: 300,
+    max: 2000,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     message: { error: { code: 'RATE_LIMITED', message: 'Too many requests — try again later' } },

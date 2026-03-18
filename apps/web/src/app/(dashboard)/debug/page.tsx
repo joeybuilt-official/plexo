@@ -183,7 +183,7 @@ export default function DebugPage() {
             })
         )
         setRouteLoading(false)
-    }, [])
+    }, [WS_ID])
 
     const fetchSnapshot = useCallback(async () => {
         setSnapshotLoading(true)
@@ -241,7 +241,7 @@ export default function DebugPage() {
             })
         }
         return () => es.close()
-    }, [])
+    }, [WS_ID])
 
     const envVars: Array<[string, string]> = [
         ['NEXT_PUBLIC_API_URL', API_BASE],

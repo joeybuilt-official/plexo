@@ -202,7 +202,10 @@ export default function IntelligencePage() {
     const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
 
     const fetch_ = useCallback(async (showSpinner = false) => {
-        if (!WS_ID) return
+        if (!WS_ID) {
+            setLoading(false)
+            return
+        }
         if (showSpinner) setRefreshing(true)
         try {
             const url = `${API_BASE}/api/v1/workspaces/${WS_ID}/introspect${showSpinner ? '?bust=1' : ''}`

@@ -600,6 +600,7 @@ function AgentSettingsContent() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
+    const [showWsWarning, setShowWsWarning] = useState(false)
 
     // Behavior tab state
     const [groups, setGroups] = useState<GroupDef[]>([])
@@ -664,6 +665,15 @@ function AgentSettingsContent() {
             void fetchBehavior()
         }
     }, [tab, fetchBehavior])
+
+    // Debounce workspace warning to avoid flash
+    useEffect(() => {
+        if (!workspaceId && !loading) {
+            const t = setTimeout(() => setShowWsWarning(true), 600)
+            return () => clearTimeout(t)
+        }
+        setShowWsWarning(false)
+    }, [workspaceId, loading])
 
     async function handleSave() {
         if (!workspaceId) return
@@ -768,7 +778,7 @@ function AgentSettingsContent() {
                 </div>
             )}
 
-            {!workspaceId && !loading && (
+            {showWsWarning && (
                 <div className="flex items-center gap-2 rounded-xl border border-amber-800/40 bg-amber-950/20 px-4 py-3 text-sm text-amber">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     NEXT_PUBLIC_DEFAULT_WORKSPACE not configured — settings cannot be saved.
