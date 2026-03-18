@@ -632,7 +632,7 @@ export default function AIProvidersPage() {
             } else {
                 updateState(selectedProvider, {
                     status: 'untested',
-                    testResult: `✗ ${data.message ?? data.error ?? 'Test failed — check console for details'}`,
+                    testResult: `✗ ${data.message ?? 'Test failed — check console for details'}`,
                 })
             }
         } catch {
