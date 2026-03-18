@@ -32,8 +32,8 @@ const PlanStepSchema = z.object({
     isOneWayDoor: z.boolean(),
 })
 
-// Lenient: accept either a full object or a bare string from the LLM.
-// Smaller models (llama, groq) often return string[] instead of object[].
+// Lenient: accept either a full object, a bare string, or a number from the LLM.
+// Smaller models (llama, groq) often return string[] or number[] instead of object[].
 const OneWayDoorSchema = z.union([
     z.object({
         description: z.string(),
@@ -43,6 +43,12 @@ const OneWayDoorSchema = z.union([
     }),
     z.string().transform((s) => ({
         description: s,
+        type: 'state_change' as const,
+        reversibility: 'unknown',
+        requiresApproval: true,
+    })),
+    z.number().transform((n) => ({
+        description: String(n),
         type: 'state_change' as const,
         reversibility: 'unknown',
         requiresApproval: true,

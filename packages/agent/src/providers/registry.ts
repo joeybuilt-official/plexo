@@ -646,9 +646,15 @@ export async function testProvider(
             : privacyError
                 ? 'All free models are blocked by your OpenRouter privacy settings. Enable \'Model Training\' at openrouter.ai/settings/privacy, or add credits to use paid models.'
                 : errors[0] ?? 'Connection failed'
+        return { ok: false, message, latencyMs: Date.now() - start, model: '' }
     }
 
     const modelId = opts.model ?? DEFAULT_TEST_MODELS[providerKey]
+    // deepseek-reasoner requires large chain-of-thought token budgets; use deepseek-chat
+    // for the smoke test to validate the API key without exhausting the budget.
+    const testModelId = (providerKey === 'deepseek' && modelId === 'deepseek-reasoner')
+        ? 'deepseek-chat'
+        : modelId
     const envKey = PROVIDER_ENV_KEY[providerKey]
 
     // Inject the key into env for non-Anthropic providers that read it automatically.
@@ -660,7 +666,7 @@ export async function testProvider(
     try {
         // Always pass the key directly for Anthropic so buildTestModel uses the correct key.
         const directKey = providerKey === 'anthropic' ? opts.apiKey : undefined
-        const model = buildTestModel(providerKey, modelId, opts.baseUrl, directKey)
+        const model = buildTestModel(providerKey, testModelId, opts.baseUrl, directKey)
         const ac = new AbortController()
         const timer = setTimeout(() => ac.abort(), timeoutMs)
         const result = await gt({
@@ -670,8 +676,11 @@ export async function testProvider(
             abortSignal: ac.signal,
         })
         clearTimeout(timer)
-        const ok = result.text.trim().length > 0
-        return { ok, message: ok ? 'Connected — model responded' : 'Empty response', latencyMs: Date.now() - start, model: modelId }
+        const ok = (result.text ?? '').trim().length > 0
+        const connectedMsg = modelId !== testModelId
+            ? `Connected — API key valid (tested via ${testModelId})`
+            : 'Connected — model responded'
+        return { ok, message: ok ? connectedMsg : 'Empty response', latencyMs: Date.now() - start, model: modelId }
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message.slice(0, 200) : 'Unknown error'
         return { ok: false, message, latencyMs: Date.now() - start, model: modelId }

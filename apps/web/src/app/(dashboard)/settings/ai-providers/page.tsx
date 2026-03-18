@@ -632,7 +632,7 @@ export default function AIProvidersPage() {
             } else {
                 updateState(selectedProvider, {
                     status: 'untested',
-                    testResult: `✗ ${data.message}`,
+                    testResult: `✗ ${data.message ?? data.error ?? 'Test failed — check console for details'}`,
                 })
             }
         } catch {
@@ -931,7 +931,7 @@ export default function AIProvidersPage() {
                                 </button>
                             )}
                             <button
-                                onClick={() => { setPrimaryProvider(selectedProvider); setModelRouting({ ...getDefaultModelsForProvider(selectedProvider) }) }}
+                                onClick={() => { setPrimaryProvider(selectedProvider); setFallbackOrder(prev => [selectedProvider, ...prev.filter(k => k !== selectedProvider)]); setModelRouting({ ...getDefaultModelsForProvider(selectedProvider) }) }}
                                 disabled={!state.enabled && state.status !== 'unconfigured'}
                                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${primaryProvider === selectedProvider
                                     ? 'border-azure/50 bg-azure-dim text-azure'
