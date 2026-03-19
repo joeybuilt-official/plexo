@@ -9,7 +9,8 @@ export function Greeting() {
     const greeting = name ? `${time}, ${name}` : time
 
     return (
-        <div className="text-center mb-10 mt-8 animate-in fade-in duration-700">
+        // Fixed min-height prevents layout shift when greeting text changes length
+        <div className="text-center mb-10 mt-8 min-h-[120px] flex flex-col items-center justify-center animate-in fade-in duration-700">
             <h1 className="text-3xl md:text-[32px] font-serif font-medium text-text-primary tracking-tight mb-2 text-transparent bg-clip-text bg-gradient-to-br from-zinc-100 to-zinc-400">
                 {greeting}
             </h1>

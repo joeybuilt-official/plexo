@@ -15,7 +15,10 @@
  * components and SSE streams start fresh.
  */
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useLayoutEffect, type ReactNode } from 'react'
+
+// useLayoutEffect on client, noop on server (avoids SSR warning)
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 interface WorkspaceContextValue {
     workspaceId: string
@@ -25,6 +28,8 @@ interface WorkspaceContextValue {
 }
 
 const STORAGE_KEY = 'plexo_workspace_id'
+const NAME_CACHE_KEY = 'plexo_workspace_name'
+const USER_NAME_CACHE_KEY = 'plexo_user_name'
 
 const WorkspaceContext = createContext<WorkspaceContextValue>({
     workspaceId: '',
@@ -47,28 +52,50 @@ export function WorkspaceProvider({
     const envId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
     const [workspaceId, setWorkspaceId] = useState(initialId || envId)
-    const [workspaceName, setWorkspaceName] = useState(initialName || '')
-    const [userName] = useState(initialUserName || '')
+    const [workspaceName, setWorkspaceNameRaw] = useState(initialName || '')
+    const [userName, setUserName] = useState(initialUserName || '')
 
-    // Hydrate from localStorage after mount (avoids SSR mismatch)
+    // Wrap setWorkspaceName to also persist to localStorage
+    function setWorkspaceName(name: string) {
+        setWorkspaceNameRaw(name)
+        try { localStorage.setItem(NAME_CACHE_KEY, name) } catch {}
+    }
+
+    // Warm-cache: hydrate from localStorage BEFORE first paint to avoid CLS.
+    // useLayoutEffect fires synchronously after DOM mutation but before the
+    // browser paints, so the user never sees the empty/default values.
+    useIsomorphicLayoutEffect(() => {
+        const storedId = localStorage.getItem(STORAGE_KEY)
+        const cachedName = localStorage.getItem(NAME_CACHE_KEY)
+        const cachedUserName = localStorage.getItem(USER_NAME_CACHE_KEY)
+        if (storedId && storedId !== workspaceId) setWorkspaceId(storedId)
+        if (cachedName && !workspaceName) setWorkspaceNameRaw(cachedName)
+        if (cachedUserName && !userName) setUserName(cachedUserName)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    // Persist userName to localStorage for warm cache on next load
     useEffect(() => {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored && stored !== workspaceId) {
-            setTimeout(() => setWorkspaceId(stored), 0)
-        } else if (!stored && !workspaceId) {
-            const api = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
-            fetch(`${api}/api/v1/workspaces`, { cache: 'no-store' })
-                .then((r) => r.ok ? r.json() : null)
-                .then((d: { items?: { id: string, name: string }[] } | null) => {
-                    const first = d?.items?.[0]
-                    if (first) {
-                        localStorage.setItem(STORAGE_KEY, first.id)
-                        setWorkspaceId(first.id)
-                        setWorkspaceName(first.name)
-                    }
-                })
-                .catch(() => { /* non-fatal */ })
+        if (initialUserName) {
+            try { localStorage.setItem(USER_NAME_CACHE_KEY, initialUserName) } catch {}
         }
+    }, [initialUserName])
+
+    // Hydrate: if no workspace ID at all, fetch one from the API
+    useEffect(() => {
+        if (workspaceId) return // already resolved from props, env, or localStorage
+        const api = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
+        fetch(`${api}/api/v1/workspaces`, { cache: 'no-store' })
+            .then((r) => r.ok ? r.json() : null)
+            .then((d: { items?: { id: string, name: string }[] } | null) => {
+                const first = d?.items?.[0]
+                if (first) {
+                    localStorage.setItem(STORAGE_KEY, first.id)
+                    setWorkspaceId(first.id)
+                    setWorkspaceName(first.name)
+                }
+            })
+            .catch(() => { /* non-fatal */ })
     }, [workspaceId])
 
     // Fetch workspace name whenever id changes; handle stale/deleted workspaces
@@ -116,6 +143,7 @@ export function WorkspaceProvider({
 
     function setWorkspace(id: string, name: string) {
         localStorage.setItem(STORAGE_KEY, id)
+        try { localStorage.setItem(NAME_CACHE_KEY, name) } catch {}
         setWorkspaceId(id)
         setWorkspaceName(name)
         // Full reload so server components re-fetch with new context

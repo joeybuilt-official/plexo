@@ -5,7 +5,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { signOut } from 'next-auth/react'
 import {
     LayoutDashboard,
@@ -45,6 +45,9 @@ import {
     Palette
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+
+// useLayoutEffect on client, noop on server (avoids SSR warning)
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 interface SessionUser {
     name?: string | null
@@ -131,6 +134,7 @@ function loadCollapsedState(groups: NavGroup[]): Record<string, boolean> {
     }
 }
 
+import { ArrowUpCircle } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { ThemeToggle } from '@web/components/theme-toggle'
 
@@ -150,6 +154,18 @@ const BUILD_TIME_SHA = process.env.NEXT_PUBLIC_SOURCE_COMMIT
 function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: string; collapsed?: boolean }) {
     const { workspaceId, workspaceName, setWorkspace } = useWorkspace()
     const [open, setOpen] = useState(false)
+    const [updateAvailable, setUpdateAvailable] = useState(false)
+
+    // Listen for behind-state broadcasts from UpdateModal
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail as { behind: boolean } | undefined
+            setUpdateAvailable(detail?.behind ?? false)
+        }
+        window.addEventListener('plexo:update-status', handler)
+        return () => window.removeEventListener('plexo:update-status', handler)
+    }, [])
+
     // Runtime fallback: fetch commit hash from version API if not baked at build time
     const [runtimeSha, setRuntimeSha] = useState<string | null>(null)
     useEffect(() => {
@@ -211,6 +227,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
     }
 
     const displayName = workspaceName || 'Workspace'
+    const isNameLoading = !workspaceName
 
     return (
         <div ref={ref} className="relative">
@@ -220,23 +237,37 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                 className={`flex h-16 w-full items-center ${collapsed ? "justify-center" : "gap-3 px-3"} hover:bg-surface-1/60 transition-colors cursor-pointer ${className}`}
             >
                 {/* App icon */}
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-azure/10 ring-1 ring-inset ring-azure/20">
+                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-azure/10 ring-1 ring-inset ring-azure/20">
                     <PlexoMark className="w-7 h-7 text-azure" />
+                    {updateAvailable && collapsed && (
+                        <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-azure ring-2 ring-canvas animate-pulse" />
+                    )}
                 </div>
                 {!collapsed && (
                     <>
                         <div className="flex min-w-0 flex-col text-left">
-                            <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate cursor-pointer">{displayName}</span>
+                            {isNameLoading ? (
+                                <span className="h-[18px] w-24 rounded bg-surface-2 animate-pulse" />
+                            ) : (
+                                <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate cursor-pointer">{displayName}</span>
+                            )}
                             <span
                                 role="button"
                                 tabIndex={0}
-                                title="Check for updates"
+                                title={updateAvailable ? 'Update available — click to view' : 'Check for updates'}
                                 onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')) }}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')); } }}
-                                className="group/ver flex items-center gap-1 w-fit cursor-pointer"
+                                className={`group/ver flex items-center gap-1 w-fit cursor-pointer ${updateAvailable ? 'rounded-md px-1.5 py-0.5 -mx-1.5 bg-azure/10 ring-1 ring-inset ring-azure/20' : ''}`}
                             >
-                                <span className="text-[11px] text-text-muted leading-tight mt-0.5 group-hover/ver:text-azure transition-colors">{VERSION}</span>
-                                <RefreshCw className="h-2.5 w-2.5 text-text-muted/0 group-hover/ver:text-azure/60 transition-colors mt-0.5" />
+                                {updateAvailable && (
+                                    <ArrowUpCircle className="h-3 w-3 text-azure shrink-0 mt-0.5" />
+                                )}
+                                <span className={`text-[11px] leading-tight mt-0.5 transition-colors ${updateAvailable ? 'text-azure font-medium' : 'text-text-muted group-hover/ver:text-azure'}`}>{VERSION}</span>
+                                {updateAvailable ? (
+                                    <span className="text-[9px] text-azure font-semibold mt-0.5 uppercase tracking-wide">Update</span>
+                                ) : (
+                                    <RefreshCw className="h-2.5 w-2.5 text-text-muted/0 group-hover/ver:text-azure/60 transition-colors mt-0.5" />
+                                )}
                             </span>
                             {SHORT_SHA && (
                                 <span className="text-[10px] text-text-muted/60 font-mono leading-tight">{SHORT_SHA}</span>
@@ -373,7 +404,8 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
     })
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-    useEffect(() => {
+    // Read sidebar collapse state BEFORE paint to prevent width flash
+    useIsomorphicLayoutEffect(() => {
         try {
             const raw = localStorage.getItem(SIDEBAR_STATE_KEY)
             if (raw === 'true') setSidebarCollapsed(true)
@@ -478,10 +510,9 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
         }
     }, [fetchCounts, fetchHealth])
 
-    // Load persisted collapse state after mount
-    useEffect(() => {
-        const state = loadCollapsedState(NAV_GROUPS)
-        setTimeout(() => setCollapsed(state), 0)
+    // Load persisted collapse state BEFORE paint to prevent section flash
+    useIsomorphicLayoutEffect(() => {
+        setCollapsed(loadCollapsedState(NAV_GROUPS))
     }, [])
 
     function toggleGroup(label: string) {

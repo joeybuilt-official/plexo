@@ -72,28 +72,41 @@ export function UpdateModal() {
         localStorage.setItem('plexo:update:last_seen', sha)
     }, [])
 
+    // Broadcast behind-state so sidebar can show a persistent badge
+    const broadcastBehind = useCallback((behind: boolean, info: VersionInfo | null) => {
+        window.dispatchEvent(new CustomEvent('plexo:update-status', {
+            detail: { behind, versionInfo: info },
+        }))
+    }, [])
+
     const checkVersion = useCallback(async (manual = false) => {
         if (manual) setChecking(true)
         try {
             const res = await fetch(`${API_URL}/v1/system/version`)
             if (!res.ok) return
             const data = (await res.json()) as VersionInfo
-            if (data.behind && data.latest !== lastSeenLatest.current) {
-                markSeen(data.latest!)
+            if (data.behind) {
                 setVersionInfo(data)
-                setOpen(true)
-            } else if (manual) {
-                // User explicitly checked — show up-to-date feedback
-                setVersionInfo(data)
-                setUpToDate(true)
-                setTimeout(() => setUpToDate(false), 3000)
+                broadcastBehind(true, data)
+                // Only auto-open the modal if the user hasn't dismissed this exact version
+                if (data.latest !== lastSeenLatest.current) {
+                    setOpen(true)
+                }
+            } else {
+                broadcastBehind(false, null)
+                if (manual) {
+                    // User explicitly checked — show up-to-date feedback
+                    setVersionInfo(data)
+                    setUpToDate(true)
+                    setTimeout(() => setUpToDate(false), 3000)
+                }
             }
         } catch {
             // Non-fatal — silent
         } finally {
             if (manual) setChecking(false)
         }
-    }, [markSeen])
+    }, [broadcastBehind])
 
     useEffect(() => {
         void checkVersion()
@@ -103,10 +116,17 @@ export function UpdateModal() {
 
     // Listen for manual trigger from sidebar version button
     useEffect(() => {
-        const handler = () => void checkVersion(true)
+        const handler = () => {
+            // If we already know we're behind, just reopen the modal immediately
+            if (versionInfo?.behind) {
+                setOpen(true)
+                return
+            }
+            void checkVersion(true)
+        }
         window.addEventListener('plexo:check-update', handler)
         return () => window.removeEventListener('plexo:check-update', handler)
-    }, [checkVersion])
+    }, [checkVersion, versionInfo])
 
 
     useEffect(() => {
@@ -115,10 +135,15 @@ export function UpdateModal() {
 
     useEffect(() => {
         if (!open) return
-        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !updating) setOpen(false) }
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !updating) {
+                if (versionInfo?.latest) markSeen(versionInfo.latest)
+                setOpen(false)
+            }
+        }
         document.addEventListener('keydown', handler)
         return () => document.removeEventListener('keydown', handler)
-    }, [open, updating])
+    }, [open, updating, versionInfo, markSeen])
 
     const handleUpdate = useCallback(async () => {
         setUpdating(true)
@@ -259,7 +284,7 @@ export function UpdateModal() {
             {/* Backdrop */}
             <div
                 className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-                onClick={() => { if (!updating) setOpen(false) }}
+                onClick={() => { if (!updating) { markSeen(versionInfo.latest!); setOpen(false) } }}
                 aria-hidden="true"
             />
 
@@ -275,7 +300,7 @@ export function UpdateModal() {
                     {/* Close button */}
                     {!updating && (
                         <button
-                            onClick={() => setOpen(false)}
+                            onClick={() => { markSeen(versionInfo.latest!); setOpen(false) }}
                             className="absolute top-4 right-4 text-text-muted hover:text-text-secondary transition-colors"
                             aria-label="Close"
                         >
@@ -473,7 +498,7 @@ export function UpdateModal() {
                             ) : (
                                 <>
                                     <button
-                                        onClick={() => setOpen(false)}
+                                        onClick={() => { markSeen(versionInfo.latest!); setOpen(false) }}
                                         disabled={updating}
                                         className="h-8 px-3 text-xs rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-2 transition-colors disabled:opacity-40"
                                     >
