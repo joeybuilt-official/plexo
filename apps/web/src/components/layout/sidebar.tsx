@@ -234,7 +234,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
             <button
                 id="workspace-switcher"
                 onClick={() => setOpen((o) => !o)}
-                className={`flex h-16 w-full items-center ${collapsed ? "justify-center" : "gap-3 px-3"} hover:bg-surface-1/60 transition-colors cursor-pointer ${className}`}
+                className={`flex min-h-[64px] h-16 w-full items-center ${collapsed ? "justify-center" : "gap-3 px-3"} hover:bg-surface-1/60 transition-colors cursor-pointer ${className}`}
             >
                 {/* App icon */}
                 <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-azure/10 ring-1 ring-inset ring-azure/20">
@@ -245,13 +245,13 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                 </div>
                 {!collapsed && (
                     <>
-                        <div className="flex min-w-0 flex-col text-left gap-0.5">
+                        <div className="flex min-w-0 flex-col text-left gap-0.5 min-h-[36px] justify-center">
                             {isNameLoading ? (
                                 <span className="h-[18px] w-24 rounded bg-surface-2 animate-pulse" />
                             ) : (
                                 <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate cursor-pointer">{displayName}</span>
                             )}
-                            <span className="text-[11px] text-text-secondary font-mono leading-none opacity-70">{VERSION}{SHORT_SHA ? ` · ${SHORT_SHA}` : ''}</span>
+                            <span className="text-[11px] text-text-secondary font-mono leading-none opacity-70 min-h-[14px]">{VERSION}{SHORT_SHA ? ` · ${SHORT_SHA}` : ''}</span>
                         </div>
                         <div className="ml-auto flex items-center gap-1.5 shrink-0">
                             {updateAvailable && (
@@ -362,17 +362,17 @@ function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick
     if (loaded && chats.length === 0) return null
 
     return (
-        <div className="mb-4">
+        <div className="mb-4 min-h-[120px]">
             {!collapsed && (
                 <div className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted/60">
                     Recent
                 </div>
             )}
             <div className="space-y-0.5 px-1 md:px-0">
-                {!loaded && !collapsed && Array.from({ length: 3 }).map((_, i) => (
+                {!loaded && !collapsed && Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5">
                         <div className="h-4 w-4 shrink-0 rounded bg-surface-2 animate-pulse" />
-                        <div className="h-3 flex-1 rounded bg-surface-2 animate-pulse" style={{ width: `${60 + i * 10}%` }} />
+                        <div className="h-3 rounded bg-surface-2 animate-pulse" style={{ width: `${55 + i * 8}%` }} />
                     </div>
                 ))}
                 {chats.map(chat => {
