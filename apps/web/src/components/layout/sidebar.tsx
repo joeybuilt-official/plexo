@@ -251,7 +251,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                             ) : (
                                 <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate cursor-pointer">{displayName}</span>
                             )}
-                            <span className="text-[10px] text-text-muted/80 font-mono leading-none">{VERSION}{SHORT_SHA ? ` · ${SHORT_SHA}` : ''}</span>
+                            <span className="text-[11px] text-text-secondary font-mono leading-none opacity-70">{VERSION}{SHORT_SHA ? ` · ${SHORT_SHA}` : ''}</span>
                         </div>
                         <div className="ml-auto flex items-center gap-1.5 shrink-0">
                             {updateAvailable && (
@@ -342,6 +342,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
 function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick?: () => void }) {
     const { workspaceId } = useWorkspace()
     const [chats, setChats] = useState<{ id: string; message: string; sessionId: string | null }[]>([])
+    const [loaded, setLoaded] = useState(false)
 
     useEffect(() => {
         if (!workspaceId) return
@@ -351,9 +352,10 @@ function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick
             .then((data: { items?: { id: string; message: string; sessionId: string | null }[] }) =>
                 setChats(Array.isArray(data.items) ? data.items.slice(0, 5) : []))
             .catch(() => {})
+            .finally(() => setLoaded(true))
     }, [workspaceId])
 
-    if (chats.length === 0) return null
+    if (loaded && chats.length === 0) return null
 
     return (
         <div className="mb-4">
@@ -363,6 +365,12 @@ function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick
                 </div>
             )}
             <div className="space-y-0.5 px-1 md:px-0">
+                {!loaded && !collapsed && Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5">
+                        <div className="h-4 w-4 shrink-0 rounded bg-surface-2 animate-pulse" />
+                        <div className="h-3 flex-1 rounded bg-surface-2 animate-pulse" style={{ width: `${60 + i * 10}%` }} />
+                    </div>
+                ))}
                 {chats.map(chat => {
                     const href = chat.sessionId 
                         ? `/conversations/thread?sessionId=${encodeURIComponent(chat.sessionId)}`

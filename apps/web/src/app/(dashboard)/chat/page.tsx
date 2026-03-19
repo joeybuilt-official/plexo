@@ -399,9 +399,25 @@ function MessageBubble({
                             {msg.taskId.slice(0, 8)} ↗
                         </Link>
                     )}
-                    {msg.model && (
-                        <span className="font-mono opacity-70">{msg.model}</span>
-                    )}
+                    {msg.model && (() => {
+                        const [provider, ...rest] = msg.model!.split('/')
+                        const modelName = rest.join('/') || provider
+                        const providerColors: Record<string, string> = {
+                            deepseek: 'bg-blue-500/15 text-blue-400',
+                            anthropic: 'bg-amber-500/15 text-amber-400',
+                            openai: 'bg-emerald-500/15 text-emerald-400',
+                            google: 'bg-sky-500/15 text-sky-400',
+                            groq: 'bg-orange-500/15 text-orange-400',
+                            ollama: 'bg-purple-500/15 text-purple-400',
+                        }
+                        const color = providerColors[provider] ?? 'bg-zinc-500/15 text-zinc-400'
+                        return (
+                            <span className="flex items-center gap-1">
+                                <span className={`rounded px-1 py-px text-[9px] font-medium ${color}`}>{provider}</span>
+                                <span className="font-mono opacity-60">{modelName}</span>
+                            </span>
+                        )
+                    })()}
                     {msg.status === 'complete' && (
                         <CheckCircle2 className="h-3 w-3 text-azure" />
                     )}
