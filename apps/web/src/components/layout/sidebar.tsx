@@ -251,7 +251,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                             ) : (
                                 <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate cursor-pointer">{displayName}</span>
                             )}
-                            <span className="text-[10px] text-text-muted/50 font-mono leading-none">{VERSION}{SHORT_SHA ? ` · ${SHORT_SHA}` : ''}</span>
+                            <span className="text-[10px] text-text-muted/80 font-mono leading-none">{VERSION}{SHORT_SHA ? ` · ${SHORT_SHA}` : ''}</span>
                         </div>
                         <div className="ml-auto flex items-center gap-1.5 shrink-0">
                             {updateAvailable && (
