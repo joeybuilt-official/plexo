@@ -27,6 +27,7 @@ import { logger } from '../logger.js'
 const GITHUB_OWNER = 'joeybuilt-official'
 const GITHUB_REPO = 'plexo'
 const VERSION_CACHE_KEY = 'plexo:system:latest_version'
+const UPDATE_PENDING_KEY = 'plexo:system:update_pending_commit'
 const VERSION_CACHE_TTL = 60 * 60 // 1 hour for release info
 const COMMIT_CACHE_KEY = 'plexo:system:latest_commit'
 const COMMIT_CACHE_TTL = 2 * 60  // 2 min — detect pushes quickly during beta
@@ -341,6 +342,18 @@ systemRouter.get('/version', async (_req, res) => {
         }
     }
 
+    // Suppress "update available" if we already triggered an update to this commit
+    // This prevents the infinite update loop when SOURCE_COMMIT can't be baked into the image
+    if (behind && latestCommit) {
+        try {
+            const redis = await getRedis()
+            const pendingCommit = await redis.get(UPDATE_PENDING_KEY)
+            if (pendingCommit && pendingCommit === latestCommit.sha) {
+                behind = false
+            }
+        } catch { /* Redis unavailable — don't block version check */ }
+    }
+
     res.json({
         current: local.type === 'commit' ? local.version.slice(0, 7) : local.version,
         sourceCommit: local.sourceCommit && local.sourceCommit !== 'unknown' ? local.sourceCommit.slice(0, 7) : null,
@@ -431,7 +444,18 @@ systemRouter.post('/update', async (_req, res) => {
                     Image: 'alpine:latest',
                     Cmd: [
                         'sh', '-c',
-                        `apk add --no-cache git docker-cli docker-cli-compose && cd ${hostRepoRoot} && git fetch origin main && git reset --hard origin/main && export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose build api web migrate && docker compose up -d --remove-orphans`
+                        [
+                            'apk add --no-cache git docker-cli docker-cli-compose',
+                            `cd ${hostRepoRoot}`,
+                            'git fetch origin main',
+                            'git reset --hard origin/main',
+                            'export SOURCE_COMMIT=$(git rev-parse HEAD)',
+                            // Write commit to a file the git-meta Docker stage can read as fallback
+                            'echo "$SOURCE_COMMIT" > .source-commit-override',
+                            // Build with explicit build-arg to guarantee the hash propagates
+                            'docker compose build --build-arg SOURCE_COMMIT="$SOURCE_COMMIT" api web migrate',
+                            'docker compose up -d --remove-orphans',
+                        ].join(' && ')
                     ],
                     HostConfig: {
                         AutoRemove: true,
@@ -453,10 +477,16 @@ systemRouter.post('/update', async (_req, res) => {
                throw new Error(`Failed to start updater: ${startRes.body}`)
             }
 
-            // Invalidate version caches
+            // Invalidate version caches and mark this commit as pending update
+            // so the version checker won't show "update available" again for this commit
             const redisPre = await getRedis()
             await redisPre.del(VERSION_CACHE_KEY)
             await redisPre.del(COMMIT_CACHE_KEY)
+            const pendingCommit = await fetchLatestMainCommit()
+            if (pendingCommit) {
+                // Expires after 30 min — if the rebuild takes longer, it'll re-detect
+                await redisPre.set(UPDATE_PENDING_KEY, pendingCommit.sha, { EX: 1800 })
+            }
 
             send('done', { success: true, message: 'Update started in background! The system is downloading updates and rebuilding. It will automatically restart in about 1-2 minutes. Please wait and reload the page.' })
             res.end()

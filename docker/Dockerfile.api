@@ -11,7 +11,11 @@ FROM alpine:3.20 AS git-meta
 ARG SOURCE_COMMIT=unknown
 WORKDIR /meta
 COPY .gi[t] /meta/git
+COPY .source-commit-overrid[e] /meta/
 RUN SC="${SOURCE_COMMIT}"; \
+    if [ "$SC" = "unknown" ] && [ -f /meta/.source-commit-override ]; then \
+      SC=$(cat /meta/.source-commit-override); \
+    fi; \
     if [ "$SC" = "unknown" ] && [ -f /meta/git/HEAD ]; then \
       REF=$(cat /meta/git/HEAD); \
       case "$REF" in \
