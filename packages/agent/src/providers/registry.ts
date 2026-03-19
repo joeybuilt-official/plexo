@@ -115,11 +115,20 @@ export function buildModel(
     const validModel = (id: string | undefined) =>
         id && id.trim() !== '' && id !== 'default' && id !== 'placeholder' ? id : undefined
 
-    const modelId =
+    let modelId =
         validModel(settings.modelOverrides?.[taskType]) ??
         validModel(config.model) ??
         PROVIDER_DEFAULT_MODELS[providerKey] ??
         DEFAULT_MODEL_ROUTING[taskType]
+
+    // Reasoning models (e.g. deepseek-reasoner) don't support tool calling or
+    // structured JSON output (generateObject). Only use reasoner for pure
+    // text conversation (summarization). All other task types need tools or
+    // structured output, so swap to the standard chat model automatically.
+    const REASONER_SAFE_TYPES: Set<string> = new Set(['summarization'])
+    if (modelId === 'deepseek-reasoner' && !REASONER_SAFE_TYPES.has(taskType)) {
+        modelId = 'deepseek-chat'
+    }
 
     switch (providerKey) {
         case 'openrouter': {
@@ -407,7 +416,12 @@ function isRetryableProviderError(err: unknown): boolean {
         msg.includes('invalid api key') ||
         msg.includes('unauthorized') ||
         msg.includes('authentication failed') ||
-        msg.includes('invalid_api_key')
+        msg.includes('invalid_api_key') ||
+        // Infrastructure errors — reverse proxy rejections, method not allowed
+        msg.includes('405') ||
+        msg.includes('method not allowed') ||
+        msg.includes('502') ||
+        msg.includes('bad gateway')
     )
 }
 
