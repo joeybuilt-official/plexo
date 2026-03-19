@@ -245,35 +245,30 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                 </div>
                 {!collapsed && (
                     <>
-                        <div className="flex min-w-0 flex-col text-left">
+                        <div className="flex min-w-0 flex-col text-left gap-0.5">
                             {isNameLoading ? (
                                 <span className="h-[18px] w-24 rounded bg-surface-2 animate-pulse" />
                             ) : (
                                 <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate cursor-pointer">{displayName}</span>
                             )}
-                            <span
-                                role="button"
-                                tabIndex={0}
-                                title={updateAvailable ? 'Update available — click to view' : 'Check for updates'}
-                                onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')) }}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')); } }}
-                                className={`group/ver flex items-center gap-1 w-fit cursor-pointer ${updateAvailable ? 'rounded-md px-1.5 py-0.5 -mx-1.5 bg-azure/10 ring-1 ring-inset ring-azure/20' : ''}`}
-                            >
-                                {updateAvailable && (
-                                    <ArrowUpCircle className="h-3 w-3 text-azure shrink-0 mt-0.5" />
-                                )}
-                                <span className={`text-[11px] leading-tight mt-0.5 transition-colors ${updateAvailable ? 'text-azure font-medium' : 'text-text-muted group-hover/ver:text-azure'}`}>{VERSION}</span>
-                                {updateAvailable ? (
-                                    <span className="text-[9px] text-azure font-semibold mt-0.5 uppercase tracking-wide">Update</span>
-                                ) : (
-                                    <RefreshCw className="h-2.5 w-2.5 text-text-muted/0 group-hover/ver:text-azure/60 transition-colors mt-0.5" />
-                                )}
-                            </span>
-                            {SHORT_SHA && (
-                                <span className="text-[10px] text-text-muted/60 font-mono leading-tight">{SHORT_SHA}</span>
-                            )}
+                            <span className="text-[10px] text-text-muted/50 font-mono leading-none">{VERSION}{SHORT_SHA ? ` · ${SHORT_SHA}` : ''}</span>
                         </div>
-                        <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0 text-text-muted" />
+                        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                            {updateAvailable && (
+                                <span
+                                    role="button"
+                                    tabIndex={0}
+                                    title="Update available — click to install"
+                                    onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')) }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')); } }}
+                                    className="flex items-center gap-1 rounded-full px-2 py-0.5 bg-azure/15 ring-1 ring-inset ring-azure/25 cursor-pointer hover:bg-azure/25 transition-colors"
+                                >
+                                    <ArrowUpCircle className="h-3 w-3 text-azure shrink-0" />
+                                    <span className="text-[10px] text-azure font-semibold uppercase tracking-wide">Update</span>
+                                </span>
+                            )}
+                            <ChevronsUpDown className="h-3.5 w-3.5 text-text-muted" />
+                        </div>
                     </>
                 )}
             </button>
