@@ -78,9 +78,33 @@ async function invalidateSearchCache(workspaceId: string) {
 
 // ── Embedding ─────────────────────────────────────────────────────────────────
 
-async function embed(text: string): Promise<number[] | null> {
+/**
+ * Circuit breaker: after an auth/config failure (401, 403), stop retrying
+ * for 15 minutes to avoid log spam when no valid embedding provider exists.
+ */
+let _embedDisabledUntil = 0
+
+function isEmbeddingAvailable(): boolean {
     const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey) return null
+    if (!apiKey) return false
+
+    // If OPENAI_API_KEY looks like a DeepSeek key, it won't work for embeddings
+    if (apiKey.startsWith('sk-') === false && apiKey.startsWith('sess-') === false) {
+        // Non-OpenAI key format — unlikely to work with OpenAI embedding endpoint
+        logger.debug('OPENAI_API_KEY does not look like an OpenAI key — skipping embeddings')
+        return false
+    }
+
+    // Circuit breaker: skip if we recently got an auth failure
+    if (Date.now() < _embedDisabledUntil) return false
+
+    return true
+}
+
+async function embed(text: string): Promise<number[] | null> {
+    if (!isEmbeddingAvailable()) return null
+
+    const apiKey = process.env.OPENAI_API_KEY!
 
     try {
         const res = await fetch('https://api.openai.com/v1/embeddings', {
@@ -97,14 +121,20 @@ async function embed(text: string): Promise<number[] | null> {
         })
 
         if (!res.ok) {
-            logger.warn({ status: res.status }, 'Embedding API returned non-200')
+            if (res.status === 401 || res.status === 403) {
+                // Auth failure — disable for 15 min to stop log spam
+                _embedDisabledUntil = Date.now() + 15 * 60 * 1000
+                logger.debug({ status: res.status }, 'Embedding API auth failed — disabling embeddings for 15 min')
+            } else {
+                logger.debug({ status: res.status }, 'Embedding API returned non-200')
+            }
             return null
         }
 
         const data = await res.json() as { data: [{ embedding: number[] }] }
         return data.data[0]?.embedding ?? null
     } catch (err) {
-        logger.warn({ err }, 'Embedding failed — storing without vector')
+        logger.debug({ err }, 'Embedding failed — storing without vector')
         return null
     }
 }

@@ -45,6 +45,19 @@ async function pingRedis(): Promise<{ ok: boolean; latencyMs: number }> {
 }
 
 /**
+ * Tracks consecutive auth failures per workspace+provider to suppress log spam.
+ * After AUTH_FAIL_WARN_THRESHOLD consecutive 401/403 failures, the log level
+ * is downgraded from WARN to DEBUG — stale keys won't pollute logs forever.
+ * Counter resets on any successful ping.
+ */
+const authFailCounts = new Map<string, number>()
+const AUTH_FAIL_WARN_THRESHOLD = 3
+
+function isAuthError(status: number): boolean {
+    return status === 401 || status === 403
+}
+
+/**
  * Probes the configured primary AI provider using a real API call.
  * Returns ok=null when no provider is configured (not a failure — just unconfigured).
  */
@@ -52,6 +65,7 @@ async function pingAIProvider(): Promise<{ ok: boolean | null; latencyMs: number
     let providerKey: string | undefined
     let apiKey: string | undefined
     let baseUrl: string | undefined
+    let workspaceId: string | undefined
 
     try {
         const rows = await db.select({ id: workspaces.id }).from(workspaces).limit(5)
@@ -62,6 +76,7 @@ async function pingAIProvider(): Promise<{ ok: boolean | null; latencyMs: number
             if (!primary) continue
             const p = ap.providers?.[primary]
             if (p?.apiKey && p.apiKey !== 'placeholder') {
+                workspaceId = row.id
                 providerKey = primary
                 apiKey = p.apiKey
                 baseUrl = p.baseUrl
@@ -74,6 +89,7 @@ async function pingAIProvider(): Promise<{ ok: boolean | null; latencyMs: number
         return { ok: null, latencyMs: 0, error: 'not_configured' }
     }
 
+    const failKey = `${workspaceId}:${providerKey}`
     const start = Date.now()
     const MODELS_ENDPOINTS: Record<string, string> = {
         anthropic: 'https://api.anthropic.com/v1/models',
@@ -101,9 +117,21 @@ async function pingAIProvider(): Promise<{ ok: boolean | null; latencyMs: number
                 const err = parsed?.error
                 safeDetail = err?.type ?? err?.code ?? err?.status ?? undefined
             } catch { safeDetail = undefined }
-            logger.warn({ status: res.status, errorType: safeDetail, providerKey }, 'AI provider ping non-ok')
+
+            // Downgrade persistent auth errors (stale keys) to DEBUG after threshold
+            if (isAuthError(res.status)) {
+                const count = (authFailCounts.get(failKey) ?? 0) + 1
+                authFailCounts.set(failKey, count)
+                const logFn = count >= AUTH_FAIL_WARN_THRESHOLD ? logger.debug : logger.warn
+                logFn.call(logger, { status: res.status, errorType: safeDetail, providerKey, consecutiveAuthFails: count }, 'AI provider ping non-ok')
+            } else {
+                // Transient errors (5xx, 429, etc.) always warn — they may resolve
+                logger.warn({ status: res.status, errorType: safeDetail, providerKey }, 'AI provider ping non-ok')
+            }
             return { ok: false, latencyMs: Date.now() - start, error: `http_${res.status}`, provider: providerKey }
         }
+        // Success — reset auth failure counter
+        authFailCounts.delete(failKey)
         return { ok: true, latencyMs: Date.now() - start, provider: providerKey }
     } catch (err) {
         logger.warn({ err, providerKey }, 'AI provider ping failed')

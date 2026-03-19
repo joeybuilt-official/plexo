@@ -250,6 +250,77 @@ async function runSingleJudge(
     return computeWeightedScore(judgment, rubric, params.selfScore)
 }
 
+// ── Ollama resilient fetch ────────────────────────────────────────────────
+//
+// Many reverse proxies (nginx/openresty) configured for Ollama only allow
+// POST on /api/* paths but return 405 Method Not Allowed on the OpenAI-
+// compatible /v1/chat/completions path.  This wrapper intercepts 405s and
+// transparently retries against the native Ollama /api/chat endpoint,
+// translating the OpenAI request body ↔ Ollama native format on the fly.
+
+function ollamaResilientFetch(ollamaRoot: string): typeof globalThis.fetch {
+    return async (input, init) => {
+        const resp = await globalThis.fetch(input, init)
+        if (resp.status !== 405) return resp
+
+        // Only retry chat/completions requests
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url
+        if (!url.includes('/chat/completions')) return resp
+
+        // Translate OpenAI body → Ollama native format
+        let body: Record<string, unknown> | undefined
+        try {
+            const raw = init?.body
+            body = raw ? JSON.parse(typeof raw === 'string' ? raw : new TextDecoder().decode(raw as ArrayBuffer)) : undefined
+        } catch { return resp }
+        if (!body) return resp
+
+        const nativeBody = {
+            model: body.model,
+            messages: body.messages,
+            stream: false,
+            options: {
+                ...(body.temperature != null && { temperature: body.temperature }),
+                ...(body.top_p != null && { top_p: body.top_p }),
+            },
+        }
+
+        logger.debug({ url, nativeUrl: `${ollamaRoot}/api/chat` }, '405 on /v1/chat/completions — retrying via native /api/chat')
+        const nativeResp = await globalThis.fetch(`${ollamaRoot}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(nativeBody),
+            signal: init?.signal as AbortSignal | undefined,
+        })
+        if (!nativeResp.ok) return nativeResp
+
+        // Translate Ollama native response → OpenAI format so the SDK can parse it
+        const nativeData = await nativeResp.json() as {
+            message?: { role?: string; content?: string }
+            model?: string
+        }
+        const openAIBody = {
+            id: `chatcmpl-${Date.now()}`,
+            object: 'chat.completion',
+            model: nativeData.model ?? body.model,
+            choices: [{
+                index: 0,
+                message: {
+                    role: nativeData.message?.role ?? 'assistant',
+                    content: nativeData.message?.content ?? '',
+                },
+                finish_reason: 'stop',
+            }],
+            usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        }
+
+        return new Response(JSON.stringify(openAIBody), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+        })
+    }
+}
+
 // ── Ensemble (N parallel calls) ───────────────────────────────────────────────
 
 async function runEnsemble(
@@ -261,8 +332,15 @@ async function runEnsemble(
 ): Promise<{ score: number; dissenters: string[]; models: string[]; verdicts: VerdictResult[] }> {
     const { system, prompt } = buildJudgePrompt(params, rubric)
     // Normalise to /v1 — works for local and remote Ollama instances alike.
-    const olBase = baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '') + '/v1'
-    const ol = createOpenAICompatible({ name: 'ollama-ensemble', baseURL: olBase })
+    // Use a resilient fetch wrapper that falls back to the native Ollama API
+    // (/api/chat) when the reverse proxy returns 405 on /v1/chat/completions.
+    const olRoot = baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '').replace(/\/api$/, '')
+    const olBase = olRoot + '/v1'
+    const ol = createOpenAICompatible({
+        name: 'ollama-ensemble',
+        baseURL: olBase,
+        fetch: ollamaResilientFetch(olRoot),
+    })
 
     const raw = await Promise.all(
         modelNames.map(async (name): Promise<VerdictResult | null> => {
