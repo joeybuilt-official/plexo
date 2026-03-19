@@ -16,6 +16,7 @@ import {
     Users,
 } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { useWorkspace } from '@web/context/workspace'
 import { StatusBadge, cn } from '@plexo/ui'
 
@@ -172,12 +173,19 @@ export function LiveDashboard() {
             esRef.current = es
             es.onmessage = (e) => {
                 try {
-                    const event = JSON.parse(e.data as string) as { type: string }
+                    const event = JSON.parse(e.data as string) as { type: string; provider?: string; message?: string }
                     if (event.type.startsWith('task_') || event.type.startsWith('agent_')) {
                         void fetchSummary()
                         void fetchActivity()
                     }
-                } catch { /* skip */ }
+                    if (event.type === 'provider_auth_error' && event.provider) {
+                        toast.error(`${event.message ?? `API key for "${event.provider}" is invalid.`}`, {
+                            id: `auth-error-${event.provider}`,
+                            duration: 15_000,
+                            action: { label: 'Fix', onClick: () => { window.location.href = '/settings/ai-providers' } },
+                        })
+                    }
+                } catch { /* non-critical SSE parse */ }
             }
             es.onerror = () => { es.close(); esRef.current = null }
             return () => { es.close(); esRef.current = null }

@@ -37,9 +37,24 @@ import {
 import { getTelegramToken } from './telegram.js'
 import { captureException, captureLifecycleEvent } from '../sentry.js'
 import { UUID_RE } from '../validation.js'
+import type { FallbackOptions } from '@plexo/agent/providers/registry'
 
 export const chatRouter: RouterType = Router()
 
+/** Build fallback options with auth-failure notification for a workspace. */
+function fallbackOpts(workspaceId: string): FallbackOptions {
+    return {
+        workspaceId,
+        onAuthFailure: (provider, error) => {
+            logger.warn({ workspaceId, provider, error }, 'Provider auth failed — removed from fallback chain')
+            emitToWorkspace(workspaceId, {
+                type: 'provider_auth_error',
+                provider,
+                message: `API key for "${provider}" is invalid or expired. Update it in Settings → AI Providers.`,
+            })
+        },
+    }
+}
 
 // ── Error classification ──────────────────────────────────────────────────────
 
@@ -362,7 +377,8 @@ chatRouter.post('/message', async (req, res) => {
                         system: CLASSIFY_SYSTEM,
                         messages: classifyMessages,
                         abortSignal: AbortSignal.timeout(10_000),
-                    })
+                    }),
+                    fallbackOpts(workspaceId),
                 )
                 const text = classifyResult.text?.trim() ?? ''
                 const upperText = text.toUpperCase()
@@ -474,7 +490,8 @@ Critical rules — follow without exception:
                             { role: 'user' as const, content: userContent as any },
                         ],
                         abortSignal: AbortSignal.timeout(30_000),
-                    })
+                    }),
+                    fallbackOpts(workspaceId),
                 )
                 const replyText = result.text
                 if (!replyText) {
@@ -537,7 +554,8 @@ Critical rules — follow without exception:
                             { role: 'user' as const, content: trimmedMsg },
                         ],
                         abortSignal: AbortSignal.timeout(8_000),
-                    })
+                    }),
+                    fallbackOpts(workspaceId),
                 )
                 if (synth.text?.trim()) cleanDescription = synth.text.trim().replace(/^"|"$/g, '')
             } catch { /* use raw message as fallback */ }

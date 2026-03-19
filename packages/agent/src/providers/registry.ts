@@ -282,27 +282,78 @@ export function resolveModelFromEnv(modelId?: string): AnyLanguageModel {
 
 
 /**
+ * In-memory tracker for providers with confirmed auth failures (401/403).
+ * Key: "workspaceId:providerKey", Value: timestamp when the failure was recorded.
+ * Stale keys are skipped in the fallback chain for STALE_KEY_TTL_MS to avoid
+ * repeated failed calls. The TTL auto-expires so if a user fixes the key,
+ * the provider re-enters the chain automatically.
+ */
+const staleKeyCache = new Map<string, number>()
+const STALE_KEY_TTL_MS = 10 * 60 * 1000 // 10 minutes
+
+/** Check whether a provider has a known-stale API key. */
+function isKeyStale(workspaceId: string, providerKey: string): boolean {
+    const key = `${workspaceId}:${providerKey}`
+    const ts = staleKeyCache.get(key)
+    if (!ts) return false
+    if (Date.now() - ts > STALE_KEY_TTL_MS) { staleKeyCache.delete(key); return false }
+    return true
+}
+
+/** Mark a provider's API key as stale. */
+function markKeyStale(workspaceId: string, providerKey: string): void {
+    staleKeyCache.set(`${workspaceId}:${providerKey}`, Date.now())
+}
+
+/** Clear a provider's stale-key status (e.g. after user updates the key). */
+export function clearStaleKey(workspaceId: string, providerKey: string): void {
+    staleKeyCache.delete(`${workspaceId}:${providerKey}`)
+}
+
+export interface FallbackOptions {
+    /** Workspace ID — enables stale-key tracking and auto-skip. */
+    workspaceId?: string
+    /** Called when a provider is skipped or fails due to auth errors. */
+    onAuthFailure?: (providerKey: string, error: string) => void
+}
+
+/**
  * Fallback chain wrapper.
  * Tries primary, then each provider in fallbackChain in order.
  * Only retries on provider-level errors (rate limit, timeout, 5xx).
  * Application-level errors (bad schema, cancelled task) propagate immediately.
+ *
+ * Providers with known-stale API keys are automatically skipped and the caller
+ * is notified via opts.onAuthFailure so the user can be informed.
  */
 export async function withFallback<T>(
     settings: WorkspaceAISettings,
     taskType: TaskType,
     fn: (model: AnyLanguageModel) => Promise<T>,
+    opts?: FallbackOptions,
 ): Promise<T> {
     const chain = [settings.primaryProvider, ...settings.fallbackChain]
+    const wsId = opts?.workspaceId
     let lastError: unknown
 
     for (const providerKey of chain) {
         const config = settings.providers[providerKey]
         if (!config) continue
+
+        // Skip providers with known-stale keys (auto-expires after TTL)
+        if (wsId && isKeyStale(wsId, providerKey)) continue
+
         try {
             const model = buildModel(providerKey, config, taskType, settings)
             return await fn(model)
         } catch (err) {
             lastError = err
+
+            // Auth failure: mark provider as stale and notify caller
+            if (err instanceof Error && isAuthError(err)) {
+                if (wsId) markKeyStale(wsId, providerKey)
+                opts?.onAuthFailure?.(providerKey, err.message)
+            }
 
             // Self-calibration logic: Penalize reliability on logic/parse errors
             if (err instanceof Error) {
@@ -325,6 +376,15 @@ export async function withFallback<T>(
         }
     }
     throw lastError
+}
+
+/** Detect auth-specific errors (invalid key, expired token, forbidden). */
+function isAuthError(err: Error): boolean {
+    const msg = err.message.toLowerCase()
+    return msg.includes('invalid api key') || msg.includes('invalid_api_key') ||
+        msg.includes('incorrect api key') || msg.includes('unauthorized') ||
+        msg.includes('authentication failed') ||
+        msg.includes('401') || msg.includes('403') || msg.includes('forbidden')
 }
 
 function isRetryableProviderError(err: unknown): boolean {

@@ -11,6 +11,7 @@
 import { generateText } from 'ai'
 import { withFallback } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from './agent-loop.js'
+import { emitToWorkspace } from './sse-emitter.js'
 import { logger } from './logger.js'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -64,7 +65,18 @@ export async function chatWithAI(
                 system: finalSystem,
                 messages: messages.map(m => ({ role: m.role, content: m.content })),
                 abortSignal: AbortSignal.timeout(30_000),
-            })
+            }),
+            {
+                workspaceId,
+                onAuthFailure: (provider, error) => {
+                    logger.warn({ workspaceId, provider, error }, 'Provider auth failed — removed from fallback chain')
+                    emitToWorkspace(workspaceId, {
+                        type: 'provider_auth_error',
+                        provider,
+                        message: `API key for "${provider}" is invalid or expired. Update it in Settings → AI Providers.`,
+                    })
+                },
+            },
         )
         return { text: result.text ?? null, error: null }
     } catch (err) {

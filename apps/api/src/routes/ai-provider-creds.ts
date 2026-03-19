@@ -24,6 +24,7 @@ import { workspaces, workspaceKeyShares } from '@plexo/db'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { invalidateIntrospectCache } from './introspect.js'
+import { clearStaleKey } from '@plexo/agent/providers/registry'
 import { UUID_RE } from '../validation.js'
 
 export const aiProviderCredsRouter: RouterType = Router({ mergeParams: true })
@@ -272,6 +273,8 @@ aiProviderCredsRouter.put('/', async (req, res) => {
 
         const providerCount = Object.keys(toWriteVault).length
         logger.info({ workspaceId: id, providers: providerCount }, 'AI provider credentials updated (encrypted and decoupled)')
+        // Clear stale-key cache so updated keys re-enter the fallback chain immediately
+        for (const pk of Object.keys(toWriteVault)) clearStaleKey(id, pk)
         // Invalidate the introspection cache so the Intelligence page shows fresh data
         void invalidateIntrospectCache(id)
         res.json({ ok: true })
