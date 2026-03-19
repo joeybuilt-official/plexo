@@ -7,12 +7,13 @@
  * WorkspaceContext — provides the active workspace ID across the app.
  *
  * Resolution order:
- * 1. localStorage key 'plexo_workspace_id'
- * 2. NEXT_PUBLIC_DEFAULT_WORKSPACE env var
+ * 1. Cookie 'plexo_workspace_id' (read by server component → passed as initialId)
+ * 2. localStorage key 'plexo_workspace_id' (client-side warm cache)
+ * 3. NEXT_PUBLIC_DEFAULT_WORKSPACE env var
  *
- * The only way to switch workspace is via setWorkspaceId(), which
- * persists to localStorage and reloads the page so all server
- * components and SSE streams start fresh.
+ * The only way to switch workspace is via setWorkspace(), which
+ * persists to cookie + localStorage and reloads the page so all
+ * server components and SSE streams start fresh.
  */
 
 import { createContext, useContext, useState, useEffect, useLayoutEffect, type ReactNode } from 'react'
@@ -30,6 +31,18 @@ interface WorkspaceContextValue {
 const STORAGE_KEY = 'plexo_workspace_id'
 const NAME_CACHE_KEY = 'plexo_workspace_name'
 const USER_NAME_CACHE_KEY = 'plexo_user_name'
+
+/** Persist workspace ID + name to both cookie (for SSR) and localStorage (for warm cache). */
+function persistWorkspaceId(id: string, name?: string) {
+    if (typeof document !== 'undefined') {
+        document.cookie = `${STORAGE_KEY}=${encodeURIComponent(id)};path=/;max-age=31536000;SameSite=Lax`
+        if (name) document.cookie = `${NAME_CACHE_KEY}=${encodeURIComponent(name)};path=/;max-age=31536000;SameSite=Lax`
+    }
+    try {
+        localStorage.setItem(STORAGE_KEY, id)
+        if (name) localStorage.setItem(NAME_CACHE_KEY, name)
+    } catch { /* non-fatal */ }
+}
 
 const WorkspaceContext = createContext<WorkspaceContextValue>({
     workspaceId: '',
@@ -90,7 +103,7 @@ export function WorkspaceProvider({
             .then((d: { items?: { id: string, name: string }[] } | null) => {
                 const first = d?.items?.[0]
                 if (first) {
-                    localStorage.setItem(STORAGE_KEY, first.id)
+                    persistWorkspaceId(first.id, first.name)
                     setWorkspaceId(first.id)
                     setWorkspaceName(first.name)
                 }
@@ -116,14 +129,14 @@ export function WorkspaceProvider({
                 if (cancelled) return
                 if (d && '__stale' in d && d.__stale) {
                     // Clear the stale workspace ID and resolve a valid one
-                    localStorage.removeItem(STORAGE_KEY)
+                    try { localStorage.removeItem(STORAGE_KEY) } catch {}
                     fetch(`${api}/api/v1/workspaces`, { cache: 'no-store' })
                         .then((r) => r.ok ? r.json() : null)
                         .then((list: { items?: { id: string; name: string }[] } | null) => {
                             if (cancelled) return
                             const first = list?.items?.[0]
                             if (first) {
-                                localStorage.setItem(STORAGE_KEY, first.id)
+                                persistWorkspaceId(first.id, first.name)
                                 setWorkspaceId(first.id)
                                 setWorkspaceName(first.name)
                             } else {
@@ -142,14 +155,7 @@ export function WorkspaceProvider({
     }, [workspaceId])
 
     function setWorkspace(id: string, name: string) {
-        try {
-            localStorage.setItem(STORAGE_KEY, id)
-            localStorage.setItem(NAME_CACHE_KEY, name)
-        } catch {
-            // Storage full or restricted — still attempt the switch via state
-        }
-        setWorkspaceId(id)
-        setWorkspaceName(name)
+        persistWorkspaceId(id, name)
         // Full reload so server components re-fetch with new context
         window.location.reload()
     }
