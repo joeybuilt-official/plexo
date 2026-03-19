@@ -286,8 +286,12 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                         {list.map((ws) => (
                             <button
                                 key={ws.id}
-                                onClick={() => {
-                                    if (ws.id !== workspaceId) setWorkspace(ws.id, ws.name)
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (ws.id !== workspaceId) {
+                                        setWorkspace(ws.id, ws.name)
+                                        return // reload will follow — skip setOpen
+                                    }
                                     setOpen(false)
                                 }}
                                 className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-surface-2 transition-colors"

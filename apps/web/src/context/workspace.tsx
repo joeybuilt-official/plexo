@@ -142,8 +142,12 @@ export function WorkspaceProvider({
     }, [workspaceId])
 
     function setWorkspace(id: string, name: string) {
-        localStorage.setItem(STORAGE_KEY, id)
-        try { localStorage.setItem(NAME_CACHE_KEY, name) } catch {}
+        try {
+            localStorage.setItem(STORAGE_KEY, id)
+            localStorage.setItem(NAME_CACHE_KEY, name)
+        } catch {
+            // Storage full or restricted — still attempt the switch via state
+        }
         setWorkspaceId(id)
         setWorkspaceName(name)
         // Full reload so server components re-fetch with new context
