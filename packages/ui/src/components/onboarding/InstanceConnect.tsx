@@ -24,17 +24,14 @@ export function InstanceConnect({ onConnect }: { onConnect: (url: string) => voi
         try {
             const res = await fetch(`${cleanUrl}/health`, { method: 'GET' })
             if (res.ok) {
-                // Depending on the platform, we want to save this to SharedPreferences or Keystore
-                // We'll manage that state externally or here. Since onConnect acts as the success callback,
-                // the parent component can save it and navigate.
                 onConnect(cleanUrl)
             } else {
                 setStatus('failed')
                 setErrorMsg("Couldn't reach that address. Check the URL and try again.")
             }
-        } catch (e: any) {
+        } catch (e) {
             setStatus('failed')
-            setErrorMsg(e.message || "Couldn't reach that address. Check the URL and try again.")
+            setErrorMsg(e instanceof Error ? e.message : "Couldn't reach that address. Check the URL and try again.")
         }
     }
 

@@ -16,8 +16,10 @@ import { Router, type Router as RouterType } from 'express'
 import { db, eq, desc } from '@plexo/db'
 import { users } from '@plexo/db'
 import { logger } from '../logger.js'
+import { UUID_RE } from '../validation.js'
 
 export const usersRouter: RouterType = Router()
+
 
 // Strip password hash from any user object
 function sanitize(u: Record<string, unknown>) {
@@ -52,6 +54,10 @@ usersRouter.get('/', async (_req, res) => {
 // ── GET /api/users/:id ────────────────────────────────────────────────────────
 
 usersRouter.get('/:id', async (req, res) => {
+    if (!UUID_RE.test(req.params.id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     try {
         const [user] = await db
             .select({
@@ -79,7 +85,15 @@ usersRouter.get('/:id', async (req, res) => {
 // ── PATCH /api/users/:id ──────────────────────────────────────────────────────
 
 usersRouter.patch('/:id', async (req, res) => {
+    if (!UUID_RE.test(req.params.id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     const { name, role } = req.body as { name?: string; role?: string }
+    if (name !== undefined && (typeof name !== 'string' || name.length > 200)) {
+        res.status(400).json({ error: { code: 'INVALID_NAME', message: 'name must be a string, max 200 chars' } })
+        return
+    }
     try {
         const update: Record<string, unknown> = {}
         if (name) update.name = name

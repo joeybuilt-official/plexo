@@ -17,8 +17,8 @@ export function CategoryBadge({
     className,
     ...props 
 }: CategoryBadgeProps) {
-    // Map string name to Lucide component
-    const Icon = (Icons as any)[iconName] || Icons.Sparkles
+    const Icon = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic icon lookup
+    (Icons as any)[iconName] || Icons.Sparkles
 
     return (
         <span 

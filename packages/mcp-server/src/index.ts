@@ -244,9 +244,6 @@ function createMcpServer(ctx: McpContext | null): McpServer {
 async function startHttpServer(): Promise<void> {
     const port = parseInt(process.env.MCP_PORT ?? '3002', 10)
 
-    // Map of session ID to active transport (for stateful sessions)
-    const transports = new Map<string, StreamableHTTPServerTransport>()
-
     const httpServer = http.createServer(async (req, res) => {
         if (!req.url?.startsWith('/mcp')) {
             res.writeHead(404).end()
@@ -255,7 +252,6 @@ async function startHttpServer(): Promise<void> {
 
         const startMs = Date.now()
 
-        // Read request body
         let body: string = ''
         for await (const chunk of req) {
             body += chunk
@@ -289,14 +285,12 @@ async function startHttpServer(): Promise<void> {
         }
         // For non-auth errors, ctx stays null — tools will handle unauthorized access
 
-        // Create per-request server with context
         const server = createMcpServer(ctx)
         const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => crypto.randomUUID(),
         })
 
         transport.onclose = () => {
-            // Cleanup if needed
             serverCtx.delete(server)
         }
 

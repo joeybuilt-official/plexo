@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { Page } from 'playwright'
-import { SimulationSession } from '../session.js'
-import { Persona } from './index.js'
+import type { Persona } from './index.js'
 import { loginIfNeeded } from '../utils/login.js'
 
 export const chattyCathy: Persona = {
@@ -24,14 +22,12 @@ export const chattyCathy: Persona = {
         ]
 
         for (const msg of messages) {
-            // Wait for textarea to be ready (not disabled from prior reply)
             await page.waitForSelector('textarea:not([disabled])', { timeout: 45000 })
             await page.fill('textarea', msg)
             await page.click('#send-btn')
             await session.logEvent('sent_chat_message', { content: msg })
-            // Wait for agent to finish — textarea becomes enabled again
             await page.waitForSelector('textarea:not([disabled])', { timeout: 45000 })
-            await page.waitForTimeout(1000) // Small pause for realism
+            await page.waitForTimeout(1000)
         }
         await session.logEvent('long_conversation_completed', {})
     }
@@ -146,7 +142,6 @@ export const collaborator: Persona = {
         }
         await session.logEvent('workspace_switcher_opened', {})
         
-        // Wait for list to load
         await page.waitForSelector('button:has-text("Workspace")', { timeout: 10000 }).catch(() => {})
         const items = await page.locator('button:has-text("Workspace")').count()
         await session.logEvent('workspace_items_count', { count: items })

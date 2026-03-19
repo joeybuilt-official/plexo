@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { db, sql } from '@plexo/db'
+import { db } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
 
 export interface ModelKnowledge {
@@ -34,13 +34,10 @@ export async function syncModelKnowledge() {
     try {
         const records: ModelKnowledge[] = []
 
-        // Iterate strictly over the permitted allowlist to fetch from Portkey
         for (const provider of ALLOWED_PROVIDERS) {
             try {
-                // Map local plexo names to Portkey github filenames
                 const portkeyName = provider === 'openai' ? 'openai' : provider
-                
-                // Fetch Pricing and General Metadata in parallel
+
                 const [priceRes, genRes] = await Promise.all([
                     fetch(`https://raw.githubusercontent.com/Portkey-AI/models/main/pricing/${portkeyName}.json`),
                     fetch(`https://raw.githubusercontent.com/Portkey-AI/models/main/general/${portkeyName}.json`)
@@ -51,11 +48,11 @@ export async function syncModelKnowledge() {
                     continue
                 }
 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Portkey JSON schema is untyped
                 const priceData = await priceRes.json() as Record<string, any>
                 const genData = await genRes.json() as Record<string, any>
                 
-                // Parse Portkey pricing format
-                // the object keys are model IDs, except for "default"
+                // Portkey object keys are model IDs, except for "default"
                 for (const [key, value] of Object.entries(priceData)) {
                     if (key === 'default') continue
                     
@@ -65,11 +62,9 @@ export async function syncModelKnowledge() {
                     const promptPrice = payAsYouGo.request_token?.price || 0
                     const completionPrice = payAsYouGo.response_token?.price || 0
 
-                    // Convert per-token to per-million (Portkey gives fractional cents per token usually, or exact tokens)
                     const costPerMIn = parseFloat(String(promptPrice)) * 1000000
                     const costPerMOut = parseFloat(String(completionPrice)) * 1000000
 
-                    // Dynamic Strengths heuristics via capabilities registry mapped
                     const strengths: string[] = []
                     let contextWindow = 128000 // default fallback
                     
@@ -82,15 +77,10 @@ export async function syncModelKnowledge() {
                         if (modelGen.type.supported?.includes('video')) strengths.push('video')
                     }
                     
-                    // Parse params mapping for specialized outputs/inputs
                     if (modelGen.params && Array.isArray(modelGen.params)) {
                         for (const param of modelGen.params) {
-                            if (param.key === 'max_tokens' && param.maxValue) {
-                                // this is max output tokens
-                            }
                             if (param.key === 'response_format') {
-                                // If true json_schema represents deep structured output capability
-                                const hasJsonSchema = param.options?.some((opt: any) => opt.value === 'json_schema')
+                                const hasJsonSchema = param.options?.some((opt: { value: string }) => opt.value === 'json_schema')
                                 if (hasJsonSchema) strengths.push('structured_output')
                             }
                         }
@@ -144,7 +134,7 @@ export async function syncModelKnowledge() {
             ))
         }
 
-        console.log(`Synced ${records.length} Portkey models into knowledge base across ${ALLOWED_PROVIDERS.length} providers.`)
+        console.info(`Synced ${records.length} Portkey models into knowledge base across ${ALLOWED_PROVIDERS.length} providers.`)
     } catch (err) {
         console.error('Failed to sync model knowledge', err)
     }

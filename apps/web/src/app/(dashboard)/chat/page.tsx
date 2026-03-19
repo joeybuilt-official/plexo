@@ -58,7 +58,7 @@ const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL 
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-import { type FileKind, type PastedImage, type PastedDocument, kindFromMime } from '@web/lib/attachments'
+import { type PastedImage, type PastedDocument, kindFromMime } from '@web/lib/attachments'
 import { useSpeechInput } from '@web/hooks/use-speech-input'
 import { VoiceWaveform } from '@web/components/voice-waveform'
 
@@ -556,7 +556,6 @@ function ChatContent() {
         if (cat) setSelectedCategory(cat)
     }, [searchParams])
 
-    // Fetch the active agent model
     useEffect(() => {
         if (!WS_ID) return
         void fetch(`${API}/api/v1/agent/status`)
@@ -565,7 +564,6 @@ function ChatContent() {
             .catch(() => { })
     }, [WS_ID])
 
-    // Scroll to bottom on new messages
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
@@ -668,7 +666,7 @@ function ChatContent() {
                     if (loaded.length > 0) setMessages(loaded)
                     if (data.sessionId) sessionId.current = data.sessionId
                 }
-            } catch { /* ignore */ }
+            } catch { /* conversation context is optional; proceed without it */ }
         }
         void loadContext()
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1170,7 +1168,7 @@ function ChatContent() {
                     m.id === pendingId ? {
                         ...m,
                         status: 'failed',
-                        content: data.reply ?? 'An error occurred.',
+                        content: data.reply ?? 'Something went wrong.',
                         fixUrl: data.fixUrl,
                         fixLabel: data.fixLabel,
                         technicalDetail: data.technicalDetail,

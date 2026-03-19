@@ -90,7 +90,6 @@ class KapselEventBus {
             pub.connect().catch((e: Error) => logger.error({ err: e }, 'Event bus Redis pub connect failed'))
             sub.connect().catch((e: Error) => logger.error({ err: e }, 'Event bus Redis sub connect failed'))
 
-            // Receive events from other containers
             await sub.subscribe(REDIS_CHANNEL, (msg: string) => {
                 try {
                     const { topic, payload } = JSON.parse(msg) as { topic: string; payload: unknown }

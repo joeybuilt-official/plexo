@@ -481,7 +481,10 @@ systemRouter.post('/update', async (_req, res) => {
         send('done', { success: true, message: isDocker ? 'Update complete. Reload the page in a few seconds.' : 'Update pulled. Server may restart automatically.' })
     } catch (err) {
         logger.error({ err }, 'In-app update failed')
-        send('error', { isError: true, message: err instanceof Error ? err.message : 'Unknown error during update' })
+        const safeMessage = err instanceof Error && err.message.includes('PLEXO_REPO_DIR')
+            ? err.message  // intentionally user-facing setup guidance
+            : 'Update failed. Check the server logs for details.'
+        send('error', { isError: true, message: safeMessage })
     }
 
     res.end()

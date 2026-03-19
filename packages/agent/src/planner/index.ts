@@ -133,7 +133,6 @@ export async function planTask(
 ): Promise<PlannerResult> {
     const settings = aiSettings ?? defaultSettings()
 
-    // Build capability manifest (Phase D)
     const manifest = await buildCapabilityManifest(ctx.workspaceId).catch(() => ({
         tools: [
             'read_file', 'write_file', 'shell', 'task_complete', 'write_asset', 'synthesize_kapsel_skill',
@@ -214,7 +213,6 @@ OVERRIDE: Your previous attempt returned a clarification, but this task IS achie
                     return { object: PlannerOutputSchema.parse(JSON.parse(cleaned)) }
                 })
                 if (retryResult.object.type === 'plan') {
-                    // Retry succeeded — use the plan
                     const plan: ExecutionPlan = {
                         taskId: ctx.taskId,
                         goal: retryResult.object.goal,
@@ -227,7 +225,7 @@ OVERRIDE: Your previous attempt returned a clarification, but this task IS achie
                     return { type: 'plan', plan }
                 }
             } catch {
-                // Retry failed — fall through to original clarification
+                // Retry failed — fall through to original clarification response
             }
         }
 

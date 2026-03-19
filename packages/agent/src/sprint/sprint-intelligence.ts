@@ -16,8 +16,12 @@ export class SprintIntelligence {
 
     async getPriorIntelligence(): Promise<string> {
         try {
-            const patterns = await db.select().from(sprintPatterns).where(eq(sprintPatterns.repo, this.repo))
-            
+            const patterns = await db.select({
+                patternType: sprintPatterns.patternType,
+                subject: sprintPatterns.subject,
+                occurrences: sprintPatterns.occurrences,
+            }).from(sprintPatterns).where(eq(sprintPatterns.repo, this.repo)).limit(200)
+
             if (patterns.length === 0) return ''
 
             const hotspots = patterns.filter(p => p.patternType === 'conflict_hotspot')
@@ -49,8 +53,9 @@ export class SprintIntelligence {
 
     async forecastQuality(sprintId: string, goal: string, scopeFiles: string[]): Promise<number> {
         try {
-            // 1. Base Rate
-            const allSprints = await db.select().from(sprints).where(eq(sprints.repo, this.repo))
+            // 1. Base Rate — only fetch status column, limit to recent sprints
+            const allSprints = await db.select({ status: sprints.status, createdAt: sprints.createdAt })
+                .from(sprints).where(eq(sprints.repo, this.repo)).limit(500)
             const completed = allSprints.filter(s => s.status === 'complete').length
             const baseRate = allSprints.length > 0 ? (completed / allSprints.length) : 0.5
 
@@ -58,8 +63,9 @@ export class SprintIntelligence {
             const words = goal.split(/\s+/).length
             const complexityPenalty = (scopeFiles.length * 0.1) + (words / 300)
 
-            // 3. Hotspot Density
-            const hotspots = await db.select().from(sprintPatterns).where(eq(sprintPatterns.patternType, 'conflict_hotspot'))
+            // 3. Hotspot Density — only fetch subject column
+            const hotspots = await db.select({ subject: sprintPatterns.subject })
+                .from(sprintPatterns).where(eq(sprintPatterns.patternType, 'conflict_hotspot')).limit(500)
             const hotspotSubjects = new Set(hotspots.map(h => h.subject))
             const involvedHotspots = scopeFiles.filter(f => hotspotSubjects.has(f)).length
             const hotspotPenalty = involvedHotspots * 0.2
@@ -76,7 +82,6 @@ export class SprintIntelligence {
             // Constrain
             forecast = Math.max(0.1, Math.min(forecast, 0.95))
 
-            // Update forecast on sprint
             await db.update(sprints)
                 .set({ metadata: sql`${sprints.metadata} || ${JSON.stringify({ forecastScore: forecast })}::jsonb` })
                 .where(eq(sprints.id, sprintId))

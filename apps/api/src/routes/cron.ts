@@ -16,10 +16,10 @@ import { db, eq, and, desc } from '@plexo/db'
 import { cronJobs } from '@plexo/db'
 import { logger } from '../logger.js'
 import { captureLifecycleEvent } from '../sentry.js'
+import { UUID_RE } from '../validation.js'
 
 export const cronRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // Basic cron expression validation (5 or 6 field)
 function isValidCron(expr: string): boolean {

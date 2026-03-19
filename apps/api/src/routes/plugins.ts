@@ -27,10 +27,10 @@ import { audit } from '../audit.js'
 import { validateManifest } from '@plexo/sdk'
 import type { KapselManifest } from '@plexo/sdk'
 import { terminateWorker } from '@plexo/agent/persistent-pool'
+import { UUID_RE } from '../validation.js'
 
 export const pluginsRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // Plexo compliance level — used to enforce minHostLevel
 const PLEXO_COMPLIANCE_LEVEL: 'core' | 'standard' | 'full' = 'full'
@@ -272,17 +272,21 @@ pluginsRouter.delete('/:id', async (req, res) => {
         terminateWorker(existing.name)
         await db.delete(plugins).where(eq(plugins.id, req.params.id))
         
-        // §5d: Cleanup — soft-delete associated behavior rules
-        const { behaviorRules: dbBehaviorRules } = await import('@plexo/db')
-        const allRules = await db.select().from(dbBehaviorRules).where(eq(dbBehaviorRules.workspaceId, workspaceId))
-        const pluginRules = allRules.filter(r => r.tags.includes(`plugin:${req.params.id}`))
-        if (pluginRules.length > 0) {
-            await Promise.all(pluginRules.map(r => 
-                db.update(dbBehaviorRules)
-                  .set({ deletedAt: new Date() })
-                  .where(eq(dbBehaviorRules.id, r.id))
-            ))
-            logger.info({ id: req.params.id, count: pluginRules.length }, 'Soft-deleted plugin behavior rules')
+        // §5d: Cleanup — soft-delete associated behavior rules using raw SQL
+        // instead of fetching all rules and filtering/updating in JS (N+1)
+        try {
+            const { sql: rawSql } = await import('@plexo/db')
+            const pluginTag = `plugin:${req.params.id}`
+            await db.execute(rawSql`
+                UPDATE behavior_rules
+                SET deleted_at = NOW()
+                WHERE workspace_id = ${workspaceId}
+                  AND ${pluginTag} = ANY(tags)
+                  AND deleted_at IS NULL
+            `)
+            logger.info({ id: req.params.id }, 'Soft-deleted plugin behavior rules')
+        } catch (ruleErr) {
+            logger.warn({ err: ruleErr, id: req.params.id }, 'Failed to cleanup plugin behavior rules — non-fatal')
         }
 
         logger.info({ id: req.params.id, name: existing.name }, 'Extension uninstalled')

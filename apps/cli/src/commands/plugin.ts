@@ -4,7 +4,7 @@
 import { Command } from 'commander'
 import { requireProfile } from '../config.js'
 import { buildClient } from '../client.js'
-import { output, spinner, statusBadge, c } from '../output.js'
+import { output, spinner, c } from '../output.js'
 import { openSse } from '../sse-stream.js'
 import type { OutputFormat } from '../output.js'
 
@@ -90,7 +90,7 @@ export function registerPlugin(program: Command): void {
     plugin.command('logs <name>')
         .description('Stream extension worker thread output')
         .option('--profile <name_>')
-        .action(async (name: string, opts: { profile?: string }) => {
+        .action((name: string, opts: { profile?: string }) => {
             const profile = requireProfile(opts.profile)
             console.log(c.dim(`Streaming logs for extension ${c.bold(name)}… (Ctrl+C to stop)\n`))
             openSse(profile, (event) => {

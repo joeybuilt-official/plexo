@@ -18,7 +18,6 @@ export class SessionLogger {
     async log(eventOpts: Omit<InsertSessionLog, 'id' | 'sessionId' | 'personaId' | 'createdAt'>): Promise<void> {
         const { eventType, route, action, durationMs, errorMessage, outputType, llmModel, userId } = eventOpts
         
-        // 1. Database insertion
         try {
             await db.insert(sessionLogs).values({
                 ...eventOpts,
@@ -29,8 +28,7 @@ export class SessionLogger {
             console.error('Failed to write session log to DB', e)
         }
 
-        // 2. PostHog capture logic via universal fetch (matches API's telemetry relay)
-        // This reuses the existing PostHog initialization (keyless relay) without a second instance.
+        // PostHog telemetry via keyless relay — fire-and-forget
         try {
             const TELEMETRY_INGEST = `${process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://telemetry.getplexo.com'}/ingest`
             fetch(TELEMETRY_INGEST, {
@@ -53,12 +51,11 @@ export class SessionLogger {
                 }),
                 // non blocking
                 signal: AbortSignal.timeout(5000),
-            }).catch(() => { /* ignore */ })
-        } catch (e) {
-            // ignore
+            }).catch(() => { /* telemetry is best-effort, never block on failure */ })
+        } catch {
+            // telemetry is best-effort — swallow network/serialization errors
         }
 
-        // 3. Sentry breadcrumb
         try {
             Sentry.addBreadcrumb({
                 category: 'session',
@@ -80,8 +77,8 @@ export class SessionLogger {
                     extra: { ...eventOpts, personaId: this.personaId, sessionId: this.sessionId }
                 })
             }
-        } catch (e) {
-            // ignore
+        } catch {
+            // Sentry SDK may not be initialized in all environments
         }
     }
 }

@@ -63,7 +63,7 @@ export function ParallelStatusPanel() {
         try {
             await fetch(`${API}/api/v1/parallel/release/${taskId}?workspaceId=${workspaceId}`, { method: 'POST' })
             await fetchStatus()
-        } catch {}
+        } catch { /* best-effort release; UI refreshes on next poll */ }
     }
 
     if (!status) return null

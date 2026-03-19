@@ -13,7 +13,7 @@ import {
 import { useWorkspace } from '@web/context/workspace'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 import type { FilterDimension } from '@web/components/list-toolbar'
-import { StatusBadge, Button, cn } from '@plexo/ui'
+import { StatusBadge, cn } from '@plexo/ui'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -269,7 +269,7 @@ export default function TasksPage() {
         fetch(`${apiBase}/api/v1/sprints?workspaceId=${workspaceId}&limit=100`, { cache: 'no-store' })
             .then((r) => r.ok ? r.json() : { items: [] })
             .then((d: { items: Sprint[] }) => setSprints(d.items ?? []))
-            .catch(() => { /* ignore */ })
+            .catch(() => { /* sprints sidebar is non-critical */ })
     }, [workspaceId, apiBase])
 
     // ── Load tasks (server-side filters: status, type, projectId) ─────────────
@@ -296,7 +296,6 @@ export default function TasksPage() {
 
     useEffect(() => { void load() }, [load])
 
-    // Cancel a task via DELETE
     const cancelTask = useCallback(async (taskId: string, e?: React.MouseEvent) => {
         if (e) {
             e.preventDefault()
@@ -305,7 +304,7 @@ export default function TasksPage() {
         try {
             await fetch(`${apiBase}/api/v1/tasks/${taskId}`, { method: 'DELETE' })
             void load(true)
-        } catch { /* ignore */ }
+        } catch { /* best-effort cancel; list refreshes on next poll */ }
     }, [apiBase, load])
 
     // Auto-refresh while active tasks exist

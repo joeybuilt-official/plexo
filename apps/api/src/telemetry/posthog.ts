@@ -37,7 +37,7 @@ export function configureTelemetry(opts: {
 
     if (opts.redisUrl && !_redis) {
         _redis = createRedis({ url: opts.redisUrl }) as RedisClientType
-        _redis.connect().catch(() => { /* redis optional for telemetry */ })
+        void _redis.connect().catch(() => { /* redis optional for telemetry */ })
     }
 }
 

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { Page } from 'playwright'
-import { SimulationSession } from '../session.js'
-import { Persona } from './index.js'
+import type { Page } from 'playwright'
+import type { Persona } from './index.js'
 import { loginIfNeeded } from '../utils/login.js'
 
 // Sidebar nav items live inside <aside> on desktop. Using direct URL navigation
@@ -33,7 +32,6 @@ export const powerUser: Persona = {
         await page.waitForSelector('[id^="project-card-"]', { timeout: 10000 }).catch(() => {})
         await session.logEvent('viewed_projects_list', {})
 
-        // Trigger a coordinated action from chat
         await navTo(page, '/chat')
         await page.waitForSelector('textarea')
         await page.fill('textarea', 'Let us plan a new marketing campaign for Discord launch.')

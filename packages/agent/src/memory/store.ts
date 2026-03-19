@@ -38,8 +38,6 @@ export interface MemorySearchResult extends MemoryEntry {
 }
 
 // ── Redis client (lazy singleton) ─────────────────────────────────────────────
-// Imports dynamically so this module loads without Redis in test/local envs.
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 let _redis: any = null
 async function getRedis(): Promise<any | null> {
@@ -135,7 +133,7 @@ async function summarizeMemory(params: {
     const { content, workspaceId, aiSettings } = params
     
     try {
-        let model: any
+        let model: import('../providers/registry.js').AnyLanguageModel
         if (aiSettings) {
             const resolved = await resolveModel('summarization', aiSettings, workspaceId)
             model = resolved.model
@@ -147,7 +145,7 @@ async function summarizeMemory(params: {
             model,
             system: SHORTHAND_SYSTEM_PROMPT,
             messages: [{ role: 'user', content }],
-            // @ts-ignore - maxTokens is part of AI SDK v6 but type inference is failing here
+            // @ts-expect-error maxTokens exists in AI SDK v6 but type inference misses it
             maxTokens: 150,
         })
         
@@ -171,7 +169,6 @@ export async function storeMemory(params: {
 
     const id = crypto.randomUUID()
 
-    // Insert without embedding/shorthand first (non-blocking)
     await db.insert(memoryEntries).values({
         id,
         workspaceId,
@@ -215,7 +212,6 @@ export async function searchMemory(params: {
 }): Promise<MemorySearchResult[]> {
     const { workspaceId, query, type, limit = 5, useCache = true } = params
 
-    // Check Redis cache first
     if (useCache) {
         try {
             const redis = await getRedis()
@@ -295,7 +291,6 @@ export async function searchMemory(params: {
         }))
     }
 
-    // Write to cache
     if (useCache && results.length > 0) {
         try {
             const redis = await getRedis()
@@ -343,7 +338,6 @@ export async function recordTaskMemory(params: {
 }
 
 // ── Direct user-instruction memory write ─────────────────────────────────────
-// Called when chat detects "remember X" / "always do Y" intent.
 
 export async function rememberInstruction(params: {
     workspaceId: string

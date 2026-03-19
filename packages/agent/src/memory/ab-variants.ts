@@ -42,7 +42,6 @@ export interface VariantAssignment {
 export async function assignVariant(workspaceId: string): Promise<VariantAssignment> {
     const control = ((await getPreference(workspaceId, 'prompt_overrides')) as Record<string, string> | null) ?? {}
 
-    // Find the active pending challenger (most recent unapplied prompt_patch proposal)
     const challengers = await db.execute<{
         id: string
         proposed_change: string

@@ -9,10 +9,10 @@ import { logger } from '../logger.js'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { cancelActiveTask } from '../agent-loop.js'
 import { captureLifecycleEvent } from '../sentry.js'
+import { UUID_RE } from '../validation.js'
 
 export const tasksRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const VALID_TASK_TYPES = new Set(['coding', 'deployment', 'research', 'ops', 'opportunity', 'monitoring', 'report', 'online', 'automation'])
 const VALID_TASK_SOURCES = new Set(['telegram', 'slack', 'discord', 'scanner', 'github', 'cron', 'dashboard', 'api', 'extension', 'sentry'])
@@ -303,6 +303,10 @@ tasksRouter.get('/:id/assets', async (req, res) => {
 // Returns version history for a specific artifact.
 tasksRouter.get('/:id/artifacts/:artifactId/versions', async (req, res) => {
     const { artifactId } = req.params
+    if (!UUID_RE.test(artifactId)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required for artifactId' } })
+        return
+    }
     try {
         const versions = await db.select({
             version: artifactVersions.version,
@@ -325,12 +329,21 @@ tasksRouter.get('/:id/artifacts/:artifactId/versions', async (req, res) => {
 // Returns a specific version of an artifact.
 tasksRouter.get('/:id/artifacts/:artifactId/versions/:version', async (req, res) => {
     const { artifactId, version } = req.params
+    if (!UUID_RE.test(artifactId)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required for artifactId' } })
+        return
+    }
+    const versionNum = parseInt(version, 10)
+    if (isNaN(versionNum) || versionNum < 0) {
+        res.status(400).json({ error: { code: 'INVALID_VERSION', message: 'version must be a non-negative integer' } })
+        return
+    }
     try {
         const [ver] = await db.select()
             .from(artifactVersions)
             .where(and(
                 eq(artifactVersions.artifactId, artifactId),
-                eq(artifactVersions.version, parseInt(version, 10))
+                eq(artifactVersions.version, versionNum)
             ))
             .limit(1)
 
@@ -357,13 +370,23 @@ tasksRouter.post('/:id/assets/export', async (req, res) => {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'id, filename, and format are required' } })
         return
     }
+    if (format !== 'pdf' && format !== 'docx') {
+        res.status(400).json({ error: { code: 'UNSUPPORTED_FORMAT', message: 'format must be "pdf" or "docx"' } })
+        return
+    }
 
     try {
         const { existsSync, readFileSync } = await import('node:fs')
         // @ts-ignore
-        const { join } = await import('node:path')
-        
-        const filePath = join(`/tmp/plexo-assets/${id}`, filename)
+        const { join, resolve } = await import('node:path')
+
+        const baseDir = resolve(`/tmp/plexo-assets/${id}`)
+        const filePath = resolve(join(baseDir, filename))
+        // Path traversal protection: ensure resolved path stays within the task's asset directory
+        if (!filePath.startsWith(baseDir + '/') && filePath !== baseDir) {
+            res.status(400).json({ error: { code: 'INVALID_PATH', message: 'Invalid filename' } })
+            return
+        }
         if (!existsSync(filePath)) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } })
             return

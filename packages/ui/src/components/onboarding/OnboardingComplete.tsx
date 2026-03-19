@@ -12,7 +12,6 @@ export function OnboardingComplete({ onComplete }: { onComplete: () => void }) {
     useEffect(() => {
         const getUrl = async () => {
             try {
-                // If native
                 if (typeof (window as any).Capacitor !== 'undefined') {
                     const { Preferences } = await import('@capacitor/preferences')
                     const res = await Preferences.get({ key: 'plexo_instance_url' })

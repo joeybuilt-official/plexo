@@ -12,11 +12,12 @@ export function ModeSelection({ onSelectMode }: { onSelectMode: (mode: 'local' |
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
-        // Only run on Tauri
-        if (typeof (window as any).__TAURI__ !== 'undefined') {
-            const { invoke } = (window as any).__TAURI__.core || (window as any).__TAURI__.tauri || {}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tauri global has no typings
+        const _win = window as any
+        if (typeof _win.__TAURI__ !== 'undefined') {
+            const tauriObj = _win.__TAURI__ as Record<string, Record<string, unknown>> | undefined
+            const { invoke } = tauriObj?.core ?? tauriObj?.tauri ?? {} as Record<string, unknown>
             if (invoke) {
-                // Wait actually we use tauri-plugin-shell to run docker --version
                 import('@tauri-apps/plugin-shell').then(({ Command }) => {
                     Command.create('docker', ['--version']).execute()
                         .then(res => {
@@ -35,10 +36,6 @@ export function ModeSelection({ onSelectMode }: { onSelectMode: (mode: 'local' |
         setError(null)
         try {
             const { Command } = await import('@tauri-apps/plugin-shell')
-            // Option A uses Tauri sidecar 'docker' to run `compose up -d` 
-            // since we bundled docker-compose.yml 
-            // "from a bundled docker-compose.yml inside the app package"
-            // Actually `docker compose` is fine for now
             const compose = Command.create('docker', ['compose', 'up', '-d'])
             const res = await compose.execute()
             if (res.code !== 0) {
@@ -47,13 +44,12 @@ export function ModeSelection({ onSelectMode }: { onSelectMode: (mode: 'local' |
                 return
             }
             
-            // Wait for localhost:3000/health
             let passed = false
             for (let i = 0; i < 30; i++) {
                 try {
                     const health = await fetch('http://localhost:3000/health')
                     if (health.ok) { passed = true; break; }
-                } catch { }
+                } catch { /* health endpoint not ready yet */ }
                 await new Promise(r => setTimeout(r, 2000))
             }
 
@@ -63,8 +59,8 @@ export function ModeSelection({ onSelectMode }: { onSelectMode: (mode: 'local' |
             } else {
                 onSelectMode('local')
             }
-        } catch (e: any) {
-            setError(e.message || 'Error starting local mode')
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Error starting local mode')
             setStarting(false)
         }
     }

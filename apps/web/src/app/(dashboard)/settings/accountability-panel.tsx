@@ -4,7 +4,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AlertCircle, CheckCircle, XCircle, FileText, Loader2, Play, TrendingDown, TrendingUp, Minus } from 'lucide-react'
+import { CheckCircle, XCircle, FileText, Loader2, Play, TrendingDown, TrendingUp, Minus } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
 interface RSIProposal {

@@ -47,7 +47,7 @@ import { telemetryRouter } from './telemetry/router.js'
 import { configureTelemetry } from './telemetry/posthog.js'
 import { clarificationRouter } from './routes/clarification.js'
 import { sentryWebhookRouter } from './routes/sentry-webhook.js'
-import { terminateAll, workerStats } from '@plexo/agent/persistent-pool'
+import { terminateAll } from '@plexo/agent/persistent-pool'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
 import { initSprintLogger } from '@plexo/agent/sprint/logger'
@@ -216,20 +216,20 @@ const server = app.listen(port, '0.0.0.0', () => {
     })
     // On startup: reset any sprints left in 'running' state by a previous process.
     // Fire-and-forget async runners die with the process, leaving DB rows orphaned.
-    db.update(sprints)
+    void db.update(sprints)
         .set({ status: 'failed', completedAt: new Date() })
         .where(eq(sprints.status, 'running'))
-        .then((result) => {
+        .then(() => {
             // Drizzle update doesn't expose rowCount directly — log unconditionally
             logger.info('Startup: orphaned running sprints reset to failed')
         })
         .catch((err: unknown) => logger.error({ err }, 'Startup: failed to reset orphaned sprints'))
 
     startAgentLoop()
-    initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
+    void initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
 
     // Background Sync
-    runCronJobs()
+    void runCronJobs()
     setInterval(() => { void runCronJobs() }, 24 * 60 * 60 * 1000)
 
     // Schedule automatic memory consolidation (every 6h, first run after 5m)
@@ -242,7 +242,7 @@ const server = app.listen(port, '0.0.0.0', () => {
     }, 7 * 60 * 1000)
 
     // Seed default "Memory consolidation" cron job row per workspace so it's visible in UI
-    db.execute(sql`
+    void db.execute(sql`
         SELECT id FROM workspaces LIMIT 50
     `).then(async (wsRows) => {
         for (const ws of wsRows as unknown as { id: string }[]) {
@@ -264,7 +264,7 @@ const server = app.listen(port, '0.0.0.0', () => {
     }).catch((err: unknown) => logger.warn({ err }, 'Startup: failed to seed memory cron rows — non-fatal'))
 
     // Seed RSI monitor cron row per workspace
-    db.execute(sql`SELECT id FROM workspaces LIMIT 50`)
+    void db.execute(sql`SELECT id FROM workspaces LIMIT 50`)
         .then(async (wsRows) => {
             for (const ws of wsRows as unknown as { id: string }[]) {
                 await db.execute(sql`

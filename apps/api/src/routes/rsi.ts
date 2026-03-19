@@ -5,10 +5,10 @@ import { Router, type Router as RouterType } from 'express'
 import { db, rsiProposals, rsiTestResults, eq, and, desc } from '@plexo/db'
 import { logger } from '../logger.js'
 import { emitRsiProposalResolved } from '../telemetry/events.js'
+import { UUID_RE } from '../validation.js'
 
 export const rsiRouter: RouterType = Router({ mergeParams: true })
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // GET /api/v1/workspaces/:id/rsi/proposals
 rsiRouter.get('/proposals', async (req, res, next) => {
@@ -50,7 +50,7 @@ rsiRouter.post('/proposals/:proposalId/approve', async (req, res, next) => {
         }
 
         // Fire shadow test non-fatally after approve
-        import('@plexo/agent/introspection/shadow-test')
+        void import('@plexo/agent/introspection/shadow-test')
             .then(({ runShadowTest }) => runShadowTest(proposalId, workspaceId))
             .catch(err => logger.warn({ err, proposalId }, 'Shadow test failed non-fatally'))
 

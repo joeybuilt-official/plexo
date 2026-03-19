@@ -2,15 +2,15 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, desc, eq, and } from '@plexo/db'
+import { db, desc, eq, and, sprintStatusEnum } from '@plexo/db'
 import { sprints, tasks } from '@plexo/db'
 import { logger } from '../logger.js'
 import { ulid } from 'ulid'
+import { UUID_RE } from '../validation.js'
 
 export const sprintsRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const VALID_SPRINT_STATUSES = new Set(['planning', 'running', 'complete', 'failed', 'cancelled'])
+const VALID_SPRINT_STATUSES = new Set<string>(sprintStatusEnum.enumValues)
 const VALID_CATEGORIES = new Set(['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general'])
 
 // ── GET /api/sprints?workspaceId=&status= ───────────────────────────────────
@@ -140,10 +140,21 @@ sprintsRouter.get('/:id', async (req, res) => {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
             return
         }
-        // Tasks linked to sprint via project field
-        const sprintTasks = await db.select().from(tasks)
+        // Tasks linked to sprint via project field — select key columns, cap at 200
+        const sprintTasks = await db.select({
+            id: tasks.id,
+            type: tasks.type,
+            status: tasks.status,
+            source: tasks.source,
+            outcomeSummary: tasks.outcomeSummary,
+            qualityScore: tasks.qualityScore,
+            costUsd: tasks.costUsd,
+            createdAt: tasks.createdAt,
+            completedAt: tasks.completedAt,
+        }).from(tasks)
             .where(eq(tasks.project, id))
             .orderBy(desc(tasks.createdAt))
+            .limit(200)
         res.json({ sprint, tasks: sprintTasks })
     } catch (err) {
         logger.error({ err }, 'GET /api/sprints/:id failed')

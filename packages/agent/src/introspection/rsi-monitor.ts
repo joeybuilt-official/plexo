@@ -17,7 +17,7 @@ export interface RSIAnomaly {
  */
 export async function runRSIMonitor() {
     logger.info({ event: 'rsi_scan_start' }, 'Starting RSI monitor scan')
-    const activeWorkspaces = await db.select({ id: workspaces.id }).from(workspaces)
+    const activeWorkspaces = await db.select({ id: workspaces.id }).from(workspaces).limit(500)
 
     let totalProposals = 0
 
@@ -34,9 +34,14 @@ async function scanWorkspace(workspaceId: string): Promise<number> {
     const fourteenDaysAgo = new Date()
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
-    // aggregate all relevant completed tasks for this workspace
+    // aggregate all relevant completed tasks for this workspace — select only needed columns
     const recentTasks = await db
-        .select()
+        .select({
+            qualityScore: workLedger.qualityScore,
+            calibration: workLedger.calibration,
+            costUsd: workLedger.costUsd,
+            completedAt: workLedger.completedAt,
+        })
         .from(workLedger)
         .where(
             and(
@@ -44,24 +49,29 @@ async function scanWorkspace(workspaceId: string): Promise<number> {
                 gte(workLedger.completedAt, fourteenDaysAgo)
             )
         )
+        .limit(1000)
 
     if (recentTasks.length < 5) return 0 // Enforce N=5 statistical minimum limit
 
     const proposals = detectAnomalies(recentTasks)
 
     let inserted = 0
+    if (proposals.length === 0) return 0
+
+    // Batch-fetch existing pending proposals to avoid N+1 duplicate checks
+    const existingProposals = await db.select({
+        anomalyType: rsiProposals.anomalyType,
+    }).from(rsiProposals).where(
+        and(
+            eq(rsiProposals.workspaceId, workspaceId),
+            eq(rsiProposals.status, 'pending')
+        )
+    ).limit(100)
+    const existingTypes = new Set(existingProposals.map(p => p.anomalyType))
+
     // Persist discovered proposals allowing shadow testing
     for (const proposal of proposals) {
-        // Prevent duplicate spamming: Don't insert if exactly identical hypothesis exists and remains 'pending'
-        const existing = await db.select().from(rsiProposals).where(
-            and(
-                eq(rsiProposals.workspaceId, workspaceId),
-                eq(rsiProposals.anomalyType, proposal.type),
-                eq(rsiProposals.status, 'pending')
-            )
-        ).limit(1)
-
-        if (existing.length === 0) {
+        if (!existingTypes.has(proposal.type)) {
             await db.insert(rsiProposals).values({
                 workspaceId,
                 anomalyType: proposal.type,
@@ -69,6 +79,7 @@ async function scanWorkspace(workspaceId: string): Promise<number> {
                 proposedChange: proposal.proposedChange,
                 risk: proposal.risk,
             })
+            existingTypes.add(proposal.type) // prevent duplicates within same batch
             inserted++
             logger.info({ event: 'rsi_proposal_emitted', workspaceId, type: proposal.type }, 'RSI generated new proposal hypothesis')
             eventBus.publish(TOPICS.RSI_PROPOSAL_CREATED, { workspaceId, type: proposal.type, hypothesis: proposal.hypothesis })
@@ -78,7 +89,14 @@ async function scanWorkspace(workspaceId: string): Promise<number> {
     return inserted
 }
 
-export function detectAnomalies(recentTasks: any[]): RSIAnomaly[] {
+interface TaskRecord {
+    qualityScore?: number | null
+    calibration?: string | null
+    costUsd?: number | null
+    completedAt?: Date | null
+}
+
+export function detectAnomalies(recentTasks: TaskRecord[]): RSIAnomaly[] {
     const proposals: RSIAnomaly[] = []
 
     // 1. Check for 'quality_degradation' across tasks with recorded scores

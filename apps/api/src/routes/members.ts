@@ -18,13 +18,13 @@ import { workspaceMembers, workspaceInvites, users, workspaces } from '@plexo/db
 import { randomBytes } from 'crypto'
 import { logger } from '../logger.js'
 import { audit } from '../audit.js'
+import { UUID_RE } from '../validation.js'
 
 export const membersRouter: RouterType = Router({ mergeParams: true })
 export const invitesRouter: RouterType = Router({ mergeParams: true })
 
 type MemberRole = 'owner' | 'admin' | 'member' | 'viewer'
 const VALID_ROLES: MemberRole[] = ['owner', 'admin', 'member', 'viewer']
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ── GET /api/workspaces/:id/members ────────────────────────────────────────────
 
@@ -300,7 +300,6 @@ invitesRouter.post('/:token/accept', async (req, res) => {
             return
         }
 
-        // Add member (upsert)
         await db.insert(workspaceMembers).values({
             workspaceId: invite.workspaceId,
             userId,

@@ -3,7 +3,7 @@
 
 import { Router, type Router as RouterType } from 'express'
 import pkg from '../../package.json' with { type: 'json' }
-import { db, sql, eq } from '@plexo/db'
+import { db, sql } from '@plexo/db'
 import { workspaces } from '@plexo/db'
 import { createClient } from 'redis'
 import { logger } from '../logger.js'
@@ -93,7 +93,15 @@ async function pingAIProvider(): Promise<{ ok: boolean | null; latencyMs: number
         const res = await fetch(url, { headers, signal: AbortSignal.timeout(5000) })
         if (!res.ok) {
             const body = await res.text().catch(() => '')
-            logger.warn({ status: res.status, body: body.slice(0, 200), providerKey }, 'AI provider ping non-ok')
+            // Parse error type/code only — never log the raw body as provider
+            // error messages (e.g. OpenAI 401) can contain partial API keys.
+            let safeDetail: string | undefined
+            try {
+                const parsed = JSON.parse(body)
+                const err = parsed?.error
+                safeDetail = err?.type ?? err?.code ?? err?.status ?? undefined
+            } catch { safeDetail = undefined }
+            logger.warn({ status: res.status, errorType: safeDetail, providerKey }, 'AI provider ping non-ok')
             return { ok: false, latencyMs: Date.now() - start, error: `http_${res.status}`, provider: providerKey }
         }
         return { ok: true, latencyMs: Date.now() - start, provider: providerKey }

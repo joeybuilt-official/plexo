@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { 
-    Clock, 
-    Play, 
-    Cpu, 
-    AlertCircle, 
-    CheckCircle2, 
-    XCircle, 
+import type React from 'react'
+import {
+    Clock,
+    Play,
+    Cpu,
+    XCircle,
     StopCircle,
     Sparkles,
     CheckCheck,
@@ -26,7 +25,7 @@ export interface StatusConfig {
     bgColor: string
     borderColor: string
     dotColor: string
-    icon: any
+    icon: React.ComponentType<{ className?: string }>
     animate?: boolean
 }
 

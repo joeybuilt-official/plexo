@@ -18,6 +18,7 @@ import { connectionsRegistry, installedConnections } from '@plexo/db'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { captureLifecycleEvent } from '../sentry.js'
+import { UUID_RE } from '../validation.js'
 
 /**
  * Maps connections registry IDs → MCP server binding metadata.
@@ -57,7 +58,6 @@ const MCP_BINDINGS: Record<string, { mcpPackage: string; envKey: string }> = {
 
 export const connectionsRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ── GET /api/connections/registry ────────────────────────────────────────────
 
@@ -137,7 +137,6 @@ connectionsRouter.get('/github/repos', async (req, res) => {
             return
         }
 
-        // Fetch repos from GitHub
         const ghRes = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -185,6 +184,11 @@ connectionsRouter.get('/github/branches', async (req, res) => {
         res.status(400).json({ error: { code: 'INVALID_REPO', message: 'Repo name required' } })
         return
     }
+    // Validate repo format (owner/name) to prevent URL injection/SSRF
+    if (!/^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/.test(repo) || repo.length > 200) {
+        res.status(400).json({ error: { code: 'INVALID_REPO', message: 'Repo must be in "owner/name" format' } })
+        return
+    }
 
     try {
         const [row] = await db.select({
@@ -215,7 +219,6 @@ connectionsRouter.get('/github/branches', async (req, res) => {
             return
         }
 
-        // Fetch branches from GitHub
         const ghRes = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, {
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -285,6 +288,10 @@ connectionsRouter.post('/install', async (req, res) => {
 
     if (!workspaceId || !UUID_RE.test(workspaceId) || !registryId) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'workspaceId and registryId required' } })
+        return
+    }
+    if (typeof registryId !== 'string' || registryId.length > 100) {
+        res.status(400).json({ error: { code: 'INVALID_REGISTRY_ID', message: 'registryId must be a string, max 100 chars' } })
         return
     }
 

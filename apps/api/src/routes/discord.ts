@@ -26,10 +26,8 @@ import { push as pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { captureLifecycleEvent } from '../sentry.js'
 import { recordConversation, type ChannelRef } from '../conversation-log.js'
-import { generateText } from 'ai'
-import { buildModel } from '@plexo/agent/providers/registry'
-import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { emitToWorkspace } from '../sse-emitter.js'
+import { chatWithAI, classifyIntent, ChannelChatHistory } from '../channel-ai.js'
 import type { Request, Response } from 'express'
 
 export const discordRouter: RouterType = Router()
@@ -120,72 +118,9 @@ async function sendFollowUp(
     )
 }
 
-// ── AI helpers (provider-agnostic) ──────────────────────────────────────────
+// ── Chat history (shared helper from channel-ai.ts) ────────────────────────
 
-interface ChatMessage { role: 'user' | 'assistant'; content: string }
-
-interface AiResult {
-    text: string | null
-    error: string | null
-}
-
-async function chatWithAI(workspaceId: string, messages: ChatMessage[], system?: string, includeSnapshot = false): Promise<AiResult> {
-    const { credential, aiSettings } = await loadWorkspaceAISettings(workspaceId)
-    if (!credential || !aiSettings) return { text: null, error: 'no_credential' }
-
-    const providerKey = aiSettings.primaryProvider
-    const config = aiSettings.providers[providerKey]
-    if (!config) return { text: null, error: `no config for provider ${providerKey}` }
-
-    try {
-        let finalSystem = system ?? 'You are Plexo, an AI agent assistant.'
-        
-        if (includeSnapshot) {
-            const { buildIntrospectionSnapshot } = await import('@plexo/agent/introspection')
-            const resolvedModel = config.model ?? '(unknown)'
-            const snapshot = await buildIntrospectionSnapshot(workspaceId, providerKey, resolvedModel)
-            finalSystem += `\n\nYour identity: you are Plexo, running on provider "${providerKey}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.\n\nHere is your full state and self-awareness snapshot (tools, agents, skills, memory, integrations, channels, exact model, provider, and workspace):\n${JSON.stringify(snapshot, null, 2)}`
-        }
-
-        const model = buildModel(providerKey, config, 'summarization', aiSettings)
-        const result = await generateText({
-            model,
-            system: finalSystem,
-            messages: messages.map(m => ({ role: m.role, content: m.content })),
-            abortSignal: AbortSignal.timeout(30_000),
-        })
-        return { text: result.text ?? null, error: null }
-    } catch (err) {
-        return { text: null, error: err instanceof Error ? err.message : String(err) }
-    }
-}
-
-const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
-Decide if the user's message is a TASK, PROJECT, or CONVERSATION.
-
-TASK: Clear, specific, actionable request that can be executed autonomously IMMEDIATELY (e.g., "Deploy the web app", "Sort the files"). Requires no further clarification.
-PROJECT: A large, multi-step goal requiring planning (e.g., "Build a new features", "Implement auth").
-CONVERSATION: Vague requests, requests for help/troubleshooting ("I need help troubleshooting", "How do I..."), queries needing clarification, greetings, checks, small talk.
-
-Reply with ONLY one word: TASK, PROJECT, or CONVERSATION.`
-
-async function classifyIntent(workspaceId: string, history: ChatMessage[]): Promise<'TASK' | 'PROJECT' | 'CONVERSATION'> {
-    const result = await chatWithAI(workspaceId, history, CLASSIFY_SYSTEM)
-    if (result.error) return 'CONVERSATION'
-    const resText = result.text?.trim().toUpperCase() ?? ''
-    if (resText.startsWith('TASK')) return 'TASK'
-    else if (resText.startsWith('PROJECT')) return 'PROJECT'
-    return 'CONVERSATION'
-}
-
-const chatHistory = new Map<string, ChatMessage[]>()
-
-function addToHistory(threadId: string, role: 'user' | 'assistant', content: string): void {
-    const hist = chatHistory.get(threadId) ?? []
-    hist.push({ role, content })
-    if (hist.length > 20) hist.splice(0, hist.length - 20)
-    chatHistory.set(threadId, hist)
-}
+const chatHistory = new ChannelChatHistory()
 
 /** Stable session ID for a Discord thread/channel */
 function discordSessionId(guildId: string, channelId: string): string {
@@ -241,7 +176,7 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
             res.json({ type: INTERACTION_RESPONSE_TYPE_DEFERRED_CHANNEL_MESSAGE })
 
             const threadId = interaction.channel_id ?? interaction.user?.id ?? 'default'
-            addToHistory(threadId, 'user', description)
+            chatHistory.add(threadId, 'user', description)
             const history = chatHistory.get(threadId) ?? []
 
             const intent = await classifyIntent(workspaceId, history)
@@ -266,7 +201,7 @@ Critical rules — follow without exception:
                     logger.warn({ threadId, workspaceId, error: result.error }, 'AI error during Discord conversation')
                 }
                 const replyText = result.text ?? "I'm having a bit of trouble right now — please try again in a moment."
-                addToHistory(threadId, 'assistant', replyText)
+                chatHistory.add(threadId, 'assistant', replyText)
                 await sendFollowUp(interaction.application_id, interaction.token, replyText)
 
                 const sessionId = discordSessionId(interaction.guild_id ?? '', interaction.channel_id ?? '')
@@ -365,7 +300,7 @@ discordRouter.get('/info', async (_req, res) => {
     let serverCount = 0
     try {
         serverCount = Object.keys(JSON.parse(workspaceMapRaw) as object).length
-    } catch { /* ignore */ }
+    } catch { /* malformed JSON in env var — default to 0 */ }
 
     res.json({
         configured,

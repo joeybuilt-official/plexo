@@ -3,11 +3,9 @@
 
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 
 export function EnableNotifications({ onComplete }: { onComplete: () => void }) {
-    const [status, setStatus] = useState<'idle' | 'checking' | 'failed'>('idle')
-
     const requestPermissions = async () => {
         try {
             const { PushNotifications } = await import('@capacitor/push-notifications')
@@ -17,9 +15,7 @@ export function EnableNotifications({ onComplete }: { onComplete: () => void }) 
                 permStatus = await PushNotifications.requestPermissions()
             }
             
-            if (permStatus.receive !== 'granted') {
-                // Not granted, that's fine, we can still proceed
-            } else {
+            if (permStatus.receive === 'granted') {
                 await PushNotifications.register()
             }
             onComplete()

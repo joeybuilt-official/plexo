@@ -66,7 +66,6 @@ export async function runSelfImprovementCycle(params: {
 
     logger.info({ workspaceId, lookbackDays }, 'Self-improvement cycle started')
 
-    // Load recent ledger entries
     const rawLedger = await db.select({
         taskId: workLedger.taskId,
         type: workLedger.type,
@@ -192,7 +191,6 @@ ${JSON.stringify(ledgerSummary, null, 2)}`,
         logger.error({ err }, 'LLM analysis failed in self-improvement cycle')
     }
 
-    // Store proposals
     let applied = 0
     for (const proposal of proposals.slice(0, 5)) {
         try {

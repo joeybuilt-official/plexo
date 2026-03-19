@@ -292,7 +292,6 @@ export async function buildIntrospectionSnapshot(
             .where(eq(plugins.workspaceId, workspaceId))
 
         for (const row of rows) {
-            // Extract registered tool names from kapsel manifest
             const manifest = (row.kapselManifest ?? {}) as { tools?: Array<{ name: string }> }
             const pluginTools = (manifest.tools ?? []).map((t) => t.name)
             pluginSnapshots.push({

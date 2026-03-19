@@ -168,7 +168,7 @@ export async function validateMcpToken(
     }
 
     // Update last_used_at asynchronously (non-blocking)
-    db.update(mcpTokens)
+    void db.update(mcpTokens)
         .set({ lastUsedAt: new Date() })
         .where(eq(mcpTokens.id, tokenRecord.id))
         .catch((err) => logger.error({ err }, 'MCP auth: failed to update last_used_at'))

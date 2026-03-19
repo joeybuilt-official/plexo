@@ -193,7 +193,6 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
                 branch: z.string().describe('Branch to commit to'),
             }),
             execute: async ({ owner, repo, path, content, message, branch }) => {
-                // Get current file SHA if it exists (needed for updates)
                 let sha: string | undefined
                 const existingRes = await fetch(
                     `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(branch)}`,

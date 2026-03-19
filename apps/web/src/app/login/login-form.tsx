@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Github, Mail, ArrowRight, Loader2, ExternalLink } from 'lucide-react'
+import { Mail, ArrowRight, Loader2 } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 
 export function LoginForm() {

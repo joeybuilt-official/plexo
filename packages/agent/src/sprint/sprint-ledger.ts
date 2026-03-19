@@ -52,7 +52,6 @@ export async function logSprintFileEvent(params: {
 
 export async function refreshSprintPatterns(repo: string, sprintId: string) {
     try {
-        // Find hotspots based on file events
         const hotSpots = await db.execute(sql`
             SELECT file_path as "filePath", COUNT(*) as c
             FROM sprint_file_events
@@ -61,14 +60,15 @@ export async function refreshSprintPatterns(repo: string, sprintId: string) {
             HAVING COUNT(*) > 2
         `) as Record<string, unknown>[]
 
-        for (const row of hotSpots) {
-            await db.insert(sprintPatterns).values({
+        if (hotSpots.length > 0) {
+            const values = hotSpots.map(row => ({
                 id: crypto.randomUUID(),
                 repo,
-                patternType: 'conflict_hotspot',
+                patternType: 'conflict_hotspot' as const,
                 subject: String(row.filePath),
                 occurrences: Number(row.c),
-            }).onConflictDoUpdate({
+            }))
+            await db.insert(sprintPatterns).values(values).onConflictDoUpdate({
                 target: [sprintPatterns.repo, sprintPatterns.patternType, sprintPatterns.subject],
                 set: {
                     occurrences: sql`sprint_patterns.occurrences + 1`,

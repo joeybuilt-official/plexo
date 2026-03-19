@@ -11,20 +11,13 @@ export function SignIn({ onSignIn, apiUrl }: { onSignIn: () => void; apiUrl?: st
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
-    // Wait, the prompt says POST /auth/signin. 
-    // In our app it's `/api/v1/auth/signin` or something similar.
-    // However, if we're on the new remote instance, we could just rely on NextAuth credentials signin or custom post.
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
         setError('')
-        
+
         try {
             const base = apiUrl || window.location.origin
-            // POST /api/v1/auth/signin? Actually we might use NextAuth's /api/auth/callback/credentials, 
-            // but the prompt explicitly states: "POST /auth/signin" -> wait, for custom mobile we usually use an API endpoint.
-            // Let's assume "/api/v1/auth/signin" works and returns a token. 
-            // Wait, NextAuth uses cookies. If it uses cookies, `@capacitor-community/http` or just standard `fetch` creates a session!
             const res = await fetch(`${base}/api/auth/callback/credentials`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -41,8 +34,8 @@ export function SignIn({ onSignIn, apiUrl }: { onSignIn: () => void; apiUrl?: st
             } else {
                 setError('Failed to sign in.')
             }
-        } catch (e: any) {
-            setError(e.message || 'An error occurred.')
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Sign in failed')
         } finally {
             setLoading(false)
         }

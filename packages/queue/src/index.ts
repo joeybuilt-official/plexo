@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { db, eq, and, sql, asc, inArray, tasks, type TaskType } from '@plexo/db'
+import { db, eq, and, sql, asc, inArray, tasks, type TaskType, type TaskStatus } from '@plexo/db'
 import { ulid } from 'ulid'
 
 // ── Types ────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ export interface PushParams {
     project?: string
     projectId?: string   // FK → sprints.id — the project this task belongs to
     parentId?: string
-    status?: 'queued' | 'claimed' | 'running' | 'complete' | 'blocked' | 'cancelled'
+    status?: TaskStatus
     /** Max USD this task may spend. null = inherit workspace default. */
     costCeilingUsd?: number
     /** Max output tokens. 0 = no cap. */

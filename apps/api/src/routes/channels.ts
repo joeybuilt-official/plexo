@@ -14,10 +14,10 @@ import { db, eq, and } from '@plexo/db'
 import { channels } from '@plexo/db'
 import { logger } from '../logger.js'
 import { registerTelegramChannel } from './telegram.js'
+import { UUID_RE } from '../validation.js'
 
 export const channelsRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ── GET /api/channels ─────────────────────────────────────────────────────────
 
@@ -69,7 +69,7 @@ channelsRouter.post('/', async (req, res) => {
             const cfg = config as { token?: string; bot_token?: string }
             const token = cfg.token ?? cfg.bot_token ?? null
             if (token) {
-                registerTelegramChannel(created.id, token, workspaceId).catch(
+                void registerTelegramChannel(created.id, token, workspaceId).catch(
                     (err: Error) => logger.warn({ err }, 'Telegram webhook auto-register failed')
                 )
             }

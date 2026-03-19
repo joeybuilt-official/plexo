@@ -4,7 +4,7 @@
 import { Command } from 'commander'
 import { requireProfile } from '../config.js'
 import { buildClient, ApiError } from '../client.js'
-import { output, spinner, statusBadge, c, fatal, isTTY } from '../output.js'
+import { output, spinner, statusBadge, c, fatal } from '../output.js'
 import { waitForTask, openSse } from '../sse-stream.js'
 import type { OutputFormat } from '../output.js'
 

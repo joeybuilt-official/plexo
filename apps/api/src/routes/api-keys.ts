@@ -7,10 +7,10 @@ import { z } from 'zod'
 import { db, eq, and, desc } from '@plexo/db'
 import { mcpTokens } from '@plexo/db'
 import { logger } from '../logger.js'
+import { UUID_RE } from '../validation.js'
 
 export const apiKeysRouter: RouterType = Router({ mergeParams: true })
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const CreateKeySchema = z.object({
     name: z.string().min(1).max(100),

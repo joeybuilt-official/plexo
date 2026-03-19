@@ -5,10 +5,10 @@ import { Router, type Router as RouterType } from 'express'
 import { db, eq, desc } from '@plexo/db'
 import { workspaces } from '@plexo/db'
 import { captureLifecycleEvent } from '../sentry.js'
+import { UUID_RE } from '../validation.js'
 
 export const workspacesRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // GET /api/workspaces — list workspaces, optionally filter by ownerId
 workspacesRouter.get('/', async (req, res) => {

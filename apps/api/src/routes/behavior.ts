@@ -18,6 +18,7 @@ import type { Request, Response } from 'express'
 import { db, eq, and, isNull, isNotNull, desc, or } from '@plexo/db'
 import { behaviorRules, behaviorSnapshots } from '@plexo/db'
 import { logger } from '../logger.js'
+import { UUID_RE } from '../validation.js'
 
 // Lazy-import to avoid circular deps during startup
 async function getResolver() {
@@ -39,7 +40,6 @@ async function getExportGenerator() {
 
 export const behaviorRouter: IRouter = Router({ mergeParams: true })
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VALID_TYPES = new Set(['safety_constraint', 'operational_rule', 'communication_style', 'domain_knowledge', 'persona_trait', 'tool_preference', 'quality_gate'])
 
 function badId(res: Response, param = 'workspaceId') {

@@ -62,6 +62,8 @@ export const taskStatusEnum = pgEnum('task_status', [
     'cancelled',
 ])
 
+export type TaskStatus = (typeof taskStatusEnum.enumValues)[number]
+
 export const taskSourceEnum = pgEnum('task_source', [
     'telegram',
     'slack',

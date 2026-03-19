@@ -16,11 +16,12 @@ export interface ParallelSlot {
     expiresAt: number
 }
 
-function getResourceKey(task: any): string {
-    if (task.type === 'deployment') return `app_${task.context?.app_uuid ?? 'unknown'}`
-    if (task.type === 'ops') return `ops_${task.context?.target ?? 'unknown'}`
-    if (task.context?.repo) return `repo_${task.context.repo}`
-    return `task_${task.id}` // Independent tasks
+function getResourceKey(task: typeof tasks.$inferSelect): string {
+    const ctx = task.context as Record<string, unknown> | null
+    if (task.type === 'deployment') return `app_${(ctx?.app_uuid as string) ?? 'unknown'}`
+    if (task.type === 'ops') return `ops_${(ctx?.target as string) ?? 'unknown'}`
+    if (ctx?.repo) return `repo_${ctx.repo}`
+    return `task_${task.id}`
 }
 
 export async function claimBatch(): Promise<(typeof tasks.$inferSelect)[]> {
@@ -37,7 +38,8 @@ export async function claimBatch(): Promise<(typeof tasks.$inferSelect)[]> {
             } else {
                 activeSlots.push(data)
             }
-        } catch (e) {
+        } catch {
+            // Corrupted slot data — evict it
             await redis.hDel('zeroclaw:parallel:slots', taskId)
         }
     }
@@ -62,7 +64,7 @@ export async function claimBatch(): Promise<(typeof tasks.$inferSelect)[]> {
         // Deployment tasks have strict sequential per project invariant
         // Git tasks have strict repo invariant
         if (rKey.startsWith('task_') || !claimedResources.has(rKey)) {
-            // Atomic check
+            // Atomic CAS: only claim if still queued (prevents double-claim races)
             const result = await db.execute<typeof tasks.$inferSelect>(sql`
                 UPDATE tasks
                 SET status = 'claimed', claimed_at = NOW()
@@ -102,7 +104,7 @@ export async function getParallelStatus() {
             if (data.expiresAt >= now) {
                 activeSlots.push(data)
             }
-        } catch {}
+        } catch { /* corrupted JSON — skip slot */ }
     }
     return { slots: activeSlots, maxSlots: PARALLEL_MAX_SLOTS }
 }

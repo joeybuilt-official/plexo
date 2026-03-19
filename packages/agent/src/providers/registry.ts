@@ -12,8 +12,7 @@ import { createXai } from '@ai-sdk/xai'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-// Use LanguageModel from the ai package (re-exported from @ai-sdk/provider)
-// Ollama uses OpenAI-compatible endpoint to stay on V3 spec (ollama-ai-provider is V1 only)
+// Ollama uses OpenAI-compatible endpoint (ollama-ai-provider is V1 only)
 
 export type ProviderKey =
     | 'openrouter'
@@ -91,8 +90,9 @@ export type AnyLanguageModel = any
  */
 
 /** Per-provider sensible default models — used when no model is explicitly selected. */
-const PROVIDER_DEFAULT_MODELS: Partial<Record<ProviderKey, string>> = {
+export const PROVIDER_DEFAULT_MODELS: Partial<Record<ProviderKey, string>> = {
     openai: 'gpt-4o',
+    anthropic: 'claude-3-5-sonnet-20241022',
     google: 'gemini-2.5-flash',
     mistral: 'mistral-large-latest',
     groq: 'llama-3.1-8b-instant',
@@ -258,7 +258,6 @@ export function resolveModelFromEnv(modelId?: string): AnyLanguageModel {
     const id = modelId ?? DEFAULT_MODEL_ROUTING.summarization
 
     if (process.env.OPENAI_API_KEY) {
-        // Map claude model IDs to an OpenAI equivalent when using OpenAI as fallback
         const openaiId = id.startsWith('claude') ? 'gpt-4o-mini' : id
         return openai(openaiId)
     }
@@ -316,7 +315,7 @@ export async function withFallback<T>(
                                 .set({ reliabilityScore: sql`GREATEST(0, ${modelsKnowledge.reliabilityScore} - 0.05)` })
                                 .where(eq(modelsKnowledge.modelId, failedModelId))
                         } catch (dbErr) {
-                            // Log or ignore db errors during calibration
+                            // Non-fatal: calibration is best-effort
                         }
                     }
                 }
@@ -368,7 +367,6 @@ const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
     ollama_cloud: 'gpt-oss:20b-cloud',
 }
 
-// Map provider → env var name (used to temporarily inject a user-supplied key)
 const PROVIDER_ENV_KEY: Partial<Record<ProviderKey, string>> = {
     openrouter: 'OPENROUTER_API_KEY',
     anthropic: 'ANTHROPIC_API_KEY',
@@ -483,7 +481,6 @@ export async function testProvider(
             const modelId = opts.model
                 ?? models.find(m => m.id.includes('mini') || m.id.includes('nano') || m.id.includes('small'))?.id
                 ?? models[0]!.id
-            // Try a generate — if the server blocks POST, still report ok since server responded
             try {
                 const ol = createOpenAICompatible({ name: 'ollama', baseURL })(modelId)
                 const ac = new AbortController()
@@ -491,7 +488,6 @@ export async function testProvider(
                 const result = await gt({ model: ol, prompt: 'Say "ok".', maxOutputTokens: 20, abortSignal: ac.signal })
                 clearTimeout(timer)
                 return { ok: true, message: `Connected — ${models.length} model(s) available`, latencyMs: Date.now() - start, model: modelId }
-                void result
             } catch {
                 // POST blocked or generation failed — but server responded to GET, so it's reachable
                 return { ok: true, message: `Reachable — ${models.length} model(s) available (generation test skipped)`, latencyMs: Date.now() - start, model: modelId }
@@ -596,7 +592,6 @@ export async function testProvider(
         }
         // Waterfall through free models — some fail if user has 'Model Training' disabled
         // in OpenRouter privacy settings (returns 'No endpoints found matching your data policy').
-        // Try the user's explicit model first (if set), then fall through our known-good list.
         const FREE_CANDIDATES = [
             'deepseek/deepseek-chat-v3-0324:free',
             'meta-llama/llama-3.3-70b-instruct:free',

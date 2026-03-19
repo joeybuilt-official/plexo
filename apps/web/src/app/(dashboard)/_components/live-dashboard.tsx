@@ -112,7 +112,7 @@ export function LiveDashboard() {
                 setSummary(await res.json() as DashboardSummary)
                 setLastUpdated(new Date())
             }
-        } catch { /* silent */ }
+        } catch { /* non-critical; dashboard degrades gracefully */ }
     }, [WS_ID])
 
     const fetchActivity = useCallback(async () => {
@@ -123,7 +123,7 @@ export function LiveDashboard() {
                 const d = await res.json() as { items: Task[] }
                 setTasks(d.items)
             }
-        } catch { /* silent */ }
+        } catch { /* non-critical; dashboard degrades gracefully */ }
     }, [WS_ID])
 
     const fetchChannels = useCallback(async () => {
@@ -134,7 +134,7 @@ export function LiveDashboard() {
                 const d = await res.json() as { items: ChannelHealth[] }
                 setChannels(d.items ?? [])
             }
-        } catch { /* silent */ }
+        } catch { /* non-critical; dashboard degrades gracefully */ }
     }, [WS_ID])
 
     const manualRefresh = useCallback(async () => {

@@ -22,7 +22,7 @@ export function SystemHealth() {
     function toggle() {
         setCollapsed(prev => {
             const next = !prev
-            try { localStorage.setItem(STORAGE_KEY, String(next)) } catch { /* ignore */ }
+            try { localStorage.setItem(STORAGE_KEY, String(next)) } catch { /* localStorage unavailable in some contexts */ }
             return next
         })
     }

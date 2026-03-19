@@ -168,7 +168,6 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
             .catch(() => { setIsLoading(false) })
     }, [open])
 
-    // Close on outside click
     useEffect(() => {
         if (!open) return
         function handler(e: MouseEvent) {
@@ -215,15 +214,17 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                     <>
                         <div className="flex min-w-0 flex-col text-left">
                             <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate cursor-pointer">{displayName}</span>
-                            <button
-                                type="button"
+                            <span
+                                role="button"
+                                tabIndex={0}
                                 title="Check for updates"
                                 onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')) }}
-                                className="group/ver flex items-center gap-1 w-fit"
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')); } }}
+                                className="group/ver flex items-center gap-1 w-fit cursor-pointer"
                             >
                                 <span className="text-[11px] text-text-muted leading-tight mt-0.5 group-hover/ver:text-azure transition-colors">{VERSION}</span>
                                 <RefreshCw className="h-2.5 w-2.5 text-text-muted/0 group-hover/ver:text-azure/60 transition-colors mt-0.5" />
-                            </button>
+                            </span>
                             {SHORT_SHA && (
                                 <span className="text-[10px] text-text-muted/60 font-mono leading-tight">{SHORT_SHA}</span>
                             )}
@@ -417,14 +418,13 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                 const failed = data.items?.filter(it => it.lastRunStatus === 'failure' || it.consecutiveFailures > 0).length ?? 0
                 setFailedCronJobs(failed)
             }
-        } catch { /* ignore */ }
+        } catch { /* non-critical badge counts */ }
     }, [workspaceId])
 
     const fetchHealth = useCallback(async () => {
         const wsId = workspaceId || process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
         const api = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
         try {
-            // Check System Health (AI Provider, DB, etc.)
             const res = await fetch(`${api}/api/v1/health`, { cache: 'no-store' })
             if (res.ok) {
                 const data = await res.json() as { status: string; services: { ai: { ok: boolean | null } } }
@@ -451,7 +451,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                     setCapabilityWarning(hasDisconnected)
                 }
             }
-        } catch { /* ignore */ }
+        } catch { /* non-critical health check */ }
     }, [workspaceId])
 
     useEffect(() => {
@@ -488,7 +488,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
 
             next[label] = !currentlyCollapsed
 
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* localStorage unavailable in some contexts */ }
             return next
         })
     }
@@ -706,7 +706,6 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
     const [open, setOpen] = useState(false)
     const ref = useRef<HTMLDivElement>(null)
 
-    // Close on outside click
     useEffect(() => {
         if (!open) return
         function handler(e: MouseEvent) {

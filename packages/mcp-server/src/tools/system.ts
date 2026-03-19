@@ -9,7 +9,7 @@
  */
 import { z } from 'zod'
 import { db, sql, eq } from '@plexo/db'
-import { tasks, channels, workspaces, installedConnections, plugins } from '@plexo/db'
+import { workspaces } from '@plexo/db'
 import type { McpContext } from '../types.js'
 import { scopeDenied, internalError } from '../errors.js'
 import { requireScope } from '../auth.js'
@@ -28,7 +28,6 @@ export async function plexoHealth(_input: z.infer<typeof healthInputSchema>): Pr
         timestamp: new Date().toISOString(),
     }
 
-    // DB check
     try {
         await db.execute(sql`SELECT 1`)
         result.db = true
@@ -36,7 +35,6 @@ export async function plexoHealth(_input: z.infer<typeof healthInputSchema>): Pr
         result.status = 'degraded'
     }
 
-    // Redis check — try to connect
     try {
         const { createClient } = await import('redis')
         const client = createClient({ url: process.env.REDIS_URL ?? 'redis://localhost:6379' })
@@ -48,12 +46,12 @@ export async function plexoHealth(_input: z.infer<typeof healthInputSchema>): Pr
         result.status = 'degraded'
     }
 
-    // Agent check — just verify DB queue table is accessible
+    // Agent liveness: if the tasks table is queryable, agent infra is up
     try {
         await db.execute(sql`SELECT COUNT(*) FROM tasks WHERE status = 'running'`)
         result.agent = true
     } catch {
-        // agent status unknown
+        // Non-critical: agent check failure doesn't degrade overall health
     }
 
     if (!result.db) result.status = 'down'

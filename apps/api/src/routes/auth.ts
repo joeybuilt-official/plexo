@@ -8,6 +8,7 @@ import { db, eq, sql, and } from '@plexo/db'
 import { users, accounts, workspaces, workspaceMembers } from '@plexo/db'
 import { logger } from '../logger.js'
 import { captureLifecycleEvent } from '../sentry.js'
+import { UUID_RE } from '../validation.js'
 
 export const authRouter: RouterType = Router()
 
@@ -72,13 +73,19 @@ authRouter.get('/setup-status', async (_req, res) => {
     res.json({ needsSetup })
 })
 
+const VerifyPasswordSchema = z.object({
+    email: z.string().email().max(320),
+    password: z.string().min(1).max(128),
+})
+
 // POST /api/auth/verify-password — used by Auth.js credentials provider
 authRouter.post('/verify-password', async (req, res) => {
-    const { email, password } = req.body as { email?: string; password?: string }
-    if (!email || !password) {
-        res.status(400).json({ error: 'Missing email or password' })
+    const parse = VerifyPasswordSchema.safeParse(req.body)
+    if (!parse.success) {
+        res.status(400).json({ error: 'Missing or invalid email/password' })
         return
     }
+    const { email, password } = parse.data
 
     const [user] = await db
         .select({ id: users.id, email: users.email, name: users.name, passwordHash: users.passwordHash })
@@ -167,11 +174,20 @@ authRouter.post('/sync-oauth', async (req, res) => {
     }
 })
 
+
 // POST /api/auth/workspace — create a workspace (used by setup wizard)
 authRouter.post('/workspace', async (req, res) => {
     const { name, ownerId: bodyOwnerId } = req.body as { name?: string; ownerId?: string }
     if (!name?.trim()) {
         res.status(400).json({ error: { code: 'MISSING_NAME', message: 'name required' } })
+        return
+    }
+    if (name.trim().length > 200) {
+        res.status(400).json({ error: { code: 'INVALID_NAME', message: 'name max 200 chars' } })
+        return
+    }
+    if (bodyOwnerId && !UUID_RE.test(bodyOwnerId)) {
+        res.status(400).json({ error: { code: 'INVALID_OWNER', message: 'Valid UUID required for ownerId' } })
         return
     }
 

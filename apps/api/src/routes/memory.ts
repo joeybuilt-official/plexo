@@ -19,10 +19,10 @@ import { loadDecryptedAIProviders } from './ai-provider-creds.js'
 import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from '../logger.js'
 import { captureLifecycleEvent } from '../sentry.js'
+import { UUID_RE } from '../validation.js'
 
 export const memoryRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ── GET /api/memory/search ────────────────────────────────────────────────────
 
@@ -193,7 +193,6 @@ memoryRouter.post('/improvements/:id/apply', async (req, res) => {
     }
 
     try {
-        // Fetch the entry to route by pattern_type
         const rows = await db.execute<{
             pattern_type: string
             applied: boolean
@@ -225,8 +224,7 @@ memoryRouter.post('/improvements/:id/apply', async (req, res) => {
             res.json({ ok: true, message: 'Proposal acknowledged' })
         }
     } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Apply failed'
         logger.error({ err, id }, 'Improvement apply failed')
-        res.status(400).json({ error: { code: 'APPLY_FAILED', message: msg } })
+        res.status(400).json({ error: { code: 'APPLY_FAILED', message: 'Failed to apply improvement' } })
     }
 })

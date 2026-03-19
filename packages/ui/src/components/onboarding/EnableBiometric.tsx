@@ -27,13 +27,11 @@ export function EnableBiometric({ onComplete }: { onComplete: () => void }) {
     const enableBiometric = async () => {
         try {
             const { NativeBiometric } = await import('@capgo/capacitor-native-biometric')
-            // To enroll/enable, we just test a verification or store a setting locally
             await NativeBiometric.verifyIdentity({
                 reason: "Unlock Plexo securely",
                 title: "Unlock Plexo",
                 subtitle: "Use biometrics to enter securely"
             })
-            // If it succeeds, save preference
             const { Preferences } = await import('@capacitor/preferences')
             await Preferences.set({ key: 'biometric_enabled', value: 'true' })
             onComplete()
@@ -42,7 +40,6 @@ export function EnableBiometric({ onComplete }: { onComplete: () => void }) {
         }
     }
 
-    // Skip if not available
     if (checked && !isAvailable) {
         onComplete()
         return null

@@ -23,7 +23,7 @@ import { logger } from '../logger.js'
 import { pushTask } from '@plexo/queue'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { generateText } from 'ai'
-import { withFallback, resolveModel } from '@plexo/agent/providers/registry'
+import { withFallback, PROVIDER_DEFAULT_MODELS } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { runSprint } from '@plexo/agent/sprint/runner'
 import { storeMemory, rememberInstruction } from '@plexo/agent/memory/store'
@@ -36,10 +36,10 @@ import {
 } from '../conversation-log.js'
 import { getTelegramToken } from './telegram.js'
 import { captureException, captureLifecycleEvent } from '../sentry.js'
+import { UUID_RE } from '../validation.js'
 
 export const chatRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ── Error classification ──────────────────────────────────────────────────────
 
@@ -89,21 +89,6 @@ function classifyAIError(err: unknown): ClassifiedError {
 
 
 // ── Intent classification ────────────────────────────────────────────────────
-
-// Provider default models — mirrors registry.ts PROVIDER_DEFAULT_MODELS.
-// Used to give the model accurate self-knowledge about what it is.
-const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
-    openai:       'gpt-4o',
-    anthropic:    'claude-3-5-sonnet-20241022',
-    google:       'gemini-2.5-flash',
-    mistral:      'mistral-large-latest',
-    groq:         'llama-3.1-8b-instant',
-    xai:          'grok-3-mini',
-    deepseek:     'deepseek-chat',
-    ollama:       'llama3.2',
-    ollama_cloud: 'gpt-oss:20b-cloud',
-    openrouter:   'deepseek/deepseek-chat-v3-0324:free',
-}
 
 const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent platform.
 Classify the user's message into exactly one of: TASK, PROJECT, MEMORY, or CONVERSATION.
@@ -228,14 +213,12 @@ chatRouter.post('/message', async (req, res) => {
             return
         }
 
-        // Load AI settings
         const { credential, aiSettings } = await loadWorkspaceAISettings(workspaceId)
         if (!credential || !aiSettings) {
             res.status(503).json({ error: { code: 'NO_AI_PROVIDER', message: 'No AI provider configured. Go to Settings → AI Providers.' } })
             return
         }
 
-        // Build model lazily — withFallback will walk the chain if primary fails
         const providerKey = aiSettings.primaryProvider
         const config = aiSettings.providers[providerKey]
         if (!config) {
@@ -244,7 +227,6 @@ chatRouter.post('/message', async (req, res) => {
         }
 
 
-        // Load workspace persona + identity for system prompt
         let agentName = 'Plexo'
         let agentPersona = ''
         let agentTagline = ''
@@ -278,13 +260,10 @@ chatRouter.post('/message', async (req, res) => {
         let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = 'CONVERSATION'
         const sid = sessionId ?? 'default'
         
-        // Build multimodal user content for AI SDK v6
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         type ContentPart = { type: 'text'; text: string } | { type: 'image'; image: string | URL; mimeType?: string }
 
-        // Fetch full chat history reliably from the database instead of in-memory caching
         const dbTurns = await getSessionTurns(workspaceId, sid, 50)
-        // Reconstruct messages array from the log
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK message types are complex union types
         const history: any[] = []
         for (const t of dbTurns) {
             if (t.message) {
@@ -322,7 +301,7 @@ chatRouter.post('/message', async (req, res) => {
         const textHistory = history.map(m => ({
             role: m.role,
             content: Array.isArray(m.content)
-                ? m.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')
+                ? m.content.filter((p: ContentPart) => p.type === 'text').map((p: ContentPart) => (p as { type: 'text'; text: string }).text).join('')
                 : m.content
         }))
 
@@ -336,7 +315,6 @@ chatRouter.post('/message', async (req, res) => {
                     const img = validImages[i]!
                     const b64 = img.data.replace(/^data:image\/[^;]+;base64,/, '')
                     const buffer = Buffer.from(b64, 'base64')
-                    // Default filename safely handles empty string names
                     const filename = img.name || `image-${i}.png`
                     
                     const res = await uploadContent({
@@ -396,7 +374,6 @@ chatRouter.post('/message', async (req, res) => {
 
                 if (parts[1]?.toUpperCase().startsWith('COMPLEX')) isComplex = true
 
-                // Extract suggested category for PROJECT (3rd word, lowercase)
                 if (intent === 'PROJECT' && parts[2]) {
                     const cat = parts[2].toLowerCase()
                     const validCats = ['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general']
@@ -414,7 +391,6 @@ chatRouter.post('/message', async (req, res) => {
         if (isComplex && (intent === 'TASK' || intent === 'PROJECT')) {
             const currentModelId = config.model ?? 'default'
 
-            // Check if current is reasoning capable using knowledge base
             const [kbEntry] = await db.select().from(modelsKnowledge)
                 .where(eq(modelsKnowledge.modelId, currentModelId))
                 .limit(1)
@@ -442,7 +418,6 @@ chatRouter.post('/message', async (req, res) => {
         // ── MEMORY intent: store instruction immediately ───────────────────────────
         if (intent === 'MEMORY') {
             try {
-                // Store as a high-confidence pattern in memory_entries
                 await rememberInstruction({ workspaceId, instruction: trimmedMsg, source: 'chat', aiSettings: aiSettings ?? undefined })
 
                 // Also write to workspace_preferences under a unique key per instruction
@@ -527,7 +502,6 @@ Critical rules — follow without exception:
                     )
                 }
 
-                // Write to semantic memory so this chat exchange is retrievable
                 storeMemory({
                     workspaceId,
                     type: 'session',
@@ -661,7 +635,7 @@ chatRouter.post('/execute-action', async (req, res) => {
         } else if (intent === 'PROJECT') {
             // Pre-check: verify at least one AI provider is configured before creating the sprint row.
             // This avoids leaving a zombie sprint in 'planning' state when credentials are missing.
-            let aiSettings: any
+            let aiSettings: Awaited<ReturnType<typeof loadWorkspaceAISettings>>['aiSettings'] = null
             let hasCredential = false
             try {
                 const loaded = await loadWorkspaceAISettings(workspaceId)
@@ -711,7 +685,7 @@ chatRouter.post('/execute-action', async (req, res) => {
                 const errMsg = err instanceof Error ? err.message : String(err)
                 const userFacingReply = `The project failed to start: ${errMsg}. Check Settings → AI Providers if a provider is not configured, or verify the repo field is set for code projects.`
 
-                recordConversation({
+                void recordConversation({
                     workspaceId,
                     sessionId: sessionId ?? null,
                     source: 'dashboard',

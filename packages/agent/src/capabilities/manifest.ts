@@ -48,7 +48,6 @@ export interface CapabilityManifest {
 }
 
 // ── Connection capability registry ────────────────────────────────────────────
-// Maps registry IDs → what the agent can do with them.
 
 const CONNECTION_CAPABILITIES: Record<string, string[]> = {
     // ── Code & DevOps ────────────────────────────────────────────────────────

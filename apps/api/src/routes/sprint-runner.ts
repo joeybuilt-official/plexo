@@ -15,7 +15,6 @@ import { db, eq, asc, inArray } from '@plexo/db'
 import { sprints, sprintTasks, sprintLogs, tasks } from '@plexo/db'
 import { runSprint } from '@plexo/agent/sprint/runner'
 import { detectDynamicConflicts } from '@plexo/agent/sprint/conflicts'
-import { resolveModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings, cancelActiveTask } from '../agent-loop.js'
 import { logSprintEvent } from '@plexo/agent/sprint/logger'
 import { logger } from '../logger.js'
@@ -25,7 +24,6 @@ import { emitSprintOutcome } from '../telemetry/events.js'
 
 export const sprintRunnerRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ── POST /api/sprints/:id/run ─────────────────────────────────────────────────
 
@@ -38,7 +36,6 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         return
     }
 
-    // Validate sprint exists
     const [sprint] = await db.select().from(sprints).where(eq(sprints.id, sprintId)).limit(1)
     if (!sprint) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
@@ -50,8 +47,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         return
     }
 
-    // Load workspace AI settings so the planner uses the configured provider
-    let aiSettings: any
+    let aiSettings: Awaited<ReturnType<typeof loadWorkspaceAISettings>>['aiSettings'] = null
     let hasCredential = false
     try {
         const loaded = await loadWorkspaceAISettings(workspaceId)
@@ -93,7 +89,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
     }
 
     // Fire-and-forget — sprint runs async, SSE keeps client updated
-    runSprint({
+    void runSprint({
         sprintId,
         workspaceId,
         repo: sprint.repo ?? undefined,
@@ -141,6 +137,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
 })
 
 import { runSprintRetry } from '@plexo/agent/sprint/retry'
+import { UUID_RE } from '../validation.js'
 
 // ── POST /api/sprints/:id/retry ─────────────────────────────────────────────────
 
@@ -161,7 +158,7 @@ sprintRunnerRouter.post('/:id/retry', async (req, res) => {
     // Use the authoritative workspaceId from the sprint row
     const workspaceId = sprint.workspaceId!
 
-    runSprintRetry(sprintId, workspaceId).catch((err: unknown) => {
+    void runSprintRetry(sprintId, workspaceId).catch((err: unknown) => {
         logger.error({ err, sprintId }, 'Sprint retry failed')
         captureException(err, { sprintId, workspaceId, category: sprint.category })
     })

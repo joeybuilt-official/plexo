@@ -14,12 +14,12 @@
 import { Router, type Router as RouterType } from 'express'
 import { join, resolve, relative, basename, extname } from 'node:path'
 import { statSync, readFileSync, readdirSync } from 'node:fs'
-import { db, eq, and, inArray } from '@plexo/db'
+import { db, eq, and } from '@plexo/db'
 import { tasks } from '@plexo/db'
+import { UUID_RE } from '../validation.js'
 
 export const codeRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ── In-memory task context store (populated by agent-loop when a task starts) ──
 // The agent-loop calls registerCodeContext() when it sets up sprintWorkDir.

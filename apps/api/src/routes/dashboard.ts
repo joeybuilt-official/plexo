@@ -3,7 +3,7 @@
 
 import { Router, type Router as RouterType } from 'express'
 import { db, sql, desc } from '@plexo/db'
-import { tasks, taskSteps } from '@plexo/db'
+import { tasks } from '@plexo/db'
 import { logger } from '../logger.js'
 import { connectedCount } from '../sse-emitter.js'
 
@@ -177,7 +177,19 @@ dashboardRouter.get('/activity', async (req, res) => {
     }
 
     try {
-        const items = await db.select().from(tasks)
+        const items = await db.select({
+            id: tasks.id,
+            type: tasks.type,
+            status: tasks.status,
+            source: tasks.source,
+            priority: tasks.priority,
+            outcomeSummary: tasks.outcomeSummary,
+            qualityScore: tasks.qualityScore,
+            costUsd: tasks.costUsd,
+            createdAt: tasks.createdAt,
+            completedAt: tasks.completedAt,
+            projectId: tasks.projectId,
+        }).from(tasks)
             .where(sql`workspace_id = ${workspaceId}`)
             .orderBy(desc(tasks.createdAt))
             .limit(Math.min(parseInt(limit, 10) || 20, 100))

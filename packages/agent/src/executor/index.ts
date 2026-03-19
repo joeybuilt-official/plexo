@@ -217,7 +217,6 @@ async function dispatchTool(
                         }
                     }
 
-                    // Parse structured test results for test commands
                     if (label === 'test') {
                         for (const { pass, name, detail } of parseTestOutput(combined)) {
                             emit({
@@ -338,7 +337,6 @@ function buildTools(ctx: ExecutionContext) {
                         ext === 'html' ? 'html' :
                         ['png', 'jpg', 'jpeg', 'svg', 'gif'].includes(ext) ? 'image' : 'file'
 
-                    // Check for existing artifact with this name in this task/project
                     const [existing] = await db.select()
                         .from(artifacts)
                         .where(
@@ -546,7 +544,6 @@ function buildTools(ctx: ExecutionContext) {
                         return `Screenshot failed (exit code ${res.status}): ${res.stderr?.toString() || 'unknown error'}`
                     }
 
-                    // Check if file exists
                     if (!existsSync(filePath)) {
                         return `Screenshot failed: Output file ${filePath} was not created.`
                     }
@@ -726,7 +723,6 @@ export async function executeTask(
         }
     } catch { /* non-fatal */ }
 
-    // Load workspace and project behavior rules (Phase 5)
     try {
         const { resolveBehavior } = await import('../behavior/resolver.js')
         const { compileBehavior } = await import('../behavior/compiler.js')
@@ -747,10 +743,8 @@ export async function executeTask(
         capabilityBlock = '\n\n' + manifestToPromptBlock(manifest)
     } catch { /* non-fatal */ }
 
-    // ── Phase A/B variant assignment (self-improvement) ─────────────────
-    // Phase 15 — A/B variant assignment for recursive self-improvement
-    // Assigns this task to control (A) or challenger (B) prompt at 80/20 split.
-    // Challenger overrides are merged on top of workspace systemPromptExtra.
+    // A/B variant assignment — assigns control (A) or challenger (B) prompt
+    // so the self-improvement loop can measure the effect of prompt patches.
     let variantAssignment: Awaited<ReturnType<typeof assignVariant>> = {
         variant: 'A',
         challengerId: null,
@@ -760,7 +754,6 @@ export async function executeTask(
         variantAssignment = await assignVariant(ctx.workspaceId)
     } catch { /* non-fatal */ }
 
-    // Build prompt override suffix from variant (sections keyed by name)
     const variantExtra = Object.entries(variantAssignment.overrides)
         .map(([k, v]) => `\n\n[${k.replace(/_/g, ' ')}]\n${v}`)
         .join('')
@@ -803,7 +796,6 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
 
     const stepStart = Date.now()
 
-    // Load connection-backed tools and plugin tools for this workspace (non-fatal if either fails)
     const connectionTools = await loadConnectionTools(ctx.workspaceId)
     const pluginTools = await loadPluginTools(ctx.workspaceId)
     const allTools = { ...buildTools(ctx), ...connectionTools, ...pluginTools }
@@ -866,7 +858,6 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         })
     }
 
-    // Build systemPrompt here so identity line reflects the actual resolved model
     const identityLine = `Identity: running on ${resolvedMeta.provider} / ${resolvedMeta.id}. If asked what model, provider, or system you are, call self_reflect({focus:"identity"}) to get the accurate, live answer rather than guessing.`
 
     const browsingBlock = `
@@ -918,10 +909,13 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
 }${capabilityBlock}${browsingBlock}${selfExtensionBlock}${preferencesBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
 
     const genResult = await (async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK message types vary between versions
         let messages: any[] = [{ role: 'user', content: userMessage }]
         let retries = 0
         let accumulatedUsage = { inputTokens: 0, outputTokens: 0 }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let accumulatedSteps: any[] = []
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let lastResult: any
 
         // Stall detection state
@@ -995,7 +989,6 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
             })
         }
 
-        // Return a mock result combining the accumulated usage and steps
         return {
             ...lastResult,
             usage: accumulatedUsage,
@@ -1036,14 +1029,13 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         )
     }
 
-    // Extract tool call records from steps
     // AI SDK v6: toolCalls[].input (not .args), toolResults[].output (not .result)
     const toolCallRecords: StepResult['toolCalls'] = []
     for (const step of genResult.steps) {
         for (const tc of step.toolCalls) {
             // TypedToolCall has .input in v6; DynamicToolCall also has .input
             const input = (tc as { input: unknown }).input as Record<string, unknown>
-            const toolResult = step.toolResults.find((r: any) => r.toolCallId === tc.toolCallId)
+            const toolResult = step.toolResults.find((r: { toolCallId: string }) => r.toolCallId === tc.toolCallId)
             // TypedToolResult / DynamicToolResult have .output in v6
             const output = toolResult
                 ? String((toolResult as { output: unknown }).output ?? '')
@@ -1146,7 +1138,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
     const pinoMod = await import('pino')
     const memLogger = pinoMod.default({ name: 'executor.memory' })
 
-    import('../memory/store.js').then(({ recordTaskMemory }) =>
+    void import('../memory/store.js').then(({ recordTaskMemory }) =>
         recordTaskMemory({
             workspaceId: ctx.workspaceId,
             taskId: ctx.taskId,
@@ -1159,7 +1151,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         })
     ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'recordTaskMemory failed'))
 
-    import('../memory/preferences.js').then(({ inferFromTaskOutcome }) =>
+    void import('../memory/preferences.js').then(({ inferFromTaskOutcome }) =>
         inferFromTaskOutcome({
             workspaceId: ctx.workspaceId,
             toolsUsed,
@@ -1169,8 +1161,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         })
     ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'inferFromTaskOutcome failed'))
 
-    // Write to work_ledger — required by self-improvement cycle
-    db.execute(sql`
+    void db.execute(sql`
         INSERT INTO work_ledger
             (id, workspace_id, task_id, type, source, tokens_in, tokens_out, cost_usd,
              quality_score, deliverables, wall_clock_ms, completed_at)
@@ -1184,7 +1175,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
     `).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'work_ledger insert failed — check schema or migration'))
 
     // Phase 15 — record which prompt variant was used and evaluate auto-promotion
-    recordVariantOutcome({
+    void recordVariantOutcome({
         workspaceId: ctx.workspaceId,
         taskId: ctx.taskId,
         variant: variantAssignment.variant,

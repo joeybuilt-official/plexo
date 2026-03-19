@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { Page } from 'playwright'
-import { SimulationSession } from '../session.js'
-import { Persona } from './index.js'
+import type { Persona } from './index.js'
 import { loginIfNeeded } from '../utils/login.js'
 
 export const newUser: Persona = {
@@ -18,13 +16,10 @@ export const newUser: Persona = {
         await page.goto('/onboarding?step=1')
         await page.waitForTimeout(500)
         
-        // Since it redirects to /, just check dashboard cards
         await page.goto('/')
-        
-        // If we hit setup, something is wrong with the workspace/user association for this simulation run
+
         if (page.url().includes('/setup')) {
             await session.logEvent('hit_setup_unexpectedly_in_persona', { url: page.url() })
-            // Try to force go back to / or just wait a bit
             await page.goto('/')
         }
         
@@ -44,7 +39,6 @@ export const newUser: Persona = {
         await page.click('#send-btn')
         await session.logEvent('sent_first_message', { content: 'Hello, who are you?' })
         
-        // Wait for agent reply (textarea becomes enabled again)
         await page.waitForSelector('textarea:not([disabled])', { timeout: 45000 })
         await session.logEvent('received_agent_reply', {})
     }

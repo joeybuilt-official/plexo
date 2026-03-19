@@ -155,7 +155,6 @@ export function ArtifactPanel({
     const [fetchingVersion, setFetchingVersion] = useState(false)
     const [currentAsset, setCurrentAsset] = useState<TaskAsset | null>(asset)
 
-    // Handle slide animation and view mode
     useEffect(() => {
         if (asset) {
             setCurrentAsset(asset)

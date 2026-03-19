@@ -4,7 +4,7 @@
 import { SessionLogger } from '@plexo/logger'
 
 export interface SimulationSession {
-    logEvent: (eventType: string, details?: Record<string, any>) => Promise<void>
+    logEvent: (eventType: string, details?: Record<string, unknown>) => Promise<void>
     fail: (action: string, errorMessage: string) => Promise<void>
     complete: (action: string, durationMs?: number) => Promise<void>
 }

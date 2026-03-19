@@ -167,7 +167,6 @@ export function createActivationSDK(
         storage: {
             async get(key) {
                 requireCap('storage:read')
-                // Check settings snapshot first (immutable at activation time)
                 if (Object.prototype.hasOwnProperty.call(settings, key)) {
                     return settings[key] as string | null
                 }

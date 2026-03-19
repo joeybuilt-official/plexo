@@ -76,7 +76,6 @@ export async function planSprint(params: {
 
     const systemPrompt = categoryPlannerPrompt(category)
 
-    // Fetch unified behavior rules instead of raw AGENTS.md text
     let agentsMdBlock = ''
     try {
         const { resolveBehavior } = await import('../behavior/resolver.js')
@@ -195,10 +194,8 @@ export async function planSprint(params: {
     // Persist sprint_tasks rows
     const insertedRows = await persistSprintTasks(sprintId, tasks)
 
-    // Update sprint total_tasks count
     await db.update(sprints).set({ totalTasks: insertedRows.length }).where(eq(sprints.id, sprintId))
 
-    // Build execution order (topological sort into parallel waves)
     const executionOrder = buildExecutionOrder(tasks)
 
     logger.info({ sprintId, taskCount: insertedRows.length, waves: executionOrder.length }, 'Sprint plan complete')

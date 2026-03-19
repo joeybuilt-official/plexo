@@ -71,14 +71,47 @@ export function WorkspaceProvider({
         }
     }, [workspaceId])
 
-    // Fetch workspace name whenever id changes
+    // Fetch workspace name whenever id changes; handle stale/deleted workspaces
     useEffect(() => {
         if (!workspaceId) return
+        let cancelled = false
         const api = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
         fetch(`${api}/api/v1/workspaces/${workspaceId}`, { cache: 'no-store' })
-            .then((r) => r.ok ? r.json() : null)
-            .then((d: { name?: string } | null) => { if (d?.name) setWorkspaceName(d.name) })
+            .then((r) => {
+                if (r.ok) return r.json()
+                // Workspace no longer exists (404) or forbidden (403) — fall back
+                if (r.status === 404 || r.status === 403) {
+                    return { __stale: true }
+                }
+                return null
+            })
+            .then((d: { name?: string; __stale?: boolean } | null) => {
+                if (cancelled) return
+                if (d && '__stale' in d && d.__stale) {
+                    // Clear the stale workspace ID and resolve a valid one
+                    localStorage.removeItem(STORAGE_KEY)
+                    fetch(`${api}/api/v1/workspaces`, { cache: 'no-store' })
+                        .then((r) => r.ok ? r.json() : null)
+                        .then((list: { items?: { id: string; name: string }[] } | null) => {
+                            if (cancelled) return
+                            const first = list?.items?.[0]
+                            if (first) {
+                                localStorage.setItem(STORAGE_KEY, first.id)
+                                setWorkspaceId(first.id)
+                                setWorkspaceName(first.name)
+                            } else {
+                                // No workspaces at all — clear state so the app can show setup
+                                setWorkspaceId('')
+                                setWorkspaceName('')
+                            }
+                        })
+                        .catch(() => { /* non-fatal */ })
+                    return
+                }
+                if (d && 'name' in d && d.name) setWorkspaceName(d.name)
+            })
             .catch(() => { /* non-fatal */ })
+        return () => { cancelled = true }
     }, [workspaceId])
 
     function setWorkspace(id: string, name: string) {

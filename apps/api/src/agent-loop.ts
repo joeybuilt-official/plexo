@@ -11,7 +11,7 @@ import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import { emitToWorkspace } from './sse-emitter.js'
 import { registerCodeContext, unregisterCodeContext } from './routes/code.js'
 import { emitTaskOutcome } from './telemetry/events.js'
-import { captureException, captureLifecycleEvent } from './sentry.js'
+import { captureLifecycleEvent } from './sentry.js'
 import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from './logger.js'
 
@@ -260,13 +260,15 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
     // ── Resolve per-task budget from DB row + workspace defaults ──────────────
     // Priority: task.cost_ceiling_usd → workspace settings default → null (no cap)
     // Priority: task.token_budget → workspace settings default → 0 (no cap)
-    const taskRow = await db.select({
+    // Fetch budget AND projectId in one query to avoid re-querying the tasks table later
+    const [taskRow] = await db.select({
         costCeilingUsd: tasks.costCeilingUsd,
         tokenBudget: tasks.tokenBudget,
+        projectId: tasks.projectId,
     }).from(tasks).where(eq(tasks.id, task.id)).limit(1)
 
-    const taskCostCeiling = taskRow[0]?.costCeilingUsd ?? null
-    const taskTokenBudget = taskRow[0]?.tokenBudget ?? null
+    const taskCostCeiling = taskRow?.costCeilingUsd ?? null
+    const taskTokenBudget = taskRow?.tokenBudget ?? null
 
     // Load workspace-level defaults (stored in workspaces.settings.aiProviders)
     let wsDefaultCostCeiling: number | null = null
@@ -323,13 +325,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
     // Load sprint goal if this task belongs to a sprint
     try {
-        const taskRowFull = await db
-            .select({ projectId: tasks.projectId })
-            .from(tasks)
-            .where(eq(tasks.id, task.id))
-            .limit(1)
-
-        const projectId = taskRowFull[0]?.projectId
+        const projectId = taskRow?.projectId
         if (projectId) {
             const [sprintRow] = await db
                 .select({ request: sprints.request, status: sprints.status })
@@ -396,11 +392,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         ? taskContext0.modelOverrideId
         : undefined
 
-    let sprintId: string | undefined
-    try {
-        const tr = await db.select({ projectId: tasks.projectId }).from(tasks).where(eq(tasks.id, task.id)).limit(1)
-        sprintId = tr[0]?.projectId ?? undefined
-    } catch { /* non-fatal */ }
+    const sprintId: string | undefined = taskRow?.projectId ?? undefined
 
     const ctx: ExecutionContext = {
         taskId: task.id,
@@ -702,8 +694,8 @@ export function startAgentLoop(): void {
     logger.info('Agent queue loop started')
 
     // Clean up stale blocked tasks at startup + every 6 hours
-    cleanupStaleTasks()
-    setInterval(() => cleanupStaleTasks(), 6 * 60 * 60 * 1000)
+    void cleanupStaleTasks()
+    setInterval(() => { void cleanupStaleTasks() }, 6 * 60 * 60 * 1000)
 
     async function poll(): Promise<void> {
         while (running) {
@@ -715,7 +707,7 @@ export function startAgentLoop(): void {
                     // Fire-and-forget, the promise settles in background, poll loop continues immediately
                     // The Claim step ensures we won't oversubscribe
                     for (const t of batch) {
-                        buildTaskContext(t).catch(e => logger.error({ err: e }, 'Task wrapper error'))
+                        void buildTaskContext(t).catch(e => logger.error({ err: e }, 'Task wrapper error'))
                     }
                 }
             } catch (err) {
@@ -725,7 +717,7 @@ export function startAgentLoop(): void {
         }
     }
 
-    poll().catch((err) => logger.fatal({ err }, 'Agent loop crashed'))
+    void poll().catch((err) => logger.fatal({ err }, 'Agent loop crashed'))
 }
 
 export function stopAgentLoop(): void {

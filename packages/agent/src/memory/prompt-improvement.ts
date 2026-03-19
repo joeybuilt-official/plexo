@@ -73,7 +73,6 @@ export async function proposePromptImprovements(params: {
         return []
     }
 
-    // Get current prompt overrides (may be empty first run)
     const currentOverrides = (await getPreference(workspaceId, 'prompt_overrides')) as Record<string, string> | null ?? {}
 
     // Sample low-quality outcomes — weighted toward failures
@@ -153,20 +152,21 @@ Respond with ONLY valid JSON: { "patches": [{ "section": "tool_selection"|"error
         logger.error({ err }, 'Prompt improvement LLM call failed')
     }
 
-    // Store proposals as improvement log entries
-    for (const patch of patches.slice(0, 3)) {
+    const patchSlice = patches.slice(0, 3)
+    if (patchSlice.length > 0) {
+        const valueClauses = patchSlice.map(patch => sql`(
+            ${workspaceId}::uuid,
+            'prompt_patch',
+            ${`[${patch.section}] ${patch.rationale}`},
+            ${JSON.stringify(patch.supportingTaskIds ?? [])}::jsonb,
+            ${JSON.stringify({ section: patch.section, original: patch.original, proposed: patch.proposed })}::text,
+            now()
+        )`)
         await db.execute(sql`
-      INSERT INTO agent_improvement_log
-        (workspace_id, pattern_type, description, evidence, proposed_change, created_at)
-      VALUES (
-        ${workspaceId}::uuid,
-        'prompt_patch',
-        ${`[${patch.section}] ${patch.rationale}`},
-        ${JSON.stringify(patch.supportingTaskIds ?? [])}::jsonb,
-        ${JSON.stringify({ section: patch.section, original: patch.original, proposed: patch.proposed })}::text,
-        now()
-      )
-    `)
+            INSERT INTO agent_improvement_log
+                (workspace_id, pattern_type, description, evidence, proposed_change, created_at)
+            VALUES ${sql.join(valueClauses, sql`, `)}
+        `)
     }
 
     logger.info({ workspaceId, patches: patches.length }, 'Prompt improvement proposals stored')
@@ -193,7 +193,6 @@ export async function applyPromptPatch(params: {
 
     const patch = JSON.parse(row.proposed_change) as { section: string; proposed: string }
 
-    // Read current overrides and merge
     const current = (await getPreference(workspaceId, 'prompt_overrides')) as Record<string, string> | null ?? {}
     const updated = { ...current, [patch.section]: patch.proposed }
 

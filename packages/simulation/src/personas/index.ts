@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { Page } from 'playwright'
-import { SimulationSession } from '../session.js'
+import type { Page } from 'playwright'
+import type { SimulationSession } from '../session.js'
 
 export type PersonaWorker = (page: Page, session: SimulationSession) => Promise<void>
 

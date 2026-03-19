@@ -14,10 +14,10 @@ function base64url(buf: Buffer): string {
     return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // Redis-backed PKCE state store (inline — no longer a separate file)
 import { createClient, type RedisClientType } from 'redis'
+import { UUID_RE } from '../validation.js'
 
 const PKCE_TTL = 600
 let _redis: RedisClientType | null = null

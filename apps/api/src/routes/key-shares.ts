@@ -16,10 +16,10 @@ import { db, eq, and } from '@plexo/db'
 import { workspaceKeyShares, workspaces } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
+import { UUID_RE } from '../validation.js'
 
 export const keySharesRouter: RouterType = Router({ mergeParams: true })
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ULID_RE = /^[0-9A-Z]{26}$/
 
 const VALID_PROVIDERS = ['openai', 'anthropic', 'openrouter', 'google', 'groq', 'mistral', 'deepseek', 'xai', 'ollama', 'ollama_cloud']
@@ -35,7 +35,6 @@ keySharesRouter.get('/', async (req, res) => {
     }
 
     try {
-        // Fetch all shares where this workspace is source or target
         const lending = await db
             .select({
                 id: workspaceKeyShares.id,
@@ -56,7 +55,6 @@ keySharesRouter.get('/', async (req, res) => {
             .from(workspaceKeyShares)
             .where(eq(workspaceKeyShares.targetWsId, id))
 
-        // Enrich with workspace names
         const wsIds = [
             ...new Set([
                 ...lending.map(r => r.targetWsId),
@@ -118,7 +116,6 @@ keySharesRouter.post('/', async (req, res) => {
     }
 
     try {
-        // Verify source workspace exists
         const [srcWs] = await db.select({ id: workspaces.id, ownerId: workspaces.ownerId })
             .from(workspaces).where(eq(workspaces.id, sourceWsId)).limit(1)
         if (!srcWs) {
@@ -126,7 +123,6 @@ keySharesRouter.post('/', async (req, res) => {
             return
         }
 
-        // Verify target workspace exists
         const [tgtWs] = await db.select({ id: workspaces.id, name: workspaces.name, ownerId: workspaces.ownerId })
             .from(workspaces).where(eq(workspaces.id, targetWorkspaceId)).limit(1)
         if (!tgtWs) {
@@ -134,7 +130,7 @@ keySharesRouter.post('/', async (req, res) => {
             return
         }
 
-        // Phase 1: only allow sharing to workspaces owned by the same user
+        // Phase 1: cross-user sharing not yet supported
         if (tgtWs.ownerId !== srcWs.ownerId) {
             res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Can only share keys with your own workspaces (cross-user sharing not yet supported)' } })
             return
@@ -162,14 +158,12 @@ keySharesRouter.post('/', async (req, res) => {
             const aiProviders = (settings.aiProviders ?? {}) as Record<string, unknown>
             const providers = (aiProviders.providers ?? {}) as Record<string, unknown>
 
-            // Pull safe (non-secret) fields from source provider config
             const srcAiProviders = ((srcWsSettings?.settings as Record<string, unknown> | undefined)?.aiProviders ?? {}) as Record<string, unknown>
             const srcProviders = (srcAiProviders.providers ?? {}) as Record<string, Record<string, unknown>>
             const srcEntry = srcProviders[providerKey] ?? {}
 
             providers[providerKey] = {
                 ...(providers[providerKey] as Record<string, unknown> ?? {}),
-                // Copy display-safe config from source
                 ...(srcEntry.baseUrl ? { baseUrl: srcEntry.baseUrl } : {}),
                 ...(srcEntry.selectedModel ? { selectedModel: srcEntry.selectedModel } : {}),
                 ...(Array.isArray(srcEntry.dynamicModels) && (srcEntry.dynamicModels as unknown[]).length > 0 ? { dynamicModels: srcEntry.dynamicModels } : {}),
@@ -206,7 +200,6 @@ keySharesRouter.delete('/:shareId', async (req, res) => {
     }
 
     try {
-        // Fetch the share to know the target and provider before deleting
         const [share] = await db.select()
             .from(workspaceKeyShares)
             .where(and(
@@ -220,11 +213,9 @@ keySharesRouter.delete('/:shareId', async (req, res) => {
             return
         }
 
-        // Delete the share row
         await db.delete(workspaceKeyShares)
             .where(eq(workspaceKeyShares.id, share.id))
 
-        // Clear keySource from the target workspace's settings
         const [tgtWsSettings] = await db.select({ settings: workspaces.settings })
             .from(workspaces).where(eq(workspaces.id, share.targetWsId)).limit(1)
 

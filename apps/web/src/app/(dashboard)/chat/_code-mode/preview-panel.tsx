@@ -4,7 +4,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Loader2, ExternalLink, RefreshCw, Smartphone, Monitor, RotateCcw } from 'lucide-react'
+import { Loader2, ExternalLink, Smartphone, Monitor, RotateCcw } from 'lucide-react'
 
 interface PreviewPanelProps {
     workspaceId: string

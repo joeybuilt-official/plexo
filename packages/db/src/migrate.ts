@@ -61,7 +61,6 @@ async function runMigrations() {
         process.exit(1)
     }
 
-    // Redacted URL check
     try {
         const url = new URL(connectionString)
         console.log(`[migrate] URL Check: Valid format. Protocol: ${url.protocol}, Host: ${url.host}, DB: ${url.pathname}`)

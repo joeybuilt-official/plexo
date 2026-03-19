@@ -199,7 +199,6 @@ function inferCapabilities(requestedCapabilities: string[]): string[] {
         caps.add('channel:send')
     }
 
-    // Validate against allowlist and remove denylisted entries
     const allowed = [...caps].filter(
         (c) => CAPABILITY_ALLOWLIST.has(c) && !CAPABILITY_DENYLIST.has(c),
     )
@@ -414,7 +413,6 @@ async function installAndActivate(
         generationTaskId: taskId ?? null,
     }
 
-    // Terminate existing worker if reinstalling
     try {
         terminateWorker(manifest.name)
     } catch {

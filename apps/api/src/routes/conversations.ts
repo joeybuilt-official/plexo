@@ -5,18 +5,18 @@ import { Router, type Router as RouterType } from 'express'
 import { db, desc, eq, sql, asc } from '@plexo/db'
 import { conversations } from '@plexo/db'
 import { logger } from '../logger.js'
+import { UUID_RE } from '../validation.js'
 
 export const conversationsRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ── GET /api/v1/conversations/:id ─────────────────────────────────────────────
 // Returns a single conversation record by its ID (ULID).
 
 conversationsRouter.get('/:id', async (req, res) => {
     const { id } = req.params
-    if (!id) {
-        res.status(400).json({ error: { code: 'MISSING_ID', message: 'id required' } })
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid id required (max 64 chars)' } })
         return
     }
     try {
@@ -55,6 +55,10 @@ conversationsRouter.get('/', async (req, res) => {
         const lim = Math.min(parseInt(limit, 10) || 50, 200)
 
         // Session thread view: all turns for a specific session ID (chronological)
+        if (sessionId && sessionId.length > 64) {
+            res.status(400).json({ error: { code: 'INVALID_SESSION', message: 'sessionId max 64 chars' } })
+            return
+        }
         if (sessionId) {
             const items = await db.select().from(conversations)
                 .where(sql`workspace_id = ${workspaceId} AND session_id = ${sessionId}`)

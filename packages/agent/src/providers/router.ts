@@ -140,6 +140,7 @@ export class IntelligentRouter {
                 const response = await globalThis.fetch(proxyUrl, requestInit)
                 if (!response.ok) return response
                 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- proxy response shape is not typed
                 const plexoRes = await response.json() as any
                 const openaiRes = {
                     id: plexoRes.gateway_request_id,
@@ -204,7 +205,6 @@ export class IntelligentRouter {
             .orderBy(modelsKnowledge.costPerMIn) // Cheapest first
             .limit(10)
         
-        // Filter by available keys in BYOK combined with proxy availability
         const usableModels = models.filter(m => {
             if (this.vault[m.provider]?.apiKey) return true
             if (process.env.OPENROUTER_API_KEY) return true // available universally

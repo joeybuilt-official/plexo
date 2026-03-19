@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { RegisterForm } from './register-form'
-import { redirect } from 'next/navigation'
 
 export default async function RegisterPage() {
     const apiBase = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'

@@ -107,9 +107,8 @@ debugRouter.get('/snapshot', async (_req, res) => {
 
         res.json(snapshot)
     } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
         logger.error({ err }, 'GET /api/debug/snapshot failed')
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: msg } })
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to generate snapshot' } })
     }
 })
 
@@ -204,6 +203,6 @@ debugRouter.post('/rpc', async (req, res) => {
         })
     } catch (err: unknown) {
         logger.error({ err, method }, 'POST /api/debug/rpc failed')
-        res.status(500).json({ error: { code: 'RPC_ERROR', message: (err as Error).message } })
+        res.status(500).json({ error: { code: 'RPC_ERROR', message: 'RPC call failed' } })
     }
 })

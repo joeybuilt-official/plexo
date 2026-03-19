@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Sparkles, Check, X, ShieldAlert, ArrowRight, Activity, TrendingDown, Target, BrainCircuit } from 'lucide-react'
+import { Sparkles, Check, X, ShieldAlert, Activity, TrendingDown, Target, BrainCircuit } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { toast } from 'sonner'
 

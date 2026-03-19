@@ -34,8 +34,7 @@ interface WorkspaceSettings {
 }
 
 export async function workspaceRateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body = req.body as Record<string, any> | undefined
+    const body = req.body as Record<string, unknown> | undefined
     const wsId: string | undefined =
         (typeof body?.workspaceId === 'string' ? body.workspaceId : undefined) ??
         (typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined)
@@ -50,15 +49,13 @@ export async function workspaceRateLimit(req: Request, res: Response, next: Next
         const redis = await getRedis()
         const key = `ws_rate:${wsId}`
 
-        // Increment counter atomically
         const count = await redis.incr(key)
 
-        // Set TTL on first increment (existing keys keep their window)
+        // First request in window — start the TTL
         if (count === 1) {
             await redis.expire(key, WINDOW_SECS)
         }
 
-        // Resolve limit from workspace settings (cached for 60s in Redis)
         const limitKey = `ws_rate_limit:${wsId}`
         let limit = DEFAULT_LIMIT
 
@@ -75,9 +72,8 @@ export async function workspaceRateLimit(req: Request, res: Response, next: Next
 
                 const settings = (ws?.settings ?? {}) as WorkspaceSettings
                 limit = settings.rateLimit?.requestsPerHour ?? DEFAULT_LIMIT
-                // Cache resolved limit for 60s to avoid DB hit per request
                 await redis.set(limitKey, String(limit), { EX: 60 })
-            } catch {
+            } catch { /* DB unavailable — use default */
                 limit = DEFAULT_LIMIT
             }
         }

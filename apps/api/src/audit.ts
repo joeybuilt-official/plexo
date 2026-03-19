@@ -32,7 +32,7 @@ export function audit(req: Request | null, entry: AuditEntry): void {
         ? (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ?? req.socket.remoteAddress
         : undefined
 
-    db.insert(auditLog).values({
+    void db.insert(auditLog).values({
         workspaceId: entry.workspaceId,
         userId: entry.userId ?? null,
         action: entry.action,

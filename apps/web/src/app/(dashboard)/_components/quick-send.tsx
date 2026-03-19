@@ -159,7 +159,7 @@ export function QuickSend() {
                     try {
                         const pdf = await extractPdfText(dataUrl)
                         extractedText = pdf.text
-                    } catch { /* ignore */ }
+                    } catch { /* PDF text extraction is best-effort */ }
                 }
                 setPastedImages(prev => [...prev, { id, dataUrl, mimeType: file.type, name: file.name, kind, extractedText }])
             }

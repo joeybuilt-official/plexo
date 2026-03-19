@@ -35,8 +35,7 @@ import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
 import { db, eq, sql } from '@plexo/db'
 import { channels, sprints } from '@plexo/db'
 import { ulid } from 'ulid'
-import { generateText } from 'ai'
-import { buildModel } from '@plexo/agent/providers/registry'
+import { chatWithAI, classifyIntent, ChannelChatHistory } from '../channel-ai.js'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import {
     recordConversation,
@@ -94,75 +93,9 @@ async function deleteWebhook(token: string): Promise<void> {
     await fetch(`${TELEGRAM_API}${token}/deleteWebhook`, { method: 'POST' }).catch(() => null)
 }
 
-// ── AI helpers ────────────────────────────────────────────────────────────────
+// ── Chat history (shared helper from channel-ai.ts) ────────────────────────
 
-interface ChatMessage { role: 'user' | 'assistant'; content: string }
-
-interface AiResult {
-    text: string | null
-    error: string | null
-}
-
-async function chatWithAI(workspaceId: string, messages: ChatMessage[], system?: string, includeSnapshot = false): Promise<AiResult> {
-    const { credential, aiSettings } = await loadWorkspaceAISettings(workspaceId)
-    if (!credential || !aiSettings) {
-        return { text: null, error: 'no_credential' }
-    }
-
-    const providerKey = aiSettings.primaryProvider
-    const config = aiSettings.providers[providerKey]
-    if (!config) {
-        return { text: null, error: `no config for provider ${providerKey}` }
-    }
-
-    try {
-        let finalSystem = system ?? 'You are Plexo, an AI agent assistant.'
-        
-        if (includeSnapshot) {
-            const { buildIntrospectionSnapshot } = await import('@plexo/agent/introspection')
-            const resolvedModel = config.model ?? '(unknown)'
-            const snapshot = await buildIntrospectionSnapshot(workspaceId, providerKey, resolvedModel)
-            finalSystem += `\n\nYour identity: you are Plexo, running on provider "${providerKey}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.\n\nHere is your full state and self-awareness snapshot (tools, agents, skills, memory, integrations, channels, exact model, provider, and workspace):\n${JSON.stringify(snapshot, null, 2)}`
-        }
-
-        const model = buildModel(providerKey, config, 'summarization', aiSettings)
-        const result = await generateText({
-            model,
-            system: finalSystem,
-            messages: messages.map(m => ({ role: m.role, content: m.content })),
-            abortSignal: AbortSignal.timeout(30_000),
-        })
-        return { text: result.text ?? null, error: null }
-    } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        logger.warn({ err, workspaceId, providerKey }, 'Telegram AI chat call failed')
-        return { text: null, error: msg }
-    }
-}
-
-// ── Intent classification ─────────────────────────────────────────────────────
-
-const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
-Decide if the user's message is a TASK, PROJECT, or CONVERSATION.
-
-TASK: The user is explicitly asking to start a clear, immediate, actionable task. Or the user is confirming (e.g. "yes", "do it") a previous proposal to create a task.
-PROJECT: The user is explicitly asking to start a large, multi-step goal requiring planning (e.g., "Build a new features"). Or the user is confirming a proposal to create a project.
-CONVERSATION: Vague requests, troubleshooting, requests needing clarification, greetings, checks, small talk, or rejecting proposals.
-
-Reply with ONLY one word: TASK, PROJECT, or CONVERSATION.`
-
-async function classifyIntent(workspaceId: string, history: ChatMessage[]): Promise<'TASK' | 'PROJECT' | 'CONVERSATION'> {
-    const result = await chatWithAI(workspaceId, history, CLASSIFY_SYSTEM)
-    if (result.error) return 'CONVERSATION'
-    const resText = result.text?.trim().toUpperCase() ?? ''
-    if (resText.startsWith('TASK')) return 'TASK'
-    else if (resText.startsWith('PROJECT')) return 'PROJECT'
-    return 'CONVERSATION'
-}
-
-// Per-chat conversation history (last 20 messages, scoped to channelId+chatId)
-// In-memory warm cache — DB is the source of truth; this is rebuilt on demand.
-const chatHistory = new Map<string, ChatMessage[]>()
+const chatHistory = new ChannelChatHistory()
 
 function historyKey(channelId: string, chatId: string): string {
     return `${channelId}:${chatId}`
@@ -197,11 +130,7 @@ function telegramSessionId(channelId: string, chatId: string): string {
 }
 
 function addToHistory(channelId: string, chatId: string, role: 'user' | 'assistant', content: string): void {
-    const key = historyKey(channelId, chatId)
-    const hist = chatHistory.get(key) ?? []
-    hist.push({ role, content })
-    if (hist.length > 20) hist.splice(0, hist.length - 20)
-    chatHistory.set(key, hist)
+    chatHistory.add(historyKey(channelId, chatId), role, content)
 }
 
 // Pending confirmations scoped to channel (so the right bot replies)
@@ -322,7 +251,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                         if (event.taskId !== taskId) return
                         // Notify user when task transitions from queued to running
                         if (event.type === 'task_started') {
-                            sendMessage(token, chatId, `🚀 Task is running…`).catch(() => null)
+                            void sendMessage(token, chatId, `🚀 Task is running…`).catch(() => null)
                             return // don't unsub — wait for completion
                         }
                         if (event.type === 'task_complete') {
@@ -349,11 +278,11 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                                     }),
                                 }).catch(() => null)
                             } else {
-                                sendMessage(token, chatId, `✅ ${result}`).catch(() => null)
+                                void sendMessage(token, chatId, `✅ ${result}`).catch(() => null)
                             }
 
                             addToHistory(channelId, chatId, 'assistant', result)
-                            recordConversation({
+                            void recordConversation({
                                 workspaceId,
                                 sessionId: telegramSessionId(channelId, chatId),
                                 source: 'telegram',
@@ -368,8 +297,8 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                         } else if (event.type === 'task_failed' || event.type === 'task_blocked') {
                             unsub()
                             const reason = (event.error as string | undefined) ?? (event.reason as string | undefined) ?? 'Unknown error'
-                            sendMessage(token, chatId, `❌ Task failed: ${reason}`).catch(() => null)
-                            recordConversation({
+                            void sendMessage(token, chatId, `❌ Task failed: ${reason}`).catch(() => null)
+                            void recordConversation({
                                 workspaceId,
                                 sessionId: telegramSessionId(channelId, chatId),
                                 source: 'telegram',
@@ -440,8 +369,8 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                             if (status === 'complete') {
                                 unsub()
                                 const msg = `✅ Project completed.`
-                                sendMessage(token, chatId, msg).catch(() => null)
-                                recordConversation({
+                                void sendMessage(token, chatId, msg).catch(() => null)
+                                void recordConversation({
                                     workspaceId: action.workspaceId,
                                     sessionId: telegramSessionId(channelId, chatId),
                                     source: 'telegram',
@@ -455,8 +384,8 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                                 unsub()
                                 const reason = (event.error as string) ?? (event.message as string) ?? 'Unknown error'
                                 const msg = `❌ Project failed: ${reason}`
-                                sendMessage(token, chatId, msg).catch(() => null)
-                                recordConversation({
+                                void sendMessage(token, chatId, msg).catch(() => null)
+                                void recordConversation({
                                     workspaceId: action.workspaceId,
                                     sessionId: telegramSessionId(channelId, chatId),
                                     source: 'telegram',
@@ -468,7 +397,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                                 }).catch(() => null)
                             } else if (status === 'cancelled') {
                                 unsub()
-                                sendMessage(token, chatId, `🚫 Project was cancelled.`).catch(() => null)
+                                void sendMessage(token, chatId, `🚫 Project was cancelled.`).catch(() => null)
                             }
                         }
                         // Sprint deleted event (hard delete from dashboard)
@@ -504,7 +433,6 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     const photos = msg.photo
     if (photos && photos.length > 0) {
         try {
-            // Get the largest photo (last in array)
             const largest = photos[photos.length - 1]!
             const fileInfoRes = await fetch(`${TELEGRAM_API}${token}/getFile?file_id=${largest.file_id}`)
             const fileInfo = await fileInfoRes.json() as { ok: boolean; result?: { file_path?: string } }
@@ -804,6 +732,9 @@ async function startLongPolling(channelId: string, entry: ChannelEntry): Promise
     logger.info({ channelId }, 'Telegram long polling started (local dev mode)')
 
     let offset = 0
+    let consecutiveErrors = 0
+    const BASE_RETRY_MS = 15_000
+    const MAX_RETRY_MS = 120_000
     while (_pollingActive) {
         try {
             const res = await fetch(
@@ -813,6 +744,10 @@ async function startLongPolling(channelId: string, entry: ChannelEntry): Promise
             if (!res.ok) { await new Promise(r => setTimeout(r, 5000)); continue }
             const data = await res.json() as { ok: boolean; result: TelegramUpdate[] }
             if (!data.ok) { await new Promise(r => setTimeout(r, 5000)); continue }
+            if (consecutiveErrors > 0) {
+                logger.info({ consecutiveErrors }, 'Telegram polling recovered')
+            }
+            consecutiveErrors = 0
             for (const update of data.result) {
                 offset = update.update_id + 1
                 handleUpdate(channelId, entry, update).catch(
@@ -821,8 +756,14 @@ async function startLongPolling(channelId: string, entry: ChannelEntry): Promise
             }
         } catch (err: unknown) {
             if ((err as Error)?.name !== 'TimeoutError') {
-                logger.warn({ err }, 'Telegram polling error')
-                await new Promise(r => setTimeout(r, 5000))
+                consecutiveErrors++
+                const retryMs = Math.min(BASE_RETRY_MS * 2 ** (consecutiveErrors - 1), MAX_RETRY_MS)
+                if (consecutiveErrors <= 3) {
+                    logger.warn({ err, consecutiveErrors, retryMs }, 'Telegram polling error')
+                } else {
+                    logger.debug({ err, consecutiveErrors, retryMs }, 'Telegram polling error (repeated)')
+                }
+                await new Promise(r => setTimeout(r, retryMs))
             }
         }
     }

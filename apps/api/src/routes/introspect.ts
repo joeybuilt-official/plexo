@@ -22,9 +22,9 @@ import { Router } from 'express'
 import { createClient } from 'redis'
 import { buildIntrospectionSnapshot } from '@plexo/agent/introspection'
 import { logger } from '../logger.js'
+import { UUID_RE } from '../validation.js'
 
 const router: Router = Router({ mergeParams: true })
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TTL_SECONDS = 30
 
 // ── Cache helpers ─────────────────────────────────────────────────────────────

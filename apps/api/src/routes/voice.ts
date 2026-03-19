@@ -39,7 +39,6 @@ import { captureLifecycleEvent } from '../sentry.js'
 
 export const voiceRouter: RouterType = Router()
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DEEPGRAM_API = 'https://api.deepgram.com'
 const DEFAULT_MODEL = 'nova-3'
 const CONFIGURED_SENTINEL = '__configured__'
@@ -211,8 +210,8 @@ voiceRouter.post('/test', async (req, res) => {
             latencyMs,
         })
     } catch (err) {
-        const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'
-        res.json({ ok: false, message })
+        logger.warn({ err, workspaceId }, 'Voice test connection failed')
+        res.json({ ok: false, message: 'Connection to Deepgram failed. Check network connectivity and API key.' })
     }
 })
 
@@ -279,6 +278,7 @@ voiceRouter.get('/usage', async (req, res) => {
 
 // Accepts raw audio bytes. Client must set Content-Type to the audio MIME type.
 import express from 'express'
+import { UUID_RE } from '../validation.js'
 
 voiceRouter.post(
     '/transcribe',
@@ -336,7 +336,7 @@ voiceRouter.post(
             })
 
             if (!r.ok) {
-                const body = await r.json().catch(() => ({ message: 'No error message in response body' })) as Record<string, any>
+                const body = await r.json().catch(() => ({ message: 'No error message in response body' })) as Record<string, unknown>
                 logger.warn({ workspaceId, status: r.status, error: body, contentType }, 'Deepgram transcription failed')
 
                 if (r.status === 401 || r.status === 403) {
@@ -370,10 +370,10 @@ voiceRouter.post(
 
             res.json({ transcript, words: wordCount, duration })
         } catch (err) {
-            const message = err instanceof Error ? err.message.slice(0, 200) : 'Transcription failed'
             logger.error({ err, workspaceId }, 'Voice transcription error')
-            captureLifecycleEvent('voice.transcription_failed', 'error', { workspaceId, error: message })
-            res.status(500).json({ error: { code: 'TRANSCRIPTION_ERROR', message } })
+            const errMsg = err instanceof Error ? err.message : 'unknown'
+            captureLifecycleEvent('voice.transcription_failed', 'error', { workspaceId, error: errMsg })
+            res.status(500).json({ error: { code: 'TRANSCRIPTION_ERROR', message: 'Transcription failed. Please try again.' } })
         }
     }
 )

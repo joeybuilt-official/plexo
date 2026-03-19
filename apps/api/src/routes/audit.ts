@@ -14,8 +14,10 @@ import { db, eq, and, desc } from '@plexo/db'
 import { auditLog, users } from '@plexo/db'
 import { sql } from '@plexo/db'
 import { logger } from '../logger.js'
+import { UUID_RE } from '../validation.js'
 
 export const auditRouter: RouterType = Router()
+
 
 auditRouter.get('/', async (req, res) => {
     const {
@@ -32,6 +34,10 @@ auditRouter.get('/', async (req, res) => {
 
     if (!workspaceId) {
         res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
+        return
+    }
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required for workspaceId' } })
         return
     }
 

@@ -10,8 +10,7 @@
  * plexo_get_task     — get a single task by ID (tasks:read)
  */
 import { z } from 'zod'
-import { db, sql, eq, and } from '@plexo/db'
-import { tasks } from '@plexo/db'
+import { db, sql } from '@plexo/db'
 import { ulid } from 'ulid'
 import type { McpContext } from '../types.js'
 import { scopeDenied, internalError } from '../errors.js'

@@ -39,7 +39,7 @@ export function RegisterForm({ isFirstRun }: { isFirstRun: boolean }) {
 
             router.push('/login?registered=true')
         } catch {
-            setError('An unexpected error occurred')
+            setError('Registration failed')
             setIsLoading(false)
         }
     }

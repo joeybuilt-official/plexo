@@ -24,10 +24,10 @@ import { workspaces, workspaceKeyShares } from '@plexo/db'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { invalidateIntrospectCache } from './introspect.js'
+import { UUID_RE } from '../validation.js'
 
 export const aiProviderCredsRouter: RouterType = Router({ mergeParams: true })
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // Sentinel value written back to clients in place of real key values.
 const CONFIGURED_SENTINEL = '__configured__'
@@ -95,7 +95,7 @@ export function getDecoupledSettings(workspaceId: string, settings: Record<strin
         // Persist migration asynchronously
         const newSettings = { ...settings, vault, arbiter } as Record<string, unknown>
         delete newSettings.aiProviders
-        db.update(workspaces).set({ settings: newSettings }).where(eq(workspaces.id, workspaceId)).catch(err => {
+        void db.update(workspaces).set({ settings: newSettings }).where(eq(workspaces.id, workspaceId)).catch(err => {
             logger.error({ err, workspaceId }, 'Failed to persist zero-downtime vault/arbiter migration')
         })
     }
@@ -221,7 +221,6 @@ aiProviderCredsRouter.put('/', async (req, res) => {
     }
 
     try {
-        // Read current settings for merge
         const [ws] = await db
             .select({ settings: workspaces.settings })
             .from(workspaces)
@@ -349,7 +348,7 @@ export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIP
                     decryptedVault[providerKey] = { ...entry, apiKey: srcProvider.apiKey, status: 'configured' }
                     logger.info({ workspaceId, providerKey, sourceWsId }, 'key-share: borrowed key resolved ✓')
                 } else {
-                    logger.warn({ workspaceId, providerKey, sourceWsId }, 'key-share: source workspace has no key for this provider')
+                    logger.debug({ workspaceId, providerKey, sourceWsId }, 'key-share: source workspace has no key for this provider')
                 }
             } catch (err) {
                 logger.error({ err, workspaceId, providerKey, sourceWsId }, 'key-share: failed to decrypt borrowed key')

@@ -3,10 +3,8 @@
 
 // ── Task Types ────────────────────────────────────────────────
 
-import type { TaskType } from '@plexo/db'
-export type { TaskType }
-
-export type TaskStatus = 'queued' | 'claimed' | 'running' | 'complete' | 'blocked' | 'cancelled'
+import type { TaskType, TaskStatus } from '@plexo/db'
+export type { TaskType, TaskStatus }
 export type TaskSource = 'telegram' | 'scanner' | 'github' | 'cron' | 'dashboard' | 'api'
 
 export interface Task {

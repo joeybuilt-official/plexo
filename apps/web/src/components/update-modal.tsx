@@ -112,7 +112,6 @@ export function UpdateModal() {
         logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [logs])
 
-    // Close on Escape
     useEffect(() => {
         if (!open) return
         const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !updating) setOpen(false) }

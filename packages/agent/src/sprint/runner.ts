@@ -70,7 +70,6 @@ export async function runSprint(opts: SprintRunOptions): Promise<void> {
 
     await db.update(sprints).set({ status: 'running' }).where(eq(sprints.id, sprintId))
 
-    // Load the sprint row once to get project-level cost ceiling and per-task defaults
     const [sprintRow] = await db
         .select({ costCeilingUsd: sprints.costCeilingUsd, metadata: sprints.metadata })
         .from(sprints).where(eq(sprints.id, sprintId)).limit(1)
@@ -293,23 +292,41 @@ async function runCodeSprint(
 
         await waitForWave(waveTasks.map((t) => t.dbId), sprintId)
 
-        const completed = await db.select().from(sprintTasks)
+        const completed = await db.select({
+            id: sprintTasks.id,
+            status: sprintTasks.status,
+            description: sprintTasks.description,
+            branch: sprintTasks.branch,
+            scope: sprintTasks.scope,
+            acceptance: sprintTasks.acceptance,
+            handoff: sprintTasks.handoff,
+        }).from(sprintTasks)
             .where(inArray(sprintTasks.id, waveTasks.map((t) => t.dbId)))
+
+        // Batch-fetch model attribution for all completed tasks in one query
+        const completedTaskIds = completed
+            .filter(st => st.status === 'complete')
+            .map(st => (st.handoff as { taskId?: string } | null)?.taskId)
+            .filter((id): id is string => !!id)
+
+        const modelMap = new Map<string, string>()
+        if (completedTaskIds.length > 0) {
+            try {
+                const stepRows = await db.select({ taskId: taskSteps.taskId, model: taskSteps.model })
+                    .from(taskSteps)
+                    .where(inArray(taskSteps.taskId, completedTaskIds))
+                for (const row of stepRows) {
+                    if (row.taskId && row.model && !modelMap.has(row.taskId)) {
+                        modelMap.set(row.taskId, row.model)
+                    }
+                }
+            } catch { /* non-fatal */ }
+        }
 
         for (const st of completed) {
             if (st.status === 'complete') {
-                // Query model attribution from task_steps if available
                 const linkedTaskId = (st.handoff as { taskId?: string } | null)?.taskId
-                let resolvedModel: string | null = null
-                if (linkedTaskId) {
-                    try {
-                        const [stepRow] = await db.select({ model: taskSteps.model })
-                            .from(taskSteps)
-                            .where(eq(taskSteps.taskId, linkedTaskId))
-                            .limit(1)
-                        resolvedModel = stepRow?.model ?? null
-                    } catch { /* non-fatal */ }
-                }
+                const resolvedModel = linkedTaskId ? modelMap.get(linkedTaskId) ?? null : null
 
                 await logSprintEvent({
                     sprintId,
@@ -380,7 +397,6 @@ async function runCodeSprint(
                 failed: completed.filter(t => t.status === 'failed').length,
             },
         })
-        // Incremental progress + cost — update sprints row after each wave so UI updates in real-time
         const allSoFar = await db.select({ status: sprintTasks.status }).from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
         const [waveCostRow] = await db.select({ total: sql<number>`COALESCE(SUM(cost_usd), 0)` })
             .from(tasks).where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
@@ -402,7 +418,7 @@ async function runCodeSprint(
         })
     }
 
-    const finalTasks = await db.select().from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
+    const finalTasks = await db.select({ id: sprintTasks.id, status: sprintTasks.status }).from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
     const completedCount = finalTasks.filter((t) => t.status === 'complete').length
     const failedCount = finalTasks.filter((t) => t.status === 'failed').length
     const sprintStatus: 'complete' | 'finalizing' | 'failed' = failedCount > 0
@@ -545,7 +561,11 @@ async function runGenericSprint(
 
         await waitForWave(waveTasks.map((t) => t.dbId), sprintId)
 
-        const completed = await db.select().from(sprintTasks)
+        const completed = await db.select({
+            id: sprintTasks.id,
+            status: sprintTasks.status,
+            description: sprintTasks.description,
+        }).from(sprintTasks)
             .where(inArray(sprintTasks.id, waveTasks.map((t) => t.dbId)))
 
         for (const st of completed) {
@@ -577,7 +597,6 @@ async function runGenericSprint(
                 failed: completed.filter(t => t.status === 'failed').length,
             },
         })
-        // Incremental progress + cost — update sprints row after each wave so UI updates in real-time
         const allSoFar = await db.select({ status: sprintTasks.status }).from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
         const [waveCostRow] = await db.select({ total: sql<number>`COALESCE(SUM(cost_usd), 0)` })
             .from(tasks).where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
@@ -588,7 +607,7 @@ async function runGenericSprint(
         }).where(eq(sprints.id, sprintId))
     }
 
-    const finalTasks = await db.select().from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
+    const finalTasks = await db.select({ id: sprintTasks.id, status: sprintTasks.status }).from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
     const completedCount = finalTasks.filter((t) => t.status === 'complete').length
     const failedCount = finalTasks.filter((t) => t.status === 'failed').length
     const sprintStatus: 'complete' | 'finalizing' | 'failed' = failedCount > 0
@@ -637,7 +656,6 @@ export async function waitForWave(sprintTaskIds: string[], sprintId: string): Pr
     const deadline = Date.now() + TASK_TIMEOUT_MS
 
     while (Date.now() < deadline) {
-        // Check if the sprint itself was cancelled
         const [sprintRow] = await db.select({ status: sprints.status })
             .from(sprints).where(eq(sprints.id, sprintId)).limit(1)
         if (sprintRow?.status === 'cancelled') {

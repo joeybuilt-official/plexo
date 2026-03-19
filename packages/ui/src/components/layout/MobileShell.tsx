@@ -3,19 +3,13 @@
 
 "use client"
 
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Activity, CheckSquare, MessageSquare, Plug, Settings } from 'lucide-react'
 
 export function MobileShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
-    // Default view in Mobile is / recent activity, or notifications. 
-    // Tasks: /tasks
-    // Chat: /chat
-    // Connections: /settings/connections
-    // Settings: /settings
-    
     const navItems = [
         { label: 'Activity', href: '/', icon: Activity },
         { label: 'Tasks', href: '/tasks', icon: CheckSquare },

@@ -3,7 +3,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
     GitBranch,
@@ -30,11 +30,9 @@ import {
     Sparkles,
     Cpu,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import Link from 'next/link'
-import { useWorkspace } from '@web/context/workspace'
-import { ListToolbar } from '@web/components/list-toolbar'
 import { getCategoryDef } from '@web/lib/project-categories'
-import { CopyId } from '@web/components/copy-id'
 import { cn, StatusBadge, CategoryBadge } from '@plexo/ui'
 
 const formatAge = (date: string | null) => {
@@ -121,7 +119,7 @@ const LEVEL_COLORS: Record<SprintLogLevel, string> = {
     error: 'text-red',
 }
 
-const LOG_EVENT_CONFIG: Record<string, { label: string; icon: any; color: string; bgColor: string }> = {
+const LOG_EVENT_CONFIG: Record<string, { label: string; icon: LucideIcon; color: string; bgColor: string }> = {
     planning_start: { label: 'Planning', icon: Zap, color: 'text-purple-400', bgColor: 'bg-purple-500/10' },
     planning_complete: { label: 'Ready', icon: CheckCircle2, color: 'text-purple-400', bgColor: 'bg-purple-500/10' },
     wave_start: { label: 'Wave Start', icon: TrendingUp, color: 'text-azure', bgColor: 'bg-azure-dim/20' },
@@ -381,7 +379,7 @@ export default function SprintDetailPage() {
                 }
                 tabInitializedRef.current = true;
             }
-        } catch { /* silent */ } finally {
+        } catch { /* fetch may fail if server restarts mid-load */ } finally {
             setLoading(false)
         }
     }, [sprintId])

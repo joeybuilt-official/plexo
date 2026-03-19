@@ -45,7 +45,7 @@ export async function runSprintRetry(sprintId: string, workspaceId: string): Pro
         const perTaskCostCeiling = metadata.perTaskCostCeiling ? Number(metadata.perTaskCostCeiling) : undefined
         const perTaskTokenBudget = metadata.perTaskTokenBudget ? Number(metadata.perTaskTokenBudget) : undefined
 
-        let github: any = null
+        let github: Awaited<ReturnType<typeof buildGitHubClientForWorkspace>> | null = null
         let baseBranch: string | null = null
         let baseSha: string | null = null
         if (category === 'code' && sprintRow.repo) {
@@ -184,7 +184,7 @@ export async function runSprintRetry(sprintId: string, workspaceId: string): Pro
         })
 
         // Finalize Sprint
-        let conflicts: any[] = []
+        let conflicts: Awaited<ReturnType<typeof detectDynamicConflicts>> = []
         if (category === 'code' && sprintRow.repo && github && baseBranch) {
             const [owner, repoName] = sprintRow.repo.split('/')
             conflicts = await detectDynamicConflicts(sprintId, owner!, repoName!, baseBranch)
