@@ -578,7 +578,7 @@ Critical rules — follow without exception:
         if (result.error) {
             logger.warn({ chatId, workspaceId, error: result.error }, 'AI error during Telegram conversation')
         }
-        const replyText = result.text ?? "I'm having a bit of trouble right now — please try again in a moment."
+        const replyText = result.text ?? `⚠️ ${result.error ?? 'Unknown error — check Settings → AI Providers.'}`
         addToHistory(channelId, chatId, 'assistant', replyText)
 
         // Record every conversation turn

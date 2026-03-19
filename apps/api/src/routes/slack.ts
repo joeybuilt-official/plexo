@@ -262,7 +262,7 @@ Critical rules — follow without exception:
         if (result.error) {
             logger.warn({ threadId, workspaceId, error: result.error }, 'AI error during Slack conversation')
         }
-        const replyText = result.text ?? "I'm having a bit of trouble right now — please try again in a moment."
+        const replyText = result.text ?? `⚠️ ${result.error ?? 'Unknown error — check Settings → AI Providers.'}`
         chatHistory.add(threadId, 'assistant', replyText)
         if (event.channel) {
             await postMessage(event.channel, replyText, event.ts)

@@ -43,13 +43,13 @@ export async function chatWithAI(
 ): Promise<AiResult> {
     const { credential, aiSettings } = await loadWorkspaceAISettings(workspaceId)
     if (!credential || !aiSettings) {
-        return { text: null, error: 'no_credential' }
+        return { text: null, error: 'No AI provider configured. Add your API key in Settings → AI Providers.' }
     }
 
     const providerKey = aiSettings.primaryProvider
     const config = aiSettings.providers[providerKey]
     if (!config) {
-        return { text: null, error: `no config for provider ${providerKey}` }
+        return { text: null, error: `Provider "${providerKey}" is set as primary but has no configuration. Check Settings → AI Providers.` }
     }
 
     try {
@@ -71,9 +71,23 @@ export async function chatWithAI(
         })
         return { text: result.text ?? null, error: null }
     } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
+        const raw = err instanceof Error ? err.message : String(err)
         logger.warn({ err, workspaceId, providerKey }, 'Channel AI chat call failed')
-        return { text: null, error: msg }
+
+        // Translate common API errors into actionable user-facing messages
+        let userMsg: string
+        if (raw.includes('Invalid API Key') || raw.includes('invalid_api_key') || raw.includes('Incorrect API key')) {
+            userMsg = `API key for "${providerKey}" is invalid or expired. Update it in Settings → AI Providers.`
+        } else if (raw.includes('insufficient_quota') || raw.includes('exceeded your current quota')) {
+            userMsg = `API quota exhausted for "${providerKey}". Check your billing at the provider's dashboard.`
+        } else if (raw.includes('Rate limit') || raw.includes('rate_limit') || raw.includes('429')) {
+            userMsg = `Rate limited by "${providerKey}". Wait a moment and try again.`
+        } else if (raw.includes('timeout') || raw.includes('ETIMEDOUT') || raw.includes('ECONNREFUSED')) {
+            userMsg = `Could not reach "${providerKey}" — the provider may be down or unreachable. Try again shortly.`
+        } else {
+            userMsg = `AI provider "${providerKey}" returned an error: ${raw.slice(0, 150)}`
+        }
+        return { text: null, error: userMsg }
     }
 }
 
