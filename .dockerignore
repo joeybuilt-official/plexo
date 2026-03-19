@@ -5,4 +5,7 @@ plugins/*/*/node_modules
 .next
 dist
 build
-.git
+.git/objects
+.git/lfs
+.git/hooks
+.git/logs

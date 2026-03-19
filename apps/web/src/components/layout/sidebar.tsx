@@ -142,13 +142,26 @@ interface WorkspaceSummary {
 }
 
 const VERSION = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? '0.8.0-beta.1'}`
-const SHORT_SHA = process.env.NEXT_PUBLIC_SOURCE_COMMIT
+const BUILD_TIME_SHA = process.env.NEXT_PUBLIC_SOURCE_COMMIT
+    && process.env.NEXT_PUBLIC_SOURCE_COMMIT !== 'unknown'
     ? process.env.NEXT_PUBLIC_SOURCE_COMMIT.slice(0, 7)
     : null
 
 function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: string; collapsed?: boolean }) {
     const { workspaceId, workspaceName, setWorkspace } = useWorkspace()
     const [open, setOpen] = useState(false)
+    // Runtime fallback: fetch commit hash from version API if not baked at build time
+    const [runtimeSha, setRuntimeSha] = useState<string | null>(null)
+    useEffect(() => {
+        if (BUILD_TIME_SHA) return
+        fetch('/api/v1/system/version')
+            .then(r => r.ok ? r.json() : null)
+            .then((d: { sourceCommit?: string } | null) => {
+                if (d?.sourceCommit) setRuntimeSha(d.sourceCommit)
+            })
+            .catch(() => {})
+    }, [])
+    const SHORT_SHA = BUILD_TIME_SHA ?? runtimeSha
     const [list, setList] = useState<WorkspaceSummary[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [creating, setCreating] = useState(false)

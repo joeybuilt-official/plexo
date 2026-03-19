@@ -91,6 +91,8 @@ interface Message {
     fixUrl?: string
     fixLabel?: string
     technicalDetail?: string
+    // LLM provider/model used for this response
+    model?: string
     // Assets produced by the agent's write_asset tool
     assets?: TaskAsset[]
     steps?: Array<{
@@ -396,6 +398,9 @@ function MessageBubble({
                         >
                             {msg.taskId.slice(0, 8)} ↗
                         </Link>
+                    )}
+                    {msg.model && (
+                        <span className="font-mono opacity-70">{msg.model}</span>
                     )}
                     {msg.status === 'complete' && (
                         <CheckCircle2 className="h-3 w-3 text-azure" />
@@ -834,9 +839,9 @@ function ChatContent() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ workspaceId: WS_ID, message: description, sessionId: sessionId.current, forceConversation: true }),
                 })
-                const data = await res.json() as { reply?: string; status?: string }
+                const data = await res.json() as { reply?: string; status?: string; model?: string }
                 setMessages((prev) => prev.map((m) =>
-                    m.id === msgId ? { ...m, status: 'complete', content: data.reply ?? 'Here\'s what I know about that:' } : m
+                    m.id === msgId ? { ...m, status: 'complete', content: data.reply ?? 'Here\'s what I know about that:', model: data.model } : m
                 ))
                 return
             }
@@ -1160,7 +1165,7 @@ function ChatContent() {
                 return
             }
 
-            const data = await res.json() as { taskId?: string; status?: string; reply?: string; intent?: string; description?: string; fixUrl?: string; fixLabel?: string; technicalDetail?: string }
+            const data = await res.json() as { taskId?: string; status?: string; reply?: string; intent?: string; description?: string; fixUrl?: string; fixLabel?: string; technicalDetail?: string; model?: string }
 
             // Error from AI provider — surface structured, actionable message
             if (data.status === 'error') {
@@ -1172,6 +1177,7 @@ function ChatContent() {
                         fixUrl: data.fixUrl,
                         fixLabel: data.fixLabel,
                         technicalDetail: data.technicalDetail,
+                        model: data.model,
                     } : m
                 ))
                 return
@@ -1189,6 +1195,7 @@ function ChatContent() {
                         actionDescription: data.description,
                         suggestedCategory: typedData.suggestedCategory ?? 'general',
                         selectedCategory: typedData.suggestedCategory ?? 'general',
+                        model: data.model,
                     } : m
                 ))
                 return
@@ -1197,7 +1204,7 @@ function ChatContent() {
             // Direct conversational reply — no polling needed
             if (data.status === 'complete' && data.reply) {
                 setMessages((prev) => prev.map((m) =>
-                    m.id === pendingId ? { ...m, status: 'complete', content: data.reply! } : m
+                    m.id === pendingId ? { ...m, status: 'complete', content: data.reply!, model: data.model } : m
                 ))
                 if (tts.enabled) tts.speak(data.reply)
                 return
@@ -1211,6 +1218,7 @@ function ChatContent() {
                         taskId: data.taskId!,
                         status: 'running',
                         content: (data as { reply?: string }).reply ?? 'On it.',
+                        model: data.model,
                     } : m
                 ))
                 void pollReply(data.taskId, pendingId)

@@ -9,7 +9,7 @@
  */
 
 import { generateText } from 'ai'
-import { buildModel } from '@plexo/agent/providers/registry'
+import { withFallback } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from './agent-loop.js'
 import { logger } from './logger.js'
 
@@ -46,33 +46,31 @@ export async function chatWithAI(
         return { text: null, error: 'No AI provider configured. Add your API key in Settings → AI Providers.' }
     }
 
-    const providerKey = aiSettings.primaryProvider
-    const config = aiSettings.providers[providerKey]
-    if (!config) {
-        return { text: null, error: `Provider "${providerKey}" is set as primary but has no configuration. Check Settings → AI Providers.` }
-    }
-
     try {
         let finalSystem = system ?? 'You are Plexo, an AI agent assistant.'
 
         if (includeSnapshot) {
+            const providerKey = aiSettings.primaryProvider
+            const config = aiSettings.providers[providerKey]
             const { buildIntrospectionSnapshot } = await import('@plexo/agent/introspection')
-            const resolvedModel = config.model ?? '(unknown)'
+            const resolvedModel = config?.model ?? '(unknown)'
             const snapshot = await buildIntrospectionSnapshot(workspaceId, providerKey, resolvedModel)
             finalSystem += `\n\nYour identity: you are Plexo, running on provider "${providerKey}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.\n\nHere is your full state and self-awareness snapshot (tools, agents, skills, memory, integrations, channels, exact model, provider, and workspace):\n${JSON.stringify(snapshot, null, 2)}`
         }
 
-        const model = buildModel(providerKey, config, 'summarization', aiSettings)
-        const result = await generateText({
-            model,
-            system: finalSystem,
-            messages: messages.map(m => ({ role: m.role, content: m.content })),
-            abortSignal: AbortSignal.timeout(30_000),
-        })
+        const result = await withFallback(aiSettings, 'summarization', async (model) =>
+            generateText({
+                model,
+                system: finalSystem,
+                messages: messages.map(m => ({ role: m.role, content: m.content })),
+                abortSignal: AbortSignal.timeout(30_000),
+            })
+        )
         return { text: result.text ?? null, error: null }
     } catch (err) {
         const raw = err instanceof Error ? err.message : String(err)
-        logger.warn({ err, workspaceId, providerKey }, 'Channel AI chat call failed')
+        const providerKey = aiSettings.primaryProvider
+        logger.warn({ err, workspaceId, providerKey }, 'Channel AI chat call failed (all providers in fallback chain exhausted)')
 
         // Translate common API errors into actionable user-facing messages
         let userMsg: string

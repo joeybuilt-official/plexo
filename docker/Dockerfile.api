@@ -2,6 +2,27 @@ FROM node:22-alpine AS base
 RUN apk add --no-cache git
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# ── Resolve git commit hash ──────────────────────────────────────────────────
+# Parse .git/HEAD (+ refs or packed-refs) to resolve the current commit SHA.
+# .dockerignore excludes .git/objects and other heavy dirs but keeps HEAD, refs,
+# and packed-refs so this stage can resolve the commit without bloating the context.
+# When SOURCE_COMMIT is passed explicitly (e.g. by the updater), that value wins.
+FROM alpine:3.20 AS git-meta
+ARG SOURCE_COMMIT=unknown
+WORKDIR /meta
+COPY .gi[t] /meta/git
+RUN SC="${SOURCE_COMMIT}"; \
+    if [ "$SC" = "unknown" ] && [ -f /meta/git/HEAD ]; then \
+      REF=$(cat /meta/git/HEAD); \
+      case "$REF" in \
+        ref:*) RPATH=$(echo "$REF" | sed 's/^ref: *//'); \
+               if [ -f "/meta/git/$RPATH" ]; then SC=$(cat "/meta/git/$RPATH"); \
+               elif [ -f /meta/git/packed-refs ]; then SC=$(grep " $RPATH" /meta/git/packed-refs | head -1 | cut -d' ' -f1); fi ;; \
+        *) SC="$REF" ;; \
+      esac; \
+    fi; \
+    echo "${SC:-unknown}" > /meta/SOURCE_COMMIT
+
 # ── Install workspace deps ────────────────────────────────────────────────────
 FROM base AS deps
 WORKDIR /app
@@ -60,9 +81,11 @@ RUN V="${APP_VERSION}"; \
     [ "$V" = "auto" ] && V=$(node -p "require('./package.json').version"); \
     echo "$V" > /app/.version && \
     echo "APP_VERSION baked: $V"
-# Bake build timestamp — used for commit-aware update detection
-ARG SOURCE_COMMIT=unknown
-RUN echo "$SOURCE_COMMIT" > /app/.source-commit && echo "Commit: $SOURCE_COMMIT" && date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build-time
+# Bake source commit and build timestamp — used for commit-aware update detection
+COPY --from=git-meta /meta/SOURCE_COMMIT /tmp/SOURCE_COMMIT
+RUN SC=$(cat /tmp/SOURCE_COMMIT); \
+    echo "$SC" > /app/.source-commit && echo "Commit: $SC" && \
+    date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build-time && rm /tmp/SOURCE_COMMIT
 ENV APP_VERSION=auto
 
 RUN chown -R plexo:plexo /app

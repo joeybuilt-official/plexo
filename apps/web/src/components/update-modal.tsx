@@ -21,6 +21,7 @@ import { PlexoMark } from '@web/components/plexo-logo'
 
 interface VersionInfo {
     current: string
+    sourceCommit: string | null
     latest: string | null
     behind: boolean
     updateType: 'release' | 'commit'

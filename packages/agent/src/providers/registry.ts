@@ -342,6 +342,8 @@ function isRetryableProviderError(err: unknown): boolean {
         msg.includes('logicerror') ||
         // Auth failures from stale/invalid keys — fall through to next provider
         msg.includes('401') ||
+        msg.includes('403') ||
+        msg.includes('forbidden') ||
         msg.includes('invalid api key') ||
         msg.includes('unauthorized') ||
         msg.includes('authentication failed') ||

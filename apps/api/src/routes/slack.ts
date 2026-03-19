@@ -177,14 +177,24 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
             const voiceSettings = settingsRes?.ok ? await settingsRes.json() as { configured: boolean } : null
 
             if (!voiceSettings?.configured) {
+                const errorReply = '🎙️ I received your audio file, but voice transcription is not set up.\n\n' +
+                    'Go to *Settings → Voice* in your Plexo dashboard to add your Deepgram key.'
                 if (event.channel) {
-                    await postMessage(
-                        event.channel,
-                        '🎙️ I received your audio file, but voice transcription is not set up.\n\n' +
-                        'Go to *Settings → Voice* in your Plexo dashboard to add your Deepgram key.',
-                        event.ts
-                    )
+                    await postMessage(event.channel, errorReply, event.ts)
                 }
+                const sessionId = slackSessionId(teamId, event.channel ?? '', event.thread_ts ?? event.ts ?? '')
+                const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+                await recordConversation({
+                    workspaceId,
+                    sessionId,
+                    source: 'slack',
+                    message: '[audio file]',
+                    reply: errorReply,
+                    status: 'failed',
+                    errorMsg: 'Voice transcription not configured',
+                    intent: 'TASK',
+                    channelRef,
+                }).catch((err: Error) => logger.warn({ err }, 'Failed to record Slack voice-not-configured conversation'))
                 return
             }
 
@@ -212,9 +222,23 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
 
             const { transcript } = await transcribeRes.json() as { transcript: string }
             if (!transcript?.trim()) {
+                const emptyReply = '🎙️ I received your audio, but couldn\'t hear anything clear. Please try again.'
                 if (event.channel) {
-                    await postMessage(event.channel, '🎙️ I received your audio, but couldn\'t hear anything clear. Please try again.', event.ts)
+                    await postMessage(event.channel, emptyReply, event.ts)
                 }
+                const sessionId = slackSessionId(teamId, event.channel ?? '', event.thread_ts ?? event.ts ?? '')
+                const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+                await recordConversation({
+                    workspaceId,
+                    sessionId,
+                    source: 'slack',
+                    message: '[audio file]',
+                    reply: emptyReply,
+                    status: 'failed',
+                    errorMsg: 'Empty transcript from audio',
+                    intent: 'TASK',
+                    channelRef,
+                }).catch((err: Error) => logger.warn({ err }, 'Failed to record Slack empty-transcript conversation'))
                 return
             }
 
@@ -227,9 +251,23 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
         } catch (err) {
             logger.error({ err, workspaceId, channel: event.channel }, 'Slack transcription failed')
             captureLifecycleEvent('channel.error', 'error', { channel: 'slack', error: 'transcription_failed', workspaceId })
+            const transcribeErrorReply = '❌ Failed to process that audio message. Please try text.'
             if (event.channel) {
-                await postMessage(event.channel, '❌ Failed to process that audio message. Please try text.', event.ts)
+                await postMessage(event.channel, transcribeErrorReply, event.ts)
             }
+            const sessionId = slackSessionId(teamId, event.channel ?? '', event.thread_ts ?? event.ts ?? '')
+            const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+            await recordConversation({
+                workspaceId,
+                sessionId,
+                source: 'slack',
+                message: '[audio file]',
+                reply: transcribeErrorReply,
+                status: 'failed',
+                errorMsg: 'Audio transcription failed',
+                intent: 'TASK',
+                channelRef,
+            }).catch((err: Error) => logger.warn({ err }, 'Failed to record Slack transcription-error conversation'))
             return
         }
     }
@@ -338,9 +376,23 @@ Critical rules — follow without exception:
     } catch (err) {
         logger.error({ err, channel: event.channel }, 'Failed to queue Slack task')
         captureLifecycleEvent('channel.error', 'error', { channel: 'slack', error: 'task_queue_failed' })
+        const queueErrorReply = '❌ Failed to queue task. Please try again.'
         if (event.channel) {
-            await postMessage(event.channel, '❌ Failed to queue task. Please try again.', event.ts)
+            await postMessage(event.channel, queueErrorReply, event.ts)
         }
+        const sessionId = slackSessionId(teamId, event.channel ?? '', event.thread_ts ?? event.ts ?? '')
+        const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+        await recordConversation({
+            workspaceId,
+            sessionId,
+            source: 'slack',
+            message: text,
+            reply: queueErrorReply,
+            status: 'failed',
+            errorMsg: 'Task queue failed',
+            intent: 'TASK',
+            channelRef,
+        }).catch((err: Error) => logger.warn({ err }, 'Failed to record Slack task-queue-error conversation'))
     }
 })
 

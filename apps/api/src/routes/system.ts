@@ -343,6 +343,7 @@ systemRouter.get('/version', async (_req, res) => {
 
     res.json({
         current: local.type === 'commit' ? local.version.slice(0, 7) : local.version,
+        sourceCommit: local.sourceCommit && local.sourceCommit !== 'unknown' ? local.sourceCommit.slice(0, 7) : null,
         latest,
         behind,
         updateType,

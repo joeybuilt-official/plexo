@@ -1,6 +1,23 @@
 FROM node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# ── Resolve git commit hash ──────────────────────────────────────────────────
+FROM alpine:3.20 AS git-meta
+ARG SOURCE_COMMIT=unknown
+WORKDIR /meta
+COPY .gi[t] /meta/git
+RUN SC="${SOURCE_COMMIT}"; \
+    if [ "$SC" = "unknown" ] && [ -f /meta/git/HEAD ]; then \
+      REF=$(cat /meta/git/HEAD); \
+      case "$REF" in \
+        ref:*) RPATH=$(echo "$REF" | sed 's/^ref: *//'); \
+               if [ -f "/meta/git/$RPATH" ]; then SC=$(cat "/meta/git/$RPATH"); \
+               elif [ -f /meta/git/packed-refs ]; then SC=$(grep " $RPATH" /meta/git/packed-refs | head -1 | cut -d' ' -f1); fi ;; \
+        *) SC="$REF" ;; \
+      esac; \
+    fi; \
+    echo "${SC:-unknown}" > /meta/SOURCE_COMMIT
+
 FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
@@ -28,9 +45,9 @@ COPY apps/web ./apps/web
 COPY packages/ui ./packages/ui
 COPY packages/logger ./packages/logger
 COPY packages/db ./packages/db
-ARG SOURCE_COMMIT=unknown
-ENV NEXT_PUBLIC_SOURCE_COMMIT=$SOURCE_COMMIT
-RUN pnpm --filter @plexo/web build
+COPY --from=git-meta /meta/SOURCE_COMMIT /tmp/SOURCE_COMMIT
+ENV NEXT_PUBLIC_SOURCE_COMMIT=""
+RUN export NEXT_PUBLIC_SOURCE_COMMIT=$(cat /tmp/SOURCE_COMMIT) && pnpm --filter @plexo/web build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

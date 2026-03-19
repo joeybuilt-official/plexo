@@ -266,11 +266,25 @@ Critical rules — follow without exception:
             } catch (err) {
                 logger.error({ err }, 'Discord /task push failed')
                 captureLifecycleEvent('channel.error', 'error', { channel: 'discord', error: 'task_push_failed' })
+                const queueErrorReply = '❌ Failed to queue task. Check Plexo logs.'
                 await sendFollowUp(
                     interaction.application_id,
                     interaction.token,
-                    '❌ Failed to queue task. Check Plexo logs.',
+                    queueErrorReply,
                 )
+                const sessionId = discordSessionId(interaction.guild_id ?? '', interaction.channel_id ?? '')
+                const channelRef: ChannelRef = { channel: 'discord', channelId: interaction.channel_id ?? '', chatId: user?.id ?? '' }
+                await recordConversation({
+                    workspaceId,
+                    sessionId,
+                    source: 'discord',
+                    message: description,
+                    reply: queueErrorReply,
+                    status: 'failed',
+                    errorMsg: 'Task queue failed',
+                    intent: 'TASK',
+                    channelRef,
+                }).catch((err: Error) => logger.warn({ err }, 'Failed to record Discord task-queue-error conversation'))
             }
             return
         }

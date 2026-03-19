@@ -509,14 +509,14 @@ Critical rules — follow without exception:
                     metadata: { source: 'chat', sessionId: sessionId ?? null, intent },
                 }).catch(() => { /* never fatal */ })
 
-                res.json({ status: 'complete', reply: replyText })
+                res.json({ status: 'complete', reply: replyText, model: `${resolvedProvider}/${resolvedModel}` })
             } catch (err) {
                 const classified = classifyAIError(err)
                 logger.error({ err, workspaceId, errorType: classified.type }, 'Webchat conversational reply failed')
                 try {
                     await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent })
                 } catch (err) { logger.error({ err }, "Failed to record conversation") }
-                res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
+                res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical, model: `${resolvedProvider}/${resolvedModel}` })
             }
             return
         }
@@ -562,7 +562,7 @@ Critical rules — follow without exception:
                 await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent })
             } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
-            res.json({ status: 'task_queued', taskId, reply: confirmReply })
+            res.json({ status: 'task_queued', taskId, reply: confirmReply, model: `${resolvedProvider}/${resolvedModel}` })
             return
         }
 
@@ -579,6 +579,7 @@ Critical rules — follow without exception:
             intent,
             description: trimmedMsg,
             suggestedCategory,
+            model: `${resolvedProvider}/${resolvedModel}`,
         })
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/message failed')
