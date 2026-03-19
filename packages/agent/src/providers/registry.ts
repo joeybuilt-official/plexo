@@ -178,9 +178,15 @@ export function buildModel(
             return ds(modelId)
         }
         case 'ollama': {
+            let base = (config.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '')
+            // Auto-upgrade http→https for remote Ollama instances behind reverse proxies.
+            // Without this, the 301 redirect changes POST to GET, causing 405 errors.
+            if (base.startsWith('http://') && !base.includes('localhost') && !base.includes('127.0.0.1')) {
+                base = base.replace('http://', 'https://')
+            }
             const ol = createOpenAICompatible({
                 name: 'ollama',
-                baseURL: (config.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1',
+                baseURL: base + '/v1',
             })
             return ol(modelId)
         }
