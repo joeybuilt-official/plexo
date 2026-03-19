@@ -129,9 +129,14 @@ export function buildModel(
 
     // Reasoning models (e.g. deepseek-reasoner) don't support tool calling or
     // structured JSON output (generateObject). Only use reasoner for pure
-    // text conversation (summarization). All other task types need tools or
-    // structured output, so swap to the standard chat model automatically.
-    const REASONER_SAFE_TYPES: Set<string> = new Set(['summarization'])
+    // text-generation tasks. Task types that need tools or structured output
+    // swap to the standard chat model automatically.
+    const REASONER_SAFE_TYPES: Set<string> = new Set([
+        'summarization',
+        'planning',
+        'logAnalysis',
+        'conversation',   // plain chat replies
+    ])
     if (modelId === 'deepseek-reasoner' && !REASONER_SAFE_TYPES.has(taskType)) {
         modelId = 'deepseek-chat'
     }
