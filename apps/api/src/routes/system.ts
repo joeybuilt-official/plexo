@@ -437,26 +437,34 @@ systemRouter.post('/update', async (_req, res) => {
             await pullImage('alpine:latest', () => { /* quiet pull logs */ })
 
             send('status', { step: 'restart', message: 'Triggering background host rebuild…' })
+            const logFile = `${hostRepoRoot}/.update-log`
+            const updaterScript = [
+                `exec > "${logFile}" 2>&1`,    // redirect all output to log file
+                'set -x',                        // trace commands
+                'echo "=== Plexo Updater $(date -u) ==="',
+                'apk add --no-cache git docker-cli docker-cli-compose',
+                `cd "${hostRepoRoot}" || { echo "FATAL: cannot cd to ${hostRepoRoot}"; exit 1; }`,
+                'echo "PWD: $(pwd)"',
+                'echo "Files: $(ls -la)"',
+                'git fetch origin main',
+                'git reset --hard origin/main',
+                'export SOURCE_COMMIT=$(git rev-parse HEAD)',
+                'echo "SOURCE_COMMIT=$SOURCE_COMMIT"',
+                'echo "$SOURCE_COMMIT" > .source-commit-override',
+                'echo "=== Starting docker compose build ==="',
+                'docker compose build --build-arg SOURCE_COMMIT="$SOURCE_COMMIT" api web migrate',
+                'echo "=== Build exit code: $? ==="',
+                'echo "=== Starting docker compose up ==="',
+                'docker compose up -d --remove-orphans',
+                'echo "=== Up exit code: $? ==="',
+                'echo "=== Update complete $(date -u) ==="',
+            ].join('\n')
             const createRes = await dockerRequest({
                 method: 'POST',
                 path: `/v1.41/containers/create?name=plexo-updater-${Date.now()}`,
                 body: {
                     Image: 'alpine:latest',
-                    Cmd: [
-                        'sh', '-c',
-                        [
-                            'apk add --no-cache git docker-cli docker-cli-compose',
-                            `cd ${hostRepoRoot}`,
-                            'git fetch origin main',
-                            'git reset --hard origin/main',
-                            'export SOURCE_COMMIT=$(git rev-parse HEAD)',
-                            // Write commit to a file the git-meta Docker stage can read as fallback
-                            'echo "$SOURCE_COMMIT" > .source-commit-override',
-                            // Build with explicit build-arg to guarantee the hash propagates
-                            'docker compose build --build-arg SOURCE_COMMIT="$SOURCE_COMMIT" api web migrate',
-                            'docker compose up -d --remove-orphans',
-                        ].join(' && ')
-                    ],
+                    Cmd: ['sh', '-c', updaterScript],
                     HostConfig: {
                         AutoRemove: true,
                         Binds: [
@@ -519,4 +527,50 @@ systemRouter.post('/update', async (_req, res) => {
     }
 
     res.end()
+})
+
+/**
+ * GET /api/v1/system/update-log
+ * Returns the last update log (written by the updater container to .update-log in the repo root).
+ * Useful for diagnosing why updates fail silently.
+ */
+systemRouter.get('/update-log', async (_req, res) => {
+    const { readFile } = await import('node:fs/promises')
+    // Try common locations
+    const candidates = [
+        '/app/.update-log',
+        process.env.PLEXO_REPO_DIR ? `${process.env.PLEXO_REPO_DIR}/.update-log` : null,
+    ].filter(Boolean) as string[]
+
+    // Also try reading from Docker volume mount
+    for (const path of candidates) {
+        try {
+            const log = await readFile(path, 'utf8')
+            res.json({ ok: true, log: log.slice(-5000) }) // last 5KB
+            return
+        } catch { /* try next */ }
+    }
+
+    // Try fetching from Docker if available
+    if (process.env.DOCKER_SOCKET_ENABLED === 'true') {
+        try {
+            // Find the most recent plexo-updater container (even exited ones)
+            const listRes = await dockerRequest({
+                method: 'GET',
+                path: '/v1.41/containers/json?all=true&limit=5&filters=' + encodeURIComponent(JSON.stringify({ name: ['plexo-updater'] }))
+            })
+            const containers = JSON.parse(listRes.body)
+            if (containers.length > 0) {
+                const latest = containers[0]
+                const logRes = await dockerRequest({
+                    method: 'GET',
+                    path: `/v1.41/containers/${latest.Id}/logs?stdout=true&stderr=true&tail=100`
+                })
+                res.json({ ok: true, log: logRes.body.replace(/[\x00-\x08]/g, ''), container: latest.Id.slice(0, 12), status: latest.Status })
+                return
+            }
+        } catch { /* Docker logs not available */ }
+    }
+
+    res.json({ ok: false, message: 'No update log found. The updater may not have run or logs were cleaned up.' })
 })
