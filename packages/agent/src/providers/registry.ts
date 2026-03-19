@@ -14,7 +14,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 // Ollama uses OpenAI-compatible endpoint (ollama-ai-provider is V1 only)
 
-export type ProviderKey =
+export type BuiltinProviderKey =
     | 'openrouter'
     | 'anthropic'
     | 'openai'
@@ -25,6 +25,8 @@ export type ProviderKey =
     | 'deepseek'
     | 'ollama'
     | 'ollama_cloud'
+
+export type ProviderKey = BuiltinProviderKey | `custom_${string}`
 
 export type TaskType =
     | 'planning'
@@ -56,6 +58,10 @@ export interface AIProviderConfig {
     customFetch?: typeof globalThis.fetch // For proxy/security injections
     /** User-level enable/disable toggle; false overrides all other checks */
     enabled?: boolean
+    /** For custom providers: human-readable name shown in the UI */
+    displayName?: string
+    /** SDK factory selection for custom providers */
+    compatMode?: 'openai' | 'anthropic' | 'ollama'
 }
 
 export interface WorkspaceAISettings {
@@ -90,7 +96,7 @@ export type AnyLanguageModel = any
  */
 
 /** Per-provider sensible default models — used when no model is explicitly selected. */
-export const PROVIDER_DEFAULT_MODELS: Partial<Record<ProviderKey, string>> = {
+export const PROVIDER_DEFAULT_MODELS: Partial<Record<string, string>> = {
     openai: 'gpt-4o',
     anthropic: 'claude-3-5-sonnet-20241022',
     google: 'gemini-2.5-flash',
@@ -201,8 +207,21 @@ export function buildModel(
             return oc(modelId)
         }
         default: {
-            const exhaustive: never = providerKey
-            throw new Error(`Unknown provider: ${String(exhaustive)}`)
+            if (!providerKey.startsWith('custom_')) {
+                throw new Error(`Unknown provider: ${providerKey}`)
+            }
+            let base = (config.baseUrl ?? '').replace(/\/+$/, '')
+            if (!base) throw new Error(`Custom provider ${providerKey} requires a baseUrl`)
+            if (base.startsWith('http://') && !base.includes('localhost') && !base.includes('127.0.0.1')) {
+                base = base.replace('http://', 'https://')
+            }
+            if (!base.endsWith('/v1')) base += '/v1'
+            const custom = createOpenAICompatible({
+                name: config.displayName ?? providerKey,
+                baseURL: base,
+                headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
+            })
+            return custom(modelId)
         }
     }
 }
@@ -433,7 +452,7 @@ function isRetryableProviderError(err: unknown): boolean {
 
 // ── Default smoke-test model IDs per provider ─────────────────────────────────
 
-const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
+const DEFAULT_TEST_MODELS: Partial<Record<string, string>> = {
     // Must use :free suffix — OpenRouter 402s on accounts with no purchase history
     // when a paid endpoint is requested. Candidates are tried in order (waterfall).
     // Some fail if user has "Model Training" disabled in OR privacy settings.
@@ -449,7 +468,7 @@ const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
     ollama_cloud: 'gpt-oss:20b-cloud',
 }
 
-const PROVIDER_ENV_KEY: Partial<Record<ProviderKey, string>> = {
+const PROVIDER_ENV_KEY: Partial<Record<string, string>> = {
     openrouter: 'OPENROUTER_API_KEY',
     anthropic: 'ANTHROPIC_API_KEY',
     openai: 'OPENAI_API_KEY',
@@ -518,8 +537,20 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
             })(modelId)
         }
         default: {
-            const exhaustive: never = providerKey
-            throw new Error(`Unknown provider: ${String(exhaustive)}`)
+            if (!providerKey.startsWith('custom_')) {
+                throw new Error(`Unknown provider: ${providerKey}`)
+            }
+            let base = (baseUrl ?? '').replace(/\/+$/, '')
+            if (!base) throw new Error(`Custom provider ${providerKey} requires a baseUrl`)
+            if (base.startsWith('http://') && !base.includes('localhost') && !base.includes('127.0.0.1')) {
+                base = base.replace('http://', 'https://')
+            }
+            if (!base.endsWith('/v1')) base += '/v1'
+            return createOpenAICompatible({
+                name: providerKey,
+                baseURL: base,
+                headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+            })(modelId)
         }
     }
 }
@@ -617,6 +648,52 @@ export async function testProvider(
             } catch {
                 // Tags worked but generation failed — still report reachable
                 return { ok: true, message: `Reachable — ${models.length} cloud model(s) available (generation test skipped)`, latencyMs: Date.now() - start, model: modelId }
+            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'
+            return { ok: false, message, latencyMs: Date.now() - start, model: opts.model ?? '' }
+        }
+    }
+
+    // ── Custom providers: probe /v1/models, pick first or user-specified ───────
+    if (providerKey.startsWith('custom_')) {
+        let base = (opts.baseUrl ?? '').replace(/\/+$/, '')
+        if (!base) {
+            return { ok: false, message: 'Custom provider requires a baseUrl', latencyMs: 0, model: '' }
+        }
+        if (base.startsWith('http://') && !base.includes('localhost') && !base.includes('127.0.0.1')) {
+            base = base.replace('http://', 'https://')
+        }
+        if (!base.endsWith('/v1')) base += '/v1'
+        try {
+            const headers: Record<string, string> = {}
+            if (opts.apiKey) headers['Authorization'] = `Bearer ${opts.apiKey}`
+            const res = await fetch(`${base}/models`, {
+                headers,
+                signal: AbortSignal.timeout(timeoutMs),
+            })
+            if (!res.ok) {
+                return { ok: false, message: `Server returned ${res.status}`, latencyMs: Date.now() - start, model: '' }
+            }
+            const data = await res.json() as { data?: { id: string }[] }
+            const models = data.data ?? []
+            if (models.length === 0) {
+                return { ok: false, message: 'Connected but no models found on this server', latencyMs: Date.now() - start, model: '' }
+            }
+            const modelId = opts.model ?? models[0]!.id
+            try {
+                const custom = createOpenAICompatible({
+                    name: providerKey,
+                    baseURL: base,
+                    headers,
+                })(modelId)
+                const ac = new AbortController()
+                const timer = setTimeout(() => ac.abort(), Math.max(timeoutMs - (Date.now() - start), 5000))
+                const result = await gt({ model: custom, prompt: 'Say "ok".', maxOutputTokens: 20, abortSignal: ac.signal })
+                clearTimeout(timer)
+                return { ok: true, message: `Connected — ${models.length} model(s) available`, latencyMs: Date.now() - start, model: modelId }
+            } catch {
+                return { ok: true, message: `Reachable — ${models.length} model(s) available (generation test skipped)`, latencyMs: Date.now() - start, model: modelId }
             }
         } catch (err) {
             const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'
@@ -726,7 +803,7 @@ export async function testProvider(
         return { ok: false, message, latencyMs: Date.now() - start, model: '' }
     }
 
-    const modelId = opts.model ?? DEFAULT_TEST_MODELS[providerKey]
+    const modelId = opts.model ?? DEFAULT_TEST_MODELS[providerKey] ?? 'default'
     // deepseek-reasoner requires large chain-of-thought token budgets; use deepseek-chat
     // for the smoke test to validate the API key without exhausting the budget.
     const testModelId = (providerKey === 'deepseek' && modelId === 'deepseek-reasoner')

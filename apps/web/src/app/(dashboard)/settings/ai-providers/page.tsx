@@ -21,6 +21,8 @@ import {
     Users,
     X,
     Link2,
+    Plus,
+    Trash2,
 } from 'lucide-react'
 import { getModelCapabilities } from '@web/lib/models'
 import { CapabilityList } from '@web/components/capabilities'
@@ -42,6 +44,7 @@ type ProviderKey =
     | 'deepseek'
     | 'ollama'
     | 'ollama_cloud'
+    | `custom_${string}`
 
 type ProviderStatus = 'configured' | 'untested' | 'unconfigured' | 'borrowed'
 
@@ -71,6 +74,16 @@ interface ProviderState {
     status: ProviderStatus
     enabled: boolean          // false = present but excluded from agent dispatch
     testResult: string | null
+}
+
+interface CustomProviderConfig {
+    key: ProviderKey      // e.g. 'custom_together'
+    name: string          // e.g. 'Together AI'
+    description: string   // auto-generated or user-entered
+    baseUrl: string
+    compatMode: 'openai' | 'anthropic' | 'ollama'
+    staticModels: string[]
+    requiresKey: boolean  // always true
 }
 
 // ── Provider API key links ───────────────────────────────────────────────────
@@ -319,6 +332,15 @@ export default function AIProvidersPage() {
     const [wsDefaultCostCeiling, setWsDefaultCostCeiling] = useState('')
     const [wsDefaultTokenBudget, setWsDefaultTokenBudget] = useState('')
 
+    // Custom provider state
+    const [customProviders, setCustomProviders] = useState<CustomProviderConfig[]>([])
+    const [showAddCustom, setShowAddCustom] = useState(false)
+    const [probeUrl, setProbeUrl] = useState('')
+    const [probeKey, setProbeKey] = useState('')
+    const [probeName, setProbeName] = useState('')
+    const [probing, setProbing] = useState(false)
+    const [probeResult, setProbeResult] = useState<{ protocol: string; models: string[] } | null>(null)
+
     // Key sharing state
     type KeyShare = { id: string; providerKey: string; grantedAt: string; targetWorkspace?: { id: string; name: string }; sourceWorkspace?: { id: string; name: string } }
     type OwnWorkspace = { id: string; name: string }
@@ -445,6 +467,23 @@ export default function AIProvidersPage() {
                             } catch { /* non-fatal */ }
                         })()
                     }
+
+                    // Load custom providers from saved config
+                    const customs: CustomProviderConfig[] = []
+                    for (const [key, val] of Object.entries(aiCfg.providers)) {
+                        if (key.startsWith('custom_') && val) {
+                            customs.push({
+                                key: key as ProviderKey,
+                                name: (val as any).displayName ?? key.replace('custom_', '').replace(/_/g, ' '),
+                                description: `Custom ${(val as any).compatMode ?? 'openai'}-compatible provider`,
+                                baseUrl: (val as any).baseUrl ?? '',
+                                compatMode: (val as any).compatMode ?? 'openai',
+                                staticModels: (val as any).discoveredModels ?? [],
+                                requiresKey: true,
+                            })
+                        }
+                    }
+                    setCustomProviders(customs)
                 }
             } catch {
                 setLoadError('Could not load saved provider config')
@@ -476,8 +515,11 @@ export default function AIProvidersPage() {
         })()
     }, [WS_ID, API_BASE])
 
-    const selected = PROVIDERS.find((p) => p.key === selectedProvider)!
-    const state = providerStates[selectedProvider]
+    const allProviders: (ProviderConfig | CustomProviderConfig)[] = useMemo(() => [...PROVIDERS, ...customProviders], [customProviders])
+
+    const selected = allProviders.find((p) => p.key === selectedProvider) ?? PROVIDERS[0]!
+    const defaultState: ProviderState = { apiKey: '', baseUrl: '', selectedModel: '', dynamicModels: [], status: 'unconfigured', enabled: true, testResult: null }
+    const state = providerStates[selectedProvider] ?? defaultState
 
     function updateState(key: ProviderKey, patch: Partial<ProviderState>) {
         setProviderStates((prev) => ({
@@ -528,6 +570,91 @@ export default function AIProvidersPage() {
         await fetch(`${API_BASE}/api/v1/workspaces/${share.sourceWorkspace.id}/key-shares/${share.id}`, { method: 'DELETE' })
         setBorrowing((prev) => prev.filter((s) => s.id !== share.id))
         updateState(providerKey, { status: 'unconfigured', apiKey: '' })
+    }
+
+    // ── Custom provider helpers ────────────────────────────────────────────────
+
+    const handleProbe = async () => {
+        setProbing(true)
+        setProbeResult(null)
+        try {
+            const r = await fetch(`${API_BASE}/api/v1/settings/ai-providers/probe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ baseUrl: probeUrl, apiKey: probeKey }),
+            })
+            const data = await r.json()
+            if (data.ok) setProbeResult(data)
+            else setProbeResult({ protocol: 'unknown', models: [] })
+        } catch { setProbeResult({ protocol: 'unknown', models: [] }) }
+        finally { setProbing(false) }
+    }
+
+    const handleAddCustom = () => {
+        if (!probeName.trim() || !probeUrl.trim()) return
+        const slug = probeName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+        const key = `custom_${slug}` as ProviderKey
+        const models = probeResult?.models ?? []
+        const newProvider: CustomProviderConfig = {
+            key,
+            name: probeName.trim(),
+            description: `${probeResult?.protocol ?? 'OpenAI'}-compatible provider`,
+            baseUrl: probeUrl.trim(),
+            compatMode: (probeResult?.protocol as CustomProviderConfig['compatMode']) ?? 'openai',
+            staticModels: models,
+            requiresKey: true,
+        }
+        setCustomProviders(prev => [...prev, newProvider])
+        setProviderStates(prev => ({
+            ...prev,
+            [key]: {
+                apiKey: probeKey,
+                baseUrl: probeUrl.trim(),
+                selectedModel: models[0] ?? '',
+                dynamicModels: models,
+                status: probeKey ? 'untested' as ProviderStatus : 'unconfigured' as ProviderStatus,
+                enabled: true,
+                testResult: null,
+            },
+        }))
+        // Reset modal state
+        setShowAddCustom(false)
+        setProbeName('')
+        setProbeUrl('')
+        setProbeKey('')
+        setProbeResult(null)
+        // Select the new provider
+        setSelectedProvider(key)
+    }
+
+    const handleRemoveCustom = (key: string) => {
+        setCustomProviders(prev => prev.filter(c => c.key !== key))
+        setProviderStates(prev => {
+            const next = { ...prev }
+            delete next[key as ProviderKey]
+            return next
+        })
+        setSelectedProvider('anthropic')
+    }
+
+    const handleRescanCustom = async (key: string) => {
+        const cp = customProviders.find(c => c.key === key)
+        if (!cp) return
+        const st = providerStates[key as ProviderKey]
+        setConnecting(true)
+        try {
+            const r = await fetch(`${API_BASE}/api/v1/settings/ai-providers/probe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ baseUrl: cp.baseUrl, apiKey: st?.apiKey || '' }),
+            })
+            const data = await r.json()
+            if (data.ok && data.models?.length) {
+                setCustomProviders(prev => prev.map(c => c.key === key ? { ...c, staticModels: data.models } : c))
+                updateState(key as ProviderKey, { dynamicModels: data.models })
+            }
+        } catch { /* non-fatal */ }
+        finally { setConnecting(false) }
     }
 
     // Fetch models from a URL-based provider (Ollama local) without running a test.
@@ -649,24 +776,36 @@ export default function AIProvidersPage() {
         if (!WS_ID) return
         setSaving(true)
         try {
-            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string; enabled?: boolean }> = {}
-            for (const p of PROVIDERS) {
+            const providersConfig: Record<string, Record<string, unknown>> = {}
+            for (const p of allProviders) {
+                const key = p.key as ProviderKey
                 // Merge current state with any overrides (e.g. from successful test result)
-                const s = { ...providerStates[p.key], ...(stateOverrides?.[p.key] ?? {}) }
+                const s = { ...(providerStates[key] ?? {}), ...(stateOverrides?.[key] ?? {}) } as ProviderState
+                if (!s.status) continue
                 const hasCredential = !!s.apiKey
                 const hasStatus = s.status !== 'unconfigured'
                 if (hasCredential || hasStatus) {
                     const effectiveStatus = s.status === 'unconfigured' && hasCredential ? 'untested' : s.status
-                    providersConfig[p.key] = {
+                    const providerEntry: Record<string, unknown> = {
                         status: effectiveStatus,
-                        selectedModel: s.selectedModel.trim(),
-                        baseUrl: s.baseUrl.trim(),
+                        selectedModel: (s.selectedModel ?? '').trim(),
+                        baseUrl: (s.baseUrl ?? '').trim(),
                         // Only include credential value when user has entered something new
                         // Empty string means "don't change" — server will keep existing encrypted value
                         ...(s.apiKey?.trim() ? { apiKey: s.apiKey.trim() } : {}),
                         // Always persist enabled flag so disabling survives a re-save
                         enabled: s.enabled !== false,
                     }
+                    // Include extra metadata for custom providers
+                    if (key.startsWith('custom_')) {
+                        const cp = customProviders.find(c => c.key === key)
+                        if (cp) {
+                            providerEntry.displayName = cp.name
+                            providerEntry.compatMode = cp.compatMode
+                            providerEntry.discoveredModels = cp.staticModels
+                        }
+                    }
+                    providersConfig[key] = providerEntry
                 }
             }
             const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/ai-providers`, {
@@ -685,18 +824,20 @@ export default function AIProvidersPage() {
                 }),
             })
             if (res.ok) {
-                for (const p of PROVIDERS) {
-                    const s = { ...providerStates[p.key], ...(stateOverrides?.[p.key] ?? {}) }
+                for (const p of allProviders) {
+                    const key = p.key as ProviderKey
+                    const s = { ...(providerStates[key] ?? {}), ...(stateOverrides?.[key] ?? {}) } as ProviderState
                     if (s.status === 'unconfigured' && s.apiKey) {
-                        updateState(p.key, { status: 'untested' })
+                        updateState(key, { status: 'untested' })
                     }
                 }
                 setSaved(true)
                 // Clear key inputs after successful save — server has them encrypted
                 setProviderStates((prev) => {
                     const cleared = { ...prev }
-                    for (const p of PROVIDERS) {
-                        cleared[p.key] = { ...cleared[p.key], apiKey: '' }
+                    for (const p of allProviders) {
+                        const key = p.key as ProviderKey
+                        if (cleared[key]) cleared[key] = { ...cleared[key], apiKey: '' }
                     }
                     return cleared
                 })
@@ -709,12 +850,12 @@ export default function AIProvidersPage() {
 
     // All providers with any meaningful status (not completely unconfigured)
     const chainProviders = fallbackOrder
-        .map((k) => PROVIDERS.find((p) => p.key === k)!)
-        .filter((p): p is typeof PROVIDERS[number] => p != null && providerStates[p.key].status !== 'unconfigured')
+        .map((k) => allProviders.find((p) => p.key === k)!)
+        .filter((p) => p != null && providerStates[p.key as ProviderKey]?.status !== 'unconfigured')
 
     // Active = tested and working; warn = present but untested (greyed out, click to configure)
-    const activeChainProviders = chainProviders.filter((p) => providerStates[p.key].status === 'configured')
-    const warnChainProviders = chainProviders.filter((p) => providerStates[p.key].status !== 'configured')
+    const activeChainProviders = chainProviders.filter((p) => providerStates[p.key]?.status === 'configured')
+    const warnChainProviders = chainProviders.filter((p) => providerStates[p.key]?.status !== 'configured')
 
     // Alias so section-visibility guard (configuredProviders.length > 0) still works
     const configuredProviders = chainProviders
@@ -741,11 +882,11 @@ export default function AIProvidersPage() {
         }))
     }
 
-    const displayedProviders = useMemo((): ProviderConfig[] => {
-        let res = PROVIDERS
+    const displayedProviders = useMemo((): (ProviderConfig | CustomProviderConfig)[] => {
+        let res: (ProviderConfig | CustomProviderConfig)[] = allProviders
         const q = search.trim().toLowerCase()
         if (filterValues.status) {
-            res = res.filter((p) => providerStates[p.key].status === filterValues.status)
+            res = res.filter((p) => providerStates[p.key as ProviderKey]?.status === filterValues.status)
         }
         if (filterValues.type) {
             res = res.filter((p) => (filterValues.type === 'local' ? !p.requiresKey : p.requiresKey))
@@ -762,8 +903,8 @@ export default function AIProvidersPage() {
             if (lf.sort === 'name_desc') return b.name.localeCompare(a.name)
 
             // default
-            const aStatus = providerStates[a.key].status
-            const bStatus = providerStates[b.key].status
+            const aStatus = providerStates[a.key as ProviderKey]?.status ?? 'unconfigured'
+            const bStatus = providerStates[b.key as ProviderKey]?.status ?? 'unconfigured'
 
             // primary first
             if (primaryProvider === a.key) return -1
@@ -774,7 +915,7 @@ export default function AIProvidersPage() {
         })
 
         return res
-    }, [search, filterValues.status, filterValues.type, lf.sort, providerStates, primaryProvider])
+    }, [search, filterValues.status, filterValues.type, lf.sort, providerStates, primaryProvider, allProviders])
 
     const dimensions = useMemo(
         (): FilterDimension[] => [
@@ -782,9 +923,9 @@ export default function AIProvidersPage() {
                 key: 'status',
                 label: 'Status',
                 options: [
-                    { value: 'configured', label: 'Configured', dimmed: !PROVIDERS.some((p) => providerStates[p.key].status === 'configured') },
-                    { value: 'untested', label: 'Untested', dimmed: !PROVIDERS.some((p) => providerStates[p.key].status === 'untested') },
-                    { value: 'unconfigured', label: 'Unconfigured', dimmed: !PROVIDERS.some((p) => providerStates[p.key].status === 'unconfigured') },
+                    { value: 'configured', label: 'Configured', dimmed: !allProviders.some((p) => providerStates[p.key as ProviderKey]?.status === 'configured') },
+                    { value: 'untested', label: 'Untested', dimmed: !allProviders.some((p) => providerStates[p.key as ProviderKey]?.status === 'untested') },
+                    { value: 'unconfigured', label: 'Unconfigured', dimmed: !allProviders.some((p) => providerStates[p.key as ProviderKey]?.status === 'unconfigured') },
                 ],
             },
             {
@@ -844,15 +985,16 @@ export default function AIProvidersPage() {
                                 </button>
                             )}
                         </div>
-                    ) : displayedProviders.map((p: ProviderConfig) => {
-                        const pState = providerStates[p.key]
+                    ) : (<>
+                    {displayedProviders.map((p) => {
+                        const pState = providerStates[p.key as ProviderKey] ?? { selectedModel: '', status: 'unconfigured' as ProviderStatus, enabled: true }
                         const active = p.key === selectedProvider
                         const modelLabel = pState.selectedModel || null
                         const isDisabled = pState.status !== 'unconfigured' && !pState.enabled
                         return (
                             <button
                                 key={p.key}
-                                onClick={() => setSelectedProvider(p.key)}
+                                onClick={() => setSelectedProvider(p.key as ProviderKey)}
                                 className={`text-left rounded-xl border p-3 transition-all shrink-0 w-[280px] sm:w-[320px] md:w-auto snap-start ${active
                                     ? 'border-azure/50 bg-surface-1 shadow-sm shadow-azure/10'
                                     : 'border-border bg-surface-1/40 hover:border-border hover:bg-surface-1/70'
@@ -873,8 +1015,8 @@ export default function AIProvidersPage() {
                                                     <span className="text-[9px] font-semibold tracking-wide rounded px-1 py-px bg-surface-2 text-text-muted border border-border">DISABLED</span>
                                                 )}
                                             </div>
-                                            {p.badge && (
-                                                <span className={`text-[10px] font-semibold tracking-wide rounded px-1.5 py-0.5 ${p.badgeColor}`}>
+                                            {'badge' in p && p.badge && (
+                                                <span className={`text-[10px] font-semibold tracking-wide rounded px-1.5 py-0.5 ${'badgeColor' in p ? p.badgeColor : ''}`}>
                                                     {p.badge}
                                                 </span>
                                             )}
@@ -890,6 +1032,14 @@ export default function AIProvidersPage() {
                             </button>
                         )
                     })}
+                    <button
+                        onClick={() => setShowAddCustom(true)}
+                        className="flex items-center gap-3 rounded-lg border border-dashed border-zinc-700 p-3 text-text-muted hover:border-azure hover:text-azure transition-colors shrink-0 w-[280px] sm:w-[320px] md:w-auto snap-start"
+                    >
+                        <Plus className="h-5 w-5" />
+                        <span className="text-sm">Add Provider</span>
+                    </button>
+                    </>)}
                 </div>
 
                 {/* Right panel — provider config */}
@@ -1220,6 +1370,47 @@ export default function AIProvidersPage() {
                             </div>
                         )}
 
+                        {/* Custom provider extras — base URL, re-scan, remove */}
+                        {selectedProvider.startsWith('custom_') && (() => {
+                            const cp = customProviders.find(c => c.key === selectedProvider)
+                            if (!cp) return null
+                            return (
+                                <div className="flex flex-col gap-3 pt-2 border-t border-border/60">
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-sm font-medium text-text-secondary">Base URL</label>
+                                        <input
+                                            type="text"
+                                            value={state?.baseUrl ?? cp.baseUrl}
+                                            onChange={(e) => updateState(selectedProvider, { baseUrl: e.target.value })}
+                                            placeholder="https://api.example.com/v1"
+                                            className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                                        />
+                                        <p className="text-[10px] text-text-muted">
+                                            Protocol: <span className="font-mono text-text-secondary">{cp.compatMode}</span>
+                                            {cp.staticModels.length > 0 && <> · {cp.staticModels.length} models discovered</>}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => void handleRescanCustom(selectedProvider)}
+                                            disabled={connecting}
+                                            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 min-h-[44px] text-xs font-medium text-text-secondary hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                                        >
+                                            <RefreshCw className={`h-3 w-3 ${connecting ? 'animate-spin' : ''}`} />
+                                            Re-scan Models
+                                        </button>
+                                        <button
+                                            onClick={() => handleRemoveCustom(selectedProvider)}
+                                            className="flex items-center gap-1.5 rounded-lg border border-red-900/50 px-3 min-h-[44px] text-xs font-medium text-red hover:bg-red-950/30 transition-colors"
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                            Remove Provider
+                                        </button>
+                                    </div>
+                                </div>
+                            )
+                        })()}
+
                         {/* Primary action — only show Save & Test when ready */}
                         {(!selected.requiresKey ? state.dynamicModels.length > 0 : true) && (
                             <div className="flex items-center mt-2">
@@ -1423,7 +1614,7 @@ export default function AIProvidersPage() {
                     {/* Model routing — collapsible */}
                     {showRouting && (() => {
                         // Models to populate the routing dropdowns — primary provider's list.
-                        const primaryConfig = PROVIDERS.find((p) => p.key === primaryProvider)
+                        const primaryConfig = allProviders.find((p) => p.key === primaryProvider)
                         const primaryState = providerStates[primaryProvider]
                         const routingModels: string[] = [
                             ...(primaryConfig?.staticModels ?? []),
@@ -1557,6 +1748,105 @@ export default function AIProvidersPage() {
                 </div>}
             </div>
         </div>
+
+        {/* ── Add Custom Provider Modal ─────────────────────────── */}
+        {showAddCustom && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div className="w-full max-w-lg rounded-xl border border-border bg-surface-0 shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                        <h2 className="text-base font-semibold text-text-primary">Add Custom Provider</h2>
+                        <button
+                            onClick={() => { setShowAddCustom(false); setProbeName(''); setProbeUrl(''); setProbeKey(''); setProbeResult(null) }}
+                            className="text-text-muted hover:text-text-secondary transition-colors p-1"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <div className="flex flex-col gap-4 px-5 py-5">
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-sm font-medium text-text-secondary">Name</label>
+                            <input
+                                type="text"
+                                value={probeName}
+                                onChange={(e) => setProbeName(e.target.value)}
+                                placeholder="Together AI"
+                                autoFocus
+                                className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-sm font-medium text-text-secondary">Base URL</label>
+                            <input
+                                type="text"
+                                value={probeUrl}
+                                onChange={(e) => setProbeUrl(e.target.value)}
+                                placeholder="https://api.together.xyz/v1"
+                                className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-sm font-medium text-text-secondary">API Key</label>
+                            <input
+                                type="password"
+                                value={probeKey}
+                                onChange={(e) => setProbeKey(e.target.value)}
+                                placeholder="sk-••••••••"
+                                autoComplete="new-password"
+                                className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                            />
+                            <p className="text-xs text-text-muted">Encrypted at rest (AES-256-GCM).</p>
+                        </div>
+                        <button
+                            onClick={() => void handleProbe()}
+                            disabled={probing || !probeUrl.trim()}
+                            className="flex items-center justify-center gap-2 rounded-lg border border-border bg-surface-2 px-4 min-h-[44px] text-sm font-medium text-text-primary hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                        >
+                            {probing
+                                ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Detecting…</>
+                                : 'Auto-Detect'
+                            }
+                        </button>
+                        {probeResult && (
+                            <div className="rounded-lg border border-border bg-surface-1/60 px-3 py-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xs font-medium text-text-secondary">Protocol:</span>
+                                    <span className="text-xs font-mono text-text-primary">{probeResult.protocol}</span>
+                                    <span className="text-xs text-text-muted ml-auto">{probeResult.models.length} models</span>
+                                </div>
+                                {probeResult.models.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                                        {probeResult.models.slice(0, 20).map((m) => (
+                                            <span key={m} className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-secondary">{m}</span>
+                                        ))}
+                                        {probeResult.models.length > 20 && (
+                                            <span className="text-[10px] text-text-muted">+{probeResult.models.length - 20} more</span>
+                                        )}
+                                    </div>
+                                )}
+                                {probeResult.models.length === 0 && probeResult.protocol === 'unknown' && (
+                                    <p className="text-xs text-amber">Could not detect protocol or models. You can still add the provider manually.</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex items-center justify-end gap-3 border-t border-border px-5 py-4">
+                        <button
+                            onClick={() => { setShowAddCustom(false); setProbeName(''); setProbeUrl(''); setProbeKey(''); setProbeResult(null) }}
+                            className="rounded-lg border border-border px-4 min-h-[44px] text-sm font-medium text-text-secondary hover:bg-surface-2 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleAddCustom}
+                            disabled={!probeName.trim() || !probeUrl.trim()}
+                            className="rounded-lg bg-azure px-4 min-h-[44px] text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
+                        >
+                            Add Provider
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         </>
     )

@@ -28,7 +28,7 @@ aiProvidersRouter.post('/test', async (req, res) => {
         workspaceId?: string
     }
 
-    if (!provider || !VALID_PROVIDERS.has(provider)) {
+    if (!provider || (!VALID_PROVIDERS.has(provider) && !provider.startsWith('custom_'))) {
         res.status(400).json({ ok: false, message: 'Valid provider required' })
         return
     }
@@ -62,8 +62,40 @@ aiProvidersRouter.get('/models', async (req, res) => {
     const { provider, baseUrl, apiKey, workspaceId } = req.query as {
         provider?: string; baseUrl?: string; apiKey?: string; workspaceId?: string
     }
-    if (provider !== 'ollama' && provider !== 'ollama_cloud') {
-        res.status(400).json({ ok: false, message: 'Only ollama / ollama_cloud support dynamic model listing' })
+    if (provider !== 'ollama' && provider !== 'ollama_cloud' && !provider?.startsWith('custom_')) {
+        res.status(400).json({ ok: false, message: 'Only ollama / ollama_cloud / custom providers support dynamic model listing' })
+        return
+    }
+
+    // Custom providers — discover models via OpenAI-compatible /v1/models
+    if (provider?.startsWith('custom_')) {
+        let effectiveKey = apiKey
+        if (!effectiveKey && workspaceId) {
+            try {
+                const decrypted = await loadDecryptedAIProviders(workspaceId)
+                const entry = decrypted?.providers?.[provider]
+                if (entry) effectiveKey = entry.apiKey
+            } catch (err) {
+                logger.warn({ err, workspaceId, provider }, 'Failed to load custom provider key for model listing')
+            }
+        }
+        if (!baseUrl) {
+            res.status(400).json({ ok: false, message: 'baseUrl required for custom providers' })
+            return
+        }
+        const base = baseUrl.replace(/\/+$/, '')
+        const headers: Record<string, string> = {}
+        if (effectiveKey) headers['Authorization'] = `Bearer ${effectiveKey}`
+        try {
+            const r = await fetch(`${base}/v1/models`, { headers, signal: AbortSignal.timeout(10_000) })
+            if (!r.ok) { res.status(502).json({ ok: false, message: `Provider returned ${r.status}` }); return }
+            const data = await r.json() as { data?: { id: string }[] }
+            const models = (data.data ?? []).map((m) => m.id)
+            res.json({ ok: true, models })
+        } catch (err) {
+            const message = err instanceof Error ? err.message.slice(0, 200) : 'Failed to list models'
+            res.json({ ok: false, models: [], message })
+        }
         return
     }
 
@@ -113,4 +145,51 @@ aiProvidersRouter.get('/models', async (req, res) => {
         const message = err instanceof Error ? err.message.slice(0, 200) : 'Failed to list models'
         res.json({ ok: false, models: [], message })
     }
+})
+
+/** POST /api/settings/ai-providers/probe — auto-detect provider protocol and models */
+aiProvidersRouter.post('/probe', async (req, res) => {
+    const { baseUrl, apiKey } = req.body as { baseUrl?: string; apiKey?: string }
+    if (!baseUrl) { res.status(400).json({ ok: false, message: 'baseUrl required' }); return }
+
+    const base = baseUrl.replace(/\/+$/, '')
+    const headers: Record<string, string> = {}
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+
+    // Try OpenAI-compatible: GET /v1/models
+    try {
+        const r = await fetch(`${base}/v1/models`, { headers, signal: AbortSignal.timeout(10_000) })
+        if (r.ok) {
+            const data = await r.json() as { data?: { id: string }[] }
+            const models = (data.data ?? []).map(m => m.id)
+            res.json({ ok: true, protocol: 'openai', models })
+            return
+        }
+    } catch { /* try next */ }
+
+    // Try Ollama native: GET /api/tags
+    try {
+        const r = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(10_000) })
+        if (r.ok) {
+            const data = await r.json() as { models?: { name: string }[] }
+            const models = (data.models ?? []).map(m => m.name)
+            res.json({ ok: true, protocol: 'ollama', models })
+            return
+        }
+    } catch { /* try next */ }
+
+    // Try Anthropic-style: GET /v1/models with x-api-key
+    try {
+        const anthHeaders: Record<string, string> = { 'anthropic-version': '2023-06-01' }
+        if (apiKey) anthHeaders['x-api-key'] = apiKey
+        const r = await fetch(`${base}/v1/models`, { headers: anthHeaders, signal: AbortSignal.timeout(10_000) })
+        if (r.ok) {
+            const data = await r.json() as { data?: { id: string }[] }
+            const models = (data.data ?? []).map(m => m.id)
+            res.json({ ok: true, protocol: 'anthropic', models })
+            return
+        }
+    } catch { /* try next */ }
+
+    res.json({ ok: false, protocol: null, models: [], message: 'Could not detect provider protocol. Verify the URL and API key.' })
 })
