@@ -304,11 +304,10 @@ systemRouter.get('/version', async (_req, res) => {
     }
 
     // ── Commit-based check ───────────────────────────────────────────────────
-    // Three cases that should detect a new commit on main:
-    //  1. No releases at all — source deployment; compare SHA directly.
-    //  2. On latest release but running from Docker — compare build timestamp.
-    //  3. Running from git source regardless of releases.
-    if (!behind && latestCommit) {
+    // Only applies to source/commit deployments. Release deployments should
+    // only be prompted for new *releases*, not arbitrary commits on main —
+    // otherwise every push to main re-triggers the update modal.
+    if (!behind && latestCommit && local.type !== 'release') {
         if (local.type === 'commit') {
             // Source checkout: SHA comparison is authoritative
             behind = local.version !== latestCommit.sha
