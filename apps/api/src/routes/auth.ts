@@ -24,7 +24,7 @@ authRouter.get('/setup-status', async (_req, res) => {
 // Used by Joeybuilt apps (Levio, Fylo, etc.) to ensure a Plexo workspace exists for a user
 // before initiating OAuth flows. Requires PLEXO_SERVICE_KEY auth.
 authRouter.post('/workspace/ensure', requireServiceKey, async (req, res) => {
-    const { userId, name: wsName } = req.body as { userId?: string; name?: string }
+    const { userId, name: wsName, email: wsEmail } = req.body as { userId?: string; name?: string; email?: string }
 
     if (!userId || !UUID_RE.test(userId)) {
         res.status(400).json({ error: { code: 'INVALID_USER_ID', message: 'Valid userId UUID required' } })
@@ -32,6 +32,17 @@ authRouter.post('/workspace/ensure', requireServiceKey, async (req, res) => {
     }
 
     try {
+        // Upsert user row so the FK constraint on workspaces.owner_id is satisfied.
+        // External apps (Levio, Fylo, etc.) share Supabase auth but may not have
+        // a row in Plexo's users table yet.
+        const userEmail = wsEmail?.trim() || `${userId}@levio.internal`
+        await db.insert(users).values({
+            id: userId,
+            email: userEmail,
+            name: wsName?.trim() ?? null,
+            role: 'member',
+        }).onConflictDoNothing()
+
         // Check for existing workspace owned by this user
         const [existing] = await db.select({ id: workspaces.id, name: workspaces.name })
             .from(workspaces)
