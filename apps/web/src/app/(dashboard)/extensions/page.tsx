@@ -17,6 +17,7 @@ import {
     ToggleLeft,
     ToggleRight,
     Info,
+    Bot,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
@@ -51,6 +52,20 @@ interface Plugin {
 
 /** Extension types — everything except 'agent' (agents have their own section) */
 const EXTENSION_TYPES = new Set(['skill', 'function', 'channel', 'tool', 'mcp-server'])
+
+function groupEntityCapabilities(caps: string[]): { entity: string; ops: string[] }[] {
+    const entityCaps = caps.filter(c => /^memory:(read|write):[a-z_]+$/.test(c) && c !== 'memory:read:*' && c !== 'memory:write:*')
+    const grouped: Record<string, Set<string>> = {}
+    for (const cap of entityCaps) {
+        const [, op, entity] = cap.split(':')
+        if (!grouped[entity!]) grouped[entity!] = new Set()
+        grouped[entity!]!.add(op!)
+    }
+    return Object.entries(grouped).map(([entity, ops]) => ({
+        entity: entity.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        ops: [...ops].sort(),
+    }))
+}
 
 function ExtensionCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: string, enabled: boolean) => Promise<void> }) {
     const [expanded, setExpanded] = useState(false)
@@ -132,6 +147,22 @@ function ExtensionCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: st
                             </div>
                         </div>
                     )}
+                    {(() => {
+                        const entityGroups = groupEntityCapabilities(manifest?.capabilities ?? [])
+                        if (entityGroups.length === 0) return null
+                        return (
+                            <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Entity Access</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {entityGroups.map(g => (
+                                        <span key={g.entity} className="rounded border border-azure-800/30 bg-azure/10 px-2 py-0.5 text-[10px] text-azure">
+                                            {g.entity}: {g.ops.join(' · ')}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )
+                    })()}
                     {manifest?.trust && (
                         <div className="flex items-center gap-2 text-[11px] text-text-muted">
                             <span>Trust tier: <span className="text-text-secondary font-medium">{manifest.trust}</span></span>
@@ -241,6 +272,17 @@ export default function ExtensionsPage() {
                     <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">Refresh</span>
                 </button>
+            </div>
+
+            {/* Agent redirect banner */}
+            <div className="rounded-xl border border-border/50 bg-surface-1/30 px-4 py-3 flex items-center gap-3">
+                <Bot className="h-4 w-4 text-text-muted shrink-0" />
+                <p className="text-xs text-text-muted flex-1">
+                    Looking for agents? Agents have their own dedicated section.
+                </p>
+                <a href="/agents" className="text-xs font-medium text-azure hover:underline shrink-0">
+                    View Agents →
+                </a>
             </div>
 
             {/* Info banner */}

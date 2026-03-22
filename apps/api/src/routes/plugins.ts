@@ -39,7 +39,7 @@ const COMPLIANCE_ORDER = { core: 0, standard: 1, full: 2 }
 // ── GET /api/plugins ──────────────────────────────────────────────────────────
 
 pluginsRouter.get('/', async (req, res) => {
-    const { workspaceId } = req.query as { workspaceId?: string }
+    const { workspaceId, type } = req.query as { workspaceId?: string; type?: string }
 
     if (!workspaceId) {
         res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
@@ -51,10 +51,15 @@ pluginsRouter.get('/', async (req, res) => {
     }
 
     try {
+        const conditions = [eq(plugins.workspaceId, workspaceId)]
+        if (type) {
+            conditions.push(eq(plugins.type, type as typeof plugins.type.dataType))
+        }
+
         const rows = await db
             .select()
             .from(plugins)
-            .where(eq(plugins.workspaceId, workspaceId))
+            .where(and(...conditions))
             .orderBy(plugins.installedAt)
 
         res.json({ items: rows, total: rows.length })

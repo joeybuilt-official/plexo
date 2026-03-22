@@ -940,3 +940,53 @@ export const artifactVersions = pgTable('artifact_versions', {
     index('artifact_versions_artifact_idx').on(table.artifactId),
     uniqueIndex('artifact_versions_artifact_version_uq').on(table.artifactId, table.version),
 ])
+
+// ── Kapsel v0.3.0 — Governance Tables ────────────────────────────────────────
+
+/** §18 — Kapsel extension/agent audit trail (immutable) */
+export const kapselAuditLog = pgTable('kapsel_audit_log', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    extensionId: text('extension_id').notNull(),
+    agentId: text('agent_id'),
+    sessionId: text('session_id').notNull(),
+    action: text('action').notNull(),
+    target: text('target').notNull(),
+    payloadHash: text('payload_hash').notNull(),
+    outcome: text('outcome').notNull(),
+    modelContext: jsonb('model_context'),
+    escalationOutcome: text('escalation_outcome'),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('kapsel_audit_workspace_time_idx').on(table.workspaceId, table.createdAt),
+    index('kapsel_audit_extension_idx').on(table.extensionId, table.createdAt),
+])
+
+/** §23 — Standing approval rules (user-owned) */
+export const standingApprovals = pgTable('standing_approvals', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    trigger: text('trigger').notNull(),
+    actionPattern: text('action_pattern').notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { mode: 'date' }),
+}, (table) => [
+    index('standing_approvals_workspace_idx').on(table.workspaceId),
+])
+
+/** §20 — Persistent UserSelf graph */
+export const userSelf = pgTable('user_self', {
+    workspaceId: uuid('workspace_id')
+        .primaryKey()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    identity: jsonb('identity').notNull().default({}),
+    preferences: jsonb('preferences').notNull().default({}),
+    relationships: text('relationships').array().notNull().default([]),
+    contexts: jsonb('contexts').notNull().default({}),
+    communicationStyle: jsonb('communication_style').notNull().default({}),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+})

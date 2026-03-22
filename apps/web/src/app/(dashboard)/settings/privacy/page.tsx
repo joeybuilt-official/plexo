@@ -4,7 +4,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ShieldCheck, Copy, Check, RefreshCcw, X, AlertCircle, Loader2 } from 'lucide-react'
+import { ShieldCheck, Copy, Check, RefreshCcw, X, AlertCircle, Loader2, Globe, AlertTriangle } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
@@ -14,6 +14,15 @@ const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API
 interface TelemetryConfig {
     enabled: boolean
     instanceId: string
+}
+
+interface DataResidencyPlugin {
+    name: string
+    type: string
+    dataResidency?: {
+        sendsDataExternally: boolean
+        externalDestinations?: Array<{ host: string; purpose: string; dataTypes?: string[] }>
+    }
 }
 
 interface LastPayload {
@@ -181,6 +190,7 @@ export default function PrivacyPage() {
     const [showPayload, setShowPayload] = useState(false)
     const [showRegenerate, setShowRegenerate] = useState(false)
     const [regenerating, setRegenerating] = useState(false)
+    const [drPlugins, setDrPlugins] = useState<DataResidencyPlugin[]>([])
 
     const headers = {
         'content-type': 'application/json',
@@ -207,6 +217,19 @@ export default function PrivacyPage() {
     }, [workspaceId])    // re-run when workspaceId becomes available
 
     useEffect(() => { void load() }, [load])
+
+    // Fetch plugins for data residency section
+    useEffect(() => {
+        if (!workspaceId) return
+        fetch(`${API_BASE}/api/v1/plugins?workspaceId=${workspaceId}`)
+            .then(r => r.ok ? r.json() as Promise<{ items?: DataResidencyPlugin[] } | DataResidencyPlugin[]> : null)
+            .then(d => {
+                if (!d) return
+                const items = Array.isArray(d) ? d : (d.items ?? [])
+                setDrPlugins(items.filter(p => p.dataResidency))
+            })
+            .catch(() => {})
+    }, [workspaceId])
 
     async function toggleEnabled() {
         const next = !config.enabled
@@ -336,6 +359,53 @@ export default function PrivacyPage() {
                             <RefreshCcw className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                             Regenerate ID
                         </button>
+                    </Section>
+
+                    {/* ── Data Residency (§19) ── */}
+                    <Section
+                        title="Extension Data Residency"
+                        description="Which extensions send data to external services, and where."
+                    >
+                        {drPlugins.length === 0 ? (
+                            <p className="text-sm text-text-muted">No extensions have declared data residency information.</p>
+                        ) : (
+                            <div className="flex flex-col gap-3">
+                                {drPlugins.map(p => {
+                                    const dr = p.dataResidency!
+                                    const hasUnknownDests = dr.sendsDataExternally && (!dr.externalDestinations || dr.externalDestinations.length === 0)
+                                    return (
+                                        <div key={p.name} className="rounded-xl border border-border bg-canvas p-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-sm font-medium text-text-primary">{p.name}</span>
+                                                <span className="text-[10px] rounded border border-border px-1.5 py-0.5 text-text-muted">{p.type}</span>
+                                                {dr.sendsDataExternally ? (
+                                                    <span className="flex items-center gap-1 text-[10px] text-amber">
+                                                        <Globe className="h-3 w-3" /> Sends externally
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] text-azure">Local only</span>
+                                                )}
+                                                {hasUnknownDests && (
+                                                    <span className="flex items-center gap-1 text-[10px] text-red">
+                                                        <AlertTriangle className="h-3 w-3" /> Unknown destinations
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {dr.externalDestinations && dr.externalDestinations.length > 0 && (
+                                                <div className="flex flex-col gap-1">
+                                                    {dr.externalDestinations.map((dest, i) => (
+                                                        <div key={i} className="flex items-center gap-2 text-xs text-text-muted">
+                                                            <span className="font-mono text-text-secondary">{dest.host}</span>
+                                                            <span>— {dest.purpose}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
                     </Section>
 
                     {/* ── Data We Don't Have ── */}

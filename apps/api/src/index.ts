@@ -42,6 +42,9 @@ import { usersRouter } from './routes/users.js'
 import { membersRouter, invitesRouter } from './routes/members.js'
 import { pluginsRouter } from './routes/plugins.js'
 import { auditRouter } from './routes/audit.js'
+import { kapselAuditRouter } from './routes/kapsel-audit.js'
+import { standingApprovalsRouter } from './routes/standing-approvals.js'
+import { userSelfRouter } from './routes/user-self.js'
 import { registryRouter } from './routes/registry.js'
 import { telemetryRouter } from './telemetry/router.js'
 import { configureTelemetry } from './telemetry/posthog.js'
@@ -141,6 +144,9 @@ v1.use('/invites', invitesRouter)
 v1.use('/plugins', workspaceRateLimit, pluginsRouter)
 v1.use('/registry', registryRouter)
 v1.use('/audit', auditRouter)
+v1.use('/kapsel-audit', kapselAuditRouter)
+v1.use('/standing-approvals', standingApprovalsRouter)
+v1.use('/user-self', userSelfRouter)
 v1.use('/telemetry', telemetryRouter)
 v1.use('/webhooks', sentryWebhookRouter)
 

@@ -23,6 +23,8 @@ import { useWorkspace } from '@web/context/workspace'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 import type { FilterDimension } from '@web/components/list-toolbar'
 
+type EscalationTriggerType = 'HIGH_VALUE_ACTION' | 'IRREVERSIBLE_ACTION' | 'NOVEL_PATTERN' | 'CONFIDENCE_BELOW' | 'CROSS_BOUNDARY' | 'CAPABILITY_EXPANSION'
+
 interface Approval {
     id: string
     taskId: string
@@ -31,9 +33,27 @@ interface Approval {
     description: string
     riskLevel: 'low' | 'medium' | 'high' | 'critical'
     decision: 'pending' | 'approved' | 'rejected'
+    triggerType?: EscalationTriggerType
     createdAt: string
     decidedAt?: string
     decidedBy?: string
+}
+
+interface StandingApproval {
+    id: string
+    trigger: string
+    actionPattern: string
+    createdAt: string
+    expiresAt?: string
+}
+
+const TRIGGER_CONFIG: Record<EscalationTriggerType, { label: string; color: string }> = {
+    IRREVERSIBLE_ACTION: { label: 'Irreversible', color: 'text-red border-red-800/40 bg-red-950/20' },
+    HIGH_VALUE_ACTION: { label: 'High Value', color: 'text-amber border-amber-800/40 bg-amber-950/20' },
+    NOVEL_PATTERN: { label: 'Novel', color: 'text-purple-400 border-purple-800/40 bg-purple-950/20' },
+    CONFIDENCE_BELOW: { label: 'Low Confidence', color: 'text-blue-400 border-blue-800/40 bg-blue-950/20' },
+    CROSS_BOUNDARY: { label: 'Cross-Boundary', color: 'text-orange-400 border-orange-800/40 bg-orange-950/20' },
+    CAPABILITY_EXPANSION: { label: 'Cap. Expansion', color: 'text-cyan-400 border-cyan-800/40 bg-cyan-950/20' },
 }
 
 type SortKey = 'newest' | 'oldest' | 'risk_desc' | 'risk_asc'
@@ -63,6 +83,7 @@ export default function ApprovalsPage() {
     const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
 
     const [items, setItems] = useState<Approval[]>([])
+    const [standingApprovals, setStandingApprovals] = useState<StandingApproval[]>([])
     const [loading, setLoading] = useState(true)
     const [acting, setActing] = useState<Record<string, boolean>>({})
     const [bulkActing, setBulkActing] = useState(false)
@@ -89,11 +110,23 @@ export default function ApprovalsPage() {
         }
     }, [WS_ID])
 
+    const fetchStandingApprovals = useCallback(async () => {
+        if (!WS_ID) return
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/standing-approvals?workspaceId=${WS_ID}`)
+            if (res.ok) {
+                const data = await res.json() as { items: StandingApproval[] }
+                setStandingApprovals(data.items ?? [])
+            }
+        } catch { /* optional */ }
+    }, [WS_ID])
+
     useEffect(() => {
         void fetchApprovals()
+        void fetchStandingApprovals()
         const iv = setInterval(() => void fetchApprovals(), 5000)
         return () => clearInterval(iv)
-    }, [fetchApprovals])
+    }, [fetchApprovals, fetchStandingApprovals])
 
     function showToast(ok: boolean, text: string) {
         setToast({ ok, text })
@@ -120,6 +153,38 @@ export default function ApprovalsPage() {
         } finally {
             setActing((prev) => { const n = { ...prev }; delete n[id]; return n })
         }
+    }
+
+    async function approveAndRemember(id: string) {
+        setActing((prev) => ({ ...prev, [id]: true }))
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/approvals/${id}/approve-and-remember`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user: 'dashboard' }),
+            })
+            if (res.ok) {
+                setItems((prev) => prev.filter((i) => i.id !== id))
+                showToast(true, 'Approved & remembered — future identical actions will auto-approve.')
+                void fetchStandingApprovals()
+            } else {
+                showToast(false, 'Failed to approve and remember')
+            }
+        } catch {
+            showToast(false, 'Network error')
+        } finally {
+            setActing((prev) => { const n = { ...prev }; delete n[id]; return n })
+        }
+    }
+
+    async function revokeStandingApproval(id: string) {
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/standing-approvals/${id}`, { method: 'DELETE' })
+            if (res.ok) {
+                setStandingApprovals((prev) => prev.filter((sa) => sa.id !== id))
+                showToast(true, 'Standing approval revoked.')
+            }
+        } catch { /* ignore */ }
     }
 
     const filtered = useMemo(() => {
@@ -332,6 +397,13 @@ export default function ApprovalsPage() {
                                         {risk.label}
                                     </span>
 
+                                    {/* Trigger type badge */}
+                                    {item.triggerType && TRIGGER_CONFIG[item.triggerType] && (
+                                        <span className={`hidden lg:inline-flex shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${TRIGGER_CONFIG[item.triggerType].color}`}>
+                                            {TRIGGER_CONFIG[item.triggerType].label}
+                                        </span>
+                                    )}
+
                                     {/* Task ID */}
                                     <span className="hidden md:block text-xs font-mono text-text-muted shrink-0">
                                         {item.taskId.slice(0, 8)}
@@ -399,7 +471,7 @@ export default function ApprovalsPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-2 pt-1 border-t border-border/60">
+                                        <div className="flex flex-wrap gap-2 pt-1 border-t border-border/60">
                                             <button
                                                 onClick={() => void decide(item.id, 'approve')}
                                                 disabled={isActing}
@@ -407,6 +479,14 @@ export default function ApprovalsPage() {
                                             >
                                                 <CheckCircle className="h-3.5 w-3.5" />
                                                 {isActing ? 'Processing…' : 'Approve'}
+                                            </button>
+                                            <button
+                                                onClick={() => void approveAndRemember(item.id)}
+                                                disabled={isActing}
+                                                className="flex items-center gap-1.5 rounded-lg border border-emerald-700/40 bg-emerald-950/20 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-950/40 disabled:opacity-50 transition-colors"
+                                            >
+                                                <CheckCheck className="h-3.5 w-3.5" />
+                                                Approve & Remember
                                             </button>
                                             <button
                                                 onClick={() => void decide(item.id, 'reject')}
@@ -437,6 +517,34 @@ export default function ApprovalsPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Standing Approvals (§23) */}
+            {standingApprovals.length > 0 && (
+                <div className="rounded-xl border border-border bg-surface-1/30 p-4">
+                    <p className="text-xs font-semibold text-text-secondary mb-3">Standing Approvals</p>
+                    <p className="text-xs text-text-muted mb-3">
+                        These rules auto-approve future actions matching the same pattern. Created via &ldquo;Approve &amp; Remember&rdquo;.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                        {standingApprovals.map((sa) => (
+                            <div key={sa.id} className="flex items-center gap-3 rounded-lg border border-border bg-canvas px-3 py-2">
+                                <span className="rounded border border-emerald-700/40 bg-emerald-950/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">{sa.trigger}</span>
+                                <span className="text-xs text-text-secondary font-mono flex-1 truncate">{sa.actionPattern}</span>
+                                <span className="text-[10px] text-text-muted shrink-0">{new Date(sa.createdAt).toLocaleDateString()}</span>
+                                {sa.expiresAt && (
+                                    <span className="text-[10px] text-text-muted shrink-0">expires {new Date(sa.expiresAt).toLocaleDateString()}</span>
+                                )}
+                                <button
+                                    onClick={() => void revokeStandingApproval(sa.id)}
+                                    className="text-[10px] text-red hover:text-red/80 transition-colors shrink-0"
+                                >
+                                    Revoke
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
