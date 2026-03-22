@@ -180,9 +180,11 @@ services:
     mem_limit: 256m
     memswap_limit: 384m
 
-  # ── Reverse Proxy ────────────────────────────────────────
-
+  # ── Reverse Proxy (self-hosted only) ─────────────────────
+  # For managed deployments (Coolify), the platform proxy handles TLS.
+  # To enable caddy for self-hosted, use: docker compose --profile selfhosted up
   caddy:
+    profiles: ["selfhosted"]
     build:
       context: .
       dockerfile: docker/Dockerfile.caddy
