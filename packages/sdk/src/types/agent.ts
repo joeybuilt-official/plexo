@@ -3,8 +3,22 @@
 
 /**
  * Kapsel Agent Contract Types
- * Corresponds to §8 of the Kapsel Protocol Specification v0.2.0
+ * Corresponds to §8 of the Kapsel Protocol Specification v0.3.0
+ *
+ * An Agent is NOT a subtype of Extension. An Agent is an autonomous actor
+ * with a goal, a planning loop, and an identity. It orchestrates any number
+ * of Extensions to accomplish work.
+ *
+ * §23 integration: Agents MUST implement escalate() for human oversight.
+ * §22 integration: Agents MAY delegate to external A2A agents.
+ * §24 integration: Agent actions are logged with model context in the audit trail.
  */
+
+import type { EscalationRequest, EscalationResult, EscalationTrigger } from './escalation.js'
+
+// ---------------------------------------------------------------------------
+// One-Way Door (§8.4)
+// ---------------------------------------------------------------------------
 
 export type OneWayDoorType =
     | 'irreversible_action'
@@ -12,14 +26,6 @@ export type OneWayDoorType =
     | 'financial_transaction'
     | 'data_deletion'
     | 'permission_escalation'
-
-export type EscalationReason =
-    | 'ambiguous_goal'
-    | 'one_way_door'
-    | 'low_confidence'
-    | 'missing_capability'
-    | 'recovery_needed'
-    | 'max_retries_exceeded'
 
 export interface OneWayDoor {
     type: OneWayDoorType
@@ -31,6 +37,29 @@ export interface OneWayDoor {
     /** Whether this can be undone */
     reversible: false
 }
+
+// ---------------------------------------------------------------------------
+// Escalation Reasons (expanded for §23 triggers)
+// ---------------------------------------------------------------------------
+
+export type EscalationReason =
+    | 'ambiguous_goal'
+    | 'one_way_door'
+    | 'low_confidence'
+    | 'missing_capability'
+    | 'recovery_needed'
+    | 'max_retries_exceeded'
+    // §23 — formal escalation triggers
+    | 'high_value_action'
+    | 'irreversible_action'
+    | 'novel_pattern'
+    | 'confidence_below_threshold'
+    | 'cross_boundary'
+    | 'capability_expansion'
+
+// ---------------------------------------------------------------------------
+// Plan & Steps
+// ---------------------------------------------------------------------------
 
 export interface ToolCall {
     tool: string
@@ -44,6 +73,8 @@ export interface PlanStep {
     /** If true, requires approval before execution */
     oneWayDoor?: OneWayDoor
     dependsOn?: string[]
+    /** §23 — Escalation trigger type, if this step requires escalation */
+    escalationTrigger?: EscalationTrigger
 }
 
 export interface Plan {
@@ -72,6 +103,10 @@ export interface EscalationResponse {
     feedback?: string
 }
 
+// ---------------------------------------------------------------------------
+// Agent Contract Interface
+// ---------------------------------------------------------------------------
+
 export interface AgentExtension {
     /**
      * Called for every new task. Return { activate: true, confidence: 0–1 }
@@ -96,8 +131,9 @@ export interface AgentExtension {
     verifyStep(result: StepResult): Promise<{ ok: boolean; reason?: string }>
 
     /**
-     * Called when escalation is required (one-way door, low confidence, etc.)
-     * Agent should pause and wait for host to relay user response.
+     * §23 — Called when escalation is required.
+     * Agent MUST pause and wait for host to relay user response.
+     * Hosts MUST implement at minimum IRREVERSIBLE_ACTION and CAPABILITY_EXPANSION triggers.
      */
-    onEscalation?(reason: EscalationReason, context: unknown): Promise<EscalationResponse>
+    onEscalation(reason: EscalationReason, context: unknown): Promise<EscalationResponse>
 }
