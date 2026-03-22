@@ -487,6 +487,70 @@ connectionsRouter.get('/mcp-config', async (req, res) => {
     }
 })
 
+// ── GET /api/connections/token ────────────────────────────────────────────────
+// Service-to-service endpoint: returns decrypted credentials for a specific
+// installed connection. Requires PLEXO_SERVICE_KEY auth.
+// Used by Joeybuilt apps (Levio, Fylo, etc.) to retrieve OAuth tokens stored in Plexo.
+//
+// Query params:
+//   workspaceId  UUID of the workspace
+//   registryId   ID of the connection (e.g. 'google-workspace')
+
+import { requireServiceKey } from '../middleware/service-key-auth.js'
+
+connectionsRouter.get('/token', requireServiceKey, async (req, res) => {
+    const { workspaceId, registryId } = req.query as Record<string, string>
+
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+    if (!registryId || typeof registryId !== 'string' || registryId.length > 100) {
+        res.status(400).json({ error: { code: 'INVALID_REGISTRY_ID', message: 'registryId required' } })
+        return
+    }
+
+    try {
+        const [row] = await db.select({
+            credentials: installedConnections.credentials,
+            status: installedConnections.status,
+            scopesGranted: installedConnections.scopesGranted,
+            lastVerifiedAt: installedConnections.lastVerifiedAt,
+        }).from(installedConnections)
+            .where(and(
+                eq(installedConnections.workspaceId, workspaceId),
+                eq(installedConnections.registryId, registryId),
+                eq(installedConnections.status, 'active'),
+            ))
+            .limit(1)
+
+        if (!row) {
+            res.status(404).json({ error: { code: 'NOT_CONNECTED', message: `${registryId} not connected for this workspace` } })
+            return
+        }
+
+        const raw = row.credentials as Record<string, unknown>
+        if (!raw.encrypted) {
+            res.status(500).json({ error: { code: 'NO_CREDENTIALS', message: 'No encrypted credentials found' } })
+            return
+        }
+
+        const decrypted = decrypt(raw.encrypted as string, workspaceId)
+        const creds = JSON.parse(decrypted) as Record<string, unknown>
+
+        res.json({
+            access_token: creds.access_token ?? null,
+            refresh_token: creds.refresh_token ?? null,
+            expires_at: creds.expires_at ?? null,
+            email: creds.email ?? null,
+            scope: creds.scope ?? null,
+        })
+    } catch (err: unknown) {
+        logger.error({ err }, 'GET /api/connections/token failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to retrieve token' } })
+    }
+})
+
 // ── GET /api/connections/registry — augmented with mcpPackage ─────────────────
 // The base registry route is on connectionsRouter but we need to enrich items
 // with the mcpPackage field from MCP_BINDINGS so the UI can display it.

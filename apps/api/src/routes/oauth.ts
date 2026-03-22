@@ -86,6 +86,21 @@ const PROVIDERS: Record<string, ProviderConfig> = {
         defaultScopes: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
         registryId: 'google-drive',
     },
+    'google-workspace': {
+        authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+        tokenUrl: 'https://oauth2.googleapis.com/token',
+        clientIdEnv: 'GOOGLE_CLIENT_ID',
+        clientSecretEnv: 'GOOGLE_CLIENT_SECRET',
+        defaultScopes: [
+            'https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/gmail.send',
+            'https://www.googleapis.com/auth/calendar',
+            'https://www.googleapis.com/auth/tasks.readonly',
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+        ].join(' '),
+        registryId: 'google-workspace',
+    },
 }
 
 // GET /api/oauth/:provider/start?workspaceId=
@@ -197,6 +212,20 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
             return
         }
 
+        // Fetch connected account email for Google providers
+        let connectedEmail: string | null = null
+        if (provider === 'google' || provider === 'google-workspace') {
+            try {
+                const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                })
+                if (userInfoRes.ok) {
+                    const userInfo = await userInfoRes.json() as Record<string, unknown>
+                    connectedEmail = (userInfo.email as string | undefined) ?? null
+                }
+            } catch { /* non-fatal */ }
+        }
+
         const credentials = {
             access_token: accessToken,
             refresh_token: (tokenData.refresh_token as string | undefined) ?? null,
@@ -205,6 +234,7 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
                 : null,
             bot_token: tokenData.access_token as string | undefined,
             scope: (tokenData.scope as string | undefined) ?? config.defaultScopes,
+            ...(connectedEmail ? { email: connectedEmail } : {}),
         }
 
         const { workspaceId } = pending
@@ -221,9 +251,13 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
             ? credentials.scope.split(/[,\s]+/).filter(Boolean)
             : []
 
+        const connectionName = connectedEmail
+            ? `${connectedEmail}`
+            : `${provider} (connected ${new Date().toLocaleDateString()})`
+
         if (existing[0]) {
             await db.update(installedConnections)
-                .set({ credentials: encrypted, scopesGranted, status: 'active', lastVerifiedAt: new Date() })
+                .set({ credentials: encrypted, scopesGranted, name: connectionName, status: 'active', lastVerifiedAt: new Date() })
                 .where(eq(installedConnections.id, existing[0].id))
         } else {
             const { ulid } = await import('ulid')
@@ -231,7 +265,7 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
                 id: ulid(),
                 workspaceId,
                 registryId: config.registryId,
-                name: `${provider} (connected ${new Date().toLocaleDateString()})`,
+                name: connectionName,
                 status: 'active',
                 credentials: encrypted,
                 scopesGranted,
@@ -239,8 +273,8 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
             })
         }
 
-        logger.info({ workspaceId, provider }, 'OAuth token stored')
-        res.send(popupCloseScript({ ok: true, provider, workspaceId }))
+        logger.info({ workspaceId, provider, connectedEmail }, 'OAuth token stored')
+        res.send(popupCloseScript({ ok: true, provider, workspaceId, email: connectedEmail }))
     } catch (err) {
         logger.error({ err, provider }, 'OAuth token exchange failed')
         res.send(popupCloseScript({ ok: false, error: 'exchange_error', provider }))
