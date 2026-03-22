@@ -5,7 +5,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { ThemeProvider } from '@web/components/theme-provider'
 import { PostHogProvider } from '@web/components/posthog-provider'
-import { auth } from '@web/auth'
+import { createServerClient } from '@web/auth'
 import { SessionErrorBoundary } from '@web/components/session-error-boundary'
 
 export const metadata: Metadata = {
@@ -26,7 +26,8 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const session = await auth()
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -47,11 +48,11 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <PostHogProvider
-            userId={session?.user?.id}
-            userEmail={session?.user?.email}
-            userName={session?.user?.name}
+            userId={user?.id}
+            userEmail={user?.email}
+            userName={user?.user_metadata?.full_name ?? user?.user_metadata?.name}
           >
-            <SessionErrorBoundary sessionId={session?.user?.id}>
+            <SessionErrorBoundary sessionId={user?.id}>
               {children}
             </SessionErrorBoundary>
           </PostHogProvider>

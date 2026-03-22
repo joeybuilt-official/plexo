@@ -6,7 +6,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
-import { signOut } from 'next-auth/react'
+import { createClient } from '@web/lib/supabase/client'
 import {
     LayoutDashboard,
     MessageSquare,
@@ -818,7 +818,7 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
                         </div>
                         <div className="my-1 border-t border-border" />
                         <button
-                            onClick={() => void signOut({ callbackUrl: '/login' })}
+                            onClick={() => { const sb = createClient(); void sb.auth.signOut().then(() => { window.location.href = '/login' }) }}
                             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
                         >
                             <LogOut className="h-3.5 w-3.5" />

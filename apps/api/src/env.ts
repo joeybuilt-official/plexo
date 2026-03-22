@@ -54,16 +54,43 @@ const ENV_SPEC: EnvVar[] = [
         validate: (v) => v.length >= 32,
         validateMsg: 'Must be at least 32 characters — generate with: openssl rand -hex 32',
     },
+    // ── Required — Supabase Auth (shared joeybuilt-platform instance) ───────────
+    {
+        key: 'SUPABASE_JWT_SECRET',
+        description: 'JWT secret from the shared Supabase project (Settings → API → JWT Secret)',
+        required: true,
+        validate: (v) => v.length >= 20,
+        validateMsg: 'Must be at least 20 characters',
+    },
+    // ── Optional — Supabase (for server-side admin operations) ─────────────────
+    {
+        key: 'SUPABASE_URL',
+        description: 'Supabase project URL (for admin SDK usage)',
+        required: false,
+    },
+    {
+        key: 'SUPABASE_SERVICE_ROLE_KEY',
+        description: 'Supabase service role key (server-side only)',
+        required: false,
+    },
+    // ── Optional — Service key for app↔Plexo communication ────────────────────
+    {
+        key: 'PLEXO_SERVICE_KEY',
+        description: 'Shared secret for Joeybuilt app↔Plexo service-to-service auth',
+        required: false,
+        validate: (v) => v.length >= 32,
+        validateMsg: 'Must be at least 32 characters — generate with: openssl rand -hex 32',
+    },
+    // ── Optional — CORS ───────────────────────────────────────────────────────
+    {
+        key: 'CORS_ORIGINS',
+        description: 'Comma-separated list of allowed CORS origins (e.g., https://command.joeybuilt.com,https://fylo.joeybuilt.com)',
+        required: false,
+    },
     // ── Optional — AI providers (configured per-workspace in the UI) ────────────
     {
         key: 'OPENAI_API_KEY',
         description: 'OpenAI API key (env-level fallback; prefer workspace UI config)',
-        required: false,
-    },
-    // ── Optional — OAuth ──────────────────────────────────────────────────────
-    {
-        key: 'GITHUB_CLIENT_ID',
-        description: 'GitHub OAuth App client ID',
         required: false,
     },
     // ── Optional — Synthesizer ────────────────────────────────────────────────

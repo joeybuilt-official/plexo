@@ -16,6 +16,8 @@
     "@plexo/logger": "workspace:*",
     "@plexo/ui": "workspace:*",
     "@sentry/nextjs": "^10.42.0",
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.99.3",
     "@types/react-syntax-highlighter": "^15.5.13",
     "class-variance-authority": "^0.7",
     "clsx": "^2",

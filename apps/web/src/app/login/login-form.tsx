@@ -4,7 +4,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn } from 'next-auth/react'
+import { createClient } from '@web/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Mail, ArrowRight, Loader2 } from 'lucide-react'
@@ -22,13 +22,13 @@ export function LoginForm() {
         setIsLoading(true)
         setError(null)
 
-        const result = await signIn('credentials', {
+        const supabase = createClient()
+        const { error: signInError } = await supabase.auth.signInWithPassword({
             email,
             password,
-            redirect: false,
         })
 
-        if (result?.error) {
+        if (signInError) {
             setError('Invalid email or password')
             setIsLoading(false)
         } else {
@@ -86,7 +86,7 @@ export function LoginForm() {
                                 placeholder="••••••••••••"
                                 className="w-full rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure/50 focus:outline-none focus:ring-1 focus:ring-azure/50"
                                 required
-                                minLength={12}
+                                minLength={8}
                             />
                         </div>
 

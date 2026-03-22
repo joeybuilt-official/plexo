@@ -25,6 +25,7 @@
     "dotenv": "^16",
     "express": "^5",
     "express-rate-limit": "^8.2.1",
+    "jose": "^6.2.2",
     "marked": "^17.0.4",
     "pino": "^9",
     "pino-pretty": "^13",

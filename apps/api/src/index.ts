@@ -78,13 +78,14 @@ const port = parseInt(process.env.PORT ?? '3001', 10)
 
 // ── Middleware ───────────────────────────────────────────────
 
-// Always allow localhost:3000 in dev; in production allow only PUBLIC_URL
+// CORS origins: localhost in dev, PUBLIC_URL + any CORS_ORIGINS in production
 const allowedOrigins = new Set<string>([
     'http://localhost:3000',
     'http://localhost:3001',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
     ...(process.env.PUBLIC_URL ? [process.env.PUBLIC_URL] : []),
+    ...(process.env.CORS_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) ?? []),
 ])
 
 app.set('trust proxy', 1) // required for rate limiter behind Caddy/nginx

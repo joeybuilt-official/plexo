@@ -2,17 +2,14 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { redirect } from 'next/navigation'
-import { auth } from '@web/auth'
+import { createServerClient } from '@web/auth'
 
 const API_BASE = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
 
 export default async function SetupLayout({ children }: { children: React.ReactNode }) {
-    // Calling auth() on the server forces NextAuth to decode the token
-    // and execute the jwt callback, which synchronously processes our
-    // sync-oauth logic and inserts the GitHub user into the database
-    // BEFORE the setup wizard mounts or any API calls are made.
-    const session = await auth()
-    const userId = session?.user?.id
+    const supabase = await createServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const userId = user?.id
 
     // If the user already has a workspace, setup is complete — redirect.
     if (userId) {

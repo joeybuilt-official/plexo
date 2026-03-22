@@ -162,6 +162,13 @@
       "when": 1773291044251,
       "tag": "0022_overjoyed_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1774339200000,
+      "tag": "0023_supabase_auth_migration",
+      "breakpoints": true
     }
   ]
 }

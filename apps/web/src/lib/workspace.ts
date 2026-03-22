@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { auth } from '@web/auth'
+import { createServerClient } from '@web/auth'
 import { cache } from 'react'
 
 const API_BASE = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
@@ -19,8 +19,9 @@ const API_BASE = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
 export const getWorkspaceId = cache(async (): Promise<string | null> => {
     // Try session first
     try {
-        const session = await auth()
-        const userId = session?.user?.id
+        const supabase = await createServerClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        const userId = user?.id
         if (userId) {
             const res = await fetch(
                 `${API_BASE}/api/v1/workspaces?ownerId=${encodeURIComponent(userId)}&limit=1`,

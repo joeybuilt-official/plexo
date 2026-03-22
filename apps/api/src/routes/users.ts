@@ -21,13 +21,6 @@ import { UUID_RE } from '../validation.js'
 export const usersRouter: RouterType = Router()
 
 
-// Strip password hash from any user object
-function sanitize(u: Record<string, unknown>) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...safe } = u
-    return safe
-}
-
 // ── GET /api/users ─────────────────────────────────────────────────────────────
 
 usersRouter.get('/', async (_req, res) => {
