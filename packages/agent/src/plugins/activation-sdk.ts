@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Activation SDK — v2 with host bridge
+ * Kapsel Activation SDK — v3 (Kapsel v0.3.0)
  *
  * A host-side implementation of KapselSDK passed to extension activate() calls.
  * For capabilities that require host-side services (storage, memory, connections),
@@ -58,9 +58,19 @@ export function createActivationSDK(
         }
     }
 
+    /** Check if extension has memory capability — accepts both legacy unscoped and entity-scoped tokens */
+    function hasMemoryCap(action: 'read' | 'write' | 'delete'): void {
+        const unscoped = `memory:${action}`
+        if (capSet.has(unscoped)) return
+        // Accept any entity-scoped variant: memory:read:person, memory:write:task, etc.
+        const entityScoped = [...capSet].some(c => c.startsWith(`memory:${action}:`))
+        if (entityScoped) return
+        throw new Error(`CAPABILITY_DENIED: extension "${extensionName}" requires a "memory:${action}" capability (unscoped or entity-scoped)`)
+    }
+
     const sdk: KapselSDK = {
         host: {
-            kapselVersion: '0.2.0',
+            kapselVersion: '0.3.0',
             complianceLevel: 'full',
             name: 'plexo',
             version: process.env.npm_package_version ?? '0.0.0',
@@ -82,7 +92,7 @@ export function createActivationSDK(
 
         memory: {
             async read(query, opts) {
-                requireCap('memory:read')
+                hasMemoryCap('read')
                 return bridge('memory.read', {
                     workspaceId,
                     query,
@@ -91,7 +101,7 @@ export function createActivationSDK(
                 }) as Promise<Awaited<ReturnType<KapselSDK['memory']['read']>>>
             },
             async write(entry) {
-                requireCap('memory:write')
+                hasMemoryCap('write')
                 return bridge('memory.write', {
                     workspaceId,
                     content: entry.content,
@@ -101,7 +111,7 @@ export function createActivationSDK(
                 }) as Promise<Awaited<ReturnType<KapselSDK['memory']['write']>>>
             },
             async delete(id) {
-                requireCap('memory:delete')
+                hasMemoryCap('delete')
                 await bridge('memory.delete', { workspaceId, id })
             },
         },
@@ -187,6 +197,63 @@ export function createActivationSDK(
             async notify(msg, level) {
                 requireCap('ui:notify')
                 await bridge('ui.notify', { workspaceId, msg, level })
+            },
+        },
+
+        // §16 — Personal Entity Resolution
+        entities: {
+            async resolve(type, id) {
+                hasMemoryCap('read')
+                return bridge('entities.resolve', { workspaceId, type, id }) as Promise<any>
+            },
+            async search(type, query) {
+                hasMemoryCap('read')
+                return bridge('entities.search', { workspaceId, type, query }) as Promise<any>
+            },
+            async create(type, data) {
+                requireCap(`entity:create:${type}`)
+                return bridge('entities.create', { workspaceId, type, data }) as Promise<any>
+            },
+            async link(source, target) {
+                requireCap(`entity:modify:${source.type}`)
+                await bridge('entities.link', { workspaceId, source, target })
+            },
+        },
+
+        // §20 — Persistent UserSelf
+        self: {
+            async read(fields) {
+                requireCap('self:read')
+                return bridge('self.read', { fields }) as Promise<any>
+            },
+            async propose(proposal) {
+                requireCap('self:write')
+                await bridge('self.propose', { proposal })
+            },
+        },
+
+        // §18 — Audit Trail (owner tier only)
+        audit: {
+            async query(query) {
+                requireCap('audit:read')
+                return bridge('audit.query', { workspaceId, query }) as Promise<any>
+            },
+        },
+
+        // §23 — Escalation Contract
+        async escalate(request) {
+            return bridge('escalate', { workspaceId, extensionName, request }) as Promise<any>
+        },
+
+        // §22 — A2A Bridge Layer
+        a2a: {
+            async discover(endpoint) {
+                requireCap('a2a:delegate')
+                return bridge('a2a.discover', { endpoint }) as Promise<any>
+            },
+            async delegate(delegation) {
+                requireCap('a2a:delegate')
+                return bridge('a2a.delegate', { workspaceId, extensionName, delegation }) as Promise<any>
             },
         },
     }

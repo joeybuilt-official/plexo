@@ -250,6 +250,31 @@ async function dispatchSdkCall(pluginName: string, method: string, args: Record<
             eventBus.publish(`plexo.${method}`, args)
             return null
 
+        // v0.3.0 — Entity resolution (§16)
+        case 'entities.resolve':
+        case 'entities.search':
+        case 'entities.create':
+        case 'entities.link':
+            throw new Error('NOT_IMPLEMENTED: Entity resolution is not yet available on this host')
+
+        // v0.3.0 — UserSelf (§20)
+        case 'self.read':
+        case 'self.propose':
+            throw new Error('NOT_IMPLEMENTED: UserSelf is not yet available on this host')
+
+        // v0.3.0 — Audit trail (§18)
+        case 'audit.query':
+            throw new Error('NOT_IMPLEMENTED: Audit trail query is not yet available on this host')
+
+        // v0.3.0 — Escalation (§23)
+        case 'escalate':
+            throw new Error('NOT_IMPLEMENTED: Escalation contract is not yet available on this host')
+
+        // v0.3.0 — A2A bridge (§22)
+        case 'a2a.discover':
+        case 'a2a.delegate':
+            throw new Error('NOT_IMPLEMENTED: A2A bridge is not yet available on this host')
+
         default:
             throw new Error(`Unknown bridge method: ${method}`)
     }

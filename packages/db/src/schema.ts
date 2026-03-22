@@ -100,6 +100,7 @@ export const pluginTypeEnum = pgEnum('plugin_type', [
     'channel',
     'tool',
     'mcp-server',
+    'function',
 ])
 
 export const memoryTypeEnum = pgEnum('memory_type', [
@@ -414,8 +415,8 @@ export const plugins = pgTable('plugins', {
     name: text('name').notNull(),
     version: text('version').notNull(),
     type: pluginTypeEnum('type').notNull(),
-    // Kapsel spec version this manifest targets (e.g. '0.2.0')
-    kapselVersion: text('kapsel_version').notNull().default('0.2.0'),
+    // Kapsel spec version this manifest targets (e.g. '0.3.0')
+    kapselVersion: text('kapsel_version').notNull().default('0.3.0'),
     // Relative path to the entry point (§3.1)
     entry: text('entry').notNull(),
     // Full kapsel.json contents (validated on install per §3.3)

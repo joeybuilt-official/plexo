@@ -35,6 +35,20 @@ Plexo is a monorepo built with pnpm workspaces and Turborepo. The architecture e
           └──────────────────────────────┘
 ```
 
+## Kapsel v0.3.0 — Three Pillars
+
+Plexo implements the [Kapsel Protocol v0.3.0](https://github.com/joeybuilt-official/kapsel). The protocol defines three distinct architectural pillars:
+
+| Pillar | What it is | Manifest type |
+|--------|-----------|---------------|
+| **Connection** | Authenticated pipe to an external service. Inert on its own. | N/A (host-managed) |
+| **Extension** | Capability package — functions, schedules, widgets, memory access. | `function` · `channel` · `mcp-server` |
+| **Agent** | Autonomous actor with a goal, planning loop, and identity. Orchestrates Extensions. | `agent` |
+
+An Agent is NOT a subtype of Extension. An Extension does not think. An Agent does. An Agent picks up Extensions the way a person picks up tools.
+
+The SDK (`packages/sdk`) defines the complete type system for Kapsel v0.3.0 including entity schemas (§16), trust tiers (§17), audit trails (§18), data residency (§19), UserSelf (§20), DID identity (§21), A2A bridge (§22), escalation contracts (§23), model context (§24), and service discovery (§25).
+
 ## Critical Boundaries
 
 ### SDK Isolation Wall

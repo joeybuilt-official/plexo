@@ -165,7 +165,7 @@ healthRouter.get('/', async (_req, res) => {
         uptime: Math.floor(process.uptime()),
         kapsel: {
             complianceLevel: 'full',
-            specVersion: '0.2.0',
+            specVersion: '0.3.0',
             host: 'plexo',
             workers: workerStats(),
         },

@@ -67,9 +67,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const PLUGIN_TYPE_LABELS: Record<string, string> = {
     agent: 'Agent',
-    skill: 'Skill',
+    function: 'Function',
+    skill: 'Extension',
     channel: 'Channel',
-    tool: 'Tool',
+    tool: 'Function',
     'mcp-server': 'MCP Server',
 }
 
@@ -82,6 +83,7 @@ const STATUS_DOT: Record<string, string> = {
 
 const PLUGIN_TYPE_COLOR: Record<string, string> = {
     agent: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
+    function: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
     skill: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
     channel: 'bg-azure/15 text-azure border border-azure/30',
     tool: 'bg-amber/15 text-amber border border-amber-500/30',

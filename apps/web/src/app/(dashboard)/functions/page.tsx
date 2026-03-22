@@ -1,0 +1,365 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
+'use client'
+
+export const dynamic = 'force-dynamic'
+
+import { useState, useEffect, useCallback } from 'react'
+import {
+    Wrench,
+    WrenchIcon,
+    RefreshCw,
+    AlertCircle,
+    Info,
+    ToggleLeft,
+    ToggleRight,
+    ChevronDown,
+    ChevronRight,
+    CheckCircle2,
+    Circle,
+} from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
+
+const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
+
+interface KapselManifest {
+    name: string
+    version: string
+    description?: string
+    type: string
+    tools?: Array<{ name: string; description?: string; parameters?: Record<string, unknown> }>
+    permissions?: string[]
+}
+
+interface Plugin {
+    id: string
+    name: string
+    version: string
+    type: string
+    kapselVersion: string
+    enabled: boolean
+    enabledTools: string[] | null
+    installedAt: string
+    kapselManifest: KapselManifest | null
+    settings?: Record<string, unknown>
+}
+
+// Tools from installed connections (non-plugin)
+interface ConnectionTool {
+    connectionId: string
+    connectionName: string
+    registryId: string
+    tool: string
+    enabled: boolean
+}
+
+interface InstalledConnection {
+    id: string
+    registryId: string
+    name: string
+    status: string
+    enabledTools: string[] | null
+    toolsProvided?: string[]
+}
+
+interface RegistryItem {
+    id: string
+    toolsProvided: string[]
+}
+
+function FunctionRow({ tool, enabled, onToggle }: { tool: string; enabled: boolean; onToggle?: () => void }) {
+    return (
+        <div
+            className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-all ${enabled
+                ? 'border-border/60 bg-surface-1/50'
+                : 'border-border/30 bg-surface-1/10 opacity-50'
+                }`}
+        >
+            <div className="flex items-center gap-2">
+                <Wrench className="h-3.5 w-3.5 text-text-muted shrink-0" />
+                <span className="text-xs font-mono text-text-secondary">{tool}</span>
+            </div>
+            {onToggle ? (
+                <button onClick={onToggle} className="shrink-0">
+                    {enabled
+                        ? <ToggleRight className="h-5 w-5 text-azure" />
+                        : <ToggleLeft className="h-5 w-5 text-zinc-700" />
+                    }
+                </button>
+            ) : (
+                enabled
+                    ? <CheckCircle2 className="h-3.5 w-3.5 text-azure shrink-0" />
+                    : <Circle className="h-3.5 w-3.5 text-zinc-700 shrink-0" />
+            )}
+        </div>
+    )
+}
+
+function SourceSection({ label, tools, count, total }: { label: string; tools: React.ReactNode[]; count: number; total: number }) {
+    const [expanded, setExpanded] = useState(true)
+    return (
+        <div className="rounded-xl border border-border/60 bg-surface-1/30 overflow-hidden">
+            <button
+                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-1/60 transition-colors"
+                onClick={() => setExpanded((e) => !e)}
+            >
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-text-secondary">{label}</span>
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-text-muted">
+                        {count}/{total} enabled
+                    </span>
+                </div>
+                {expanded
+                    ? <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
+                    : <ChevronRight className="h-3.5 w-3.5 text-text-muted" />
+                }
+            </button>
+            {expanded && (
+                <div className="px-4 pb-3 flex flex-col gap-1">
+                    {tools}
+                </div>
+            )}
+        </div>
+    )
+}
+
+export default function FunctionsPage() {
+    const { workspaceId } = useWorkspace()
+    const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
+
+    const [plugins, setPlugins] = useState<Plugin[]>([])
+    const [connections, setConnections] = useState<InstalledConnection[]>([])
+    const [registry, setRegistry] = useState<RegistryItem[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [savingConn, setSavingConn] = useState<string | null>(null)
+
+    const lf = useListFilter(['source'], 'name_asc')
+    const { search, filterValues, clearAll } = lf
+
+    const fetchAll = useCallback(async () => {
+        if (!WS_ID) return
+        setLoading(true)
+        setError(null)
+        try {
+            const [plugRes, connRes, regRes] = await Promise.all([
+                fetch(`${API_BASE}/api/v1/plugins?workspaceId=${WS_ID}`),
+                fetch(`${API_BASE}/api/v1/connections/installed?workspaceId=${WS_ID}`),
+                fetch(`${API_BASE}/api/v1/connections/registry`),
+            ])
+            if (plugRes.ok) {
+                const d = await plugRes.json() as { items?: Plugin[] } | Plugin[]
+                const items = Array.isArray(d) ? d : (d.items ?? [])
+                setPlugins(items)
+            }
+            if (connRes.ok) {
+                const d = await connRes.json() as { items: InstalledConnection[] }
+                setConnections(d.items)
+            }
+            if (regRes.ok) {
+                const d = await regRes.json() as { items: RegistryItem[] }
+                setRegistry(d.items)
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load functions')
+        } finally {
+            setLoading(false)
+        }
+    }, [WS_ID])
+
+    useEffect(() => { void fetchAll() }, [fetchAll])
+
+    async function toggleConnectionTool(conn: InstalledConnection, tool: string, allTools: string[]) {
+        setSavingConn(conn.id)
+        const current = conn.enabledTools ?? [...allTools]
+        const next = current.includes(tool) ? current.filter((t) => t !== tool) : [...current, tool]
+        const payload = next.length === allTools.length ? null : next
+        try {
+            await fetch(`${API_BASE}/api/v1/connections/installed/${conn.id}/tools`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceId: WS_ID, enabledTools: payload }),
+            })
+            setConnections((prev) => prev.map((c) => c.id === conn.id ? { ...c, enabledTools: payload } : c))
+        } finally {
+            setSavingConn(null)
+        }
+    }
+
+    // Aggregate functions from plugin extensions
+    const rawPluginSections = plugins
+        .filter((p) => p.enabled && (p.kapselManifest?.tools ?? []).length > 0)
+        .map((p) => {
+            const tools = p.kapselManifest!.tools!
+            let filteredTools = tools
+
+            if (search.trim()) {
+                const q = search.toLowerCase()
+                filteredTools = tools.filter(t => t.name.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q))
+            }
+
+            return {
+                key: p.id,
+                label: `${p.name}${p.settings?.isGenerated ? ' ✦' : ''} (extension)`,
+                enabledCount: tools.length,
+                total: tools.length,
+                filteredCount: filteredTools.length,
+                nodes: filteredTools.map((t) => (
+                    <FunctionRow key={t.name} tool={t.name} enabled={true} />
+                )),
+            }
+        })
+
+    // Functions from installed connections
+    const rawConnSections = connections.map((conn) => {
+        const reg = registry.find((r) => r.id === conn.registryId)
+        const allTools = reg?.toolsProvided ?? conn.toolsProvided ?? []
+        const enabledTools = conn.enabledTools ?? allTools
+        const isSaving = savingConn === conn.id
+
+        let filteredTools = allTools
+
+        if (search.trim()) {
+            const q = search.toLowerCase()
+            filteredTools = allTools.filter((t) => t.toLowerCase().includes(q))
+        }
+
+        return {
+            key: conn.id,
+            label: conn.name,
+            enabledCount: enabledTools.length,
+            total: allTools.length,
+            filteredCount: filteredTools.length,
+            nodes: filteredTools.map((t) => (
+                <div key={t} className={isSaving ? 'opacity-50 pointer-events-none' : ''}>
+                    <FunctionRow
+                        tool={t}
+                        enabled={enabledTools.includes(t)}
+                        onToggle={() => void toggleConnectionTool(conn, t, allTools)}
+                    />
+                </div>
+            )),
+        }
+    })
+
+    const sourceFilter = filterValues.source ?? null
+    const connSections = rawConnSections.filter((s) => s.total > 0 && s.filteredCount > 0 && (!sourceFilter || sourceFilter === 'connections'))
+    const pluginSections = rawPluginSections.filter((s) => s.total > 0 && s.filteredCount > 0 && (!sourceFilter || sourceFilter === 'extensions'))
+
+    const allSections = [...connSections, ...pluginSections].sort((a, b) => {
+        if (lf.sort === 'name_desc') return b.label.localeCompare(a.label)
+        if (lf.sort === 'most_tools') return b.enabledCount - a.enabledCount
+        if (lf.sort === 'least_tools') return a.enabledCount - b.enabledCount
+        return a.label.localeCompare(b.label)
+    })
+    const allSectionsUnfiltered = [...rawConnSections, ...rawPluginSections].filter(s => s.total > 0)
+
+    const totalEnabled = allSectionsUnfiltered.reduce((n, s) => n + s.enabledCount, 0)
+    const totalTools = allSectionsUnfiltered.reduce((n, s) => n + s.total, 0)
+
+    return (
+        <div className="flex flex-col gap-6 max-w-4xl">
+            <div className="flex items-start justify-between">
+                <div>
+                    <h1 className="text-xl font-bold tracking-tight text-zinc-50">Functions</h1>
+                    <p className="mt-0.5 text-sm text-text-muted">
+                        Agent-accessible functions from connections and extensions
+                    </p>
+                </div>
+                <button
+                    onClick={() => void fetchAll()}
+                    disabled={loading}
+                    title="Refresh"
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors disabled:opacity-40"
+                >
+                    <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">Refresh</span>
+                </button>
+            </div>
+
+            {/* Info banner */}
+            <div className="rounded-xl border border-blue-800/30 bg-blue-950/20 px-4 py-3 flex items-start gap-3">
+                <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-400/80">
+                    Functions are the atomic units of work the agent can call during task execution. They come from connected services (GitHub, Slack, etc.)
+                    and Kapsel extensions. Toggle individual functions to control what the agent can access.
+                </p>
+            </div>
+
+            {error && (
+                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 flex items-center gap-2 text-xs text-red">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    {error}
+                </div>
+            )}
+
+            <ListToolbar
+                hook={lf}
+                placeholder="Search functions..."
+                dimensions={[
+                    {
+                        key: 'source',
+                        label: 'Source',
+                        options: [
+                            { value: 'connections', label: 'Connections', dimmed: rawConnSections.filter((s) => s.total > 0).length === 0 },
+                            { value: 'extensions', label: 'Extensions', dimmed: rawPluginSections.filter((s) => s.total > 0).length === 0 },
+                        ],
+                    },
+                ]}
+                sortOptions={[
+                    { label: 'Source: A → Z', value: 'name_asc' },
+                    { label: 'Source: Z → A', value: 'name_desc' },
+                    { label: 'Most enabled', value: 'most_tools' },
+                    { label: 'Least enabled', value: 'least_tools' },
+                ]}
+            />
+
+            {!loading && totalTools > 0 && (
+                <div className="flex items-center gap-4 text-xs text-text-muted">
+                    <span><span className="text-text-secondary font-medium">{totalEnabled}</span> / {totalTools} functions enabled</span>
+                    <span><span className="text-text-secondary font-medium">{allSectionsUnfiltered.length}</span> sources</span>
+                </div>
+            )}
+
+            {loading ? (
+                <div className="flex items-center justify-center py-16">
+                    <RefreshCw className="h-5 w-5 text-text-muted animate-spin" />
+                </div>
+            ) : allSectionsUnfiltered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <WrenchIcon className="h-10 w-10 text-zinc-700" />
+                    <div className="text-center">
+                        <p className="text-sm font-medium text-text-muted">No functions available</p>
+                        <p className="text-xs text-text-muted mt-1">
+                            Connect services in{' '}
+                            <a href="/settings/connections" className="text-azure hover:underline">Connections</a>{' '}
+                            or install Kapsel extensions from the{' '}
+                            <a href="/marketplace" className="text-azure hover:underline">Marketplace</a>.
+                        </p>
+                    </div>
+                </div>
+            ) : allSections.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-1/40 py-12 text-center">
+                    <p className="text-sm text-text-muted">No results match your filters.</p>
+                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto">
+                        Clear search
+                    </button>
+                </div>
+            ) : (
+                <div className="flex flex-col gap-3">
+                    {allSections.map((s) => (
+                        <SourceSection
+                            key={s.key}
+                            label={s.label}
+                            tools={s.nodes}
+                            count={s.enabledCount}
+                            total={s.total}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}

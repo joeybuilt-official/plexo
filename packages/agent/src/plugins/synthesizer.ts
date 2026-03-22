@@ -2,17 +2,17 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Skill Synthesizer
+ * Kapsel Extension Synthesizer
  *
- * When a user requests integration with a service that has no installed skill
+ * When a user requests integration with a service that has no installed extension
  * or connector, this module:
  *   1. Scrapes the service's official docs
- *   2. Generates a valid Kapsel skill (ESM JS + kapsel.json)
- *   3. Writes files to the persistent generated-skills volume
+ *   2. Generates a valid Kapsel extension (ESM JS + kapsel.json)
+ *   3. Writes files to the persistent generated-extensions volume
  *   4. Registers a connections_registry entry so the credential UI appears
- *   5. Installs and auto-activates the skill
+ *   5. Installs and auto-activates the extension
  *
- * Generated skills run in the same Kapsel sandbox as marketplace plugins.
+ * Generated extensions run in the same Kapsel sandbox as marketplace plugins.
  * Capabilities are inferred from requested operations and validated against
  * a fixed allowlist — the LLM cannot expand them.
  */
@@ -22,11 +22,11 @@ import { plugins, connectionsRegistry, workspaces } from '@plexo/db'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { terminateWorker } from './persistent-pool.js'
-import type { KapselManifest } from '@plexo/sdk'
+import type { KapselManifest, ManifestType } from '@plexo/sdk'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const GENERATED_SKILLS_DIR =
+const GENERATED_EXTENSIONS_DIR =
     process.env.GENERATED_SKILLS_DIR ?? '/var/plexo/generated-skills'
 
 const MAX_CODE_BYTES = 100 * 1024 // 100KB hard cap
@@ -38,6 +38,17 @@ const CAPABILITY_ALLOWLIST = new Set([
     'memory:read',
     'memory:write',
     'memory:delete',
+    // Entity-scoped memory (v0.3.0)
+    'memory:read:person',
+    'memory:read:task',
+    'memory:read:transaction',
+    'memory:read:thread',
+    'memory:read:note',
+    'memory:write:person',
+    'memory:write:task',
+    'memory:write:transaction',
+    'memory:write:thread',
+    'memory:write:note',
     'schedule:register',
     'tasks:create',
     'tasks:read',
@@ -63,7 +74,9 @@ export interface SynthesizeInput {
 
 export interface SynthesizeResult {
     ok: boolean
+    /** @deprecated Use extensionName */
     skillName: string
+    extensionName: string
     registryId: string
     pluginId: string
     message: string
@@ -192,8 +205,8 @@ function inferCapabilities(requestedCapabilities: string[]): string[] {
         caps.add('tasks:read')
     }
     if (text.includes('memory') || text.includes('remember') || text.includes('recall')) {
-        caps.add('memory:read')
-        caps.add('memory:write')
+        caps.add('memory:read:note')
+        caps.add('memory:write:note')
     }
     if (text.includes('notif') || text.includes('alert') || text.includes('send message') || text.includes('message')) {
         caps.add('channel:send')
@@ -207,14 +220,14 @@ function inferCapabilities(requestedCapabilities: string[]): string[] {
 
 // ── Code generation ───────────────────────────────────────────────────────────
 
-async function generateSkillCode(
+async function generateExtensionCode(
     research: APIResearch,
     requestedCapabilities: string[],
     _workspaceId: string,
 ): Promise<string> {
     const { generateText } = await import('ai')
 
-    const systemPrompt = `You are a Kapsel skill generator for the Plexo AI agent platform.
+    const systemPrompt = `You are a Kapsel extension generator for the Plexo AI agent platform.
 Your output is a JavaScript ESM module that will run in a sandboxed worker thread.
 
 ABSOLUTE RULES — any violation makes the output unusable:
@@ -232,7 +245,7 @@ ABSOLUTE RULES — any violation makes the output unusable:
 CAPABILITY USE:
 ${research.registryId} connection access: sdk.connections.getCredentials('${research.registryId}')
 Scheduling: sdk.registerSchedule({ name, cron, handler })
-Memory: sdk.memory.read(query), sdk.memory.write({ content, tags })
+Memory: sdk.memory.read(query, { entityType: 'note' }), sdk.memory.write({ content, tags, entityType: 'note' })
 Tasks: sdk.tasks.create({ request, type })
 Notifications: sdk.channel.send({ text })
 
@@ -240,7 +253,7 @@ ERROR HANDLING:
 - Catch fetch errors and return { error: errorMessage } objects
 - Never throw unhandled exceptions from tool handlers`
 
-    const userPrompt = `Generate a Kapsel skill for "${research.serviceName}".
+    const userPrompt = `Generate a Kapsel extension for "${research.serviceName}".
 
 SERVICE WEBSITE: ${research.baseUrl}
 AUTH SCHEME: ${research.authScheme} (header: ${research.authHeaderName})
@@ -315,26 +328,28 @@ function generateManifest(
     const fullCaps = [...new Set([...capabilities, `connections:${registryId}`])]
 
     return {
-        kapsel: '0.2.0',
-        name: `@generated/${slug}-skill`,
+        kapsel: '0.3.0',
+        name: `@generated/${slug}`,
         version: '1.0.0',
-        type: 'skill',
+        type: 'function',
         entry: entryPath,
-        displayName: `${serviceName} (Custom)`,
-        description: `Auto-generated skill for ${serviceName}. Created by Plexo agent synthesizer.`,
+        displayName: serviceName,
+        description: `Auto-generated extension for ${serviceName}. Created by Plexo synthesizer.`,
         author: 'plexo-synthesizer',
         license: 'UNLICENSED',
         capabilities: fullCaps,
-        agentHints: {
-            category: 'custom',
-            complexity: 'simple',
+        resourceHints: {
+            maxInvocationMs: 30000,
         },
-    } as KapselManifest
+        dataResidency: {
+            sendsDataExternally: true,
+        },
+    }
 }
 
 // ── Disk I/O ──────────────────────────────────────────────────────────────────
 
-async function writeSkillToDisk(
+async function writeExtensionToDisk(
     slug: string,
     code: string,
     manifest: KapselManifest,
@@ -342,7 +357,7 @@ async function writeSkillToDisk(
     const safeSlug = sanitizeSlug(slug)
     if (!safeSlug) throw new Error('Invalid slug — service name produced empty sanitized value')
 
-    const dir = path.join(GENERATED_SKILLS_DIR, safeSlug)
+    const dir = path.join(GENERATED_EXTENSIONS_DIR, safeSlug)
     await fs.mkdir(dir, { recursive: true })
 
     const indexPath = path.join(dir, 'index.js')
@@ -425,7 +440,7 @@ async function installAndActivate(
             workspaceId,
             name: manifest.name,
             version: manifest.version,
-            type: manifest.type as 'agent' | 'skill' | 'channel' | 'tool' | 'mcp-server',
+            type: manifest.type as any,
             kapselVersion: manifest.kapsel,
             entry: manifest.entry,
             kapselManifest: manifest as unknown as Record<string, unknown>,
@@ -449,7 +464,7 @@ async function installAndActivate(
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
-export async function synthesizeSkill(input: SynthesizeInput): Promise<SynthesizeResult> {
+export async function synthesizeExtension(input: SynthesizeInput): Promise<SynthesizeResult> {
     const { serviceName, serviceWebsite, requestedCapabilities, workspaceId } = input
     const slug = sanitizeSlug(serviceName)
     const registryId = `generated-${slug}`
@@ -461,15 +476,16 @@ export async function synthesizeSkill(input: SynthesizeInput): Promise<Synthesiz
         // 2. Infer and validate capabilities
         const capabilities = inferCapabilities(requestedCapabilities)
 
-        // 3. Generate skill code via LLM
-        const code = await generateSkillCode(research, requestedCapabilities, workspaceId)
+        // 3. Generate extension code via LLM
+        const code = await generateExtensionCode(research, requestedCapabilities, workspaceId)
 
         // 4. Validate generated code
         const validation = validateGeneratedCode(code)
         if (!validation.valid) {
             return {
                 ok: false,
-                skillName: `@generated/${slug}-skill`,
+                skillName: `@generated/${slug}`,
+                extensionName: `@generated/${slug}`,
                 registryId,
                 pluginId: '',
                 message: '',
@@ -478,11 +494,11 @@ export async function synthesizeSkill(input: SynthesizeInput): Promise<Synthesiz
         }
 
         // 5. Build manifest (entry path determined after writing)
-        const entryPath = path.join(GENERATED_SKILLS_DIR, slug, 'index.js')
+        const entryPath = path.join(GENERATED_EXTENSIONS_DIR, slug, 'index.js')
         const manifest = generateManifest(serviceName, slug, registryId, capabilities, entryPath)
 
         // 6. Write to disk
-        await writeSkillToDisk(slug, code, manifest)
+        await writeExtensionToDisk(slug, code, manifest)
 
         // 7. Register connection entry (so credential UI appears immediately)
         await registerConnection(research)
@@ -498,17 +514,19 @@ export async function synthesizeSkill(input: SynthesizeInput): Promise<Synthesiz
         return {
             ok: true,
             skillName: manifest.name,
+            extensionName: manifest.name,
             registryId,
             pluginId,
             message:
-                `✦ ${serviceName} skill is live and active. ` +
+                `✦ ${serviceName} extension is live and active. ` +
                 `Go to **Connections → ${serviceName}** to enter your API key and start using it. ` +
-                `Tools generated: ${requestedCapabilities.map((c) => `\`${c}\``).join(', ')}.`,
+                `Functions generated: ${requestedCapabilities.map((c) => `\`${c}\``).join(', ')}.`,
         }
     } catch (err) {
         return {
             ok: false,
-            skillName: `@generated/${slug}-skill`,
+            skillName: `@generated/${slug}`,
+            extensionName: `@generated/${slug}`,
             registryId,
             pluginId: '',
             message: '',
@@ -516,3 +534,6 @@ export async function synthesizeSkill(input: SynthesizeInput): Promise<Synthesiz
         }
     }
 }
+
+/** @deprecated Use synthesizeExtension */
+export const synthesizeSkill = synthesizeExtension
