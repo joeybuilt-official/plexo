@@ -1231,17 +1231,17 @@ function UserSelfTab({ workspaceId }: { workspaceId: string }) {
 
             <div className="rounded-2xl border border-border bg-surface-1/60 p-7 flex flex-col gap-6">
                 {/* Identity */}
-                <Section label="Identity" icon={<User className="h-4 w-4" />}>
+                <InfoSection label="Identity" icon={<User className="h-4 w-4" />}>
                     <div className="grid grid-cols-2 gap-3">
                         {data.identity?.name && <KV label="Name" value={data.identity.name} />}
                         {data.identity?.primaryEmail && <KV label="Email" value={data.identity.primaryEmail} />}
                         {data.identity?.timezone && <KV label="Timezone" value={data.identity.timezone} />}
                         {data.identity?.locale && <KV label="Locale" value={data.identity.locale} />}
                     </div>
-                </Section>
+                </InfoSection>
 
                 {/* Communication Style */}
-                <Section label="Communication Style" icon={<MessageSquare className="h-4 w-4" />}>
+                <InfoSection label="Communication Style" icon={<MessageSquare className="h-4 w-4" />}>
                     <div className="grid grid-cols-2 gap-3">
                         {data.communicationStyle?.formality && <KV label="Formality" value={data.communicationStyle.formality} />}
                         {data.communicationStyle?.verbosity && <KV label="Verbosity" value={data.communicationStyle.verbosity} />}
@@ -1249,18 +1249,18 @@ function UserSelfTab({ workspaceId }: { workspaceId: string }) {
                             <KV label="Preferred Channels" value={data.communicationStyle.preferredChannels.join(', ')} />
                         )}
                     </div>
-                </Section>
+                </InfoSection>
 
                 {/* Relationships */}
                 {data.relationships && data.relationships.length > 0 && (
-                    <Section label="Relationships" icon={<Users className="h-4 w-4" />}>
+                    <InfoSection label="Relationships" icon={<Users className="h-4 w-4" />}>
                         <p className="text-xs text-text-muted">{data.relationships.length} known contacts (ranked by recency/frequency)</p>
-                    </Section>
+                    </InfoSection>
                 )}
 
                 {/* Contexts */}
                 {data.contexts && Object.keys(data.contexts).length > 0 && (
-                    <Section label="Contexts" icon={<BookOpen className="h-4 w-4" />}>
+                    <InfoSection label="Contexts" icon={<BookOpen className="h-4 w-4" />}>
                         <div className="flex flex-col gap-2">
                             {Object.entries(data.contexts).map(([key, ctx]) => (
                                 <div key={key} className="flex items-start gap-3 rounded-lg border border-border bg-canvas px-3 py-2">
@@ -1272,14 +1272,14 @@ function UserSelfTab({ workspaceId }: { workspaceId: string }) {
                                 </div>
                             ))}
                         </div>
-                    </Section>
+                    </InfoSection>
                 )}
             </div>
         </div>
     )
 }
 
-function Section({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+function InfoSection({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
     return (
         <div>
             <div className="flex items-center gap-2 mb-3">
