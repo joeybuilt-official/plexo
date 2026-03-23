@@ -3,4 +3,4 @@
 
 export * from './schema'
 export { db, type Database } from './client'
-export { sql, eq, and, or, ne, desc, asc, inArray, isNull, isNotNull, ilike, lt, gte } from 'drizzle-orm'
+export { sql, eq, and, or, ne, desc, asc, inArray, isNull, isNotNull, ilike, lt, gte, count } from 'drizzle-orm'
