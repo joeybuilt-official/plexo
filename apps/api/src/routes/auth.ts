@@ -106,6 +106,16 @@ authRouter.post('/workspace', optionalSupabaseAuth, async (req, res) => {
             return
         }
 
+        // Ensure the user row exists so the FK constraint on workspaces.owner_id is satisfied.
+        // optionalSupabaseAuth upserts via req.user, but bodyOwnerId may reference a user
+        // that only exists in Supabase (not yet in Plexo's users table).
+        await db.insert(users).values({
+            id: resolvedOwnerId,
+            email: req.user?.email ?? `${resolvedOwnerId}@setup.internal`,
+            name: name.trim(),
+            role: 'member',
+        }).onConflictDoNothing()
+
         const [ws] = await db.insert(workspaces).values({
             name: name.trim(),
             ownerId: resolvedOwnerId,
