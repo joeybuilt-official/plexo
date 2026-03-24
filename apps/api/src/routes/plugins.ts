@@ -20,8 +20,8 @@
  * which loads enabled extensions and runs their tools in sandboxed workers.
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and } from '@plexo/db'
-import { plugins, workspaces } from '@plexo/db'
+import { db, eq, and, sql as rawSql } from '@plexo/db'
+import { plugins, workspaces, extensionPrompts, extensionContexts } from '@plexo/db'
 import { logger } from '../logger.js'
 import { audit } from '../audit.js'
 import { validateManifest } from '@plexo/sdk'
@@ -175,6 +175,30 @@ pluginsRouter.post('/', async (req, res) => {
             await db.insert(dbBehaviorRules).values(rulesToInsert)
         }
 
+        // §7.6: Extract prompt artifacts from manifest and persist (disabled by default)
+        if (m.prompts && Array.isArray(m.prompts) && m.prompts.length > 0) {
+            try {
+                const promptRows = m.prompts.map((p: Record<string, unknown>) => ({
+                    workspaceId,
+                    extensionName: m.name,
+                    promptId: String(p.id),
+                    name: String(p.name ?? ''),
+                    description: String(p.description ?? ''),
+                    template: String(p.template ?? ''),
+                    variables: (p.variables ?? []) as object,
+                    tags: Array.isArray(p.tags) ? p.tags.map(String) : [],
+                    version: String(p.version ?? '1.0.0'),
+                    priority: (['low', 'normal', 'high', 'critical'].includes(String(p.priority)) ? String(p.priority) : 'normal') as 'low' | 'normal' | 'high' | 'critical',
+                    dependencies: Array.isArray(p.dependencies) ? p.dependencies.map(String) : [],
+                    enabled: false,
+                }))
+                await db.insert(extensionPrompts).values(promptRows).onConflictDoNothing()
+                logger.info({ extensionName: m.name, count: promptRows.length }, 'Extracted prompt artifacts from extension')
+            } catch (promptErr) {
+                logger.warn({ err: promptErr, extensionName: m.name }, 'Failed to extract prompt artifacts — non-fatal')
+            }
+        }
+
         logger.info({ id: inserted.id, name: m.name, type: m.type, kapsel: m.kapsel }, 'Extension installed (Kapsel)')
         audit(req, {
             workspaceId,
@@ -280,7 +304,6 @@ pluginsRouter.delete('/:id', async (req, res) => {
         // §5d: Cleanup — soft-delete associated behavior rules using raw SQL
         // instead of fetching all rules and filtering/updating in JS (N+1)
         try {
-            const { sql: rawSql } = await import('@plexo/db')
             const pluginTag = `plugin:${req.params.id}`
             await db.execute(rawSql`
                 UPDATE behavior_rules
@@ -292,6 +315,27 @@ pluginsRouter.delete('/:id', async (req, res) => {
             logger.info({ id: req.params.id }, 'Soft-deleted plugin behavior rules')
         } catch (ruleErr) {
             logger.warn({ err: ruleErr, id: req.params.id }, 'Failed to cleanup plugin behavior rules — non-fatal')
+        }
+
+        // §7.6/§7.7: Soft-delete extension prompts and context blocks
+        try {
+            await db.execute(rawSql`
+                UPDATE extension_prompts
+                SET deleted_at = NOW()
+                WHERE workspace_id = ${workspaceId}
+                  AND extension_name = ${existing.name}
+                  AND deleted_at IS NULL
+            `)
+            await db.execute(rawSql`
+                UPDATE extension_contexts
+                SET deleted_at = NOW()
+                WHERE workspace_id = ${workspaceId}
+                  AND extension_name = ${existing.name}
+                  AND deleted_at IS NULL
+            `)
+            logger.info({ id: req.params.id, name: existing.name }, 'Soft-deleted extension prompts and context')
+        } catch (pcErr) {
+            logger.warn({ err: pcErr, id: req.params.id }, 'Failed to cleanup extension prompts/context — non-fatal')
         }
 
         logger.info({ id: req.params.id, name: existing.name }, 'Extension uninstalled')
