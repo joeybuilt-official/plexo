@@ -719,6 +719,14 @@ export const ruleSourceEnum = pgEnum('rule_source', [
     'workspace',
     'project',
     'task',
+    'extension',
+])
+
+export const artifactPriorityEnum = pgEnum('artifact_priority', [
+    'low',
+    'normal',
+    'high',
+    'critical',
 ])
 
 /**
@@ -990,3 +998,80 @@ export const userSelf = pgTable('user_self', {
     communicationStyle: jsonb('communication_style').notNull().default({}),
     updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 })
+
+// ── Kapsel Prompt Library (§7.6) ─────────────────────────────────────────────
+// Extension-contributed prompt templates. Disabled by default; users enable per-workspace.
+
+export const extensionPrompts = pgTable('extension_prompts', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** Kapsel extension name, e.g. @acme/coding-standards */
+    extensionName: text('extension_name').notNull(),
+    /** Prompt artifact ID within the extension */
+    promptId: text('prompt_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    /** Template text with {{variable}} placeholders */
+    template: text('template').notNull(),
+    /** Declared variables schema */
+    variables: jsonb('variables').notNull().default('[]'),
+    /** Resolved variable defaults set by the user */
+    variableDefaults: jsonb('variable_defaults').notNull().default('{}'),
+    tags: text('tags').array().notNull().default(sql`'{}'`),
+    /** Semver version of this prompt artifact */
+    version: text('version').notNull(),
+    priority: artifactPriorityEnum('priority').notNull().default('normal'),
+    /** Kapsel artifact dependencies */
+    dependencies: text('dependencies').array().notNull().default(sql`'{}'`),
+    /** Users must explicitly enable prompts from extensions */
+    enabled: boolean('enabled').notNull().default(false),
+    /** Soft delete on extension uninstall */
+    deletedAt: timestamp('deleted_at', { mode: 'date' }),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('ext_prompts_workspace_idx').on(table.workspaceId),
+    index('ext_prompts_extension_idx').on(table.extensionName),
+    index('ext_prompts_enabled_idx').on(table.workspaceId, table.enabled),
+    uniqueIndex('ext_prompts_unique_idx').on(table.workspaceId, table.extensionName, table.promptId),
+])
+
+// ── Kapsel Context Layer (§7.7) ──────────────────────────────────────────────
+// Extension-contributed context blocks injected into system prompt at execution time.
+
+export const extensionContexts = pgTable('extension_contexts', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** Kapsel extension name */
+    extensionName: text('extension_name').notNull(),
+    /** Context artifact ID within the extension */
+    contextId: text('context_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    /** Context content (static or dynamically updated via SDK) */
+    content: text('content').notNull(),
+    contentType: text('content_type').notNull().default('text/plain'),
+    priority: artifactPriorityEnum('priority').notNull().default('normal'),
+    /** TTL in seconds. null = no expiry. */
+    ttl: integer('ttl'),
+    tags: text('tags').array().notNull().default(sql`'{}'`),
+    /** Estimated token count for budget allocation */
+    estimatedTokens: integer('estimated_tokens'),
+    /** Last time content was refreshed (for TTL calculation) */
+    lastRefreshedAt: timestamp('last_refreshed_at', { mode: 'date' }).defaultNow().notNull(),
+    /** Users can disable context from specific extensions */
+    enabled: boolean('enabled').notNull().default(true),
+    /** Soft delete on extension uninstall */
+    deletedAt: timestamp('deleted_at', { mode: 'date' }),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('ext_contexts_workspace_idx').on(table.workspaceId),
+    index('ext_contexts_extension_idx').on(table.extensionName),
+    index('ext_contexts_priority_idx').on(table.workspaceId, table.priority),
+    uniqueIndex('ext_contexts_unique_idx').on(table.workspaceId, table.extensionName, table.contextId),
+])
