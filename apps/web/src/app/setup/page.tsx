@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight, ChevronDown, Loader2, ExternalLink, AlertCircle, ShieldCheck, X } from 'lucide-react'
+import { createClient as createBrowserClient } from '@web/lib/supabase/client'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
@@ -204,14 +205,36 @@ export default function SetupPage() {
         setSaving(true)
         setError(null)
         try {
+            // Get the Supabase session so we can authenticate the request
+            const supabase = createBrowserClient()
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session?.user?.id) {
+                setError('Not signed in — please log in first.')
+                setSaving(false)
+                return
+            }
+
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+            if (session.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`
+            }
+
             const res = await fetch(`${API_BASE}/api/v1/auth/workspace`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: workspaceName.trim() }),
+                headers,
+                body: JSON.stringify({ name: workspaceName.trim(), ownerId: session.user.id }),
             })
             if (!res.ok) {
-                const err = await res.json() as { error?: { message?: string } }
-                throw new Error(err.error?.message ?? 'Failed to create workspace')
+                // Handle non-JSON error responses gracefully
+                const text = await res.text()
+                let message = 'Failed to create workspace'
+                try {
+                    const parsed = JSON.parse(text) as { error?: { message?: string } }
+                    message = parsed.error?.message ?? message
+                } catch {
+                    message = text || message
+                }
+                throw new Error(message)
             }
             const data = await res.json() as { workspaceId: string }
             setWorkspaceId(data.workspaceId)

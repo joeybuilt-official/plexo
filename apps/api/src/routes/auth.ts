@@ -9,6 +9,7 @@ import { logger } from '../logger.js'
 import { captureLifecycleEvent } from '../sentry.js'
 import { UUID_RE } from '../validation.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
+import { optionalSupabaseAuth } from '../middleware/supabase-auth.js'
 
 export const authRouter: RouterType = Router()
 
@@ -78,8 +79,8 @@ authRouter.post('/workspace/ensure', requireServiceKey, async (req, res) => {
 })
 
 // POST /api/auth/workspace — create a workspace (used by setup wizard)
-// Requires Supabase JWT auth (middleware injects req.user)
-authRouter.post('/workspace', async (req, res) => {
+// optionalSupabaseAuth populates req.user from JWT when present
+authRouter.post('/workspace', optionalSupabaseAuth, async (req, res) => {
     const { name, ownerId: bodyOwnerId } = req.body as { name?: string; ownerId?: string }
     if (!name?.trim()) {
         res.status(400).json({ error: { code: 'MISSING_NAME', message: 'name required' } })
@@ -95,9 +96,8 @@ authRouter.post('/workspace', async (req, res) => {
     }
 
     try {
-        // Resolve owner: explicit body param → authenticated user (from Supabase JWT)
-        const resolvedOwnerId = bodyOwnerId
-            ?? (req as unknown as { user?: { id: string } }).user?.id
+        // Resolve owner: explicit body param → authenticated user (from Supabase JWT via optionalSupabaseAuth)
+        const resolvedOwnerId = bodyOwnerId ?? req.user?.id
 
         if (!resolvedOwnerId) {
             res.status(400).json({
