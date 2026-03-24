@@ -743,6 +743,87 @@ export async function executeTask(
         capabilityBlock = '\n\n' + manifestToPromptBlock(manifest)
     } catch { /* non-fatal */ }
 
+    // ── Phase E: Extension prompts + context (Kapsel §7.6/§7.7) ─────────
+    let extensionPromptsBlock = ''
+    let extensionContextBlock = ''
+    try {
+        const { extensionPrompts: epTable, extensionContexts: ecTable } = await import('@plexo/db')
+        const { db: dbInst, eq: eqFn, and: andFn, isNull: isNullFn } = await import('@plexo/db')
+
+        // §7.6: Load enabled extension prompts and resolve variables
+        const enabledPrompts = await dbInst
+            .select()
+            .from(epTable)
+            .where(andFn(
+                eqFn(epTable.workspaceId, ctx.workspaceId),
+                eqFn(epTable.enabled, true),
+                isNullFn(epTable.deletedAt),
+            ))
+            .orderBy(epTable.priority, epTable.extensionName)
+
+        if (enabledPrompts.length > 0) {
+            const resolved = enabledPrompts.map((p) => {
+                const defaults = (p.variableDefaults ?? {}) as Record<string, unknown>
+                const schema = (p.variables ?? []) as Array<{ name: string; default?: unknown }>
+                let text = p.template
+                for (const v of schema) {
+                    const val = String(defaults[v.name] ?? v.default ?? '')
+                    text = text.replaceAll(`{{${v.name}}}`, val)
+                }
+                return `[Prompt from ${p.extensionName}: ${p.name}]\n${text}`
+            })
+            extensionPromptsBlock = `\n\nEXTENSION PROMPTS:\n${resolved.join('\n\n')}`
+        }
+
+        // §7.7: Load active context blocks (not expired, enabled, sorted by priority)
+        const contextRows = await dbInst
+            .select()
+            .from(ecTable)
+            .where(andFn(
+                eqFn(ecTable.workspaceId, ctx.workspaceId),
+                eqFn(ecTable.enabled, true),
+                isNullFn(ecTable.deletedAt),
+            ))
+            .orderBy(ecTable.priority, ecTable.extensionName)
+
+        if (contextRows.length > 0) {
+            const now = Date.now()
+            // Filter expired, apply token budget (40% of 128k = ~51,200 tokens for extensions)
+            const TOKEN_BUDGET = 51200
+            const PER_EXT_CAP = TOKEN_BUDGET * 0.25
+            let totalTokens = 0
+            const extTokens: Record<string, number> = {}
+            const blocks: string[] = []
+
+            for (const c of contextRows) {
+                // TTL check
+                if (c.ttl != null && c.lastRefreshedAt != null) {
+                    const age = (now - new Date(c.lastRefreshedAt).getTime()) / 1000
+                    if (age > c.ttl) continue // expired
+                }
+                const tokens = c.estimatedTokens ?? Math.ceil(c.content.length / 4)
+                const extKey = c.extensionName
+                extTokens[extKey] = (extTokens[extKey] ?? 0) + tokens
+                // Per-extension cap
+                if (extTokens[extKey]! > PER_EXT_CAP) {
+                    blocks.push(`[Context evicted: ${c.name} — per-extension token cap exceeded]`)
+                    continue
+                }
+                // Total budget check
+                if (totalTokens + tokens > TOKEN_BUDGET) {
+                    blocks.push(`[Context evicted: ${c.name} — token budget exceeded]`)
+                    continue
+                }
+                totalTokens += tokens
+                blocks.push(`[Context from ${c.extensionName}: ${c.name}]\n${c.content}`)
+            }
+
+            if (blocks.length > 0) {
+                extensionContextBlock = `\n\nEXTENSION CONTEXT:\n${blocks.join('\n\n')}`
+            }
+        }
+    } catch { /* non-fatal — extension prompts/context are additive only */ }
+
     // A/B variant assignment — assigns control (A) or challenger (B) prompt
     // so the self-improvement loop can measure the effect of prompt patches.
     let variantAssignment: Awaited<ReturnType<typeof assignVariant>> = {
@@ -906,7 +987,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
 - If you write copy, scripts, or plans, save them as appropriately-named files via write_asset.
 - Only call task_complete AFTER you have called write_asset at least once with the actual deliverable.`
         : ''
-}${capabilityBlock}${browsingBlock}${selfExtensionBlock}${preferencesBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
+}${capabilityBlock}${browsingBlock}${selfExtensionBlock}${preferencesBlock}${extensionPromptsBlock}${memoryBlock}${extensionContextBlock}${systemPromptExtra}${variantExtra}`
 
     const genResult = await (async () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK message types vary between versions
