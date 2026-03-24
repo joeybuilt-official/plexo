@@ -70,6 +70,7 @@ import { rsiRouter } from './routes/rsi.js'
 import { parallelRouter } from './routes/parallel.js'
 import { requireSupabaseAuth } from './middleware/supabase-auth.js'
 import { requireSuperAdmin } from './middleware/super-admin.js'
+import { cmdCenterAuth } from './middleware/cmd-center-auth.js'
 import { adminRouter } from './routes/admin.js'
 import { cmdCenterRouter } from './routes/cmd-center/index.js'
 import { traceMiddleware } from './middleware/trace.js'
@@ -159,8 +160,8 @@ v1.use('/webhooks', sentryWebhookRouter)
 // Admin routes — super-admin only (Command Center)
 v1.use('/admin', requireSupabaseAuth, requireSuperAdmin, adminRouter)
 
-// Command Center data aggregation routes — super-admin only
-v1.use('/cmd-center', requireSupabaseAuth, requireSuperAdmin, cmdCenterRouter)
+// Command Center data aggregation routes — accepts Supabase JWT (super-admin) OR service key
+v1.use('/cmd-center', cmdCenterAuth, cmdCenterRouter)
 
 v1.use('/debug', debugRouter)
 v1.use('/chat', chatRouter)
