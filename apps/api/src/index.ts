@@ -60,6 +60,8 @@ import { debugRouter } from './routes/debug.js'
 import { chatRouter } from './routes/chat.js'
 import { conversationsRouter } from './routes/conversations.js'
 import { behaviorRouter } from './routes/behavior.js'
+import { promptsRouter } from './routes/prompts.js'
+import { contextRouter } from './routes/context.js'
 import { systemRouter } from './routes/system.js'
 import { voiceRouter } from './routes/voice.js'
 import { introspectRouter } from './routes/introspect.js'
@@ -165,6 +167,8 @@ v1.use('/chat', chatRouter)
 v1.use('/conversations', conversationsRouter)
 v1.use('/voice', voiceRouter)
 v1.use('/behavior/:workspaceId', behaviorRouter)
+v1.use('/prompts/:workspaceId', promptsRouter)
+v1.use('/context/:workspaceId', contextRouter)
 v1.use('/system', systemRouter)
     v1.use('/workspaces/:id/introspect', introspectRouter)
     v1.use('/workspaces/:id/rsi', rsiRouter)
