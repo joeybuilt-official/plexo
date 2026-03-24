@@ -69,6 +69,7 @@ import { parallelRouter } from './routes/parallel.js'
 import { requireSupabaseAuth } from './middleware/supabase-auth.js'
 import { requireSuperAdmin } from './middleware/super-admin.js'
 import { adminRouter } from './routes/admin.js'
+import { cmdCenterRouter } from './routes/cmd-center/index.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
@@ -155,6 +156,9 @@ v1.use('/webhooks', sentryWebhookRouter)
 
 // Admin routes — super-admin only (Command Center)
 v1.use('/admin', requireSupabaseAuth, requireSuperAdmin, adminRouter)
+
+// Command Center data aggregation routes — super-admin only
+v1.use('/cmd-center', requireSupabaseAuth, requireSuperAdmin, cmdCenterRouter)
 
 v1.use('/debug', debugRouter)
 v1.use('/chat', chatRouter)

@@ -353,6 +353,182 @@ const CLOUDFLARE_TOOLS: ToolFactory = (creds) => {
     }
 }
 
+const COOLIFY_TOOLS: ToolFactory = (creds) => {
+    const token = creds.token ?? creds.api_token ?? creds.access_token ?? ''
+    const baseUrl = (creds.base_url as string) ?? 'https://coolify.joeybuilt.com'
+    const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+
+    return {
+        coolify__list_services: tool({
+            description: 'List all applications and services managed by Coolify.',
+            inputSchema: z.object({}),
+            execute: async () => {
+                const res = await fetch(`${baseUrl}/api/v1/applications`, { headers })
+                if (!res.ok) return `Coolify error: ${res.status} ${res.statusText}`
+                const apps = await res.json() as Array<{ uuid: string; name: string; status: string; fqdn: string }>
+                return apps.map(a => `${a.name} [${a.status}] ${a.fqdn ?? ''} (${a.uuid})`).join('\n') || 'No services found.'
+            },
+        }),
+        coolify__list_deployments: tool({
+            description: 'List recent deployments for a Coolify application.',
+            inputSchema: z.object({ uuid: z.string().describe('Application UUID') }),
+            execute: async ({ uuid }) => {
+                const res = await fetch(`${baseUrl}/api/v1/applications/${uuid}/deployments`, { headers })
+                if (!res.ok) return `Coolify error: ${res.status}`
+                const deps = await res.json() as Array<{ id: string; status: string; created_at: string; commit: string }>
+                return deps.slice(0, 10).map(d => `[${d.status}] ${d.created_at} ${d.commit ?? ''}`).join('\n') || 'No deployments.'
+            },
+        }),
+        coolify__redeploy_service: tool({
+            description: 'Trigger a redeployment of a Coolify application.',
+            inputSchema: z.object({ uuid: z.string().describe('Application UUID to redeploy') }),
+            execute: async ({ uuid }) => {
+                const res = await fetch(`${baseUrl}/api/v1/applications/${uuid}/restart`, { method: 'POST', headers })
+                if (!res.ok) return `Coolify error: ${res.status}`
+                return `Redeployment triggered for ${uuid}`
+            },
+        }),
+    }
+}
+
+const SENTRY_TOOLS: ToolFactory = (creds) => {
+    const token = creds.auth_token ?? creds.token ?? creds.access_token ?? ''
+    const org = (creds.organization as string) ?? ''
+    const headers = { Authorization: `Bearer ${token}` }
+
+    return {
+        sentry__list_projects: tool({
+            description: 'List Sentry projects for the organization.',
+            inputSchema: z.object({}),
+            execute: async () => {
+                const res = await fetch(`https://sentry.io/api/0/organizations/${org}/projects/`, { headers })
+                if (!res.ok) return `Sentry error: ${res.status}`
+                const projects = await res.json() as Array<{ slug: string; name: string; platform: string }>
+                return projects.map(p => `${p.name} (${p.slug}) — ${p.platform}`).join('\n') || 'No projects.'
+            },
+        }),
+        sentry__list_issues: tool({
+            description: 'List unresolved Sentry issues, optionally filtered by project.',
+            inputSchema: z.object({
+                project: z.string().optional().describe('Project slug to filter by'),
+                limit: z.number().optional().default(25),
+            }),
+            execute: async ({ project, limit }) => {
+                const query = project ? `&project=${project}` : ''
+                const res = await fetch(`https://sentry.io/api/0/organizations/${org}/issues/?query=is:unresolved${query}&limit=${limit}`, { headers })
+                if (!res.ok) return `Sentry error: ${res.status}`
+                const issues = await res.json() as Array<{ id: string; title: string; culprit: string; level: string; count: string }>
+                return issues.map(i => `[${i.level}] ${i.title} (${i.count}x) — ${i.culprit}`).join('\n') || 'No unresolved issues.'
+            },
+        }),
+        sentry__resolve_issue: tool({
+            description: 'Resolve a Sentry issue by ID.',
+            inputSchema: z.object({ issueId: z.string().describe('Sentry issue ID') }),
+            execute: async ({ issueId }) => {
+                const res = await fetch(`https://sentry.io/api/0/issues/${issueId}/`, {
+                    method: 'PUT',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'resolved' }),
+                })
+                if (!res.ok) return `Sentry error: ${res.status}`
+                return `Issue ${issueId} resolved.`
+            },
+        }),
+    }
+}
+
+const POSTHOG_TOOLS: ToolFactory = (creds) => {
+    const apiKey = creds.api_key ?? creds.token ?? creds.access_token ?? ''
+    const projectId = (creds.project_id as string) ?? ''
+    const apiHost = (creds.api_host as string) ?? 'https://app.posthog.com'
+    const headers = { Authorization: `Bearer ${apiKey}` }
+
+    return {
+        posthog__list_feature_flags: tool({
+            description: 'List PostHog feature flags for the project.',
+            inputSchema: z.object({}),
+            execute: async () => {
+                const res = await fetch(`${apiHost}/api/projects/${projectId}/feature_flags/`, { headers })
+                if (!res.ok) return `PostHog error: ${res.status}`
+                const d = await res.json() as { results: Array<{ id: number; key: string; name: string; active: boolean; rollout_percentage: number | null }> }
+                return d.results?.map(f => `${f.key} [${f.active ? 'ON' : 'OFF'}] ${f.rollout_percentage != null ? `${f.rollout_percentage}%` : '100%'} — ${f.name}`).join('\n') || 'No flags.'
+            },
+        }),
+        posthog__toggle_feature_flag: tool({
+            description: 'Enable or disable a PostHog feature flag.',
+            inputSchema: z.object({
+                flagId: z.number().describe('Feature flag ID'),
+                active: z.boolean().describe('true to enable, false to disable'),
+            }),
+            execute: async ({ flagId, active }) => {
+                const res = await fetch(`${apiHost}/api/projects/${projectId}/feature_flags/${flagId}/`, {
+                    method: 'PATCH',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ active }),
+                })
+                if (!res.ok) return `PostHog error: ${res.status}`
+                return `Feature flag ${flagId} ${active ? 'enabled' : 'disabled'}.`
+            },
+        }),
+    }
+}
+
+const OVHCLOUD_TOOLS: ToolFactory = (creds) => {
+    const appKey = (creds.application_key as string) ?? ''
+    const appSecret = (creds.application_secret as string) ?? ''
+    const consumerKey = (creds.consumer_key as string) ?? ''
+    const endpoint = (creds.endpoint as string) ?? 'ovh-eu'
+    const baseUrls: Record<string, string> = {
+        'ovh-eu': 'https://eu.api.ovh.com/1.0',
+        'ovh-us': 'https://api.us.ovhcloud.com/1.0',
+        'ovh-ca': 'https://ca.api.ovh.com/1.0',
+    }
+    const baseUrl = baseUrls[endpoint] ?? baseUrls['ovh-eu']!
+
+    async function ovhRequest(method: string, path: string): Promise<Response> {
+        const url = `${baseUrl}${path}`
+        const timeRes = await fetch(`${baseUrl}/auth/time`)
+        const timestamp = await timeRes.text()
+        const { createHash } = await import('node:crypto')
+        const sig = '$1$' + createHash('sha1')
+            .update(`${appSecret}+${consumerKey}+${method}+${url}++${timestamp}`)
+            .digest('hex')
+        return fetch(url, {
+            method,
+            headers: {
+                'X-Ovh-Application': appKey,
+                'X-Ovh-Consumer': consumerKey,
+                'X-Ovh-Timestamp': timestamp,
+                'X-Ovh-Signature': sig,
+                'Content-Type': 'application/json',
+            },
+        })
+    }
+
+    return {
+        ovhcloud__list_servers: tool({
+            description: 'List dedicated servers on OVHcloud.',
+            inputSchema: z.object({}),
+            execute: async () => {
+                const res = await ovhRequest('GET', '/dedicated/server')
+                if (!res.ok) return `OVH error: ${res.status}`
+                const names = await res.json() as string[]
+                return names.join('\n') || 'No servers found.'
+            },
+        }),
+        ovhcloud__get_server_status: tool({
+            description: 'Get status and hardware details of a specific OVHcloud dedicated server.',
+            inputSchema: z.object({ serverName: z.string().describe('Server name (e.g. ns1234567.ip-1-2-3.eu)') }),
+            execute: async ({ serverName }) => {
+                const res = await ovhRequest('GET', `/dedicated/server/${encodeURIComponent(serverName)}`)
+                if (!res.ok) return `OVH error: ${res.status}`
+                const server = await res.json() as Record<string, unknown>
+                return JSON.stringify(server, null, 2)
+            },
+        }),
+    }
+}
+
 // ── Tool factory registry ─────────────────────────────────────────────────────
 
 const TOOL_FACTORIES: Record<string, ToolFactory | undefined> = {
@@ -361,6 +537,10 @@ const TOOL_FACTORIES: Record<string, ToolFactory | undefined> = {
     vercel: VERCEL_TOOLS,
     stripe: STRIPE_TOOLS,
     cloudflare: CLOUDFLARE_TOOLS,
+    coolify: COOLIFY_TOOLS,
+    sentry: SENTRY_TOOLS,
+    posthog: POSTHOG_TOOLS,
+    ovhcloud: OVHCLOUD_TOOLS,
 }
 
 // ── Bridge: load workspace connections → AI SDK tools ────────────────────────
