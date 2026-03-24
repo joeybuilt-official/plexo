@@ -3,8 +3,8 @@
 
 import { Router, type Router as RouterType } from 'express'
 import pkg from '../../package.json' with { type: 'json' }
-import { db, sql } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import { db, sql, eq, and, isNull } from '@plexo/db'
+import { workspaces, extensionPrompts, extensionContexts } from '@plexo/db'
 import { createClient } from 'redis'
 import { logger } from '../logger.js'
 import { workerStats } from '@plexo/agent/persistent-pool'
@@ -158,6 +158,20 @@ healthRouter.get('/', async (_req, res) => {
     const critical = services.postgres.ok && services.redis.ok
     const status = critical ? 'ok' : 'degraded'
 
+    // Kapsel §7.6/§7.7 status — lightweight aggregate counts
+    let promptLibrary = { totalPrompts: 0, enabledPrompts: 0 }
+    let contextLayer = { totalContexts: 0, enabledContexts: 0 }
+    try {
+        const [pTotal] = await db.select({ count: sql<number>`count(*)` }).from(extensionPrompts).where(isNull(extensionPrompts.deletedAt))
+        const [pEnabled] = await db.select({ count: sql<number>`count(*)` }).from(extensionPrompts).where(and(eq(extensionPrompts.enabled, true), isNull(extensionPrompts.deletedAt)))
+        promptLibrary = { totalPrompts: Number(pTotal?.count ?? 0), enabledPrompts: Number(pEnabled?.count ?? 0) }
+    } catch { /* non-fatal */ }
+    try {
+        const [cTotal] = await db.select({ count: sql<number>`count(*)` }).from(extensionContexts).where(isNull(extensionContexts.deletedAt))
+        const [cEnabled] = await db.select({ count: sql<number>`count(*)` }).from(extensionContexts).where(and(eq(extensionContexts.enabled, true), isNull(extensionContexts.deletedAt)))
+        contextLayer = { totalContexts: Number(cTotal?.count ?? 0), enabledContexts: Number(cEnabled?.count ?? 0) }
+    } catch { /* non-fatal */ }
+
     res.status(critical ? 200 : 503).json({
         status,
         services,
@@ -168,6 +182,8 @@ healthRouter.get('/', async (_req, res) => {
             specVersion: '0.3.0',
             host: 'plexo',
             workers: workerStats(),
+            promptLibrary,
+            contextLayer,
         },
     })
 })
