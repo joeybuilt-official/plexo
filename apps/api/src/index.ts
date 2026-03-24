@@ -201,6 +201,11 @@ v1.get('/agent/status', async (req, res) => {
 // Canonical versioned prefix
 app.use('/api/v1', v1)
 
+// OAuth callbacks are constructed as /api/oauth/:provider/callback (no v1 prefix)
+// by the redirect_uri builder in oauth.ts. Mount directly so Google/Slack/etc.
+// can complete the OAuth flow regardless of API versioning.
+app.use('/api/oauth', oauthRouter)
+
 // ── Error Handler ────────────────────────────────────────────
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
