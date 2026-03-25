@@ -119,6 +119,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - generated_skills:/var/plexo/generated-skills
+    # Prevent DNS shadowing when deployed via Coolify (which connects this
+    # container to its own network where 'postgres' resolves to coolify-db).
+    # extra_hosts takes absolute precedence over Docker's embedded DNS.
+    extra_hosts:
+      - "postgres:${PLEXO_DB_IP:-10.0.15.3}"
+      - "redis:${PLEXO_REDIS_IP:-10.0.15.5}"
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
       interval: 30s
