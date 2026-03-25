@@ -260,9 +260,7 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
                 .set({ credentials: encrypted, scopesGranted, name: connectionName, status: 'active', lastVerifiedAt: new Date() })
                 .where(eq(installedConnections.id, existing[0].id))
         } else {
-            const { ulid } = await import('ulid')
             await db.insert(installedConnections).values({
-                id: ulid(),
                 workspaceId,
                 registryId: config.registryId,
                 name: connectionName,
