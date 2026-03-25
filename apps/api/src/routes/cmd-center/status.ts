@@ -9,12 +9,15 @@ export const statusRouter = Router()
 statusRouter.get('/', async (req, res) => {
     try {
         const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace configured' }); return }
 
         const result = await cachedFetch('cmd-center:status', 30, async () => {
             const [coolifyR, githubR, sentryR, posthogR, ovhR, plexoR] = await Promise.allSettled([
-                fetchCoolify(wsId), fetchGitHub(wsId), fetchSentry(wsId),
-                fetchPostHog(wsId), fetchOVH(wsId), fetchPlexoHealth(),
+                wsId ? fetchCoolify(wsId) : Promise.resolve({ healthy: 0, total: 0, services: [] }),
+                wsId ? fetchGitHub(wsId) : Promise.resolve({ openPrs: 0, openIssues: 0, repos: [] }),
+                wsId ? fetchSentry(wsId) : Promise.resolve({ totalErrors24h: 0, projects: [] }),
+                wsId ? fetchPostHog(wsId) : Promise.resolve({ totalDau: 0, insights: [] }),
+                wsId ? fetchOVH(wsId) : Promise.resolve({ servers: [] }),
+                fetchPlexoHealth(),
             ])
             return {
                 coolify: coolifyR.status === 'fulfilled' ? coolifyR.value : { healthy: 0, total: 0, services: [] },
