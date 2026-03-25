@@ -127,6 +127,16 @@ export async function optionalSupabaseAuth(req: Request, _res: Response, next: N
 const userCache = new Map<string, { user: PlexoUser; expiry: number }>()
 const CACHE_TTL_MS = 60_000 // 1 minute
 
+/**
+ * Parse SUPER_ADMIN_EMAILS env var (comma-separated, case-insensitive).
+ * Users whose email matches are auto-promoted to super admin on login.
+ */
+function isSuperAdminEmail(email: string): boolean {
+    const raw = process.env.SUPER_ADMIN_EMAILS
+    if (!raw) return false
+    return raw.split(',').map(e => e.trim().toLowerCase()).includes(email.toLowerCase())
+}
+
 async function upsertUser(
     supabaseId: string,
     email: string,
@@ -137,6 +147,8 @@ async function upsertUser(
     if (cached && cached.expiry > Date.now()) {
         return cached.user
     }
+
+    const shouldBeSuperAdmin = isSuperAdminEmail(email)
 
     // Try to find existing user
     let [existing] = await db
@@ -160,8 +172,8 @@ async function upsertUser(
             email,
             name,
             image,
-            role: 'member',
-            isSuperAdmin: false,
+            role: shouldBeSuperAdmin ? 'admin' : 'member',
+            isSuperAdmin: shouldBeSuperAdmin,
         }).onConflictDoNothing().returning({
             id: users.id,
             email: users.email,
@@ -183,8 +195,13 @@ async function upsertUser(
                 .limit(1)
         } else {
             existing = inserted
-            logger.info({ userId: supabaseId, email }, 'New user auto-provisioned from Supabase JWT')
+            logger.info({ userId: supabaseId, email, isSuperAdmin: shouldBeSuperAdmin }, 'New user auto-provisioned from Supabase JWT')
         }
+    } else if (shouldBeSuperAdmin && !existing.isSuperAdmin) {
+        // Existing user whose email is now in SUPER_ADMIN_EMAILS — promote them
+        await db.update(users).set({ isSuperAdmin: true, role: 'admin' }).where(eq(users.id, supabaseId))
+        existing = { ...existing, isSuperAdmin: true, role: 'admin' }
+        logger.info({ userId: supabaseId, email }, 'User promoted to super admin via SUPER_ADMIN_EMAILS')
     }
 
     const plexoUser: PlexoUser = {
