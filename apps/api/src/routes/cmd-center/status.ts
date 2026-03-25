@@ -77,8 +77,11 @@ async function fetchPostHog(_wsId: string) { return { totalDau: 0, insights: [] 
 async function fetchOVH(_wsId: string) { return { servers: [] } }
 
 async function fetchPlexoHealth() {
+    // This runs inside the API process itself — we can just import the health check logic
+    // or call our own port. Use 127.0.0.1 to avoid DNS issues in container environments.
+    const port = process.env.PORT ?? '3001'
     try {
-        const r = await fetch('http://localhost:3001/health')
+        const r = await fetch(`http://127.0.0.1:${port}/health`)
         if (!r.ok) return { health: { status: 'unhealthy', version: '?', integrations: [] } }
         const d = await r.json() as any
         return { health: { status: d.status === 'ok' ? 'healthy' : 'degraded', version: d.version ?? '?', integrations: [] as any[] } }

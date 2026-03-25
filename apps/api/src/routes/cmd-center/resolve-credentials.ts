@@ -16,12 +16,18 @@ export async function resolveWorkspaceId(req: Request): Promise<string | null> {
     if (process.env.CMD_CENTER_WORKSPACE_ID) {
         return process.env.CMD_CENTER_WORKSPACE_ID
     }
-    if (req.user?.id) {
-        const [row] = await db.select({ workspaceId: workspaceMembers.workspaceId })
-            .from(workspaceMembers)
-            .where(eq(workspaceMembers.userId, req.user.id))
-            .limit(1)
-        return row?.workspaceId ?? null
+    // Only query DB if userId looks like a valid UUID (not a service key pseudo-ID)
+    const userId = req.user?.id
+    if (userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+        try {
+            const [row] = await db.select({ workspaceId: workspaceMembers.workspaceId })
+                .from(workspaceMembers)
+                .where(eq(workspaceMembers.userId, userId))
+                .limit(1)
+            return row?.workspaceId ?? null
+        } catch {
+            return null
+        }
     }
     return null
 }
