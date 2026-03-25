@@ -4,6 +4,10 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
+    # Unique hostname avoids DNS collision when deployed via Coolify, which
+    # connects the api container to the Coolify network where 'postgres'
+    # already resolves to coolify-db. 'plexo-db' is scoped to this network only.
+    hostname: plexo-db
     environment:
       POSTGRES_USER: plexo
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plexo}
@@ -45,7 +49,7 @@ services:
       postgres:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@postgres:5432/plexo
+      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
       MIGRATIONS_DIR: /app/packages/db/drizzle
     # 256m RAM + up to 256m swap = 512m ceiling total.
     # OOM-kill enforced by cgroup — prevents runaway swap consumption.
@@ -72,7 +76,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
-      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@postgres:5432/plexo
+      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
       REDIS_URL: redis://redis:6379
       PUBLIC_URL: ${PUBLIC_URL}
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
@@ -119,12 +123,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - generated_skills:/var/plexo/generated-skills
-    # Prevent DNS shadowing when deployed via Coolify (which connects this
-    # container to its own network where 'postgres' resolves to coolify-db).
-    # extra_hosts takes absolute precedence over Docker's embedded DNS.
-    extra_hosts:
-      - "postgres:${PLEXO_DB_IP:-10.0.15.3}"
-      - "redis:${PLEXO_REDIS_IP:-10.0.15.5}"
+    # When Coolify connects this container to its proxy network, 'postgres'
+    # may resolve to coolify-db instead of our database. Use the unique
+    # hostname 'plexo-db' (set on the postgres service) to avoid collisions.
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
       interval: 30s
