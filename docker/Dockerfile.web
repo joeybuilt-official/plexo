@@ -55,6 +55,11 @@ ENV NEXT_PUBLIC_SOURCE_COMMIT=""
 # (rewrites are baked into the build output, not resolved at runtime)
 ARG INTERNAL_API_URL=http://api:3001
 ENV INTERNAL_API_URL=${INTERNAL_API_URL}
+# Supabase Auth URL/key must be available at build time for Next.js NEXT_PUBLIC_ inlining
+ARG NEXT_PUBLIC_SUPABASE_AUTH_URL
+ARG NEXT_PUBLIC_SUPABASE_AUTH_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_AUTH_URL=${NEXT_PUBLIC_SUPABASE_AUTH_URL}
+ENV NEXT_PUBLIC_SUPABASE_AUTH_ANON_KEY=${NEXT_PUBLIC_SUPABASE_AUTH_ANON_KEY}
 RUN export NEXT_PUBLIC_SOURCE_COMMIT=$(cat /tmp/SOURCE_COMMIT) && pnpm --filter @plexo/web build
 
 FROM node:22-alpine AS runner

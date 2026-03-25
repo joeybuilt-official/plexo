@@ -130,6 +130,8 @@ services:
       dockerfile: docker/Dockerfile.web
       args:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
+        NEXT_PUBLIC_SUPABASE_AUTH_URL: ${NEXT_PUBLIC_SUPABASE_AUTH_URL:-}
+        NEXT_PUBLIC_SUPABASE_AUTH_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_AUTH_ANON_KEY:-}
     restart: unless-stopped
     depends_on:
       api:
