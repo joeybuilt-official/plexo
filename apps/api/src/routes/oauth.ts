@@ -131,7 +131,7 @@ oauthRouter.get('/:provider/start', async (req, res) => {
     }
 
     const state = base64url(randomBytes(16))
-    const redirectUri = `${process.env.API_PUBLIC_URL ?? 'http://localhost:3001'}/api/oauth/${provider}/callback`
+    const redirectUri = `${process.env.PUBLIC_URL ?? 'http://localhost:3001'}/api/oauth/${provider}/callback`
 
     try {
         await storePkce(state, { workspaceId, redirectUri, createdAt: Date.now() })
@@ -148,7 +148,7 @@ oauthRouter.get('/:provider/start', async (req, res) => {
         state,
         response_type: 'code',
     })
-    if (provider === 'google') params.set('access_type', 'offline')
+    if (provider === 'google' || provider === 'google-workspace') params.set('access_type', 'offline')
     res.redirect(`${config.authUrl}?${params.toString()}`)
 })
 
