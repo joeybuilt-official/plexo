@@ -2,22 +2,22 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Extension Audit Trail API (§18)
+ * Extension Audit Trail API (§18)
  *
- * GET  /api/v1/kapsel-audit?workspaceId=&extensionId=&agentId=&action=&outcome=&from=&to=&limit=&offset=
+ * GET  /api/v1/extension-audit?workspaceId=&extensionId=&agentId=&action=&outcome=&from=&to=&limit=&offset=
  *
- * Returns paginated Kapsel extension/agent audit entries.
+ * Returns paginated extension/agent audit entries.
  */
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, and, desc } from '@plexo/db'
-import { kapselAuditLog } from '@plexo/db'
+import { extensionAuditLog } from '@plexo/db'
 import { sql } from '@plexo/db'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 
-export const kapselAuditRouter: RouterType = Router()
+export const extensionAuditRouter: RouterType = Router()
 
-kapselAuditRouter.get('/', async (req, res) => {
+extensionAuditRouter.get('/', async (req, res) => {
     const {
         workspaceId,
         extensionId,
@@ -43,24 +43,24 @@ kapselAuditRouter.get('/', async (req, res) => {
     const offset = parseInt(offsetStr ?? '0', 10) || 0
 
     try {
-        const conditions = [eq(kapselAuditLog.workspaceId, workspaceId)]
+        const conditions = [eq(extensionAuditLog.workspaceId, workspaceId)]
 
-        if (extensionId) conditions.push(eq(kapselAuditLog.extensionId, extensionId))
-        if (agentId) conditions.push(eq(kapselAuditLog.agentId, agentId))
-        if (action) conditions.push(eq(kapselAuditLog.action, action))
-        if (outcome) conditions.push(eq(kapselAuditLog.outcome, outcome))
-        if (fromDate) conditions.push(sql`${kapselAuditLog.createdAt} >= ${new Date(fromDate)}`)
-        if (toDate) conditions.push(sql`${kapselAuditLog.createdAt} <= ${new Date(toDate)}`)
+        if (extensionId) conditions.push(eq(extensionAuditLog.extensionId, extensionId))
+        if (agentId) conditions.push(eq(extensionAuditLog.agentId, agentId))
+        if (action) conditions.push(eq(extensionAuditLog.action, action))
+        if (outcome) conditions.push(eq(extensionAuditLog.outcome, outcome))
+        if (fromDate) conditions.push(sql`${extensionAuditLog.createdAt} >= ${new Date(fromDate)}`)
+        if (toDate) conditions.push(sql`${extensionAuditLog.createdAt} <= ${new Date(toDate)}`)
 
         const [rows, countResult] = await Promise.all([
             db.select()
-                .from(kapselAuditLog)
+                .from(extensionAuditLog)
                 .where(and(...conditions))
-                .orderBy(desc(kapselAuditLog.createdAt))
+                .orderBy(desc(extensionAuditLog.createdAt))
                 .limit(limit)
                 .offset(offset),
             db.select({ count: sql<number>`count(*)::int` })
-                .from(kapselAuditLog)
+                .from(extensionAuditLog)
                 .where(and(...conditions)),
         ])
 
@@ -69,7 +69,7 @@ kapselAuditRouter.get('/', async (req, res) => {
             total: countResult[0]?.count ?? 0,
         })
     } catch (err) {
-        logger.error({ err }, 'GET /api/v1/kapsel-audit failed')
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Kapsel audit log' } })
+        logger.error({ err }, 'GET /api/v1/extension-audit failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch extension audit log' } })
     }
 })

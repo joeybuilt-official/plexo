@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Extension Context Layer API (Kapsel §7.7).
+ * Extension Context Layer API (Fabric §7.7).
  *
  * GET    /api/v1/context/:workspaceId              → list context blocks
  * PATCH  /api/v1/context/:workspaceId/:contextId   → enable/disable, override priority

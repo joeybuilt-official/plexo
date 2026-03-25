@@ -743,7 +743,7 @@ export async function executeTask(
         capabilityBlock = '\n\n' + manifestToPromptBlock(manifest)
     } catch { /* non-fatal */ }
 
-    // ── Phase E: Extension prompts + context (Kapsel §7.6/§7.7) ─────────
+    // ── Phase E: Extension prompts + context (Fabric §7.6/§7.7) ─────────
     let extensionPromptsBlock = ''
     let extensionContextBlock = ''
     try {
@@ -955,7 +955,7 @@ You can search, read, and INTERACT with the public web.
 
 SELF-EXTENSION CAPABILITY:
 You can generate new skills and connections for any external service on demand.
-Call synthesize_kapsel_skill when:
+Call synthesize_extension when:
 - The user asks you to connect to a service with no installed skill or connector
 - The user asks you to "add support for X", "build a tool for X", or "integrate with X"
 The tool handles everything: API research, code generation, disk storage, connection

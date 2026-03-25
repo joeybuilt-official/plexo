@@ -2,23 +2,23 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel manifest validation
- * Corresponds to §3.3 of the Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric manifest validation
+ * Corresponds to §3.3 of the Plexo Fabric Specification v0.4.0
  *
  * Used by:
  * - POST /api/plugins (host install validation)
- * - @kapsel/cli (publish validation)
+ * - @plexo/cli (publish validation)
  */
 
-import type { ManifestType, CapabilityToken, HostComplianceLevel, EntityTypeName } from '../types/manifest.js'
+import type { ExtensionManifest, ManifestType, CapabilityToken, HostComplianceLevel, EntityTypeName } from '../types/manifest.js'
 import type { TrustTier } from '../types/trust.js'
 
 // ---------------------------------------------------------------------------
 // Valid values
 // ---------------------------------------------------------------------------
 
-const VALID_TYPES: ManifestType[] = ['agent', 'function', 'channel', 'mcp-server']
-const LEGACY_TYPES = new Set(['tool', 'skill'])
+const VALID_TYPES: ManifestType[] = ['agent', 'skill', 'channel', 'tool', 'connector']
+const LEGACY_TYPES = new Set(['function', 'mcp-server'])
 
 const VALID_ENTITY_TYPES: EntityTypeName[] = [
     'person', 'task', 'thread', 'note', 'transaction', 'calendar_event', 'file',
@@ -71,6 +71,13 @@ const STANDARD_CAPABILITIES = new Set<string>([
     'a2a:delegate',
     // §24 — Model
     'model:override',
+    // Prompts
+    'prompts:register',
+    'prompts:read',
+    // Context
+    'context:register',
+    'context:write',
+    'context:read',
 ])
 
 // ---------------------------------------------------------------------------
@@ -107,9 +114,9 @@ export function validateManifest(raw: unknown, options?: ValidationOptions): Val
 
     const m = raw as Record<string, unknown>
 
-    // kapsel version
-    if (typeof m['kapsel'] !== 'string' || !isSemver(m['kapsel'])) {
-        errors.push({ field: 'kapsel', message: 'Must be a valid semver string (e.g. "0.3.0")' })
+    // plexo version
+    if (typeof m['plexo'] !== 'string' || !isSemver(m['plexo'])) {
+        errors.push({ field: 'plexo', message: 'Must be a valid semver string (e.g. "0.4.0")' })
     }
 
     // name — @scope/name format
@@ -125,10 +132,10 @@ export function validateManifest(raw: unknown, options?: ValidationOptions): Val
     // type
     const rawType = m['type'] as string
     if (LEGACY_TYPES.has(rawType)) {
-        const replacement = rawType === 'tool' ? 'function' : 'function (or channel / mcp-server)'
+        const replacement = rawType === 'function' ? 'tool (or skill)' : 'connector'
         errors.push({
             field: 'type',
-            message: `Type "${rawType}" is deprecated in v0.3.0. Use "${replacement}" instead.`,
+            message: `Type "${rawType}" is deprecated in v0.4.0. Use "${replacement}" instead.`,
             severity: 'warning',
         })
     } else if (!VALID_TYPES.includes(rawType as ManifestType)) {
@@ -240,9 +247,9 @@ export function validateManifest(raw: unknown, options?: ValidationOptions): Val
         }
     }
 
-    // mcp-server requires mcpServer config
-    if (m['type'] === 'mcp-server' && m['mcpServer'] === undefined) {
-        errors.push({ field: 'mcpServer', message: 'Required for mcp-server type extensions' })
+    // connector requires mcpServer config
+    if (m['type'] === 'connector' && m['mcpServer'] === undefined) {
+        errors.push({ field: 'mcpServer', message: 'Required for connector type extensions' })
     }
 
     // §17 — trust tier validation

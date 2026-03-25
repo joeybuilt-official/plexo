@@ -3,7 +3,7 @@
 ## What This Is
 Plexo is an open-source AI agentic platform. TypeScript monorepo, pnpm workspaces.
 Read docs/architecture.md before making architectural decisions.
-Read docs/plugin-sdk.md before touching packages/sdk — it is a public API.
+Read docs/plugin-sdk.md (Fabric Extension SDK guide) before touching packages/sdk — it is a public API.
 
 ## Stack
 Next.js 15 (App Router) · shadcn/ui · Tailwind · Drizzle ORM
@@ -40,7 +40,7 @@ packages/agent     → packages/db, packages/queue, packages/storage (never pack
 packages/ui        → no internal dependencies
 apps/api           → packages/agent, packages/db, packages/queue, packages/sdk
 apps/web           → packages/ui only (no direct DB or agent access)
-plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
+extensions/core/*  → packages/sdk only (never packages/db or packages/agent)
 ```
 
 ## Source of Truth
@@ -54,7 +54,7 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 
 ## Critical Rules
 - packages/sdk is a public API. Breaking changes require major version bump + migration guide.
-- Plugins cannot import from packages/db or packages/agent. SDK only.
+- Extensions cannot import from packages/db or packages/agent. SDK only.
 - SAFETY_LIMITS in packages/agent/src/constants.ts are constants. Never make them configurable.
 - Secrets never in source code, logs, or error messages.
 - Never create or modify `.env` or `docker/compose.override.yml` — these are operator files.
@@ -324,7 +324,7 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-03-09 | Agent self-extension via `synthesize_kapsel_skill` | Enables agent to generate, persist, and activate its own Kapsel skills. Sandboxed (SDK-only), capability-gated, code validated before install |
+| 2026-03-09 | Agent self-extension via `synthesize_fabric_skill` | Enables agent to generate, persist, and activate its own Fabric extensions. Sandboxed (SDK-only), capability-gated, code validated before install |
 | 2026-03-09 | Generated skills stored in Docker named volume `generated_skills` at `/var/plexo/generated-skills` | Survives container restarts; survives rebuilds if volume is not pruned |
 | 2026-03-09 | `is_generated` flag on `connections_registry`, `isGenerated` in `plugins.settings` | Drives ✦ Custom badge in UI; no separate table needed |
 | 2026-03-03 | Valkey over Redis | Open-source fork, API-compatible, production-stable, no license risk |
@@ -378,7 +378,7 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ### Persistent Workers & SDK Bridge
 
-- **Persistent Worker Pool**: Message-based host bridge handles `sdk_call` messages from workers. Dispatch map: `storage.*` → Redis (key: `ext:<pluginName>:<key>`), `memory.*` → storeMemory/searchMemory, `connections.*` → installedConnections table, `events.publish` → eventBus, `tasks.create` → queue.
+- **Persistent Worker Pool**: Message-based host bridge handles `sdk_call` messages from workers. Dispatch map: `storage.*` → Redis (key: `ext:<extensionName>:<key>`), `memory.*` → storeMemory/searchMemory, `connections.*` → installedConnections table, `events.publish` → eventBus, `tasks.create` → queue.
 - **OWD → SSE push**: `requestApproval()` emits `TOPICS.OWD_PENDING` after writing to Redis. API subscribes and pushes `owd.pending` events to dashboard SSE clients in real time.
 - **Migration drift → 500**: When a schema column exists in Drizzle types but not in the DB, `db.select()` throws a Postgres "column does not exist" caught as 500. Fix: apply missing SQL manually via `docker exec -i <postgres-container> psql -U plexo -d plexo`.
 

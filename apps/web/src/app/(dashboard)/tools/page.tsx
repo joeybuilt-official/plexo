@@ -3,7 +3,7 @@
 
 import { redirect } from 'next/navigation'
 
-/** @deprecated Tools page has been renamed to Functions in Kapsel v0.3.0 */
+/** @deprecated Tools page has been renamed to Functions in Fabric v0.3.0 */
 export default function ToolsRedirect() {
     redirect('/functions')
 }

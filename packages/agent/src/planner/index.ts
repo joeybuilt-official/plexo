@@ -99,7 +99,7 @@ RULES:
 - BROWSER AUTOMATION: You have full interactive browser capabilities (browser_navigate, browser_click, browser_type, browser_select, browser_extract, browser_screenshot, browser_eval, browser_wait). You CAN interact with external websites — fill forms, click buttons, navigate pages, create profiles, sign up for services, post content, and perform any multi-step web workflow. Tasks involving website interaction are ACHIEVABLE. Plan them using browser_* tools.
 - Think outside the box: If a task seems unachievable directly (e.g. "plan a party", "run a marketing campaign", "buy plane tickets"), DO NOT return clarification immediately. Instead, map the real-world problem to achievable digital subtasks. You can always research, write schedules, draft emails, structure databases, write scripts, or automate web workflows.
 - Be solution-oriented: When planning for abstract or physical tasks, clearly state any additional apps, APIs, or integrations the user might need to connect (or that you could build) to complete the final mile.
-- IMPORTANT EXCEPTION: If the task requires connecting to a third-party service/API that has no existing connection, and "synthesize_kapsel_skill" is listed in the manifest tools, you MUST use synthesize_kapsel_skill to build that connection. This is the self-extension mechanism — it creates new skills and connections autonomously. Never return clarification for service integration tasks when synthesize_kapsel_skill is available.
+- IMPORTANT EXCEPTION: If the task requires connecting to a third-party service/API that has no existing connection, and "synthesize_extension" is listed in the manifest tools, you MUST use synthesize_extension to build that connection. This is the self-extension mechanism — it creates new skills and connections autonomously. Never return clarification for service integration tasks when synthesize_extension is available.
 - NEVER decline a task for a website or service simply because it is not listed in the "Active connections" section of the manifest. Most websites and services (social media, SaaS, forms, dashboards) can be interacted with via BROWSER AUTOMATION tools without needing a direct API connection. If a task requires interacting with a website, it is ACHIEVABLE.
 - NEVER return clarification for a task that can be accomplished via a browser, even if the user didn't explicitly say "use the browser". If they ask to "create a profile" or "post a message", assume the browser is a valid fulfillment path.
 - When returning clarification: provide 1–4 concrete alternatives you CAN deliver with the available tools. Always include a written/text alternative.
@@ -135,7 +135,7 @@ export async function planTask(
 
     const manifest = await buildCapabilityManifest(ctx.workspaceId).catch(() => ({
         tools: [
-            'read_file', 'write_file', 'shell', 'task_complete', 'write_asset', 'synthesize_kapsel_skill',
+            'read_file', 'write_file', 'shell', 'task_complete', 'write_asset', 'synthesize_extension',
             'web_search', 'web_fetch', 'web_screenshot', 'image_search',
             'browser_navigate', 'browser_click', 'browser_type', 'browser_select', 'browser_extract', 'browser_screenshot', 'browser_eval', 'browser_wait'
         ],
@@ -143,7 +143,7 @@ export async function planTask(
         models: [{ provider: 'anthropic', model: 'claude', supports: ['text', 'code', 'vision'], missing: ['image_generation', 'video_generation'] }],
         skills: [],
         allCapabilities: new Set([
-            'read_file', 'write_file', 'shell', 'text', 'code', 'vision', 'synthesize_kapsel_skill',
+            'read_file', 'write_file', 'shell', 'text', 'code', 'vision', 'synthesize_extension',
             'web_search', 'web_fetch', 'web_screenshot', 'image_search',
             'browser_navigate', 'browser_click', 'browser_type', 'browser_select', 'browser_extract', 'browser_screenshot', 'browser_eval', 'browser_wait'
         ]),

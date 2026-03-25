@@ -7,7 +7,7 @@
  * Assembles a complete IntrospectionSnapshot by querying:
  *  - workspaces table (name, persona, AI provider config)
  *  - installed_connections (active connections + tool names)
- *  - plugins table (enabled kapsel extensions)
+ *  - extensions table (enabled Fabric extensions)
  *  - memory_entries (counts by type, embedding coverage)
  *  - agent_improvement_log (pending proposals, recent patterns)
  *  - api_cost_tracking + work_ledger (weekly cost, quality stats)
@@ -22,7 +22,7 @@
  * @param activeModel     The model ID actually in use (optional)
  */
 import { db, eq, and, sql } from '@plexo/db'
-import { workspaces, installedConnections, plugins } from '@plexo/db'
+import { workspaces, installedConnections, extensions } from '@plexo/db'
 import { SAFETY_LIMITS } from '../constants.js'
 import type {
     IntrospectionSnapshot,
@@ -142,7 +142,7 @@ const BUILTIN_TOOLS = [
     'task_complete',
     'write_asset',
     'self_reflect',
-    'synthesize_kapsel_skill',
+    'synthesize_extension',
     'web_search',
     'web_fetch',
 ] as const
@@ -283,16 +283,16 @@ export async function buildIntrospectionSnapshot(
     try {
         const rows = await db
             .select({
-                name: plugins.name,
-                version: plugins.version,
-                enabled: plugins.enabled,
-                kapselManifest: plugins.kapselManifest,
+                name: extensions.name,
+                version: extensions.version,
+                enabled: extensions.enabled,
+                manifest: extensions.manifest,
             })
-            .from(plugins)
-            .where(eq(plugins.workspaceId, workspaceId))
+            .from(extensions)
+            .where(eq(extensions.workspaceId, workspaceId))
 
         for (const row of rows) {
-            const manifest = (row.kapselManifest ?? {}) as { tools?: Array<{ name: string }> }
+            const manifest = (row.manifest ?? {}) as { tools?: Array<{ name: string }> }
             const pluginTools = (manifest.tools ?? []).map((t) => t.name)
             pluginSnapshots.push({
                 name: row.name,

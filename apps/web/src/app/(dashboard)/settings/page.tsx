@@ -4,10 +4,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Key, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn, LogOut, Server, Terminal, Puzzle, Copy, Activity, Trash2, ShieldCheck } from 'lucide-react'
+import { Key, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn, LogOut, Server, Terminal, Puzzle, Copy, Activity, Trash2, ShieldCheck, Lock } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { AccountabilityPanel } from './accountability-panel'
 import { AppearanceSection } from '@web/components/theme-toggle'
+import { createClient } from '@web/lib/supabase/client'
 
 interface Section {
     id: string
@@ -17,6 +18,7 @@ interface Section {
 }
 
 const SECTIONS: Section[] = [
+    { id: 'account', label: 'Account', icon: Lock },
     { id: 'workspace', label: 'Workspace', icon: Globe },
     { id: 'api-keys', label: 'API Keys', icon: Key },
     { id: 'api', label: 'REST API', icon: Server },
@@ -147,6 +149,45 @@ export default function SettingsPage() {
 
     useEffect(() => { void loadWorkspace() }, [loadWorkspace])
     useEffect(() => { if (active === 'workspace') void loadWorkspaceList() }, [active, loadWorkspaceList])
+
+    // Password change state
+    const [currentPassword, setCurrentPassword] = useState('')
+    const [newPassword, setNewPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const [pwSaving, setPwSaving] = useState(false)
+    const [pwSuccess, setPwSuccess] = useState(false)
+    const [pwError, setPwError] = useState<string | null>(null)
+
+    async function handlePasswordChange(e: React.FormEvent) {
+        e.preventDefault()
+        setPwError(null)
+        setPwSuccess(false)
+
+        if (newPassword.length < 8) {
+            setPwError('Password must be at least 8 characters')
+            return
+        }
+        if (newPassword !== confirmPassword) {
+            setPwError('Passwords do not match')
+            return
+        }
+
+        setPwSaving(true)
+        try {
+            const supabase = createClient()
+            const { error } = await supabase.auth.updateUser({ password: newPassword })
+            if (error) throw new Error(error.message)
+            setPwSuccess(true)
+            setCurrentPassword('')
+            setNewPassword('')
+            setConfirmPassword('')
+            setTimeout(() => setPwSuccess(false), 4000)
+        } catch (err: unknown) {
+            setPwError(err instanceof Error ? err.message : 'Failed to update password')
+        } finally {
+            setPwSaving(false)
+        }
+    }
 
     // Health state
     const [health, setHealth] = useState<{ version?: string; uptime?: number; status?: string } | null>(null)
@@ -313,6 +354,74 @@ export default function SettingsPage() {
                         {saveError}
                     </div>
                 )}
+                {active === 'account' && (
+                    <div className="flex flex-col gap-6">
+                        <div>
+                            <h2 className="text-lg font-bold text-zinc-50">Account</h2>
+                            <p className="mt-0.5 text-sm text-text-muted">Manage your account security.</p>
+                        </div>
+
+                        <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                            <div className="flex items-center gap-2.5 mb-1">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-azure-dim text-azure">
+                                    <Lock className="h-3.5 w-3.5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-text-primary">Change Password</h3>
+                                    <p className="text-[11px] text-text-muted">Update your login password</p>
+                                </div>
+                            </div>
+
+                            {pwError && (
+                                <div className="flex items-start gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2.5 text-sm text-red">
+                                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                    {pwError}
+                                </div>
+                            )}
+                            {pwSuccess && (
+                                <div className="flex items-start gap-2 rounded-lg border border-azure/30 bg-azure/5 px-3 py-2.5 text-sm text-azure">
+                                    <Check className="h-4 w-4 shrink-0 mt-0.5" />
+                                    Password updated successfully.
+                                </div>
+                            )}
+
+                            <div className="flex flex-col gap-3">
+                                <Field label="New password" id="new-password">
+                                    <input
+                                        id="new-password"
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="Min. 8 characters"
+                                        autoComplete="new-password"
+                                        className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30 min-h-[44px] md:min-h-[36px]"
+                                    />
+                                </Field>
+                                <Field label="Confirm new password" id="confirm-password">
+                                    <input
+                                        id="confirm-password"
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        placeholder="Re-enter new password"
+                                        autoComplete="new-password"
+                                        className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30 min-h-[44px] md:min-h-[36px]"
+                                    />
+                                </Field>
+                                <button
+                                    type="button"
+                                    onClick={handlePasswordChange}
+                                    disabled={pwSaving || !newPassword || !confirmPassword}
+                                    className="flex items-center justify-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] md:min-h-[36px] w-full md:w-auto"
+                                >
+                                    {pwSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : pwSuccess ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                                    {pwSaving ? 'Updating...' : pwSuccess ? 'Updated' : 'Update password'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {active === 'workspace' && (
                     <div className="flex flex-col gap-6">
                         <div>

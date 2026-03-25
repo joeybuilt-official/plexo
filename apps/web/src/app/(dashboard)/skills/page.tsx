@@ -3,7 +3,7 @@
 
 import { redirect } from 'next/navigation'
 
-/** @deprecated Skills page has been renamed to Extensions in Kapsel v0.3.0 */
+/** @deprecated Skills page has been renamed to Extensions in Fabric v0.3.0 */
 export default function SkillsRedirect() {
     redirect('/extensions')
 }

@@ -94,11 +94,12 @@ export const sprintTaskStatusEnum = pgEnum('sprint_task_status', [
     'failed',
 ])
 
-export const pluginTypeEnum = pgEnum('plugin_type', [
+export const extensionTypeEnum = pgEnum('extension_type', [
     'agent',
     'skill',
     'channel',
     'tool',
+    'connector',
     'mcp-server',
     'function',
 ])
@@ -406,7 +407,7 @@ export const sprintPatterns = pgTable('sprint_patterns', {
     uniqueIndex('sprint_patterns_repo_type_subject_idx').on(table.repo, table.patternType, table.subject),
 ])
 
-export const plugins = pgTable('plugins', {
+export const extensions = pgTable('extensions', {
     id: uuid('id').defaultRandom().primaryKey(),
     workspaceId: uuid('workspace_id')
         .notNull()
@@ -414,21 +415,21 @@ export const plugins = pgTable('plugins', {
     // Scoped package name — must match @scope/name format (§3.1)
     name: text('name').notNull(),
     version: text('version').notNull(),
-    type: pluginTypeEnum('type').notNull(),
-    // Kapsel spec version this manifest targets (e.g. '0.3.0')
-    kapselVersion: text('kapsel_version').notNull().default('0.3.0'),
+    type: extensionTypeEnum('type').notNull(),
+    // Plexo Fabric spec version this manifest targets (e.g. '0.4.0')
+    fabricVersion: text('fabric_version').notNull().default('0.4.0'),
     // Relative path to the entry point (§3.1)
     entry: text('entry').notNull(),
-    // Full kapsel.json contents (validated on install per §3.3)
-    kapselManifest: jsonb('kapsel_manifest').notNull(),
+    // Full plexo.json contents (validated on install per §3.3)
+    manifest: jsonb('manifest').notNull(),
     enabled: boolean('enabled').default(false).notNull(),
     // Extension-private settings storage (injected as sdk.storage via Redis)
     settings: jsonb('settings').default('{}').notNull(),
     installedAt: timestamp('installed_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
-    index('plugins_workspace_idx').on(table.workspaceId),
+    index('extensions_workspace_idx').on(table.workspaceId),
     // Unique per workspace — enables upsert during re-synthesis
-    uniqueIndex('plugins_workspace_name_uq').on(table.workspaceId, table.name),
+    uniqueIndex('extensions_workspace_name_uq').on(table.workspaceId, table.name),
 ])
 
 export const dashboardCards = pgTable('dashboard_cards', {
@@ -644,11 +645,11 @@ export const workspaceInvites = pgTable('workspace_invites', {
     index('workspace_invites_workspace_idx').on(table.workspaceId),
 ])
 
-// ── Phase 21 — Kapsel Extension Registry (§12) ──────────────────────────────
+// ── Extension Registry (§12) ─────────────────────────────────────────────────
 // Public listing of extensions available for installation.
 // Scoped: entries belong to a workspace (org/user namespace).
 
-export const kapselRegistry = pgTable('kapsel_registry', {
+export const extensionRegistry = pgTable('extension_registry', {
     id: uuid('id').defaultRandom().primaryKey(),
     /** Scoped package name e.g. @acme/stripe-monitor */
     name: text('name').notNull().unique(),
@@ -662,7 +663,7 @@ export const kapselRegistry = pgTable('kapsel_registry', {
     latestVersion: text('latest_version').notNull(),
     /** All published versions (ordered newest first) */
     versions: jsonb('versions').$type<string[]>().default([]).notNull(),
-    /** Full kapsel.json manifest for the latest version */
+    /** Full plexo.json manifest for the latest version */
     manifest: jsonb('manifest').notNull(),
     /** Tags for discovery */
     tags: text('tags').array().default([]).notNull(),
@@ -677,9 +678,9 @@ export const kapselRegistry = pgTable('kapsel_registry', {
     publishedAt: timestamp('published_at', { mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
-    index('kapsel_registry_name_idx').on(table.name),
-    index('kapsel_registry_publisher_idx').on(table.publisher),
-    index('kapsel_registry_deprecated_idx').on(table.deprecated),
+    index('extension_registry_name_idx').on(table.name),
+    index('extension_registry_publisher_idx').on(table.publisher),
+    index('extension_registry_deprecated_idx').on(table.deprecated),
 ])
 
 // ── Phase 13 — Audit log ──────────────────────────────────────────────────────
@@ -949,10 +950,10 @@ export const artifactVersions = pgTable('artifact_versions', {
     uniqueIndex('artifact_versions_artifact_version_uq').on(table.artifactId, table.version),
 ])
 
-// ── Kapsel v0.3.0 — Governance Tables ────────────────────────────────────────
+// ── Plexo Fabric — Governance Tables ─────────────────────────────────────────
 
-/** §18 — Kapsel extension/agent audit trail (immutable) */
-export const kapselAuditLog = pgTable('kapsel_audit_log', {
+/** §18 — Extension/agent audit trail (immutable) */
+export const extensionAuditLog = pgTable('extension_audit_log', {
     id: uuid('id').defaultRandom().primaryKey(),
     workspaceId: uuid('workspace_id')
         .notNull()
@@ -968,8 +969,8 @@ export const kapselAuditLog = pgTable('kapsel_audit_log', {
     escalationOutcome: text('escalation_outcome'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
-    index('kapsel_audit_workspace_time_idx').on(table.workspaceId, table.createdAt),
-    index('kapsel_audit_extension_idx').on(table.extensionId, table.createdAt),
+    index('ext_audit_workspace_time_idx').on(table.workspaceId, table.createdAt),
+    index('ext_audit_extension_idx').on(table.extensionId, table.createdAt),
 ])
 
 /** §23 — Standing approval rules (user-owned) */
@@ -999,7 +1000,7 @@ export const userSelf = pgTable('user_self', {
     updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 })
 
-// ── Kapsel Prompt Library (§7.6) ─────────────────────────────────────────────
+// ── Prompt Library (§7.6) ────────────────────────────────────────────────────
 // Extension-contributed prompt templates. Disabled by default; users enable per-workspace.
 
 export const extensionPrompts = pgTable('extension_prompts', {
@@ -1007,7 +1008,7 @@ export const extensionPrompts = pgTable('extension_prompts', {
     workspaceId: uuid('workspace_id')
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),
-    /** Kapsel extension name, e.g. @acme/coding-standards */
+    /** Extension name, e.g. @acme/coding-standards */
     extensionName: text('extension_name').notNull(),
     /** Prompt artifact ID within the extension */
     promptId: text('prompt_id').notNull(),
@@ -1023,7 +1024,7 @@ export const extensionPrompts = pgTable('extension_prompts', {
     /** Semver version of this prompt artifact */
     version: text('version').notNull(),
     priority: artifactPriorityEnum('priority').notNull().default('normal'),
-    /** Kapsel artifact dependencies */
+    /** Artifact dependencies */
     dependencies: text('dependencies').array().notNull().default(sql`'{}'`),
     /** Users must explicitly enable prompts from extensions */
     enabled: boolean('enabled').notNull().default(false),
@@ -1038,7 +1039,7 @@ export const extensionPrompts = pgTable('extension_prompts', {
     uniqueIndex('ext_prompts_unique_idx').on(table.workspaceId, table.extensionName, table.promptId),
 ])
 
-// ── Kapsel Context Layer (§7.7) ──────────────────────────────────────────────
+// ── Context Layer (§7.7) ─────────────────────────────────────────────────────
 // Extension-contributed context blocks injected into system prompt at execution time.
 
 export const extensionContexts = pgTable('extension_contexts', {
@@ -1046,7 +1047,7 @@ export const extensionContexts = pgTable('extension_contexts', {
     workspaceId: uuid('workspace_id')
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),
-    /** Kapsel extension name */
+    /** Extension name */
     extensionName: text('extension_name').notNull(),
     /** Context artifact ID within the extension */
     contextId: text('context_id').notNull(),

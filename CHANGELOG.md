@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Changed
+- **Kapsel → Plexo Fabric** — Kapsel protocol absorbed into Plexo as the Plexo Fabric runtime model. All "Kapsel" terminology replaced with "Plexo Fabric" equivalents. `kapsel.json` → `plexo.json`. `KapselSDK` → `PlexoSDK`. `KapselManifest` → `ExtensionManifest`. Extension types: `agent`, `skill`, `channel`, `tool`, `connector`. Fabric spec version: 0.4.0.
+
 ### Added
 - **Full-Bleed Chat & Workbench** — The Chat and Workbench interface now dynamically expands to fill 100% of the available screen space (edge-to-edge) on the `/chat` route. Outer paddings and body-level scrolling are automatically removed to maximize usable real estate for conversation and code interaction.
 - **Dynamic Dashboard Main** — Introduced a smart layout wrapper (`DashboardMain`) that adapts its presentation logic (padding, overflow) based on the active application route.

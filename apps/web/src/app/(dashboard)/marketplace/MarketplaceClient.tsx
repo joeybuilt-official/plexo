@@ -35,7 +35,7 @@ interface InstalledItem {
     status: 'active' | 'error' | 'expired' | 'disconnected'
 }
 
-interface KapselPlugin {
+interface FabricExtension {
     id: string
     workspaceId: string
     name: string
@@ -65,7 +65,7 @@ const CATEGORY_LABELS: Record<string, string> = {
     infrastructure: 'Infrastructure',
 }
 
-const PLUGIN_TYPE_LABELS: Record<string, string> = {
+const EXTENSION_TYPE_LABELS: Record<string, string> = {
     agent: 'Agent',
     function: 'Function',
     skill: 'Extension',
@@ -81,7 +81,7 @@ const STATUS_DOT: Record<string, string> = {
     disconnected: 'bg-zinc-500',
 }
 
-const PLUGIN_TYPE_COLOR: Record<string, string> = {
+const EXTENSION_TYPE_COLOR: Record<string, string> = {
     agent: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
     function: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
     skill: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
@@ -224,7 +224,7 @@ function IntegrationCard({
     )
 }
 
-// ── Extension Card (Kapsel) ───────────────────────────────────────────────────
+// ── Extension Card (Fabric) ───────────────────────────────────────────────────
 
 function ExtensionCard({
     plugin,
@@ -232,7 +232,7 @@ function ExtensionCard({
     onToggle,
     onUninstall,
 }: {
-    plugin: KapselPlugin
+    plugin: FabricExtension
     workspaceId: string
     onToggle: (id: string, enabled: boolean) => Promise<void>
     onUninstall: (id: string) => Promise<void>
@@ -246,8 +246,8 @@ function ExtensionCard({
         startTransition(async () => { await onUninstall(plugin.id) })
     }
 
-    const typeColor = PLUGIN_TYPE_COLOR[plugin.type] ?? 'bg-surface-2 text-text-secondary border border-border'
-    const typeLabel = PLUGIN_TYPE_LABELS[plugin.type] ?? plugin.type
+    const typeColor = EXTENSION_TYPE_COLOR[plugin.type] ?? 'bg-surface-2 text-text-secondary border border-border'
+    const typeLabel = EXTENSION_TYPE_LABELS[plugin.type] ?? plugin.type
 
     return (
         <div className="flex flex-col rounded-xl border border-border bg-surface-1/60 p-5 gap-4 transition-colors hover:border-border">
@@ -412,16 +412,16 @@ function IntegrationsTab({
     )
 }
 
-// ── Extensions tab (Kapsel) ───────────────────────────────────────────────────
+// ── Extensions tab (Fabric) ───────────────────────────────────────────────────
 
 function ExtensionsTab({
     plugins: initialPlugins,
     workspaceId,
 }: {
-    plugins: KapselPlugin[]
+    plugins: FabricExtension[]
     workspaceId: string
 }) {
-    const [plugins, setPlugins] = useState<KapselPlugin[]>(
+    const [plugins, setPlugins] = useState<FabricExtension[]>(
         Array.isArray(initialPlugins) ? initialPlugins : []
     )
 
@@ -465,7 +465,7 @@ function ExtensionsTab({
             label: 'Extension Type',
             options: Array.from(availableTypes).sort().map((t) => ({
                 value: t,
-                label: PLUGIN_TYPE_LABELS[t] ?? t,
+                label: EXTENSION_TYPE_LABELS[t] ?? t,
                 icon: <Puzzle className="h-3 w-3 mr-1 shrink-0 text-text-muted" />,
                 dimmed: !availableTypes.has(t),
             })),
@@ -473,7 +473,7 @@ function ExtensionsTab({
     ], [availableTypes])
 
     async function handleToggle(id: string, enabled: boolean) {
-        const res = await fetch(`${API_BASE}/api/v1/plugins/${id}`, {
+        const res = await fetch(`${API_BASE}/api/v1/extensions/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled, workspaceId }),
@@ -484,7 +484,7 @@ function ExtensionsTab({
     }
 
     async function handleUninstall(id: string) {
-        const res = await fetch(`${API_BASE}/api/v1/plugins/${id}?workspaceId=${workspaceId}`, { method: 'DELETE' })
+        const res = await fetch(`${API_BASE}/api/v1/extensions/${id}?workspaceId=${workspaceId}`, { method: 'DELETE' })
         if (res.ok) setPlugins((prev) => prev.filter((p) => p.id !== id))
     }
 
@@ -497,16 +497,16 @@ function ExtensionsTab({
                 <div>
                     <p className="text-sm font-medium text-text-secondary">No extensions installed</p>
                     <p className="mt-1 text-xs text-text-muted max-w-xs">
-                        Extensions are Kapsel-standard packages that add new capabilities — custom tools, MCP servers, agent skills, and more.
+                        Extensions are Fabric-standard packages that add new capabilities — custom tools, MCP servers, agent skills, and more.
                     </p>
                 </div>
                 <a
-                    href="https://kapsel.dev"
+                    href="https://plexo.dev"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-azure hover:text-azure underline underline-offset-2"
                 >
-                    Browse the Kapsel registry →
+                    Browse the extension registry →
                 </a>
             </div>
         )
@@ -558,7 +558,7 @@ export default function MarketplaceClient({
 }: {
     registry: RegistryItem[]
     installed: InstalledItem[]
-    plugins: KapselPlugin[]
+    plugins: FabricExtension[]
     workspaceId: string
 }) {
     const [tab, setTab] = useState<Tab>('integrations')

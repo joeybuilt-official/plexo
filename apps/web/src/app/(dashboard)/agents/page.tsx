@@ -26,12 +26,12 @@ import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
-interface KapselManifest {
+interface ExtensionManifest {
     name: string
     version: string
     description?: string
     type: string
-    kapsel: string
+    fabric: string
     capabilities?: string[]
     trust?: string
     dataResidency?: { sendsDataExternally: boolean; externalDestinations?: Array<{ host: string; purpose: string }> }
@@ -56,17 +56,17 @@ interface Plugin {
     name: string
     version: string
     type: string
-    kapselVersion: string
+    fabricVersion: string
     enabled: boolean
     installedAt: string
-    kapselManifest: KapselManifest | null
+    manifest: ExtensionManifest | null
     settings: Record<string, unknown>
 }
 
 function AgentCard({ agent, onToggle }: { agent: Plugin; onToggle: (id: string, enabled: boolean) => Promise<void> }) {
     const [expanded, setExpanded] = useState(false)
     const [toggling, setToggling] = useState(false)
-    const manifest = agent.kapselManifest
+    const manifest = agent.manifest
 
     async function handleToggle() {
         setToggling(true)
@@ -193,7 +193,7 @@ function AgentCard({ agent, onToggle }: { agent: Plugin; onToggle: (id: string, 
 
                     <div className="flex items-center gap-4 text-[11px] text-text-muted">
                         <span>Installed {new Date(agent.installedAt).toLocaleDateString()}</span>
-                        <span>Kapsel {agent.kapselVersion}</span>
+                        <span>Fabric {agent.fabricVersion}</span>
                         <a href={`/audit?agentId=${encodeURIComponent(agent.name)}`} className="text-azure hover:underline">
                             View audit trail →
                         </a>
@@ -219,7 +219,7 @@ export default function AgentsPage() {
         setLoading(true)
         setError(null)
         try {
-            const res = await fetch(`${API_BASE}/api/v1/plugins?workspaceId=${WS_ID}&type=agent`)
+            const res = await fetch(`${API_BASE}/api/v1/extensions?workspaceId=${WS_ID}&type=agent`)
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
             const data = await res.json() as { items: Plugin[] }
             setPlugins(data.items)
@@ -233,7 +233,7 @@ export default function AgentsPage() {
     useEffect(() => { void fetchAgents() }, [fetchAgents])
 
     async function handleToggle(id: string, enabled: boolean) {
-        const res = await fetch(`${API_BASE}/api/v1/plugins/${id}`, {
+        const res = await fetch(`${API_BASE}/api/v1/extensions/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled }),
@@ -248,7 +248,7 @@ export default function AgentsPage() {
         if (filterValues.status === 'disabled' && p.enabled) return false
         if (!search.trim()) return true
         const q = search.toLowerCase()
-        return p.name.toLowerCase().includes(q) || p.kapselManifest?.description?.toLowerCase().includes(q)
+        return p.name.toLowerCase().includes(q) || p.manifest?.description?.toLowerCase().includes(q)
     }).sort((a, b) => {
         if (lf.sort === 'name_desc') return b.name.localeCompare(a.name)
         return a.name.localeCompare(b.name)
@@ -277,7 +277,7 @@ export default function AgentsPage() {
             <div className="rounded-xl border border-azure-800/30 bg-azure/20 px-4 py-3 flex items-start gap-3">
                 <Info className="h-4 w-4 text-azure shrink-0 mt-0.5" />
                 <div>
-                    <p className="text-xs font-medium text-azure mb-0.5">Kapsel Agents</p>
+                    <p className="text-xs font-medium text-azure mb-0.5">Plexo Fabric Agents</p>
                     <p className="text-xs text-azure/70">
                         Agents are autonomous actors with their own planning loop and identity. Each Agent orchestrates Extensions to accomplish work — it picks up tools the way a person picks up appliances.
                         Agents are not extensions. They have their own escalation contracts, model requirements, and audit trails.

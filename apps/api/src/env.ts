@@ -96,7 +96,7 @@ const ENV_SPEC: EnvVar[] = [
     // ── Optional — Synthesizer ────────────────────────────────────────────────
     {
         key: 'GENERATED_SKILLS_DIR',
-        description: 'Writable directory for agent-generated Kapsel skills (default: /var/plexo/generated-skills)',
+        description: 'Writable directory for agent-generated extensions (default: /var/plexo/generated-skills)',
         required: false,
     },
     // ── Optional — Error tracking ─────────────────────────────────────────────

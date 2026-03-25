@@ -2,12 +2,14 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel SDK Interface
+ * Plexo SDK Interface
  * The complete API available to extensions and agents via the sdk parameter in activate()
- * Corresponds to Appendix A of the Kapsel Protocol Specification v0.3.0
+ * Corresponds to Appendix A of the Plexo Fabric Specification v0.4.0
  */
 
 import type { HostComplianceLevel, JSONSchema, EntityTypeName } from './manifest.js'
+import type { PromptRegistration, PromptSummary } from './prompts.js'
+import type { ContextRegistration, ContextSummary } from './context.js'
 import type {
     KapselEntity,
     EntityTypeMap,
@@ -28,10 +30,11 @@ export type NotificationLevel = 'info' | 'warning' | 'error'
 export type ExtensionName = `@${string}/${string}`
 
 export interface HostInfo {
-    kapselVersion: string
+    fabricVersion: string
     complianceLevel: HostComplianceLevel
     name: string
     version: string
+    capabilities?: { prompts?: boolean; context?: boolean; tokenBudgeting?: boolean }
 }
 
 export interface MemoryEntry {
@@ -113,9 +116,14 @@ export interface TaskFilter {
 }
 
 /**
- * The complete Kapsel SDK interface.
+ * The complete Plexo SDK interface.
  * All extension and agent types receive this in their activate() call.
- * Methods only work if the corresponding capability is declared in kapsel.json.
+ * Methods only work if the corresponding capability is declared in plexo.json.
+ *
+ * v0.4.0 additions:
+ *   - registerPrompt / registerContext (§7.6, §7.7)
+ *   - prompts.*     (§7.6 — Prompt Library)
+ *   - context.*     (§7.7 — Context Layer)
  *
  * v0.3.0 additions:
  *   - entities.*    (§16 — Personal Entity Schema)
@@ -124,7 +132,7 @@ export interface TaskFilter {
  *   - escalate()    (§23 — Escalation Contract)
  *   - a2a.*         (§22 — A2A Bridge Layer)
  */
-export interface KapselSDK {
+export interface PlexoSDK {
     /** Information about the host runtime */
     host: HostInfo
 
@@ -135,6 +143,10 @@ export interface KapselSDK {
     registerTool(tool: ToolRegistration): void
     registerSchedule(job: ScheduleRegistration): void
     registerWidget(widget: WidgetRegistration): void
+    /** §7.6 — Requires prompts:register */
+    registerPrompt(prompt: PromptRegistration): void
+    /** §7.7 — Requires context:register */
+    registerContext(context: ContextRegistration): void
 
     // -----------------------------------------------------------------
     // Memory (§4 — entity-scoped at Standard + Full compliance)
@@ -319,4 +331,31 @@ export interface KapselSDK {
          */
         delegate(delegation: A2ADelegation): Promise<A2ATaskResult>
     }
+
+    // -----------------------------------------------------------------
+    // §7.6 — Prompt Library
+    // -----------------------------------------------------------------
+
+    prompts: {
+        /** Requires prompts:read */
+        list(options?: { tags?: string[] }): Promise<PromptSummary[]>
+        /** Requires prompts:read — resolve template with variables */
+        resolve(promptId: string, variables?: Record<string, unknown>): Promise<string>
+    }
+
+    // -----------------------------------------------------------------
+    // §7.7 — Context Layer
+    // -----------------------------------------------------------------
+
+    context: {
+        /** Requires context:write — update content for a registered context block */
+        update(contextId: string, content: string, options?: { ttl?: number; estimatedTokens?: number }): Promise<void>
+        /** Requires context:read */
+        list(): Promise<ContextSummary[]>
+    }
 }
+
+/**
+ * @deprecated Use PlexoSDK instead. Alias for backward compatibility.
+ */
+export type KapselSDK = PlexoSDK

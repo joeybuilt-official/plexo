@@ -1172,7 +1172,7 @@ function AgentSettingsContent() {
                 </div>
             )}
 
-            {/* ── Extensions tab (Kapsel §7.6/§7.7) ── */}
+            {/* ── Extensions tab (Fabric §7.6/§7.7) ── */}
             {tab === 'extensions' && WS_ID && <ExtensionPromptsTab workspaceId={WS_ID} />}
 
             {/* ── History tab ── */}
@@ -1304,7 +1304,7 @@ function KV({ label, value }: { label: string; value: string }) {
     )
 }
 
-// ── Extension Prompts & Context Tab (Kapsel §7.6/§7.7) ──────────────────────
+// ── Extension Prompts & Context Tab (Fabric §7.6/§7.7) ──────────────────────
 
 interface ExtPrompt {
     id: string
@@ -1396,7 +1396,7 @@ function ExtensionPromptsTab({ workspaceId }: { workspaceId: string }) {
                 <div className="text-center py-12 text-text-muted text-sm">
                     <Layers className="h-8 w-8 mx-auto mb-3 opacity-40" />
                     <p>No extension prompts or context blocks installed.</p>
-                    <p className="text-xs mt-1">Install a Kapsel extension with prompts to see them here.</p>
+                    <p className="text-xs mt-1">Install a Fabric extension with prompts to see them here.</p>
                 </div>
             )}
 

@@ -25,7 +25,7 @@ interface InstalledItem {
     status: 'active' | 'error' | 'expired' | 'disconnected'
 }
 
-interface KapselPlugin {
+interface FabricExtension {
     id: string
     workspaceId: string
     name: string
@@ -45,7 +45,7 @@ async function fetchMarketplaceData(workspaceId: string) {
             .catch(() => fetch(`${apiBase}/api/v1/connections/registry`, { cache: 'no-store' })),
         fetch(`${apiBase}/api/v1/connections/installed?workspaceId=${workspaceId}`, { cache: 'no-store' })
             .catch(() => fetch(`${apiBase}/api/v1/connections/installed?workspaceId=${workspaceId}`, { cache: 'no-store' })),
-        fetch(`${apiBase}/api/v1/plugins?workspaceId=${workspaceId}`, { cache: 'no-store' }),
+        fetch(`${apiBase}/api/v1/extensions?workspaceId=${workspaceId}`, { cache: 'no-store' }),
     ])
 
     const registry: RegistryItem[] = regRes.ok
@@ -61,12 +61,12 @@ async function fetchMarketplaceData(workspaceId: string) {
         : []
 
     // API may return bare array, { items: [...] }, or { plugins: [...] }
-    const plugins: KapselPlugin[] = Array.isArray(rawPlugins)
-        ? (rawPlugins as KapselPlugin[])
+    const plugins: FabricExtension[] = Array.isArray(rawPlugins)
+        ? (rawPlugins as FabricExtension[])
         : Array.isArray((rawPlugins as { items?: unknown }).items)
-            ? ((rawPlugins as { items: KapselPlugin[] }).items)
+            ? ((rawPlugins as { items: FabricExtension[] }).items)
             : Array.isArray((rawPlugins as { plugins?: unknown }).plugins)
-                ? ((rawPlugins as { plugins: KapselPlugin[] }).plugins)
+                ? ((rawPlugins as { plugins: FabricExtension[] }).plugins)
                 : []
 
     return { registry, installed, plugins }

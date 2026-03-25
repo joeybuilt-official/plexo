@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Activation SDK — v3 (Kapsel v0.3.0)
+ * Fabric Activation SDK — v3 (Fabric v0.3.0)
  *
- * A host-side implementation of KapselSDK passed to extension activate() calls.
+ * A host-side implementation of PlexoSDK passed to extension activate() calls.
  * For capabilities that require host-side services (storage, memory, connections),
  * the SDK delegates to a `HostBridge` — a function that sends a message to the
  * host and awaits its response.
@@ -18,7 +18,7 @@
  * Capability enforcement: every sdk.* call checks the declared capabilities[]
  * from the manifest before proceeding (§4).
  */
-import type { KapselSDK, ToolRegistration, ScheduleRegistration, WidgetRegistration } from '@plexo/sdk'
+import type { PlexoSDK, ToolRegistration, ScheduleRegistration, WidgetRegistration } from '@plexo/sdk'
 
 export interface ActivationResult {
     tools: ToolRegistration[]
@@ -48,7 +48,7 @@ export function createActivationSDK(
     settings: Record<string, unknown>,
     workspaceId: string,
     bridge: HostBridge = nullBridge,
-): { sdk: KapselSDK; getResult: () => ActivationResult } {
+): { sdk: PlexoSDK; getResult: () => ActivationResult } {
     const capSet = new Set(capabilities)
     const registered: ActivationResult = { tools: [], schedules: [], widgets: [] }
 
@@ -68,9 +68,9 @@ export function createActivationSDK(
         throw new Error(`CAPABILITY_DENIED: extension "${extensionName}" requires a "memory:${action}" capability (unscoped or entity-scoped)`)
     }
 
-    const sdk: KapselSDK = {
+    const sdk: PlexoSDK = {
         host: {
-            kapselVersion: '0.3.0',
+            fabricVersion: '0.3.0',
             complianceLevel: 'full',
             name: 'plexo',
             version: process.env.npm_package_version ?? '0.0.0',
@@ -90,6 +90,37 @@ export function createActivationSDK(
             registered.widgets.push(widget)
         },
 
+        registerPrompt(): void {
+            requireCap('prompts:register')
+            // TODO: prompt registration storage
+        },
+
+        registerContext(): void {
+            requireCap('context:register')
+            // TODO: context registration storage
+        },
+
+        prompts: {
+            async list() {
+                requireCap('prompts:read')
+                return []
+            },
+            async resolve(_promptId, _variables) {
+                requireCap('prompts:read')
+                return ''
+            },
+        },
+
+        context: {
+            async update(_contextId, _content, _opts) {
+                requireCap('context:write')
+            },
+            async list() {
+                requireCap('context:read')
+                return []
+            },
+        },
+
         memory: {
             async read(query, opts) {
                 hasMemoryCap('read')
@@ -98,7 +129,7 @@ export function createActivationSDK(
                     query,
                     tags: opts?.tags,
                     limit: opts?.limit,
-                }) as Promise<Awaited<ReturnType<KapselSDK['memory']['read']>>>
+                }) as Promise<Awaited<ReturnType<PlexoSDK['memory']['read']>>>
             },
             async write(entry) {
                 hasMemoryCap('write')
@@ -108,7 +139,7 @@ export function createActivationSDK(
                     tags: entry.tags,
                     metadata: { ...entry.metadata, authorExtension: extensionName },
                     ttl: entry.ttl,
-                }) as Promise<Awaited<ReturnType<KapselSDK['memory']['write']>>>
+                }) as Promise<Awaited<ReturnType<PlexoSDK['memory']['write']>>>
             },
             async delete(id) {
                 hasMemoryCap('delete')
@@ -120,7 +151,7 @@ export function createActivationSDK(
             async getCredentials(service: string) {
                 requireCap(`connections:${service}`)
                 return bridge('connections.getCredentials', { workspaceId, service }) as
-                    Promise<Awaited<ReturnType<KapselSDK['connections']['getCredentials']>>>
+                    Promise<Awaited<ReturnType<PlexoSDK['connections']['getCredentials']>>>
             },
             async isConnected(service: string) {
                 requireCap(`connections:${service}`)
@@ -144,17 +175,17 @@ export function createActivationSDK(
             async create(opts) {
                 requireCap('tasks:create')
                 return bridge('tasks.create', { workspaceId, opts }) as
-                    Promise<Awaited<ReturnType<KapselSDK['tasks']['create']>>>
+                    Promise<Awaited<ReturnType<PlexoSDK['tasks']['create']>>>
             },
             async get(id) {
                 requireCap('tasks:read')
                 return bridge('tasks.get', { workspaceId, id }) as
-                    Promise<Awaited<ReturnType<KapselSDK['tasks']['get']>>>
+                    Promise<Awaited<ReturnType<PlexoSDK['tasks']['get']>>>
             },
             async list(filter) {
                 requireCap('tasks:read')
                 return bridge('tasks.list', { workspaceId, filter }) as
-                    Promise<Awaited<ReturnType<KapselSDK['tasks']['list']>>>
+                    Promise<Awaited<ReturnType<PlexoSDK['tasks']['list']>>>
             },
         },
 

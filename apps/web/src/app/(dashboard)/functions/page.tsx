@@ -24,7 +24,7 @@ import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
-interface KapselManifest {
+interface ExtensionManifest {
     name: string
     version: string
     description?: string
@@ -38,15 +38,15 @@ interface Plugin {
     name: string
     version: string
     type: string
-    kapselVersion: string
+    fabricVersion: string
     enabled: boolean
     enabledTools: string[] | null
     installedAt: string
-    kapselManifest: KapselManifest | null
+    manifest: ExtensionManifest | null
     settings?: Record<string, unknown>
 }
 
-// Tools from installed connections (non-plugin)
+// Tools from installed connections (non-extension)
 interface ConnectionTool {
     connectionId: string
     connectionName: string
@@ -145,7 +145,7 @@ export default function FunctionsPage() {
         setError(null)
         try {
             const [plugRes, connRes, regRes] = await Promise.all([
-                fetch(`${API_BASE}/api/v1/plugins?workspaceId=${WS_ID}`),
+                fetch(`${API_BASE}/api/v1/extensions?workspaceId=${WS_ID}`),
                 fetch(`${API_BASE}/api/v1/connections/installed?workspaceId=${WS_ID}`),
                 fetch(`${API_BASE}/api/v1/connections/registry`),
             ])
@@ -188,11 +188,11 @@ export default function FunctionsPage() {
         }
     }
 
-    // Aggregate functions from plugin extensions
+    // Aggregate functions from installed extensions
     const rawPluginSections = plugins
-        .filter((p) => p.enabled && (p.kapselManifest?.tools ?? []).length > 0)
+        .filter((p) => p.enabled && (p.manifest?.tools ?? []).length > 0)
         .map((p) => {
-            const tools = p.kapselManifest!.tools!
+            const tools = p.manifest!.tools!
             let filteredTools = tools
 
             if (search.trim()) {
@@ -284,7 +284,7 @@ export default function FunctionsPage() {
                 <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-blue-400/80">
                     Functions are the atomic units of work the agent can call during task execution. They come from connected services (GitHub, Slack, etc.)
-                    and Kapsel extensions. Toggle individual functions to control what the agent can access.
+                    and Fabric extensions. Toggle individual functions to control what the agent can access.
                 </p>
             </div>
 
@@ -335,7 +335,7 @@ export default function FunctionsPage() {
                         <p className="text-xs text-text-muted mt-1">
                             Connect services in{' '}
                             <a href="/settings/connections" className="text-azure hover:underline">Connections</a>{' '}
-                            or install Kapsel extensions from the{' '}
+                            or install extensions from the{' '}
                             <a href="/marketplace" className="text-azure hover:underline">Marketplace</a>.
                         </p>
                     </div>

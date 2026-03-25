@@ -85,7 +85,7 @@ export default function AuditPage() {
             if (filterValues.action) params.set('action', filterValues.action)
             if (filterValues.outcome) params.set('outcome', filterValues.outcome)
             if (urlAgentId) params.set('agentId', urlAgentId)
-            const res = await fetch(`${API_BASE}/api/v1/kapsel-audit?${params}`)
+            const res = await fetch(`${API_BASE}/api/v1/extension-audit?${params}`)
             if (!res.ok) {
                 if (res.status === 404) {
                     setItems([])

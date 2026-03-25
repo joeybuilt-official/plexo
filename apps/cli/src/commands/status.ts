@@ -15,8 +15,8 @@ interface HealthResponse {
     }
     uptime: number
     version: string
-    kapsel?: {
-        workers: Array<{ pluginName: string; toolCount: number }>
+    fabric?: {
+        workers: Array<{ extensionName: string; toolCount: number }>
     }
 }
 
@@ -62,11 +62,11 @@ export function registerStatus(program: Command): void {
                 console.log(`    redis     ${statusBadge(redis.ok ? 'ok' : 'error')}  ${redis.latencyMs}ms`)
                 console.log(`    anthropic ${statusBadge(ai.ok ? 'ok' : 'degraded')}  ${ai.ok ? `${ai.latencyMs}ms` : 'not configured'}`)
 
-                if (health.kapsel?.workers && health.kapsel.workers.length > 0) {
+                if (health.fabric?.workers && health.fabric.workers.length > 0) {
                     console.log()
                     console.log(`  ${c.bold('Extensions:')}`)
-                    health.kapsel.workers.forEach(w =>
-                        console.log(`    ${c.cyan(w.pluginName)}  ${w.toolCount} tools`)
+                    health.fabric.workers.forEach(w =>
+                        console.log(`    ${c.cyan(w.extensionName)}  ${w.toolCount} tools`)
                     )
                 }
 

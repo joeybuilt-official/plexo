@@ -158,7 +158,7 @@ healthRouter.get('/', async (_req, res) => {
     const critical = services.postgres.ok && services.redis.ok
     const status = critical ? 'ok' : 'degraded'
 
-    // Kapsel §7.6/§7.7 status — lightweight aggregate counts
+    // Fabric §7.6/§7.7 status — lightweight aggregate counts
     let promptLibrary = { totalPrompts: 0, enabledPrompts: 0 }
     let contextLayer = { totalContexts: 0, enabledContexts: 0 }
     try {
@@ -177,9 +177,9 @@ healthRouter.get('/', async (_req, res) => {
         services,
         version: pkg.version ?? '0.1.0',
         uptime: Math.floor(process.uptime()),
-        kapsel: {
+        fabric: {
             complianceLevel: 'full',
-            specVersion: '0.3.0',
+            specVersion: '0.4.0',
             host: 'plexo',
             workers: workerStats(),
             promptLibrary,

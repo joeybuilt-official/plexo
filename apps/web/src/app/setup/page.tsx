@@ -53,7 +53,7 @@ const COLLECT_ROWS = [
     ['Error type and stack trace', 'Task content or goals'],
     ['Which step failed (PLAN / CONFIRM / EXECUTE / VERIFY)', 'Workspace or user names'],
     ['Task category (coding, research, ops — not the task itself)', 'Channel handles or credentials'],
-    ['Plugin name if a plugin crashed', 'File paths containing your data'],
+    ['Extension name if an extension crashed', 'File paths containing your data'],
     ['Plexo version + Node version', 'Tool call arguments'],
     ['Anonymous instance ID (random UUID, generated at install)', 'Memory entries or outputs'],
 ]

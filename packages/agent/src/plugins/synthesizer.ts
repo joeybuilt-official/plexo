@@ -2,27 +2,27 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Extension Synthesizer
+ * Fabric Extension Synthesizer
  *
  * When a user requests integration with a service that has no installed extension
  * or connector, this module:
  *   1. Scrapes the service's official docs
- *   2. Generates a valid Kapsel extension (ESM JS + kapsel.json)
+ *   2. Generates a valid Fabric extension (ESM JS + plexo.json)
  *   3. Writes files to the persistent generated-extensions volume
  *   4. Registers a connections_registry entry so the credential UI appears
  *   5. Installs and auto-activates the extension
  *
- * Generated extensions run in the same Kapsel sandbox as marketplace plugins.
+ * Generated extensions run in the same Fabric sandbox as marketplace extensions.
  * Capabilities are inferred from requested operations and validated against
  * a fixed allowlist — the LLM cannot expand them.
  */
 
 import { db, eq, and, sql } from '@plexo/db'
-import { plugins, connectionsRegistry, workspaces } from '@plexo/db'
+import { extensions, connectionsRegistry, workspaces } from '@plexo/db'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { terminateWorker } from './persistent-pool.js'
-import type { KapselManifest, ManifestType } from '@plexo/sdk'
+import type { ExtensionManifest, ManifestType } from '@plexo/sdk'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -227,7 +227,7 @@ async function generateExtensionCode(
 ): Promise<string> {
     const { generateText } = await import('ai')
 
-    const systemPrompt = `You are a Kapsel extension generator for the Plexo AI agent platform.
+    const systemPrompt = `You are a Fabric extension generator for the Plexo AI agent platform.
 Your output is a JavaScript ESM module that will run in a sandboxed worker thread.
 
 ABSOLUTE RULES — any violation makes the output unusable:
@@ -253,7 +253,7 @@ ERROR HANDLING:
 - Catch fetch errors and return { error: errorMessage } objects
 - Never throw unhandled exceptions from tool handlers`
 
-    const userPrompt = `Generate a Kapsel extension for "${research.serviceName}".
+    const userPrompt = `Generate a Fabric extension for "${research.serviceName}".
 
 SERVICE WEBSITE: ${research.baseUrl}
 AUTH SCHEME: ${research.authScheme} (header: ${research.authHeaderName})
@@ -323,21 +323,21 @@ function generateManifest(
     registryId: string,
     capabilities: string[],
     entryPath: string,
-): KapselManifest {
+): ExtensionManifest {
     // Connection capability is always included for the service's own registry entry
     const fullCaps = [...new Set([...capabilities, `connections:${registryId}`])]
 
     return {
-        kapsel: '0.3.0',
+        plexo: '0.4.0',
         name: `@generated/${slug}`,
         version: '1.0.0',
-        type: 'function',
+        type: 'skill',
         entry: entryPath,
         displayName: serviceName,
         description: `Auto-generated extension for ${serviceName}. Created by Plexo synthesizer.`,
         author: 'plexo-synthesizer',
         license: 'UNLICENSED',
-        capabilities: fullCaps,
+        capabilities: fullCaps as ExtensionManifest['capabilities'],
         resourceHints: {
             maxInvocationMs: 30000,
         },
@@ -352,7 +352,7 @@ function generateManifest(
 async function writeExtensionToDisk(
     slug: string,
     code: string,
-    manifest: KapselManifest,
+    manifest: ExtensionManifest,
 ): Promise<string> {
     const safeSlug = sanitizeSlug(slug)
     if (!safeSlug) throw new Error('Invalid slug — service name produced empty sanitized value')
@@ -361,7 +361,7 @@ async function writeExtensionToDisk(
     await fs.mkdir(dir, { recursive: true })
 
     const indexPath = path.join(dir, 'index.js')
-    const manifestPath = path.join(dir, 'kapsel.json')
+    const manifestPath = path.join(dir, 'plexo.json')
 
     // Back up existing file
     try {
@@ -414,7 +414,7 @@ async function registerConnection(research: APIResearch): Promise<void> {
 // ── Plugin install + activate ─────────────────────────────────────────────────
 
 async function installAndActivate(
-    manifest: KapselManifest,
+    manifest: ExtensionManifest,
     workspaceId: string,
     serviceSource: string,
     docsUrl: string,
@@ -435,29 +435,29 @@ async function installAndActivate(
     }
 
     const [row] = await db
-        .insert(plugins)
+        .insert(extensions)
         .values({
             workspaceId,
             name: manifest.name,
             version: manifest.version,
             type: manifest.type as any,
-            kapselVersion: manifest.kapsel,
+            fabricVersion: manifest.plexo,
             entry: manifest.entry,
-            kapselManifest: manifest as unknown as Record<string, unknown>,
+            manifest: manifest as unknown as Record<string, unknown>,
             enabled: true,
             settings: settings as Record<string, unknown>,
         })
         .onConflictDoUpdate({
-            target: [plugins.workspaceId, plugins.name],
+            target: [extensions.workspaceId, extensions.name],
             set: {
                 version: manifest.version,
                 entry: manifest.entry,
-                kapselManifest: manifest as unknown as Record<string, unknown>,
+                manifest: manifest as unknown as Record<string, unknown>,
                 enabled: true,
                 settings: settings as Record<string, unknown>,
             },
         })
-        .returning({ id: plugins.id })
+        .returning({ id: extensions.id })
 
     return row!.id
 }

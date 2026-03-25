@@ -41,7 +41,7 @@ const PATTERN_STYLE: Record<string, { dot: string; label: string }> = {
     tool_preference: { dot: 'bg-blue-500', label: 'Tool preference' },
     scope_adjustment: { dot: 'bg-amber', label: 'Scope adjustment' },
     skill_proposal: { dot: 'bg-azure-500', label: 'Skill Proposal' },
-    plugin_proposal: { dot: 'bg-purple-500', label: 'Plugin Proposal' },
+    extension_proposal: { dot: 'bg-purple-500', label: 'Extension Proposal' },
     agent_proposal: { dot: 'bg-fuchsia-500', label: 'Agent Proposal' },
 }
 

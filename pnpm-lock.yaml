@@ -610,19 +610,19 @@ importers:
         specifier: ^5.7
         version: 5.9.3
 
-  plugins/core/cron-manager: {}
+  extensions/core/cron-manager: {}
 
-  plugins/core/devops-skill: {}
+  extensions/core/devops-skill: {}
 
-  plugins/core/github-ops: {}
+  extensions/core/github-ops: {}
 
-  plugins/core/product-skill: {}
+  extensions/core/product-skill: {}
 
-  plugins/core/research-skill: {}
+  extensions/core/research-skill: {}
 
-  plugins/core/slack-channel: {}
+  extensions/core/slack-channel: {}
 
-  plugins/core/telegram-channel: {}
+  extensions/core/telegram-channel: {}
 
 packages:
 

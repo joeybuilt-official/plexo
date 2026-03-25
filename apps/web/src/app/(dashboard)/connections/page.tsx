@@ -3,7 +3,7 @@
 
 /**
  * Connections page — promoted from /settings/connections to top-level.
- * Kapsel v0.3.0: Connection is a first-class pillar alongside Extension and Agent.
+ * Fabric v0.3.0: Connection is a first-class pillar alongside Extension and Agent.
  *
  * Re-exports the existing ConnectionsPage component from settings.
  * The actual implementation remains in settings/connections for now.

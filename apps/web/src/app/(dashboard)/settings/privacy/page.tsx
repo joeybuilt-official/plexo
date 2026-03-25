@@ -16,7 +16,7 @@ interface TelemetryConfig {
     instanceId: string
 }
 
-interface DataResidencyPlugin {
+interface DataResidencyExtension {
     name: string
     type: string
     dataResidency?: {
@@ -30,7 +30,7 @@ interface LastPayload {
     stackFrames: string[]
     pipelineStep: string | null
     taskCategory: string
-    pluginName: string | null
+    extensionName: string | null
     plexoVersion: string
     nodeVersion: string
     instanceId: string
@@ -190,7 +190,7 @@ export default function PrivacyPage() {
     const [showPayload, setShowPayload] = useState(false)
     const [showRegenerate, setShowRegenerate] = useState(false)
     const [regenerating, setRegenerating] = useState(false)
-    const [drPlugins, setDrPlugins] = useState<DataResidencyPlugin[]>([])
+    const [drExtensions, setDrExtensions] = useState<DataResidencyExtension[]>([])
 
     const headers = {
         'content-type': 'application/json',
@@ -218,15 +218,15 @@ export default function PrivacyPage() {
 
     useEffect(() => { void load() }, [load])
 
-    // Fetch plugins for data residency section
+    // Fetch extensions for data residency section
     useEffect(() => {
         if (!workspaceId) return
-        fetch(`${API_BASE}/api/v1/plugins?workspaceId=${workspaceId}`)
-            .then(r => r.ok ? r.json() as Promise<{ items?: DataResidencyPlugin[] } | DataResidencyPlugin[]> : null)
+        fetch(`${API_BASE}/api/v1/extensions?workspaceId=${workspaceId}`)
+            .then(r => r.ok ? r.json() as Promise<{ items?: DataResidencyExtension[] } | DataResidencyExtension[]> : null)
             .then(d => {
                 if (!d) return
                 const items = Array.isArray(d) ? d : (d.items ?? [])
-                setDrPlugins(items.filter(p => p.dataResidency))
+                setDrExtensions(items.filter(p => p.dataResidency))
             })
             .catch(() => {})
     }, [workspaceId])
@@ -366,11 +366,11 @@ export default function PrivacyPage() {
                         title="Extension Data Residency"
                         description="Which extensions send data to external services, and where."
                     >
-                        {drPlugins.length === 0 ? (
+                        {drExtensions.length === 0 ? (
                             <p className="text-sm text-text-muted">No extensions have declared data residency information.</p>
                         ) : (
                             <div className="flex flex-col gap-3">
-                                {drPlugins.map(p => {
+                                {drExtensions.map(p => {
                                     const dr = p.dataResidency!
                                     const hasUnknownDests = dr.sendsDataExternally && (!dr.externalDestinations || dr.externalDestinations.length === 0)
                                     return (

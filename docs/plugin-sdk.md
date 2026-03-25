@@ -1,19 +1,19 @@
-# Kapsel Extension SDK
+# Plexo Fabric Extension SDK
 
 ## Overview
 
 The Plexo Extension SDK (`@plexo/sdk`) enables third-party extensions to add functions, channels, MCP servers, schedules, widgets, and more. Extensions run in isolated Node.js worker threads — a crash never affects the core process.
 
-Plexo implements the [Kapsel Protocol v0.3.0](https://github.com/joeybuilt-official/kapsel).
+Plexo implements the Plexo Fabric Specification v0.4.0.
 
 ## Three Pillars
 
-Kapsel defines three distinct architectural pillars:
+Fabric defines three distinct architectural pillars:
 
 | Pillar | What it is | Manifest type |
 |--------|-----------|---------------|
 | **Connection** | Authenticated pipe to an external service. Inert on its own. | N/A (host-managed) |
-| **Extension** | Capability package — functions, schedules, widgets, memory access. | `function` · `channel` · `mcp-server` |
+| **Extension** | Capability package — functions, schedules, widgets, memory access. | `skill` · `channel` · `tool` · `connector` |
 | **Agent** | Autonomous actor with a goal, planning loop, and identity. Orchestrates Extensions. | `agent` |
 
 ## Installation
@@ -25,9 +25,9 @@ npm install @plexo/sdk
 ## Quick Start
 
 ```typescript
-import type { KapselSDK } from '@plexo/sdk'
+import type { PlexoSDK } from '@plexo/sdk'
 
-export async function activate(sdk: KapselSDK): Promise<void> {
+export async function activate(sdk: PlexoSDK): Promise<void> {
   // Register a function the agent can call
   sdk.registerTool({
     name: 'stripe_mrr_report',
@@ -67,16 +67,16 @@ export async function activate(sdk: KapselSDK): Promise<void> {
 }
 ```
 
-## Extension Manifest (`kapsel.json`)
+## Extension Manifest (`plexo.json`)
 
-Every extension requires a `kapsel.json` manifest:
+Every extension requires a `plexo.json` manifest:
 
 ```json
 {
-  "kapsel": "0.3.0",
+  "plexo": "0.4.0",
   "name": "@acme/stripe-monitor",
   "version": "1.0.0",
-  "type": "function",
+  "type": "skill",
   "entry": "src/index.ts",
   "capabilities": [
     "storage:read",
@@ -116,9 +116,10 @@ Every extension requires a `kapsel.json` manifest:
 
 | Type | Description |
 |------|-------------|
-| `function` | Stateless, single-purpose, called on demand |
+| `skill` | Composite capability package (registers tools, schedules, widgets) |
 | `channel` | Messaging bridge (inbound/outbound) |
-| `mcp-server` | Model Context Protocol server |
+| `tool` | Stateless, single-purpose, called on demand |
+| `connector` | Bridges an external MCP server |
 | `agent` | Autonomous actor (separate pillar) |
 
 ### Capability Tokens

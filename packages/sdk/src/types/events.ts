@@ -2,11 +2,15 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Event Bus Types
- * Corresponds to §7.4 of the Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Event Bus Types
+ * Corresponds to §7.4 of the Plexo Fabric Specification v0.4.0
  *
  * Extensions may only publish to ext.<scope>.* namespace.
  * Standard topics are published by the host.
+ *
+ * v0.4.0 additions:
+ *   - prompt.* topics (§7.6)
+ *   - context.* topics (§7.7)
  *
  * v0.3.0 additions:
  *   - entity.* topics (§16)
@@ -64,6 +68,13 @@ export const TOPICS = {
     A2A_INBOUND_RECEIVED: 'a2a.inbound.received',
     A2A_DELEGATION_SENT: 'a2a.delegation.sent',
     A2A_DELEGATION_COMPLETED: 'a2a.delegation.completed',
+    // §7.6 — Prompt Library
+    PROMPT_REGISTERED: 'prompt.registered',
+    PROMPT_ENABLED: 'prompt.enabled',
+    // §7.7 — Context Layer
+    CONTEXT_REGISTERED: 'context.registered',
+    CONTEXT_UPDATED: 'context.updated',
+    CONTEXT_EXPIRED: 'context.expired',
 } as const
 
 export type StandardTopic = (typeof TOPICS)[keyof typeof TOPICS]
@@ -133,3 +144,12 @@ export interface AgentStepFailedPayload { agentName: string; taskId: string; ste
 export interface A2AInboundReceivedPayload { sourceEndpoint: string; taskId: string; workspaceId: string }
 export interface A2ADelegationSentPayload { targetEndpoint: string; taskId: string; agentName: string; workspaceId: string }
 export interface A2ADelegationCompletedPayload { targetEndpoint: string; taskId: string; status: string; workspaceId: string }
+
+// §7.6 — Prompt Library
+export interface PromptRegisteredPayload { extensionName: string; promptId: string; workspaceId: string }
+export interface PromptEnabledPayload { promptId: string; workspaceId: string }
+
+// §7.7 — Context Layer
+export interface ContextRegisteredPayload { extensionName: string; contextId: string; workspaceId: string }
+export interface ContextUpdatedPayload { extensionName: string; contextId: string; workspaceId: string }
+export interface ContextExpiredPayload { extensionName: string; contextId: string; workspaceId: string }

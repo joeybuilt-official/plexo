@@ -2,43 +2,43 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Plugins API — Kapsel Standard compliant
+ * Extensions API — Fabric Standard compliant
  *
- * GET    /api/plugins?workspaceId=   List installed extensions
- * GET    /api/plugins/:id            Get extension by ID
- * POST   /api/plugins                Install an extension (validates kapsel.json)
- * PATCH  /api/plugins/:id            Toggle enabled / update settings
- * DELETE /api/plugins/:id            Uninstall extension (triggers deactivate hook)
+ * GET    /api/extensions?workspaceId=   List installed extensions
+ * GET    /api/extensions/:id            Get extension by ID
+ * POST   /api/extensions                Install an extension (validates manifest)
+ * PATCH  /api/extensions/:id            Toggle enabled / update settings
+ * DELETE /api/extensions/:id            Uninstall extension (triggers deactivate hook)
  *
  * Install flow (§3.3):
- *  1. Validate kapsel.json manifest
+ *  1. Validate extension manifest
  *  2. Check minHostLevel compliance
  *  3. Verify workspace exists
  *  4. Insert row (enabled=false — requires explicit enable)
  *
- * The agent executor calls loadPluginTools(workspaceId) at task start,
+ * The agent executor calls loadExtensionTools(workspaceId) at task start,
  * which loads enabled extensions and runs their tools in sandboxed workers.
  */
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, and, sql as rawSql } from '@plexo/db'
-import { plugins, workspaces, extensionPrompts, extensionContexts } from '@plexo/db'
+import { extensions, workspaces, extensionPrompts, extensionContexts } from '@plexo/db'
 import { logger } from '../logger.js'
 import { audit } from '../audit.js'
 import { validateManifest } from '@plexo/sdk'
-import type { KapselManifest } from '@plexo/sdk'
+import type { ExtensionManifest } from '@plexo/sdk'
 import { terminateWorker } from '@plexo/agent/persistent-pool'
 import { UUID_RE } from '../validation.js'
 
-export const pluginsRouter: RouterType = Router()
+export const extensionsRouter: RouterType = Router()
 
 
 // Plexo compliance level — used to enforce minHostLevel
 const PLEXO_COMPLIANCE_LEVEL: 'core' | 'standard' | 'full' = 'full'
 const COMPLIANCE_ORDER = { core: 0, standard: 1, full: 2 }
 
-// ── GET /api/plugins ──────────────────────────────────────────────────────────
+// ── GET /api/extensions ──────────────────────────────────────────────────────────
 
-pluginsRouter.get('/', async (req, res) => {
+extensionsRouter.get('/', async (req, res) => {
     const { workspaceId, type } = req.query as { workspaceId?: string; type?: string }
 
     if (!workspaceId) {
@@ -51,47 +51,47 @@ pluginsRouter.get('/', async (req, res) => {
     }
 
     try {
-        const conditions = [eq(plugins.workspaceId, workspaceId)]
+        const conditions = [eq(extensions.workspaceId, workspaceId)]
         if (type) {
-            conditions.push(eq(plugins.type, type as typeof plugins.type.dataType))
+            conditions.push(eq(extensions.type, type as any))
         }
 
         const rows = await db
             .select()
-            .from(plugins)
+            .from(extensions)
             .where(and(...conditions))
-            .orderBy(plugins.installedAt)
+            .orderBy(extensions.installedAt)
 
         res.json({ items: rows, total: rows.length })
     } catch (err) {
-        logger.error({ err }, 'GET /api/plugins failed')
+        logger.error({ err }, 'GET /api/extensions failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list extensions' } })
     }
 })
 
-// ── GET /api/plugins/:id ──────────────────────────────────────────────────────
+// ── GET /api/extensions/:id ──────────────────────────────────────────────────────
 
-pluginsRouter.get('/:id', async (req, res) => {
+extensionsRouter.get('/:id', async (req, res) => {
     if (!UUID_RE.test(req.params.id)) {
         res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
         return
     }
     try {
-        const [plugin] = await db.select().from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
+        const [plugin] = await db.select().from(extensions).where(eq(extensions.id, req.params.id)).limit(1)
         if (!plugin) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found' } })
             return
         }
         res.json(plugin)
     } catch (err) {
-        logger.error({ err }, 'GET /api/plugins/:id failed')
+        logger.error({ err }, 'GET /api/extensions/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get extension' } })
     }
 })
 
-// ── POST /api/plugins (install) ───────────────────────────────────────────────
+// ── POST /api/extensions (install) ───────────────────────────────────────────────
 
-pluginsRouter.post('/', async (req, res) => {
+extensionsRouter.post('/', async (req, res) => {
     const { workspaceId, manifest, settings = {} } = req.body as {
         workspaceId?: string
         manifest?: unknown
@@ -107,7 +107,7 @@ pluginsRouter.post('/', async (req, res) => {
         return
     }
 
-    // §3.3 — Validate the kapsel.json manifest
+    // §3.3 — Validate the extension manifest
     const validation = validateManifest(manifest)
     if (!validation.valid) {
         res.status(400).json({
@@ -120,7 +120,7 @@ pluginsRouter.post('/', async (req, res) => {
         return
     }
 
-    const m = manifest as KapselManifest
+    const m = manifest as ExtensionManifest
 
     // §11.4 — Enforce minHostLevel
     if (m.minHostLevel && COMPLIANCE_ORDER[m.minHostLevel] > COMPLIANCE_ORDER[PLEXO_COMPLIANCE_LEVEL]) {
@@ -140,14 +140,14 @@ pluginsRouter.post('/', async (req, res) => {
             return
         }
 
-        const [inserted] = await db.insert(plugins).values({
+        const [inserted] = await db.insert(extensions).values({
             workspaceId,
             name: m.name,
             version: m.version,
             type: m.type,
-            kapselVersion: m.kapsel,
+            fabricVersion: m.plexo ?? '0.4.0',
             entry: m.entry,
-            kapselManifest: m as object,
+            manifest: m as object,
             enabled: false,      // always starts disabled (§9.1 — activate called on enable)
             settings,
         }).returning()
@@ -157,7 +157,7 @@ pluginsRouter.post('/', async (req, res) => {
             return
         }
         
-        // §5d: Auto-register behavior rules from plugin manifest
+        // §5d: Auto-register behavior rules from extension manifest
         if (m.behaviorRules && m.behaviorRules.length > 0) {
             const { behaviorRules: dbBehaviorRules } = await import('@plexo/db')
             const rulesToInsert = m.behaviorRules.map((rule) => ({
@@ -170,7 +170,7 @@ pluginsRouter.post('/', async (req, res) => {
                 value: rule.defaultValue,
                 locked: rule.locked,
                 source: 'workspace' as const,
-                tags: [`plugin:${inserted.id}`],
+                tags: [`extension:${inserted.id}`],
             }))
             await db.insert(dbBehaviorRules).values(rulesToInsert)
         }
@@ -178,7 +178,7 @@ pluginsRouter.post('/', async (req, res) => {
         // §7.6: Extract prompt artifacts from manifest and persist (disabled by default)
         if (m.prompts && Array.isArray(m.prompts) && m.prompts.length > 0) {
             try {
-                const promptRows = m.prompts.map((p: Record<string, unknown>) => ({
+                const promptRows = m.prompts.map((p: any) => ({
                     workspaceId,
                     extensionName: m.name,
                     promptId: String(p.id),
@@ -199,26 +199,26 @@ pluginsRouter.post('/', async (req, res) => {
             }
         }
 
-        logger.info({ id: inserted.id, name: m.name, type: m.type, kapsel: m.kapsel }, 'Extension installed (Kapsel)')
+        logger.info({ id: inserted.id, name: m.name, type: m.type, plexo: m.plexo }, 'Extension installed')
         audit(req, {
             workspaceId,
-            action: 'plugin.install',
-            resource: 'plugins',
+            action: 'extension.install',
+            resource: 'extensions',
             resourceId: inserted.id,
-            metadata: { name: m.name, version: m.version, type: m.type, kapsel: m.kapsel },
+            metadata: { name: m.name, version: m.version, type: m.type, plexo: m.plexo },
         })
         // Surface validation warnings to the caller (non-fatal)
         const warnings = validation.errors.filter((e) => e.severity === 'warning')
         res.status(201).json({ ...inserted, warnings: warnings.length ? warnings : undefined })
     } catch (err) {
-        logger.error({ err }, 'POST /api/plugins failed')
+        logger.error({ err }, 'POST /api/extensions failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to install extension' } })
     }
 })
 
-// ── PATCH /api/plugins/:id ────────────────────────────────────────────────────
+// ── PATCH /api/extensions/:id ────────────────────────────────────────────────────
 
-pluginsRouter.patch('/:id', async (req, res) => {
+extensionsRouter.patch('/:id', async (req, res) => {
     const { enabled, settings, workspaceId } = req.body as { enabled?: boolean; settings?: Record<string, unknown>; workspaceId?: string }
 
     if (!UUID_RE.test(req.params.id)) {
@@ -232,7 +232,7 @@ pluginsRouter.patch('/:id', async (req, res) => {
     }
 
     try {
-        const [existing] = await db.select().from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
+        const [existing] = await db.select().from(extensions).where(eq(extensions.id, req.params.id)).limit(1)
         if (!existing || existing.workspaceId !== workspaceId) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found in workspace' } })
             return
@@ -247,17 +247,17 @@ pluginsRouter.patch('/:id', async (req, res) => {
             return
         }
 
-        await db.update(plugins).set(update).where(eq(plugins.id, req.params.id))
+        await db.update(extensions).set(update).where(eq(extensions.id, req.params.id))
         logger.info({ id: req.params.id, update }, 'Extension updated')
 
         // Audit enable/disable — these trigger lifecycle hooks (§9.1)
         if (typeof enabled === 'boolean') {
             audit(req, {
                 workspaceId: existing.workspaceId,
-                action: enabled ? 'plugin.enable' : 'plugin.disable',
-                resource: 'plugins',
+                action: enabled ? 'extension.enable' : 'extension.disable',
+                resource: 'extensions',
                 resourceId: req.params.id,
-                metadata: { name: existing.name, kapselVersion: existing.kapselVersion },
+                metadata: { name: existing.name, fabricVersion: existing.fabricVersion },
             })
             // Terminate the persistent worker on disable so it's re-activated fresh on re-enable
             if (!enabled) terminateWorker(existing.name)
@@ -265,14 +265,14 @@ pluginsRouter.patch('/:id', async (req, res) => {
 
         res.json({ ok: true })
     } catch (err) {
-        logger.error({ err }, 'PATCH /api/plugins/:id failed')
+        logger.error({ err }, 'PATCH /api/extensions/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Update failed' } })
     }
 })
 
-// ── DELETE /api/plugins/:id ───────────────────────────────────────────────────
+// ── DELETE /api/extensions/:id ───────────────────────────────────────────────────
 
-pluginsRouter.delete('/:id', async (req, res) => {
+extensionsRouter.delete('/:id', async (req, res) => {
     const { workspaceId } = req.query as { workspaceId?: string }
 
     if (!UUID_RE.test(req.params.id)) {
@@ -287,9 +287,9 @@ pluginsRouter.delete('/:id', async (req, res) => {
 
     try {
         const [existing] = await db
-            .select({ id: plugins.id, workspaceId: plugins.workspaceId, name: plugins.name, kapselVersion: plugins.kapselVersion })
-            .from(plugins)
-            .where(eq(plugins.id, req.params.id))
+            .select({ id: extensions.id, workspaceId: extensions.workspaceId, name: extensions.name, fabricVersion: extensions.fabricVersion })
+            .from(extensions)
+            .where(eq(extensions.id, req.params.id))
             .limit(1)
 
         if (!existing || existing.workspaceId !== workspaceId) {
@@ -299,22 +299,23 @@ pluginsRouter.delete('/:id', async (req, res) => {
 
         // Terminate persistent worker + delete record
         terminateWorker(existing.name)
-        await db.delete(plugins).where(eq(plugins.id, req.params.id))
+        await db.delete(extensions).where(eq(extensions.id, req.params.id))
         
         // §5d: Cleanup — soft-delete associated behavior rules using raw SQL
         // instead of fetching all rules and filtering/updating in JS (N+1)
+        // Tags use "extension:<id>" format
         try {
-            const pluginTag = `plugin:${req.params.id}`
+            const extensionTag = `extension:${req.params.id}`
             await db.execute(rawSql`
                 UPDATE behavior_rules
                 SET deleted_at = NOW()
                 WHERE workspace_id = ${workspaceId}
-                  AND ${pluginTag} = ANY(tags)
+                  AND ${extensionTag} = ANY(tags)
                   AND deleted_at IS NULL
             `)
-            logger.info({ id: req.params.id }, 'Soft-deleted plugin behavior rules')
+            logger.info({ id: req.params.id }, 'Soft-deleted extension behavior rules')
         } catch (ruleErr) {
-            logger.warn({ err: ruleErr, id: req.params.id }, 'Failed to cleanup plugin behavior rules — non-fatal')
+            logger.warn({ err: ruleErr, id: req.params.id }, 'Failed to cleanup extension behavior rules — non-fatal')
         }
 
         // §7.6/§7.7: Soft-delete extension prompts and context blocks
@@ -341,14 +342,14 @@ pluginsRouter.delete('/:id', async (req, res) => {
         logger.info({ id: req.params.id, name: existing.name }, 'Extension uninstalled')
         audit(req, {
             workspaceId: existing.workspaceId,
-            action: 'plugin.uninstall',
-            resource: 'plugins',
+            action: 'extension.uninstall',
+            resource: 'extensions',
             resourceId: req.params.id,
-            metadata: { name: existing.name, kapselVersion: existing.kapselVersion },
+            metadata: { name: existing.name, fabricVersion: existing.fabricVersion },
         })
         res.json({ ok: true })
     } catch (err) {
-        logger.error({ err }, 'DELETE /api/plugins/:id failed')
+        logger.error({ err }, 'DELETE /api/extensions/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Uninstall failed' } })
     }
 })

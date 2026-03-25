@@ -594,11 +594,11 @@ export async function loadConnectionTools(workspaceId: string): Promise<ToolSet>
 
         // ── Self-extension tool ────────────────────────────────────────────────
         // Always available — lets the agent generate new skills/connections on demand.
-        merged['synthesize_kapsel_skill'] = tool({
+        merged['synthesize_extension'] = tool({
             description:
                 'Research a third-party service API and generate, install, and activate a ' +
-                'Kapsel skill + connection entry for it. Call this when the user needs to ' +
-                'integrate with a service that has no installed skill or connector. ' +
+                'Fabric extension + connection entry for it. Call this when the user needs to ' +
+                'integrate with a service that has no installed extension or connector. ' +
                 'The tool handles doc scraping, code generation, disk persistence, ' +
                 'connection registration, and auto-activation in one call.',
             inputSchema: z.object({

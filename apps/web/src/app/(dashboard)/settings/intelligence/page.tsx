@@ -49,7 +49,7 @@ interface ConnectionSnapshot {
     capabilities: string[]
 }
 
-interface PluginSnapshot {
+interface ExtensionSnapshot {
     name: string
     version: string
     enabled: boolean
@@ -103,7 +103,7 @@ interface IntrospectionSnapshot {
     fallbackChain: string[]
     providers: ProviderSnapshot[]
     connections: ConnectionSnapshot[]
-    plugins: PluginSnapshot[]
+    plugins: ExtensionSnapshot[]
     builtinTools: string[]
     memory: MemorySnapshot
     cost: CostSnapshot
@@ -494,7 +494,7 @@ export default function IntelligencePage() {
                 </div>
             </div>
 
-            {/* Bottom — Connections & Plugins */}
+            {/* Bottom — Connections & Extensions */}
             <Section
                 title="Installed Connections"
                 icon={Plug}
@@ -543,7 +543,7 @@ export default function IntelligencePage() {
             </Section>
 
             {snapshot.plugins.length > 0 && (
-                <Section title="Plugins" icon={Zap} count={snapshot.plugins.filter(p => p.enabled).length}>
+                <Section title="Extensions" icon={Zap} count={snapshot.plugins.filter(p => p.enabled).length}>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {snapshot.plugins.map((p) => (
                             <div key={p.name} className={`rounded-lg border px-3 py-2 ${p.enabled ? 'border-border/60 bg-surface-1/30' : 'border-border/30 bg-surface-1/10 opacity-50'}`}>

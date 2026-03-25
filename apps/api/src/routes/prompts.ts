@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Extension Prompt Library API (Kapsel §7.6).
+ * Extension Prompt Library API (Fabric §7.6).
  *
  * GET    /api/v1/prompts/:workspaceId              → list extension prompts
  * PATCH  /api/v1/prompts/:workspaceId/:promptId    → enable/disable, set variable defaults

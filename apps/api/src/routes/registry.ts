@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Extension Registry API (§12)
+ * Extension Registry API (§12)
  *
- * Public discovery and publishing of Kapsel extensions.
+ * Public discovery and publishing of extensions.
  *
  * GET    /api/v1/registry                Search/list extensions
  * GET    /api/v1/registry/:name          Get extension details (URL-encoded scoped name)
@@ -12,14 +12,14 @@
  * DELETE /api/v1/registry/:name          Deprecate an extension (auth required)
  *
  * Install flow: calls GET /registry/:name to get the manifest,
- * then POST /api/v1/plugins with the resolved kapsel.json.
+ * then POST /api/v1/extensions with the resolved manifest.
  */
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, ilike, and, ne } from '@plexo/db'
-import { kapselRegistry } from '@plexo/db'
+import { extensionRegistry } from '@plexo/db'
 import { logger } from '../logger.js'
 import { validateManifest } from '@plexo/sdk'
-import type { KapselManifest } from '@plexo/sdk'
+import type { ExtensionManifest } from '@plexo/sdk'
 import { createHash } from 'node:crypto'
 
 export const registryRouter: RouterType = Router()
@@ -35,24 +35,24 @@ registryRouter.get('/', async (req, res) => {
         const offset = (pageNum - 1) * limitNum
 
         const conditions = [
-            eq(kapselRegistry.deprecated, false),
-            ...(q ? [ilike(kapselRegistry.name, `%${q}%`)] : []),
-            ...(publisher ? [eq(kapselRegistry.publisher, publisher)] : []),
+            eq(extensionRegistry.deprecated, false),
+            ...(q ? [ilike(extensionRegistry.name, `%${q}%`)] : []),
+            ...(publisher ? [eq(extensionRegistry.publisher, publisher)] : []),
         ]
 
         const rows = await db
             .select({
-                name: kapselRegistry.name,
-                displayName: kapselRegistry.displayName,
-                description: kapselRegistry.description,
-                publisher: kapselRegistry.publisher,
-                latestVersion: kapselRegistry.latestVersion,
-                tags: kapselRegistry.tags,
-                installCount: kapselRegistry.installCount,
-                publishedAt: kapselRegistry.publishedAt,
-                updatedAt: kapselRegistry.updatedAt,
+                name: extensionRegistry.name,
+                displayName: extensionRegistry.displayName,
+                description: extensionRegistry.description,
+                publisher: extensionRegistry.publisher,
+                latestVersion: extensionRegistry.latestVersion,
+                tags: extensionRegistry.tags,
+                installCount: extensionRegistry.installCount,
+                publishedAt: extensionRegistry.publishedAt,
+                updatedAt: extensionRegistry.updatedAt,
             })
-            .from(kapselRegistry)
+            .from(extensionRegistry)
             .where(and(...conditions))
             .limit(limitNum)
             .offset(offset)
@@ -80,8 +80,8 @@ registryRouter.get('/:name', async (req, res) => {
 
         const [entry] = await db
             .select()
-            .from(kapselRegistry)
-            .where(eq(kapselRegistry.name, name))
+            .from(extensionRegistry)
+            .where(eq(extensionRegistry.name, name))
             .limit(1)
 
         if (!entry) {
@@ -108,7 +108,7 @@ registryRouter.post('/', async (req, res) => {
         }
 
         const body = req.body as {
-            manifest: KapselManifest
+            manifest: ExtensionManifest
             displayName?: string
             tags?: string[]
             repositoryUrl?: string
@@ -121,7 +121,7 @@ registryRouter.post('/', async (req, res) => {
             res.status(422).json({
                 error: {
                     code: 'INVALID_MANIFEST',
-                    message: 'kapsel.json failed validation',
+                    message: 'Extension manifest failed validation',
                     details: validation.errors,
                 },
             })
@@ -137,9 +137,9 @@ registryRouter.post('/', async (req, res) => {
             createHash('sha256').update(JSON.stringify(manifest)).digest('hex')
 
         const existing = await db
-            .select({ id: kapselRegistry.id, versions: kapselRegistry.versions, publisher: kapselRegistry.publisher })
-            .from(kapselRegistry)
-            .where(eq(kapselRegistry.name, name))
+            .select({ id: extensionRegistry.id, versions: extensionRegistry.versions, publisher: extensionRegistry.publisher })
+            .from(extensionRegistry)
+            .where(eq(extensionRegistry.name, name))
             .limit(1)
 
         if (existing.length > 0) {
@@ -154,7 +154,7 @@ registryRouter.post('/', async (req, res) => {
             if (!versions.includes(version)) versions.unshift(version)
 
             await db
-                .update(kapselRegistry)
+                .update(extensionRegistry)
                 .set({
                     latestVersion: version,
                     versions,
@@ -166,12 +166,12 @@ registryRouter.post('/', async (req, res) => {
                     checksum,
                     updatedAt: new Date(),
                 })
-                .where(eq(kapselRegistry.id, record.id))
+                .where(eq(extensionRegistry.id, record.id))
 
             logger.info({ name, version, publisher: userId }, 'Registry extension updated')
             res.status(200).json({ ok: true, action: 'updated', name, version })
         } else {
-            await db.insert(kapselRegistry).values({
+            await db.insert(extensionRegistry).values({
                 name,
                 displayName: body.displayName ?? name,
                 description: (manifest as unknown as Record<string, unknown>).description as string ?? '',
@@ -206,9 +206,9 @@ registryRouter.delete('/:name', async (req, res) => {
         const name = decodeURIComponent(req.params.name)
 
         const [entry] = await db
-            .select({ id: kapselRegistry.id, publisher: kapselRegistry.publisher })
-            .from(kapselRegistry)
-            .where(and(eq(kapselRegistry.name, name), ne(kapselRegistry.deprecated, true)))
+            .select({ id: extensionRegistry.id, publisher: extensionRegistry.publisher })
+            .from(extensionRegistry)
+            .where(and(eq(extensionRegistry.name, name), ne(extensionRegistry.deprecated, true)))
             .limit(1)
 
         if (!entry) {
@@ -222,9 +222,9 @@ registryRouter.delete('/:name', async (req, res) => {
         }
 
         await db
-            .update(kapselRegistry)
+            .update(extensionRegistry)
             .set({ deprecated: true, updatedAt: new Date() })
-            .where(eq(kapselRegistry.id, entry.id))
+            .where(eq(extensionRegistry.id, entry.id))
 
         logger.info({ name, userId: userId }, 'Registry extension deprecated')
         res.json({ ok: true, deprecated: true, name })

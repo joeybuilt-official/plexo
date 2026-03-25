@@ -8,16 +8,16 @@
 
 **The Agentic Operating System. Built for Production.**
 
-A persistent, self-hosted AI workforce that autonomously handles software engineering, business operations, and deep research. Engineered for trust, built for scale, and entirely extensible via the Kapsel standard.
+A persistent, self-hosted AI workforce that autonomously handles software engineering, business operations, and deep research. Engineered for trust, built for scale, and entirely extensible via Plexo Fabric.
 
-<a href="https://getplexo.com"><b>☁️ Managed Cloud</b></a> • <a href="docs/"><b>📖 Documentation</b></a> • <a href="https://github.com/joeybuilt-official/kapsel"><b>🔌 Kapsel Protocol</b></a>
+<a href="https://getplexo.com"><b>☁️ Managed Cloud</b></a> • <a href="docs/"><b>📖 Documentation</b></a> • <a href="docs/fabric/SPEC.md"><b>🔌 Plexo Fabric</b></a>
 
 <br/>
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Docker](https://img.shields.io/badge/Deploy-Docker-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
-[![Kapsel](https://img.shields.io/badge/Kapsel_v0.3.0-Full%20compliant-6C47FF)](https://github.com/joeybuilt-official/kapsel)
+[![Fabric](https://img.shields.io/badge/Plexo_Fabric_v0.4.0-Full%20compliant-6C47FF)](docs/fabric/SPEC.md)
 
 </div>
 
@@ -124,11 +124,11 @@ Plexo features an automatic transmission for language models, optimizing for cos
 
 ## 🔌 The Extensibility Moat
 
-A platform's survival depends on its ecosystem. Plexo natively adheres to [**Kapsel v0.3.0**](https://github.com/joeybuilt-official/kapsel), the definitive open standard for AI agent extensions. This is the App Store model for AI—decentralized, host-agnostic, and secure by default.
+A platform's survival depends on its ecosystem. Plexo natively implements **Plexo Fabric v0.4.0**, the runtime model for AI agent extensions. This is the App Store model for AI—decentralized, host-agnostic, and secure by default.
 
 ### Three Pillars
 
-Kapsel v0.3.0 establishes three distinct architectural pillars:
+Plexo Fabric establishes three distinct architectural pillars:
 
 | Pillar | What it is | Analogy |
 |--------|-----------|---------|
@@ -145,7 +145,7 @@ An Agent is not a subtype of Extension. An Extension does not think. An Agent do
 *   **Data Residency (§19):** Extensions declare every external destination in their manifest. An extension claiming `sendsDataExternally: false` that makes external HTTP calls is flagged non-compliant at runtime.
 *   **Live Conversation Mode:** A unified "always-listening" mode for hands-free voice interaction. It features autonomous turn-taking (linked to TTS completion), interruption support, and sub-500ms latency for a natural dialogue flow.
 *   **Persistent Sandboxes:** Extensions run in their own persistent `worker_threads`. Zero cold-start overhead. Crashes are caught, isolated, and respawned without affecting the host.
-*   **Write Once, Run Anywhere:** A Kapsel extension written for Plexo runs on any other Kapsel-compliant host.
+*   **Write Once, Run Anywhere:** A Fabric extension written for Plexo runs on any other Fabric-compliant host.
 *   **Omni-Channel Native:** Native adapters for Slack, Discord, and Telegram. Agents live where your team communicates.
 
 ### 🧬 Self-Extending: The Agent Builds Its Own Tools
@@ -154,13 +154,13 @@ Plexo's most powerful extensibility feature is the ability for the agent to **ge
 
 When you ask the agent to integrate with a service that isn't already installed, it autonomously:
 1. **Scrapes the official API documentation** from the service's website
-2. **Generates a valid Kapsel extension** (ESM JavaScript + `kapsel.json` manifest) via LLM
+2. **Generates a valid Fabric extension** (ESM JavaScript + `plexo.json` manifest) via LLM
 3. **Writes the code to a persistent Docker volume** so it survives restarts
 4. **Registers a connection entry** so the credential UI appears immediately in Settings → Connections
 5. **Auto-activates the extension** — it's live for the next task
 6. **Tells you where to enter credentials** — you just supply the API key like any other connection
 
-Generated extensions appear in the Extensions catalog with a **✦ Custom** badge. They run in the same Kapsel sandbox as marketplace extensions — capability-gated, isolated, non-fatal on errors. The agent cannot grant itself capabilities beyond what the requested operations require.
+Generated extensions appear in the Extensions catalog with a **✦ Custom** badge. They run in the same Fabric sandbox as marketplace extensions — capability-gated, isolated, non-fatal on errors. The agent cannot grant itself capabilities beyond what the requested operations require.
 
 **Example:** Ask Plexo to "connect to Intercom and list open conversations" — it will build the Intercom extension, register the connection, activate it, and prompt you to add your API key. No code deployment needed.
 
@@ -175,13 +175,13 @@ Agent: Researching Intercom API docs...
          to enter your API key and start using it.
 ```
 
-### Kapsel Protocol Example
+### Fabric SDK Example
 Plexo provides a transparent, capability-gated SDK for developers.
 
 ```ts
-import type { KapselSDK } from '@plexo/sdk'
+import type { PlexoSDK } from '@plexo/sdk'
 
-export async function activate(sdk: KapselSDK) {
+export async function activate(sdk: PlexoSDK) {
   // Register a function (the atomic unit of work)
   sdk.registerTool({
     name: 'stripe_report',

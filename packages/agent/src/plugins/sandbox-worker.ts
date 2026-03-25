@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Persistent Sandbox Worker (§5.4) — v2 with host bridge
+ * Fabric Persistent Sandbox Worker (§5.4) — v2 with host bridge
  *
  * Long-lived worker that stays alive and services multiple tool invocations.
  * SDK capabilities (storage, memory, connections, events) are delegated back

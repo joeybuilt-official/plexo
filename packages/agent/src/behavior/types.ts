@@ -15,7 +15,7 @@ export type RuleType =
     | 'tool_preference'
     | 'quality_gate'
 
-export type RuleSource = 'platform' | 'workspace' | 'project' | 'task'
+export type RuleSource = 'platform' | 'workspace' | 'project' | 'task' | 'extension'
 
 export type RuleValue =
     | { type: 'boolean'; value: boolean }

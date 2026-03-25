@@ -24,12 +24,12 @@ import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
-interface KapselManifest {
+interface ExtensionManifest {
     name: string
     version: string
     description?: string
     type: string
-    kapsel: string
+    fabric: string
     tools?: Array<{ name: string; description?: string }>
     permissions?: string[]
     capabilities?: string[]
@@ -43,10 +43,10 @@ interface Plugin {
     name: string
     version: string
     type: string
-    kapselVersion: string
+    fabricVersion: string
     enabled: boolean
     installedAt: string
-    kapselManifest: KapselManifest | null
+    manifest: ExtensionManifest | null
     settings: Record<string, unknown>
 }
 
@@ -70,7 +70,7 @@ function groupEntityCapabilities(caps: string[]): { entity: string; ops: string[
 function ExtensionCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: string, enabled: boolean) => Promise<void> }) {
     const [expanded, setExpanded] = useState(false)
     const [toggling, setToggling] = useState(false)
-    const manifest = plugin.kapselManifest
+    const manifest = plugin.manifest
 
     async function handleToggle() {
         setToggling(true)
@@ -175,7 +175,7 @@ function ExtensionCard({ plugin, onToggle }: { plugin: Plugin; onToggle: (id: st
                     )}
                     <div className="flex items-center gap-4 text-[11px] text-text-muted">
                         <span>Installed {new Date(plugin.installedAt).toLocaleDateString()}</span>
-                        <span>Kapsel {plugin.kapselVersion}</span>
+                        <span>Fabric {plugin.fabricVersion}</span>
                         {manifest?.minHostLevel && <span>Requires host level: <span className="text-text-secondary">{manifest.minHostLevel}</span></span>}
                     </div>
                 </div>
@@ -199,7 +199,7 @@ export default function ExtensionsPage() {
         setLoading(true)
         setError(null)
         try {
-            const res = await fetch(`${API_BASE}/api/v1/plugins?workspaceId=${WS_ID}`)
+            const res = await fetch(`${API_BASE}/api/v1/extensions?workspaceId=${WS_ID}`)
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
             const data = await res.json() as { items: Plugin[] }
             setPlugins(data.items)
@@ -213,7 +213,7 @@ export default function ExtensionsPage() {
     useEffect(() => { void fetchPlugins() }, [fetchPlugins])
 
     async function handleToggle(id: string, enabled: boolean) {
-        const res = await fetch(`${API_BASE}/api/v1/plugins/${id}`, {
+        const res = await fetch(`${API_BASE}/api/v1/extensions/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled }),
@@ -245,7 +245,7 @@ export default function ExtensionsPage() {
         const q = search.toLowerCase()
         return (
             p.name.toLowerCase().includes(q) ||
-            p.kapselManifest?.description?.toLowerCase().includes(q)
+            p.manifest?.description?.toLowerCase().includes(q)
         )
     }).sort((a, b) => {
         if (lf.sort === 'name_desc') return b.name.localeCompare(a.name)
@@ -260,7 +260,7 @@ export default function ExtensionsPage() {
                 <div>
                     <h1 className="text-xl font-bold tracking-tight text-zinc-50">Extensions</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
-                        Kapsel extensions — capability packages the agent can invoke
+                        Fabric extensions — capability packages the agent can invoke
                     </p>
                 </div>
                 <button
@@ -289,10 +289,10 @@ export default function ExtensionsPage() {
             <div className="rounded-xl border border-azure-800/30 bg-azure/20 px-4 py-3 flex items-start gap-3">
                 <Info className="h-4 w-4 text-azure shrink-0 mt-0.5" />
                 <div>
-                    <p className="text-xs font-medium text-azure mb-0.5">Kapsel Extensions</p>
+                    <p className="text-xs font-medium text-azure mb-0.5">Plexo Fabric Extensions</p>
                     <p className="text-xs text-azure/70">
                         Extensions are capability packages — functions, channels, and MCP servers — that grant the agent new abilities.
-                        Install via the Marketplace, then enable here. Each extension declares capabilities and data residency via its <code className="text-azure">kapsel.json</code> manifest.
+                        Install via the Marketplace, then enable here. Each extension declares capabilities and data residency via its <code className="text-azure">plexo.json</code> manifest.
                     </p>
                 </div>
             </div>
@@ -344,7 +344,7 @@ export default function ExtensionsPage() {
                     <div className="text-center">
                         <p className="text-sm font-medium text-text-muted">No extensions installed</p>
                         <p className="text-xs text-text-muted mt-1">
-                            Install Kapsel extensions from the <a href="/marketplace" className="text-azure hover:underline">Marketplace</a> to extend the agent.
+                            Install extensions from the <a href="/marketplace" className="text-azure hover:underline">Marketplace</a> to extend the agent.
                         </p>
                     </div>
                 </div>

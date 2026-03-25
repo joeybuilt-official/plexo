@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Persistent Worker Pool (§5.4) — v2 with host bridge
+ * Fabric Persistent Worker Pool (§5.4) — v2 with host bridge
  *
  * Maintains ONE persistent Worker per enabled extension, reused across all
  * tool invocations. Handles sdk_call messages from workers to provide real
@@ -29,7 +29,7 @@ import { db, eq, and } from '@plexo/db'
 import { installedConnections, connectionsRegistry, tasks } from '@plexo/db'
 import { eventBus } from './event-bus.js'
 
-const logger = pino({ name: 'kapsel-persistent-pool' })
+const logger = pino({ name: 'fabric-persistent-pool' })
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)

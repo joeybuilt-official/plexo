@@ -14,7 +14,7 @@ import { registerTask } from './commands/task.js'
 import { registerSprint } from './commands/sprint.js'
 import { registerCron } from './commands/cron.js'
 import { registerConnection } from './commands/connection.js'
-import { registerPlugin } from './commands/plugin.js'
+import { registerExtension } from './commands/plugin.js'
 import { registerMemory } from './commands/memory.js'
 import { registerLogs } from './commands/logs.js'
 import { registerStatus } from './commands/status.js'
@@ -33,7 +33,7 @@ registerTask(program)
 registerSprint(program)
 registerCron(program)
 registerConnection(program)
-registerPlugin(program)
+registerExtension(program)
 registerMemory(program)
 registerLogs(program)
 registerStatus(program)

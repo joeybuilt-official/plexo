@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Event Bus — host implementation (§7)
+ * Fabric Event Bus — host implementation (§7)
  *
  * v2: adds Redis pub/sub fan-out for multi-container deployments.
  *
@@ -24,7 +24,7 @@
 import { EventEmitter } from 'events'
 import pino from 'pino'
 
-const logger = pino({ name: 'kapsel-event-bus' })
+const logger = pino({ name: 'fabric-event-bus' })
 
 export const TOPICS = {
     TASK_STATUS_CHANGED: 'plexo.task.status_changed',
@@ -45,7 +45,7 @@ export const TOPICS = {
 
 export type StandardTopic = typeof TOPICS[keyof typeof TOPICS]
 
-const REDIS_CHANNEL = 'kapsel:events'
+const REDIS_CHANNEL = 'fabric:events'
 
 export function extensionTopic(extensionName: string, event: string): string {
     const scope = extensionName.replace(/^@/, '').replace('/', '_')
@@ -67,7 +67,7 @@ interface RedisLike {
     quit(): Promise<void>
 }
 
-class KapselEventBus {
+class FabricEventBus {
     private readonly emitter = new EventEmitter()
     private redisPub: RedisLike | null = null
     private redisSub: RedisLike | null = null
@@ -169,4 +169,4 @@ class KapselEventBus {
     }
 }
 
-export const eventBus = new KapselEventBus()
+export const eventBus = new FabricEventBus()

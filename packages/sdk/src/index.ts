@@ -2,22 +2,22 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * @plexo/sdk — Kapsel-compatible extension SDK types
+ * @plexo/sdk — Plexo Fabric extension SDK types
  *
- * Plexo is a Kapsel Standard-compliant host (kapsel: "0.3.0").
- * This package re-exports the Kapsel protocol types so extensions
- * targeting Plexo use the same contract as any other Kapsel host.
+ * Plexo implements the Plexo Fabric specification (plexo: "0.4.0").
+ * This package exports the protocol types so extensions targeting
+ * Plexo use the same contract.
  *
- * Extensions should import from '@plexo/sdk' in their kapsel.json entry point:
- *   import type { KapselSDK } from '@plexo/sdk'
- *   export async function activate(sdk: KapselSDK): Promise<void> { ... }
+ * Extensions should import from '@plexo/sdk' in their plexo.json entry point:
+ *   import type { PlexoSDK } from '@plexo/sdk'
+ *   export async function activate(sdk: PlexoSDK): Promise<void> { ... }
  *
  * Host compliance: Standard (target)
- * Spec version: 0.3.0
+ * Fabric spec version: 0.4.0
  *
  * Core Architecture — Three Distinct Pillars:
  *   Connection  — Authenticated pipe to an external service
- *   Extension   — Capability package (functions + schedules + widgets + memory)
+ *   Extension   — Capability package (tools + schedules + widgets + memory)
  *   Agent       — Autonomous actor that orchestrates Extensions
  */
 
@@ -25,10 +25,11 @@
 // §3 — Manifest types
 // ---------------------------------------------------------------------------
 export type {
-    KapselManifest,
+    ExtensionManifest,
+    KapselManifest,         // deprecated alias
     ManifestType,
     ExtensionSubtype,
-    ExtensionType,       // deprecated — use ManifestType
+    ExtensionType,          // deprecated — use ManifestType
     CapabilityToken,
     EntityTypeName,
     HostComplianceLevel,
@@ -44,7 +45,8 @@ export type {
 // Appendix A — SDK interface
 // ---------------------------------------------------------------------------
 export type {
-    KapselSDK,
+    PlexoSDK,
+    KapselSDK,              // deprecated alias
     HostInfo,
     MemoryEntry,
     ConnectionCredentials,
@@ -62,11 +64,32 @@ export type {
 // §6 — Message protocol
 // ---------------------------------------------------------------------------
 export type {
-    KapselMessage,
-    KapselError,
+    FabricMessage,
+    FabricError,
+    KapselMessage,          // deprecated alias
+    KapselError,            // deprecated alias
     ErrorCode,
     MessageType,
 } from './types/messages.js'
+
+// ---------------------------------------------------------------------------
+// §7.6 — Prompt Library
+// ---------------------------------------------------------------------------
+export type {
+    PromptArtifact,
+    PromptVariable,
+    PromptRegistration,
+    PromptSummary,
+} from './types/prompts.js'
+
+// ---------------------------------------------------------------------------
+// §7.7 — Context Layer
+// ---------------------------------------------------------------------------
+export type {
+    ContextArtifact,
+    ContextRegistration,
+    ContextSummary,
+} from './types/context.js'
 
 // ---------------------------------------------------------------------------
 // §8 — Agent contract
@@ -130,6 +153,12 @@ export type {
     A2AInboundReceivedPayload,
     A2ADelegationSentPayload,
     A2ADelegationCompletedPayload,
+    // v0.4.0 payloads
+    PromptRegisteredPayload,
+    PromptEnabledPayload,
+    ContextRegisteredPayload,
+    ContextUpdatedPayload,
+    ContextExpiredPayload,
 } from './types/events.js'
 
 // ---------------------------------------------------------------------------
@@ -143,7 +172,8 @@ export type {
     TransactionEntity,
     CalendarEventEntity,
     FileEntity,
-    KapselEntity,
+    PlexoEntity,
+    KapselEntity,           // deprecated alias
     EntityTypeMap,
     LinkedEntity,
     EntitySearchQuery,
@@ -196,8 +226,10 @@ export type {
 // §21 — DID + Verifiable Credentials
 // ---------------------------------------------------------------------------
 export type {
-    KapselDIDDocument,
-    KapselVerifiableCredential,
+    PlexoDIDDocument,
+    PlexoVerifiableCredential,
+    KapselDIDDocument,       // deprecated alias
+    KapselVerifiableCredential, // deprecated alias
     SelectiveDisclosureRequest,
     SelectiveDisclosureResponse,
 } from './types/did.js'
@@ -235,10 +267,11 @@ export type {
 } from './types/model-context.js'
 
 // ---------------------------------------------------------------------------
-// §25 — Kapsel-Native Service Discovery
+// §25 — Plexo-Native Service Discovery
 // ---------------------------------------------------------------------------
 export type {
-    WellKnownKapsel,
+    WellKnownPlexo,
+    WellKnownKapsel,        // deprecated alias
     WellKnownExtensionRef,
     ServiceDiscoveryResult,
 } from './types/discovery.js'

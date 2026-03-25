@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Manifest Types
- * Corresponds to §3 of the Kapsel Protocol Specification v0.3.0
+ * Plexo Extension Manifest Types
+ * Corresponds to §3 of the Plexo Fabric Specification v0.4.0
  *
  * Core Architecture — Three Distinct Pillars:
  *
@@ -15,10 +15,11 @@
  *
  * Agent is NOT a subtype of Extension. An Extension does not think. An Agent does.
  *
- * Nomenclature Standard:
- *   Tool        → Function  (stateless, single-purpose, called on demand)
- *   Skill       → Extension (composite capability package — the primary installable unit)
- *   Integration → Connection (authenticated pipe to an external service)
+ * Extension subtypes:
+ *   skill       — Composite capability package (registers tools, schedules, widgets)
+ *   channel     — Messaging bridge (inbound/outbound)
+ *   tool        — Stateless, single-purpose, called on demand
+ *   connector   — Bridges an external MCP server (formerly 'mcp-server')
  */
 
 import type { TrustTier } from './trust.js'
@@ -32,25 +33,23 @@ import type { ModelRequirements } from './model-context.js'
 
 /**
  * Extension subtypes — filter badges in host UI.
- * 'function'    — stateless, single-purpose, called on demand (formerly 'tool')
+ * 'skill'       — composite capability package (registers tools, schedules, widgets)
  * 'channel'     — messaging bridge (inbound/outbound)
- * 'mcp-server'  — Model Context Protocol server
+ * 'tool'        — stateless, single-purpose, called on demand
+ * 'connector'   — bridges an external MCP server (formerly 'mcp-server')
  */
-export type ExtensionSubtype = 'function' | 'channel' | 'mcp-server'
+export type ExtensionSubtype = 'skill' | 'channel' | 'tool' | 'connector'
 
 /**
  * The manifest type field — covers both Extensions and Agents.
  * Agent is a separate pillar but shares the manifest format.
- *
- * @deprecated 'tool' — use 'function' instead
- * @deprecated 'skill' — use 'function' | 'channel' | 'mcp-server' instead
  */
 export type ManifestType = ExtensionSubtype | 'agent'
 
 /**
- * @deprecated Use ManifestType instead. Kept for backwards compatibility during migration.
+ * @deprecated Use ManifestType instead. Kept for backwards compatibility with pre-0.4.0 manifests.
  */
-export type ExtensionType = ManifestType | 'tool' | 'skill'
+export type ExtensionType = ManifestType | 'function' | 'mcp-server'
 
 // ---------------------------------------------------------------------------
 // §4 — Capability Tokens (Entity-Scoped Memory)
@@ -106,6 +105,13 @@ export type CapabilityToken =
     // Storage
     | 'storage:read'
     | 'storage:write'
+    // Prompts (§7.6)
+    | 'prompts:register'
+    | 'prompts:read'
+    // Context (§7.7)
+    | 'context:register'
+    | 'context:write'
+    | 'context:read'
     // Connections (dynamic — one per external service)
     | `connections:${string}`
     // Host-scoped (host-specific capabilities)
@@ -178,7 +184,12 @@ export interface BehaviorRuleDefinition {
 }
 
 /**
- * The Kapsel manifest — shared by both Extensions and Agents.
+ * The Plexo extension manifest — shared by both Extensions and Agents.
+ *
+ * v0.4.0 additions:
+ *   - prompts / contexts (§7.6, §7.7)
+ *   - 'connector' type (replaces 'mcp-server')
+ *   - 5-type model (agent, skill, channel, tool, connector)
  *
  * v0.3.0 additions:
  *   - trust          (§17)
@@ -187,9 +198,9 @@ export interface BehaviorRuleDefinition {
  *   - modelRequirements (§24)
  *   - did            (§21)
  */
-export interface KapselManifest {
-    /** Protocol version this manifest targets. Must be valid semver. */
-    kapsel: string
+export interface ExtensionManifest {
+    /** Fabric spec version this manifest targets. Must be valid semver. */
+    plexo: string
     /** Scoped package name. Must match @scope/name format. */
     name: string
     /** Extension or Agent version. Must be valid semver. */
@@ -211,7 +222,7 @@ export interface KapselManifest {
 
     // Optional fields (§3.2)
     minHostLevel?: HostComplianceLevel
-    minKapselVersion?: string
+    minFabricVersion?: string
     homepage?: string
     repository?: string
     keywords?: string[]
@@ -223,11 +234,17 @@ export interface KapselManifest {
     agentHints?: AgentHints
     /** For channel type only. Rendered as setup form. */
     channelConfig?: JSONSchema
-    /** For function type only. Rendered as settings form. */
-    functionConfig?: JSONSchema
+    /** For skill type only. Rendered as settings form. */
+    skillConfig?: JSONSchema
+    /** For tool type only. Rendered as settings form. */
+    toolConfig?: JSONSchema
     resourceHints?: ResourceHints
     peerExtensions?: string[]
     behaviorRules?: BehaviorRuleDefinition[]
+    /** §7.6 — Prompt templates contributed by this extension. */
+    prompts?: import('./prompts.js').PromptArtifact[]
+    /** §7.7 — Context dependencies required by this extension. */
+    contextDependencies?: string[]
 
     // v0.3.0 additions
 
@@ -243,9 +260,9 @@ export interface KapselManifest {
     modelRequirements?: ModelRequirements
 
     /**
-     * @deprecated Use functionConfig instead. Kept for backwards compatibility.
+     * @deprecated Use skillConfig instead. Kept for backwards compatibility with pre-0.4.0 manifests.
      */
-    skillConfig?: JSONSchema
+    functionConfig?: JSONSchema
 }
 
 // ---------------------------------------------------------------------------
@@ -257,8 +274,8 @@ export interface KapselManifest {
  * Hosts SHOULD surface these as saveable, nameable presets.
  */
 export interface AgentStackManifest {
-    /** Protocol version. */
-    kapsel: string
+    /** Fabric spec version. */
+    plexo: string
     /** Scoped package name for the stack. */
     name: string
     version: string
@@ -275,3 +292,8 @@ export interface AgentStackManifest {
     /** Optional pre-configured behavior rules for the Agent. */
     behaviorOverrides?: Record<string, unknown>
 }
+
+/**
+ * @deprecated Use ExtensionManifest instead. Alias for backward compatibility.
+ */
+export type KapselManifest = ExtensionManifest

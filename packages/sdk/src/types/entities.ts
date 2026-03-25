@@ -111,7 +111,7 @@ export interface FileEntity {
 // Entity Union & Type Map
 // ---------------------------------------------------------------------------
 
-export type KapselEntity =
+export type PlexoEntity =
     | PersonEntity
     | TaskEntity
     | ThreadEntity
@@ -119,6 +119,9 @@ export type KapselEntity =
     | TransactionEntity
     | CalendarEventEntity
     | FileEntity
+
+/** @deprecated Use PlexoEntity instead. */
+export type KapselEntity = PlexoEntity
 
 /** Maps entity type names to their TypeScript interfaces */
 export interface EntityTypeMap {
@@ -142,7 +145,7 @@ export interface EntitySearchQuery {
     offset?: number
 }
 
-export interface EntitySearchResult<T extends KapselEntity = KapselEntity> {
+export interface EntitySearchResult<T extends PlexoEntity = PlexoEntity> {
     entities: T[]
     total: number
     hasMore: boolean

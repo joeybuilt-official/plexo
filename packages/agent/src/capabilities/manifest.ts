@@ -8,7 +8,7 @@
  *  - Built-in executor tools (always present)
  *  - Active installed_connections and their capabilities
  *  - Configured AI providers and their known modalities
- *  - Active skill plugins (kapsel workers)
+ *  - Active skill plugins (Fabric workers)
  *
  * Injected into both the planner and executor system prompts so the agent
  * can self-limit to achievable work and surface capability gaps to the user.
@@ -134,7 +134,7 @@ const BUILTIN_TOOLS = [
     'shell',
     'task_complete',
     'write_asset',
-    'synthesize_kapsel_skill',
+    'synthesize_extension',
     'web_search',
     'web_fetch',
     'web_screenshot',

@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Plugin Tool Bridge — Kapsel Full compliant host
+ * Fabric Extension Tool Bridge — Plexo Fabric compliant host
  *
- * Loads enabled Kapsel extensions using the Persistent Worker Pool (§5.4).
+ * Loads enabled Fabric extensions using the Persistent Worker Pool (§5.4).
  * Each extension gets one long-lived worker reused across all tool invocations.
  *
  * Activation model (§9.1):
@@ -21,14 +21,14 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import { db, eq, and } from '@plexo/db'
-import { plugins } from '@plexo/db'
+import { extensions } from '@plexo/db'
 import type { ToolSet } from '../connections/bridge.js'
 import { getWorker, invokeTool } from './persistent-pool.js'
 import pino from 'pino'
-import type { KapselManifest, JSONSchema } from '@plexo/sdk'
+import type { ExtensionManifest, JSONSchema } from '@plexo/sdk'
 import { eventBus, TOPICS } from './event-bus.js'
 
-const logger = pino({ name: 'kapsel-bridge' })
+const logger = pino({ name: 'fabric-bridge' })
 
 const DEFAULT_TIMEOUT_MS = 10_000
 
@@ -60,7 +60,7 @@ function buildZodShape(
 }
 
 /**
- * Load enabled Kapsel extensions via the persistent pool.
+ * Load enabled Fabric extensions via the persistent pool.
  * Returns an AI SDK ToolSet with all successfully registered tools.
  */
 export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
@@ -69,11 +69,11 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
     try {
         const enabledExtensions = await db
             .select()
-            .from(plugins)
-            .where(and(eq(plugins.workspaceId, workspaceId), eq(plugins.enabled, true)))
+            .from(extensions)
+            .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.enabled, true)))
 
         for (const ext of enabledExtensions) {
-            const manifest = ext.kapselManifest as KapselManifest
+            const manifest = ext.manifest as ExtensionManifest
             const capabilities = manifest.capabilities ?? []
             const settings = ext.settings as Record<string, unknown>
             const timeoutMs = manifest.resourceHints?.maxInvocationMs ?? DEFAULT_TIMEOUT_MS
@@ -128,7 +128,7 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
                         )
 
                         if (!result.ok) {
-                            logger.warn({ ext: extName, tool: toolName, error: result.error, timedOut: result.timedOut }, 'Kapsel tool failed')
+                            logger.warn({ ext: extName, tool: toolName, error: result.error, timedOut: result.timedOut }, 'Fabric tool failed')
                             return {
                                 extension: extName,
                                 tool: toolName,
@@ -138,13 +138,13 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
                             }
                         }
 
-                        logger.info({ ext: extName, tool: toolName, durationMs: result.durationMs }, 'Kapsel tool executed')
+                        logger.info({ ext: extName, tool: toolName, durationMs: result.durationMs }, 'Fabric tool executed')
                         return result.result
                     },
                 })
             }
 
-            logger.info({ ext: ext.name, toolCount: handle.registeredTools.length }, 'Kapsel extension loaded (persistent worker)')
+            logger.info({ ext: ext.name, toolCount: handle.registeredTools.length }, 'Fabric extension loaded (persistent worker)')
             eventBus.emitSystem(TOPICS.EXTENSION_ACTIVATED, {
                 extension: ext.name,
                 version: ext.version,

@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Message Protocol Types
- * Corresponds to §6 of the Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Message Protocol Types
+ * Corresponds to §6 of the Plexo Fabric Specification v0.4.0
  */
 
 export type MessageType =
@@ -47,9 +47,9 @@ export type ErrorCode =
     | 'MODEL_REQUIREMENTS_UNMET'  // §24 — host cannot satisfy model requirements
     | 'SCOPED_MEMORY_REQUIRED'    // §4  — unscoped memory token at Standard+ host
 
-export interface KapselMessage {
-    /** Kapsel spec version */
-    kapsel: '0.3.0'
+export interface FabricMessage {
+    /** Fabric spec version */
+    plexo: '0.4.0'
     /** Unique message ID */
     id: string
     type: MessageType
@@ -58,13 +58,19 @@ export interface KapselMessage {
     payload: unknown
 }
 
-export interface KapselError {
+/** @deprecated Use FabricMessage instead. */
+export type KapselMessage = FabricMessage
+
+export interface FabricError {
     code: ErrorCode
     message: string
     /** Original error detail — stripped in production */
     detail?: string
     retryable: boolean
 }
+
+/** @deprecated Use FabricError instead. */
+export type KapselError = FabricError
 
 export type MessagePriority = 'normal' | 'high' | 'urgent'
 

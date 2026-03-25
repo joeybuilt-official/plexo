@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel sandbox pool
+ * Fabric sandbox pool
  *
  * Executes extension tool handlers in isolated worker_threads.
  * Implements the Isolation Contract (§5) — one worker per invocation,
@@ -20,16 +20,16 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import pino from 'pino'
 
-const logger = pino({ name: 'kapsel-sandbox' })
+const logger = pino({ name: 'fabric-sandbox' })
 const DEFAULT_TIMEOUT_MS = 10_000
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
 
 export interface SandboxInput {
-    /** Kapsel scoped extension name e.g. @acme/stripe-monitor */
+    /** Fabric scoped extension name e.g. @acme/stripe-monitor */
     pluginName: string
-    /** Tool name as declared in kapsel.json tools[] */
+    /** Tool name as declared in plexo.json tools[] */
     toolName: string
     /** Invocation arguments (validated against parameters schema before reaching here) */
     args: Record<string, unknown>
@@ -37,7 +37,7 @@ export interface SandboxInput {
     permissions: string[]
     /** Extension settings (injected as sdk.storage snapshot) */
     settings: Record<string, unknown>
-    /** Relative entry point from kapsel.json — resolved by worker */
+    /** Relative entry point from plexo.json — resolved by worker */
     entry: string
     /** Workspace context for SDK calls */
     workspaceId?: string
@@ -74,7 +74,7 @@ export async function runInSandbox(input: SandboxInput): Promise<SandboxResult> 
 
         const timer = setTimeout(() => {
             void worker.terminate()
-            logger.warn({ ext: input.pluginName, tool: input.toolName, timeout }, 'Kapsel worker timed out (§5.4)')
+            logger.warn({ ext: input.pluginName, tool: input.toolName, timeout }, 'Fabric worker timed out (§5.4)')
             resolve({
                 ok: false,
                 error: `Extension tool timed out after ${timeout}ms`,
@@ -91,7 +91,7 @@ export async function runInSandbox(input: SandboxInput): Promise<SandboxResult> 
 
         worker.once('error', (err) => {
             clearTimeout(timer)
-            logger.error({ err, ext: input.pluginName }, 'Kapsel worker runtime error')
+            logger.error({ err, ext: input.pluginName }, 'Fabric worker runtime error')
             resolve({
                 ok: false,
                 error: err.message,
