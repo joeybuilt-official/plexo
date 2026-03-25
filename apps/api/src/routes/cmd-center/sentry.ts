@@ -9,8 +9,9 @@ const SENTRY = 'https://sentry.io/api/0'
 
 sentryRouter.get('/projects', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'sentry')
         if (!creds) { res.json(freshResponse([])); return }
         const token = (creds.auth_token ?? creds.token ?? '') as string
@@ -38,8 +39,9 @@ sentryRouter.get('/projects', async (req, res) => {
 
 sentryRouter.get('/issues', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'sentry')
         if (!creds) { res.json(freshResponse([])); return }
         const token = (creds.auth_token ?? creds.token ?? '') as string
@@ -68,10 +70,11 @@ sentryRouter.get('/issues', async (req, res) => {
 
 sentryRouter.post('/issues/:id/resolve', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse({ resolved: false })); return }
         const creds = await resolveCredentials(wsId, 'sentry')
-        if (!creds) { res.status(400).json({ error: 'Sentry not connected' }); return }
+        if (!creds) { res.json(freshResponse({ resolved: false })); return }
         const token = (creds.auth_token ?? creds.token ?? '') as string
         const r = await fetch(`${SENTRY}/issues/${req.params.id}/`, {
             method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -86,10 +89,11 @@ sentryRouter.post('/issues/:id/resolve', async (req, res) => {
 
 sentryRouter.post('/issues/:id/assign', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse({ assigned: false })); return }
         const creds = await resolveCredentials(wsId, 'sentry')
-        if (!creds) { res.status(400).json({ error: 'Sentry not connected' }); return }
+        if (!creds) { res.json(freshResponse({ assigned: false })); return }
         const token = (creds.auth_token ?? creds.token ?? '') as string
         const r = await fetch(`${SENTRY}/issues/${req.params.id}/`, {
             method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

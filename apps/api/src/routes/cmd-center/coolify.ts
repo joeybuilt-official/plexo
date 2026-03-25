@@ -8,8 +8,9 @@ export const coolifyRouter = Router()
 
 coolifyRouter.get('/services', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace configured' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'coolify')
         if (!creds) { res.json(freshResponse([])); return }
 
@@ -41,8 +42,9 @@ coolifyRouter.get('/services', async (req, res) => {
 
 coolifyRouter.get('/deployments', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace configured' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'coolify')
         if (!creds) { res.json(freshResponse([])); return }
 
@@ -78,10 +80,11 @@ coolifyRouter.get('/deployments', async (req, res) => {
 
 coolifyRouter.post('/services/:id/redeploy', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace configured' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse({ triggered: false })); return }
         const creds = await resolveCredentials(wsId, 'coolify')
-        if (!creds) { res.status(400).json({ error: 'Coolify not connected' }); return }
+        if (!creds) { res.json(freshResponse({ triggered: false })); return }
 
         const token = (creds.token ?? creds.api_token ?? '') as string
         const baseUrl = (creds.base_url ?? 'https://coolify.joeybuilt.com') as string

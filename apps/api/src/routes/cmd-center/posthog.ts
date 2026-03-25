@@ -8,8 +8,9 @@ export const posthogRouter = Router()
 
 posthogRouter.get('/insights', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'posthog')
         if (!creds) { res.json(freshResponse([])); return }
         const apiKey = (creds.api_key ?? creds.token ?? '') as string
@@ -33,8 +34,9 @@ posthogRouter.get('/insights', async (req, res) => {
 
 posthogRouter.get('/feature-flags', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'posthog')
         if (!creds) { res.json(freshResponse([])); return }
         const apiKey = (creds.api_key ?? creds.token ?? '') as string
@@ -59,10 +61,11 @@ posthogRouter.get('/feature-flags', async (req, res) => {
 
 posthogRouter.post('/feature-flags/:id/toggle', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse({ toggled: false })); return }
         const creds = await resolveCredentials(wsId, 'posthog')
-        if (!creds) { res.status(400).json({ error: 'PostHog not connected' }); return }
+        if (!creds) { res.json(freshResponse({ toggled: false })); return }
         const apiKey = (creds.api_key ?? creds.token ?? '') as string
         const projectId = (creds.project_id ?? '') as string
         const apiHost = (creds.api_host ?? 'https://app.posthog.com') as string

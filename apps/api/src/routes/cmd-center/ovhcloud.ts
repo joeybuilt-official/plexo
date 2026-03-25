@@ -41,8 +41,9 @@ async function ovhRequest(creds: Record<string, unknown>, method: string, path: 
 
 ovhcloudRouter.get('/servers', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'ovhcloud')
         if (!creds) { res.json(freshResponse([])); return }
 

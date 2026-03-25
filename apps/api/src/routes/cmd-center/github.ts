@@ -12,8 +12,9 @@ function ghH(token: string) { return { ...GH_BASE, Authorization: `Bearer ${toke
 
 githubRouter.get('/repos', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse({ repos: [], openPrs: 0, openIssues: 0 })); return }
         const creds = await resolveCredentials(wsId, 'github')
         if (!creds) { res.json(freshResponse({ repos: [], openPrs: 0, openIssues: 0 })); return }
         const token = (creds.access_token ?? creds.token ?? '') as string
@@ -42,8 +43,9 @@ githubRouter.get('/repos', async (req, res) => {
 
 githubRouter.get('/pulls', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'github')
         if (!creds) { res.json(freshResponse([])); return }
         const token = (creds.access_token ?? creds.token ?? '') as string
@@ -74,8 +76,9 @@ githubRouter.get('/pulls', async (req, res) => {
 
 githubRouter.get('/issues', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'github')
         if (!creds) { res.json(freshResponse([])); return }
         const token = (creds.access_token ?? creds.token ?? '') as string
@@ -102,8 +105,9 @@ githubRouter.get('/issues', async (req, res) => {
 
 githubRouter.get('/workflows', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
-        if (!wsId) { res.status(400).json({ error: 'No workspace' }); return }
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+        if (!wsId) { res.json(freshResponse([])); return }
         const creds = await resolveCredentials(wsId, 'github')
         if (!creds) { res.json(freshResponse([])); return }
         const token = (creds.access_token ?? creds.token ?? '') as string
