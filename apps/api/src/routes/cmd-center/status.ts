@@ -1,37 +1,56 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Router } from 'express'
 import { resolveCredentials, resolveWorkspaceId } from './resolve-credentials.js'
-import { cachedFetch } from './cache.js'
+import { cachedFetch, freshResponse } from './cache.js'
 import { logger } from '../../logger.js'
 
 export const statusRouter = Router()
 
 statusRouter.get('/', async (req, res) => {
     try {
-        const wsId = await resolveWorkspaceId(req)
+        let wsId: string | null = null
+        try { wsId = await resolveWorkspaceId(req) } catch (e) { logger.warn({ err: e }, 'cmd-center: workspace resolution failed') }
+
+        // Always return data — empty if no workspace/credentials configured
+        const emptyStatus = {
+            coolify: { healthy: 0, total: 0, services: [] },
+            github: { openPrs: 0, openIssues: 0, repos: [] },
+            sentry: { totalErrors24h: 0, projects: [] },
+            posthog: { totalDau: 0, insights: [] },
+            ovhcloud: { servers: [] },
+            plexo: { health: { status: 'unknown' as string, version: '?', integrations: [] as any[] } },
+        }
 
         const result = await cachedFetch('cmd-center:status', 30, async () => {
             const [coolifyR, githubR, sentryR, posthogR, ovhR, plexoR] = await Promise.allSettled([
-                wsId ? fetchCoolify(wsId) : Promise.resolve({ healthy: 0, total: 0, services: [] }),
-                wsId ? fetchGitHub(wsId) : Promise.resolve({ openPrs: 0, openIssues: 0, repos: [] }),
-                wsId ? fetchSentry(wsId) : Promise.resolve({ totalErrors24h: 0, projects: [] }),
-                wsId ? fetchPostHog(wsId) : Promise.resolve({ totalDau: 0, insights: [] }),
-                wsId ? fetchOVH(wsId) : Promise.resolve({ servers: [] }),
+                wsId ? fetchCoolify(wsId) : Promise.resolve(emptyStatus.coolify),
+                wsId ? fetchGitHub(wsId) : Promise.resolve(emptyStatus.github),
+                wsId ? fetchSentry(wsId) : Promise.resolve(emptyStatus.sentry),
+                wsId ? fetchPostHog(wsId) : Promise.resolve(emptyStatus.posthog),
+                wsId ? fetchOVH(wsId) : Promise.resolve(emptyStatus.ovhcloud),
                 fetchPlexoHealth(),
             ])
             return {
-                coolify: coolifyR.status === 'fulfilled' ? coolifyR.value : { healthy: 0, total: 0, services: [] },
-                github: githubR.status === 'fulfilled' ? githubR.value : { openPrs: 0, openIssues: 0, repos: [] },
-                sentry: sentryR.status === 'fulfilled' ? sentryR.value : { totalErrors24h: 0, projects: [] },
-                posthog: posthogR.status === 'fulfilled' ? posthogR.value : { totalDau: 0, insights: [] },
-                ovhcloud: ovhR.status === 'fulfilled' ? ovhR.value : { servers: [] },
-                plexo: plexoR.status === 'fulfilled' ? plexoR.value : { health: { status: 'unhealthy', version: '?', integrations: [] } },
+                coolify: coolifyR.status === 'fulfilled' ? coolifyR.value : emptyStatus.coolify,
+                github: githubR.status === 'fulfilled' ? githubR.value : emptyStatus.github,
+                sentry: sentryR.status === 'fulfilled' ? sentryR.value : emptyStatus.sentry,
+                posthog: posthogR.status === 'fulfilled' ? posthogR.value : emptyStatus.posthog,
+                ovhcloud: ovhR.status === 'fulfilled' ? ovhR.value : emptyStatus.ovhcloud,
+                plexo: plexoR.status === 'fulfilled' ? plexoR.value : emptyStatus.plexo,
             }
         })
         res.json(result)
     } catch (err) {
         logger.error({ err }, 'cmd-center: status board failed')
-        res.status(500).json({ error: 'Failed to fetch status' })
+        // Return empty data instead of 500 so the UI can at least render
+        res.json(freshResponse({
+            coolify: { healthy: 0, total: 0, services: [] },
+            github: { openPrs: 0, openIssues: 0, repos: [] },
+            sentry: { totalErrors24h: 0, projects: [] },
+            posthog: { totalDau: 0, insights: [] },
+            ovhcloud: { servers: [] },
+            plexo: { health: { status: 'unhealthy', version: '?', integrations: [] } },
+        }))
     }
 })
 
