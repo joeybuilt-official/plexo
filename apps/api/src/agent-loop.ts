@@ -767,8 +767,8 @@ async function recoverGhostTasks(): Promise<void> {
                     UPDATE tasks
                     SET attempt_count = COALESCE(attempt_count, 0) + 1,
                         status = CASE
-                            WHEN COALESCE(attempt_count, 0) + 1 >= 3 THEN 'failed'
-                            ELSE 'queued'
+                            WHEN COALESCE(attempt_count, 0) + 1 >= 3 THEN 'blocked'::task_status
+                            ELSE 'queued'::task_status
                         END,
                         outcome_summary = CASE
                             WHEN COALESCE(attempt_count, 0) + 1 >= 3
@@ -781,7 +781,7 @@ async function recoverGhostTasks(): Promise<void> {
                 `)
                 if (result.length > 0) {
                     const row = result[0]!
-                    const newStatus = (row.attempt_count ?? 0) >= 3 ? 'failed' : 'queued'
+                    const newStatus = (row.attempt_count ?? 0) >= 3 ? 'blocked' : 'queued'
                     logger.info({ event: 'task.lifecycle', taskId: ghost.id, from: 'running', to: newStatus, attemptCount: row.attempt_count, reason: 'ghost_recovery' }, 'lifecycle')
                 }
             }

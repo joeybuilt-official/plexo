@@ -38,8 +38,8 @@ async function handleExpiredSlot(taskId: string): Promise<void> {
             UPDATE tasks
             SET attempt_count = COALESCE(attempt_count, 0) + 1,
                 status = CASE
-                    WHEN COALESCE(attempt_count, 0) + 1 >= ${MAX_ATTEMPTS} THEN 'failed'
-                    ELSE 'queued'
+                    WHEN COALESCE(attempt_count, 0) + 1 >= ${MAX_ATTEMPTS} THEN 'blocked'::task_status
+                    ELSE 'queued'::task_status
                 END,
                 outcome_summary = CASE
                     WHEN COALESCE(attempt_count, 0) + 1 >= ${MAX_ATTEMPTS}
@@ -52,7 +52,7 @@ async function handleExpiredSlot(taskId: string): Promise<void> {
         `)
         if (result.length > 0) {
             const row = result[0]!
-            const newStatus = (row.attempt_count ?? 0) >= MAX_ATTEMPTS ? 'failed' : 'queued'
+            const newStatus = (row.attempt_count ?? 0) >= MAX_ATTEMPTS ? 'blocked' : 'queued'
             logger.info({ event: 'task.lifecycle', taskId, from: 'running', to: newStatus, attemptCount: row.attempt_count, reason: 'slot_expired' }, 'lifecycle')
         }
     } catch (err) {
