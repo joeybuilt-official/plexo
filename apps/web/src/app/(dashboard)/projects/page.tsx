@@ -332,15 +332,22 @@ export default function ProjectsPage() {
             ) : displayed.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
                     <p className="text-sm text-text-muted">
-                        {hasFilters ? 'No projects match your filters' : 'No projects found'}
+                        {hasFilters ? 'No projects match your filters' : 'No projects yet'}
                     </p>
-                    {hasFilters && (
+                    {hasFilters ? (
                         <button
                             onClick={clearAll}
                             className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto"
                         >
                             <X className="h-3.5 w-3.5" /> Clear filters
                         </button>
+                    ) : (
+                        <div className="mt-3 flex flex-col items-center gap-2">
+                            <p className="text-xs text-text-muted max-w-sm">Projects are multi-task goals. Start one from the chat by describing a large objective, or click &ldquo;More Options&rdquo; on the home page.</p>
+                            <a href="/" className="flex items-center gap-1.5 rounded-lg border border-azure/30 bg-azure/5 px-3 py-1.5 text-xs text-azure hover:bg-azure/10 transition-colors">
+                                Start a project
+                            </a>
+                        </div>
                     )}
                 </div>
             ) : (
