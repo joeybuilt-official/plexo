@@ -43,9 +43,12 @@ const fixtures: Fixture[] = [
     { input: 'Yes, do it', llmResponse: '{"classification":"TASK","confidence":0.88}', expected: 'TASK' },
     { input: 'Add rate limiting to the login endpoint', llmResponse: '{"classification":"TASK","confidence":0.94}', expected: 'TASK' },
 
-    // Clear PROJECT signals
-    { input: 'Build a complete user onboarding flow with email verification', llmResponse: '{"classification":"PROJECT","confidence":0.94}', expected: 'PROJECT' },
-    { input: 'Create a marketing website with blog, pricing page, and contact form', llmResponse: '{"classification":"PROJECT","confidence":0.93}', expected: 'PROJECT' },
+    // Single-deliverable "Create" requests are TASKS, not PROJECTS
+    { input: 'Create a simple web-based snake game', llmResponse: '{"classification":"TASK","confidence":0.95}', expected: 'TASK' },
+    { input: 'Write a landing page with hero and contact form', llmResponse: '{"classification":"TASK","confidence":0.92}', expected: 'TASK' },
+
+    // Clear PROJECT signals — multiple independent deliverables
+    { input: 'Build a SaaS platform with auth, billing, dashboard, and API', llmResponse: '{"classification":"PROJECT","confidence":0.94}', expected: 'PROJECT' },
 
     // Clear CONVERSATION signals
     { input: "What's wrong with auth.ts?", llmResponse: '{"classification":"CONVERSATION","confidence":0.92}', expected: 'CONVERSATION' },
@@ -77,8 +80,8 @@ describe('Intent classifier fixture (20 messages)', () => {
         expect(classifyFromResponse(llmResponse)).toBe(expected)
     })
 
-    test('fixture has exactly 20 test cases', () => {
-        expect(fixtures).toHaveLength(20)
+    test('fixture has exactly 21 test cases', () => {
+        expect(fixtures).toHaveLength(21)
     })
 
     test('borderline cases (confidence < 0.72) return CONVERSATION', () => {
