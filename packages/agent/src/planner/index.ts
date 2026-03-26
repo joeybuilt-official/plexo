@@ -27,9 +27,9 @@ import type { WorkspaceAISettings } from '../providers/registry.js'
 const PlanStepSchema = z.object({
     stepNumber: z.number().int().positive(),
     description: z.string(),
-    toolsRequired: z.array(z.string()),
-    verificationMethod: z.string(),
-    isOneWayDoor: z.boolean(),
+    toolsRequired: z.array(z.string()).default([]),
+    verificationMethod: z.string().default('Manual review'),
+    isOneWayDoor: z.boolean().default(false),
 })
 
 // Lenient: accept either a full object, a bare string, or a number from the LLM.
@@ -59,10 +59,10 @@ const ExecutionPlanShape = z.object({
     type: z.literal('plan'),
     goal: z.string(),
     steps: z.array(PlanStepSchema).min(1),
-    oneWayDoors: z.array(OneWayDoorSchema),
-    estimatedDurationMs: z.number().nonnegative(),
-    confidenceScore: z.number().min(0).max(1),
-    risks: z.array(z.string()),
+    oneWayDoors: z.array(OneWayDoorSchema).default([]),
+    estimatedDurationMs: z.number().nonnegative().default(30000),
+    confidenceScore: z.number().min(0).max(1).default(0.8),
+    risks: z.array(z.string()).default([]),
 })
 
 const ClarificationShape = z.object({
