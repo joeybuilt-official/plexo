@@ -934,15 +934,31 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         }
         : settings
 
+    let routingFallbackUsed = false
+    let routingFallbackReason: string | undefined
     const { model: resolvedModel, meta: resolvedMeta } = await resolveModel(
         'codeGeneration',
         effectiveSettings,
         ctx.workspaceId,
-    ).catch(async () => {
+    ).catch(async (err) => {
         // Router failure (e.g. empty models_knowledge table) — fall back to BYOK
+        routingFallbackUsed = true
+        routingFallbackReason = err instanceof Error ? err.message : String(err)
         const fallbackModel = await withFallback(settings, 'codeGeneration', async (m) => m)
         return { model: fallbackModel, meta: { id: 'unknown', provider: settings.primaryProvider as import('../providers/registry.js').ProviderKey, mode: 'byok' as import('../providers/router.js').InferenceMode, costPerMIn: 3, costPerMOut: 15 } }
     })
+
+    // Emit routing fallback event if primary routing failed
+    if (routingFallbackUsed) {
+        ctx.emitStepEvent?.({
+            type: 'routing_fallback',
+            taskId: ctx.taskId,
+            workspaceId: ctx.workspaceId,
+            actual: `${resolvedMeta.provider}/${resolvedMeta.id}`,
+            reason: routingFallbackReason,
+            ts: Date.now(),
+        })
+    }
 
     if (ctx.sprintId) {
         import('../sprint/logger.js').then(({ logSprintEvent }) => {

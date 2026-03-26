@@ -113,7 +113,27 @@ TASK: The user is explicitly asking to start a clear, immediate, actionable task
 PROJECT: The user is explicitly asking to start a large, multi-step goal requiring planning (e.g., "Build a new features"). Or the user is confirming a proposal to create a project.
 CONVERSATION: Vague requests, troubleshooting, requests needing clarification, greetings, checks, small talk, or rejecting proposals.
 
-Reply with ONLY one word: TASK, PROJECT, or CONVERSATION.`
+<examples>
+<example><input>Fix the broken import in auth.ts</input>
+<output>{"classification":"TASK","confidence":0.96}</output></example>
+<example><input>What's wrong with auth.ts?</input>
+<output>{"classification":"CONVERSATION","confidence":0.92}</output></example>
+<example><input>Can you look into the login issue?</input>
+<output>{"classification":"TASK","confidence":0.66}</output></example>
+<example><input>Build a complete user onboarding flow with email verification</input>
+<output>{"classification":"PROJECT","confidence":0.94}</output></example>
+<example><input>Deploy the latest build to staging</input>
+<output>{"classification":"TASK","confidence":0.95}</output></example>
+<example><input>How does the auth middleware work?</input>
+<output>{"classification":"CONVERSATION","confidence":0.91}</output></example>
+<example><input>Yes, do it</input>
+<output>{"classification":"TASK","confidence":0.88}</output></example>
+<example><input>Create a marketing website with blog, pricing page, and contact form</input>
+<output>{"classification":"PROJECT","confidence":0.93}</output></example>
+</examples>
+
+Reply with JSON: {"classification":"TASK"|"PROJECT"|"CONVERSATION","confidence":0.0-1.0}
+If confidence is below 0.72, classify as CONVERSATION to avoid misrouting.`
 
 /**
  * Classify the last user message in a conversation history as TASK / PROJECT / CONVERSATION.
@@ -125,10 +145,30 @@ export async function classifyIntent(
 ): Promise<IntentLabel> {
     const result = await chatWithAI(workspaceId, history, CHANNEL_CLASSIFY_SYSTEM)
     if (result.error) return 'CONVERSATION'
-    const resText = result.text?.trim().toUpperCase() ?? ''
-    if (resText.startsWith('TASK')) return 'TASK'
-    else if (resText.startsWith('PROJECT')) return 'PROJECT'
-    return 'CONVERSATION'
+    const resText = result.text?.trim() ?? ''
+
+    // Try JSON parse first (new format with confidence)
+    try {
+        const parsed = JSON.parse(resText) as { classification?: string; confidence?: number }
+        const classification = parsed.classification?.toUpperCase()
+        const confidence = parsed.confidence ?? 0
+
+        // Below confidence threshold → default to CONVERSATION
+        if (confidence < 0.72 && classification !== 'CONVERSATION') {
+            logger.info({ workspaceId, classification, confidence }, 'Intent below confidence threshold — defaulting to CONVERSATION')
+            return 'CONVERSATION'
+        }
+
+        if (classification === 'TASK') return 'TASK'
+        if (classification === 'PROJECT') return 'PROJECT'
+        return 'CONVERSATION'
+    } catch {
+        // Fallback: legacy single-word response
+        const upper = resText.toUpperCase()
+        if (upper.startsWith('TASK')) return 'TASK'
+        if (upper.startsWith('PROJECT')) return 'PROJECT'
+        return 'CONVERSATION'
+    }
 }
 
 // ── Chat history helper ──────────────────────────────────────────────────────
