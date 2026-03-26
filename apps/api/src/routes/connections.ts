@@ -14,7 +14,7 @@
  */
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, and } from '@plexo/db'
-import { connectionsRegistry, installedConnections } from '@plexo/db'
+import { connectionsRegistry, installedConnections, channels } from '@plexo/db'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { captureLifecycleEvent } from '../sentry.js'
@@ -296,7 +296,7 @@ connectionsRouter.post('/install', async (req, res) => {
     }
 
     try {
-        const [reg] = await db.select({ id: connectionsRegistry.id, name: connectionsRegistry.name, authType: connectionsRegistry.authType })
+        const [reg] = await db.select({ id: connectionsRegistry.id, name: connectionsRegistry.name, authType: connectionsRegistry.authType, category: connectionsRegistry.category })
             .from(connectionsRegistry).where(eq(connectionsRegistry.id, registryId)).limit(1)
 
         if (!reg) {
@@ -319,6 +319,42 @@ connectionsRouter.post('/install', async (req, res) => {
 
         logger.info({ workspaceId, registryId, name: reg.name }, 'Connection installed')
         captureLifecycleEvent('connection.installed', 'info', { workspaceId, registryId: reg.id, name: reg.name })
+
+        // Bridge: communication connections auto-create a channel record so the
+        // webhook handler picks them up. This eliminates the Connections/Channels
+        // split for messaging services — connect once, works everywhere.
+        const CHANNEL_TYPES = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix'] as const
+        if (reg.category === 'communication' && CHANNEL_TYPES.includes(registryId as any)) {
+            try {
+                const channelConfig = { ...credentials } // plain-text config for webhook handler
+                const [ch] = await db.insert(channels).values({
+                    workspaceId,
+                    type: registryId as typeof CHANNEL_TYPES[number],
+                    name: name ?? reg.name,
+                    config: channelConfig,
+                    enabled: true,
+                }).onConflictDoNothing().returning({ id: channels.id })
+
+                if (ch) {
+                    logger.info({ workspaceId, channelType: registryId, channelId: ch.id }, 'Auto-created channel from connection')
+
+                    // Auto-register webhook for Telegram
+                    if (registryId === 'telegram') {
+                        const token = credentials.bot_token ?? credentials.token ?? null
+                        if (token) {
+                            const { registerTelegramChannel } = await import('./telegram.js')
+                            void registerTelegramChannel(ch.id, token, workspaceId).catch(
+                                (err: Error) => logger.warn({ err }, 'Telegram webhook auto-register from connection failed'),
+                            )
+                        }
+                    }
+                }
+            } catch (chErr) {
+                // Non-fatal — the connection itself succeeded
+                logger.warn({ err: chErr, registryId }, 'Failed to auto-create channel from connection — non-fatal')
+            }
+        }
+
         res.status(201).json({ id: installed!.id, message: 'Connection installed' })
     } catch (err: unknown) {
         logger.error({ err }, 'POST /api/connections/install failed')
@@ -412,10 +448,24 @@ connectionsRouter.delete('/installed/:id', async (req, res) => {
     }
 
     try {
+        // Read the connection before deleting so we can clean up the channel bridge
+        const [conn] = await db.select({ registryId: installedConnections.registryId })
+            .from(installedConnections)
+            .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
+            .limit(1)
+
         await db.delete(installedConnections)
             .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
 
-        logger.info({ id, workspaceId }, 'Connection uninstalled')
+        // Bridge cleanup: remove the auto-created channel when a communication connection is disconnected
+        const CHANNEL_TYPES = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix'] as const
+        if (conn && CHANNEL_TYPES.includes(conn.registryId as any)) {
+            await db.delete(channels)
+                .where(and(eq(channels.workspaceId, workspaceId), eq(channels.type, conn.registryId as any)))
+                .catch((err: unknown) => logger.warn({ err }, 'Failed to clean up bridged channel — non-fatal'))
+        }
+
+        logger.info({ id, workspaceId, registryId: conn?.registryId }, 'Connection uninstalled')
         captureLifecycleEvent('connection.uninstalled', 'info', { connectionId: id, workspaceId })
         res.json({ ok: true })
     } catch (err: unknown) {
