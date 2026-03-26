@@ -40,6 +40,21 @@ export interface PushTaskParams {
     status?: TaskStatus
 }
 
+// ── Deliverable Output Contract ──────────────────────────────
+
+export interface TaskWork {
+    type: 'file' | 'diff' | 'url' | 'data' | 'command'
+    label: string
+    content: string // path, URL, shell command, or inline content
+}
+
+export interface TaskDeliverable {
+    summary: string
+    outcome: 'completed' | 'partial' | 'blocked' | 'failed'
+    works: TaskWork[]
+    verificationSteps: string[]
+}
+
 export interface CompleteTaskParams {
     qualityScore: number
     outcomeSummary: string
@@ -47,6 +62,7 @@ export interface CompleteTaskParams {
     tokensIn: number
     tokensOut: number
     costUsd: number
+    deliverable?: TaskDeliverable
 }
 
 export interface TaskFilter {

@@ -207,6 +207,16 @@ v1.get('/agent/status', async (req, res) => {
     }
 })
 
+v1.get('/agent/health', async (_req, res) => {
+    try {
+        const { getAgentHealth } = await import('./agent-loop.js')
+        const health = await getAgentHealth()
+        res.json(health)
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to retrieve agent health' })
+    }
+})
+
 // Canonical versioned prefix
 app.use('/api/v1', v1)
 

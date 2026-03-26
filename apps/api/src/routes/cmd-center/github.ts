@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Router } from 'express'
+import { Router, type Router as RouterType } from 'express'
 import { resolveCredentials, resolveWorkspaceId } from './resolve-credentials.js'
 import { cachedFetch, freshResponse } from './cache.js'
 import { logger } from '../../logger.js'
 
-export const githubRouter = Router()
+export const githubRouter: RouterType = Router()
 
 const GH = 'https://api.github.com'
 const GH_BASE = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Plexo/1.0' }

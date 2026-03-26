@@ -69,8 +69,8 @@ authRouter.post('/workspace/ensure', requireServiceKey, async (req, res) => {
             role: 'owner',
         }).onConflictDoNothing()
 
-        captureLifecycleEvent('workspace.created', 'info', { workspaceId: ws!.workspaceId, source: req.serviceContext?.appId })
-        logger.info({ userId, name: displayName, appId: req.serviceContext?.appId }, 'Workspace auto-created via service key')
+        captureLifecycleEvent('workspace.created', 'info', { workspaceId: ws!.workspaceId, source: (req as any).serviceContext?.appId })
+        logger.info({ userId, name: displayName, appId: (req as any).serviceContext?.appId }, 'Workspace auto-created via service key')
         res.status(201).json({ workspaceId: ws!.workspaceId, name: ws!.name, created: true })
     } catch (err) {
         logger.error({ err }, 'POST /api/auth/workspace/ensure failed')

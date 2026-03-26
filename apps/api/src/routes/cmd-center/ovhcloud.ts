@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Router } from 'express'
+import { Router, type Router as RouterType } from 'express'
 import { createHash } from 'node:crypto'
 import { resolveCredentials, resolveWorkspaceId } from './resolve-credentials.js'
 import { cachedFetch, freshResponse } from './cache.js'
 import { logger } from '../../logger.js'
 
-export const ovhcloudRouter = Router()
+export const ovhcloudRouter: RouterType = Router()
 
 const ENDPOINTS: Record<string, string> = {
     'ovh-eu': 'https://eu.api.ovh.com/1.0',

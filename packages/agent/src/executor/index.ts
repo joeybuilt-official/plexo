@@ -4,7 +4,7 @@
 import { generateText, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
 import { db, sql, eq, and } from '@plexo/db'
-import { taskSteps, artifacts, artifactVersions } from '@plexo/db'
+import { tasks, taskSteps, artifacts, artifactVersions } from '@plexo/db'
 import { ulid } from 'ulid'
 import { withFallback, resolveModel } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
@@ -248,6 +248,22 @@ async function dispatchTool(
 
 
         case 'task_complete': {
+            // Persist deliverable to DB if provided
+            if (input.works || input.verificationSteps) {
+                try {
+                    const deliverable = {
+                        summary: (input.summary as string) ?? '',
+                        outcome: (input.outcome as string) ?? 'completed',
+                        works: (input.works as unknown[]) ?? [],
+                        verificationSteps: (input.verificationSteps as string[]) ?? [],
+                    }
+                    await db.update(tasks)
+                        .set({ deliverable })
+                        .where(eq(tasks.id, ctx.taskId))
+                } catch (e) {
+                    // Non-fatal — deliverable persistence failure shouldn't block completion
+                }
+            }
             return JSON.stringify({ done: true, summary: input.summary, qualityScore: input.qualityScore })
         }
 
@@ -285,10 +301,17 @@ function buildTools(ctx: ExecutionContext) {
             execute: async (input) => dispatchTool('shell', input as Record<string, unknown>, ctx),
         }),
         task_complete: tool({
-            description: 'Signal that all steps are done and provide a summary of the outcome.',
+            description: 'Signal that all steps are done and provide a structured deliverable. Include works and verificationSteps to describe what was produced and how to verify it.',
             inputSchema: z.object({
                 summary: z.string().describe('What was accomplished'),
                 qualityScore: z.number().min(0).max(1).describe('0.0–1.0 self-assessment score'),
+                outcome: z.enum(['completed', 'partial', 'blocked', 'failed']).optional().default('completed').describe('Overall outcome'),
+                works: z.array(z.object({
+                    type: z.enum(['file', 'diff', 'url', 'data', 'command']).describe('Type of work product'),
+                    label: z.string().describe('Short label for this work product'),
+                    content: z.string().describe('Path, URL, command, or inline content'),
+                })).optional().describe('Typed outputs — files changed, URLs created, data produced'),
+                verificationSteps: z.array(z.string()).optional().describe('Steps the user can take to verify the work'),
             }),
             execute: async (input) =>
                 dispatchTool('task_complete', input as Record<string, unknown>, ctx),

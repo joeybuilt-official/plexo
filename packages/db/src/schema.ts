@@ -252,6 +252,8 @@ export const tasks = pgTable('tasks', {
     tokenBudget: integer('token_budget'),
     promptVersion: text('prompt_version'),
     outcomeSummary: text('outcome_summary'),
+    /** Structured deliverable output — populated by task_complete tool */
+    deliverable: jsonb('deliverable'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
     claimedAt: timestamp('claimed_at', { mode: 'date' }),
     completedAt: timestamp('completed_at', { mode: 'date' }),

@@ -42,6 +42,41 @@ export function getAgentStatus(): {
 }
 
 /**
+ * Returns detailed agent health data including ghost task detection.
+ * Ghost tasks: status = 'running' but claimed_at older than 3 minutes.
+ */
+export async function getAgentHealth(): Promise<{
+    activeSlots: number
+    maxSlots: number
+    queueDepth: number
+    ghostTasks: string[]
+    pollIntervalMs: number
+    activeTasks: string[]
+}> {
+    const { getParallelStatus } = await import('./parallel-executor.js')
+    const slotStatus = await getParallelStatus()
+
+    // Count queued tasks
+    const [queueRow] = await db.select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(eq(tasks.status, 'queued'))
+
+    // Find ghost tasks: running for > 3 minutes with no active in-memory handle
+    const ghostRows = await db.select({ id: tasks.id })
+        .from(tasks)
+        .where(sql`${tasks.status} = 'running' AND ${tasks.claimedAt} < NOW() - INTERVAL '3 minutes'`)
+
+    return {
+        activeSlots: slotStatus.slots.length,
+        maxSlots: slotStatus.maxSlots,
+        queueDepth: Number(queueRow?.count ?? 0),
+        ghostTasks: ghostRows.map(r => r.id),
+        pollIntervalMs: POLL_INTERVAL_MS,
+        activeTasks: Array.from(activeTasks.keys()),
+    }
+}
+
+/**
  * Abort the currently-running task if it matches the given id.
  * Called by DELETE /api/v1/tasks/:id so the executor stops at the
  * next signal-check boundary instead of finishing the current step.
@@ -229,6 +264,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
     const { credential, aiSettings } = await loadWorkspaceAISettings(taskWorkspaceId ?? '')
     if (!credential) {
         await blockTask(task.id, 'No AI credential configured for workspace')
+        logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'claimed', to: 'blocked', workspaceId: taskWorkspaceId, reason: 'no_ai_credential' }, 'lifecycle')
         emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'No AI credential' })
         captureLifecycleEvent('task.blocked', 'warning', { taskId: task.id, reason: 'no_ai_credential', workspaceId: taskWorkspaceId })
         logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId }, 'No credential — task blocked')
@@ -431,6 +467,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         await db.update(tasks)
             .set({ status: 'running', claimedAt: new Date() })
             .where(eq(tasks.id, task.id))
+        logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'claimed', to: 'running', workspaceId: taskWorkspaceId }, 'lifecycle')
 
         const taskContext = task.context as Record<string, unknown>
         const description = (taskContext.description as string)
@@ -438,11 +475,13 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             ?? JSON.stringify(taskContext)
 
         emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planning', taskId: task.id })
+        logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'planning', workspaceId: taskWorkspaceId }, 'lifecycle')
         const plannerResult = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
 
         // Phase D: capability pre-flight — planner returned a clarification request
         if (plannerResult.type === 'clarification') {
             logger.info({ taskId: task.id, alternatives: plannerResult.alternatives.length }, 'Planner returned clarification — capability gap detected')
+            logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'planning', to: 'blocked', workspaceId: taskWorkspaceId, reason: 'clarification_needed' }, 'lifecycle')
             captureLifecycleEvent('task.blocked', 'info', { taskId: task.id, reason: 'clarification_needed', alternatives: plannerResult.alternatives.length, workspaceId: taskWorkspaceId })
             await blockTask(task.id, plannerResult.message)
             // Store clarification payload so UI + channels can surface alternatives
@@ -459,6 +498,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
         const plan = plannerResult.plan
         logger.info({ taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore }, 'Plan ready')
+        logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'planning', to: 'executing', workspaceId: taskWorkspaceId, steps: plan.steps.length }, 'lifecycle')
         emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
 
         if (plan.oneWayDoors.length > 0) {
@@ -476,6 +516,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             tokensOut: result.totalTokensOut,
             costUsd: result.totalCostUsd,
         })
+        logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'complete', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, costUsd: result.totalCostUsd }, 'lifecycle')
 
         // ── Cost accounting ────────────────────────────────────────────────────
         // Canonical write point for api_cost_tracking — agent-loop is the only writer.
@@ -615,6 +656,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         logger.error({ taskId: task.id, err }, 'Task failed')
+        logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'failed', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, error: message.slice(0, 200) }, 'lifecycle')
         captureLifecycleEvent('task.failed', 'error', { taskId: task.id, error: message, workspaceId: taskWorkspaceId })
         await blockTask(task.id, message)
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Router } from 'express'
+import { Router, type Router as RouterType } from 'express'
 import { db, eq } from '@plexo/db'
 import { connectionsRegistry } from '@plexo/db'
 import { statusRouter } from './status.js'
@@ -11,7 +11,7 @@ import { ovhcloudRouter } from './ovhcloud.js'
 import { agentsRouter } from './agents.js'
 import { logger } from '../../logger.js'
 
-export const cmdCenterRouter = Router()
+export const cmdCenterRouter: RouterType = Router()
 
 cmdCenterRouter.use('/status', statusRouter)
 cmdCenterRouter.use('/coolify', coolifyRouter)

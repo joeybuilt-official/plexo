@@ -85,7 +85,7 @@ adminRouter.get('/workspaces/:id', async (req, res) => {
         const recentTasks = await db
             .select({
                 id: tasks.id,
-                title: tasks.title,
+                title: tasks.outcomeSummary,
                 status: tasks.status,
                 type: tasks.type,
                 createdAt: tasks.createdAt,
@@ -99,7 +99,7 @@ adminRouter.get('/workspaces/:id', async (req, res) => {
         const connections = await db
             .select({
                 id: installedConnections.id,
-                type: installedConnections.type,
+                type: installedConnections.registryId,
                 name: installedConnections.name,
                 status: installedConnections.status,
             })
@@ -159,7 +159,7 @@ adminRouter.get('/tasks', async (req, res) => {
         let query = db
             .select({
                 id: tasks.id,
-                title: tasks.title,
+                title: tasks.outcomeSummary,
                 status: tasks.status,
                 type: tasks.type,
                 workspaceId: tasks.workspaceId,
@@ -174,7 +174,7 @@ adminRouter.get('/tasks', async (req, res) => {
             ? await db
                 .select({
                     id: tasks.id,
-                    title: tasks.title,
+                    title: tasks.outcomeSummary,
                     status: tasks.status,
                     type: tasks.type,
                     workspaceId: tasks.workspaceId,
@@ -254,7 +254,7 @@ adminRouter.get('/connections', async (_req, res) => {
         const rows = await db
             .select({
                 id: installedConnections.id,
-                type: installedConnections.type,
+                type: installedConnections.registryId,
                 name: installedConnections.name,
                 status: installedConnections.status,
                 workspaceId: installedConnections.workspaceId,
@@ -328,7 +328,7 @@ adminRouter.post('/workspaces', async (req, res) => {
             createdAt: workspaces.createdAt,
         })
 
-        logger.info({ workspaceId: ws.id, name, adminId: req.user!.id }, 'Admin: workspace provisioned')
+        logger.info({ workspaceId: ws!.id, name, adminId: req.user!.id }, 'Admin: workspace provisioned')
 
         res.status(201).json(ws)
     } catch (err) {

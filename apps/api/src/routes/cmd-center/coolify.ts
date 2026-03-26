@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Router } from 'express'
+import { Router, type Router as RouterType } from 'express'
 import { resolveCredentials, resolveWorkspaceId } from './resolve-credentials.js'
 import { cachedFetch, freshResponse } from './cache.js'
 import { logger } from '../../logger.js'
 
-export const coolifyRouter = Router()
+export const coolifyRouter: RouterType = Router()
 
 coolifyRouter.get('/services', async (req, res) => {
     try {
