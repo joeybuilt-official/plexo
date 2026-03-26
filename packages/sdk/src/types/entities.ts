@@ -3,9 +3,9 @@
 
 /**
  * §16 — Personal Entity Schema
- * Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Specification v0.4.0
  *
- * Standard first-class personal entity types all Kapsel-compatible hosts
+ * Standard first-class personal entity types all Plexo Fabric-compatible hosts
  * must support. When multiple Extensions reference the same person, task,
  * or thread, entity resolution prevents fragmentation.
  *

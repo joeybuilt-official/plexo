@@ -3,7 +3,7 @@
 
 /**
  * §20 — Persistent UserSelf
- * Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Specification v0.4.0
  *
  * A host-managed UserSelf graph readable by owner and verified Extensions
  * with field-level scoping. Persists across sessions and survives Extension uninstall.

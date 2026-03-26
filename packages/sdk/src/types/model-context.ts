@@ -3,7 +3,7 @@
 
 /**
  * §24 — LLM Identity & Model Context
- * Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Specification v0.4.0
  *
  * When an Agent acts, the LLM powering it must be visible to the audit trail,
  * the user, and the system. Different models produce different decisions from

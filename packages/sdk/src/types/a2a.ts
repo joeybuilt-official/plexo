@@ -3,15 +3,15 @@
 
 /**
  * §22 — A2A Bridge Layer
- * Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Specification v0.4.0
  *
  * Full compliance hosts MUST expose an A2A-compatible endpoint for each Agent,
- * enabling external A2A clients to discover and invoke Kapsel Agents as remote agents.
+ * enabling external A2A clients to discover and invoke Plexo Agents as remote agents.
  *
  * Protocol stack:
- *   MCP   : agent ↔ tool (already supported via MCP Server Extension type)
- *   A2A   : agent ↔ agent (this section)
- *   Kapsel: defines how all of the above is packaged, permissioned, isolated, and managed
+ *   MCP    : agent ↔ tool (already supported via MCP Server Extension type)
+ *   A2A    : agent ↔ agent (this section)
+ *   Fabric : defines how all of the above is packaged, permissioned, isolated, and managed
  *
  * Rules:
  *   - External agents treated as community trust tier unless presenting a VC elevating trust
@@ -21,7 +21,7 @@
  */
 
 /**
- * A2A Agent Card generated from a Kapsel Agent manifest.
+ * A2A Agent Card generated from a Plexo Agent manifest.
  * Conforms to the A2A (Agentic AI Foundation) Agent Card specification.
  */
 export interface A2AAgentCard {
@@ -34,8 +34,8 @@ export interface A2AAgentCard {
     authentication: {
         schemes: ('oauth2' | 'did' | 'api_key')[]
     }
-    /** Kapsel DID for this agent, if assigned */
-    kapselDID?: string
+    /** Plexo DID for this agent, if assigned */
+    plexoDID?: string
 }
 
 /**
@@ -66,7 +66,7 @@ export interface A2ATaskResult {
 }
 
 /**
- * Inbound A2A request — external agent invoking a Kapsel Agent.
+ * Inbound A2A request — external agent invoking a Plexo Agent.
  */
 export interface A2AInboundRequest {
     /** A2A Agent Card of the requesting agent */
@@ -77,7 +77,7 @@ export interface A2AInboundRequest {
 }
 
 /**
- * Outbound A2A delegation — Kapsel Agent delegating to an external A2A agent.
+ * Outbound A2A delegation — Plexo Agent delegating to an external A2A agent.
  * Requires a2a:delegate capability.
  */
 export interface A2ADelegation {

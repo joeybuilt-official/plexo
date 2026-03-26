@@ -3,20 +3,20 @@
 
 /**
  * §17 — Extension Trust Tiers
- * Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Specification v0.4.0
  *
  * Tier     | Who                                      | Capability Ceiling
  * ---------|------------------------------------------|------------------------------------
  * owner    | Built and signed by the host operator    | Full: memory:read:*, audit:read,
  *          |                                          | entity creation, model:override
- * verified | Reviewed and signed by Kapsel registry   | Standard caps, no wildcard memory,
+ * verified | Reviewed and signed by Plexo extension registry   | Standard caps, no wildcard memory,
  *          |                                          | no audit access
  * community| Unreviewed public extensions             | Restricted caps, explicit user
  *          |                                          | approval per capability token
  *
  * Rules:
  *   - Hosts MUST declare trust tier policy in their compliance declaration
- *   - kapsel.json MAY declare trust: 'owner' — host validates against signing key
+ *   - plexo.json MAY declare trust: 'owner' — host validates against signing key
  *   - Capability tokens exceeding declared tier MUST be rejected at install, not runtime
  */
 

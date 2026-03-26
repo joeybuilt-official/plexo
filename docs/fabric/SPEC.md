@@ -1868,7 +1868,7 @@ interface A2AAgentCard {
   authentication: {
     schemes: ('oauth2' | 'did' | 'api_key')[]
   }
-  kapselDID?: string           // Plexo DID for this agent, if assigned
+  plexoDID?: string            // Plexo DID for this agent, if assigned
 }
 ```
 

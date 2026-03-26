@@ -3,7 +3,7 @@
 
 /**
  * §18 — Audit Trail Requirement
- * Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Specification v0.4.0
  *
  * Standard and Full compliance hosts MUST maintain an immutable audit ledger
  * per Extension per session. Trust in autonomous behavior requires verifiability.

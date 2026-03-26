@@ -11,7 +11,7 @@ import type { HostComplianceLevel, JSONSchema, EntityTypeName } from './manifest
 import type { PromptRegistration, PromptSummary } from './prompts.js'
 import type { ContextRegistration, ContextSummary } from './context.js'
 import type {
-    KapselEntity,
+    PlexoEntity,
     EntityTypeMap,
     EntitySearchQuery,
     EntitySearchResult,

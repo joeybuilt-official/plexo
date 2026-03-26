@@ -128,7 +128,7 @@ curl https://your-domain.com/health
     "redis":    { "ok": true, "latencyMs": 1 }
   },
   "version": "1.2.0-dev",
-  "kapsel": { "complianceLevel": "full", "specVersion": "0.2.0" }
+  "fabric": { "complianceLevel": "full", "specVersion": "0.4.0", "host": "plexo" }
 }
 ```
 

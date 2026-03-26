@@ -3,7 +3,7 @@
 
 /**
  * §19 — Data Residency Declaration
- * Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Specification v0.4.0
  *
  * All Extensions MUST declare external data destinations in their manifest.
  *

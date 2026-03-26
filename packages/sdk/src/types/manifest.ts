@@ -228,7 +228,7 @@ export interface ExtensionManifest {
     keywords?: string[]
     icon?: string
     screenshots?: string[]
-    /** For mcp-server type only. */
+    /** For connector type extensions (bridges an MCP server). */
     mcpServer?: MCPServerConfig
     /** For agent type only. */
     agentHints?: AgentHints

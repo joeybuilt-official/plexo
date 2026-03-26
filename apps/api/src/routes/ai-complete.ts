@@ -67,7 +67,7 @@ aiCompleteRouter.post('/complete', requireServiceKey, async (req, res) => {
     }
 
     try {
-        const aiSettings = await loadWorkspaceAISettings(workspaceId)
+        const { aiSettings } = await loadWorkspaceAISettings(workspaceId)
         if (!aiSettings) {
             res.status(422).json({ error: { code: 'NO_AI_CONFIGURED', message: 'No AI provider configured for this workspace' } })
             return
@@ -77,14 +77,14 @@ aiCompleteRouter.post('/complete', requireServiceKey, async (req, res) => {
             ? [{ role: 'system' as const, content: systemPrompt }, ...messages]
             : messages
 
-        const { text } = await withFallback(
+        const result = await withFallback(
             aiSettings,
             taskType,
-            (model) => generateText({ model, messages: allMessages, maxTokens }),
+            (model) => generateText({ model, messages: allMessages }),
             { workspaceId }
         )
 
-        res.json({ text })
+        res.json({ text: result.text })
     } catch (err) {
         logger.error({ err, workspaceId }, 'POST /api/v1/ai/complete failed')
         const msg = err instanceof Error ? err.message : 'AI completion failed'

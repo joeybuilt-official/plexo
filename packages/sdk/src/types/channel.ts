@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Kapsel Channel Contract Types
- * Corresponds to §2.3 and §9.2 of the Kapsel Protocol Specification v0.2.0
+ * Plexo Fabric Channel Contract Types
+ * Corresponds to §2.3 and §9.2 of the Plexo Fabric Specification v0.4.0
  */
 
 import type { InboundMessage } from './messages.js'

@@ -3,7 +3,7 @@
 
 /**
  * §23 — Human Oversight & Escalation Contract
- * Kapsel Protocol Specification v0.3.0
+ * Plexo Fabric Specification v0.4.0
  *
  * A formal escalation contract all Agent implementations MUST support.
  * No formal spec for when an Agent must pause and request human approval
