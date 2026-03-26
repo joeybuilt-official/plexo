@@ -1387,6 +1387,20 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         })
     ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'inferFromTaskOutcome failed'))
 
+    void import('../behavior/reflect.js').then(({ reflectAndPromote }) =>
+        reflectAndPromote({
+            workspaceId: ctx.workspaceId,
+            taskId: ctx.taskId,
+            goal: plan.goal,
+            taskType: ctx.taskType ?? 'general',
+            toolsUsed,
+            qualityScore: verifiedQuality,
+            outcomeSummary: executionResult.outcomeSummary ?? '',
+            stepCount: stepResults.length,
+            durationMs: executionResult.totalDurationMs,
+        })
+    ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'reflectAndPromote failed'))
+
     void db.execute(sql`
         INSERT INTO work_ledger
             (id, workspace_id, task_id, type, source, tokens_in, tokens_out, cost_usd,

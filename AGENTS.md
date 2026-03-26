@@ -299,6 +299,13 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 - **MEMORY intent in chat**: When a user says "remember X", "always do Y", it goes to memory. It does not queue a task.
 - **Rules application**: Every task plan context fetches high-confidence preferences from `workspace_preferences` and includes them in the system prompt.
 - **Consolidation cron**: Runs every 6h via `scheduleMemoryConsolidation()` called at startup. Visible in the Cron UI as 'Memory consolidation' (seeded per workspace on startup). Also manually triggerable via `/api/v1/memory/improvements/run`.
+- **Post-task reflection** (`packages/agent/src/behavior/reflect.ts`): After each task, `reflectAndPromote` promotes successful execution patterns into `behavior_rules` as `domain_knowledge` entries with `source='reflection'`. Disabled by default — requires `reflection_enabled = true` in `workspace_preferences`. Quality gate: only triggers when `qualityScore >= 0.8` and `outcomeSummary >= 50 chars`. Uses a cheap/fast model (summarization tier) to extract 1-3 strategy observations, then upserts them via `ON CONFLICT (workspace_id, key) WHERE deleted_at IS NULL`. Anti-collapse rule: once a rule accumulates 3+ `---` separators, no further appends occur. All DB errors are non-fatal.
+
+### Reflection Schema Changes (migration `0033_reflection_index.sql`)
+
+- Added `'reflection'` to `rule_source` enum (used by `reflect.ts` inserts).
+- Added partial unique index `behavior_rules_ws_key` on `(workspace_id, key) WHERE deleted_at IS NULL` (required for `ON CONFLICT` upsert).
+- `RuleSource` type in `packages/agent/src/behavior/types.ts` updated to include `'reflection'`.
 
 ---
 

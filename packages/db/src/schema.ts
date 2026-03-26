@@ -729,6 +729,7 @@ export const ruleSourceEnum = pgEnum('rule_source', [
     'project',
     'task',
     'extension',
+    'reflection',
 ])
 
 export const artifactPriorityEnum = pgEnum('artifact_priority', [
@@ -771,6 +772,8 @@ export const behaviorRules = pgTable('behavior_rules', {
     index('behavior_rules_project_idx').on(table.projectId),
     index('behavior_rules_type_idx').on(table.type),
     index('behavior_rules_deleted_idx').on(table.deletedAt),
+    /** Partial unique: one active (non-deleted) rule per workspace+key. Used by reflect.ts ON CONFLICT upsert. */
+    uniqueIndex('behavior_rules_ws_key').on(table.workspaceId, table.key).where(sql`deleted_at IS NULL`),
 ])
 
 /**

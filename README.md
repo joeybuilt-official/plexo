@@ -109,6 +109,8 @@ Every task execution resolves this graph and compiles it into a system prompt fr
 
 **Import from AGENTS.md** — paste any markdown document; the parser categorizes each section header into the correct rule type. **Export** regenerates a standards-compliant `AGENTS.md` from live rules — no manual sync required.
 
+**Post-Task Reflection** — after each successful task (quality score >= 0.8), the agent extracts reusable strategy observations and promotes them as `domain_knowledge` behavior rules. Insights accumulate with `---` separators (capped at 3 to prevent unbounded growth). Disabled by default — enable per workspace by setting `reflection_enabled = true` in workspace preferences. See `packages/agent/src/behavior/reflect.ts`.
+
 ---
 
 ## 🧠 The Intelligent LLM Router
