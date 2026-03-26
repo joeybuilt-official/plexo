@@ -14,6 +14,24 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 // Ollama uses OpenAI-compatible endpoint (ollama-ai-provider is V1 only)
 
+/**
+ * Rewrite localhost/127.0.0.1 URLs to the Docker host gateway when running
+ * inside a container. This allows borrowed Ollama configs (pointing to the
+ * user's host machine) to work from Dockerized Plexo without manual config.
+ *
+ * Detection: /.dockerenv exists, or PLEXO_DOCKER=1 is set.
+ */
+import { existsSync } from 'fs'
+const IS_DOCKER = process.env.PLEXO_DOCKER === '1' || existsSync('/.dockerenv')
+const DOCKER_HOST = process.env.OLLAMA_DOCKER_HOST ?? 'host.docker.internal'
+
+function resolveBaseUrl(url: string): string {
+    if (!IS_DOCKER) return url
+    return url
+        .replace(/\/\/localhost([:\/])/g, `//${DOCKER_HOST}$1`)
+        .replace(/\/\/127\.0\.0\.1([:\/])/g, `//${DOCKER_HOST}$1`)
+}
+
 export type BuiltinProviderKey =
     | 'openrouter'
     | 'anthropic'
@@ -189,7 +207,7 @@ export function buildModel(
             return ds(modelId)
         }
         case 'ollama': {
-            let base = (config.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '')
+            let base = resolveBaseUrl((config.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, ''))
             // Auto-upgrade http→https for remote Ollama instances behind reverse proxies.
             // Without this, the 301 redirect changes POST to GET, causing 405 errors.
             if (base.startsWith('http://') && !base.includes('localhost') && !base.includes('127.0.0.1')) {
@@ -314,7 +332,7 @@ export function resolveModelFromEnv(modelId?: string): AnyLanguageModel {
         return gr('llama-3.3-70b-versatile')
     }
     // Last resort — local Ollama
-    const ol = createOpenAICompatible({ name: 'ollama', baseURL: 'http://localhost:11434/v1' })
+    const ol = createOpenAICompatible({ name: 'ollama', baseURL: resolveBaseUrl('http://localhost:11434') + '/v1' })
     return ol('llama3.2')
 }
 
@@ -531,7 +549,7 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
             return ds(modelId)
         }
         case 'ollama': {
-            const base = (baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1'
+            const base = resolveBaseUrl((baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '')) + '/v1'
             return createOpenAICompatible({ name: 'ollama', baseURL: base })(modelId)
         }
         case 'ollama_cloud': {
@@ -582,7 +600,7 @@ export async function testProvider(
 
     // ── Ollama local: discover models via GET, pick one, then test ───────────
     if (providerKey === 'ollama') {
-        const baseURL = (opts.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1'
+        const baseURL = resolveBaseUrl((opts.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '')) + '/v1'
         try {
             const res = await fetch(`${baseURL}/models`, {
                 signal: AbortSignal.timeout(timeoutMs),
