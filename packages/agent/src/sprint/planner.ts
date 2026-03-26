@@ -74,7 +74,7 @@ export async function planSprint(params: {
 
     logger.info({ sprintId, repo, category }, 'Sprint planning started')
 
-    const systemPrompt = categoryPlannerPrompt(category)
+    const systemPrompt = categoryPlannerPrompt(category, request)
 
     let agentsMdBlock = ''
     try {

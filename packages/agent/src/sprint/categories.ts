@@ -19,7 +19,10 @@ export const VALID_CATEGORIES: Set<string> = new Set([
     'code', 'research', 'writing', 'ops', 'data', 'marketing', 'general',
 ])
 
-export function categoryPlannerPrompt(category: string): string {
+import { maxSprintTasks } from '../principles.js'
+
+export function categoryPlannerPrompt(category: string, request?: string): string {
+    const taskCap = request ? maxSprintTasks(request) : 8
     const prompts: Record<string, string> = {
         code: `You are a sprint planning system for software development. Given a repository and a feature/change request, decompose the work into independent coding tasks that can be executed in parallel by separate AI agents.
 
@@ -30,7 +33,7 @@ Rules:
 - Each task needs an acceptance criterion that can be verified programmatically
 - Tasks that share scope must be marked as dependencies in depends_on
 - Branch names use the format: sprint/{sprintId}/{short-slug}
-- Maximum 8 tasks per sprint`,
+- Maximum ${taskCap} tasks per sprint. Fewer is better — only decompose if the work genuinely cannot be done as a single task.`,
 
         research: `You are a research planning system. Given a research topic and optional scope constraints, decompose the investigation into independent research threads that can be explored in parallel.
 
@@ -41,7 +44,7 @@ Rules:
 - Each thread needs a clear deliverable (finding, data point, analysis)
 - Use "branch" field for finding ID (e.g., "finding/introduction", "finding/competitive-analysis")
 - "scope" should list the sub-topics or source domains this thread covers
-- Maximum 8 threads per study`,
+- Maximum ${taskCap} threads per study. Fewer is better — only decompose if genuinely independent.`,
 
         writing: `You are a content planning system. Given a writing brief, decompose the content into independent sections or drafts that can be written in parallel by separate AI agents.
 
@@ -51,7 +54,7 @@ Rules:
 - Sections should be ordered logically so they can be assembled into a coherent document
 - Each section needs a clear acceptance criterion (key points to cover, word count target)
 - Use "branch" field for section ID (e.g., "draft/introduction", "draft/section-1")
-- Maximum 8 sections per document`,
+- Maximum ${taskCap} sections per document. Fewer is better.`,
 
         ops: `You are an operations planning system. Given an operational goal, decompose the work into independent actions that can be executed in parallel by separate AI agents.
 
@@ -61,7 +64,7 @@ Rules:
 - Scope overlap between parallel actions is a risk — flag dependencies clearly
 - Each action needs a clear verification criterion
 - Use "branch" field for action ID (e.g., "action/audit-servers", "action/patch-cves")
-- Maximum 8 actions per operation`,
+- Maximum ${taskCap} actions per operation. Fewer is better.`,
 
         data: `You are a data analysis planning system. Given a data analysis goal, decompose it into independent query or transformation threads that can run in parallel.
 
@@ -71,7 +74,7 @@ Rules:
 - Threads should produce outputs that can be joined into a final result
 - Each thread needs a clear output format and validation criterion
 - Use "branch" field for query ID (e.g., "query/user-segments", "query/ltv-calculation")
-- Maximum 8 threads per pipeline`,
+- Maximum ${taskCap} threads per pipeline. Fewer is better.`,
 
         marketing: `You are a marketing campaign planning system. Given a campaign goal, decompose it into independent asset tracks that can be produced in parallel.
 
@@ -81,7 +84,7 @@ Rules:
 - Tracks should produce assets that form a coherent campaign when assembled
 - Each track needs a clear deliverable and success metric
 - Use "branch" field for asset ID (e.g., "asset/email-sequence", "asset/social-copy")
-- Maximum 8 tracks per campaign`,
+- Maximum ${taskCap} tracks per campaign. Fewer is better.`,
 
         general: `You are a general-purpose task planning system. Given a goal, decompose it into independent tasks that can be executed in parallel by separate AI agents.
 
@@ -91,7 +94,7 @@ Rules:
 - Minimize dependencies between parallel tasks
 - Each task needs a clear acceptance criterion
 - Use "branch" field for task ID (e.g., "task/research", "task/draft")
-- Maximum 8 tasks per project
+- Maximum ${taskCap} tasks per project. Fewer is better — only decompose if genuinely independent
 - Think outside the box: Map abstract or physical problems (e.g., "plan a party") into achievable digital tasks (researching venues, drafting invites, building an itinerary). State what actions you plan to take in the task description.
 - Be solution-oriented: Prescribe integrations, connections, or apps the user could connect to you (via new Fabric extensions) to help complete the specific steps in the future.`,
     }

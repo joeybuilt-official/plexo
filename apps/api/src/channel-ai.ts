@@ -10,6 +10,7 @@
 
 import { generateText } from 'ai'
 import { withFallback } from '@plexo/agent/providers/registry'
+import { enforceSmallestAction } from '@plexo/agent/principles'
 import { loadWorkspaceAISettings } from './agent-loop.js'
 import { emitToWorkspace } from './sse-emitter.js'
 import { logger } from './logger.js'
@@ -163,15 +164,26 @@ export async function classifyIntent(
             return 'CONVERSATION'
         }
 
-        if (classification === 'TASK') return 'TASK'
-        if (classification === 'PROJECT') return 'PROJECT'
-        return 'CONVERSATION'
+        let intent: IntentLabel = 'CONVERSATION'
+        if (classification === 'TASK') intent = 'TASK'
+        else if (classification === 'PROJECT') intent = 'PROJECT'
+
+        // Principle 1: enforce smallest possible action at code level.
+        // If the LLM said PROJECT but the message doesn't have explicit multi-deliverable
+        // signals, downgrade to TASK. The user can always escalate.
+        const lastMessage = history[history.length - 1]?.content ?? ''
+        intent = enforceSmallestAction(intent, lastMessage)
+
+        return intent
     } catch {
         // Fallback: legacy single-word response
         const upper = resText.toUpperCase()
-        if (upper.startsWith('TASK')) return 'TASK'
-        if (upper.startsWith('PROJECT')) return 'PROJECT'
-        return 'CONVERSATION'
+        let intent: IntentLabel = 'CONVERSATION'
+        if (upper.startsWith('TASK')) intent = 'TASK'
+        else if (upper.startsWith('PROJECT')) intent = 'PROJECT'
+
+        const lastMessage = history[history.length - 1]?.content ?? ''
+        return enforceSmallestAction(intent, lastMessage)
     }
 }
 
