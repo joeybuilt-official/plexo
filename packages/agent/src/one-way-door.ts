@@ -29,7 +29,31 @@ const logger = pino({ name: 'one-way-door' })
 const OWD_TTL_SECONDS = 3600
 const ACK_POLL_INTERVAL_MS = 10_000
 const ACK_TIMEOUT_MS = 60_000
-const ESCALATION_TIMEOUT_MS = 24 * 60 * 60 * 1000 // 24 hours
+const DEFAULT_ESCALATION_TIMEOUT_HOURS = 24
+
+/**
+ * Resolve the escalation timeout from workspace settings, env var, or default.
+ * Priority: workspace settings → ESCALATION_TIMEOUT_HOURS env → 24h default.
+ */
+async function resolveEscalationTimeoutMs(workspaceId?: string): Promise<number> {
+    // Try workspace settings
+    if (workspaceId) {
+        try {
+            const { db, eq } = await import('@plexo/db')
+            const { workspaces } = await import('@plexo/db')
+            const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
+                .where(eq(workspaces.id, workspaceId)).limit(1)
+            const s = ws?.settings as Record<string, unknown> | undefined
+            if (typeof s?.escalationTimeoutHours === 'number' && s.escalationTimeoutHours > 0) {
+                return s.escalationTimeoutHours * 60 * 60 * 1000
+            }
+        } catch { /* non-fatal */ }
+    }
+    // Try env var
+    const envHours = parseFloat(process.env.ESCALATION_TIMEOUT_HOURS ?? '')
+    if (envHours > 0) return envHours * 60 * 60 * 1000
+    return DEFAULT_ESCALATION_TIMEOUT_HOURS * 60 * 60 * 1000
+}
 
 export type OWDDecision = 'pending' | 'approved' | 'rejected'
 
@@ -130,7 +154,12 @@ export async function waitForDecision(
     id: string,
     timeoutMs?: number,
 ): Promise<'approved' | 'rejected' | 'timeout'> {
-    const effectiveTimeout = timeoutMs ?? ESCALATION_TIMEOUT_MS
+    // Resolve from workspace settings if no explicit timeout provided
+    const record0 = await getDecision(id)
+    const wsTimeout = !timeoutMs && record0?.workspaceId
+        ? await resolveEscalationTimeoutMs(record0.workspaceId)
+        : undefined
+    const effectiveTimeout = timeoutMs ?? wsTimeout ?? (DEFAULT_ESCALATION_TIMEOUT_HOURS * 60 * 60 * 1000)
     const deadline = Date.now() + effectiveTimeout
     const POLL_MS = 3000
 

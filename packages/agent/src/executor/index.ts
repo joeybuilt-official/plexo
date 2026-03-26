@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { generateText, tool, stepCountIs } from 'ai'
+import { generateText, tool } from 'ai'
 import { z } from 'zod'
 import { db, sql, eq, and } from '@plexo/db'
 import { tasks, taskSteps, artifacts, artifactVersions } from '@plexo/db'
@@ -156,9 +156,10 @@ async function dispatchTool(
 
         case 'shell': {
             try {
-                const { spawnSync } = await import('node:child_process')
+                const { spawn } = await import('node:child_process')
                 const cwd = (input.cwd as string | undefined) ?? defaultCwd
                 const command = input.command as string
+                const TOOL_TIMEOUT_MS = 90_000
 
                 // Detect label from command content for better UI grouping
                 const label = /ssh\s/.test(command)
@@ -168,18 +169,15 @@ async function dispatchTool(
                         : 'shell'
 
                 // Allowlist — never spread process.env into the subshell.
-                // That would expose ENCRYPTION_SECRET, API keys, DATABASE_URL, etc.
                 const SAFE_ENV_KEYS = new Set([
                     'PATH', 'HOME', 'USER', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE',
                     'NODE_ENV', 'NODE_PATH', 'TMPDIR', 'TMP', 'TEMP',
                     'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL',
                     'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL',
                     'PNPM_HOME', 'npm_config_cache',
-                    // Connection tokens needed for git push, MCP servers, etc.
                     'GITHUB_TOKEN', 'GITHUB_PERSONAL_ACCESS_TOKEN',
                     'GITLAB_PERSONAL_ACCESS_TOKEN', 'GITLAB_TOKEN',
                     'NPM_TOKEN', 'VERCEL_TOKEN', 'NETLIFY_AUTH_TOKEN',
-                    // Allow workspace-scoped custom env (set by connection bridge)
                     'PLEXO_WORKSPACE_ID',
                 ])
                 const safeEnv: Record<string, string> = {}
@@ -188,23 +186,49 @@ async function dispatchTool(
                 }
                 safeEnv.PATH = process.env.PATH ?? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
-                const result = spawnSync('sh', ['-c', command], {
-                    cwd,
-                    timeout: 60_000,
-                    maxBuffer: 2 * 1024 * 1024,
-                    encoding: 'utf8',
-                    env: safeEnv,
+                // Async spawn with process group isolation + timeout kill.
+                // The child runs in its own process group (detached) so we can
+                // kill the entire tree on timeout without affecting the agent.
+                const combined = await new Promise<string>((resolve, reject) => {
+                    const child = spawn('sh', ['-c', command], {
+                        cwd,
+                        env: safeEnv,
+                        stdio: ['ignore', 'pipe', 'pipe'],
+                        detached: true,
+                    })
+
+                    let stdout = ''
+                    let stderr = ''
+                    let killed = false
+
+                    child.stdout?.on('data', (d: Buffer) => { stdout += d.toString() })
+                    child.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+
+                    const timer = setTimeout(() => {
+                        killed = true
+                        try { process.kill(-child.pid!, 'SIGKILL') } catch { /* already exited */ }
+                        reject(new Error(`TOOL_TIMEOUT:shell (${TOOL_TIMEOUT_MS}ms)`))
+                    }, TOOL_TIMEOUT_MS)
+
+                    child.on('close', (code) => {
+                        clearTimeout(timer)
+                        if (killed) return
+                        const out = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n')
+                        if (code !== 0) {
+                            resolve(`ERROR: ${(out || `exit code ${code}`).slice(0, 2000)}`)
+                        } else {
+                            resolve(out || '(no output)')
+                        }
+                    })
+
+                    child.on('error', (err) => {
+                        clearTimeout(timer)
+                        if (!killed) reject(err)
+                    })
                 })
 
-                const combined = [
-                    result.stdout?.trim() ?? '',
-                    result.stderr?.trim() ?? '',
-                ]
-                    .filter(Boolean)
-                    .join('\n')
-
-                // Emit each line as a streaming SSE event (Code Mode)
-                if (emit && combined) {
+                // Emit each line as a streaming SSE event
+                if (emit && combined && !combined.startsWith('ERROR:')) {
                     for (const line of combined.split('\n')) {
                         if (line) {
                             emit({
@@ -233,37 +257,42 @@ async function dispatchTool(
                     }
                 }
 
-                if (result.status !== 0) {
-                    const detail = combined || (result.error?.message ?? ('exit code ' + String(result.status)))
-                    return `ERROR: ${detail.slice(0, 2000)}`
-                }
-                return (result.stdout ?? '').trim()
+                return combined
             } catch (e) {
-                const err = e as { stdout?: string; stderr?: string; message: string }
-                const stderr = err.stderr?.trim() ?? ''
-                const stdout = err.stdout?.trim() ?? ''
-                const detail = stderr || stdout || err.message
-                return `ERROR: ${detail.slice(0, 2000)}`
+                const msg = e instanceof Error ? e.message : String(e)
+                if (msg.startsWith('TOOL_TIMEOUT:')) {
+                    return `ERROR: ${msg} — shell command killed after timeout`
+                }
+                return `ERROR: ${msg.slice(0, 2000)}`
             }
         }
 
 
         case 'task_complete': {
-            // Persist deliverable to DB if provided
-            if (input.works || input.verificationSteps) {
-                try {
-                    const deliverable = {
-                        summary: (input.summary as string) ?? '',
-                        outcome: (input.outcome as string) ?? 'completed',
-                        works: (input.works as unknown[]) ?? [],
-                        verificationSteps: (input.verificationSteps as string[]) ?? [],
-                    }
-                    await db.update(tasks)
-                        .set({ deliverable })
-                        .where(eq(tasks.id, ctx.taskId))
-                } catch (e) {
-                    // Non-fatal — deliverable persistence failure shouldn't block completion
-                }
+            // Build deliverable from all provided fields
+            const deliverable = {
+                summary: (input.summary as string) ?? '',
+                outcome: (input.outcome as string) ?? 'completed',
+                works: (input.works as unknown[]) ?? [],
+                verificationSteps: (input.verificationSteps as string[]) ?? [],
+            }
+            // Persist deliverable to DB
+            try {
+                await db.update(tasks)
+                    .set({ deliverable })
+                    .where(eq(tasks.id, ctx.taskId))
+            } catch {
+                // Non-fatal — deliverable persistence failure shouldn't block completion
+            }
+            // Emit deliverable via SSE so the UI updates in real time
+            if (emit) {
+                emit({
+                    type: 'task_resumed' as any, // generic event — reuses StepGenericEvent
+                    taskId: ctx.taskId,
+                    workspaceId: ctx.workspaceId,
+                    deliverable,
+                    ts: Date.now(),
+                })
             }
             return JSON.stringify({ done: true, summary: input.summary, qualityScore: input.qualityScore })
         }
@@ -1051,7 +1080,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
             stepNum = 0
         }
 
-        let retries = 0
+        const MAX_STEPS = 25 // outer loop cap — each iteration = 1 generateText call
         let accumulatedUsage = { inputTokens: 0, outputTokens: 0 }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let accumulatedSteps: any[] = []
@@ -1062,7 +1091,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         let lastProgressToolCount = 0
         let lastProgressTime = Date.now()
 
-        while (retries < SAFETY_LIMITS.maxRetries) {
+        while (stepNum <= MAX_STEPS) {
             if (ctx.signal.aborted) break
 
             const result = await generateText({
@@ -1072,7 +1101,8 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
                 tools: allTools,
                 // tokenBudget > 0: cap output tokens. 0 or null = no per-task cap.
                 ...(ctx.tokenBudget && ctx.tokenBudget > 0 ? { maxTokens: ctx.tokenBudget } : {}),
-                stopWhen: stepCountIs(SAFETY_LIMITS.maxConsecutiveToolCalls),
+                // stopWhen defaults to stepCountIs(1) — one tool call per outer iteration.
+                // Each iteration is checkpointed to DB so crashes lose at most 1 step.
                 abortSignal: ctx.signal,
             })
 
@@ -1104,7 +1134,13 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
                     tokensOut: outToks,
                     toolCalls: stepToolCalls,
                     outcome: isTerminal ? 'complete' : 'running',
-                    stepState: { responseMessages: result.response.messages },
+                    stepState: {
+                        responseMessages: result.response.messages,
+                        ...(routingFallbackUsed && stepNum === 0 ? {
+                            routingFallback: true,
+                            routingFallbackReason: routingFallbackReason,
+                        } : {}),
+                    },
                     isTerminal,
                 })
                 stepNum++
@@ -1150,16 +1186,12 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
                 break
             }
 
-            retries++
-            if (retries >= SAFETY_LIMITS.maxRetries) {
-                throw new LogicError(`Model failed to complete the task: ${SAFETY_LIMITS.maxRetries} continuations without calling task_complete.`)
+            if (stepNum > MAX_STEPS) {
+                throw new LogicError(`Task exceeded ${MAX_STEPS} step iterations without calling task_complete.`)
             }
 
+            // Append step messages for context continuity
             messages = messages.concat(result.response.messages)
-            messages.push({
-                role: 'user',
-                content: 'Evaluator Error: You stopped without finalizing the task. Please reflect on your previous steps and errors, then continue to complete the objective.'
-            })
         }
 
         return {

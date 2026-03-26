@@ -447,10 +447,37 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
             }
         }
 
-        // Single judge — use workspace router when available, else env fallback
-        const singleModel = aiSettings
-            ? (await resolveModel('summarization', aiSettings).catch(() => ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null }))).model
-            : resolveModelFromEnv(MODEL_ROUTING.summarization)
+        // Single judge — cross-model enforcement: judge must use a different
+        // provider tier than the executor to prevent self-evaluation bias.
+        // If primary is Anthropic → judge uses OpenAI/OpenRouter class.
+        // If primary is OpenAI/other → judge uses Anthropic class.
+        let singleModel: Awaited<ReturnType<typeof resolveModel>>['model']
+        if (aiSettings) {
+            const primary = aiSettings.primaryProvider ?? ''
+            const isAnthropicPrimary = primary === 'anthropic'
+            // Try cross-provider first, fall back to same-provider summarization tier
+            const crossProviderKey = isAnthropicPrimary
+                ? (['openai', 'openrouter', 'groq'] as const).find(k => aiSettings.providers[k]?.apiKey)
+                : (['anthropic'] as const).find(k => aiSettings.providers[k]?.apiKey)
+            if (crossProviderKey) {
+                const crossSettings: WorkspaceAISettings = {
+                    ...aiSettings,
+                    primaryProvider: crossProviderKey as any,
+                    fallbackChain: [],
+                }
+                singleModel = (await resolveModel('summarization', crossSettings).catch(() =>
+                    ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
+                )).model
+                logger.info({ primary, judgeProvider: crossProviderKey }, 'Cross-model judge: using different provider')
+            } else {
+                // No cross-provider available — fall back to same provider
+                singleModel = (await resolveModel('summarization', aiSettings).catch(() =>
+                    ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
+                )).model
+            }
+        } else {
+            singleModel = resolveModelFromEnv(MODEL_ROUTING.summarization)
+        }
         const score = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, singleModel)))
         logger.info({ taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3) }, 'Single judge done')
         return {
