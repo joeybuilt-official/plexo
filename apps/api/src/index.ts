@@ -244,7 +244,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 // ── Start ────────────────────────────────────────────────────
 
-const server = app.listen(port, '0.0.0.0', () => {
+const server = app.listen(port, '0.0.0.0', async () => {
     logger.info({ port }, 'Plexo API server started')
     // Init telemetry — off by default; config loaded from workspace settings if available
     configureTelemetry({
@@ -265,7 +265,7 @@ const server = app.listen(port, '0.0.0.0', () => {
         .catch((err: unknown) => logger.error({ err }, 'Startup: failed to reset orphaned sprints'))
 
     startAgentLoop()
-    void initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
+    await initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
 
     // Background Sync
     void runCronJobs()

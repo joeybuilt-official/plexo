@@ -193,17 +193,61 @@ export async function classifyIntent(
 const MAX_HISTORY = 20
 
 /**
- * Lightweight in-memory chat history scoped by an arbitrary string key.
+ * Chat history with DB-backed hydration on first access.
  *
  * Each channel adapter composes its own key (e.g. `slack:team:channel:ts`,
  * `discord:guild:channel`, `telegram:channelId:chatId`) but the storage
  * mechanics are identical and shared here.
+ *
+ * On process restart the in-memory store is empty. When `getOrHydrate()`
+ * is called with a sessionId, it loads the most recent turns from the
+ * conversations table so multi-turn context survives restarts.
  */
 export class ChannelChatHistory {
     private store = new Map<string, ChatMessage[]>()
+    private hydrated = new Set<string>()
 
     get(key: string): ChatMessage[] | undefined {
         return this.store.get(key)
+    }
+
+    /**
+     * Return cached history, or hydrate from DB if this is the first access
+     * after a restart. `sessionPrefix` is the prefix before the epoch
+     * (e.g. `telegram:ch:chat:` — note trailing colon). Hydration loads
+     * the most recent session matching this prefix so epoch resets on
+     * restart don't lose context.
+     */
+    async getOrHydrate(key: string, workspaceId: string, sessionPrefix: string): Promise<ChatMessage[]> {
+        if (this.store.has(key)) return this.store.get(key)!
+        if (this.hydrated.has(key)) return []
+
+        this.hydrated.add(key)
+        try {
+            const { db } = await import('@plexo/db')
+            const { conversations } = await import('@plexo/db')
+            const { eq, desc, sql } = await import('@plexo/db')
+            const rows = await db.select({ message: conversations.message, reply: conversations.reply })
+                .from(conversations)
+                .where(sql`${conversations.workspaceId} = ${workspaceId} AND ${conversations.sessionId} LIKE ${sessionPrefix + '%'}`)
+                .orderBy(desc(conversations.createdAt))
+                .limit(MAX_HISTORY)
+
+            if (rows.length === 0) return []
+
+            const hist: ChatMessage[] = []
+            for (const r of rows.reverse()) {
+                if (r.message) hist.push({ role: 'user', content: r.message })
+                if (r.reply) hist.push({ role: 'assistant', content: r.reply })
+            }
+            if (hist.length > MAX_HISTORY) hist.splice(0, hist.length - MAX_HISTORY)
+            this.store.set(key, hist)
+            logger.info({ key, turns: hist.length }, 'Hydrated chat history from DB')
+            return hist
+        } catch (err) {
+            logger.warn({ err, key }, 'Failed to hydrate chat history from DB — starting fresh')
+            return []
+        }
     }
 
     add(key: string, role: 'user' | 'assistant', content: string): void {

@@ -577,7 +577,8 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
 
     addToHistory(channelId, chatId, 'user', text)
     await sendTyping(token, chatId)
-    const history = chatHistory.get(historyKey(channelId, chatId)) ?? []
+    const sessionPrefix = `telegram:${channelId}:${chatId}:`
+    const history = await chatHistory.getOrHydrate(historyKey(channelId, chatId), workspaceId, sessionPrefix)
 
     const intent = await classifyIntent(workspaceId, history)
 
