@@ -860,26 +860,50 @@ export async function initTelegramWebhook(): Promise<void> {
         return
     }
 
-    try {
-        const rows = await db
-            .select({ id: channels.id, config: channels.config, workspaceId: channels.workspaceId })
-            .from(channels)
-            .where(eq(channels.type, 'telegram'))
+    // Retry up to 3 times with 2s delay — the DB pool may not be ready at cold start
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const rows = await db
+                .select({ id: channels.id, config: channels.config, workspaceId: channels.workspaceId, enabled: channels.enabled })
+                .from(channels)
+                .where(eq(channels.type, 'telegram'))
 
-        if (rows.length === 0) {
-            logger.info('No Telegram channels configured — adapter idle')
+            logger.info({ attempt, totalRows: rows.length, enabledRows: rows.filter(r => r.enabled).length }, 'Telegram init — DB query result')
+
+            if (rows.length === 0) {
+                if (attempt < 3) {
+                    logger.info({ attempt }, 'No Telegram channels found — retrying in 2s (DB may not be ready)')
+                    await new Promise(r => setTimeout(r, 2000))
+                    continue
+                }
+                logger.info('No Telegram channels configured — adapter idle')
+                return
+            }
+
+            let registered = 0
+            for (const row of rows) {
+                if (!row.enabled) {
+                    logger.info({ channelId: row.id }, 'Telegram channel disabled — skipping')
+                    continue
+                }
+                const cfg = row.config as { token?: string; bot_token?: string } | null
+                const token = cfg?.token ?? cfg?.bot_token ?? null
+                if (token) {
+                    await registerTelegramChannel(row.id, token, row.workspaceId)
+                    registered++
+                } else {
+                    logger.warn({ channelId: row.id, configKeys: cfg ? Object.keys(cfg) : [] }, 'Telegram channel has no token in config')
+                }
+            }
+            logger.info({ total: rows.length, registered }, 'Telegram channels initialised')
             return
-        }
-
-        for (const row of rows) {
-            const cfg = row.config as { token?: string; bot_token?: string } | null
-            const token = cfg?.token ?? cfg?.bot_token ?? null
-            if (token) {
-                await registerTelegramChannel(row.id, token, row.workspaceId)
+        } catch (err) {
+            if (attempt < 3) {
+                logger.warn({ err, attempt }, 'Telegram init — DB query failed, retrying in 2s')
+                await new Promise(r => setTimeout(r, 2000))
+            } else {
+                logger.error({ err }, 'Telegram init — DB lookup failed after 3 attempts')
             }
         }
-        logger.info({ count: rows.length }, 'Telegram channels initialised')
-    } catch (err) {
-        logger.error({ err }, 'Telegram init — DB lookup failed')
     }
 }
