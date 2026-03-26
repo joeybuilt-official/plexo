@@ -94,7 +94,7 @@ interface ConnectedItem extends RegistryItem {
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
-/** Channel type → integration registry ID mapping */
+/** Channel type → connection registry ID mapping */
 const CHANNEL_TO_REGISTRY: Record<string, string> = {
     telegram: 'telegram',
     slack: 'slack',
@@ -166,7 +166,7 @@ const ALL_CATEGORIES = ['All', 'Code', 'Communication', 'Productivity', 'Finance
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function IntegrationsPage() {
+export default function ConnectionsPage() {
     const { workspaceId } = useWorkspace()
     const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [registry, setRegistry] = useState<RegistryItem[]>([])
@@ -224,7 +224,7 @@ export default function IntegrationsPage() {
         }
     }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
-    useEffect(() => { void fetchData() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { void fetchData() }, [WS_ID])  // eslint-disable-line react-hooks/exhaustive-deps
 
     const connectedItem = selected
         ? installed.find((i) => i.registryId === selected.id) ?? null

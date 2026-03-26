@@ -719,7 +719,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                                         <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />
                                                     )}
 
-                                                    {/* Integrations Warning */}
+                                                    {/* Connections Warning */}
                                                     {href === '/settings/connections' && capabilityWarning && (
                                                         <span className={`h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ${sidebarCollapsed ? 'absolute top-1.5 right-1.5' : 'ml-1'}`} />
                                                     )}

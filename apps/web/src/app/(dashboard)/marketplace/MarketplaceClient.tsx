@@ -302,7 +302,7 @@ function ExtensionCard({
 
 // ── Integrations tab ──────────────────────────────────────────────────────────
 
-function IntegrationsTab({
+function ConnectionsTab({
     registry,
     installed: initialInstalled,
     workspaceId,
@@ -548,7 +548,7 @@ function ExtensionsTab({
 
 // ── Root component ─────────────────────────────────────────────────────────────
 
-type Tab = 'integrations' | 'extensions'
+type Tab = 'connections' | 'extensions'
 
 export default function MarketplaceClient({
     registry,
@@ -561,7 +561,7 @@ export default function MarketplaceClient({
     plugins: FabricExtension[]
     workspaceId: string
 }) {
-    const [tab, setTab] = useState<Tab>('integrations')
+    const [tab, setTab] = useState<Tab>('connections')
 
     return (
         <div className="flex flex-col gap-6">
@@ -569,22 +569,22 @@ export default function MarketplaceClient({
             <div>
                 <h1 className="text-xl font-bold text-zinc-50">Marketplace</h1>
                 <p className="mt-0.5 text-sm text-text-muted">
-                    Discover and manage integrations and extensions that extend what the agent can do.
+                    Discover and manage connections and extensions that extend what the agent can do.
                 </p>
             </div>
 
             {/* Tabs */}
             <div className="flex gap-0 border-b border-border">
                 <button
-                    onClick={() => setTab('integrations')}
-                    className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'integrations'
+                    onClick={() => setTab('connections')}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === 'connections'
                         ? 'border-azure text-azure'
                         : 'border-transparent text-text-muted hover:text-text-secondary'
                         }`}
                 >
                     <Package className="h-3.5 w-3.5" />
-                    Integrations
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'integrations' ? 'bg-azure-900/40 text-azure' : 'bg-surface-2 text-text-muted'}`}>
+                    Connections
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tab === 'connections' ? 'bg-azure-900/40 text-azure' : 'bg-surface-2 text-text-muted'}`}>
                         {registry.length}
                     </span>
                 </button>
@@ -606,8 +606,8 @@ export default function MarketplaceClient({
             </div>
 
             {/* Tab content */}
-            {tab === 'integrations' && (
-                <IntegrationsTab
+            {tab === 'connections' && (
+                <ConnectionsTab
                     registry={registry}
                     installed={installed}
                     workspaceId={workspaceId}

@@ -483,7 +483,7 @@ export default function ChannelsPage() {
                         const Icon = m.icon
                         const active = selected?.id === ch.id
                         const linkedRegistryId = CHANNEL_TO_REGISTRY[ch.type]
-                        const linkedIntegration = linkedRegistryId
+                        const linkedConnection = linkedRegistryId
                             ? installedConnections.find((i) => i.registryId === linkedRegistryId)
                             : undefined
                         return (
@@ -502,8 +502,8 @@ export default function ChannelsPage() {
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         {ch.errorCount > 0 && <AlertCircle className="h-3.5 w-3.5 text-red" />}
-                                        {linkedIntegration && (
-                                            <span title={`Integration: ${linkedIntegration.name}`}>
+                                        {linkedConnection && (
+                                            <span title={`Connection: ${linkedConnection.name}`}>
                                                 <Puzzle className="h-3 w-3 text-violet-400" />
                                             </span>
                                         )}
@@ -696,22 +696,22 @@ export default function ChannelsPage() {
                                 </div>
                             )}
 
-                            {/* Integration cross-reference */}
+                            {/* Connection cross-reference */}
                             {(() => {
                                 const linkedRegistryId = CHANNEL_TO_REGISTRY[selected.type]
-                                const linkedIntegration = linkedRegistryId
+                                const linkedConnection = linkedRegistryId
                                     ? installedConnections.find((i) => i.registryId === linkedRegistryId)
                                     : undefined
-                                if (!linkedIntegration) return null
+                                if (!linkedConnection) return null
                                 return (
                                     <div className="rounded-lg border border-violet-800/30 bg-violet-950/20 px-3 py-3 flex flex-col gap-1.5">
                                         <p className="text-xs font-semibold text-violet-400 flex items-center gap-1.5">
                                             <Puzzle className="h-3.5 w-3.5" />
-                                            Integration linked
+                                            Connection linked
                                         </p>
                                         <p className="text-[11px] text-violet-400/70 leading-relaxed">
-                                            This channel shares a service with the <strong className="text-violet-300">{linkedIntegration.name}</strong> integration ({linkedIntegration.status}).
-                                            Both use the same platform but serve different roles — the channel routes inbound messages, the integration exposes agent tools.
+                                            This channel is linked to the <strong className="text-violet-300">{linkedConnection.name}</strong> connection ({linkedConnection.status}).
+                                            The connection handles authentication — the channel routes inbound messages to the agent.
                                         </p>
                                         <a
                                             href="/settings/connections"
