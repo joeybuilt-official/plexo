@@ -110,6 +110,12 @@ async function dispatchTool(
             try {
                 const rawPath = input.path as string
                 const p = isAbsolute(rawPath) ? rawPath : resolve(defaultCwd, rawPath)
+                // Path containment: reject reads outside the workdir to prevent arbitrary file access
+                const realResolved = resolve(p)
+                const realCwd = resolve(defaultCwd)
+                if (!realResolved.startsWith(realCwd) && !realResolved.startsWith('/tmp/plexo-')) {
+                    return `ERROR: Path "${rawPath}" is outside the working directory`
+                }
                 return readFileSync(p, 'utf8')
             } catch (e) {
                 return `ERROR: ${(e as Error).message}`
@@ -120,6 +126,12 @@ async function dispatchTool(
             try {
                 const rawPath = input.path as string
                 const p = isAbsolute(rawPath) ? rawPath : resolve(defaultCwd, rawPath)
+                // Path containment: reject writes outside the workdir
+                const realResolved = resolve(p)
+                const realCwd = resolve(defaultCwd)
+                if (!realResolved.startsWith(realCwd) && !realResolved.startsWith('/tmp/plexo-')) {
+                    return `ERROR: Path "${rawPath}" is outside the working directory`
+                }
                 mkdirSync(dirname(p), { recursive: true })
 
                 // Capture old content for diff (Code Mode)
@@ -445,14 +457,28 @@ function buildTools(ctx: ExecutionContext) {
             },
         }),
         web_fetch: tool({
-            description: 'Fetch the text content of a URL. Returns the response body as a string. Use for reading documentation, APIs, web pages, JSON endpoints, or any public URL.',
+            description: 'Fetch the text content of a public URL. Returns the response body as a string. Internal/private IPs are blocked for security.',
             inputSchema: z.object({
-                url: z.string().url().describe('The URL to fetch'),
+                url: z.string().url().describe('The URL to fetch (public URLs only)'),
                 method: z.enum(['GET', 'POST']).optional().default('GET').describe('HTTP method'),
                 body: z.string().optional().describe('Request body for POST requests (JSON string)'),
                 headers: z.record(z.string()).optional().describe('Additional request headers'),
             }),
             execute: async ({ url, method = 'GET', body, headers = {} }) => {
+                // Block internal IPs, localhost, and cloud metadata services (SSRF prevention)
+                try {
+                    const parsed = new URL(url)
+                    const host = parsed.hostname.toLowerCase()
+                    const BLOCKED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]', 'metadata.google.internal']
+                    const BLOCKED_PREFIXES = ['10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.20.', '172.21.',
+                        '172.22.', '172.23.', '172.24.', '172.25.', '172.26.', '172.27.', '172.28.', '172.29.',
+                        '172.30.', '172.31.', '192.168.', '169.254.', 'fd', 'fe80']
+                    if (BLOCKED_HOSTS.includes(host) || BLOCKED_PREFIXES.some(p => host.startsWith(p))) {
+                        return 'ERROR: Blocked — cannot fetch internal or private network URLs'
+                    }
+                } catch {
+                    return 'ERROR: Invalid URL'
+                }
                 try {
                     const opts: RequestInit = {
                         method,

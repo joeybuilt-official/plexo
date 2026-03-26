@@ -209,7 +209,7 @@ membersRouter.post('/invite', async (req, res) => {
         const publicUrl = process.env.PUBLIC_URL ?? 'http://localhost:3000'
         const inviteUrl = `${publicUrl}/invite/${token}`
 
-        logger.info({ workspaceId, token, role }, 'Invite created')
+        logger.info({ workspaceId, tokenPrefix: token.slice(0, 8) + '...', role }, 'Invite created')
         audit(req, { workspaceId, userId: invitedByUserId, action: 'invite.create', resource: 'workspace_invites', resourceId: token, metadata: { role, email: email ?? null } })
         res.status(201).json({ token, inviteUrl, expiresAt })
     } catch (err) {
