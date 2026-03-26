@@ -894,7 +894,10 @@ export async function executeTask(
                     continue
                 }
                 totalTokens += tokens
-                blocks.push(`[Context from ${c.extensionName}: ${c.name}]\n${c.content}`)
+                const contextLabel = c.extensionName === '_user'
+                    ? `[User Context: ${c.name}]`
+                    : `[Context from ${c.extensionName}: ${c.name}]`
+                blocks.push(`${contextLabel}\n${c.content}`)
             }
 
             if (blocks.length > 0) {

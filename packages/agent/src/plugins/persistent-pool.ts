@@ -25,8 +25,8 @@ import { dirname, join } from 'path'
 import { randomUUID } from 'node:crypto'
 import pino from 'pino'
 import { storeMemory, searchMemory } from '../memory/store.js'
-import { db, eq, and } from '@plexo/db'
-import { installedConnections, connectionsRegistry, tasks } from '@plexo/db'
+import { db, eq, and, sql, isNull } from '@plexo/db'
+import { installedConnections, connectionsRegistry, tasks, extensionContexts } from '@plexo/db'
 import { eventBus } from './event-bus.js'
 
 const logger = pino({ name: 'fabric-persistent-pool' })
@@ -269,6 +269,80 @@ async function dispatchSdkCall(pluginName: string, method: string, args: Record<
         // v0.3.0 — Escalation (§23)
         case 'escalate':
             throw new Error('NOT_IMPLEMENTED: Escalation contract is not yet available on this host')
+
+        // ── context layer (§7.7) ────────────────────────────────────────
+
+        case 'context.register': {
+            const extName = (args.extensionName as string) ?? pluginName
+            const contextId = args.contextId as string
+            const content = args.content as string
+            if (!content || content.length > 50_000) throw new Error('Content required and must be <= 50,000 chars')
+
+            // Enforce 10-context cap per extension
+            const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(extensionContexts)
+                .where(and(eq(extensionContexts.workspaceId, workspaceId), eq(extensionContexts.extensionName, extName), isNull(extensionContexts.deletedAt)))
+            if (Number(countRow?.count ?? 0) >= 10) throw new Error('CONTEXT_LIMIT: maximum 10 contexts per extension')
+
+            await db.insert(extensionContexts).values({
+                workspaceId,
+                extensionName: extName,
+                contextId,
+                name: (args.name as string) ?? contextId,
+                description: (args.description as string) ?? '',
+                content,
+                contentType: (args.contentType as string) ?? 'text/plain',
+                priority: (['low', 'normal', 'high', 'critical'].includes(args.priority as string) ? args.priority : 'normal') as any,
+                ttl: typeof args.ttl === 'number' ? args.ttl : null,
+                tags: Array.isArray(args.tags) ? (args.tags as string[]).slice(0, 10) : [],
+                estimatedTokens: typeof args.estimatedTokens === 'number' ? args.estimatedTokens : Math.ceil(content.length / 4),
+                enabled: false, // Disabled by default — user opts in
+            }).onConflictDoUpdate({
+                target: [extensionContexts.workspaceId, extensionContexts.extensionName, extensionContexts.contextId],
+                set: { content, lastRefreshedAt: new Date(), updatedAt: new Date() },
+            })
+            return { ok: true }
+        }
+
+        case 'context.update': {
+            const extName = (args.extensionName as string) ?? pluginName
+            const contextId = args.contextId as string
+            const content = args.content as string
+            if (!content || content.length > 50_000) throw new Error('Content required and must be <= 50,000 chars')
+
+            await db.update(extensionContexts).set({
+                content,
+                lastRefreshedAt: new Date(),
+                updatedAt: new Date(),
+                ...(typeof args.ttl === 'number' ? { ttl: args.ttl } : {}),
+                ...(typeof args.estimatedTokens === 'number' ? { estimatedTokens: args.estimatedTokens } : {}),
+            }).where(and(
+                eq(extensionContexts.workspaceId, workspaceId),
+                eq(extensionContexts.extensionName, extName),
+                eq(extensionContexts.contextId, contextId),
+                isNull(extensionContexts.deletedAt),
+            ))
+            return { ok: true }
+        }
+
+        case 'context.list': {
+            const extName = args.extensionName as string | undefined
+            const conditions = [eq(extensionContexts.workspaceId, workspaceId), isNull(extensionContexts.deletedAt)]
+            if (extName) conditions.push(eq(extensionContexts.extensionName, extName))
+
+            const rows = await db.select().from(extensionContexts).where(and(...conditions))
+            return rows.map(r => ({
+                id: r.contextId,
+                name: r.name,
+                description: r.description,
+                priority: r.priority,
+                ownerExtension: r.extensionName,
+                enabled: r.enabled,
+                estimatedTokens: r.estimatedTokens ?? Math.ceil(r.content.length / 4),
+                expired: r.ttl != null && r.lastRefreshedAt != null
+                    ? (Date.now() - new Date(r.lastRefreshedAt).getTime()) / 1000 > r.ttl
+                    : false,
+            }))
+        }
 
         // v0.3.0 — A2A bridge (§22)
         case 'a2a.discover':

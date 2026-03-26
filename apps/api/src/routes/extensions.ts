@@ -199,6 +199,30 @@ extensionsRouter.post('/', async (req, res) => {
             }
         }
 
+        // §7.7: Extract context artifacts from manifest and persist (disabled by default)
+        if (m.contexts && Array.isArray(m.contexts) && m.contexts.length > 0) {
+            try {
+                const contextRows = m.contexts.slice(0, 10).map((c: any) => ({
+                    workspaceId,
+                    extensionName: m.name,
+                    contextId: String(c.id),
+                    name: String(c.name ?? ''),
+                    description: String(c.description ?? ''),
+                    content: String(c.content ?? '').slice(0, 50_000),
+                    contentType: String(c.contentType ?? 'text/plain'),
+                    priority: (['low', 'normal', 'high', 'critical'].includes(String(c.priority)) ? String(c.priority) : 'normal') as 'low' | 'normal' | 'high' | 'critical',
+                    ttl: typeof c.ttl === 'number' ? c.ttl : null,
+                    tags: Array.isArray(c.tags) ? c.tags.map(String).slice(0, 10) : [],
+                    estimatedTokens: typeof c.estimatedTokens === 'number' ? c.estimatedTokens : null,
+                    enabled: false, // disabled by default — user opts in
+                }))
+                await db.insert(extensionContexts).values(contextRows).onConflictDoNothing()
+                logger.info({ extensionName: m.name, count: contextRows.length }, 'Extracted context artifacts from extension')
+            } catch (contextErr) {
+                logger.warn({ err: contextErr, extensionName: m.name }, 'Failed to extract context artifacts — non-fatal')
+            }
+        }
+
         logger.info({ id: inserted.id, name: m.name, type: m.type, plexo: m.plexo }, 'Extension installed')
         audit(req, {
             workspaceId,

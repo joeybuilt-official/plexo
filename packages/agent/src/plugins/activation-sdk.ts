@@ -95,9 +95,21 @@ export function createActivationSDK(
             // TODO: prompt registration storage
         },
 
-        registerContext(): void {
+        registerContext(context: import('@plexo/sdk').ContextRegistration): void {
             requireCap('context:register')
-            // TODO: context registration storage
+            void bridge('context.register', {
+                workspaceId,
+                extensionName,
+                contextId: context.id,
+                name: context.name,
+                description: context.description ?? '',
+                content: context.content,
+                contentType: context.contentType ?? 'text/plain',
+                priority: context.priority ?? 'normal',
+                ttl: context.ttl,
+                tags: context.tags ?? [],
+                estimatedTokens: context.estimatedTokens,
+            })
         },
 
         prompts: {
@@ -112,12 +124,20 @@ export function createActivationSDK(
         },
 
         context: {
-            async update(_contextId, _content, _opts) {
+            async update(contextId, content, opts) {
                 requireCap('context:write')
+                await bridge('context.update', {
+                    workspaceId,
+                    extensionName,
+                    contextId,
+                    content,
+                    ttl: opts?.ttl,
+                    estimatedTokens: opts?.estimatedTokens,
+                })
             },
             async list() {
                 requireCap('context:read')
-                return []
+                return bridge('context.list', { workspaceId, extensionName }) as Promise<import('@plexo/sdk').ContextSummary[]>
             },
         },
 

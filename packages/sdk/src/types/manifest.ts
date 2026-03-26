@@ -243,6 +243,8 @@ export interface ExtensionManifest {
     behaviorRules?: BehaviorRuleDefinition[]
     /** §7.6 — Prompt templates contributed by this extension. */
     prompts?: import('./prompts.js').PromptArtifact[]
+    /** §7.7 — Context blocks contributed by this extension. */
+    contexts?: import('./context.js').ContextArtifact[]
     /** §7.7 — Context dependencies required by this extension. */
     contextDependencies?: string[]
 

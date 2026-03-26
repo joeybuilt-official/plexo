@@ -42,7 +42,8 @@ import {
     MessageCircle,
     PanelLeftClose,
     PanelLeftOpen,
-    Palette
+    Palette,
+    BookOpen,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
@@ -104,6 +105,7 @@ const NAV_GROUPS: NavGroup[] = [
             { label: 'Intelligence', href: '/settings/intelligence', icon: BrainCircuit },
             { label: 'Agent', href: '/settings/agent', icon: Bot },
             { label: 'Behavior', href: '/settings/behavior', icon: Palette },
+            { label: 'Context', href: '/settings/context', icon: BookOpen },
             { label: 'Channels', href: '/settings/channels', icon: Radio },
             { label: 'Voice', href: '/settings/voice', icon: Mic },
             { label: 'Memory', href: '/insights', icon: Brain },
