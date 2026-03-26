@@ -577,10 +577,20 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
 
     addToHistory(channelId, chatId, 'user', text)
     await sendTyping(token, chatId)
-    const sessionPrefix = `telegram:${channelId}:${chatId}:`
-    const history = await chatHistory.getOrHydrate(historyKey(channelId, chatId), workspaceId, sessionPrefix)
 
-    const intent = await classifyIntent(workspaceId, history)
+    let history: import('../channel-ai.js').ChatMessage[]
+    let intent: import('../channel-ai.js').IntentLabel
+    try {
+        const sessionPrefix = `telegram:${channelId}:${chatId}:`
+        history = await chatHistory.getOrHydrate(historyKey(channelId, chatId), workspaceId, sessionPrefix)
+        intent = await classifyIntent(workspaceId, history)
+    } catch (err) {
+        logger.error({ err, chatId, workspaceId }, 'Telegram: failed during history hydration or classification')
+        await sendMessage(token, chatId, 'Something went wrong processing your message. Try again in a moment.')
+        return
+    }
+
+    try {
 
     if (intent === 'CONVERSATION') {
         const result = await chatWithAI(
@@ -698,6 +708,11 @@ Critical rules — follow without exception:
             }
         }),
     })
+
+    } catch (err) {
+        logger.error({ err, chatId, workspaceId, channelId }, 'Telegram handler crashed — sending error to user')
+        await sendMessage(token, chatId, 'Something went wrong. Try again in a moment.').catch(() => null)
+    }
 }
 
 // ── Webhook handler: /webhook/:channelId ──────────────────────────────────────
