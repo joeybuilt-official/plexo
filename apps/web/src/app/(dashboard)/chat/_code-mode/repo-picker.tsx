@@ -92,7 +92,7 @@ function GitHubNotConnected({ onClose }: { onClose?: () => void }) {
                         <p className="font-semibold text-text-primary mb-1">What you need</p>
                         <ul className="space-y-1 list-disc list-inside text-text-muted">
                             <li>A GitHub Personal Access Token with <code className="text-azure">repo</code> scope</li>
-                            <li>Or connect via OAuth from the Integrations page</li>
+                            <li>Or connect via OAuth from the Connections page</li>
                         </ul>
                     </div>
 

@@ -718,7 +718,7 @@ export default function ChannelsPage() {
                                             className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors mt-0.5"
                                         >
                                             <Link2 className="h-3 w-3" />
-                                            Manage in Integrations →
+                                            Manage in Connections →
                                         </a>
                                     </div>
                                 )

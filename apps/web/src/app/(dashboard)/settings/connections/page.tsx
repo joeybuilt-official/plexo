@@ -399,7 +399,7 @@ export default function IntegrationsPage() {
         <div className="flex flex-col gap-4 h-full">
             {/* Header */}
             <div>
-                <h1 className="text-xl font-bold text-zinc-50">Integrations</h1>
+                <h1 className="text-xl font-bold text-zinc-50">Connections</h1>
                 <p className="mt-0.5 text-sm text-text-muted">
                     Manage authenticated external services • {installed.length} active
                 </p>

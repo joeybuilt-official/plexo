@@ -507,7 +507,7 @@ export default function IntelligencePage() {
                             <span>No connections installed.</span>
                         </div>
                         <Link href="/settings/connections" className="flex items-center min-h-[44px] px-4 -mx-4 sm:px-0 sm:mx-0 text-azure hover:text-azure not-italic sm:ml-auto w-fit">
-                            Browse integrations →
+                            Browse connections →
                         </Link>
                     </div>
                 ) : (
