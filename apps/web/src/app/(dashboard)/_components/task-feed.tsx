@@ -4,6 +4,7 @@
 'use server'
 
 import { getWorkspaceId } from '@web/lib/workspace'
+import { StatusBadge } from '@plexo/ui'
 
 interface Task {
     id: string
@@ -32,14 +33,6 @@ async function fetchRecent(workspaceId: string): Promise<Task[]> {
     }
 }
 
-const STATUS_COLORS: Record<string, string> = {
-    complete: 'bg-azure/20 text-azure border-azure/30',
-    running: 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse',
-    queued: 'bg-amber/20 text-amber border-amber-500/30',
-    blocked: 'bg-red/20 text-red border-red-500/30',
-    cancelled: 'bg-zinc-500/20 text-text-secondary border-zinc-500/30',
-    claimed: 'bg-azure-dim text-azure border-azure/30',
-}
 
 function timeAgo(iso: string): string {
     const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -69,11 +62,9 @@ export async function TaskFeed() {
             <ul className="divide-y divide-zinc-800/50">
                 {tasks.map((task) => (
                     <li key={task.id} className="flex items-start gap-3 px-4 py-3">
-                        <span
-                            className={`mt-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${STATUS_COLORS[task.status] ?? STATUS_COLORS.queued}`}
-                        >
-                            {task.status}
-                        </span>
+                        <div className="mt-0.5">
+                            <StatusBadge status={task.status} size="xs" />
+                        </div>
                         <div className="min-w-0 flex-1">
                             <p className="truncate text-[13px] text-text-primary">
                                 {task.outcomeSummary

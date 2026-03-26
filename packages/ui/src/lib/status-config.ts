@@ -12,12 +12,14 @@ import {
     CheckCheck,
     AlertTriangle,
     Layers,
-    Terminal
+    Terminal,
+    CircleDot,
+    HandMetal,
 } from 'lucide-react'
 
-export type StatusKey = 
+export type StatusKey =
     | 'pending' | 'queued' | 'claimed' | 'running' | 'blocked' | 'complete' | 'failed' | 'cancelled'
-    | 'planning' | 'finalizing'
+    | 'planning' | 'finalizing' | 'waiting' | 'partial'
 
 export interface StatusConfig {
     label: string
@@ -73,10 +75,10 @@ export const STATUS_MAP: Record<StatusKey, StatusConfig> = {
     },
     complete: {
         label: 'Complete',
-        color: 'text-azure',
-        bgColor: 'bg-azure-dim/30',
-        borderColor: 'border-azure/40',
-        dotColor: 'bg-azure',
+        color: 'text-emerald-400',
+        bgColor: 'bg-emerald-500/10',
+        borderColor: 'border-emerald-500/30',
+        dotColor: 'bg-emerald-400',
         icon: CheckCheck,
     },
     failed: {
@@ -112,5 +114,22 @@ export const STATUS_MAP: Record<StatusKey, StatusConfig> = {
         dotColor: 'bg-cyan-400',
         icon: Layers,
         animate: true,
+    },
+    waiting: {
+        label: 'Waiting',
+        color: 'text-yellow-400',
+        bgColor: 'bg-yellow-500/10',
+        borderColor: 'border-yellow-500/30',
+        dotColor: 'bg-yellow-400',
+        icon: HandMetal,
+        animate: true,
+    },
+    partial: {
+        label: 'Partial',
+        color: 'text-yellow-400',
+        bgColor: 'bg-yellow-500/10',
+        borderColor: 'border-yellow-500/20',
+        dotColor: 'bg-yellow-400',
+        icon: CircleDot,
     },
 }

@@ -3,13 +3,9 @@
 
 import { notFound } from 'next/navigation'
 import {
-    CheckCircle2,
-    Clock,
-    XCircle,
     Loader2,
     ChevronLeft,
     FolderOpen,
-    AlertTriangle,
     Zap,
     MessageSquare,
     Users,
@@ -19,6 +15,8 @@ import Link from 'next/link'
 import { CancelButton } from './_cancel-button'
 import { BlockedActions } from './_blocked-actions'
 import { CopyId } from '@web/components/copy-id'
+import { TaskError } from '@web/components/task-error'
+import { WorksPanel } from '@web/components/works-panel'
 import { StatusBadge } from '@plexo/ui'
 
 interface TaskStep {
@@ -169,7 +167,9 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             )}
 
             {/* Outcome — primary */}
-            {task.outcomeSummary ? (
+            {task.outcomeSummary && (task.status === 'blocked' || task.status === 'failed') ? (
+                <TaskError outcomeSummary={task.outcomeSummary} status={task.status} />
+            ) : task.outcomeSummary ? (
                 <div className="rounded-xl border border-azure/20 bg-azure/5 p-4">
                     <p className="mb-1.5 text-[11px] font-medium text-azure-600 uppercase tracking-wider">Outcome</p>
                     <p className="text-sm text-text-primary leading-relaxed">{task.outcomeSummary}</p>
@@ -181,44 +181,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 </div>
             ) : null}
 
-            {/* Structured deliverable — Phase 0 output contract */}
-            {task.deliverable && (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                        <p className="text-[11px] font-medium text-emerald-400 uppercase tracking-wider">Deliverable</p>
-                        <span className={`ml-auto rounded px-1.5 py-0.5 text-[10px] font-mono ${
-                            task.deliverable.outcome === 'completed' ? 'bg-emerald-900/30 text-emerald-400' :
-                            task.deliverable.outcome === 'partial' ? 'bg-yellow-900/30 text-yellow-400' :
-                            task.deliverable.outcome === 'failed' ? 'bg-red-900/30 text-red-400' :
-                            'bg-zinc-800 text-text-muted'
-                        }`}>{task.deliverable.outcome}</span>
-                    </div>
-                    <p className="text-sm text-text-primary leading-relaxed mb-3">{task.deliverable.summary}</p>
-                    {task.deliverable.works.length > 0 && (
-                        <div className="flex flex-col gap-1.5 mb-3">
-                            <p className="text-[10px] text-text-muted uppercase tracking-wider">Work products</p>
-                            {task.deliverable.works.map((w, i) => (
-                                <div key={i} className="flex items-center gap-2 rounded border border-zinc-700/60 bg-zinc-800/40 px-2.5 py-1.5">
-                                    <span className="rounded bg-surface-2 px-1 py-0.5 text-[9px] font-mono text-text-muted uppercase">{w.type}</span>
-                                    <span className="text-xs text-text-secondary">{w.label}</span>
-                                    <span className="ml-auto text-[10px] font-mono text-text-muted truncate max-w-[200px]">{w.content}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                    {task.deliverable.verificationSteps.length > 0 && (
-                        <div>
-                            <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1.5">Verification steps</p>
-                            <ol className="list-decimal list-inside text-xs text-text-secondary leading-relaxed space-y-0.5">
-                                {task.deliverable.verificationSteps.map((step, i) => (
-                                    <li key={i}>{step}</li>
-                                ))}
-                            </ol>
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* Structured deliverable */}
+            {task.deliverable && <WorksPanel deliverable={task.deliverable} />}
 
             {/* Assets produced by write_asset */}
             {assets.length > 0 && (
