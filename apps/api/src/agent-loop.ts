@@ -16,7 +16,7 @@ import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/re
 import { logger } from './logger.js'
 
 import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
-import { claimBatch, releaseSlot } from './parallel-executor.js'
+import { claimBatch, releaseSlot, extendSlot, HEARTBEAT_INTERVAL_MS } from './parallel-executor.js'
 import { logSprintHandoff } from '@plexo/agent/sprint/sprint-ledger'
 
 const POLL_INTERVAL_MS = 2_000
@@ -422,6 +422,12 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
     sessionCount++
     lastActivity = new Date().toISOString()
 
+    // Heartbeat: extend Redis slot TTL every 30s so expired slots are detected within ~90s
+    const heartbeat = setInterval(
+        () => void extendSlot(task.id).catch(e => logger.warn({ err: e, taskId: task.id }, 'heartbeat miss')),
+        HEARTBEAT_INTERVAL_MS,
+    )
+
     // Per-task model override: task.context.modelOverrideId forces Mode 4 routing
     const taskContext0 = task.context as Record<string, unknown> | null | undefined
     const modelOverrideId = typeof taskContext0?.modelOverrideId === 'string' && taskContext0.modelOverrideId
@@ -696,8 +702,9 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             error: message.slice(0, 500),
         })
     } finally {
+        clearInterval(heartbeat)
         activeTasks.delete(task.id)
-        
+
         // Release Redis slot
         await releaseSlot(task.id)
         // Deregister Code Mode context
@@ -732,12 +739,58 @@ async function cleanupStaleTasks(): Promise<void> {
     }
 }
 
+/**
+ * Active ghost task recovery — catches running tasks whose slot expired
+ * but weren't picked up by claimBatch's passive eviction. Runs every 5 minutes.
+ */
+async function recoverGhostTasks(): Promise<void> {
+    try {
+        const ghosts = await db.execute<{ id: string }>(sql`
+            SELECT id FROM tasks
+            WHERE status = 'running'
+              AND claimed_at < NOW() - INTERVAL '3 minutes'
+        `)
+        for (const ghost of ghosts) {
+            // Only requeue if not actively tracked in this process
+            if (!activeTasks.has(ghost.id)) {
+                const result = await db.execute<{ id: string; attempt_count: number }>(sql`
+                    UPDATE tasks
+                    SET attempt_count = COALESCE(attempt_count, 0) + 1,
+                        status = CASE
+                            WHEN COALESCE(attempt_count, 0) + 1 >= 3 THEN 'failed'
+                            ELSE 'queued'
+                        END,
+                        outcome_summary = CASE
+                            WHEN COALESCE(attempt_count, 0) + 1 >= 3
+                            THEN 'Failed after ' || (COALESCE(attempt_count, 0) + 1) || ' attempts (ghost task recovery)'
+                            ELSE outcome_summary
+                        END,
+                        claimed_at = NULL
+                    WHERE id = ${ghost.id} AND status = 'running'
+                    RETURNING id, attempt_count
+                `)
+                if (result.length > 0) {
+                    const row = result[0]!
+                    const newStatus = (row.attempt_count ?? 0) >= 3 ? 'failed' : 'queued'
+                    logger.info({ event: 'task.lifecycle', taskId: ghost.id, from: 'running', to: newStatus, attemptCount: row.attempt_count, reason: 'ghost_recovery' }, 'lifecycle')
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn({ err }, 'Ghost task recovery failed — non-fatal')
+    }
+}
+
 export function startAgentLoop(): void {
     logger.info('Agent queue loop started')
 
     // Clean up stale blocked tasks at startup + every 6 hours
     void cleanupStaleTasks()
     setInterval(() => { void cleanupStaleTasks() }, 6 * 60 * 60 * 1000)
+
+    // Ghost task recovery — every 5 minutes
+    void recoverGhostTasks()
+    setInterval(() => { void recoverGhostTasks() }, 5 * 60 * 1000)
 
     async function poll(): Promise<void> {
         while (running) {

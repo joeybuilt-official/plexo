@@ -8,7 +8,8 @@ import pino from 'pino'
 
 const logger = pino({ name: 'parallel-executor' })
 const PARALLEL_MAX_SLOTS = parseInt(process.env.PARALLEL_MAX_SLOTS ?? '3', 10)
-const SLOT_TTL = 7200
+const SLOT_TTL = 90 // seconds — heartbeat extends every 30s
+export const HEARTBEAT_INTERVAL_MS = 30_000
 
 export interface ParallelSlot {
     taskId: string
@@ -24,6 +25,41 @@ function getResourceKey(task: typeof tasks.$inferSelect): string {
     return `task_${task.id}`
 }
 
+const MAX_ATTEMPTS = 3
+
+/**
+ * When a slot expires (process died, no heartbeat), requeue the task or fail it.
+ * Increments attempt_count. If >= MAX_ATTEMPTS, marks the task as failed.
+ */
+async function handleExpiredSlot(taskId: string): Promise<void> {
+    try {
+        // Atomically increment attempt_count and requeue, or fail if too many attempts
+        const result = await db.execute<{ id: string; attempt_count: number }>(sql`
+            UPDATE tasks
+            SET attempt_count = COALESCE(attempt_count, 0) + 1,
+                status = CASE
+                    WHEN COALESCE(attempt_count, 0) + 1 >= ${MAX_ATTEMPTS} THEN 'failed'
+                    ELSE 'queued'
+                END,
+                outcome_summary = CASE
+                    WHEN COALESCE(attempt_count, 0) + 1 >= ${MAX_ATTEMPTS}
+                    THEN 'Failed after ' || (COALESCE(attempt_count, 0) + 1) || ' attempts (slot expired — process likely crashed)'
+                    ELSE outcome_summary
+                END,
+                claimed_at = NULL
+            WHERE id = ${taskId} AND status = 'running'
+            RETURNING id, attempt_count
+        `)
+        if (result.length > 0) {
+            const row = result[0]!
+            const newStatus = (row.attempt_count ?? 0) >= MAX_ATTEMPTS ? 'failed' : 'queued'
+            logger.info({ event: 'task.lifecycle', taskId, from: 'running', to: newStatus, attemptCount: row.attempt_count, reason: 'slot_expired' }, 'lifecycle')
+        }
+    } catch (err) {
+        logger.warn({ err, taskId }, 'handleExpiredSlot failed — non-fatal')
+    }
+}
+
 export async function claimBatch(): Promise<(typeof tasks.$inferSelect)[]> {
     const redis = await getRedis()
     const rawSlots = await redis.hGetAll('zeroclaw:parallel:slots')
@@ -35,6 +71,8 @@ export async function claimBatch(): Promise<(typeof tasks.$inferSelect)[]> {
             const data = JSON.parse(dataBase)
             if (data.expiresAt < now) {
                 await redis.hDel('zeroclaw:parallel:slots', taskId)
+                // Auto-requeue or fail the task that held this expired slot
+                await handleExpiredSlot(taskId)
             } else {
                 activeSlots.push(data)
             }
@@ -90,6 +128,25 @@ export async function claimBatch(): Promise<(typeof tasks.$inferSelect)[]> {
 export async function releaseSlot(taskId: string): Promise<void> {
     const redis = await getRedis()
     await redis.hDel('zeroclaw:parallel:slots', taskId)
+}
+
+/**
+ * Heartbeat: extend a slot's TTL by SLOT_TTL seconds from now.
+ * Called every HEARTBEAT_INTERVAL_MS from the task runner.
+ * If the process dies, the interval stops, and the slot expires in ≤ SLOT_TTL seconds.
+ */
+export async function extendSlot(taskId: string): Promise<void> {
+    const redis = await getRedis()
+    const raw = await redis.hGet('zeroclaw:parallel:slots', taskId)
+    if (!raw) return
+    try {
+        const slot = JSON.parse(raw) as ParallelSlot
+        slot.expiresAt = Date.now() / 1000 + SLOT_TTL
+        await redis.hSet('zeroclaw:parallel:slots', taskId, JSON.stringify(slot))
+    } catch {
+        // Corrupted — remove
+        await redis.hDel('zeroclaw:parallel:slots', taskId)
+    }
 }
 
 export async function getParallelStatus() {
