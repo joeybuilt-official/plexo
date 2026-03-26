@@ -293,87 +293,68 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         logger.warn({ costErr }, 'Pre-flight cost check failed non-fatally — continuing')
     }
 
-    // ── Resolve per-task budget from DB row + workspace defaults ──────────────
-    // Priority: task.cost_ceiling_usd → workspace settings default → null (no cap)
-    // Priority: task.token_budget → workspace settings default → 0 (no cap)
-    // Fetch budget AND projectId in one query to avoid re-querying the tasks table later
-    const [taskRow] = await db.select({
-        costCeilingUsd: tasks.costCeilingUsd,
-        tokenBudget: tasks.tokenBudget,
-        projectId: tasks.projectId,
-    }).from(tasks).where(eq(tasks.id, task.id)).limit(1)
+    // ── Single consolidated query: task budget + workspace context ──────────
+    // Loads task budget, workspace settings (name, persona, cost defaults),
+    // and sprint goal in parallel to avoid sequential DB round-trips.
+    const [taskRow, wsRow, sprintRow] = await Promise.all([
+        db.select({
+            costCeilingUsd: tasks.costCeilingUsd,
+            tokenBudget: tasks.tokenBudget,
+            projectId: tasks.projectId,
+        }).from(tasks).where(eq(tasks.id, task.id)).limit(1).then(r => r[0]),
+        db.select({ name: workspaces.name, settings: workspaces.settings })
+            .from(workspaces).where(eq(workspaces.id, taskWorkspaceId ?? '')).limit(1).then(r => r[0]),
+        // Sprint goal — only if task has a projectId (checked below)
+        (task.context as Record<string, unknown> | null)?.sprintId
+            ? db.select({ request: sprints.request }).from(sprints)
+                .where(eq(sprints.id, String((task.context as Record<string, unknown>).sprintId))).limit(1).then(r => r[0])
+            : Promise.resolve(undefined),
+    ])
 
-    const taskCostCeiling = taskRow?.costCeilingUsd ?? null
-    const taskTokenBudget = taskRow?.tokenBudget ?? null
+    // Extract workspace settings once
+    const wsSettings = (wsRow?.settings ?? {}) as Record<string, unknown>
+    const wsAiProviders = wsSettings.aiProviders as Record<string, unknown> | undefined
 
-    // Load workspace-level defaults (stored in workspaces.settings.aiProviders)
-    let wsDefaultCostCeiling: number | null = null
-    let wsDefaultTokenBudget: number | null = null
-    try {
-        const [wsRow] = await db.select({ settings: workspaces.settings })
-            .from(workspaces).where(eq(workspaces.id, taskWorkspaceId ?? '')).limit(1)
-        if (wsRow?.settings) {
-            const s = wsRow.settings as Record<string, unknown>
-            const ap = s.aiProviders as Record<string, unknown> | undefined
-            if (ap?.defaultTaskCostCeiling) wsDefaultCostCeiling = Number(ap.defaultTaskCostCeiling) || null
-            if (ap?.defaultTokenBudget) wsDefaultTokenBudget = Number(ap.defaultTokenBudget) || null
+    // Resolve budgets
+    const wsDefaultCostCeiling = wsAiProviders?.defaultTaskCostCeiling ? Number(wsAiProviders.defaultTaskCostCeiling) || null : null
+    const wsDefaultTokenBudget = wsAiProviders?.defaultTokenBudget ? Number(wsAiProviders.defaultTokenBudget) || null : null
+    const resolvedCostCeiling = taskRow?.costCeilingUsd ?? wsDefaultCostCeiling
+    const resolvedTokenBudget = taskRow?.tokenBudget ?? wsDefaultTokenBudget ?? 0
 
-            // Merge ensemble quality-judge settings into aiSettings if present
-            if (aiSettings) {
-                const ensembleSize = s.ensembleSize != null ? Number(s.ensembleSize) : undefined
-                const dissentThreshold = s.dissentThreshold != null ? Number(s.dissentThreshold) : undefined
-                if (ensembleSize != null && !isNaN(ensembleSize)) aiSettings.ensembleSize = ensembleSize
-                if (dissentThreshold != null && !isNaN(dissentThreshold)) aiSettings.dissentThreshold = dissentThreshold
-            }
-        }
-    } catch { /* non-fatal */ }
+    // Merge ensemble quality-judge settings
+    if (aiSettings) {
+        const ensembleSize = wsSettings.ensembleSize != null ? Number(wsSettings.ensembleSize) : undefined
+        const dissentThreshold = wsSettings.dissentThreshold != null ? Number(wsSettings.dissentThreshold) : undefined
+        if (ensembleSize != null && !isNaN(ensembleSize)) aiSettings.ensembleSize = ensembleSize
+        if (dissentThreshold != null && !isNaN(dissentThreshold)) aiSettings.dissentThreshold = dissentThreshold
+    }
 
-    const resolvedCostCeiling = taskCostCeiling ?? wsDefaultCostCeiling
-    const resolvedTokenBudget = taskTokenBudget ?? wsDefaultTokenBudget ?? 0
-
-    // ── Phase A: Load workspace + sprint context for prompt injection ───────────
-    let workspaceName: string | undefined
+    // Extract workspace context
+    let workspaceName = wsRow?.name ?? undefined
     let workspaceSummary: string | undefined
     let agentName: string | undefined
     let agentPersona: string | undefined
     let sprintGoal: string | undefined
     let sprintName: string | undefined
-    // Sprint coding context
     let sprintWorkDir: string | undefined
     let sprintRepo: string | undefined
     let sprintBranch: string | undefined
 
-    try {
-        const [wsRow] = await db
-            .select({ name: workspaces.name, settings: workspaces.settings })
-            .from(workspaces)
-            .where(eq(workspaces.id, taskWorkspaceId ?? ''))
-            .limit(1)
+    agentName = typeof wsSettings.agentName === 'string' ? wsSettings.agentName : workspaceName
+    agentPersona = typeof wsSettings.agentPersona === 'string' ? wsSettings.agentPersona : undefined
+    workspaceSummary = typeof wsSettings.agentTagline === 'string' ? wsSettings.agentTagline : undefined
 
-        if (wsRow) {
-            workspaceName = wsRow.name ?? undefined
-            const s = (wsRow.settings ?? {}) as Record<string, unknown>
-            agentName = typeof s.agentName === 'string' ? s.agentName : workspaceName
-            agentPersona = typeof s.agentPersona === 'string' ? s.agentPersona : undefined
-            workspaceSummary = typeof s.agentTagline === 'string' ? s.agentTagline : undefined
-        }
-    } catch { /* non-fatal */ }
-
-    // Load sprint goal if this task belongs to a sprint
-    try {
-        const projectId = taskRow?.projectId
-        if (projectId) {
-            const [sprintRow] = await db
-                .select({ request: sprints.request, status: sprints.status })
-                .from(sprints)
-                .where(eq(sprints.id, projectId))
-                .limit(1)
-            if (sprintRow) {
-                sprintGoal = sprintRow.request ?? undefined
-                sprintName = projectId
-            }
-        }
-    } catch { /* non-fatal */ }
+    if (sprintRow) {
+        sprintGoal = sprintRow.request ?? undefined
+        sprintName = taskRow?.projectId ?? undefined
+    } else if (taskRow?.projectId) {
+        // Fallback: load sprint if not found via context.sprintId
+        try {
+            const [sr] = await db.select({ request: sprints.request }).from(sprints)
+                .where(eq(sprints.id, taskRow.projectId)).limit(1)
+            if (sr) { sprintGoal = sr.request ?? undefined; sprintName = taskRow.projectId }
+        } catch { /* non-fatal */ }
+    }
 
     // ── Sprint coding context: clone repo to temp dir for coding tasks ──────────
     // task.context is set by the sprint runner with { repo, branch, workspaceId, ... }
@@ -485,9 +466,39 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             ?? (taskContext.message as string)
             ?? JSON.stringify(taskContext)
 
-        emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planning', taskId: task.id })
-        logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'planning', workspaceId: taskWorkspaceId }, 'lifecycle')
-        const plannerResult = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
+        // Fast-path: skip the planner LLM call for simple tasks (< 200 chars, no special context).
+        // The planner adds 5-15 seconds of latency for a second LLM round-trip that produces
+        // a trivial 1-step plan for simple requests. Only run the full planner for complex tasks.
+        const isSimpleTask = description.length < 200
+            && !taskContext.repo
+            && !taskContext.sprintTaskId
+            && !description.toLowerCase().includes('project')
+            && !description.toLowerCase().includes('migration')
+            && !description.toLowerCase().includes('deploy')
+
+        let plannerResult: Awaited<ReturnType<typeof planTask>>
+
+        if (isSimpleTask) {
+            // Synthetic plan — no LLM call needed
+            logger.info({ taskId: task.id }, 'Fast-path: skipping planner for simple task')
+            emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planned', taskId: task.id, steps: 1, confidence: 0.9 })
+            plannerResult = {
+                type: 'plan',
+                plan: {
+                    taskId: task.id,
+                    goal: description,
+                    steps: [{ stepNumber: 1, description, toolsRequired: [], verificationMethod: 'Review output', isOneWayDoor: false }],
+                    oneWayDoors: [],
+                    estimatedDurationMs: 30000,
+                    confidenceScore: 0.9,
+                    risks: [],
+                },
+            }
+        } else {
+            emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planning', taskId: task.id })
+            logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'planning', workspaceId: taskWorkspaceId }, 'lifecycle')
+            plannerResult = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
+        }
 
         // Phase D: capability pre-flight — planner returned a clarification request
         if (plannerResult.type === 'clarification') {
