@@ -57,6 +57,7 @@ import { initSprintLogger } from '@plexo/agent/sprint/logger'
 
 
 import { debugRouter } from './routes/debug.js'
+import { aiCompleteRouter } from './routes/ai-complete.js'
 import { chatRouter } from './routes/chat.js'
 import { conversationsRouter } from './routes/conversations.js'
 import { behaviorRouter } from './routes/behavior.js'
@@ -164,6 +165,7 @@ v1.use('/admin', requireSupabaseAuth, requireSuperAdmin, adminRouter)
 v1.use('/cmd-center', cmdCenterAuth, cmdCenterRouter)
 
 v1.use('/debug', debugRouter)
+v1.use('/ai', aiCompleteRouter)
 v1.use('/chat', chatRouter)
 v1.use('/conversations', conversationsRouter)
 v1.use('/voice', voiceRouter)
