@@ -848,12 +848,12 @@ export default function AIProvidersPage() {
         }
     }
 
-    // All providers with any meaningful status (not completely unconfigured)
+    // All providers that are configured AND enabled (disabled providers excluded from chain display)
     const chainProviders = fallbackOrder
         .map((k) => allProviders.find((p) => p.key === k)!)
-        .filter((p) => p != null && providerStates[p.key as ProviderKey]?.status !== 'unconfigured')
+        .filter((p) => p != null && providerStates[p.key as ProviderKey]?.status !== 'unconfigured' && providerStates[p.key as ProviderKey]?.enabled !== false)
 
-    // Active = tested and working; warn = present but untested (greyed out, click to configure)
+    // Active = tested, working, and enabled; warn = present but untested
     const activeChainProviders = chainProviders.filter((p) => providerStates[p.key]?.status === 'configured')
     const warnChainProviders = chainProviders.filter((p) => providerStates[p.key]?.status !== 'configured')
 
