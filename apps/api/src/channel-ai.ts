@@ -192,6 +192,19 @@ export async function classifyIntent(
 /** Maximum messages kept per conversation thread (in-memory warm cache). */
 const MAX_HISTORY = 20
 
+/** Remove consecutive same-role messages by merging them. DeepSeek and some providers reject these. */
+function dedupeRoles(messages: ChatMessage[]): ChatMessage[] {
+    const result: ChatMessage[] = []
+    for (const m of messages) {
+        if (result.length > 0 && result[result.length - 1]!.role === m.role) {
+            result[result.length - 1]!.content += '\n' + m.content
+        } else {
+            result.push({ ...m })
+        }
+    }
+    return result
+}
+
 /**
  * Chat history with DB-backed hydration on first access.
  *
@@ -240,10 +253,12 @@ export class ChannelChatHistory {
                 if (r.message) hist.push({ role: 'user', content: r.message })
                 if (r.reply) hist.push({ role: 'assistant', content: r.reply })
             }
-            if (hist.length > MAX_HISTORY) hist.splice(0, hist.length - MAX_HISTORY)
-            this.store.set(key, hist)
-            logger.info({ key, turns: hist.length }, 'Hydrated chat history from DB')
-            return hist
+            // Sanitize: remove consecutive same-role messages (LLMs like DeepSeek reject these)
+            const sanitized = dedupeRoles(hist)
+            if (sanitized.length > MAX_HISTORY) sanitized.splice(0, sanitized.length - MAX_HISTORY)
+            this.store.set(key, sanitized)
+            logger.info({ key, turns: sanitized.length }, 'Hydrated chat history from DB')
+            return sanitized
         } catch (err) {
             logger.warn({ err, key }, 'Failed to hydrate chat history from DB — starting fresh')
             return []
@@ -252,7 +267,13 @@ export class ChannelChatHistory {
 
     add(key: string, role: 'user' | 'assistant', content: string): void {
         const hist = this.store.get(key) ?? []
-        hist.push({ role, content })
+        // Prevent consecutive same-role messages (DeepSeek and some providers reject these)
+        if (hist.length > 0 && hist[hist.length - 1]!.role === role) {
+            // Merge into the last message of the same role
+            hist[hist.length - 1]!.content += '\n' + content
+        } else {
+            hist.push({ role, content })
+        }
         if (hist.length > MAX_HISTORY) hist.splice(0, hist.length - MAX_HISTORY)
         this.store.set(key, hist)
     }
