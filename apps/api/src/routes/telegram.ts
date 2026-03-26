@@ -62,11 +62,28 @@ let _webhookSecret: string | null = null
 const TELEGRAM_API = 'https://api.telegram.org/bot'
 
 async function sendMessage(token: string, chatId: number | string, text: string): Promise<void> {
-    await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' }),
-    }).catch((err: Error) => logger.warn({ err }, 'Telegram sendMessage failed'))
+    try {
+        const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' }),
+        })
+        if (!res.ok) {
+            const body = await res.text().catch(() => '')
+            logger.error({ status: res.status, body, chatId }, 'Telegram sendMessage HTTP error')
+            // Retry without Markdown parse_mode — Telegram rejects malformed Markdown
+            if (res.status === 400 && body.includes('parse')) {
+                const retry = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, text }),
+                })
+                if (!retry.ok) logger.error({ status: retry.status }, 'Telegram sendMessage plain-text retry also failed')
+            }
+        }
+    } catch (err) {
+        logger.error({ err, chatId }, 'Telegram sendMessage network error')
+    }
 }
 
 async function sendTyping(token: string, chatId: number | string): Promise<void> {
@@ -267,7 +284,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                             }))
 
                             if (assetAttachments.length > 0) {
-                                await fetch(`${TELEGRAM_API}${token}/sendPhoto`, {
+                                const photoRes = await fetch(`${TELEGRAM_API}${token}/sendPhoto`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
@@ -277,6 +294,10 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                                         parse_mode: 'Markdown'
                                     }),
                                 }).catch(() => null)
+                                if (photoRes && !photoRes.ok) {
+                                    logger.error({ status: photoRes.status }, 'Telegram sendPhoto failed — falling back to text')
+                                    await sendMessage(token, chatId, `✅ ${result}`)
+                                }
                             } else {
                                 void sendMessage(token, chatId, `✅ ${result}`).catch(() => null)
                             }

@@ -147,7 +147,7 @@ export async function replyToChannel(
             }
 
             // Default to sendMessage
-            await fetch(`${TELEGRAM_API}${channelToken}/sendMessage`, {
+            const msgRes = await fetch(`${TELEGRAM_API}${channelToken}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -157,8 +157,21 @@ export async function replyToChannel(
                 }),
                 signal: AbortSignal.timeout(10_000),
             })
+            if (!msgRes.ok) {
+                const body = await msgRes.text().catch(() => '')
+                logger.error({ status: msgRes.status, body, channelRef }, 'replyToChannel: Telegram HTTP error')
+                // Retry without Markdown if parse error
+                if (msgRes.status === 400 && body.includes('parse')) {
+                    await fetch(`${TELEGRAM_API}${channelToken}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chat_id: channelRef.chatId, text }),
+                        signal: AbortSignal.timeout(10_000),
+                    })
+                }
+            }
         } catch (err) {
-            logger.warn({ err, channelRef }, 'replyToChannel: Telegram sendMessage/sendPhoto failed')
+            logger.error({ err, channelRef }, 'replyToChannel: Telegram sendMessage/sendPhoto failed')
         }
     }
     // TODO: Slack and Discord adapters can be added here following the same pattern

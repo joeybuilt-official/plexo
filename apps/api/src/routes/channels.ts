@@ -108,6 +108,22 @@ channelsRouter.patch('/:id', async (req, res) => {
             .set(update)
             .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
 
+        // Re-register Telegram webhook if token or config changed
+        if (config) {
+            const [updated] = await db.select().from(channels)
+                .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+                .limit(1)
+            if (updated && updated.type === 'telegram') {
+                const cfg = (updated.config ?? {}) as { token?: string; bot_token?: string }
+                const token = cfg.token ?? cfg.bot_token ?? null
+                if (token) {
+                    void registerTelegramChannel(updated.id, token, workspaceId).catch(
+                        (err: Error) => logger.warn({ err }, 'Telegram webhook re-register on PATCH failed')
+                    )
+                }
+            }
+        }
+
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err, id }, 'PATCH /api/channels/:id failed')
