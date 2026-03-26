@@ -28,19 +28,38 @@ export interface AgentEvent {
 /** Emit an event to all connected clients for a workspace */
 export function emitToWorkspace(workspaceId: string, event: AgentEvent): void {
     const workspace = clients.get(workspaceId)
+    let delivered = false
     if (workspace) {
         const data = `data: ${JSON.stringify(event)}\n\n`
         for (const [id, res] of workspace) {
             try {
                 res.write(data)
+                delivered = true
             } catch {
                 workspace.delete(id)
             }
         }
     }
+
+    // Write delivery ack for OWD events when at least one SSE client received it
+    if (delivered && event.taskId && (event.type === 'owd_pending' || (event as Record<string, unknown>).operation)) {
+        writeDeliveryAck(String(event.taskId)).catch(() => {})
+    }
+
     // Always notify internal subscribers (Telegram, Slack adapters) regardless
     // of whether any SSE clients are connected.
     notifyInternal(event)
+}
+
+/** Write OWD delivery acknowledgment to Redis so the one-way-door service knows SSE delivery succeeded */
+async function writeDeliveryAck(taskId: string): Promise<void> {
+    try {
+        const { createClient } = await import('redis')
+        const redis = createClient({ url: process.env.REDIS_URL ?? 'redis://localhost:6379' })
+        await redis.connect()
+        await redis.set(`owd:${taskId}:ack`, '1', { EX: 300 })
+        await redis.disconnect()
+    } catch { /* non-fatal */ }
 }
 
 /** Emit an event to all connected clients across all workspaces */

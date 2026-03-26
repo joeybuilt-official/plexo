@@ -27,6 +27,9 @@ import { eventBus, TOPICS } from './plugins/event-bus.js'
 const logger = pino({ name: 'one-way-door' })
 
 const OWD_TTL_SECONDS = 3600
+const ACK_POLL_INTERVAL_MS = 10_000
+const ACK_TIMEOUT_MS = 60_000
+const ESCALATION_TIMEOUT_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 export type OWDDecision = 'pending' | 'approved' | 'rejected'
 
@@ -91,19 +94,67 @@ export async function getDecision(id: string): Promise<PendingDecision | null> {
     return JSON.parse(raw) as PendingDecision
 }
 
+/**
+ * Poll for the SSE delivery acknowledgment key.
+ * Written by SSE route when the owd.pending frame reaches the browser.
+ */
+async function pollForDeliveryAck(taskId: string): Promise<boolean> {
+    const redis = await getRedis()
+    const deadline = Date.now() + ACK_TIMEOUT_MS
+    while (Date.now() < deadline) {
+        const ack = await redis.get(`owd:${taskId}:ack`)
+        if (ack) return true
+        await new Promise((r) => setTimeout(r, ACK_POLL_INTERVAL_MS))
+    }
+    return false
+}
+
+/**
+ * Attempt to deliver via secondary channel (Telegram, Slack) when SSE delivery fails.
+ * Uses the eventBus to notify channel adapters. This is a best-effort fallback.
+ */
+async function triggerSecondaryChannel(taskId: string, payload: PendingDecision): Promise<void> {
+    try {
+        eventBus.emitSystem(TOPICS.OWD_PENDING, {
+            ...payload,
+            deliveryFallback: true,
+            deliveryStatus: 'undelivered_via_sse',
+        })
+        logger.info({ taskId, id: payload.id }, 'OWD: triggered secondary channel delivery')
+    } catch (err) {
+        logger.warn({ err, taskId }, 'OWD: secondary channel delivery failed')
+    }
+}
+
 export async function waitForDecision(
     id: string,
-    timeoutMs = 30 * 60 * 1000,
+    timeoutMs?: number,
 ): Promise<'approved' | 'rejected' | 'timeout'> {
-    const deadline = Date.now() + timeoutMs
+    const effectiveTimeout = timeoutMs ?? ESCALATION_TIMEOUT_MS
+    const deadline = Date.now() + effectiveTimeout
     const POLL_MS = 3000
 
+    // First check if SSE delivery was acknowledged
+    const record = await getDecision(id)
+    if (record) {
+        const delivered = await pollForDeliveryAck(record.taskId)
+        if (!delivered) {
+            logger.warn({ id, taskId: record.taskId }, 'OWD: SSE delivery not acknowledged — triggering secondary channel')
+            await triggerSecondaryChannel(record.taskId, record)
+        }
+    }
+
     while (Date.now() < deadline) {
-        const record = await getDecision(id)
-        if (!record) return 'timeout'
-        if (record.decision === 'approved') return 'approved'
-        if (record.decision === 'rejected') return 'rejected'
+        const current = await getDecision(id)
+        if (!current) return 'timeout'
+        if (current.decision === 'approved') return 'approved'
+        if (current.decision === 'rejected') return 'rejected'
         await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+
+    // Escalation timed out — cancel the OWD record
+    if (record) {
+        logger.info({ id, taskId: record.taskId }, 'OWD: escalation timed out after deadline')
     }
     return 'timeout'
 }
