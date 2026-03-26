@@ -463,10 +463,8 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         sprintRepo,
         sprintBranch,
         sprintId,
-        // Code Mode: live event streaming to SSE clients
-        emitStepEvent: sprintWorkDir
-            ? (event) => emitToWorkspace(taskWorkspaceId ?? '', event as unknown as import('./sse-emitter.js').AgentEvent)
-            : undefined,
+        // Live event streaming to SSE clients — enabled for all tasks (Phase 2)
+        emitStepEvent: (event) => emitToWorkspace(taskWorkspaceId ?? '', event as unknown as import('./sse-emitter.js').AgentEvent),
     }
 
     try {

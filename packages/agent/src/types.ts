@@ -345,6 +345,8 @@ export type StepEventType =
     | 'step.file_write'
     | 'step.screenshot'
     | 'step.test_result'
+    | 'task_resumed'
+    | 'routing_fallback'
 
 export interface StepShellLineEvent {
     type: 'step.shell_line'
@@ -383,11 +385,21 @@ export interface StepTestResultEvent {
     ts: number
 }
 
+/** Generic step event for lifecycle signals (resume, routing fallback, etc.) */
+export interface StepGenericEvent {
+    type: 'task_resumed' | 'routing_fallback'
+    taskId: string
+    workspaceId: string
+    ts: number
+    [key: string]: unknown
+}
+
 export type StepEvent =
     | StepShellLineEvent
     | StepFileWriteEvent
     | StepScreenshotEvent
     | StepTestResultEvent
+    | StepGenericEvent
 
 // ── Execution Context ────────────────────────────────────────
 

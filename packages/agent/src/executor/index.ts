@@ -7,6 +7,7 @@ import { db, sql, eq, and } from '@plexo/db'
 import { tasks, taskSteps, artifacts, artifactVersions } from '@plexo/db'
 import { ulid } from 'ulid'
 import { withFallback, resolveModel } from '../providers/registry.js'
+import { getResumeStep, buildResumeMessages, hasTaskComplete } from './step-builder.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError, LogicError } from '../errors.js'
 import { loadConnectionTools } from '../connections/bridge.js'
@@ -1012,9 +1013,28 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         : ''
 }${capabilityBlock}${browsingBlock}${selfExtensionBlock}${preferencesBlock}${extensionPromptsBlock}${memoryBlock}${extensionContextBlock}${systemPromptExtra}${variantExtra}`
 
+    // ── Checkpoint-aware execution loop ─────────────────────────────────
+    // Check if we're resuming from a previous checkpoint
+    const resumeStep = await getResumeStep(ctx.taskId)
+    let isResuming = resumeStep > 0
+
     const genResult = await (async () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK message types vary between versions
-        let messages: any[] = [{ role: 'user', content: userMessage }]
+        let messages: any[]
+        let stepNum: number
+
+        if (isResuming) {
+            // Resume: rebuild messages from persisted step states
+            const resume = await buildResumeMessages(ctx.taskId, systemPrompt, userMessage)
+            messages = resume.messages as any[]
+            stepNum = resume.resumeFromStep
+            // Emit resume event so the UI shows "Resumed from step N"
+            ctx.emitStepEvent?.({ type: 'task_resumed', taskId: ctx.taskId, workspaceId: ctx.workspaceId, fromStep: stepNum, ts: Date.now() })
+        } else {
+            messages = [{ role: 'user', content: userMessage }]
+            stepNum = 0
+        }
+
         let retries = 0
         let accumulatedUsage = { inputTokens: 0, outputTokens: 0 }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1027,6 +1047,8 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         let lastProgressTime = Date.now()
 
         while (retries < SAFETY_LIMITS.maxRetries) {
+            if (ctx.signal.aborted) break
+
             const result = await generateText({
                 model: resolvedModel,
                 system: systemPrompt,
@@ -1044,9 +1066,41 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
             accumulatedUsage.outputTokens += outToks
             accumulatedSteps = accumulatedSteps.concat(result.steps)
 
+            const isTerminal = hasTaskComplete(result)
+
+            // ── Checkpoint: persist step state to DB ──────────────────────
+            try {
+                const stepToolCalls = result.steps.flatMap((s: any) =>
+                    s.toolCalls.map((tc: any) => {
+                        const toolResult = s.toolResults?.find((r: any) => r.toolCallId === tc.toolCallId)
+                        return {
+                            tool: tc.toolName,
+                            input: (tc as { input?: unknown }).input ?? {},
+                            output: toolResult ? String((toolResult as { output?: unknown }).output ?? '') : '',
+                        }
+                    })
+                )
+                await db.insert(taskSteps).values({
+                    taskId: ctx.taskId,
+                    stepNumber: stepNum,
+                    model: `${resolvedMeta.provider}/${resolvedMeta.id}`,
+                    tokensIn: inToks,
+                    tokensOut: outToks,
+                    toolCalls: stepToolCalls,
+                    outcome: isTerminal ? 'complete' : 'running',
+                    stepState: { responseMessages: result.response.messages },
+                    isTerminal,
+                })
+                stepNum++
+            } catch (checkpointErr) {
+                // Non-fatal — missing checkpoint means no resume on crash, but task continues
+                const pinoMod = await import('pino')
+                pinoMod.default({ name: 'executor' }).warn({ err: checkpointErr, taskId: ctx.taskId, stepNum }, 'Step checkpoint failed')
+            }
+
             // Progress tracking: count total meaningful tool calls (exclude no-ops)
             const totalToolCalls = accumulatedSteps.reduce(
-                (n, s) => n + (s.toolCalls?.length ?? 0), 0
+                (n: number, s: any) => n + (s.toolCalls?.length ?? 0), 0
             )
 
             if (totalToolCalls > lastProgressToolCount) {
@@ -1075,8 +1129,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
                 )
             }
 
-            const hasComplete = result.steps.some(s => s.toolCalls.some(tc => tc.toolName === 'task_complete'))
-            if (hasComplete) {
+            if (isTerminal) {
                 lastResult = result
                 break
             }
@@ -1169,16 +1222,8 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
 
     const stepDurationMs = Date.now() - stepStart
 
-    // Persist step record to DB — use real model ID from router meta
-    await db.insert(taskSteps).values({
-        taskId: ctx.taskId,
-        stepNumber: 1,
-        model: `${resolvedMeta.provider}/${resolvedMeta.id}`,
-        tokensIn,
-        tokensOut,
-        toolCalls: toolCallRecords,
-        outcome: finalSummary ? 'complete' : 'running',
-    })
+    // Step records are now checkpointed inside the loop (Phase 2).
+    // No additional insert needed here.
 
     stepResults.push({
         stepNumber: 1,

@@ -308,6 +308,10 @@ export const taskSteps = pgTable('task_steps', {
     tokensOut: integer('tokens_out'),
     toolCalls: jsonb('tool_calls'),
     outcome: text('outcome'),
+    /** Serialized message context needed to resume from this step */
+    stepState: jsonb('step_state'),
+    /** True when task_complete was called in this step */
+    isTerminal: boolean('is_terminal').default(false).notNull(),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
     index('task_steps_task_idx').on(table.taskId),
