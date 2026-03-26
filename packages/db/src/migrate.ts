@@ -121,8 +121,14 @@ async function runMigrations() {
                 }
             }
             // Database does not exist yet (3D000)
-            else if (code === '3D000' || msg.includes('does not exist')) {
+            else if (code === '3D000') {
                 console.warn(`[migrate] Database does not exist yet (still initializing?). Waiting ${RETRY_DELAY_MS}ms...`)
+            }
+            // Relation/type/index does not exist (42P01, 42704) — migration SQL bug, don't retry
+            else if (code === '42P01' || code === '42704') {
+                console.error('[migrate] MIGRATION ERROR:', msg)
+                if (err.stack) console.error(err.stack)
+                process.exit(1)
             }
             else {
                 // Unexpected error or migration conflict

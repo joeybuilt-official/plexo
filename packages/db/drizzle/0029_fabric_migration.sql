@@ -28,5 +28,5 @@ ALTER INDEX "plugins_workspace_name_uq" RENAME TO "extensions_workspace_name_uq"
 ALTER INDEX "kapsel_registry_name_idx" RENAME TO "extension_registry_name_idx";
 ALTER INDEX "kapsel_registry_publisher_idx" RENAME TO "extension_registry_publisher_idx";
 ALTER INDEX "kapsel_registry_deprecated_idx" RENAME TO "extension_registry_deprecated_idx";
-ALTER INDEX "kapsel_audit_workspace_time_idx" RENAME TO "ext_audit_workspace_time_idx";
-ALTER INDEX "kapsel_audit_extension_idx" RENAME TO "ext_audit_extension_idx";
+ALTER INDEX "idx_kapsel_audit_workspace_time" RENAME TO "ext_audit_workspace_time_idx";
+ALTER INDEX "idx_kapsel_audit_extension" RENAME TO "ext_audit_extension_idx";
