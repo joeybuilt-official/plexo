@@ -428,6 +428,13 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         HEARTBEAT_INTERVAL_MS,
     )
 
+    // Universal per-task workdir — every task gets an isolated temp directory
+    const taskWorkDir = `/tmp/plexo-tasks/${task.id}`
+    try {
+        const { mkdirSync } = await import('node:fs')
+        mkdirSync(taskWorkDir, { recursive: true })
+    } catch { /* non-fatal — fall back to process.cwd() */ }
+
     // Per-task model override: task.context.modelOverrideId forces Mode 4 routing
     const taskContext0 = task.context as Record<string, unknown> | null | undefined
     const modelOverrideId = typeof taskContext0?.modelOverrideId === 'string' && taskContext0.modelOverrideId
@@ -715,6 +722,11 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 logger.debug({ taskId: task.id, sprintWorkDir }, 'Sprint work dir cleaned up')
             } catch { /* non-fatal */ }
         }
+        // Clean up universal task workdir
+        try {
+            const { rmSync } = await import('node:fs')
+            rmSync(taskWorkDir, { recursive: true, force: true })
+        } catch { /* non-fatal */ }
     }
 
 }
