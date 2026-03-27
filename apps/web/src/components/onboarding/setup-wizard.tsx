@@ -12,14 +12,15 @@
  * happens after login or after a workspace is created via API.
  *
  * 3 steps:
- *   1. Connect a model — provider grid + API key input with live validation
+ *   1. Connect a model — paste any API key, auto-detect provider
  *   2. Name your workspace — single input, pre-filled
  *   3. Your first task — pre-filled example with "Run this" button
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
     Check,
+    ChevronDown,
     ChevronRight,
     ExternalLink,
     Loader2,
@@ -44,7 +45,30 @@ type ProviderKey = typeof PROVIDERS[number]['key']
 
 const API_BASE = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
 
+// ── Auto-detect provider from key prefix ─────────────────────────────────────
+
+function detectProvider(key: string): ProviderKey | null {
+    const trimmed = key.trim()
+    if (!trimmed) return null
+    if (trimmed.startsWith('sk-ant-')) return 'anthropic'
+    if (trimmed.startsWith('sk-or-')) return 'openrouter'
+    if (trimmed.startsWith('gsk_')) return 'groq'
+    if (trimmed.startsWith('sk-proj-')) return 'openai'
+    // Generic sk- that isn't sk-ant or sk-or => OpenAI
+    if (trimmed.startsWith('sk-')) return 'openai'
+    // Alphanumeric without obvious prefix => try DeepSeek
+    if (/^[a-zA-Z0-9]/.test(trimmed)) return 'deepseek'
+    return null
+}
+
 // ── Hook: check if any AI provider is configured ─────────────────────────────
+
+interface ProviderEntry {
+    apiKey?: string
+    baseUrl?: string
+    status?: string
+    enabled?: boolean
+}
 
 function useHasProvider(workspaceId: string): { loading: boolean; hasProvider: boolean | null } {
     const [loading, setLoading] = useState(true)
@@ -56,11 +80,13 @@ function useHasProvider(workspaceId: string): { loading: boolean; hasProvider: b
 
         fetch(`${API_BASE}/api/v1/workspaces/${workspaceId}/ai-providers`, { cache: 'no-store' })
             .then((r) => r.ok ? r.json() : null)
-            .then((data: { providers?: Record<string, { apiKey?: string; baseUrl?: string; status?: string }> } | null) => {
+            .then((data: { aiProviders?: { providers?: Record<string, ProviderEntry> } } | null) => {
                 if (cancelled) return
-                if (!data?.providers) { setHasProvider(false); setLoading(false); return }
-                // Check if at least one provider has a key or base URL set
-                const configured = Object.values(data.providers).some(
+                const providers = data?.aiProviders?.providers
+                if (!providers) { setHasProvider(false); setLoading(false); return }
+                // Check if at least one provider has a key or base URL set.
+                // The API returns '__configured__' sentinel for keys that are set.
+                const configured = Object.values(providers).some(
                     (p) => (p.apiKey && p.apiKey.length > 0) || (p.baseUrl && p.baseUrl.length > 0)
                 )
                 setHasProvider(configured)
@@ -126,7 +152,6 @@ interface OverlayProps {
 
 function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss }: OverlayProps) {
     const [step, setStep] = useState<Step>(1)
-    const [selected, setSelected] = useState<ProviderKey>('anthropic')
     const [credential, setCredential] = useState('')
     const [saving, setSaving] = useState(false)
     const [validating, setValidating] = useState(false)
@@ -135,28 +160,49 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
     const [wsName, setWsName] = useState(workspaceName || 'My Workspace')
     const [taskSubmitting, setTaskSubmitting] = useState(false)
     const [taskDone, setTaskDone] = useState(false)
+    const [showCustom, setShowCustom] = useState(false)
+    const [customName, setCustomName] = useState('')
+    const [customBaseUrl, setCustomBaseUrl] = useState('')
 
-    const providerMeta = PROVIDERS.find((p) => p.key === selected)!
-    const isOllama = selected === 'ollama'
+    // Auto-detect provider from key
+    const detected = useMemo(() => detectProvider(credential), [credential])
+    const detectedMeta = detected ? PROVIDERS.find((p) => p.key === detected) : null
+
+    // Effective provider: custom overrides auto-detect
+    const effectiveProvider: ProviderKey | null = showCustom ? null : detected
+    const isOllama = effectiveProvider === 'ollama'
 
     // ── Live validation ──────────────────────────────────────────────────────
 
     const validateKey = useCallback(async () => {
-        if (!credential.trim()) return
+        const cred = credential.trim()
+        if (!cred) return
+
+        // For custom endpoints, need a base URL
+        if (showCustom && !customBaseUrl.trim()) return
+
         setValidating(true)
         setError(null)
         setValidated(false)
         try {
+            const provider = showCustom ? 'openai' : (effectiveProvider || 'openai')
+            const body: Record<string, string> = {
+                provider,
+                workspaceId,
+            }
+            if (showCustom) {
+                body.baseUrl = customBaseUrl.trim()
+                body.apiKey = cred
+            } else if (isOllama) {
+                body.baseUrl = cred || 'http://localhost:11434'
+            } else {
+                body.apiKey = cred
+            }
+
             const res = await fetch(`${API_BASE}/api/v1/settings/ai-providers/probe`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    provider: selected,
-                    ...(isOllama
-                        ? { baseUrl: credential.trim() || 'http://localhost:11434' }
-                        : { apiKey: credential.trim() }),
-                    workspaceId,
-                }),
+                body: JSON.stringify(body),
             })
             if (res.ok) {
                 setValidated(true)
@@ -169,37 +215,56 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
         } finally {
             setValidating(false)
         }
-    }, [credential, selected, isOllama, workspaceId])
+    }, [credential, effectiveProvider, isOllama, workspaceId, showCustom, customBaseUrl])
 
     // Debounced validation on credential change
     useEffect(() => {
         setValidated(false)
         setError(null)
         if (!credential.trim()) return
+        // Don't auto-validate if no provider detected and not custom mode
+        if (!showCustom && !detected) return
         const t = setTimeout(() => { void validateKey() }, 800)
         return () => clearTimeout(t)
-    }, [credential, validateKey])
+    }, [credential, validateKey, showCustom, detected])
 
     // ── Save provider ────────────────────────────────────────────────────────
 
     async function saveProvider() {
+        const cred = credential.trim()
+        if (!cred && !showCustom) return
+
         setSaving(true)
         setError(null)
+
+        const providerKey = showCustom
+            ? `custom_${(customName.trim() || 'custom').toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+            : (effectiveProvider || 'openai')
+
         try {
+            const providerEntry: Record<string, unknown> = {
+                status: validated ? 'configured' : 'untested',
+                enabled: true,
+            }
+
+            if (showCustom) {
+                providerEntry.apiKey = cred
+                providerEntry.baseUrl = customBaseUrl.trim()
+                providerEntry.name = customName.trim() || 'Custom Provider'
+            } else if (isOllama) {
+                providerEntry.baseUrl = cred || 'http://localhost:11434'
+            } else {
+                providerEntry.apiKey = cred
+            }
+
             const res = await fetch(`${API_BASE}/api/v1/workspaces/${workspaceId}/ai-providers`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    primary: selected,
-                    primaryProvider: selected,
+                    primary: providerKey,
+                    primaryProvider: providerKey,
                     providers: {
-                        [selected]: {
-                            status: validated ? 'configured' : 'untested',
-                            enabled: true,
-                            ...(isOllama
-                                ? { baseUrl: credential.trim() || 'http://localhost:11434' }
-                                : { apiKey: credential.trim() }),
-                        },
+                        [providerKey]: providerEntry,
                     },
                 }),
             })
@@ -258,6 +323,12 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
         setTaskSubmitting(false)
     }
 
+    // ── Can proceed? ─────────────────────────────────────────────────────────
+
+    const canSave = showCustom
+        ? credential.trim().length > 0 && customBaseUrl.trim().length > 0
+        : credential.trim().length > 0 && (detected !== null)
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
@@ -298,58 +369,102 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                             <div>
                                 <h2 className="text-lg font-bold text-text-primary">Connect a model</h2>
                                 <p className="mt-1 text-sm text-text-secondary">
-                                    Plexo needs an AI provider to run tasks. Pick one to get started.
+                                    Paste an API key from any supported provider. Plexo will detect which one it is.
                                 </p>
                             </div>
 
-                            {/* Provider grid */}
-                            <div className="grid grid-cols-3 gap-2">
-                                {PROVIDERS.map((p) => (
-                                    <button
-                                        key={p.key}
-                                        onClick={() => { setSelected(p.key); setCredential(''); setValidated(false); setError(null) }}
-                                        className={`rounded-xl border px-3 py-2.5 text-xs font-medium text-center transition-all ${
-                                            selected === p.key
-                                                ? 'border-azure bg-azure/10 text-azure'
-                                                : 'border-border text-text-secondary hover:border-zinc-600 hover:text-text-primary'
-                                        }`}
-                                    >
-                                        {p.name}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Credential input */}
+                            {/* Single key input with auto-detection */}
                             <div className="flex flex-col gap-1.5">
                                 <label className="text-xs font-medium text-text-secondary">
-                                    {isOllama ? 'Base URL' : 'API Key'}
+                                    {showCustom ? 'API Key' : 'Paste your API key'}
                                 </label>
                                 <div className="relative">
                                     <input
-                                        type={isOllama ? 'text' : 'password'}
+                                        type={showCustom ? 'text' : 'password'}
                                         value={credential}
                                         onChange={(e) => setCredential(e.target.value)}
-                                        placeholder={providerMeta.placeholder}
-                                        className="w-full rounded-lg border border-border bg-canvas px-3 py-2.5 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none font-mono"
+                                        placeholder={showCustom ? 'API key for your endpoint' : 'sk-ant-…, sk-proj-…, gsk_…, sk-or-…'}
+                                        className="w-full rounded-lg border border-border bg-canvas px-3 py-3 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none font-mono"
                                         autoComplete="new-password"
                                         autoFocus
                                     />
                                     {validating && (
-                                        <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-text-muted" />
+                                        <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-text-muted" />
                                     )}
                                     {validated && !validating && (
-                                        <Check className="absolute right-3 top-3 h-4 w-4 text-emerald-400" />
+                                        <Check className="absolute right-3 top-3.5 h-4 w-4 text-emerald-400" />
                                     )}
                                 </div>
-                                {!isOllama && providerMeta.link && (
-                                    <a
-                                        href={providerMeta.link}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-[11px] text-azure mt-0.5"
-                                    >
-                                        Get a key <ExternalLink className="h-3 w-3" />
-                                    </a>
+
+                                {/* Detected provider indicator */}
+                                {!showCustom && detected && detectedMeta && credential.trim() && (
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                        <span className="text-xs text-emerald-400 font-medium">
+                                            Detected: {detectedMeta.name}
+                                        </span>
+                                        {detectedMeta.link && (
+                                            <a
+                                                href={detectedMeta.link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="ml-auto flex items-center gap-1 text-[11px] text-azure"
+                                            >
+                                                Get a key <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Unrecognized key warning */}
+                                {!showCustom && credential.trim().length > 3 && !detected && (
+                                    <div className="flex items-center gap-1.5 mt-1 text-xs text-text-muted">
+                                        Could not detect provider. Use &quot;Other / Custom endpoint&quot; below.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Custom / Other endpoint toggle */}
+                            <div>
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowCustom(!showCustom); setValidated(false); setError(null) }}
+                                    className="flex items-center gap-1.5 text-xs text-azure hover:text-azure/80 transition-colors"
+                                >
+                                    <ChevronDown className={`h-3 w-3 transition-transform ${showCustom ? 'rotate-180' : ''}`} />
+                                    Other / Custom endpoint
+                                </button>
+
+                                {showCustom && (
+                                    <div className="mt-3 flex flex-col gap-3 rounded-xl border border-border bg-canvas/50 p-4">
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-xs font-medium text-text-secondary">
+                                                Provider name
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={customName}
+                                                onChange={(e) => setCustomName(e.target.value)}
+                                                placeholder="e.g. Ollama, LM Studio, Together AI"
+                                                className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-xs font-medium text-text-secondary">
+                                                Base URL
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={customBaseUrl}
+                                                onChange={(e) => setCustomBaseUrl(e.target.value)}
+                                                placeholder="http://localhost:11434/v1"
+                                                className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none font-mono"
+                                            />
+                                        </div>
+                                        <p className="text-[11px] text-text-muted">
+                                            For local providers like Ollama, the API key can be any non-empty string (e.g. &quot;ollama&quot;).
+                                        </p>
+                                    </div>
                                 )}
                             </div>
 
@@ -361,11 +476,11 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
 
                             <button
                                 onClick={() => void saveProvider()}
-                                disabled={!credential.trim() || saving}
+                                disabled={!canSave || saving}
                                 className="w-full rounded-xl bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                             >
                                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                                {saving ? 'Saving...' : validated ? 'Save & continue' : 'Save & continue'}
+                                {saving ? 'Saving...' : 'Save & continue'}
                             </button>
                         </div>
                     )}
