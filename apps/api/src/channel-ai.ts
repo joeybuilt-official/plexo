@@ -10,7 +10,7 @@
 
 import { generateText } from 'ai'
 import { withFallback } from '@plexo/agent/providers/registry'
-import { enforceSmallestAction } from '@plexo/agent/principles'
+import { enforceSmallestAction, forceConversationOverride } from '@plexo/agent/principles'
 import { loadWorkspaceAISettings } from './agent-loop.js'
 import { emitToWorkspace } from './sse-emitter.js'
 import { logger } from './logger.js'
@@ -148,6 +148,14 @@ export async function classifyIntent(
     workspaceId: string,
     history: ChatMessage[],
 ): Promise<IntentLabel> {
+    // Principle 6: Force CONVERSATION for greetings, check-ins, and explicit task refusals.
+    // This short-circuits the entire LLM classification call — zero latency for obvious cases.
+    const lastMessage = history[history.length - 1]?.content ?? ''
+    if (forceConversationOverride(lastMessage)) {
+        logger.info({ workspaceId, message: lastMessage.slice(0, 60) }, 'Intent forced to CONVERSATION by principle override')
+        return 'CONVERSATION'
+    }
+
     const result = await chatWithAI(workspaceId, history, CHANNEL_CLASSIFY_SYSTEM)
     if (result.error) return 'CONVERSATION'
     const resText = result.text?.trim() ?? ''

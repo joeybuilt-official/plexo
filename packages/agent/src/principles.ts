@@ -71,6 +71,55 @@ export function enforceSmallestAction(
     return 'PROJECT'
 }
 
+// ── Principle 6: Conversational Override ─────────────────────────────────────
+//
+// Some messages are NEVER tasks, regardless of what the classifier thinks.
+// These are detected at the code level and forced to CONVERSATION.
+
+/** Messages that are clearly greetings, check-ins, or meta-communication — never tasks. */
+const GREETING_PATTERNS = [
+    /^(hey|hi|hello|yo|sup|what'?s up|howdy|good\s+(morning|afternoon|evening))[\s!?.,]*$/i,
+    /^you\s+(there|up|around|working|ready|alive|online)[\s!?.,]*$/i,
+    /^(still\s+(working|there)|ready\s+to\s+(rock|go|work)|what'?s\s+the\s+move)[\s!?.,]*$/i,
+    /^(test(ing)?|ping|check)[\s!?.]*$/i,
+    /^(thanks|thank\s+you|thx|ty|cool|ok|okay|got\s+it|nice|great|perfect|awesome|good)[\s!?.]*$/i,
+]
+
+/** Messages where the user explicitly refuses task creation. */
+const REFUSAL_PATTERNS = [
+    /don'?t\s+(create|make|start|queue)\s+(a\s+)?task/i,
+    /no\s+task/i,
+    /just\s+(send|give|show|tell|answer|respond|reply)/i,
+    /don'?t\s+need\s+a\s+task/i,
+    /not\s+a\s+task/i,
+    /stop\s+creating\s+tasks/i,
+    /just\s+do\s+it/i,
+    /just\s+do\s+the\s+thing/i,
+]
+
+/**
+ * Returns true if the message is a greeting, check-in, or meta-communication
+ * that should never be classified as a TASK.
+ */
+export function isGreetingOrCheckin(message: string): boolean {
+    return GREETING_PATTERNS.some(p => p.test(message.trim()))
+}
+
+/**
+ * Returns true if the user is explicitly refusing task creation.
+ */
+export function isTaskRefusal(message: string): boolean {
+    return REFUSAL_PATTERNS.some(p => p.test(message))
+}
+
+/**
+ * Force CONVERSATION when the message is clearly conversational.
+ * Called BEFORE the LLM classifier — short-circuits the entire classification pipeline.
+ */
+export function forceConversationOverride(message: string): boolean {
+    return isGreetingOrCheckin(message) || isTaskRefusal(message)
+}
+
 // ── Principle 2: No Infrastructure Assumptions ───────────────────────────────
 
 export interface WorkspaceCapabilities {
