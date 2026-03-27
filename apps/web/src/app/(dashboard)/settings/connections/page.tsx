@@ -28,6 +28,12 @@ import {
     Code2,
     Link,
     MessageSquare,
+    Plus,
+    Server,
+    Zap,
+    ChevronDown,
+    X,
+    TestTube,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
@@ -114,6 +120,8 @@ function categoryColor(cat: string): string {
         finance: 'bg-amber/15 text-amber border border-amber-500/30',
         analytics: 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30',
         storage: 'bg-amber/15 text-orange-400 border border-orange-500/30',
+        mcp: 'bg-rose-500/15 text-rose-400 border border-rose-500/30',
+        custom_api: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
     }
     return map[cat.toLowerCase()] ?? 'bg-zinc-700/40 text-text-secondary border border-border'
 }
@@ -162,7 +170,7 @@ function StatusDot({ status }: { status: ConnectionStatus }) {
     return <Circle className="h-3.5 w-3.5 text-text-muted" />
 }
 
-const ALL_CATEGORIES = ['All', 'Code', 'Communication', 'Productivity', 'Finance', 'Analytics', 'Storage']
+const ALL_CATEGORIES = ['All', 'Code', 'Communication', 'Productivity', 'Finance', 'Analytics', 'Storage', 'MCP', 'Custom API']
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
@@ -185,6 +193,74 @@ export default function ConnectionsPage() {
     const [activeTab, setActiveTab] = useState<DetailTab>('overview')
     const [savingTools, setSavingTools] = useState(false)
     const [error, setError] = useState<string | null>(null)
+
+    // Custom connection dialog state
+    const [showAddMenu, setShowAddMenu] = useState(false)
+    const [addCustomType, setAddCustomType] = useState<'mcp' | 'custom_api' | null>(null)
+    const [customName, setCustomName] = useState('')
+    const [customUrl, setCustomUrl] = useState('')
+    const [customDescription, setCustomDescription] = useState('')
+    const [customAuthType, setCustomAuthType] = useState<'none' | 'api_key' | 'bearer' | 'basic'>('none')
+    const [customAuthValue, setCustomAuthValue] = useState('')
+    const [customSaving, setCustomSaving] = useState(false)
+    const [testing, setTesting] = useState<string | null>(null)
+    const [testResult, setTestResult] = useState<Record<string, { ok: boolean; status: number; statusText: string } | null>>({})
+
+    function resetCustomForm() {
+        setAddCustomType(null)
+        setCustomName('')
+        setCustomUrl('')
+        setCustomDescription('')
+        setCustomAuthType('none')
+        setCustomAuthValue('')
+    }
+
+    async function handleCustomSave() {
+        if (!customName.trim() || !customUrl.trim() || !WS_ID || !addCustomType) return
+        setCustomSaving(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/connections/custom`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    workspaceId: WS_ID,
+                    type: addCustomType,
+                    name: customName.trim(),
+                    url: customUrl.trim(),
+                    description: customDescription.trim() || undefined,
+                    authType: customAuthType,
+                    authValue: customAuthValue || undefined,
+                }),
+            })
+            if (res.ok) {
+                resetCustomForm()
+                await fetchData()
+            } else {
+                const d = await res.json() as { error?: { message?: string } }
+                setError(d.error?.message ?? 'Failed to create custom connection')
+            }
+        } finally {
+            setCustomSaving(false)
+        }
+    }
+
+    async function handleTestConnection(connectionId: string) {
+        if (!WS_ID) return
+        setTesting(connectionId)
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/connections/test`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ connectionId, workspaceId: WS_ID }),
+            })
+            const data = await res.json() as { ok: boolean; status: number; statusText: string }
+            setTestResult(prev => ({ ...prev, [connectionId]: data }))
+        } catch {
+            setTestResult(prev => ({ ...prev, [connectionId]: { ok: false, status: 0, statusText: 'Request failed' } }))
+        } finally {
+            setTesting(null)
+        }
+    }
 
     const fetchData = useCallback(async () => {
         setLoading(true)
@@ -225,6 +301,14 @@ export default function ConnectionsPage() {
     }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { void fetchData() }, [WS_ID])  // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Close add menu on outside click
+    useEffect(() => {
+        if (!showAddMenu) return
+        const handler = () => setShowAddMenu(false)
+        const t = setTimeout(() => document.addEventListener('click', handler), 0)
+        return () => { clearTimeout(t); document.removeEventListener('click', handler) }
+    }, [showAddMenu])
 
     const connectedItem = selected
         ? installed.find((i) => i.registryId === selected.id) ?? null
@@ -398,11 +482,58 @@ export default function ConnectionsPage() {
     return (
         <div className="flex flex-col gap-4 h-full">
             {/* Header */}
-            <div>
-                <h1 className="text-xl font-bold text-zinc-50">Connections</h1>
-                <p className="mt-0.5 text-sm text-text-muted">
-                    Manage authenticated external services • {installed.length} active
-                </p>
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h1 className="text-xl font-bold text-zinc-50">Connections</h1>
+                    <p className="mt-0.5 text-sm text-text-muted">
+                        Tool integrations: MCP servers, APIs, and services. {installed.length} active.
+                    </p>
+                </div>
+                <div className="relative">
+                    <button
+                        onClick={() => setShowAddMenu(v => !v)}
+                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Add
+                        <ChevronDown className="h-3 w-3" />
+                    </button>
+                    {showAddMenu && (
+                        <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-lg border border-border bg-surface-0 shadow-lg py-1">
+                            <button
+                                onClick={() => { setShowAddMenu(false); setAddCustomType('mcp') }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-text-secondary hover:bg-surface-2 transition-colors text-left"
+                            >
+                                <Server className="h-4 w-4 text-rose-400" />
+                                <div>
+                                    <div className="font-medium text-text-primary">Custom MCP Server</div>
+                                    <div className="text-[11px] text-text-muted">Connect an MCP tool provider</div>
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => { setShowAddMenu(false); setAddCustomType('custom_api') }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-text-secondary hover:bg-surface-2 transition-colors text-left"
+                            >
+                                <Zap className="h-4 w-4 text-emerald-400" />
+                                <div>
+                                    <div className="font-medium text-text-primary">Custom API</div>
+                                    <div className="text-[11px] text-text-muted">REST API or webhook endpoint</div>
+                                </div>
+                            </button>
+                            <div className="border-t border-border my-1" />
+                            <button
+                                onClick={() => { setShowAddMenu(false) }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-text-secondary hover:bg-surface-2 transition-colors text-left"
+                            >
+                                <Globe2 className="h-4 w-4 text-blue-400" />
+                                <div>
+                                    <div className="font-medium text-text-primary">From Registry</div>
+                                    <div className="text-[11px] text-text-muted">Browse pre-built connectors below</div>
+                                </div>
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {error && (
@@ -530,6 +661,24 @@ export default function ConnectionsPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                                {isConnected && connectedItem && (
+                                    <button
+                                        onClick={() => void handleTestConnection(connectedItem.id)}
+                                        disabled={testing === connectedItem.id}
+                                        className="flex items-center justify-center gap-1 rounded-lg border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-zinc-600 hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
+                                    >
+                                        {testing === connectedItem.id ? (
+                                            <RefreshCw className="h-3 w-3 animate-spin" />
+                                        ) : testResult[connectedItem.id]?.ok ? (
+                                            <CheckCircle2 className="h-3 w-3 text-azure" />
+                                        ) : testResult[connectedItem.id] && !testResult[connectedItem.id]?.ok ? (
+                                            <AlertCircle className="h-3 w-3 text-red" />
+                                        ) : (
+                                            <TestTube className="h-3 w-3" />
+                                        )}
+                                        Test
+                                    </button>
+                                )}
                                 {selected.docUrl && (
                                     <a
                                         href={selected.docUrl}
@@ -848,6 +997,131 @@ export default function ConnectionsPage() {
             {/* Footer */}
             {!WS_ID && (
                 <p className="text-xs text-red">NEXT_PUBLIC_DEFAULT_WORKSPACE not set — connections will not persist.</p>
+            )}
+
+            {/* ── Add Custom Connection Modal ─────────────────────────── */}
+            {addCustomType && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) resetCustomForm() }}>
+                    <div className="w-full max-w-lg rounded-xl border border-border bg-surface-0 shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                            <div className="flex items-center gap-2">
+                                {addCustomType === 'mcp' ? (
+                                    <Server className="h-4 w-4 text-rose-400" />
+                                ) : (
+                                    <Zap className="h-4 w-4 text-emerald-400" />
+                                )}
+                                <h2 className="text-base font-semibold text-text-primary">
+                                    {addCustomType === 'mcp' ? 'Add Custom MCP Server' : 'Add Custom API'}
+                                </h2>
+                            </div>
+                            <button
+                                onClick={resetCustomForm}
+                                className="text-text-muted hover:text-text-secondary transition-colors p-1"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div className="flex flex-col gap-4 px-5 py-5">
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-sm font-medium text-text-secondary">Name</label>
+                                <input
+                                    type="text"
+                                    value={customName}
+                                    onChange={(e) => setCustomName(e.target.value)}
+                                    placeholder={addCustomType === 'mcp' ? 'Lumi MCP' : 'Internal API'}
+                                    autoFocus
+                                    className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-sm font-medium text-text-secondary">
+                                    {addCustomType === 'mcp' ? 'MCP Server URL' : 'Base URL'}
+                                </label>
+                                <input
+                                    type="url"
+                                    value={customUrl}
+                                    onChange={(e) => setCustomUrl(e.target.value)}
+                                    placeholder={addCustomType === 'mcp' ? 'https://example.com/mcp-config' : 'https://api.example.com/v1'}
+                                    className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                                />
+                                {addCustomType === 'mcp' && (
+                                    <p className="text-[11px] text-text-muted">The SSE endpoint URL for the MCP server.</p>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-sm font-medium text-text-secondary">Description <span className="text-text-muted font-normal">(optional)</span></label>
+                                <input
+                                    type="text"
+                                    value={customDescription}
+                                    onChange={(e) => setCustomDescription(e.target.value)}
+                                    placeholder="What does this service provide?"
+                                    className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-sm font-medium text-text-secondary">Authentication</label>
+                                <select
+                                    value={customAuthType}
+                                    onChange={(e) => setCustomAuthType(e.target.value as typeof customAuthType)}
+                                    className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                                >
+                                    <option value="none">No Authentication</option>
+                                    <option value="api_key">API Key</option>
+                                    <option value="bearer">Bearer Token</option>
+                                    {addCustomType === 'custom_api' && <option value="basic">Basic Auth</option>}
+                                </select>
+                            </div>
+
+                            {customAuthType !== 'none' && (
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-sm font-medium text-text-secondary">
+                                        {customAuthType === 'basic' ? 'Credentials (user:pass)' : 'Token / Key'}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={customAuthValue}
+                                        onChange={(e) => setCustomAuthValue(e.target.value)}
+                                        placeholder={customAuthType === 'basic' ? 'user:password' : 'sk-••••••••'}
+                                        autoComplete="new-password"
+                                        className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                                    />
+                                    <p className="text-xs text-text-muted">Encrypted at rest (AES-256-GCM).</p>
+                                </div>
+                            )}
+
+                            {addCustomType === 'mcp' && (
+                                <div className="rounded-lg border border-rose-800/30 bg-rose-950/20 px-3 py-3 flex flex-col gap-1.5">
+                                    <p className="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
+                                        <Code2 className="h-3.5 w-3.5" />
+                                        MCP Server
+                                    </p>
+                                    <p className="text-[11px] text-rose-400/70 leading-relaxed">
+                                        Plexo will connect to this MCP server via SSE transport and make its tools available to the agent at runtime. Tool discovery happens when the agent initializes.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 border-t border-border px-5 py-4">
+                            <button
+                                onClick={resetCustomForm}
+                                className="rounded-lg border border-border px-4 min-h-[44px] text-sm font-medium text-text-secondary hover:bg-surface-2 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => void handleCustomSave()}
+                                disabled={!customName.trim() || !customUrl.trim() || customSaving}
+                                className="rounded-lg bg-azure px-4 min-h-[44px] text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
+                            >
+                                {customSaving ? 'Saving...' : 'Connect'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )

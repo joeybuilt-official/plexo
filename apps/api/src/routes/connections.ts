@@ -499,34 +499,75 @@ connectionsRouter.get('/mcp-config', async (req, res) => {
 
         const mcpServers: Record<string, unknown> = {}
 
+        // Look up registry entries for custom MCP connections
+        const regRows = await db.select({
+            id: connectionsRegistry.id,
+            category: connectionsRegistry.category,
+            isGenerated: connectionsRegistry.isGenerated,
+        }).from(connectionsRegistry)
+
+        const regMap = new Map(regRows.map(r => [r.id, r]))
+
         for (const row of rows) {
-            const binding = MCP_BINDINGS[row.registryId]
-            if (!binding) continue  // no MCP server mapping for this integration
             if (row.status !== 'active') continue
 
-            let tokenValue = '*** stored securely ***'
+            const binding = MCP_BINDINGS[row.registryId]
+            const reg = regMap.get(row.registryId)
 
-            if (!isPreview) {
-                try {
-                    const raw = row.credentials as Record<string, unknown>
-                    if (raw.encrypted) {
-                        const decrypted = decrypt(raw.encrypted as string, workspaceId)
-                        const creds = JSON.parse(decrypted) as Record<string, string>
-                        // Find first non-empty credential value
-                        tokenValue = Object.values(creds).find(v => v) ?? ''
+            // Handle built-in MCP bindings
+            if (binding) {
+                let tokenValue = '*** stored securely ***'
+
+                if (!isPreview) {
+                    try {
+                        const raw = row.credentials as Record<string, unknown>
+                        if (raw.encrypted) {
+                            const decrypted = decrypt(raw.encrypted as string, workspaceId)
+                            const creds = JSON.parse(decrypted) as Record<string, string>
+                            tokenValue = Object.values(creds).find(v => v) ?? ''
+                        }
+                    } catch (decryptErr) {
+                        logger.warn({ err: decryptErr, registryId: row.registryId }, 'Failed to decrypt credentials for MCP config')
+                        continue
                     }
-                } catch (decryptErr) {
-                    logger.warn({ err: decryptErr, registryId: row.registryId }, 'Failed to decrypt credentials for MCP config')
-                    continue
                 }
+
+                mcpServers[row.registryId] = {
+                    command: 'npx',
+                    args: ['-y', binding.mcpPackage, 'stdio'],
+                    env: {
+                        [binding.envKey]: tokenValue,
+                    },
+                }
+                continue
             }
 
-            mcpServers[row.registryId] = {
-                command: 'npx',
-                args: ['-y', binding.mcpPackage, 'stdio'],
-                env: {
-                    [binding.envKey]: tokenValue,
-                },
+            // Handle custom MCP connections (generated registry entries with category 'mcp')
+            if (reg?.category === 'mcp' && reg.isGenerated) {
+                if (isPreview) {
+                    mcpServers[row.registryId] = {
+                        url: '*** stored securely ***',
+                        transport: 'sse',
+                    }
+                } else {
+                    try {
+                        const raw = row.credentials as Record<string, unknown>
+                        if (raw.encrypted) {
+                            const decrypted = decrypt(raw.encrypted as string, workspaceId)
+                            const creds = JSON.parse(decrypted) as Record<string, string>
+                            const mcpEntry: Record<string, unknown> = {
+                                url: creds.url,
+                                transport: 'sse',
+                            }
+                            if (creds.token) {
+                                mcpEntry.headers = { Authorization: `Bearer ${creds.token}` }
+                            }
+                            mcpServers[row.registryId] = mcpEntry
+                        }
+                    } catch (decryptErr) {
+                        logger.warn({ err: decryptErr, registryId: row.registryId }, 'Failed to decrypt credentials for custom MCP config')
+                    }
+                }
             }
         }
 
@@ -608,4 +649,188 @@ connectionsRouter.get('/token', requireServiceKey, async (req, res) => {
 
 connectionsRouter.get('/registry-mcp-meta', (_req, res) => {
     res.json({ bindings: MCP_BINDINGS })
+})
+
+// ── POST /api/connections/custom ──────────────────────────────────────────────
+// Creates a custom connection (MCP server or custom API) that bypasses the
+// static registry. Creates a generated registry entry + installs in one step.
+
+connectionsRouter.post('/custom', async (req, res) => {
+    const {
+        workspaceId,
+        type,        // 'mcp' | 'custom_api'
+        name,
+        url,
+        description,
+        authType,    // 'none' | 'api_key' | 'bearer'
+        authValue,
+        discoveredTools,
+    } = req.body as {
+        workspaceId?: string
+        type?: string
+        name?: string
+        url?: string
+        description?: string
+        authType?: string
+        authValue?: string
+        discoveredTools?: string[]
+    }
+
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+    if (!type || !['mcp', 'custom_api'].includes(type)) {
+        res.status(400).json({ error: { code: 'INVALID_TYPE', message: 'type must be "mcp" or "custom_api"' } })
+        return
+    }
+    if (!name || name.length > 100) {
+        res.status(400).json({ error: { code: 'INVALID_NAME', message: 'name required, max 100 chars' } })
+        return
+    }
+    if (!url || url.length > 2000) {
+        res.status(400).json({ error: { code: 'INVALID_URL', message: 'url required, max 2000 chars' } })
+        return
+    }
+
+    try {
+        // Generate a slug-based registry ID
+        const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        const registryId = `custom-${type}-${slug}-${Date.now()}`
+
+        const category = type === 'mcp' ? 'mcp' : 'custom_api'
+        const resolvedAuthType = authType === 'bearer' ? 'api_key' as const
+            : (authType === 'api_key' ? 'api_key' as const
+            : 'none' as const)
+
+        // Create a generated registry entry
+        await db.insert(connectionsRegistry).values({
+            id: registryId,
+            name,
+            description: description || (type === 'mcp' ? `Custom MCP server at ${url}` : `Custom API at ${url}`),
+            category,
+            logoUrl: null,
+            authType: resolvedAuthType,
+            oauthScopes: [],
+            setupFields: [],
+            toolsProvided: discoveredTools ?? [],
+            cardsProvided: [],
+            isCore: false,
+            isGenerated: true,
+            docUrl: null,
+        })
+
+        // Build credentials object
+        const credentials: Record<string, string> = { url }
+        if (authValue) credentials.token = authValue
+        if (authType) credentials.authType = authType
+
+        const encryptedCreds = { encrypted: encrypt(JSON.stringify(credentials), workspaceId) }
+
+        // Install the connection
+        const [installed] = await db.insert(installedConnections).values({
+            workspaceId,
+            registryId,
+            name,
+            credentials: encryptedCreds,
+            status: 'active',
+            enabledTools: null,
+        }).returning({ id: installedConnections.id })
+
+        logger.info({ workspaceId, registryId, type, name }, 'Custom connection created')
+        captureLifecycleEvent('connection.custom_created', 'info', { workspaceId, registryId, type, name })
+
+        res.status(201).json({
+            id: installed!.id,
+            registryId,
+            message: 'Custom connection created',
+        })
+    } catch (err: unknown) {
+        logger.error({ err }, 'POST /api/connections/custom failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create custom connection' } })
+    }
+})
+
+// ── POST /api/connections/test ────────────────────────────────────────────────
+// Tests connectivity to an installed connection or a URL before connecting.
+
+connectionsRouter.post('/test', async (req, res) => {
+    const { url, authType, authValue, connectionId, workspaceId } = req.body as {
+        url?: string
+        authType?: string
+        authValue?: string
+        connectionId?: string
+        workspaceId?: string
+    }
+
+    // If connectionId is provided, look up the stored URL/credentials
+    let testUrl = url
+    let testAuthType = authType
+    let testAuthValue = authValue
+
+    if (connectionId && workspaceId && UUID_RE.test(connectionId) && UUID_RE.test(workspaceId)) {
+        try {
+            const [row] = await db.select({
+                credentials: installedConnections.credentials,
+                registryId: installedConnections.registryId,
+            }).from(installedConnections)
+                .where(and(eq(installedConnections.id, connectionId), eq(installedConnections.workspaceId, workspaceId)))
+                .limit(1)
+
+            if (row) {
+                const raw = row.credentials as Record<string, unknown>
+                if (raw.encrypted) {
+                    const decrypted = decrypt(raw.encrypted as string, workspaceId)
+                    const creds = JSON.parse(decrypted) as Record<string, string>
+                    testUrl = creds.url ?? testUrl
+                    testAuthType = creds.authType ?? testAuthType
+                    testAuthValue = creds.token ?? testAuthValue
+                }
+            }
+        } catch (err) {
+            logger.warn({ err }, 'Failed to look up connection for test')
+        }
+    }
+
+    if (!testUrl) {
+        res.status(400).json({ error: { code: 'NO_URL', message: 'URL required for testing' } })
+        return
+    }
+
+    try {
+        const headers: Record<string, string> = { 'User-Agent': 'Plexo/1.0' }
+        if (testAuthValue) {
+            if (testAuthType === 'bearer' || testAuthType === 'api_key') {
+                headers['Authorization'] = `Bearer ${testAuthValue}`
+            } else if (testAuthType === 'basic') {
+                headers['Authorization'] = `Basic ${Buffer.from(testAuthValue).toString('base64')}`
+            }
+        }
+
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 10_000)
+
+        const r = await fetch(testUrl, {
+            method: 'GET',
+            headers,
+            signal: controller.signal,
+        })
+
+        clearTimeout(timeout)
+
+        res.json({
+            ok: r.ok,
+            status: r.status,
+            statusText: r.statusText,
+            contentType: r.headers.get('content-type') ?? 'unknown',
+        })
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Connection failed'
+        res.json({
+            ok: false,
+            status: 0,
+            statusText: message,
+            contentType: 'unknown',
+        })
+    }
 })

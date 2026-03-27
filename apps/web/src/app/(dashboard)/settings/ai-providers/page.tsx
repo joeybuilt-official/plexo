@@ -947,7 +947,8 @@ export default function AIProvidersPage() {
             <div>
                 <h1 className="text-xl font-bold text-zinc-50">AI Providers</h1>
                 <p className="mt-0.5 text-sm text-text-muted">
-                    Configure which AI providers Plexo uses for task execution and routing.
+                    LLM inference endpoints only. For tool integrations (MCP, APIs, webhooks), use{' '}
+                    <a href="/connections" className="text-azure hover:underline">Connections</a>.
                 </p>
             </div>
 
@@ -1783,6 +1784,15 @@ export default function AIProvidersPage() {
                                 placeholder="https://api.together.xyz/v1"
                                 className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                             />
+                            {/mcp[-_]?(config|server|sse)|\/sse$|\/mcp$/i.test(probeUrl) && (
+                                <div className="rounded-lg border border-amber-800/50 bg-amber-950/20 px-3 py-2.5 text-xs text-amber flex flex-col gap-1">
+                                    <p className="font-semibold">This looks like an MCP server, not an LLM provider.</p>
+                                    <p>MCP servers provide tools, not model inference. Add it in{' '}
+                                        <a href="/connections" className="text-azure hover:underline font-medium">Connections</a>{' '}
+                                        instead.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         <div className="flex flex-col gap-1.5">
                             <label className="text-sm font-medium text-text-secondary">API Key</label>
