@@ -157,10 +157,12 @@ function ClarificationPanel({ taskId, clarification }: {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
+export function BlockedActions({ taskId, outcomeSummary, status = 'blocked', embedded = false }: {
     taskId: string
     outcomeSummary: string | null
     status?: string
+    /** When true, skip the error header (it's already shown by TaskError above) */
+    embedded?: boolean
 }) {
     const router = useRouter()
     const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
@@ -250,8 +252,9 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
             )}
 
             {/* Standard blocked or failed panel */}
-            <div className={`rounded-xl border overflow-hidden ${status === 'blocked' ? 'border-red-900/40 bg-red-950/20' : 'border-border/60 bg-surface-1/30'}`}>
-                {/* Header */}
+            <div className={`${embedded ? '' : 'rounded-xl border'} overflow-hidden ${status === 'blocked' ? `${embedded ? '' : 'border-red-900/40'} bg-red-950/20` : `${embedded ? '' : 'border-border/60'} bg-surface-1/30`}`}>
+                {/* Header — hidden when embedded inside a unified error section */}
+                {!embedded && (
                 <div className={`flex items-center gap-2.5 border-b px-4 py-3 ${status === 'blocked' ? 'border-red-900/30' : 'border-border/40'}`}>
                     {status === 'blocked' ? (
                         <AlertTriangle className="h-4 w-4 shrink-0 text-red" />
@@ -267,6 +270,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked' }: {
                         </p>
                     </div>
                 </div>
+                )}
 
                 {/* Actions */}
                 <div className={`flex flex-col divide-y ${status === 'blocked' ? 'divide-red-900/20' : 'divide-zinc-800/40'}`}>

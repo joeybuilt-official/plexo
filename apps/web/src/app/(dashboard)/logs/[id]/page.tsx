@@ -4,6 +4,8 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { CopyButton } from './copy-button'
+import { TaskError } from '@web/components/task-error'
+import { WorksPanel } from '@web/components/works-panel'
 
 interface TaskStep {
     id: string
@@ -14,6 +16,19 @@ interface TaskStep {
     toolCalls: unknown
     outcome: string | null
     createdAt: string
+}
+
+interface TaskWork {
+    type: 'file' | 'diff' | 'url' | 'data' | 'command'
+    label: string
+    content: string
+}
+
+interface TaskDeliverable {
+    summary: string
+    outcome: 'completed' | 'partial' | 'blocked' | 'failed'
+    works: TaskWork[]
+    verificationSteps: string[]
 }
 
 interface TaskDetail {
@@ -27,6 +42,7 @@ interface TaskDetail {
     tokensOut: number | null
     costUsd: number | null
     outcomeSummary: string | null
+    deliverable: TaskDeliverable | null
     createdAt: string | null
     claimedAt: string | null
     completedAt: string | null
@@ -152,8 +168,10 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                 ))}
             </div>
 
-            {/* Outcome / blocked notice */}
-            {task.outcomeSummary ? (
+            {/* Outcome / error */}
+            {task.outcomeSummary && (task.status === 'blocked' || task.status === 'failed') ? (
+                <TaskError outcomeSummary={task.outcomeSummary} status={task.status} />
+            ) : task.outcomeSummary ? (
                 <div className="rounded-lg border border-border bg-surface-1/40 p-4">
                     <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Outcome</p>
                     <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">{task.outcomeSummary}</p>
@@ -170,6 +188,9 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     </p>
                 </div>
             ) : null}
+
+            {/* Structured deliverable */}
+            {task.deliverable && <WorksPanel deliverable={task.deliverable} />}
 
             {/* Context */}
             {(description || Object.keys(contextRest).length > 0) && (

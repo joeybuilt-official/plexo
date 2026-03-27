@@ -14,6 +14,7 @@ import {
 import Link from 'next/link'
 import { CancelButton } from './_cancel-button'
 import { BlockedActions } from './_blocked-actions'
+import { StepRow } from './_step-row'
 import { CopyId } from '@web/components/copy-id'
 import { TaskError } from '@web/components/task-error'
 import { WorksPanel } from '@web/components/works-panel'
@@ -153,11 +154,6 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 )}
             </div>
 
-            {/* Blocked or failed action panel */}
-            {(task.status === 'blocked' || task.status === 'cancelled') && (
-                <BlockedActions taskId={task.id} outcomeSummary={task.outcomeSummary} status={task.status} />
-            )}
-
             {/* What was asked */}
             {message && (
                 <div className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
@@ -166,9 +162,22 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 </div>
             )}
 
-            {/* Outcome — primary */}
-            {task.outcomeSummary && (task.status === 'blocked' || task.status === 'failed') ? (
-                <TaskError outcomeSummary={task.outcomeSummary} status={task.status} />
+            {/* Unified error + resolution actions for blocked/failed/cancelled */}
+            {(task.status === 'blocked' || task.status === 'failed' || task.status === 'cancelled') ? (
+                <div className={`rounded-xl border overflow-hidden ${
+                    task.status === 'failed' || task.status === 'blocked' ? 'border-red-900/40 bg-red-950/20' : 'border-amber-900/40 bg-amber-950/20'
+                }`}>
+                    {task.outcomeSummary && (
+                        <div className="[&>div]:border-0 [&>div]:rounded-none [&>div]:bg-transparent">
+                            <TaskError outcomeSummary={task.outcomeSummary} status={task.status} />
+                        </div>
+                    )}
+                    {(task.status === 'blocked' || task.status === 'cancelled') && (
+                        <div className={task.outcomeSummary ? 'border-t border-red-900/30' : ''}>
+                            <BlockedActions taskId={task.id} outcomeSummary={task.outcomeSummary} status={task.status} embedded />
+                        </div>
+                    )}
+                </div>
             ) : task.outcomeSummary ? (
                 <div className="rounded-xl border border-azure/20 bg-azure/5 p-4">
                     <p className="mb-1.5 text-[11px] font-medium text-azure-600 uppercase tracking-wider">Outcome</p>
@@ -322,7 +331,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 </div>
             )}
 
-            {/* Execution steps — collapsed summary */}
+            {/* Execution steps — expandable */}
             {steps.length > 0 && (
                 <div>
                     <p className="mb-3 text-[11px] font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
@@ -331,34 +340,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                     </p>
                     <div className="flex flex-col gap-2">
                         {steps.map((step) => (
-                            <div key={step.id} className="rounded-xl border border-border bg-surface-1/30 p-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <span className={`text-[11px] font-medium ${step.ok ? 'text-azure' : 'text-red'}`}>
-                                            Step {step.stepNumber}
-                                        </span>
-                                        {step.model && (
-                                            <span className="rounded border border-azure-800/40 bg-azure/30 px-1.5 py-0.5 text-[10px] font-mono text-azure">
-                                                {step.model}
-                                            </span>
-                                        )}
-                                        {step.toolCalls?.map((tc, i) => (
-                                            <span key={i} className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-text-muted">
-                                                {tc.tool}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <div className="flex items-center gap-2 text-[10px] text-text-muted shrink-0 ml-2">
-                                        {step.durationMs != null && <span>{step.durationMs}ms</span>}
-                                        {step.tokensIn != null && <span>{step.tokensIn?.toLocaleString()}t</span>}
-                                    </div>
-                                </div>
-                                {step.output && (
-                                    <p className="mt-2 text-[11px] text-text-muted leading-relaxed line-clamp-3">
-                                        {step.output.slice(0, 400)}{step.output.length > 400 ? '…' : ''}
-                                    </p>
-                                )}
-                            </div>
+                            <StepRow key={step.id} step={step} />
                         ))}
                     </div>
                 </div>
