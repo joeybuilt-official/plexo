@@ -288,8 +288,15 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             ) : items.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
                     <MessageSquare className="mx-auto h-8 w-8 text-zinc-700 mb-3" />
-                    <p className="text-sm text-text-muted">No conversations yet</p>
-                    <p className="mt-1 text-xs text-text-muted">Start a chat from the dashboard to see history here.</p>
+                    <p className="text-sm text-text-primary font-medium">Start a conversation with your agent</p>
+                    <p className="mt-1 text-xs text-text-muted">Chat history from all channels appears here.</p>
+                    <Link
+                        href="/chat"
+                        className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-xs font-medium text-white hover:bg-azure/90 transition-colors"
+                    >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        Open Chat
+                    </Link>
                 </div>
             ) : displayed.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">

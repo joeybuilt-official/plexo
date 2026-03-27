@@ -554,19 +554,27 @@ function ChatContent() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     // Persist session ID across refreshes so conversation context survives navigation.
     // Priority: URL param > sessionStorage > generate new.
-    const sessionId = useRef(() => {
-        if (typeof window === 'undefined') return `session-${Date.now()}`
-        const fromUrl = new URLSearchParams(window.location.search).get('sessionId')
-        if (fromUrl) {
-            sessionStorage.setItem('plexo-chat-session', fromUrl)
-            return fromUrl
+    const sessionId = useRef<string>(null as unknown as string)
+    if (!sessionId.current) {
+        if (typeof window === 'undefined') {
+            sessionId.current = `session-${Date.now()}`
+        } else {
+            const fromUrl = new URLSearchParams(window.location.search).get('sessionId')
+            if (fromUrl) {
+                sessionStorage.setItem('plexo-chat-session', fromUrl)
+                sessionId.current = fromUrl
+            } else {
+                const stored = sessionStorage.getItem('plexo-chat-session')
+                if (stored) {
+                    sessionId.current = stored
+                } else {
+                    const fresh = `session-${Date.now()}`
+                    sessionStorage.setItem('plexo-chat-session', fresh)
+                    sessionId.current = fresh
+                }
+            }
         }
-        const stored = sessionStorage.getItem('plexo-chat-session')
-        if (stored) return stored
-        const fresh = `session-${Date.now()}`
-        sessionStorage.setItem('plexo-chat-session', fresh)
-        return fresh
-    })()
+    }
     const [isDraggingOver, setIsDraggingOver] = useState(false)
     const dragCounterRef = useRef(0)
     const taskIdAttached = useRef(false)

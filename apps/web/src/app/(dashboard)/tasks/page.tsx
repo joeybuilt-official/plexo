@@ -441,24 +441,28 @@ export default function TasksPage() {
                 </div>
             ) : displayed.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
-                    <p className="text-sm text-text-muted">
-                        {hasFilters ? 'No tasks match your filters' : 'No tasks found'}
-                    </p>
                     {hasFilters ? (
-                        <button
-                            onClick={clearAll}
-                            className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto"
-                        >
-                            <X className="h-3.5 w-3.5" /> Clear filters
-                        </button>
+                        <>
+                            <p className="text-sm text-text-muted">No tasks match your filters</p>
+                            <button
+                                onClick={clearAll}
+                                className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mx-auto"
+                            >
+                                <X className="h-3.5 w-3.5" /> Clear filters
+                            </button>
+                        </>
                     ) : (
-                        <button
-                            onClick={() => setSheetOpen(true)}
-                            className="mt-3 flex items-center gap-1.5 rounded-lg bg-azure/10 border border-azure/30 px-3 py-1.5 text-xs text-azure hover:bg-azure/20 transition-colors mx-auto"
-                        >
-                            <Plus className="h-3.5 w-3.5" />
-                            Create your first task
-                        </button>
+                        <>
+                            <p className="text-sm text-text-primary font-medium">Run a task and its results appear here</p>
+                            <p className="mt-1 text-xs text-text-muted">Tasks are how your agent gets work done.</p>
+                            <button
+                                onClick={() => setSheetOpen(true)}
+                                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-xs font-medium text-white hover:bg-azure/90 transition-colors"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                New Task
+                            </button>
+                        </>
                     )}
                 </div>
             ) : (
