@@ -150,6 +150,97 @@ function addToHistory(channelId: string, chatId: string, role: 'user' | 'assista
     chatHistory.add(historyKey(channelId, chatId), role, content)
 }
 
+// ── Last completed task tracker (per chat) ─────────────────────────────────
+
+interface CompletedTaskInfo {
+    taskId: string
+    summary: string
+    completedAt: number
+}
+
+/** chatKey → last completed task info. Used for follow-up detection + context. */
+const lastCompletedTask = new Map<string, CompletedTaskInfo>()
+
+/** How long after completion a follow-up is still recognized (5 minutes). */
+const FOLLOW_UP_WINDOW_MS = 5 * 60 * 1000
+
+function getRecentCompletion(channelId: string, chatId: string): CompletedTaskInfo | null {
+    const key = `${channelId}:${chatId}`
+    const info = lastCompletedTask.get(key)
+    if (!info) return null
+    if (Date.now() - info.completedAt > FOLLOW_UP_WINDOW_MS) {
+        lastCompletedTask.delete(key)
+        return null
+    }
+    return info
+}
+
+// ── Follow-up pattern detection ────────────────────────────────────────────
+
+const FOLLOW_UP_PATTERNS = [
+    /^send\s*(it|them|the\s+results?)\s*(here)?$/i,
+    /^show\s*(me|it|them)$/i,
+    /^paste\s*(it|them)?$/i,
+    /^give\s*(me|it)$/i,
+    /^(yes|do\s+it|go|proceed|ok|sure|yep|yeah)$/i,
+    /^send\s+the\s+results?$/i,
+    /^(show|send|give|paste)\s*(me\s+)?(the\s+)?(details|output|content|deliverable|result)s?$/i,
+]
+
+function isFollowUpMessage(text: string, recentCompletion: CompletedTaskInfo | null): boolean {
+    if (!recentCompletion) return false
+    const trimmed = text.trim()
+    if (trimmed.length > 80) return false
+    return FOLLOW_UP_PATTERNS.some(p => p.test(trimmed))
+}
+
+// ── Asset content reader ────────────────────────────────────────────────────
+
+async function readTaskAssets(taskId: string): Promise<string | null> {
+    try {
+        const { readdirSync, readFileSync, existsSync } = await import('node:fs')
+        const { join } = await import('node:path')
+        const dir = `/tmp/plexo-assets/${taskId}`
+        if (!existsSync(dir)) return null
+        const files = readdirSync(dir).filter(f => !(/\.(png|jpg|jpeg|gif|webp)$/i.test(f)))
+        if (files.length === 0) return null
+        const parts: string[] = []
+        for (const file of files) {
+            const content = readFileSync(join(dir, file), 'utf8')
+            if (files.length > 1) {
+                parts.push(`--- ${file} ---\n${content}`)
+            } else {
+                parts.push(content)
+            }
+        }
+        return parts.join('\n\n')
+    } catch {
+        return null
+    }
+}
+
+// ── Telegram message splitting (4096 char limit) ────────────────────────────
+
+const TG_MAX_LEN = 4096
+
+function splitForTelegram(text: string): string[] {
+    if (text.length <= TG_MAX_LEN) return [text]
+    const messages: string[] = []
+    let remaining = text
+    while (remaining.length > 0) {
+        if (remaining.length <= TG_MAX_LEN) {
+            messages.push(remaining)
+            break
+        }
+        // Try to split at a newline near the limit
+        let splitAt = remaining.lastIndexOf('\n', TG_MAX_LEN)
+        if (splitAt < TG_MAX_LEN * 0.5) splitAt = TG_MAX_LEN
+        messages.push(remaining.slice(0, splitAt))
+        remaining = remaining.slice(splitAt).trimStart()
+    }
+    return messages
+}
+
 // Pending confirmations scoped to channel (so the right bot replies)
 // Now stores the conversationId so we can link taskId on confirm.
 const pendingActions = new Map<string, {
@@ -276,6 +367,13 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                             const result = (event.summary as string | undefined) ?? (event.result as string | undefined) ?? 'Done.'
                             const assets = (event.assets as string[] | undefined) ?? []
 
+                            // Track completion for follow-up detection
+                            lastCompletedTask.set(`${channelId}:${chatId}`, {
+                                taskId,
+                                summary: result,
+                                completedAt: Date.now(),
+                            })
+
                             const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000'
                             const assetAttachments = assets.filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f)).map(f => ({
                                 url: `${publicUrl}/api/v1/tasks/${taskId}/assets/${f}`,
@@ -283,6 +381,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                                 alt: f
                             }))
 
+                            // Send image assets first
                             if (assetAttachments.length > 0) {
                                 const photoRes = await fetch(`${TELEGRAM_API}${token}/sendPhoto`, {
                                     method: 'POST',
@@ -300,6 +399,15 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                                 }
                             } else {
                                 void sendMessage(token, chatId, `✅ ${result}`).catch(() => null)
+                            }
+
+                            // Auto-deliver text asset content to the chat
+                            const deliverableContent = await readTaskAssets(taskId)
+                            if (deliverableContent) {
+                                const chunks = splitForTelegram(deliverableContent)
+                                for (const chunk of chunks) {
+                                    await sendMessage(token, chatId, chunk)
+                                }
                             }
 
                             addToHistory(channelId, chatId, 'assistant', result)
@@ -578,6 +686,45 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     addToHistory(channelId, chatId, 'user', text)
     await sendTyping(token, chatId)
 
+    // ── Follow-up bypass: skip classification for obvious post-task follow-ups ──
+    const recentCompletion = getRecentCompletion(channelId, chatId)
+    if (recentCompletion && isFollowUpMessage(text, recentCompletion)) {
+        logger.info({ chatId, taskId: recentCompletion.taskId, text }, 'Telegram: follow-up detected — delivering results directly')
+        const deliverableContent = await readTaskAssets(recentCompletion.taskId)
+        if (deliverableContent) {
+            const chunks = splitForTelegram(deliverableContent)
+            for (const chunk of chunks) {
+                await sendMessage(token, chatId, chunk)
+            }
+            addToHistory(channelId, chatId, 'assistant', deliverableContent.slice(0, 500))
+            void recordConversation({
+                workspaceId,
+                sessionId,
+                source: 'telegram',
+                message: text,
+                reply: `[Delivered task ${recentCompletion.taskId.slice(0, 8)} results — ${deliverableContent.length} chars]`,
+                status: 'complete',
+                intent: 'CONVERSATION',
+                channelRef,
+            }).catch(() => null)
+        } else {
+            // No asset content — resend the summary
+            await sendMessage(token, chatId, recentCompletion.summary)
+            addToHistory(channelId, chatId, 'assistant', recentCompletion.summary)
+            void recordConversation({
+                workspaceId,
+                sessionId,
+                source: 'telegram',
+                message: text,
+                reply: recentCompletion.summary,
+                status: 'complete',
+                intent: 'CONVERSATION',
+                channelRef,
+            }).catch(() => null)
+        }
+        return
+    }
+
     let history: import('../channel-ai.js').ChatMessage[]
     let intent: import('../channel-ai.js').IntentLabel
     try {
@@ -593,10 +740,17 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     try {
 
     if (intent === 'CONVERSATION') {
+        const recentCompletion = getRecentCompletion(channelId, chatId)
+        let channelContext = `\nChannel context: The user is messaging you via Telegram. When they say "here" or "send it here", they mean this Telegram chat. If a task just completed, they may be asking for the results to be delivered in this conversation.`
+        if (recentCompletion) {
+            channelContext += `\n\nA task just completed in this chat (task ${recentCompletion.taskId.slice(0, 8)}): "${recentCompletion.summary}". If the user asks about results or wants to see the output, you can tell them you'll send the deliverable content directly.`
+        }
+
         const result = await chatWithAI(
             workspaceId,
             history,
             `You are Plexo, a helpful AI agent. Personality: Warm, sharp, direct. You get things done. Never hedge, over-explain, or ask unnecessary questions.
+${channelContext}
 
 Critical rules — follow without exception:
 1. NEVER ask for confirmation before answering. Just answer.
