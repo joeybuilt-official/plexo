@@ -15,6 +15,7 @@ export const conversationsRouter: RouterType = Router()
 
 conversationsRouter.get('/:id', async (req, res) => {
     const { id } = req.params
+    const workspaceId = req.query.workspaceId as string | undefined
     if (!id || id.length > 64) {
         res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid id required (max 64 chars)' } })
         return
@@ -24,6 +25,11 @@ conversationsRouter.get('/:id', async (req, res) => {
             .where(eq(conversations.id, id))
             .limit(1)
         if (!item) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Conversation not found' } })
+            return
+        }
+        // Workspace isolation: if workspaceId is provided, verify the conversation belongs to it
+        if (workspaceId && item.workspaceId !== workspaceId) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Conversation not found' } })
             return
         }

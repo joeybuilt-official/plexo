@@ -122,6 +122,7 @@ tasksRouter.post('/', async (req, res) => {
 
 tasksRouter.get('/:id', async (req, res) => {
     const { id } = req.params
+    const workspaceId = req.query.workspaceId as string | undefined
     if (!id || id.length > 64) {
         res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid task id' } })
         return
@@ -129,6 +130,11 @@ tasksRouter.get('/:id', async (req, res) => {
     try {
         const [task] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1)
         if (!task) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
+            return
+        }
+        // Workspace isolation: if workspaceId is provided, verify the task belongs to it
+        if (workspaceId && task.workspaceId !== workspaceId) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
             return
         }
