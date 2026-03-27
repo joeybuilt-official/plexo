@@ -23,13 +23,36 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
  */
 import { existsSync } from 'fs'
 const IS_DOCKER = process.env.PLEXO_DOCKER === '1' || existsSync('/.dockerenv')
-const DOCKER_HOST = process.env.OLLAMA_DOCKER_HOST ?? 'host.docker.internal'
+
+// Docker host gateway resolution:
+// 1. Explicit env var override (OLLAMA_DOCKER_HOST)
+// 2. host.docker.internal (works on Docker Desktop for Mac/Windows and modern Linux Docker 20.10+)
+// 3. 172.17.0.1 (Linux Docker bridge gateway — fallback for older Docker)
+function detectDockerHost(): string {
+    if (process.env.OLLAMA_DOCKER_HOST) return process.env.OLLAMA_DOCKER_HOST
+    // On Linux, check if host.docker.internal resolves; fall back to bridge gateway
+    if (process.platform === 'linux') {
+        try {
+            const { execSync } = require('child_process')
+            execSync('getent hosts host.docker.internal', { stdio: 'ignore', timeout: 1000 })
+            return 'host.docker.internal'
+        } catch {
+            return '172.17.0.1'
+        }
+    }
+    return 'host.docker.internal'
+}
+const DOCKER_HOST = IS_DOCKER ? detectDockerHost() : 'host.docker.internal'
 
 function resolveBaseUrl(url: string): string {
     if (!IS_DOCKER) return url
-    return url
+    const resolved = url
         .replace(/\/\/localhost([:\/])/g, `//${DOCKER_HOST}$1`)
         .replace(/\/\/127\.0\.0\.1([:\/])/g, `//${DOCKER_HOST}$1`)
+    if (resolved !== url) {
+        console.log(`[ollama] Rewrote ${url} → ${resolved} (Docker host: ${DOCKER_HOST})`)
+    }
+    return resolved
 }
 
 export type BuiltinProviderKey =
