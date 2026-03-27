@@ -406,7 +406,7 @@ function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick
 }
 
 
-export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUser; onNavClick?: () => void; className?: string }) {
+export function Sidebar({ user, onNavClick, className = '', mobile = false }: { user?: SessionUser; onNavClick?: () => void; className?: string; mobile?: boolean }) {
     const pathname = usePathname()
     const { workspaceId } = useWorkspace()
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
@@ -418,7 +418,9 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
     // Read sidebar collapse state BEFORE paint to prevent width flash
+    // Mobile drawer always uses expanded sidebar
     useIsomorphicLayoutEffect(() => {
+        if (mobile) return
         try {
             const raw = localStorage.getItem(SIDEBAR_STATE_KEY)
             if (raw === 'true') setSidebarCollapsed(true)
@@ -564,7 +566,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
 
     return (
         <>
-        <aside className={`hidden md:flex flex-col shrink-0 border-r border-border-subtle bg-canvas transition-all duration-300 ${sidebarCollapsed ? 'w-[68px]' : 'w-[220px]'}`}>
+        <aside className={`${mobile ? 'flex' : 'hidden md:flex'} flex-col shrink-0 border-r border-border-subtle bg-canvas transition-all duration-300 ${className} ${mobile ? 'w-full h-full' : sidebarCollapsed ? 'w-[68px]' : 'w-[220px]'}`}>
             <div className={`relative group/collapse ${sidebarCollapsed ? 'border-b border-border-subtle' : ''}`}>
                 <WorkspaceSwitcher collapsed={sidebarCollapsed} className={!sidebarCollapsed ? 'border-b border-border-subtle' : ''} />
                 {!sidebarCollapsed && (

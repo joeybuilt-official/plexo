@@ -44,10 +44,11 @@ export function MobileHeader({ user }: { user?: SessionUser }) {
                         onClick={() => setOpen(false)} 
                     />
                     <div className="relative flex w-[220px] shadow-2xl animate-in slide-in-from-left h-full duration-200">
-                        <Sidebar 
-                            user={user} 
-                            onNavClick={() => setOpen(false)} 
+                        <Sidebar
+                            user={user}
+                            onNavClick={() => setOpen(false)}
                             className="border-r-0 shadow-xl"
+                            mobile
                         />
                         <button
                             onClick={() => setOpen(false)}
