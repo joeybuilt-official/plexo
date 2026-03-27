@@ -552,7 +552,21 @@ function ChatContent() {
     const bottomRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const sessionId = useRef(`session-${Date.now()}`)
+    // Persist session ID across refreshes so conversation context survives navigation.
+    // Priority: URL param > sessionStorage > generate new.
+    const sessionId = useRef(() => {
+        if (typeof window === 'undefined') return `session-${Date.now()}`
+        const fromUrl = new URLSearchParams(window.location.search).get('sessionId')
+        if (fromUrl) {
+            sessionStorage.setItem('plexo-chat-session', fromUrl)
+            return fromUrl
+        }
+        const stored = sessionStorage.getItem('plexo-chat-session')
+        if (stored) return stored
+        const fresh = `session-${Date.now()}`
+        sessionStorage.setItem('plexo-chat-session', fresh)
+        return fresh
+    })()
     const [isDraggingOver, setIsDraggingOver] = useState(false)
     const dragCounterRef = useRef(0)
     const taskIdAttached = useRef(false)
@@ -592,6 +606,41 @@ function ChatContent() {
     // Load context from ?context=<conversationId> OR ?sessionId=<sessionId>
     // ?sessionId loads the full thread (all turns); ?context loads a single turn.
     // In both cases the session ID ref is set so new messages are correctly linked.
+    // Auto-load existing conversation when returning to a persisted session
+    useEffect(() => {
+        if (!WS_ID || messages.length > 0) return
+        const contextId = searchParams.get('context')
+        const sessionIdParam = searchParams.get('sessionId')
+        // If URL params exist, skip — the context loader below handles those
+        if (contextId || sessionIdParam) return
+        // Check if we have a persisted session from sessionStorage
+        const stored = sessionStorage.getItem('plexo-chat-session')
+        if (!stored) return
+
+        async function loadPersistedSession() {
+            try {
+                const res = await fetch(
+                    `${API}/api/v1/conversations?workspaceId=${encodeURIComponent(WS_ID!)}&sessionId=${encodeURIComponent(stored!)}&limit=100`
+                )
+                if (!res.ok) return
+                const data = await res.json() as { items: Array<{ id: string; message: string; reply: string | null; errorMsg: string | null; status: string; intent: string | null; taskId: string | null }> }
+                const turns = data.items ?? []
+                if (turns.length === 0) return
+                const loaded: Message[] = []
+                for (const turn of turns) {
+                    loaded.push({ id: `ctx-user-${turn.id}`, role: 'user', content: turn.message, status: 'complete', at: Date.now() })
+                    const body = turn.reply ?? turn.errorMsg ?? null
+                    if (body) {
+                        loaded.push({ id: `ctx-agent-${turn.id}`, role: 'agent', content: body, status: turn.status === 'failed' ? 'failed' : 'complete', taskId: turn.taskId ?? undefined, at: Date.now() + 1 })
+                    }
+                }
+                if (loaded.length > 0) setMessages(loaded)
+            } catch { /* non-critical */ }
+        }
+        void loadPersistedSession()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     useEffect(() => {
         const contextId = searchParams.get('context')
         const sessionIdParam = searchParams.get('sessionId')
@@ -651,6 +700,7 @@ function ChatContent() {
                     // Restore the session ID — new messages from web will be linked
                     // and relayed back to the originating channel (e.g. Telegram)
                     sessionId.current = sessionIdParam
+                    sessionStorage.setItem('plexo-chat-session', sessionIdParam)
                     return
                 }
 
@@ -685,7 +735,10 @@ function ChatContent() {
                         })
                     }
                     if (loaded.length > 0) setMessages(loaded)
-                    if (data.sessionId) sessionId.current = data.sessionId
+                    if (data.sessionId) {
+                        sessionId.current = data.sessionId
+                        sessionStorage.setItem('plexo-chat-session', data.sessionId)
+                    }
                 }
             } catch { /* conversation context is optional; proceed without it */ }
         }
@@ -1352,7 +1405,13 @@ function ChatContent() {
                 <div className="flex items-center gap-3">
                     {messages.length > 0 && (
                         <button
-                            onClick={() => { setMessages([]); tts.stop() }}
+                            onClick={() => {
+                                setMessages([])
+                                tts.stop()
+                                const fresh = `session-${Date.now()}`
+                                sessionId.current = fresh
+                                sessionStorage.setItem('plexo-chat-session', fresh)
+                            }}
                             className="text-xs text-text-muted hover:text-text-secondary transition-colors"
                         >
                             Clear
