@@ -187,6 +187,124 @@ export async function classifyIntent(
     }
 }
 
+// ── Cross-session memory recall ──────────────────────────────────────────────
+
+/** Recall patterns that signal the user wants to resume a prior conversation. */
+export const RECALL_PATTERNS = [
+    /continue\s+where/i,
+    /pick\s+up\s+where/i,
+    /\bresume\b/i,
+    /we\s+were\s+talking\s+about/i,
+    /earlier\s+conversation/i,
+    /previous\s+conversation/i,
+    /go\s+back\s+to/i,
+    /that\s+conversation\s+about/i,
+    /where\s+I\s+asked\s+about/i,
+    /where\s+I\s+requested/i,
+]
+
+/** Check whether a message signals recall intent. */
+export function hasRecallIntent(text: string): boolean {
+    return RECALL_PATTERNS.some(p => p.test(text))
+}
+
+/** Stop words to strip when extracting search keywords from a recall query. */
+const STOP_WORDS = new Set([
+    'i', 'me', 'my', 'we', 'our', 'you', 'your', 'the', 'a', 'an', 'is', 'was',
+    'were', 'are', 'been', 'be', 'have', 'has', 'had', 'do', 'does', 'did',
+    'will', 'would', 'could', 'should', 'can', 'may', 'might', 'shall',
+    'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into',
+    'about', 'that', 'this', 'it', 'its', 'and', 'or', 'but', 'if', 'then',
+    'than', 'so', 'not', 'no', 'up', 'out', 'just', 'also', 'very',
+    // recall-specific noise
+    'continue', 'pick', 'resume', 'where', 'go', 'back', 'earlier',
+    'previous', 'conversation', 'talking', 'asked', 'requested',
+])
+
+/** Extract meaningful keywords from the user's recall query for ILIKE search. */
+function extractKeywords(query: string): string[] {
+    return query
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !STOP_WORDS.has(w))
+}
+
+const RECALL_MAX_CHARS = 4000
+const RECALL_LIMIT = 20
+const RECALL_DAYS = 7
+
+/**
+ * Search prior conversation sessions for context matching the user's query.
+ *
+ * Returns a formatted context block string, or null if nothing relevant found.
+ */
+export async function recallPriorConversation(
+    workspaceId: string,
+    query: string,
+    currentSessionPrefix: string,
+): Promise<string | null> {
+    const keywords = extractKeywords(query)
+    if (keywords.length === 0) return null
+
+    try {
+        const { db } = await import('@plexo/db')
+        const { conversations } = await import('@plexo/db')
+        const { sql, desc, and } = await import('@plexo/db')
+
+        const cutoff = new Date(Date.now() - RECALL_DAYS * 24 * 60 * 60 * 1000)
+
+        // Build ILIKE conditions: each keyword must appear in message OR reply
+        const keywordConditions = keywords.map(kw => {
+            const pattern = `%${kw}%`
+            return sql`(${conversations.message} ILIKE ${pattern} OR ${conversations.reply} ILIKE ${pattern})`
+        })
+
+        // At least one keyword must match (OR across keywords)
+        const keywordFilter = keywordConditions.length === 1
+            ? keywordConditions[0]!
+            : sql.join(keywordConditions, sql` OR `)
+
+        const rows = await db.select({
+            message: conversations.message,
+            reply: conversations.reply,
+            sessionId: conversations.sessionId,
+            createdAt: conversations.createdAt,
+        })
+            .from(conversations)
+            .where(and(
+                sql`${conversations.workspaceId} = ${workspaceId}`,
+                sql`${conversations.sessionId} NOT LIKE ${currentSessionPrefix + '%'}`,
+                sql`${conversations.createdAt} >= ${cutoff}`,
+                sql`(${keywordFilter})`,
+            ))
+            .orderBy(desc(conversations.createdAt))
+            .limit(RECALL_LIMIT)
+
+        if (rows.length === 0) return null
+
+        // Format as a context block, newest-first (reversed to chronological for readability)
+        const lines: string[] = []
+        let totalChars = 0
+        for (const row of rows.reverse()) {
+            const ts = row.createdAt instanceof Date
+                ? row.createdAt.toISOString().replace('T', ' ').slice(0, 19)
+                : String(row.createdAt)
+            const entry = `[${ts}] User: ${row.message}\nAssistant: ${row.reply ?? '(no reply)'}`
+            if (totalChars + entry.length > RECALL_MAX_CHARS) break
+            lines.push(entry)
+            totalChars += entry.length
+        }
+
+        if (lines.length === 0) return null
+
+        return `=== PRIOR CONVERSATION CONTEXT (recalled from earlier sessions) ===\n${lines.join('\n---\n')}\n=== END PRIOR CONTEXT ===`
+    } catch (err) {
+        logger.warn({ err, workspaceId }, 'recallPriorConversation failed — proceeding without recall')
+        return null
+    }
+}
+
 // ── Chat history helper ──────────────────────────────────────────────────────
 
 /** Maximum messages kept per conversation thread (in-memory warm cache). */

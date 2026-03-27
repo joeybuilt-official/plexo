@@ -35,7 +35,7 @@ import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
 import { db, eq, sql } from '@plexo/db'
 import { channels, sprints } from '@plexo/db'
 import { ulid } from 'ulid'
-import { chatWithAI, classifyIntent, ChannelChatHistory } from '../channel-ai.js'
+import { chatWithAI, classifyIntent, ChannelChatHistory, hasRecallIntent, recallPriorConversation } from '../channel-ai.js'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import {
     recordConversation,
@@ -725,10 +725,23 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         return
     }
 
+    // ── Cross-session memory recall ─────────────────────────────────────────
+    const sessionPrefix = `telegram:${channelId}:${chatId}:`
+    let recalledContext: string | null = null
+    if (hasRecallIntent(text)) {
+        try {
+            recalledContext = await recallPriorConversation(workspaceId, text, sessionPrefix)
+            if (recalledContext) {
+                logger.info({ chatId, workspaceId, chars: recalledContext.length }, 'Telegram: recalled prior conversation context')
+            }
+        } catch (err) {
+            logger.warn({ err, chatId }, 'Telegram: recall search failed — proceeding without')
+        }
+    }
+
     let history: import('../channel-ai.js').ChatMessage[]
     let intent: import('../channel-ai.js').IntentLabel
     try {
-        const sessionPrefix = `telegram:${channelId}:${chatId}:`
         history = await chatHistory.getOrHydrate(historyKey(channelId, chatId), workspaceId, sessionPrefix)
         intent = await classifyIntent(workspaceId, history)
     } catch (err) {
@@ -744,6 +757,9 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         let channelContext = `\nChannel context: The user is messaging you via Telegram. When they say "here" or "send it here", they mean this Telegram chat. If a task just completed, they may be asking for the results to be delivered in this conversation.`
         if (recentCompletion) {
             channelContext += `\n\nA task just completed in this chat (task ${recentCompletion.taskId.slice(0, 8)}): "${recentCompletion.summary}". If the user asks about results or wants to see the output, you can tell them you'll send the deliverable content directly.`
+        }
+        if (recalledContext) {
+            channelContext += `\n\n${recalledContext}`
         }
 
         const result = await chatWithAI(
@@ -835,12 +851,18 @@ Critical rules — follow without exception:
         logger.error({ err, chatId }, 'Failed to record Telegram proposal conversation')
     }
 
+    // When recall found prior context and this becomes a TASK/PROJECT,
+    // append the recalled context to the description so the executor has it.
+    const taskDescription = recalledContext
+        ? `${text}\n\n${recalledContext}`
+        : text
+
     pendingActions.set(actionId, {
         channelId,
         token,
         workspaceId,
         intent,
-        description: text,
+        description: taskDescription,
         from: msg.from.username ?? msg.from.first_name ?? String(msg.from.id),
         messageId: msg.message_id,
         chatId,
