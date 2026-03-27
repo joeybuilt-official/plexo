@@ -34,6 +34,7 @@ import {
     replyToChannel,
     getSessionTurns,
 } from '../conversation-log.js'
+import { hasRecallIntent, recallPriorConversation } from '../channel-ai.js'
 import { getTelegramToken } from './telegram.js'
 import { captureException, captureLifecycleEvent } from '../sentry.js'
 import { UUID_RE } from '../validation.js'
@@ -353,6 +354,20 @@ chatRouter.post('/message', async (req, res) => {
               ]
             : [{ type: 'text', text: trimmedMsg }]
 
+        // ── Cross-session memory recall ──────────────────────────────────────
+        const sessionPrefix = `webchat:${workspaceId}:${sid}:`
+        let recalledContext: string | null = null
+        if (hasRecallIntent(trimmedMsg)) {
+            try {
+                recalledContext = await recallPriorConversation(workspaceId, trimmedMsg, sessionPrefix)
+                if (recalledContext) {
+                    logger.info({ workspaceId, sessionId: sid, chars: recalledContext.length }, 'Webchat: recalled prior conversation context')
+                }
+            } catch (err) {
+                logger.warn({ err, workspaceId }, 'Webchat: recall search failed — proceeding without')
+            }
+        }
+
         let isComplex = !!intentOverride
         let suggestedCategory = categoryOverride || 'general'
 
@@ -510,7 +525,7 @@ Critical rules — follow without exception:
 9. You are the agent. Act like one. Produce results, not process descriptions.
 10. PROMPT OPTIMIZER: If the user asks you to optimize, improve, or write a prompt, DO NOT just write the prompt right away. Instead, act as a "first principles prompt optimizer": ask 2-3 specific, clarifying questions about their actual goals, context, target audience, and constraints. Only after they answer should you build the new optimized prompt.
 11. PLAIN ENGLISH ONLY: Never list tool names in backticks or code formatting. Describe what you can do in plain language: "I can read and write files, run shell commands, search the web, browse websites, and more" — not "My tools include \`read_file\`, \`write_file\`, \`shell\`". You are talking to a person, not writing documentation.
-12. CONNECTIONS: If the user asks to connect to or integrate with a service, provide a direct link: [Connect Gmail](/connections?highlight=google-workspace) or [Connect GitHub](/connections?highlight=github) etc. The link format is /connections?highlight={service-id}. Known service IDs: github, google-workspace (Gmail/Calendar), google-drive, slack, discord, jira, linear, notion, cloudflare, coolify, sentry, posthog, pagerduty, netlify, openai, ovhcloud, datadog. If the service isn't in this list and you have synthesize_extension capability, offer to build a custom connector. Always give a clickable link — never just text directions.`,
+12. CONNECTIONS: If the user asks to connect to or integrate with a service, provide a direct link: [Connect Gmail](/connections?highlight=google-workspace) or [Connect GitHub](/connections?highlight=github) etc. The link format is /connections?highlight={service-id}. Known service IDs: github, google-workspace (Gmail/Calendar), google-drive, slack, discord, jira, linear, notion, cloudflare, coolify, sentry, posthog, pagerduty, netlify, openai, ovhcloud, datadog. If the service isn't in this list and you have synthesize_extension capability, offer to build a custom connector. Always give a clickable link — never just text directions.${recalledContext ? `\n\n${recalledContext}` : ''}`,
                         messages: [
                             ...history,
                             { role: 'user' as const, content: userContent as any },
@@ -586,13 +601,18 @@ Critical rules — follow without exception:
                 if (synth.text?.trim()) cleanDescription = synth.text.trim().replace(/^"|"$/g, '')
             } catch { /* use raw message as fallback */ }
 
+            // When recall found prior context, append it so the executor has it
+            const taskDescription = recalledContext
+                ? `${cleanDescription}\n\n${recalledContext}`
+                : cleanDescription
+
             const taskId = await pushTask({
                 workspaceId,
                 type: 'automation',
                 source: 'dashboard',
                 context: {
-                    description: cleanDescription,
-                    message: cleanDescription,
+                    description: taskDescription,
+                    message: taskDescription,
                     sessionId: sid,
                     channel: 'webchat',
                 },
@@ -621,7 +641,7 @@ Critical rules — follow without exception:
         res.json({
             status: 'confirm_action',
             intent,
-            description: trimmedMsg,
+            description: recalledContext ? `${trimmedMsg}\n\n${recalledContext}` : trimmedMsg,
             suggestedCategory,
             model: `${resolvedProvider}/${resolvedModel}`,
         })
