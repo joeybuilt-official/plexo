@@ -140,50 +140,71 @@ async function pingAIProvider(): Promise<{ ok: boolean | null; latencyMs: number
 }
 
 
-healthRouter.get('/', async (_req, res) => {
+healthRouter.get('/', async (req, res) => {
     const [postgres, redis, aiProvider] = await Promise.allSettled([
         pingPostgres(),
         pingRedis(),
         pingAIProvider(),
     ])
 
-    const services = {
-        postgres: postgres.status === 'fulfilled' ? postgres.value : { ok: false, latencyMs: 0 },
-        redis: redis.status === 'fulfilled' ? redis.value : { ok: false, latencyMs: 0 },
-        ai: aiProvider.status === 'fulfilled' ? aiProvider.value : { ok: false, latencyMs: 0 },
-    }
+    const pgResult = postgres.status === 'fulfilled' ? postgres.value : { ok: false, latencyMs: 0 }
+    const redisResult = redis.status === 'fulfilled' ? redis.value : { ok: false, latencyMs: 0 }
+    const aiResult = aiProvider.status === 'fulfilled' ? aiProvider.value : { ok: false, latencyMs: 0 }
 
     // Degraded if DB or Redis is down (structural deps)
     // AI provider down is tolerated — may not be configured yet
-    const critical = services.postgres.ok && services.redis.ok
+    const critical = pgResult.ok && redisResult.ok
     const status = critical ? 'ok' : 'degraded'
 
-    // Fabric §7.6/§7.7 status — lightweight aggregate counts
-    let promptLibrary = { totalPrompts: 0, enabledPrompts: 0 }
-    let contextLayer = { totalContexts: 0, enabledContexts: 0 }
-    try {
-        const [pTotal] = await db.select({ count: sql<number>`count(*)` }).from(extensionPrompts).where(isNull(extensionPrompts.deletedAt))
-        const [pEnabled] = await db.select({ count: sql<number>`count(*)` }).from(extensionPrompts).where(and(eq(extensionPrompts.enabled, true), isNull(extensionPrompts.deletedAt)))
-        promptLibrary = { totalPrompts: Number(pTotal?.count ?? 0), enabledPrompts: Number(pEnabled?.count ?? 0) }
-    } catch { /* non-fatal */ }
-    try {
-        const [cTotal] = await db.select({ count: sql<number>`count(*)` }).from(extensionContexts).where(isNull(extensionContexts.deletedAt))
-        const [cEnabled] = await db.select({ count: sql<number>`count(*)` }).from(extensionContexts).where(and(eq(extensionContexts.enabled, true), isNull(extensionContexts.deletedAt)))
-        contextLayer = { totalContexts: Number(cTotal?.count ?? 0), enabledContexts: Number(cEnabled?.count ?? 0) }
-    } catch { /* non-fatal */ }
+    // Public response: minimal — just status and service availability booleans.
+    // Internal details (latencies, versions, worker stats, DB counts) are only
+    // returned when the caller provides a valid debug token or Supabase JWT.
+    const hasDebugToken = process.env.DEBUG_TOKEN && req.headers['x-debug-token'] === process.env.DEBUG_TOKEN
+    const hasAuth = !!req.headers.authorization?.startsWith('Bearer ')
 
-    res.status(critical ? 200 : 503).json({
+    const publicResponse: Record<string, unknown> = {
         status,
-        services,
-        version: pkg.version ?? '0.1.0',
-        uptime: Math.floor(process.uptime()),
-        fabric: {
+        services: {
+            postgres: { ok: pgResult.ok },
+            redis: { ok: redisResult.ok },
+            ai: { ok: aiResult.ok },
+        },
+    }
+
+    if (hasDebugToken || hasAuth) {
+        // Privileged caller — include full diagnostics
+        const services = {
+            postgres: pgResult,
+            redis: redisResult,
+            ai: aiResult,
+        }
+
+        // Fabric §7.6/§7.7 status — lightweight aggregate counts
+        let promptLibrary = { totalPrompts: 0, enabledPrompts: 0 }
+        let contextLayer = { totalContexts: 0, enabledContexts: 0 }
+        try {
+            const [pTotal] = await db.select({ count: sql<number>`count(*)` }).from(extensionPrompts).where(isNull(extensionPrompts.deletedAt))
+            const [pEnabled] = await db.select({ count: sql<number>`count(*)` }).from(extensionPrompts).where(and(eq(extensionPrompts.enabled, true), isNull(extensionPrompts.deletedAt)))
+            promptLibrary = { totalPrompts: Number(pTotal?.count ?? 0), enabledPrompts: Number(pEnabled?.count ?? 0) }
+        } catch { /* non-fatal */ }
+        try {
+            const [cTotal] = await db.select({ count: sql<number>`count(*)` }).from(extensionContexts).where(isNull(extensionContexts.deletedAt))
+            const [cEnabled] = await db.select({ count: sql<number>`count(*)` }).from(extensionContexts).where(and(eq(extensionContexts.enabled, true), isNull(extensionContexts.deletedAt)))
+            contextLayer = { totalContexts: Number(cTotal?.count ?? 0), enabledContexts: Number(cEnabled?.count ?? 0) }
+        } catch { /* non-fatal */ }
+
+        publicResponse.services = services
+        publicResponse.version = pkg.version ?? '0.1.0'
+        publicResponse.uptime = Math.floor(process.uptime())
+        publicResponse.fabric = {
             complianceLevel: 'full',
             specVersion: '0.4.0',
             host: 'plexo',
             workers: workerStats(),
             promptLibrary,
             contextLayer,
-        },
-    })
+        }
+    }
+
+    res.status(critical ? 200 : 503).json(publicResponse)
 })

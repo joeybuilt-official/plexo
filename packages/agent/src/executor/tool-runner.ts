@@ -40,17 +40,31 @@ parentPort?.on('message', (msg: ToolMessage) => {
     }
 })
 
+/**
+ * Validate that a resolved path stays within the task working directory.
+ * Prevents path traversal attacks (e.g. ../../etc/passwd).
+ */
+function assertContained(p: string): void {
+    const resolved = resolve(p)
+    const base = resolve(workDir)
+    if (!resolved.startsWith(base + '/') && resolved !== base) {
+        throw new Error(`Path traversal blocked: "${p}" escapes work directory`)
+    }
+}
+
 function executeTool(name: string, input: Record<string, unknown>): string {
     switch (name) {
         case 'read_file': {
             const rawPath = input.path as string
             const p = isAbsolute(rawPath) ? rawPath : resolve(workDir, rawPath)
+            assertContained(p)
             return readFileSync(p, 'utf8')
         }
 
         case 'write_file': {
             const rawPath = input.path as string
             const p = isAbsolute(rawPath) ? rawPath : resolve(workDir, rawPath)
+            assertContained(p)
             mkdirSync(dirname(p), { recursive: true })
             const content = input.content as string
             writeFileSync(p, content, 'utf8')

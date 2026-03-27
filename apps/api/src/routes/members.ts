@@ -315,7 +315,7 @@ invitesRouter.post('/:token/accept', async (req, res) => {
             .set({ usedAt: new Date(), usedByUserId: userId })
             .where(eq(workspaceInvites.token, token))
 
-        logger.info({ token, userId, workspaceId: invite.workspaceId }, 'Invite accepted')
+        logger.info({ tokenPrefix: token.slice(0, 8) + '...', userId, workspaceId: invite.workspaceId }, 'Invite accepted')
         audit(req, { workspaceId: invite.workspaceId, userId, action: 'invite.accept', resource: 'workspace_invites', resourceId: token, metadata: { role: invite.role } })
         res.json({ ok: true, workspaceId: invite.workspaceId })
     } catch (err) {

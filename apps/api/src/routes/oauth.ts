@@ -207,7 +207,7 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
         const authedUser = tokenData.authed_user as Record<string, unknown> | undefined
         const accessToken = (tokenData.access_token ?? authedUser?.access_token) as string | undefined
         if (!accessToken) {
-            logger.error({ tokenData, provider }, 'Token exchange returned no access_token')
+            logger.error({ provider, tokenDataKeys: Object.keys(tokenData), hasAuthedUser: !!authedUser }, 'Token exchange returned no access_token')
             res.send(popupCloseScript({ ok: false, error: 'token_exchange_failed', provider }))
             return
         }

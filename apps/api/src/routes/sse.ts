@@ -12,8 +12,12 @@ export const sseRouter: RouterType = Router()
 sseRouter.get('/', optionalSupabaseAuth, async (req, res) => {
     const workspaceId = (req.query.workspaceId as string) ?? 'global'
 
-    // Validate workspace access — authenticated user must be a member
-    if (workspaceId !== 'global' && req.user) {
+    // Validate workspace access — require auth for workspace-scoped streams
+    if (workspaceId !== 'global') {
+        if (!req.user) {
+            res.status(401).json({ error: 'Authentication required for workspace SSE streams' })
+            return
+        }
         try {
             const [membership] = await db.select({ userId: workspaceMembers.userId })
                 .from(workspaceMembers)
@@ -24,7 +28,9 @@ sseRouter.get('/', optionalSupabaseAuth, async (req, res) => {
                 return
             }
         } catch {
-            // DB error — allow connection (non-fatal for SSE)
+            // DB error — deny by default for security
+            res.status(503).json({ error: 'Unable to verify workspace membership' })
+            return
         }
     }
 
