@@ -60,12 +60,12 @@ export async function chatWithAI(
             finalSystem += `\n\nYour identity: you are Plexo, running on provider "${providerKey}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.\n\nHere is your full state and self-awareness snapshot (tools, agents, skills, memory, integrations, channels, exact model, provider, and workspace):\n${JSON.stringify(snapshot, null, 2)}`
         }
 
-        const result = await withFallback(aiSettings, 'summarization', async (model) =>
+        const result = await withFallback(aiSettings, 'conversation', async (model) =>
             generateText({
                 model,
                 system: finalSystem,
                 messages: messages.map(m => ({ role: m.role, content: m.content })),
-                abortSignal: AbortSignal.timeout(30_000),
+                abortSignal: AbortSignal.timeout(15_000),
             }),
             {
                 workspaceId,

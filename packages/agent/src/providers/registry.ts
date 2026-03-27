@@ -51,6 +51,7 @@ export type TaskType =
     | 'codeGeneration'
     | 'verification'
     | 'summarization'
+    | 'conversation'
     | 'classification'
     | 'logAnalysis'
 
@@ -64,6 +65,7 @@ export const DEFAULT_MODEL_ROUTING: Record<TaskType, string> = {
     codeGeneration: 'claude-sonnet-4-5',
     verification: 'claude-sonnet-4-5',
     summarization: 'claude-haiku-4-5',
+    conversation: 'claude-haiku-4-5',
     classification: 'claude-haiku-4-5',
     logAnalysis: 'claude-haiku-4-5',
 }
@@ -153,10 +155,21 @@ export function buildModel(
         'summarization',
         'planning',
         'logAnalysis',
-        'conversation',   // plain chat replies
     ])
-    if (modelId === 'deepseek-reasoner' && !REASONER_SAFE_TYPES.has(taskType)) {
-        modelId = 'deepseek-chat'
+
+    // Conversation and classification MUST use a fast model — reasoning models
+    // add 15-30s of think-time that makes chat feel broken. Force to chat model.
+    const FAST_MODEL_REQUIRED: Set<string> = new Set([
+        'conversation',
+        'classification',
+    ])
+
+    if (modelId === 'deepseek-reasoner') {
+        if (FAST_MODEL_REQUIRED.has(taskType)) {
+            modelId = 'deepseek-chat'
+        } else if (!REASONER_SAFE_TYPES.has(taskType)) {
+            modelId = 'deepseek-chat'
+        }
     }
 
     switch (providerKey) {
