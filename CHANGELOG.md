@@ -132,12 +132,41 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **Real-time agent status** — `GET /agent/status` now returns live `status`, `activeTaskId`, `currentModel`, `sessionCount`, `lastActivity` instead of a hardcoded `{status:'idle'}` stub.
 - **Inference gateway login fix** — `redirectTo: '/'` after login (relative path respects actual host), `ADMIN_URL` baked in as Docker build ARG so `allowedOrigins` includes the real domain at build time. Fixes Server Action CSRF rejection on `gateway-admin.getplexo.com`.
 - **Skills page type safety** — `!!plugin.settings?.isGenerated` replaced with strict `=== true` equality check.
+- **Context Library** — Full CRUD for reusable context documents (instructions, reference material, specs). SDK bridge provides context to the agent at task time. Settings UI for managing workspace context entries.
+- **Connection-to-channel bridge** — Communication connections (Telegram, Slack, Discord) now automatically register as active channels, unifying the connection and channel models.
+- **Custom MCP server connections** — Users can connect arbitrary MCP servers (SSE transport) and custom REST APIs with test-connectivity validation from the Connections page.
+- **Agent governing principles** — Core behavioral guardrails (smallest viable action, planner proportionality) encoded as code-level constraints rather than prompt-only instructions.
+- **Post-task reflection** — Agent reflects after task completion and promotes successful execution patterns into persistent behavior rules.
+- **Onboarding wizard** — In-dashboard setup wizard guides new users through provider configuration, connection setup, and first task. Improved empty states across all pages.
+- **Beta program documentation** — Cohort 1 brief (25 technical self-hosters), Cohort 2 brief (75 broader users), structured feedback form, and public announcement checklist.
 
 ### Changed
 - `cancelTask` callback in tasks page moved after `load` callback to respect JavaScript TDZ (was referencing `load` before declaration).
+- **Fast model routing for conversation** — Chat classifier and conversation responses now forced to use the fastest available model, skipping the full routing pipeline for non-task intents.
+- **Chat startup parallelized** — Session loading, workspace resolution, and history fetch run concurrently; obvious messages (greetings, short questions) skip the classifier entirely.
+
+### Fixed
+- **Telegram webhook initialization** — Webhook registration now properly awaited on startup; HTTP responses validated; webhook re-registered on configuration changes.
+- **Telegram chat history persistence** — Chat history survives container restarts; channel loading retried on init failure with diagnostic logging.
+- **Telegram cross-session recall** — Agent recalls prior conversations from memory when users reference previous interactions.
+- **Web chat cross-session recall** — Same memory-backed conversation recall wired into the web chat handler.
+- **Web chat session persistence** — Sessions persist across page refreshes; consecutive same-role messages deduplicated to prevent provider rejections.
+- **SSE authentication bypass** — Critical fix: SSE event streams now require valid session authentication, preventing unauthorized access to real-time task updates.
+- **OAuth token leak in client-side requests** — Tokens no longer exposed in browser-accessible API calls.
+- **Path traversal in asset routes** — File paths sanitized to prevent directory traversal attacks.
+- **Health endpoint information disclosure** — Health check no longer exposes internal system details.
+- **Workspace isolation validation** — Added isolation tests confirming zero cross-workspace data bleed; fixed gaps in workspace-scoped detail routes.
+- **Ollama Docker host detection** — Localhost URLs automatically rewritten to Docker host gateway; borrowed provider URLs detected and rewritten correctly.
+- **Disabled providers excluded from fallback chain** — UI no longer displays disabled providers in the model routing fallback chain.
+- **Conversations page workspace resolution** — Fixed workspace ID resolution on the conversations page.
+- **Agent response tone** — Agent now responds in plain English instead of technical jargon; provides clickable connection links instead of text directions.
+- **Task step expansion** — Individual task steps are now expandable/collapsible in the task detail view for easier navigation of multi-step executions.
+- **Unified error and blocked panels** — Task error states and action-required states consolidated into a single consistent UI pattern.
+- **Logs in WorksPanel** — Execution logs now viewable directly in the Works panel alongside task deliverables.
 
 ### Tests
 - Added E2E tests: task cancel round-trip (T2), memory write via direct API (T3), task assets route shape (T4), agent status real-time shape validation.
+- Workspace isolation tests: cross-workspace task visibility, memory isolation, connection scoping.
 
 ---
 

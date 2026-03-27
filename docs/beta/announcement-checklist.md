@@ -23,17 +23,16 @@ The announcement happens when every box is checked. There is no date.
 
 ## Beta Completion
 
-- [ ] Cohort 1 (25 testers) complete, findings triaged, critical issues fixed
+- [ ] Cohort 1 (25 testers) complete, findings triaged, critical issues resolved
 - [ ] Cohort 2 (75 testers) complete
 - [ ] Majority of Cohort 2 answers Yes to "Did the agent do what you asked?"
 - [ ] Majority of Cohort 2 answers Yes to "Did you understand what it produced?"
-- [ ] Zero open Critical or High findings in any category
-- [ ] Self-host guide followed successfully by ≥10 independent people
+- [ ] Zero open Critical or High security findings
+- [ ] Self-host guide validated by 10+ independent users
 
 ## Announcement Assets
 
-- [ ] getplexo.com live with no "beta" language
+- [ ] getplexo.com live (no beta language)
 - [ ] GitHub v1.0.0 release published with changelog
-- [ ] Announcement post written for Hacker News
-- [ ] Twitter/X announcement ready
-- [ ] README updated with v1.0 quickstart
+- [ ] README accurate and all links work
+- [ ] Announcement posted (HN, Twitter/X, relevant communities)
