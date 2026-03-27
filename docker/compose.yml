@@ -4,6 +4,10 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
+    # Unique hostname avoids DNS collision when deployed via Coolify, which
+    # connects the api container to the Coolify network where 'postgres'
+    # already resolves to coolify-db. 'plexo-db' is scoped to this network only.
+    hostname: plexo-db
     environment:
       POSTGRES_USER: plexo
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plexo}
@@ -45,7 +49,7 @@ services:
       postgres:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@postgres:5432/plexo
+      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
       MIGRATIONS_DIR: /app/packages/db/drizzle
     # 256m RAM + up to 256m swap = 512m ceiling total.
     # OOM-kill enforced by cgroup — prevents runaway swap consumption.
@@ -72,13 +76,19 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
-      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@postgres:5432/plexo
+      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
       REDIS_URL: redis://redis:6379
       PUBLIC_URL: ${PUBLIC_URL}
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
       SESSION_SECRET: ${SESSION_SECRET}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # Supabase Auth (shared joeybuilt-platform instance)
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -113,6 +123,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - generated_skills:/var/plexo/generated-skills
+    # When Coolify connects this container to its proxy network, 'postgres'
+    # may resolve to coolify-db instead of our database. Use the unique
+    # hostname 'plexo-db' (set on the postgres service) to avoid collisions.
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
       interval: 30s
@@ -130,8 +143,6 @@ services:
       dockerfile: docker/Dockerfile.web
       args:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
-        NEXT_PUBLIC_SUPABASE_AUTH_URL: ${NEXT_PUBLIC_SUPABASE_AUTH_URL:-}
-        NEXT_PUBLIC_SUPABASE_AUTH_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_AUTH_ANON_KEY:-}
     restart: unless-stopped
     depends_on:
       api:
@@ -139,16 +150,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      AUTH_URL: ${PUBLIC_URL}
-      AUTH_TRUST_HOST: "true"
-      AUTH_SECRET: ${SESSION_SECRET}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      # Supabase Auth (shared joeybuilt-platform instance)
+      NEXT_PUBLIC_SUPABASE_AUTH_URL: ${NEXT_PUBLIC_SUPABASE_AUTH_URL:-${SUPABASE_URL:-}}
+      NEXT_PUBLIC_SUPABASE_AUTH_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_AUTH_ANON_KEY:-}
       NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN:-}
       NEXT_PUBLIC_API_URL: ${PUBLIC_URL}/api
       INTERNAL_API_URL: http://api:3001
     healthcheck:
-      test: [ "CMD-SHELL", "wget --spider -q http://127.0.0.1:3000/login 2>/dev/null || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3000 2>/dev/null | grep -q html || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -178,15 +187,19 @@ services:
     mem_limit: 256m
     memswap_limit: 384m
 
-  # ── Reverse Proxy ────────────────────────────────────────
-
+  # ── Reverse Proxy (self-hosted only) ─────────────────────
+  # For managed deployments (Coolify), the platform proxy handles TLS.
+  # To enable caddy for self-hosted, use: docker compose --profile selfhosted up
   caddy:
+    profiles: ["selfhosted"]
     build:
       context: .
       dockerfile: docker/Dockerfile.caddy
     restart: unless-stopped
-    expose:
-      - "80"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
     environment:
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
     volumes:

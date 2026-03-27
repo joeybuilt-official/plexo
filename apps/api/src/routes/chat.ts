@@ -220,15 +220,23 @@ chatRouter.post('/message', async (req, res) => {
     }
 
     try {
-        // Verify workspace exists
-        const [ws] = await db.select({ id: workspaces.id }).from(workspaces)
-            .where(eq(workspaces.id, workspaceId)).limit(1)
+        // ── Parallel load: workspace + AI settings + session history ──────────
+        // These are all independent — run them concurrently instead of sequentially.
+        const sid = sessionId ?? 'default'
+        const [wsResult, aiResult, dbTurns] = await Promise.all([
+            db.select({ id: workspaces.id, name: workspaces.name, settings: workspaces.settings })
+                .from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1),
+            loadWorkspaceAISettings(workspaceId),
+            getSessionTurns(workspaceId, sid, 50),
+        ])
+
+        const [ws] = wsResult
         if (!ws) {
             res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' } })
             return
         }
 
-        const { credential, aiSettings } = await loadWorkspaceAISettings(workspaceId)
+        const { credential, aiSettings } = aiResult
         if (!credential || !aiSettings) {
             res.status(503).json({ error: { code: 'NO_AI_PROVIDER', message: 'No AI provider configured. Go to Settings → AI Providers.' } })
             return
@@ -241,43 +249,29 @@ chatRouter.post('/message', async (req, res) => {
             return
         }
 
-
+        // Extract persona from workspace settings (already loaded above — no extra query)
         let agentName = 'Plexo'
         let agentPersona = ''
         let agentTagline = ''
-        try {
-            const [wsRow] = await db
-                .select({ name: workspaces.name, settings: workspaces.settings })
-                .from(workspaces)
-                .where(eq(workspaces.id, workspaceId))
-                .limit(1)
-            if (wsRow) {
-                const s = (wsRow.settings ?? {}) as Record<string, unknown>
-                if (typeof s.agentName === 'string' && s.agentName) agentName = s.agentName
-                if (typeof s.agentPersona === 'string' && s.agentPersona) agentPersona = s.agentPersona
-                if (typeof s.agentTagline === 'string' && s.agentTagline) agentTagline = s.agentTagline
-            }
-        } catch (err) { logger.error({ err }, "Failed to record conversation") }
+        const s = (ws.settings ?? {}) as Record<string, unknown>
+        if (typeof s.agentName === 'string' && s.agentName) agentName = s.agentName
+        if (typeof s.agentPersona === 'string' && s.agentPersona) agentPersona = s.agentPersona
+        if (typeof s.agentTagline === 'string' && s.agentTagline) agentTagline = s.agentTagline
 
-        // Resolve the actual active model ID for identity injection
         const resolvedModel = config.model ?? PROVIDER_DEFAULT_MODELS[providerKey] ?? providerKey
         const resolvedProvider = String(providerKey)
 
-        const { buildIntrospectionSnapshot } = await import('@plexo/agent/introspection')
-        const snapshot = await buildIntrospectionSnapshot(workspaceId, resolvedProvider, resolvedModel)
-
-        const identityLine = `Your identity: you are ${agentName}, running on provider "${resolvedProvider}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.\n\nHere is your full state and self-awareness snapshot (tools, agents, skills, memory, integrations, channels, exact model, provider, and workspace):\n${JSON.stringify(snapshot, null, 2)}`
+        // Slim identity line — skip full introspection snapshot for conversation mode.
+        // The snapshot (9 DB queries, ~10KB JSON) is only loaded lazily for TASK/PROJECT paths.
+        const identityLine = `Your identity: you are ${agentName}, running on provider "${resolvedProvider}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully.`
         const personaPrefix = agentPersona ? agentPersona + '\n\n' : ''
         const taglineHint = agentTagline ? ` (${agentTagline})` : ''
 
         // Classify intent — skip if caller forced CONVERSATION (e.g. "Just answer" button)
         // Default to CONVERSATION — tasks only get proposed when classifier explicitly says so.
         let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = 'CONVERSATION'
-        const sid = sessionId ?? 'default'
-        
-        type ContentPart = { type: 'text'; text: string } | { type: 'image'; image: string | URL; mimeType?: string }
 
-        const dbTurns = await getSessionTurns(workspaceId, sid, 50)
+        type ContentPart = { type: 'text'; text: string } | { type: 'image'; image: string | URL; mimeType?: string }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK message types are complex union types
         const history: any[] = []
         for (const t of dbTurns) {
@@ -365,42 +359,72 @@ chatRouter.post('/message', async (req, res) => {
         if (intentOverride) {
             intent = intentOverride
         } else if (!forceConversation) {
-            try {
-                const classifyMessages = [
-                    ...textHistory,
-                    { role: 'user' as const, content: trimmedMsg }
-                ] as any[]
+            // Fast local heuristic: skip the LLM classifier for messages that are
+            // obviously conversational (greetings, questions, short messages, follow-ups).
+            // This saves 500ms-2s per message for the common case.
+            const lower = trimmedMsg.toLowerCase()
+            const wordCount = trimmedMsg.split(/\s+/).length
+            const isObviousConversation =
+                wordCount <= 5 ||                                                  // very short messages
+                /^(hi|hey|hello|yo|sup|what|how|why|when|where|who|can you|do you|are you|tell me|thanks|thank you|ok|okay|sure|yes|no|yeah|nah|again|try again|test)/i.test(lower) ||
+                /\?$/.test(trimmedMsg) ||                                          // questions
+                /^(remember|always|never|don't|make sure)\s/i.test(lower)           // memory instructions
 
-                const classifyResult = await withFallback(aiSettings, 'classification', async (model) =>
-                    generateText({
-                        model,
-                        system: CLASSIFY_SYSTEM,
-                        messages: classifyMessages,
-                        abortSignal: AbortSignal.timeout(10_000),
-                    }),
-                    fallbackOpts(workspaceId),
-                )
-                const text = classifyResult.text?.trim() ?? ''
-                const upperText = text.toUpperCase()
-                const parts = text.split(/\s+/)
-                if (upperText.startsWith('TASK')) intent = 'TASK'
-                else if (upperText.startsWith('PROJECT')) intent = 'PROJECT'
-                else if (upperText.startsWith('MEMORY')) intent = 'MEMORY'
-                else intent = 'CONVERSATION'
+            const isObviousMemory = /^(remember|always|never|don't|dont)\s/i.test(lower)
 
-                if (parts[1]?.toUpperCase().startsWith('COMPLEX')) isComplex = true
-
-                if (intent === 'PROJECT' && parts[2]) {
-                    const cat = parts[2].toLowerCase()
-                    const validCats = ['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general']
-                    if (validCats.includes(cat)) suggestedCategory = cat
-                }
-            } catch {
-                // On classification failure, default to CONVERSATION
+            if (isObviousMemory) {
+                intent = 'MEMORY'
+            } else if (isObviousConversation) {
                 intent = 'CONVERSATION'
+            } else {
+                // Ambiguous — fall back to LLM classifier
+                try {
+                    const classifyMessages = [
+                        ...textHistory,
+                        { role: 'user' as const, content: trimmedMsg }
+                    ] as any[]
+
+                    const classifyResult = await withFallback(aiSettings, 'classification', async (model) =>
+                        generateText({
+                            model,
+                            system: CLASSIFY_SYSTEM,
+                            messages: classifyMessages,
+                            abortSignal: AbortSignal.timeout(10_000),
+                        }),
+                        fallbackOpts(workspaceId),
+                    )
+                    const text = classifyResult.text?.trim() ?? ''
+                    const upperText = text.toUpperCase()
+                    const parts = text.split(/\s+/)
+                    if (upperText.startsWith('TASK')) intent = 'TASK'
+                    else if (upperText.startsWith('PROJECT')) intent = 'PROJECT'
+                    else if (upperText.startsWith('MEMORY')) intent = 'MEMORY'
+                    else intent = 'CONVERSATION'
+
+                    if (parts[1]?.toUpperCase().startsWith('COMPLEX')) isComplex = true
+
+                    if (intent === 'PROJECT' && parts[2]) {
+                        const cat = parts[2].toLowerCase()
+                        const validCats = ['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general']
+                        if (validCats.includes(cat)) suggestedCategory = cat
+                    }
+                } catch {
+                    intent = 'CONVERSATION'
+                }
             }
         }
 
+
+        // Lazy-load full introspection snapshot only for TASK/PROJECT paths
+        // (skipped for CONVERSATION to save 80-150ms of DB queries)
+        let fullIdentityLine = identityLine
+        if (intent === 'TASK' || intent === 'PROJECT') {
+            try {
+                const { buildIntrospectionSnapshot } = await import('@plexo/agent/introspection')
+                const snapshot = await buildIntrospectionSnapshot(workspaceId, resolvedProvider, resolvedModel)
+                fullIdentityLine = `${identityLine}\n\nHere is your full state and self-awareness snapshot:\n${JSON.stringify(snapshot, null, 2)}`
+            } catch { /* non-fatal — proceed with slim identity */ }
+        }
 
         // Consultative routing: Check for recommended model
         let recommendedSwitch = ''

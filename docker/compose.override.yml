@@ -1,3 +1,0 @@
-services:
-  # Port mappings removed to prevent conflicts on production VPS.
-  # Use .env for configuration.
