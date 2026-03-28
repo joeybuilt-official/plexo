@@ -248,6 +248,40 @@ connectionsRouter.get('/github/branches', async (req, res) => {
     }
 })
 
+// ── POST /api/connections/mcp/discover — probe an MCP server for tools ───────
+
+connectionsRouter.post('/mcp/discover', async (req, res) => {
+    const { transport, url, command, args, api_key } = req.body as Record<string, string>
+    if (!transport || !['sse', 'stdio'].includes(transport)) {
+        res.status(400).json({ error: { code: 'INVALID_TRANSPORT', message: 'transport must be "sse" or "stdio"' } })
+        return
+    }
+    if (transport === 'sse' && !url) {
+        res.status(400).json({ error: { code: 'MISSING_URL', message: 'SSE transport requires a url' } })
+        return
+    }
+    if (transport === 'stdio' && !command) {
+        res.status(400).json({ error: { code: 'MISSING_COMMAND', message: 'stdio transport requires a command' } })
+        return
+    }
+
+    try {
+        const { discoverMCPTools } = await import('@plexo/agent/mcp/client')
+        const tools = await discoverMCPTools({
+            transport: transport as 'sse' | 'stdio',
+            url,
+            command,
+            args: args ? args.split(',').map(s => s.trim()) : undefined,
+            apiKey: api_key,
+        })
+        res.json({ tools, count: tools.length })
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        logger.warn({ err, transport, url, command }, 'MCP discovery failed')
+        res.status(502).json({ error: { code: 'MCP_DISCOVERY_FAILED', message: msg } })
+    }
+})
+
 connectionsRouter.get('/installed', async (req, res) => {
     const { workspaceId } = req.query as Record<string, string>
 
@@ -355,7 +389,33 @@ connectionsRouter.post('/install', async (req, res) => {
             }
         }
 
-        res.status(201).json({ id: installed!.id, message: 'Connection installed' })
+        // Bridge: MCP connections auto-discover tools on install
+        let mcpTools: string[] | undefined
+        if (reg.category === 'mcp' || registryId === 'mcp_custom') {
+            try {
+                const { connectMCP } = await import('@plexo/agent/mcp/client')
+                const mcpConfig = {
+                    transport: (credentials.transport as 'sse' | 'stdio') ?? 'sse',
+                    url: credentials.url,
+                    command: credentials.command,
+                    args: credentials.args ? credentials.args.split(',').map((s: string) => s.trim()) : undefined,
+                    apiKey: credentials.api_key,
+                }
+                const tools = await connectMCP(installed!.id, mcpConfig)
+                mcpTools = tools.map(t => t.name)
+                // Update the installed connection with discovered tools
+                if (mcpTools.length > 0) {
+                    await db.update(installedConnections)
+                        .set({ enabledTools: mcpTools })
+                        .where(eq(installedConnections.id, installed!.id))
+                }
+                logger.info({ connectionId: installed!.id, toolCount: mcpTools.length }, 'MCP tools discovered on install')
+            } catch (mcpErr) {
+                logger.warn({ err: mcpErr, registryId }, 'MCP tool discovery failed on install — connection saved without tools')
+            }
+        }
+
+        res.status(201).json({ id: installed!.id, message: 'Connection installed', ...(mcpTools ? { discoveredTools: mcpTools } : {}) })
     } catch (err: unknown) {
         logger.error({ err }, 'POST /api/connections/install failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Install failed' } })

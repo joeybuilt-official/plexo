@@ -24,6 +24,7 @@
     "./memory/prompt-improvement": "./src/memory/prompt-improvement.ts",
     "./memory/corrections": "./src/memory/corrections.ts",
     "./memory/consolidation": "./src/memory/consolidation.ts",
+    "./mcp/client": "./src/mcp/client.ts",
     "./one-way-door": "./src/one-way-door.ts",
     "./persistent-pool": "./src/plugins/persistent-pool.ts",
     "./event-bus": "./src/plugins/event-bus.ts",
