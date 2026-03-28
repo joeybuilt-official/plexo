@@ -18,6 +18,7 @@ import { requestApproval, waitForDecision } from '../one-way-door.js'
 import { searchMemory } from '../memory/store.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
 import { join } from 'node:path'
+import { ToolWorker } from './tool-worker.js'
 
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
@@ -91,13 +92,38 @@ function parseTestOutput(output: string): ParsedTestResult[] {
     return results
 }
 
+// ── Tool isolation flag ───────────────────────────────────────
+const TOOL_ISOLATION = process.env.PLEXO_TOOL_ISOLATION === '1'
+
+/** Tools eligible for worker-thread isolation */
+const WORKER_ELIGIBLE_TOOLS = new Set(['read_file', 'write_file', 'shell'])
+
 // ── Tool dispatcher ───────────────────────────────────────────
 
 async function dispatchTool(
     name: string,
     input: Record<string, unknown>,
     ctx: ExecutionContext,
+    worker?: ToolWorker | null,
 ): Promise<string> {
+    // Route eligible tools through the ToolWorker when isolation is active.
+    // task_complete and other non-IO tools always run inline (they need DB access).
+    if (worker && WORKER_ELIGIBLE_TOOLS.has(name)) {
+        try {
+            return await worker.execute(ulid(), name, input)
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            // TOOL_TIMEOUT: step continues with an error string, executor does NOT crash
+            if (msg.startsWith('TOOL_TIMEOUT:')) {
+                return `ERROR: ${msg} — tool killed after timeout`
+            }
+            // WORKER_CRASH / WORKER_TERMINATED: also non-fatal to the executor
+            if (msg.startsWith('WORKER_CRASH:') || msg === 'WORKER_TERMINATED') {
+                return `ERROR: ${msg}`
+            }
+            return `ERROR: ${msg}`
+        }
+    }
     const { readFileSync, writeFileSync, mkdirSync, existsSync } = await import('node:fs')
     const { dirname, resolve, isAbsolute, relative } = await import('node:path')
 
@@ -317,14 +343,14 @@ async function dispatchTool(
 // ── Vercel AI SDK tool definitions (AI SDK v6 format) ────────────────────────
 // Tool.inputSchema replaces "parameters" from earlier SDK versions.
 
-function buildTools(ctx: ExecutionContext) {
+function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
     return {
         read_file: tool({
             description: 'Read the contents of a file at the given path.',
             inputSchema: z.object({
                 path: z.string().describe('Absolute or repo-relative path to read'),
             }),
-            execute: async (input) => dispatchTool('read_file', input as Record<string, unknown>, ctx),
+            execute: async (input) => dispatchTool('read_file', input as Record<string, unknown>, ctx, worker),
         }),
         write_file: tool({
             description: 'Write content to a file. Creates the file if it does not exist.',
@@ -332,7 +358,7 @@ function buildTools(ctx: ExecutionContext) {
                 path: z.string().describe('Path to write to'),
                 content: z.string().describe('Full file content to write'),
             }),
-            execute: async (input) => dispatchTool('write_file', input as Record<string, unknown>, ctx),
+            execute: async (input) => dispatchTool('write_file', input as Record<string, unknown>, ctx, worker),
         }),
         shell: tool({
             description: 'Run a shell command. Avoid destructive operations; prefer reads first.',
@@ -340,7 +366,7 @@ function buildTools(ctx: ExecutionContext) {
                 command: z.string().describe('Shell command to execute'),
                 cwd: z.string().optional().describe('Working directory (optional)'),
             }),
-            execute: async (input) => dispatchTool('shell', input as Record<string, unknown>, ctx),
+            execute: async (input) => dispatchTool('shell', input as Record<string, unknown>, ctx, worker),
         }),
         task_complete: tool({
             description: 'Signal that all steps are done and provide a structured deliverable. Include works and verificationSteps to describe what was produced and how to verify it.',
@@ -959,9 +985,13 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
 
     const stepStart = Date.now()
 
+    // ── Tool isolation: create a ToolWorker when opt-in via env var ─────────
+    const workDir = (ctx.sprintWorkDir as string | undefined) ?? process.cwd()
+    const toolWorker = TOOL_ISOLATION ? new ToolWorker(workDir) : null
+
     const connectionTools = await loadConnectionTools(ctx.workspaceId)
     const pluginTools = await loadPluginTools(ctx.workspaceId)
-    const allTools = { ...buildTools(ctx), ...connectionTools, ...pluginTools }
+    const allTools = { ...buildTools(ctx, toolWorker), ...connectionTools, ...pluginTools }
 
     // Per-task pre-flight: block if already at task ceiling from prior retries
     if (ctx.taskCostCeilingUsd != null && totalCost >= ctx.taskCostCeilingUsd) {
@@ -1425,6 +1455,11 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
 
     // Clean up browser if it was used during this task
     await closeBrowser().catch(() => {})
+
+    // Clean up tool worker thread
+    if (toolWorker) {
+        await toolWorker.destroy().catch(() => {})
+    }
 
     return executionResult
 }
