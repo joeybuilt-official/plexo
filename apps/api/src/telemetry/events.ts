@@ -214,3 +214,126 @@ export function emitRsiProposalResolved(opts: {
         action: opts.action,
     }).catch(() => { /* never throws */ })
 }
+
+// ── Quality signals ─────────────────────────────────────────────────────────
+
+/**
+ * Emit when the intent classifier makes a decision.
+ * No message content — only the classification result and confidence.
+ */
+export function emitClassifierDecision(opts: {
+    intent: string           // TASK, PROJECT, CONVERSATION
+    confidence: number       // 0.0-1.0
+    source: string           // chat, telegram, slack, discord
+    overridden: boolean      // true if principle override forced CONVERSATION
+    modelFamily: string      // which model did the classification
+}): void {
+    void emit('classifier_decision', {
+        intent: opts.intent,
+        confidence_bucket: opts.confidence < 0.5 ? '<0.5' : opts.confidence < 0.72 ? '0.5-0.72' : opts.confidence < 0.9 ? '0.72-0.9' : '0.9+',
+        source: opts.source,
+        overridden: opts.overridden,
+        model_family: modelFamily(opts.modelFamily),
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * Emit when a user correction is detected.
+ * No message content — only the correction type.
+ */
+export function emitUserCorrection(opts: {
+    correctionType: string   // explicit_rejection, output_edit, instruction_override
+    hadRecentTask: boolean   // was there a task completion in the last 5 min?
+}): void {
+    void emit('user_correction', {
+        correction_type: opts.correctionType,
+        had_recent_task: opts.hadRecentTask,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * Emit when a tool fails during execution.
+ * No arguments or output — only the tool name and failure type.
+ */
+export function emitToolFailure(opts: {
+    tool: string             // read_file, shell, web_search, etc.
+    failureType: string      // timeout, error, crash, permission_denied
+    modelFamily: string
+}): void {
+    void emit('tool_failure', {
+        tool: opts.tool,
+        failure_type: opts.failureType,
+        model_family: modelFamily(opts.modelFamily),
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * Emit when the model router falls back to a secondary provider.
+ * No request content — only the routing decision.
+ */
+export function emitRoutingFallback(opts: {
+    primaryFamily: string
+    fallbackFamily: string
+    reason: string           // auth_error, timeout, rate_limit, model_not_found
+}): void {
+    void emit('routing_fallback', {
+        primary_family: modelFamily(opts.primaryFamily),
+        fallback_family: modelFamily(opts.fallbackFamily),
+        reason: opts.reason,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * Emit quality score distribution for completed tasks.
+ * Bucketed — no raw scores or task content.
+ */
+export function emitQualityScore(opts: {
+    score: number            // 0.0-1.0
+    taskType: string
+    modelFamily: string
+    stepCountBucket: string
+}): void {
+    const scoreBucket = opts.score < 0.3 ? '<0.3'
+        : opts.score < 0.5 ? '0.3-0.5'
+        : opts.score < 0.7 ? '0.5-0.7'
+        : opts.score < 0.9 ? '0.7-0.9'
+        : '0.9+'
+    void emit('quality_score', {
+        score_bucket: scoreBucket,
+        task_type: opts.taskType,
+        model_family: modelFamily(opts.modelFamily),
+        step_count_bucket: opts.stepCountBucket,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * Emit when reflection (success or failure track) fires.
+ * Tracks whether the system is learning from outcomes.
+ */
+export function emitReflectionEvent(opts: {
+    track: 'success' | 'failure'
+    observationCount: number  // how many observations extracted
+    taskType: string
+}): void {
+    void emit('reflection_event', {
+        track: opts.track,
+        observation_count: opts.observationCount,
+        task_type: opts.taskType,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * Emit conversation response latency.
+ * Bucketed — no message content.
+ */
+export function emitConversationLatency(opts: {
+    source: string           // chat, telegram, slack, discord
+    latencyMs: number
+    modelFamily: string
+}): void {
+    void emit('conversation_latency', {
+        source: opts.source,
+        latency_bucket: bucketMs(opts.latencyMs),
+        model_family: modelFamily(opts.modelFamily),
+    }).catch(() => { /* never throws */ })
+}

@@ -676,6 +676,8 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         return
     }
 
+    const _msgReceivedAt = Date.now()
+
     // Check AI provider before doing anything else
     const { credential } = await loadWorkspaceAISettings(workspaceId)
     if (!credential) {
@@ -759,12 +761,16 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
             if (hasCorrectionIntent(text)) {
                 const lastAssistant = history.filter(m => m.role === 'assistant').pop()?.content
                 if (lastAssistant) {
+                    const recentComp = getRecentCompletion(channelId, chatId)
                     void recordCorrection({
                         workspaceId,
                         originalOutput: lastAssistant,
                         correctionType: 'explicit_rejection',
                         userMessage: text,
                     }).catch((e: unknown) => logger.warn({ err: e }, 'Correction recording failed'))
+                    // Quality telemetry — correction type only, no content
+                    const { emitUserCorrection } = await import('../telemetry/events.js')
+                    emitUserCorrection({ correctionType: 'explicit_rejection', hadRecentTask: !!recentComp })
                 }
             }
         } catch { /* corrections module not available — non-fatal */ }
@@ -815,6 +821,11 @@ Critical rules — follow without exception:
         }).catch((err: Error) => logger.warn({ err }, 'Failed to record Telegram conversation'))
 
         await sendMessage(token, chatId, replyText)
+        // Quality telemetry — response latency, no content
+        try {
+            const { emitConversationLatency } = await import('../telemetry/events.js')
+            emitConversationLatency({ source: 'telegram', latencyMs: Date.now() - _msgReceivedAt, modelFamily: 'unknown' })
+        } catch { /* non-fatal */ }
         emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'telegram' })
         captureLifecycleEvent('channel.conversation_turn', 'info', {
             channel: 'telegram',

@@ -328,6 +328,41 @@ export default function PrivacyPage() {
                         </button>
                     </Section>
 
+                    {/* ── Quality Telemetry ── */}
+                    <Section
+                        title="Quality Telemetry"
+                        description="When enabled, anonymous quality signals help improve Plexo for everyone. All data is bucketed and aggregated — no task content, messages, or personal data is ever sent."
+                    >
+                        <div className="rounded-xl border border-border bg-canvas px-4 py-3.5">
+                            <p className="text-sm font-medium text-text-primary mb-2">
+                                {config.enabled ? 'Sending quality signals' : 'Quality telemetry disabled'}
+                            </p>
+                            <p className="text-xs text-text-muted mb-3">
+                                Controlled by the same toggle as crash reporting above.
+                            </p>
+                            <div className="space-y-1.5 text-xs text-text-muted">
+                                <p className="font-medium text-text-secondary">What is sent (when enabled):</p>
+                                <ul className="list-disc pl-4 space-y-0.5">
+                                    <li>Classifier decisions — intent type + confidence bucket (no message text)</li>
+                                    <li>Task outcomes — quality score bucket, duration bucket, step count bucket</li>
+                                    <li>Tool failures — tool name + failure type (no arguments or output)</li>
+                                    <li>Routing fallbacks — provider family only (no API keys or model IDs)</li>
+                                    <li>Correction counts — type only (no user messages)</li>
+                                    <li>Response latency — bucketed duration per channel</li>
+                                    <li>RSI anomaly types detected</li>
+                                </ul>
+                                <p className="font-medium text-text-secondary mt-2">What is never sent:</p>
+                                <ul className="list-disc pl-4 space-y-0.5">
+                                    <li>Task descriptions, user messages, or agent output</li>
+                                    <li>File contents, code, or workspace data</li>
+                                    <li>API keys, credentials, or connection details</li>
+                                    <li>Workspace names, user names, or email addresses</li>
+                                    <li>IP addresses or hostnames</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </Section>
+
                     {/* ── Instance ID ── */}
                     <Section
                         title="Anonymous Instance ID"

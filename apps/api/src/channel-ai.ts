@@ -11,6 +11,7 @@
 import { generateText } from 'ai'
 import { withFallback } from '@plexo/agent/providers/registry'
 import { enforceSmallestAction, forceConversationOverride } from '@plexo/agent/principles'
+import { emitClassifierDecision } from './telemetry/events.js'
 import { loadWorkspaceAISettings } from './agent-loop.js'
 import { emitToWorkspace } from './sse-emitter.js'
 import { logger } from './logger.js'
@@ -153,6 +154,7 @@ export async function classifyIntent(
     const lastMessage = history[history.length - 1]?.content ?? ''
     if (forceConversationOverride(lastMessage)) {
         logger.info({ workspaceId, message: lastMessage.slice(0, 60) }, 'Intent forced to CONVERSATION by principle override')
+        emitClassifierDecision({ intent: 'CONVERSATION', confidence: 1.0, source: 'channel', overridden: true, modelFamily: 'none' })
         return 'CONVERSATION'
     }
 
@@ -180,7 +182,9 @@ export async function classifyIntent(
         // If the LLM said PROJECT but the message doesn't have explicit multi-deliverable
         // signals, downgrade to TASK. The user can always escalate.
         const lastMessage = history[history.length - 1]?.content ?? ''
+        const preOverride = intent
         intent = enforceSmallestAction(intent, lastMessage)
+        emitClassifierDecision({ intent, confidence, source: 'channel', overridden: preOverride !== intent, modelFamily: 'unknown' })
 
         return intent
     } catch {
