@@ -254,7 +254,13 @@ const server = app.listen(port, '0.0.0.0', async () => {
     })
     // Sync consent state from DB — fixes the init race where events were dropped
     // between server start and first browser request
-    void syncTelemetryFromDB().catch(() => { /* non-fatal — defaults remain */ })
+    void syncTelemetryFromDB().then(async () => {
+        // Telemetry: session started — emit after consent state is synced
+        try {
+            const { emitSessionStarted } = await import('./telemetry/events.js')
+            emitSessionStarted()
+        } catch { /* telemetry must never crash the app */ }
+    }).catch(() => { /* non-fatal — defaults remain */ })
     // On startup: reset any sprints left in 'running' state by a previous process.
     // Fire-and-forget async runners die with the process, leaving DB rows orphaned.
     void db.update(sprints)

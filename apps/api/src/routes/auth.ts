@@ -130,6 +130,13 @@ authRouter.post('/workspace', optionalSupabaseAuth, async (req, res) => {
         }).onConflictDoNothing()
 
         captureLifecycleEvent('workspace.created', 'info', { workspaceId: ws!.workspaceId, name: name.trim() })
+
+        // Telemetry: onboarding started — this route is the setup wizard entry point
+        try {
+            const { emitOnboardingStarted } = await import('../telemetry/events.js')
+            emitOnboardingStarted({ source: 'web' })
+        } catch { /* telemetry must never crash the app */ }
+
         logger.info({ name: name.trim(), ownerId: resolvedOwnerId }, 'Workspace created')
         res.status(201).json({ workspaceId: ws!.workspaceId, name: name.trim() })
     } catch (err) {

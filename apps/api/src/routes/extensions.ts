@@ -231,6 +231,13 @@ extensionsRouter.post('/', async (req, res) => {
             resourceId: inserted.id,
             metadata: { name: m.name, version: m.version, type: m.type, plexo: m.plexo },
         })
+
+        // Telemetry: extension installed (no user content — public registry name only)
+        try {
+            const { emitExtensionInstalled } = await import('../telemetry/events.js')
+            emitExtensionInstalled({ extensionName: m.name, source: 'registry' })
+        } catch { /* telemetry must never crash the app */ }
+
         // Surface validation warnings to the caller (non-fatal)
         const warnings = validation.errors.filter((e) => e.severity === 'warning')
         res.status(201).json({ ...inserted, warnings: warnings.length ? warnings : undefined })

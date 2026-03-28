@@ -277,6 +277,13 @@ aiProviderCredsRouter.put('/', async (req, res) => {
         for (const pk of Object.keys(toWriteVault)) clearStaleKey(id, pk)
         // Invalidate the introspection cache so the Intelligence page shows fresh data
         void invalidateIntrospectCache(id)
+
+        // Telemetry: settings changed (no setting values — only key name)
+        try {
+            const { emitSettingsChanged } = await import('../telemetry/events.js')
+            emitSettingsChanged({ settingKey: 'ai_providers', source: 'web' })
+        } catch { /* telemetry must never crash the app */ }
+
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err, id }, 'PUT ai-providers failed')

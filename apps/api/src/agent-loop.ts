@@ -253,6 +253,17 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
     const taskStartMs = Date.now()
 
     logger.info({ taskId: task.id, type: task.type }, 'Task claimed')
+
+    // Telemetry: agent run started — task claimed, before execution begins
+    try {
+        const { emitAgentRunStarted } = await import('./telemetry/events.js')
+        emitAgentRunStarted({
+            taskType: task.type ?? 'unknown',
+            source: task.source ?? 'unknown',
+            modelFamily: 'unknown', // resolved later after credential loading
+        })
+    } catch { /* telemetry must never crash the app */ }
+
     // Use workspace-scoped emit so SSE and channel adapters receive it
     emitToWorkspace(task.workspaceId ?? (task as Record<string, unknown>)['workspace_id'] as string ?? '', { type: 'task_started', taskId: task.id, taskType: task.type })
 
@@ -539,6 +550,23 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             costUsd: result.totalCostUsd,
         })
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'complete', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, costUsd: result.totalCostUsd }, 'lifecycle')
+
+        // Telemetry: if this is the workspace's first completed task, emit onboarding_completed
+        try {
+            const { emitOnboardingCompleted } = await import('./telemetry/events.js')
+            const [completedCount] = await db.select({ count: sql<number>`count(*)` })
+                .from(tasks)
+                .where(sql`${tasks.workspaceId} = ${taskWorkspaceId} AND ${tasks.status} = 'complete'`)
+            if (Number(completedCount?.count ?? 0) === 1) {
+                // First ever completed task — compute duration from workspace creation
+                const [wsCreated] = await db.select({ createdAt: workspaces.createdAt })
+                    .from(workspaces).where(eq(workspaces.id, taskWorkspaceId ?? '')).limit(1)
+                const durationMs = wsCreated?.createdAt
+                    ? Date.now() - new Date(wsCreated.createdAt).getTime()
+                    : Date.now() - taskStartMs
+                emitOnboardingCompleted({ durationMs })
+            }
+        } catch { /* telemetry must never crash the app */ }
 
         // ── Cost accounting ────────────────────────────────────────────────────
         // Canonical write point for api_cost_tracking — agent-loop is the only writer.

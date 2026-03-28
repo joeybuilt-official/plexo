@@ -354,6 +354,12 @@ connectionsRouter.post('/install', async (req, res) => {
         logger.info({ workspaceId, registryId, name: reg.name }, 'Connection installed')
         captureLifecycleEvent('connection.installed', 'info', { workspaceId, registryId: reg.id, name: reg.name })
 
+        // Telemetry: connection installed (no connection details — type only)
+        try {
+            const { emitConnectionInstalled } = await import('../telemetry/events.js')
+            emitConnectionInstalled({ connectionType: registryId, source: 'web' })
+        } catch { /* telemetry must never crash the app */ }
+
         // Bridge: communication connections auto-create a channel record so the
         // webhook handler picks them up. This eliminates the Connections/Channels
         // split for messaging services — connect once, works everywhere.
