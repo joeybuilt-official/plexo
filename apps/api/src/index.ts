@@ -274,6 +274,11 @@ const server = app.listen(port, '0.0.0.0', async () => {
     // Schedule automatic memory consolidation (every 6h, first run after 5m)
     scheduleMemoryConsolidation()
 
+    // Event-driven consolidation: also consolidate when task count exceeds threshold
+    void import('@plexo/agent/memory/consolidation')
+        .then(({ initConsolidationListener }) => initConsolidationListener())
+        .catch(() => { /* non-fatal — event bus may not be ready */ })
+
     // Schedule RSI monitor every 6h (first run after 7m so it doesn't contend with memory consolidation)
     setTimeout(() => {
         void runRSIMonitor()
