@@ -129,6 +129,69 @@ export async function runSelfImprovementCycle(params: {
         return { proposals: 0, applied: 0 }
     }
 
+    // ── Cold start heuristics: deterministic rules when data is sparse ──
+    // Avoids burning an LLM call when there isn't enough data to analyze.
+    if (ledgerRows.length < 5) {
+        logger.info({ workspaceId, count: ledgerRows.length }, 'Cold start mode — applying heuristic rules instead of LLM analysis')
+        const heuristicProposals: ImprovementProposal[] = []
+
+        // Early failure detection
+        const failures = ledgerRows.filter(r => r.qualityScore != null && r.qualityScore < 0.5)
+        if (failures.length > 0) {
+            heuristicProposals.push({
+                pattern_type: 'scope_adjustment',
+                description: 'Early failure detected in workspace. Consider narrowing task scope for initial tasks to build confidence before tackling complex work.',
+                evidence: failures.map(f => f.taskId?.slice(0, 8) ?? 'unknown'),
+                proposed_change: 'Break large tasks into smaller, verifiable steps. Start with simpler tasks to establish working patterns.',
+            })
+        }
+
+        // High token consumption warning
+        const highTokenTasks = ledgerRows.filter(r => (r.tokensIn ?? 0) > 50_000)
+        if (highTokenTasks.length > 0) {
+            heuristicProposals.push({
+                pattern_type: 'tool_preference',
+                description: 'High token consumption detected in early tasks. Context may be overloaded.',
+                evidence: highTokenTasks.map(f => f.taskId?.slice(0, 8) ?? 'unknown'),
+                proposed_change: 'Consider adding workspace behavior rules to narrow context. Use the Context Library to curate what information the agent receives.',
+            })
+        }
+
+        // All tasks succeeded — positive signal
+        const successes = ledgerRows.filter(r => r.qualityScore != null && r.qualityScore >= 0.7)
+        if (successes.length === ledgerRows.length && ledgerRows.length >= 2) {
+            heuristicProposals.push({
+                pattern_type: 'success_pattern',
+                description: 'All early tasks succeeded. The workspace configuration appears solid.',
+                evidence: successes.map(f => f.taskId?.slice(0, 8) ?? 'unknown'),
+            })
+        }
+
+        if (heuristicProposals.length > 0) {
+            let applied = 0
+            for (const p of heuristicProposals) {
+                try {
+                    await db.execute(sql`
+                        INSERT INTO agent_improvement_log
+                          (workspace_id, pattern_type, description, evidence, proposed_change, created_at)
+                        VALUES (
+                          ${workspaceId}::uuid,
+                          ${p.pattern_type},
+                          ${p.description},
+                          ${JSON.stringify(p.evidence ?? [])}::jsonb,
+                          ${p.proposed_change ?? null},
+                          now()
+                        )
+                    `)
+                } catch (err) {
+                    logger.error({ err, proposal: p }, 'Failed to store cold-start heuristic proposal')
+                }
+            }
+            return { proposals: heuristicProposals.length, applied }
+        }
+        // Fall through to LLM analysis if no heuristics matched
+    }
+
     // Stratify by task type (max 8 per type) to prevent pattern analysis from
     // overfitting to whichever type dominated the recent history.
     const byType = new Map<string, LedgerRow[]>()
