@@ -1,9 +1,15 @@
-import { db, workLedger, rsiProposals, workspaces } from '@plexo/db'
+import { db, workLedger, rsiProposals, workspaces, sql } from '@plexo/db'
 import { eq, gte, and, desc } from 'drizzle-orm'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 const logger = console
 
-export type AnomalyType = 'quality_degradation' | 'confidence_skew' | 'cost_spikes'
+export type AnomalyType =
+    | 'quality_degradation'
+    | 'confidence_skew'
+    | 'cost_spikes'
+    | 'tool_failure_pattern'
+    | 'routing_inefficiency'
+    | 'correction_surge'
 
 export interface RSIAnomaly {
     type: AnomalyType
@@ -41,6 +47,9 @@ async function scanWorkspace(workspaceId: string): Promise<number> {
             calibration: workLedger.calibration,
             costUsd: workLedger.costUsd,
             completedAt: workLedger.completedAt,
+            tokensIn: workLedger.tokensIn,
+            tokensOut: workLedger.tokensOut,
+            deliverables: workLedger.deliverables,
         })
         .from(workLedger)
         .where(
@@ -51,9 +60,22 @@ async function scanWorkspace(workspaceId: string): Promise<number> {
         )
         .limit(1000)
 
-    if (recentTasks.length < 5) return 0 // Enforce N=5 statistical minimum limit
+    if (recentTasks.length < 3) return 0 // Lowered from 5 to 3 for cold start (Phase 4)
 
-    const proposals = detectAnomalies(recentTasks)
+    // Count corrections in the window for correction_surge detection
+    let correctionCount = 0
+    try {
+        const [row] = await db.execute<{ count: number }>(sql`
+            SELECT count(*)::int as count FROM memory_entries
+            WHERE workspace_id = ${workspaceId}::uuid
+              AND type = 'pattern'
+              AND metadata->>'correctionType' IS NOT NULL
+              AND created_at >= ${fourteenDaysAgo}
+        `)
+        correctionCount = row?.count ?? 0
+    } catch { /* memory_entries table may not have correction entries yet */ }
+
+    const proposals = detectAnomalies(recentTasks, correctionCount)
 
     let inserted = 0
     if (proposals.length === 0) return 0
@@ -94,9 +116,12 @@ interface TaskRecord {
     calibration?: string | null
     costUsd?: number | null
     completedAt?: Date | null
+    tokensIn?: number | null
+    tokensOut?: number | null
+    deliverables?: unknown
 }
 
-export function detectAnomalies(recentTasks: TaskRecord[]): RSIAnomaly[] {
+export function detectAnomalies(recentTasks: TaskRecord[], correctionCount = 0): RSIAnomaly[] {
     const proposals: RSIAnomaly[] = []
 
     // 1. Check for 'quality_degradation' across tasks with recorded scores
@@ -155,6 +180,66 @@ export function detectAnomalies(recentTasks: TaskRecord[]): RSIAnomaly[] {
                 })
             }
         }
+    }
+
+    // 4. Tool failure patterns — any tool with >30% failure rate
+    const toolStats = new Map<string, { total: number; failed: number }>()
+    for (const t of recentTasks) {
+        const delivs = Array.isArray(t.deliverables) ? t.deliverables : []
+        for (const d of delivs) {
+            const dd = d as { tool?: string; outcome?: string }
+            if (dd.tool) {
+                const stats = toolStats.get(dd.tool) ?? { total: 0, failed: 0 }
+                stats.total++
+                if (dd.outcome === 'error' || dd.outcome === 'tool_timeout') stats.failed++
+                toolStats.set(dd.tool, stats)
+            }
+        }
+    }
+    for (const [tool, stats] of toolStats) {
+        if (stats.total >= 5 && stats.failed / stats.total > 0.3) {
+            proposals.push({
+                type: 'tool_failure_pattern',
+                hypothesis: `Tool "${tool}" has a ${((stats.failed / stats.total) * 100).toFixed(0)}% failure rate (${stats.failed}/${stats.total} calls). Consider a behavior rule to prefer alternatives.`,
+                proposedChange: { action: 'add_tool_preference', tool, failureRate: stats.failed / stats.total },
+                risk: 'low',
+            })
+        }
+    }
+
+    // 5. Routing inefficiency — high tokens + low quality = wrong model for the job
+    const tasksWithTokensAndQuality = recentTasks.filter(t =>
+        t.tokensIn != null && t.tokensOut != null && t.qualityScore != null
+    )
+    if (tasksWithTokensAndQuality.length >= 5) {
+        const totalTokens = tasksWithTokensAndQuality.map(t => (t.tokensIn ?? 0) + (t.tokensOut ?? 0))
+        const avgTokens = totalTokens.reduce((a, b) => a + b, 0) / totalTokens.length
+        const avgQuality = tasksWithTokensAndQuality.reduce((a, t) => a + (t.qualityScore ?? 0), 0) / tasksWithTokensAndQuality.length
+
+        // High-token tasks (top quartile) with below-average quality
+        const tokenThreshold = avgTokens * 1.5
+        const highTokenLowQuality = tasksWithTokensAndQuality.filter(t =>
+            (t.tokensIn ?? 0) + (t.tokensOut ?? 0) > tokenThreshold && (t.qualityScore ?? 0) < avgQuality
+        )
+
+        if (highTokenLowQuality.length >= 3) {
+            proposals.push({
+                type: 'routing_inefficiency',
+                hypothesis: `${highTokenLowQuality.length} tasks consumed high tokens (>${Math.round(tokenThreshold)}) but scored below average quality (${avgQuality.toFixed(1)}). Model routing may be sending complex tasks to underpowered models.`,
+                proposedChange: { action: 'review_model_routing', tokenThreshold: Math.round(tokenThreshold), avgQuality: Number(avgQuality.toFixed(2)) },
+                risk: 'medium',
+            })
+        }
+    }
+
+    // 6. Correction surge — user corrections exceed threshold
+    if (correctionCount >= 3) {
+        proposals.push({
+            type: 'correction_surge',
+            hypothesis: `${correctionCount} user corrections recorded in the last 14 days. The agent may be consistently misinterpreting user intent or producing incorrect output.`,
+            proposedChange: { action: 'review_system_prompt_and_behavior_rules', correctionCount },
+            risk: 'medium',
+        })
     }
 
     return proposals
