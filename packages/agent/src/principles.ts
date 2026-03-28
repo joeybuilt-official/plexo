@@ -120,6 +120,32 @@ export function forceConversationOverride(message: string): boolean {
     return isGreetingOrCheckin(message) || isTaskRefusal(message)
 }
 
+// ── Principle 7: Correction Detection ────────────────────────────────────────
+//
+// Correction patterns are defined here (no DB dependency) so the classifier
+// can check them without pulling in the full corrections module.
+
+/** Patterns that signal the user is correcting or rejecting agent output. */
+const CORRECTION_SIGNALS = [
+    /that'?s\s+(wrong|incorrect|not\s+right|not\s+what)/i,
+    /no,?\s+(actually|i\s+meant|i\s+said|i\s+asked)/i,
+    /you\s+(misunderstood|got\s+it\s+wrong|missed)/i,
+    /wrong\s+(answer|output|result|approach)/i,
+    /try\s+again/i,
+    /that\s+doesn'?t\s+(work|look\s+right|make\s+sense)/i,
+    /not\s+what\s+i\s+(wanted|asked|meant)/i,
+    /i\s+said\s+don'?t/i,
+    /please\s+(fix|correct|redo|undo)/i,
+    /start\s+over/i,
+]
+
+/**
+ * Returns true if the message contains correction intent signals.
+ */
+export function hasCorrectionIntent(message: string): boolean {
+    return CORRECTION_SIGNALS.some(p => p.test(message))
+}
+
 // ── Principle 2: No Infrastructure Assumptions ───────────────────────────────
 
 export interface WorkspaceCapabilities {

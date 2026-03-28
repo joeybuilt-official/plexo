@@ -753,6 +753,22 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     try {
 
     if (intent === 'CONVERSATION') {
+        // ── Correction feedback loop: detect and record user corrections ──
+        try {
+            const { hasCorrectionIntent, recordCorrection } = await import('@plexo/agent/memory/corrections')
+            if (hasCorrectionIntent(text)) {
+                const lastAssistant = history.filter(m => m.role === 'assistant').pop()?.content
+                if (lastAssistant) {
+                    void recordCorrection({
+                        workspaceId,
+                        originalOutput: lastAssistant,
+                        correctionType: 'explicit_rejection',
+                        userMessage: text,
+                    }).catch((e: unknown) => logger.warn({ err: e }, 'Correction recording failed'))
+                }
+            }
+        } catch { /* corrections module not available — non-fatal */ }
+
         const recentCompletion = getRecentCompletion(channelId, chatId)
         let channelContext = `\nChannel context: The user is messaging you via Telegram. When they say "here" or "send it here", they mean this Telegram chat. If a task just completed, they may be asking for the results to be delivered in this conversation.`
         if (recentCompletion) {
