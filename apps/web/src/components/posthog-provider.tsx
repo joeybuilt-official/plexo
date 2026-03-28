@@ -11,7 +11,7 @@ import { useEffect, Suspense } from 'react'
 // Defaults point at Plexo's self-hosted instance.
 // Override via env vars; disable entirely with NEXT_PUBLIC_TELEMETRY_DISABLED=true.
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? 'phc_NNJrGRLnopoR73cofmbbHEG05S2kSfCz93nQVOJlxQH'
-const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://telemetry.getplexo.com'
+const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://posthog.getplexo.com'
 
 function PostHogPageView() {
   const pathname = usePathname()

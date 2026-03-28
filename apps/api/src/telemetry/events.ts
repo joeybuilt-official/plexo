@@ -4,7 +4,7 @@
 /**
  * telemetry/events.ts — Structured product events for opted-in instances.
  *
- * Emitted via the PostHog relay (telemetry.getplexo.com) — same path as crash reports.
+ * Emitted via the PostHog relay (posthog.getplexo.com) — same path as crash reports.
  * Completely opt-in: all functions are no-ops when telemetry is disabled.
  *
  * Privacy guarantees (enforced here, auditable):
@@ -31,7 +31,7 @@ import pino from 'pino'
 const logger = pino({ name: 'telemetry:events' })
 
 // Points at the keyless relay — no API key in this codebase.
-const TELEMETRY_INGEST = `${process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://telemetry.getplexo.com'}/ingest`
+const TELEMETRY_INGEST = `${process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://posthog.getplexo.com'}/ingest`
 
 // ── Bucket helpers ─────────────────────────────────────────────────────────────
 
@@ -83,8 +83,10 @@ function modelFamily(provider: string | undefined): string {
 // ── Core emit ──────────────────────────────────────────────────────────────────
 
 async function emit(event: string, properties: Record<string, unknown>): Promise<void> {
-    const { enabled, instanceId } = getTelemetryConfig()
-    if (!enabled) return
+    const { instanceId } = getTelemetryConfig()
+    // Usage events are gated by the usage toggle specifically
+    const { isUsageEnabled } = await import('./posthog.js')
+    if (!isUsageEnabled()) return
 
     try {
         await fetch(TELEMETRY_INGEST, {

@@ -47,7 +47,7 @@ import { standingApprovalsRouter } from './routes/standing-approvals.js'
 import { userSelfRouter } from './routes/user-self.js'
 import { registryRouter } from './routes/registry.js'
 import { telemetryRouter } from './telemetry/router.js'
-import { configureTelemetry } from './telemetry/posthog.js'
+import { configureTelemetry, syncTelemetryFromDB } from './telemetry/posthog.js'
 import { clarificationRouter } from './routes/clarification.js'
 import { sentryWebhookRouter } from './routes/sentry-webhook.js'
 import { terminateAll } from '@plexo/agent/persistent-pool'
@@ -246,13 +246,15 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 const server = app.listen(port, '0.0.0.0', async () => {
     logger.info({ port }, 'Plexo API server started')
-    // Init telemetry — off by default; config loaded from workspace settings if available
+    // Init telemetry — defaults off, then sync actual consent from DB
     configureTelemetry({
-        enabled: false,
         instanceId: process.env.PLEXO_INSTANCE_ID ?? crypto.randomUUID(),
         plexoVersion: process.env.npm_package_version ?? '0.1.0',
         redisUrl: process.env.REDIS_URL,
     })
+    // Sync consent state from DB — fixes the init race where events were dropped
+    // between server start and first browser request
+    void syncTelemetryFromDB().catch(() => { /* non-fatal — defaults remain */ })
     // On startup: reset any sprints left in 'running' state by a previous process.
     // Fire-and-forget async runners die with the process, leaving DB rows orphaned.
     void db.update(sprints)

@@ -30,7 +30,7 @@ export class SessionLogger {
 
         // PostHog telemetry via keyless relay — fire-and-forget
         try {
-            const TELEMETRY_INGEST = `${process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://telemetry.getplexo.com'}/ingest`
+            const TELEMETRY_INGEST = `${process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://posthog.getplexo.com'}/ingest`
             fetch(TELEMETRY_INGEST, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
