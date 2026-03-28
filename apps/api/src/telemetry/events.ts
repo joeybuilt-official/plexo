@@ -23,6 +23,18 @@
  *   - Duration bucket
  *   - Sprint task count bucket, wave count bucket
  *   - Weekly heartbeat: active feature flags (booleans), version, task volume bucket
+ *
+ * Canonical 10-Event Taxonomy (v1):
+ *   - onboarding_started     — setup wizard begins
+ *   - onboarding_completed   — first task completes in workspace
+ *   - extension_installed    — extension installed from registry
+ *   - agent_run_started      — task claimed by agent loop
+ *   - agent_run_completed    — task completed successfully
+ *   - agent_run_failed       — task failed
+ *   - inference_invoked      — LLM call made via provider registry
+ *   - settings_changed       — settings update route called
+ *   - connection_installed   — MCP/API connection installed
+ *   - session_started        — maps to instance_heartbeat
  */
 
 import { getTelemetryConfig } from './posthog.js'
@@ -110,13 +122,175 @@ async function emit(event: string, properties: Record<string, unknown>): Promise
     }
 }
 
-// ── Public event functions ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// Canonical 10-Event Taxonomy (v1)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 1. onboarding_started — emit when setup wizard begins.
+ * No user content — only the source channel.
+ */
+export function emitOnboardingStarted(opts: {
+    source: string  // web, cli, api
+}): void {
+    void emit('onboarding_started', {
+        source: opts.source,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * 2. onboarding_completed — emit when first task completes in workspace.
+ * No user content — only duration bucket.
+ */
+export function emitOnboardingCompleted(opts: {
+    durationMs: number  // time from workspace creation to first task completion
+}): void {
+    void emit('onboarding_completed', {
+        duration_bucket: bucketMs(opts.durationMs),
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * 3. extension_installed — emit from extensions install route.
+ * No extension content — only the registry name (public info).
+ */
+export function emitExtensionInstalled(opts: {
+    extensionName: string   // public registry name only
+    source: string          // registry, url, manual
+}): void {
+    void emit('extension_installed', {
+        extension_name: opts.extensionName.slice(0, 64),
+        source: opts.source,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * 4. agent_run_started — emit when a task is claimed by the agent loop.
+ * No task content — only metadata.
+ */
+export function emitAgentRunStarted(opts: {
+    taskType: string    // ops, coding, research, deployment, automation
+    source: string      // chat, dashboard, telegram, sentry, cron, etc.
+    modelFamily: string
+}): void {
+    void emit('agent_run_started', {
+        task_type: opts.taskType,
+        task_source: opts.source,
+        model_family: modelFamily(opts.modelFamily),
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * 5. agent_run_completed — emit when a task completes successfully.
+ * Maps from emitTaskOutcome(success=true). No task content.
+ */
+export function emitAgentRunCompleted(opts: {
+    taskType: string
+    source: string
+    durationMs: number
+    costUsd: number
+    modelFamily: string
+    stepCount: number
+}): void {
+    void emit('agent_run_completed', {
+        task_type: opts.taskType,
+        task_source: opts.source,
+        duration_bucket: bucketMs(opts.durationMs),
+        cost_bucket: bucketCost(opts.costUsd),
+        model_family: modelFamily(opts.modelFamily),
+        step_count_bucket: bucketCount(opts.stepCount),
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * 6. agent_run_failed — emit when a task fails.
+ * Maps from emitTaskOutcome(success=false). No task content or error details.
+ */
+export function emitAgentRunFailed(opts: {
+    taskType: string
+    source: string
+    durationMs: number
+    costUsd: number
+    modelFamily: string
+    stepCount: number
+    failureType: string  // error, timeout, cancelled, blocked
+}): void {
+    void emit('agent_run_failed', {
+        task_type: opts.taskType,
+        task_source: opts.source,
+        duration_bucket: bucketMs(opts.durationMs),
+        cost_bucket: bucketCost(opts.costUsd),
+        model_family: modelFamily(opts.modelFamily),
+        step_count_bucket: bucketCount(opts.stepCount),
+        failure_type: opts.failureType,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * 7. inference_invoked — emit when an LLM call is made via the provider registry.
+ * No prompt content — only model family and latency bucket.
+ */
+export function emitInferenceInvoked(opts: {
+    modelFamily: string
+    latencyMs: number
+    success: boolean
+    tokenCountBucket?: string  // optional bucketed token count
+}): void {
+    void emit('inference_invoked', {
+        model_family: modelFamily(opts.modelFamily),
+        latency_bucket: bucketMs(opts.latencyMs),
+        success: opts.success,
+        ...(opts.tokenCountBucket ? { token_count_bucket: opts.tokenCountBucket } : {}),
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * 8. settings_changed — emit from settings update routes.
+ * No setting values — only the setting key that changed.
+ */
+export function emitSettingsChanged(opts: {
+    settingKey: string   // e.g. "telemetry", "integrations", "model_config"
+    source: string       // web, cli, api
+}): void {
+    void emit('settings_changed', {
+        setting_key: opts.settingKey,
+        source: opts.source,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * 9. connection_installed — emit from connections install route.
+ * No connection details — only connection type.
+ */
+export function emitConnectionInstalled(opts: {
+    connectionType: string  // mcp, custom_api, webhook
+    source: string          // web, cli, api
+}): void {
+    void emit('connection_installed', {
+        connection_type: opts.connectionType,
+        source: opts.source,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * 10. session_started — maps to instance_heartbeat.
+ * Emitted once per session/startup. No user content.
+ */
+export function emitSessionStarted(): void {
+    void emit('session_started', {}).catch(() => { /* never throws */ })
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Legacy event functions (kept for backwards compatibility)
+// ══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Emit a task_outcome event after a task completes or fails.
  *
  * Called from agent-loop.ts after completeTask().
  * All content is stripped — only metadata is sent.
+ *
+ * Also emits the canonical agent_run_completed / agent_run_failed event.
  */
 export function emitTaskOutcome(opts: {
     type: string          // ops, coding, research, deployment, automation
@@ -127,6 +301,7 @@ export function emitTaskOutcome(opts: {
     provider: string | undefined  // will be bucketed to family
     stepCount: number
 }): void {
+    // Legacy event
     void emit('task_outcome', {
         task_type: opts.type,
         task_source: opts.source,
@@ -136,6 +311,28 @@ export function emitTaskOutcome(opts: {
         model_family: modelFamily(opts.provider),
         step_count_bucket: bucketCount(opts.stepCount),
     }).catch(() => { /* never throws */ })
+
+    // Canonical event — dual-emit for migration
+    if (opts.success) {
+        emitAgentRunCompleted({
+            taskType: opts.type,
+            source: opts.source,
+            durationMs: opts.durationMs,
+            costUsd: opts.costUsd,
+            modelFamily: opts.provider ?? 'unknown',
+            stepCount: opts.stepCount,
+        })
+    } else {
+        emitAgentRunFailed({
+            taskType: opts.type,
+            source: opts.source,
+            durationMs: opts.durationMs,
+            costUsd: opts.costUsd,
+            modelFamily: opts.provider ?? 'unknown',
+            stepCount: opts.stepCount,
+            failureType: 'error',
+        })
+    }
 }
 
 /**
@@ -165,6 +362,7 @@ export function emitSprintOutcome(opts: {
  *
  * Emits which features are active (booleans only, no names/values).
  * Scheduled once per 24h in index.ts.
+ * Also serves as the canonical session_started event.
  */
 export async function emitHeartbeat(opts: {
     taskVolumeThisWeek: number
