@@ -213,6 +213,15 @@ export const RECALL_PATTERNS = [
     /that\s+conversation\s+about/i,
     /where\s+I\s+asked\s+about/i,
     /where\s+I\s+requested/i,
+    // Casual recall references
+    /\bremember\b/i,
+    /you\s+(didn'?t|never)\s+(answer|respond|reply|finish)/i,
+    /what\s+happened\s+to/i,
+    /you\s+were\s+(going\s+to|supposed\s+to|working\s+on)/i,
+    /what\s+about\s+(that|the)\b/i,
+    /try\s+again/i,
+    /last\s+time/i,
+    /before\s+(you|we)\s+(stopped|left\s+off)/i,
 ]
 
 /** Check whether a message signals recall intent. */
@@ -249,6 +258,11 @@ const RECALL_DAYS = 7
 /**
  * Search prior conversation sessions for context matching the user's query.
  *
+ * When the user's message has keywords, searches by keyword match.
+ * When no keywords are found (e.g. "Remember now?", "Try."), falls back to
+ * loading the most recent prior session — because the user is almost certainly
+ * referring to whatever happened last.
+ *
  * Returns a formatted context block string, or null if nothing relevant found.
  */
 export async function recallPriorConversation(
@@ -257,7 +271,6 @@ export async function recallPriorConversation(
     currentSessionPrefix: string,
 ): Promise<string | null> {
     const keywords = extractKeywords(query)
-    if (keywords.length === 0) return null
 
     try {
         const { db } = await import('@plexo/db')
@@ -266,32 +279,52 @@ export async function recallPriorConversation(
 
         const cutoff = new Date(Date.now() - RECALL_DAYS * 24 * 60 * 60 * 1000)
 
-        // Build ILIKE conditions: each keyword must appear in message OR reply
-        const keywordConditions = keywords.map(kw => {
-            const pattern = `%${kw}%`
-            return sql`(${conversations.message} ILIKE ${pattern} OR ${conversations.reply} ILIKE ${pattern})`
-        })
+        let rows: { message: string | null; reply: string | null; sessionId: string | null; createdAt: Date | null }[]
 
-        // At least one keyword must match (OR across keywords)
-        const keywordFilter = keywordConditions.length === 1
-            ? keywordConditions[0]!
-            : sql.join(keywordConditions, sql` OR `)
+        if (keywords.length > 0) {
+            // Keyword-based search
+            const keywordConditions = keywords.map(kw => {
+                const pattern = `%${kw}%`
+                return sql`(${conversations.message} ILIKE ${pattern} OR ${conversations.reply} ILIKE ${pattern})`
+            })
+            const keywordFilter = keywordConditions.length === 1
+                ? keywordConditions[0]!
+                : sql.join(keywordConditions, sql` OR `)
 
-        const rows = await db.select({
-            message: conversations.message,
-            reply: conversations.reply,
-            sessionId: conversations.sessionId,
-            createdAt: conversations.createdAt,
-        })
-            .from(conversations)
-            .where(and(
-                sql`${conversations.workspaceId} = ${workspaceId}`,
-                sql`${conversations.sessionId} NOT LIKE ${currentSessionPrefix + '%'}`,
-                sql`${conversations.createdAt} >= ${cutoff}`,
-                sql`(${keywordFilter})`,
-            ))
-            .orderBy(desc(conversations.createdAt))
-            .limit(RECALL_LIMIT)
+            rows = await db.select({
+                message: conversations.message,
+                reply: conversations.reply,
+                sessionId: conversations.sessionId,
+                createdAt: conversations.createdAt,
+            })
+                .from(conversations)
+                .where(and(
+                    sql`${conversations.workspaceId} = ${workspaceId}`,
+                    sql`${conversations.sessionId} NOT LIKE ${currentSessionPrefix + '%'}`,
+                    sql`${conversations.createdAt} >= ${cutoff}`,
+                    sql`(${keywordFilter})`,
+                ))
+                .orderBy(desc(conversations.createdAt))
+                .limit(RECALL_LIMIT)
+        } else {
+            // No keywords — fall back to the most recent prior session.
+            // "Remember now?", "Try.", "You didn't answer" — all refer to the last conversation.
+            logger.info({ workspaceId, query: query.slice(0, 60) }, 'Recall: no keywords, falling back to most recent prior session')
+            rows = await db.select({
+                message: conversations.message,
+                reply: conversations.reply,
+                sessionId: conversations.sessionId,
+                createdAt: conversations.createdAt,
+            })
+                .from(conversations)
+                .where(and(
+                    sql`${conversations.workspaceId} = ${workspaceId}`,
+                    sql`${conversations.sessionId} NOT LIKE ${currentSessionPrefix + '%'}`,
+                    sql`${conversations.createdAt} >= ${cutoff}`,
+                ))
+                .orderBy(desc(conversations.createdAt))
+                .limit(RECALL_LIMIT)
+        }
 
         if (rows.length === 0) return null
 

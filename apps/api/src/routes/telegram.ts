@@ -728,13 +728,21 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     }
 
     // ── Cross-session memory recall ─────────────────────────────────────────
+    // Two triggers:
+    // 1. Explicit recall intent (pattern match) — search by keywords or recent
+    // 2. Young session (≤2 messages) — always inject recent prior context because
+    //    the user is likely continuing from a previous conversation. This handles
+    //    the semantic concept of "referencing something from before" without needing
+    //    to enumerate every possible phrase.
     const sessionPrefix = `telegram:${channelId}:${chatId}:`
     let recalledContext: string | null = null
-    if (hasRecallIntent(text)) {
+    const currentHistory = chatHistory.get(historyKey(channelId, chatId))
+    const isYoungSession = !currentHistory || currentHistory.length <= 2
+    if (hasRecallIntent(text) || isYoungSession) {
         try {
             recalledContext = await recallPriorConversation(workspaceId, text, sessionPrefix)
             if (recalledContext) {
-                logger.info({ chatId, workspaceId, chars: recalledContext.length }, 'Telegram: recalled prior conversation context')
+                logger.info({ chatId, workspaceId, chars: recalledContext.length, trigger: hasRecallIntent(text) ? 'explicit' : 'young_session' }, 'Telegram: recalled prior conversation context')
             }
         } catch (err) {
             logger.warn({ err, chatId }, 'Telegram: recall search failed — proceeding without')
