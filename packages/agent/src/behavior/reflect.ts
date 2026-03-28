@@ -58,6 +58,12 @@ export async function reflectAndPromote(ctx: ReflectCtx): Promise<void> {
     }
 
     // ── Gate 2: quality threshold ─────────────────────────────────────────
+    // Track 1 (success): quality >= 0.8 — extract reusable strategies
+    // Track 2 (failure): quality < 0.5 — extract failure prevention rules
+    if (ctx.qualityScore < 0.5) {
+        await reflectOnFailure(ctx)
+        return
+    }
     if (ctx.qualityScore < 0.8) return
 
     // ── Gate 3: summary length ────────────────────────────────────────────
@@ -123,6 +129,85 @@ export async function reflectAndPromote(ctx: ReflectCtx): Promise<void> {
             `)
         } catch (err) {
             logger.warn({ err, taskId: ctx.taskId, key: obs.key }, 'Reflection upsert failed')
+        }
+    }
+}
+
+// ── Track 2: Failure reflection ──────────────────────────────────────────────
+
+interface FailureObservation {
+    key: string
+    label: string
+    rootCause: string
+    prevention: string
+}
+
+/**
+ * Reflect on a failed task (quality < 0.5) and extract failure prevention
+ * rules as domain_knowledge behavior rules.
+ */
+async function reflectOnFailure(ctx: ReflectCtx): Promise<void> {
+    if (!ctx.outcomeSummary || ctx.outcomeSummary.length < 50) return
+
+    const model = resolveModelFromEnv()
+
+    let observations: FailureObservation[]
+    try {
+        const { text } = await generateText({
+            model,
+            system: `You analyze failed tasks to extract preventive behavioral rules. Respond with a raw JSON array only — no preamble, no markdown fences. Format: [{ "key": string, "label": string, "rootCause": string, "prevention": string }]. Keys must be snake_case, prefixed reflect.failure.<taskType>.<shortname>. Return 1-2 observations. Each prevention rule should be a concise, actionable instruction (1-2 sentences) that would prevent this failure from recurring.`,
+            messages: [{
+                role: 'user',
+                content: `Task type: ${ctx.taskType}\nGoal: ${ctx.goal}\nOutcome (FAILED): ${ctx.outcomeSummary}\nTools used: ${ctx.toolsUsed.join(', ')}\nSteps taken: ${ctx.stepCount}\nDuration: ${ctx.durationMs}ms\nQuality score: ${ctx.qualityScore}`,
+            }],
+            // @ts-expect-error maxTokens exists in AI SDK v6 but type inference misses it
+            maxTokens: 300,
+        })
+
+        observations = JSON.parse(text.trim())
+    } catch (err) {
+        logger.warn({ err, taskId: ctx.taskId }, 'Failure reflection LLM call or JSON parse failed')
+        return
+    }
+
+    if (!Array.isArray(observations)) return
+
+    for (const obs of observations) {
+        if (!obs.key || !obs.prevention || typeof obs.key !== 'string') continue
+
+        const ruleValue = `Root cause: ${obs.rootCause}\nPrevention: ${obs.prevention}`
+
+        try {
+            await db.execute(sql`
+                INSERT INTO behavior_rules
+                    (id, workspace_id, type, key, label, description, value, source, tags)
+                VALUES
+                    (gen_random_uuid(), ${ctx.workspaceId}::uuid,
+                     'domain_knowledge', ${obs.key}, ${obs.label || obs.key}, '',
+                     ${JSON.stringify({ type: 'text_block', value: ruleValue })}::jsonb,
+                     'reflection',
+                     ARRAY['auto', 'failure', ${ctx.taskType}]::text[])
+                ON CONFLICT (workspace_id, key) WHERE deleted_at IS NULL
+                DO UPDATE SET
+                    value = CASE
+                        WHEN (
+                            length(behavior_rules.value->>'value')
+                            - length(replace(behavior_rules.value->>'value', '---', ''))
+                        ) / 3 >= 3
+                        THEN behavior_rules.value
+                        ELSE jsonb_set(
+                            behavior_rules.value,
+                            '{value}',
+                            to_jsonb(
+                                (behavior_rules.value->>'value') || E'\n---\n' || ${ruleValue}
+                            )
+                        )
+                    END,
+                    updated_at = now()
+            `)
+            logger.info({ taskId: ctx.taskId, key: obs.key }, 'Failure reflection rule upserted')
+        } catch (err) {
+            logger.warn({ err, taskId: ctx.taskId, key: obs.key }, 'Failure reflection upsert failed')
         }
     }
 }
