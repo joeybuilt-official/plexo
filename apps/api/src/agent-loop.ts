@@ -695,6 +695,21 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             summary: result.outcomeSummary,
             assets,
         })
+
+        // Persistent channel delivery — delivers results to originating channel (Telegram, etc.)
+        // This is the DB-backed delivery path that survives process restarts.
+        const originCtx = (task.context as Record<string, unknown>) ?? {}
+        if (originCtx.channel && originCtx.chatId) {
+            const { deliverToOriginChannel } = await import('./channel-delivery.js')
+            void deliverToOriginChannel({
+                taskId: task.id,
+                workspaceId: taskWorkspaceId ?? '',
+                context: originCtx as any,
+                summary: result.outcomeSummary ?? 'Task completed.',
+                assets,
+                outcome: 'complete',
+            }).catch(err => logger.warn({ err, taskId: task.id }, 'Channel delivery failed'))
+        }
         captureLifecycleEvent('task.complete', 'info', {
             taskId: task.id,
             type: task.type,
@@ -709,6 +724,20 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'failed', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, error: message.slice(0, 200) }, 'lifecycle')
         captureLifecycleEvent('task.failed', 'error', { taskId: task.id, error: message, workspaceId: taskWorkspaceId })
         await blockTask(task.id, message)
+
+        // Persistent channel delivery for failures
+        const failContext = (task.context as Record<string, unknown>) ?? {}
+        if (failContext.channel && failContext.chatId) {
+            const { deliverToOriginChannel } = await import('./channel-delivery.js')
+            void deliverToOriginChannel({
+                taskId: task.id,
+                workspaceId: taskWorkspaceId ?? '',
+                context: failContext as any,
+                summary: '',
+                error: message.slice(0, 500),
+                outcome: 'failed',
+            }).catch(e => logger.warn({ e, taskId: task.id }, 'Channel failure delivery failed'))
+        }
 
         emitTaskOutcome({
             type: task.type ?? 'unknown',

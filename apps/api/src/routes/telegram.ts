@@ -1024,6 +1024,9 @@ export async function registerTelegramChannel(
     workspaceId: string,
 ): Promise<void> {
     _channels.set(channelId, { token, workspaceId })
+    // Register token for persistent channel delivery (survives restarts)
+    const { registerChannelToken } = await import('../channel-delivery.js')
+    registerChannelToken(workspaceId, token)
     _webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET ?? _webhookSecret ?? 'plexo-telegram-prod'
 
     const publicUrl = process.env.PUBLIC_URL
