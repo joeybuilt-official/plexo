@@ -1317,7 +1317,7 @@ function ChatContent() {
             ))
         } catch {
             setMessages((prev) => prev.map((m) =>
-                m.id === pendingId ? { ...m, status: 'failed', content: 'Network error.' } : m
+                m.id === pendingId ? { ...m, status: 'failed', content: 'Request timed out or lost connection. Your conversation is saved — just send your message again.' } : m
             ))
         } finally {
             // Release the input immediately — don't hold it for the duration of task polling.
