@@ -504,16 +504,17 @@ chatRouter.post('/message', async (req, res) => {
             }
             const conversationSource = externalChannelRef ? externalChannelRef.channel : 'dashboard'
 
-            // Build real workspace snapshot for self-awareness (lightweight — 1 query)
+            // Build real workspace snapshot for self-awareness (direct DB query, no HTTP)
             let workspaceSnapshot = ''
             try {
-                const statsRes = await fetch(`http://localhost:3001/api/v1/tasks/stats/summary?workspaceId=${workspaceId}`)
-                if (statsRes.ok) {
-                    const stats = await statsRes.json() as { byStatus?: Record<string, number>; cost?: { total?: number } }
-                    const s = stats.byStatus ?? {}
-                    workspaceSnapshot = `\nWORKSPACE LIVE DATA (real, not estimated):\n- Tasks: ${s.complete ?? 0} completed, ${s.running ?? 0} running, ${s.blocked ?? 0} blocked, ${s.cancelled ?? 0} cancelled\n- Weekly cost: $${(stats.cost?.total ?? 0).toFixed(2)}`
-                }
-            } catch { /* non-fatal */ }
+                const taskRows = await db.select({ status: tasks.status }).from(tasks).where(eq(tasks.workspaceId, workspaceId))
+                const counts: Record<string, number> = {}
+                for (const r of taskRows) { counts[r.status] = (counts[r.status] ?? 0) + 1 }
+                workspaceSnapshot = `\nWORKSPACE LIVE DATA (real — from database, not estimated):\n- Tasks: ${counts.complete ?? 0} completed, ${counts.running ?? 0} running, ${counts.blocked ?? 0} blocked, ${counts.queued ?? 0} queued, ${counts.failed ?? 0} failed, ${counts.cancelled ?? 0} cancelled\n- Total tasks ever: ${taskRows.length}`
+                logger.info({ workspaceId, counts, total: taskRows.length }, 'Workspace snapshot injected into conversation')
+            } catch (snapErr) {
+                logger.warn({ snapErr }, 'Failed to build workspace snapshot — proceeding without')
+            }
 
             try {
                 logger.info({ workspaceId, providerKey, modelId: config.model }, 'Webchat: generating conversational reply')
