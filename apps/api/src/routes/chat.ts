@@ -504,6 +504,17 @@ chatRouter.post('/message', async (req, res) => {
             }
             const conversationSource = externalChannelRef ? externalChannelRef.channel : 'dashboard'
 
+            // Build real workspace snapshot for self-awareness (lightweight — 1 query)
+            let workspaceSnapshot = ''
+            try {
+                const statsRes = await fetch(`http://localhost:3001/api/v1/tasks/stats/summary?workspaceId=${workspaceId}`)
+                if (statsRes.ok) {
+                    const stats = await statsRes.json() as { byStatus?: Record<string, number>; cost?: { total?: number } }
+                    const s = stats.byStatus ?? {}
+                    workspaceSnapshot = `\nWORKSPACE LIVE DATA (real, not estimated):\n- Tasks: ${s.complete ?? 0} completed, ${s.running ?? 0} running, ${s.blocked ?? 0} blocked, ${s.cancelled ?? 0} cancelled\n- Weekly cost: $${(stats.cost?.total ?? 0).toFixed(2)}`
+                }
+            } catch { /* non-fatal */ }
+
             try {
                 logger.info({ workspaceId, providerKey, modelId: config.model }, 'Webchat: generating conversational reply')
                 const result = await withFallback(aiSettings, 'summarization', async (model) =>
@@ -527,13 +538,12 @@ Critical rules — follow without exception:
 11. PLAIN ENGLISH ONLY: Never list tool names in backticks or code formatting. Describe what you can do in plain language: "I can read and write files, run shell commands, search the web, browse websites, and more" — not "My tools include \`read_file\`, \`write_file\`, \`shell\`". You are talking to a person, not writing documentation.
 12. CONNECTIONS: If the user asks to connect to or integrate with a service, provide a direct link: [Connect Gmail](/connections?highlight=google-workspace) or [Connect GitHub](/connections?highlight=github) etc. The link format is /connections?highlight={service-id}. Known service IDs: github, google-workspace (Gmail/Calendar), google-drive, slack, discord, jira, linear, notion, cloudflare, coolify, sentry, posthog, pagerduty, netlify, openai, ovhcloud, datadog. If the service isn't in this list and you have synthesize_extension capability, offer to build a custom connector. Always give a clickable link — never just text directions.
 
-SELF-AWARENESS — What you know about this workspace:
+SELF-AWARENESS — What you are:
 - You ARE Plexo, a self-hosted AI agent platform. You run tasks, manage projects, and connect to external services.
-- You have access to this workspace's task history. When asked "what tasks do I have?" or "what happened last time?", you can reference completed, running, blocked, and failed tasks.
-- You have workspace-level memory that persists between conversations. You learn from prior interactions.
-- You can check system health: active tasks, queue depth, ghost tasks, and connected services.
-- If asked about system status, failures, or health — give an honest answer based on what you know. Don't say "I don't have monitoring" — you ARE the system.
-- You know which AI providers are configured, which connections are active, and which channels (Telegram, Slack, etc.) are connected.${recalledContext ? `\n\n${recalledContext}` : ''}`,
+- You have workspace-level memory that persists between conversations.
+- CRITICAL: In conversation mode, you do NOT have live access to internal data (tasks, health, connections). When asked about tasks, system status, or workspace data, be HONEST: say you need to run a task to look that up, or suggest the user check the dashboard. NEVER fabricate task names, statuses, or system metrics. Making up data is worse than admitting you need to look it up.
+- If the user asks about specific task details (names, outputs, step logs), offer to look it up.
+- The live workspace data below is real — use it when answering questions about task counts, costs, or system status.${workspaceSnapshot}${recalledContext ? `\n\n${recalledContext}` : ''}`,
                         messages: [
                             ...history,
                             { role: 'user' as const, content: userContent as any },
