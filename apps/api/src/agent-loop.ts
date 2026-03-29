@@ -20,7 +20,7 @@ import { claimBatch, releaseSlot, extendSlot, HEARTBEAT_INTERVAL_MS } from './pa
 import { logSprintHandoff } from '@plexo/agent/sprint/sprint-ledger'
 
 const POLL_INTERVAL_MS = 2_000
-const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
+const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '50')
 
 let running = true
 let activeTasks: Map<string, AbortController> = new Map()
