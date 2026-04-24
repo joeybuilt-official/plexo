@@ -34,6 +34,18 @@ router.get('/', async (req: any, res: any) => {
 
         const providers = await listProviders(workspaceId)
 
+        // Auto-refresh stale capabilities (older than 1 hour) in the background.
+        // This ensures model lists stay current without requiring manual refresh.
+        const ONE_HOUR = 60 * 60 * 1000
+        const stale = providers.filter(p =>
+            p.encryptedKey && (!p.lastDiscoveredAt || Date.now() - new Date(p.lastDiscoveredAt).getTime() > ONE_HOUR)
+        )
+        if (stale.length > 0) {
+            const { refreshInstanceCapabilities } = await import('@plexo/agent/providers/instances')
+            // Fire-and-forget — don't block the response
+            Promise.allSettled(stale.map(p => refreshInstanceCapabilities(p.id))).catch(() => {})
+        }
+
         // Redact encrypted keys for the response
         const safe = providers.map(p => ({
             ...p,
