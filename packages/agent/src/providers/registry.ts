@@ -1115,7 +1115,6 @@ export async function testProvider(
     const GOOGLE_MODEL_PRIORITY = [
         'gemini-2.5-flash',
         'gemini-2.5-pro',
-        'gemini-2.0-flash-001',
     ]
 
     if (providerKey === 'google') {
@@ -1156,9 +1155,8 @@ export async function testProvider(
                     errors.push(`${candidate}: ${msg.slice(0, 120)}`)
                 }
             }
-            // If every candidate failed with similar errors, bubble up the first one
-            // instead of the opaque "No compatible model found" — helps classifyError.
-            const firstError = errors[0]?.split(': ').slice(1).join(': ') ?? 'No compatible model found'
+            // Show the most informative error. If all failed, use the first one.
+            const firstError = errors[0] ?? 'No compatible model found'
             return { ok: false, message: firstError, latencyMs: Date.now() - start, model: '' }
         } finally {
             if (envKey) {
