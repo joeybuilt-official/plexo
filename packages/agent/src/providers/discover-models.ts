@@ -63,13 +63,14 @@ export const FALLBACK_MODELS: Record<string, string[]> = {
     voyage: ['voyage-3'],
     ollama: [],
     ollama_cloud: ['gpt-oss:120b', 'gpt-oss:20b', 'deepseek-v3.2', 'qwen3-coder:480b', 'gemma4:31b'],
+    fal: ['fal-ai/flux/schnell', 'fal-ai/flux/dev', 'fal-ai/flux-pro/v1.1', 'fal-ai/stable-diffusion-v35', 'fal-ai/recraft/v4/pro/text-to-image'],
 }
 
 /**
  * Providers with no public list endpoint — always return their hardcoded hints
  * as "fallback" and mark ok=false so the UI keeps treating them as static.
  */
-const STATIC_ONLY_PROVIDERS = new Set<string>(['cloudflare', 'voyage', 'sambanova'])
+const STATIC_ONLY_PROVIDERS = new Set<string>(['cloudflare', 'voyage', 'sambanova', 'fal'])
 
 function fallback(providerType: string, error: string): DiscoveryResult {
     return {
@@ -283,6 +284,7 @@ export async function discoverModels(
             case 'cloudflare':
             case 'voyage':
             case 'sambanova':
+            case 'fal':
                 return fallback(providerType, 'No discovery endpoint — using static catalog')
 
             default:

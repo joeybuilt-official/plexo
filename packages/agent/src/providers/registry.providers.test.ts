@@ -59,9 +59,13 @@ describe('provider registry whitelist', () => {
         expect(isKnownProviderKey('')).toBe(false)
     })
 
-    it('every builtin key is instantiable via buildModel without throwing', async () => {
+    it('every chat-capable builtin key is instantiable via buildModel without throwing', async () => {
         const { buildModel } = await import('./registry.js')
+        // Non-chat providers (image/video gen only) intentionally throw in
+        // buildModel — they are excluded from this assertion.
+        const NON_CHAT_PROVIDERS = new Set(['fal'])
         for (const key of BUILTIN_PROVIDER_KEYS) {
+            if (NON_CHAT_PROVIDERS.has(key)) continue
             expect(
                 () =>
                     buildModel(
@@ -77,6 +81,19 @@ describe('provider registry whitelist', () => {
                 `buildModel should handle ${key}`,
             ).not.toThrow()
         }
+    })
+
+    it('non-chat providers throw descriptive errors in buildModel', async () => {
+        const { buildModel } = await import('./registry.js')
+        expect(
+            () =>
+                buildModel(
+                    'fal',
+                    { provider: 'fal', apiKey: 'test-key' },
+                    'summarization',
+                    { primaryProvider: 'fal', fallbackChain: [], providers: {} },
+                ),
+        ).toThrow(/does not support chat/)
     })
 
     it('UI catalog stays in sync with backend whitelist', () => {
@@ -99,6 +116,7 @@ describe('provider registry whitelist', () => {
             'perplexity',
             'xai',
             'cloudflare',
+            'fal',
         ]
         for (const key of UI_CATALOG_KEYS) {
             expect(

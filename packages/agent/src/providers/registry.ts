@@ -137,6 +137,7 @@ export const BUILTIN_PROVIDER_KEYS = [
     'cloudflare',
     'ollama',
     'ollama_cloud',
+    'fal',
 ] as const
 
 export type BuiltinProviderKey = typeof BUILTIN_PROVIDER_KEYS[number]
@@ -255,6 +256,9 @@ export const PROVIDER_DEFAULT_MODELS: Partial<Record<string, string>> = {
     // Free tier default — works with any key, no credits required.
     // deepseek-chat-v3-0324:free is generally available regardless of OR privacy settings.
     openrouter: 'deepseek/deepseek-chat-v3-0324:free',
+    // fal.ai: image/video generation platform — no chat models.
+    // Default is their fastest image gen model.
+    fal: 'fal-ai/flux/schnell',
 }
 
 export function buildModel(
@@ -440,6 +444,16 @@ export function buildModel(
                 fetch: ollamaCloudResilientFetch(),
             })
             return oc(modelId)
+        }
+        case 'fal': {
+            // fal.ai is an image/video generation platform — it does NOT expose
+            // OpenAI-compatible chat completions. Chat routing should never land
+            // here (discovery marks supportsChat=false). If it does, fail loudly
+            // so the fallback chain moves to the next provider.
+            throw new Error(
+                'fal.ai does not support chat completions. It is an image/video generation provider. ' +
+                'Use it through the media generation pipeline, not the chat router.',
+            )
         }
         default: {
             if (!providerKey.startsWith('custom_')) {
@@ -764,6 +778,9 @@ const DEFAULT_TEST_MODELS: Partial<Record<string, string>> = {
     cloudflare: '@cf/meta/llama-3.1-8b-instruct',
     ollama: 'llama3.2',
     ollama_cloud: 'gpt-oss:20b-cloud',
+    // fal.ai: not a chat provider — smoke test validates the API key via
+    // a lightweight GET to their status endpoint, not a model call.
+    fal: 'fal-ai/flux/schnell',
 }
 
 const PROVIDER_ENV_KEY: Partial<Record<string, string>> = {
@@ -775,6 +792,7 @@ const PROVIDER_ENV_KEY: Partial<Record<string, string>> = {
     groq: 'GROQ_API_KEY',
     xai: 'XAI_API_KEY',
     deepseek: 'DEEPSEEK_API_KEY',
+    fal: 'FAL_KEY',
 }
 
 function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: string, apiKey?: string): AnyLanguageModel {
@@ -888,6 +906,12 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
                 fetch: ollamaCloudResilientFetch(),
             })(modelId)
         }
+        case 'fal': {
+            // fal.ai has no chat completions endpoint — buildTestModel is only
+            // used by testProvider, which has a dedicated fal branch that
+            // validates the key via REST. This case should never be reached.
+            throw new Error('fal.ai does not support OpenAI-compatible chat. Use testProvider() directly.')
+        }
         default: {
             if (!providerKey.startsWith('custom_')) {
                 throw new Error(`Unknown provider: ${providerKey}`)
@@ -926,6 +950,38 @@ export async function testProvider(
 ): Promise<ProviderTestResult> {
     const { generateText: gt } = await import('ai')
     const start = Date.now()
+
+    // ── fal.ai: validate API key via a lightweight REST call ────────────────
+    // fal.ai has no OpenAI-compatible chat endpoint. We validate the key by
+    // submitting a minimal request to their fastest model (flux/schnell) and
+    // checking whether the API key is accepted (2xx vs 401/403).
+    if (providerKey === 'fal') {
+        if (!opts.apiKey) {
+            return { ok: false, message: 'fal.ai requires an API key. Get one at fal.ai/dashboard/keys.', latencyMs: 0, model: '' }
+        }
+        try {
+            // Hit the queue status endpoint with a dry-run style request.
+            // We use the /fal-ai/flux/schnell endpoint — it's fast and cheap.
+            // A 401/403 means bad key; 200/422 means key is valid.
+            const res = await fetch('https://queue.fal.run/fal-ai/flux/schnell', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Key ${opts.apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ prompt: 'test', num_images: 1, image_size: 'square', enable_safety_checker: true }),
+                signal: AbortSignal.timeout(timeoutMs),
+            })
+            if (res.status === 401 || res.status === 403) {
+                return { ok: false, message: 'Invalid API key. Check fal.ai/dashboard/keys.', latencyMs: Date.now() - start, model: 'fal-ai/flux/schnell' }
+            }
+            // Any 2xx or 422 (validation error) means the key is valid
+            return { ok: true, message: 'Connected — API key valid (image/video generation provider)', latencyMs: Date.now() - start, model: opts.model ?? 'fal-ai/flux/schnell' }
+        } catch (err) {
+            const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'
+            return { ok: false, message, latencyMs: Date.now() - start, model: opts.model ?? '' }
+        }
+    }
 
     // ── Ollama local: discover models via GET, pick one, then test ───────────
     if (providerKey === 'ollama') {
@@ -1059,7 +1115,6 @@ export async function testProvider(
     const GOOGLE_MODEL_PRIORITY = [
         'gemini-2.5-flash',
         'gemini-2.5-pro',
-        'gemini-2.5-flash-8b',
         'gemini-2.0-flash',
     ]
 

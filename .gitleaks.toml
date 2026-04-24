@@ -1,0 +1,11 @@
+# Gitleaks config — allowlist test fixtures and placeholder secrets
+[allowlist]
+  description = "Test fixtures and placeholder secrets"
+  paths = [
+    '''tests/''',
+    '''\.test\.ts$''',
+    '''\.test\.tsx$''',
+    '''setup\.ts$''',
+    '''\.env\.example$''',
+    '''\.env\.full\.example$''',
+  ]

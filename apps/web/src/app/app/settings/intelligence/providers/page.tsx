@@ -373,6 +373,20 @@ const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
         keyHint: 'Enter the API key for your Ollama Cloud account. Get one at ollama.com/settings/keys.',
         authType: 'api-key',
     },
+    {
+        type: 'fal',
+        name: 'fal.ai',
+        icon: Sparkles,
+        free: false,
+        pricing: 'Pay-as-you-go. Image generation from $0.003/image (FLUX Schnell).',
+        description: 'AI media generation platform. 1000+ models for image, video, audio, and 3D generation.',
+        bestFor: 'Image generation, video generation, media AI',
+        keyPrefix: '',
+        getKeyUrl: 'https://fal.ai/dashboard/keys',
+        docsUrl: 'https://fal.ai/docs',
+        sampleModels: ['fal-ai/flux/schnell', 'fal-ai/flux/dev', 'fal-ai/flux-pro/v1.1', 'fal-ai/stable-diffusion-v35'],
+        keyHint: 'fal.ai is an image/video generation provider. Chat/text generation is not supported.',
+    },
 ]
 
 function catalogFor(type: string): ProviderCatalogEntry | null {

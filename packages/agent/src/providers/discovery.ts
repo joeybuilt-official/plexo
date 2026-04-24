@@ -46,6 +46,7 @@ const CLOUD_CAPABILITIES: Record<string, Omit<ProviderCapabilities, 'discoveryEr
     xai: { supportsChat: true, supportsEmbeddings: false, chatModels: ['grok-3', 'grok-3-mini'], embeddingModels: [] },
     cloudflare: { supportsChat: true, supportsEmbeddings: true, chatModels: ['@cf/meta/llama-3.3-70b-instruct-fp8-fast'], embeddingModels: ['@cf/baai/bge-base-en-v1.5'] },
     voyage: { supportsChat: false, supportsEmbeddings: true, chatModels: [], embeddingModels: ['voyage-3'] },
+    fal: { supportsChat: false, supportsEmbeddings: false, chatModels: [], embeddingModels: [] },
 }
 
 /**
