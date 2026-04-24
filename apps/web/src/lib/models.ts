@@ -18,7 +18,7 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapability[]> = {
     'o4-mini': ['text', 'image', 'reasoning', 'tools'],
     'gemini-2.5-flash': ['text', 'image', 'voice', 'video', 'tools'],
     'gemini-2.5-pro': ['text', 'image', 'voice', 'video', 'tools'],
-    'gemini-2.0-flash': ['text', 'image', 'voice', 'video', 'tools'],
+    'gemini-2.0-flash-001': ['text', 'image', 'voice', 'video', 'tools'],
     'llama-3.3-70b-versatile': ['text', 'tools'],
     'llama-3.2-90b-vision-preview': ['text', 'image', 'tools'],
     'llama-3.2-11b-vision-preview': ['text', 'image', 'tools'],

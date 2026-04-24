@@ -38,7 +38,7 @@ const VISION_MODELS = new Set([
     // Google
     'gemini-2.5-flash',
     'gemini-2.5-pro',
-    'gemini-2.0-flash',
+    'gemini-2.0-flash-001',
     'gemini-1.5-flash',
     'gemini-1.5-pro',
     // xAI

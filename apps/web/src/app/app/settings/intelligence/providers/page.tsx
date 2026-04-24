@@ -547,8 +547,8 @@ export default function ProvidersPage() {
                     setDiscoveredModels(data.models.map(m => m.id))
                     setDiscoveryFailed(false)
                 } else {
-                    setDiscoveredModels(null)
-                    setDiscoveryFailed(true)
+                    setDiscoveredModels(data.fallbackModels?.length ? data.fallbackModels : null)
+                    setDiscoveryFailed(!data.fallbackModels?.length)
                 }
             } catch {
                 if (!cancelled) {
