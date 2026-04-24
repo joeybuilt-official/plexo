@@ -44,8 +44,27 @@
 
 Both options have feature parity. The cloud version adds managed backups and zero-config TLS.
 
+## Requirements (Self-Host)
+
+| | Minimum | Recommended |
+|---|---|---|
+| **CPU** | 2 vCPU | 4 vCPU |
+| **RAM** | 4 GB | 8 GB |
+| **Disk** | 20 GB | 40 GB |
+| **OS** | Ubuntu 22.04+, Debian 12+ | Same |
+| **Docker** | 24.0+ | Latest |
+| **Docker Compose** | 2.20+ | Latest |
+
+A $24/mo VPS (Hetzner CX32, DigitalOcean, etc.) handles it comfortably.
+
 ## Quick Start (Self-Host)
 
+**One-liner:**
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/joeybuilt-official/plexo/main/scripts/install.sh) --domain=plexo.yourdomain.com
+```
+
+**Manual:**
 ```bash
 git clone https://github.com/joeybuilt-official/plexo.git
 cd plexo
