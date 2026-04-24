@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Plexo</string>
+    <string name="title_activity_main">Plexo</string>
+    <string name="package_name">dev.plexo.Plexo</string>
+    <string name="custom_url_scheme">dev.plexo.Plexo</string>
+</resources>

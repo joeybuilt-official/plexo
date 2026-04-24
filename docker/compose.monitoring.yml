@@ -1,0 +1,41 @@
+# Stabilization: Prometheus + Grafana for metrics collection and visualization.
+# Optional — any Plexo operator can use this to scrape the existing /api/v1/metrics endpoint.
+#
+# Usage: docker compose -f docker-compose.yml -f docker/compose.monitoring.yml up -d
+#
+# Prometheus scrapes plexo-api:3001/api/v1/metrics every 15s.
+# Grafana available at http://localhost:3002 (admin/admin).
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    mem_limit: 256m
+    restart: unless-stopped
+    networks:
+      - default
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3002:3000"
+    mem_limit: 256m
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - default
+
+volumes:
+  prometheus_data:
+  grafana_data:

@@ -1,0 +1,671 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1772549578243,
+      "tag": "0000_blushing_leper_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772549579243,
+      "tag": "0001_fine_paladin",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772549580243,
+      "tag": "0002_memory_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772549581243,
+      "tag": "0003_connections_seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1772549582243,
+      "tag": "0004_connection_tools",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772549583243,
+      "tag": "0005_connections_registry_more",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772549584243,
+      "tag": "0006_task_project_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1772549585243,
+      "tag": "0007_workspace_membership",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772549586243,
+      "tag": "0008_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1772549587243,
+      "tag": "0009_kapsel_migration",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1772549588243,
+      "tag": "0010_kapsel_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1772549589243,
+      "tag": "0011_behavior_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1772549590243,
+      "tag": "0012_token_budgets",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1772549591243,
+      "tag": "0013_mcp_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1772549592243,
+      "tag": "0014_mcp_token_urls",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1772549593243,
+      "tag": "0015_models_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1773110296405,
+      "tag": "0016_productive_galactus",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1773110338210,
+      "tag": "0017_living_warhawk",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1773111795836,
+      "tag": "0018_organic_madelyne_pryor",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1773184346775,
+      "tag": "0019_shallow_whizzer",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1773257690996,
+      "tag": "0020_smiling_paladin",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1773268722664,
+      "tag": "0021_ordinary_mantis",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1773291044251,
+      "tag": "0022_overjoyed_killmonger",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1774339200000,
+      "tag": "0023_supabase_auth_migration",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1774339201000,
+      "tag": "0024_google_workspace_connection",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1774339202000,
+      "tag": "0025_kapsel_v030_function_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1774339203000,
+      "tag": "0026_kapsel_v030_governance",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1774339204000,
+      "tag": "0027_cmd_center_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1774339205000,
+      "tag": "0028_kapsel_prompt_context_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1774339206000,
+      "tag": "0029_fabric_migration",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1774339207000,
+      "tag": "0030_task_deliverable",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1774339208000,
+      "tag": "0031_task_attempt_count",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1774339209000,
+      "tag": "0032_task_step_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1774339210000,
+      "tag": "0033_reflection_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1774339211000,
+      "tag": "0034_pax_registrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1774339212000,
+      "tag": "0035_memory_gradient_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1774339213000,
+      "tag": "0036_cron_jobs_dispatch_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1743350400000,
+      "tag": "0037_telemetry_digest_failures",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1743436800000,
+      "tag": "0038_deepgram_connection",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1743523200000,
+      "tag": "0039_app_profiles_nodes",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1774915200000,
+      "tag": "0040_ensure_app_profiles_nodes",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1774915202000,
+      "tag": "0041_federation_runtime",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1774915203000,
+      "tag": "0042_cross_app_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1775606400000,
+      "tag": "0043_task_retry_backoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1775606401000,
+      "tag": "0044_skill_plus_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1775606402000,
+      "tag": "0045_a2a_webhook_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1775606403000,
+      "tag": "0046_plexo_ops_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1775606404000,
+      "tag": "0047_scl_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1775606405000,
+      "tag": "0048_plexo_ops_fingerprint_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1775606406000,
+      "tag": "0049_scl_graphs_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1775606407000,
+      "tag": "0050_workspace_mindsets",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1775606408000,
+      "tag": "0051_hub_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1775606409000,
+      "tag": "0052_scl_golden_record",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1775606410000,
+      "tag": "0053_scl_drift_warnings",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1775606411000,
+      "tag": "0054_inference_scl_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1775606412000,
+      "tag": "0055_foundry_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1775606413000,
+      "tag": "0056_add_conversation_rule_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1775606414000,
+      "tag": "0057_embedding_variable_dimensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1775606415000,
+      "tag": "0058_provider_instances",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1775606416000,
+      "tag": "0059_per_capability_ordering",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1775606417000,
+      "tag": "0060_ssh_connection_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1775606418000,
+      "tag": "0061_message_deliveries",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1775865600000,
+      "tag": "0062_rename_telemetry_to_analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1775952000000,
+      "tag": "0063_add_failed_task_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1776038400000,
+      "tag": "0064_session_topic_embedding",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1776124800000,
+      "tag": "0065_code_health_schema_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1776211200000,
+      "tag": "0066_rename_fabric_to_pex",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1776297600000,
+      "tag": "0067_add_artifact_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1776384000000,
+      "tag": "0068_extension_audit_extras",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1776470400000,
+      "tag": "0069_add_extension_signatures",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1776556800000,
+      "tag": "0070_backfill_workspace_owners",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1776643200000,
+      "tag": "0071_user_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1776729600000,
+      "tag": "0072_escalation_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1776816000000,
+      "tag": "0073_memory_namespacing",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1776902400000,
+      "tag": "0074_workbench_pins",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1776988800000,
+      "tag": "0075_hub_voting_attribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1777075200000,
+      "tag": "0076_intelligence_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1777161600000,
+      "tag": "0077_embedding_provider_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1777248000000,
+      "tag": "0078_routing_chains",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1777334400000,
+      "tag": "0079_reclassify_agency_agents",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1777420800000,
+      "tag": "0080_workspace_owner_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1777507200000,
+      "tag": "0081_inference_logs_spend_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1777593600000,
+      "tag": "0082_session_work_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1777680000000,
+      "tag": "0083_artifact_shares",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1777766400000,
+      "tag": "0084_drop_workspace_owner_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1777852800000,
+      "tag": "0085_stabilization_eval_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1777939200000,
+      "tag": "0086_sprint_task_status_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1776584181980,
+      "tag": "0087_tasks_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1745020800000,
+      "tag": "0088_perf_missing_fk_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1745193600000,
+      "tag": "0089_audit_p1_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1776773443000,
+      "tag": "0090_google_workspace_drive_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1776783373000,
+      "tag": "0091_gmail_gcal_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1745625600000,
+      "tag": "0092_multi_account_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1777939201000,
+      "tag": "0093_levio_connection",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1777939202000,
+      "tag": "0094_domain_mastery_schema",
+      "breakpoints": true
+    }
+  ]
+}

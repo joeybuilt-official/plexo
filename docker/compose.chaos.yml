@@ -1,0 +1,40 @@
+# Stabilization: Toxiproxy + Pumba for fault injection during chaos tests.
+# Test-only — not for production deployments.
+#
+# Usage: docker compose -f docker-compose.yml -f docker/compose.chaos.yml up -d
+#
+# Toxiproxy control API: http://localhost:8474
+# Toxiproxy proxies:
+#   - Port 5433 → postgres:5432 (database faults)
+#   - Port 6380 → redis:6379 (Valkey faults)
+#
+# After starting, configure proxies:
+#   curl -X POST http://localhost:8474/proxies -d '{"name":"postgres","listen":"0.0.0.0:5433","upstream":"postgres:5432"}'
+#   curl -X POST http://localhost:8474/proxies -d '{"name":"redis","listen":"0.0.0.0:6380","upstream":"redis:6379"}'
+#
+# Inject latency:
+#   curl -X POST http://localhost:8474/proxies/postgres/toxics -d '{"name":"pg-latency","type":"latency","attributes":{"latency":500,"jitter":200}}'
+
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    ports:
+      - "8474:8474"   # Control API
+      - "5433:5433"   # Postgres proxy
+      - "6380:6380"   # Redis/Valkey proxy
+    mem_limit: 64m
+    restart: unless-stopped
+    networks:
+      - default
+
+  pumba:
+    image: gaiaadm/pumba:0.10.1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Pumba runs commands directly — use docker exec or override command.
+    # Example: docker compose exec pumba pumba pause --duration 10s plexo-redis
+    entrypoint: ["sleep", "infinity"]
+    mem_limit: 64m
+    restart: unless-stopped
+    networks:
+      - default

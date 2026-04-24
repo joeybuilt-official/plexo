@@ -1,0 +1,20 @@
+# Prometheus scrape config for Plexo.
+# Scrapes the existing /api/v1/metrics endpoint that Plexo already exposes.
+# Requires METRICS_TOKEN env var set on the Plexo API for authenticated scraping.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'plexo-api'
+    metrics_path: /api/v1/metrics
+    scheme: http
+    # Uncomment and set if METRICS_TOKEN is configured on the API:
+    # authorization:
+    #   type: Bearer
+    #   credentials: 'your-metrics-token-here'
+    static_configs:
+      - targets: ['plexo-api:3001']
+        labels:
+          instance: 'plexo-api'

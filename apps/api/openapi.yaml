@@ -1,0 +1,436 @@
+openapi: 3.1.0
+info:
+  title: Plexo API
+  description: AI agent operations platform API
+  version: 0.8.0-beta.1
+  license:
+    name: AGPL-3.0-only
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+  contact:
+    name: Joeybuilt
+    url: https://getplexo.com
+
+servers:
+  - url: /api/v1
+    description: Default (relative)
+
+tags:
+  - name: Chat
+    description: Send messages to the agent
+  - name: Conversations
+    description: Conversation history
+  - name: Tasks
+    description: Task management
+  - name: Workspaces
+    description: Workspace management
+  - name: Extensions
+    description: Extension management
+  - name: Memory
+    description: Semantic memory entries
+  - name: Agents
+    description: Agent configuration and behavior
+  - name: Health
+    description: System health checks
+
+paths:
+  /chat:
+    post:
+      tags: [Chat]
+      summary: Send a message to the agent
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, workspaceId]
+              properties:
+                message:
+                  type: string
+                workspaceId:
+                  type: string
+                  format: uuid
+                sessionId:
+                  type: string
+                intent:
+                  type: string
+                  enum: [auto, conversation, task, code, research, deployment]
+      responses:
+        '200':
+          description: SSE stream of agent response events
+          content:
+            text/event-stream: {}
+
+  /conversations:
+    get:
+      tags: [Conversations]
+      summary: List conversations
+      operationId: listConversations
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: sessionId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: groupBySession
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Conversation list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conversation'
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks
+      operationId: listTasks
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, queued, claimed, running, complete, failed, blocked, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Task list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+
+  /tasks/{id}:
+    get:
+      tags: [Tasks]
+      summary: Get task details
+      operationId: getTask
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+    delete:
+      tags: [Tasks]
+      summary: Cancel a task
+      operationId: cancelTask
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Task cancelled
+
+  /workspaces:
+    get:
+      tags: [Workspaces]
+      summary: List workspaces
+      operationId: listWorkspaces
+      responses:
+        '200':
+          description: Workspace list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Workspace'
+    post:
+      tags: [Workspaces]
+      summary: Create workspace
+      operationId: createWorkspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+      responses:
+        '201':
+          description: Workspace created
+
+  /workspaces/{id}:
+    get:
+      tags: [Workspaces]
+      summary: Get workspace
+      operationId: getWorkspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workspace details
+
+  /workspaces/{id}/export:
+    get:
+      tags: [Workspaces]
+      summary: Export workspace data as JSON
+      operationId: exportWorkspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: JSON export of all workspace data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exportedAt:
+                    type: string
+                    format: date-time
+                  workspace:
+                    $ref: '#/components/schemas/Workspace'
+                  conversations:
+                    type: array
+                  tasks:
+                    type: array
+                  memories:
+                    type: array
+                  behaviorRules:
+                    type: array
+
+  /extensions:
+    get:
+      tags: [Extensions]
+      summary: List installed extensions
+      operationId: listExtensions
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Extension list
+
+  /extensions/{id}:
+    patch:
+      tags: [Extensions]
+      summary: Update extension (enable/disable)
+      operationId: updateExtension
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Extension updated
+    delete:
+      tags: [Extensions]
+      summary: Uninstall extension
+      operationId: uninstallExtension
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Extension uninstalled
+
+  /memory:
+    get:
+      tags: [Memory]
+      summary: List memory entries
+      operationId: listMemory
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: namespace
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Memory entries
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded]
+                  services:
+                    type: object
+
+components:
+  schemas:
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        message:
+          type: string
+        reply:
+          type: string
+          nullable: true
+        status:
+          type: string
+        sessionId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        status:
+          type: string
+          enum: [pending, queued, claimed, running, complete, failed, blocked, cancelled]
+        source:
+          type: string
+        outcomeSummary:
+          type: string
+          nullable: true
+        costUsd:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Workspace:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []

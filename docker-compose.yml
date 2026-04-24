@@ -1,0 +1,378 @@
+# ── Shared logging driver ─────────────────────────────────
+# Caps per-container log volume at 250 MB (5 × 50 MB rotated files) so
+# a misbehaving service can't fill the host disk. Reference via
+# `<<: *default-logging` on any service.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+services:
+  # ── Database ──────────────────────────────────────────────
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    logging: *default-logging
+    # Unique hostname avoids DNS collision when deployed via Coolify, which
+    # connects the api container to the Coolify network where 'postgres'
+    # already resolves to coolify-db. 'plexo-db' is scoped to this network only.
+    hostname: plexo-db
+    environment:
+      POSTGRES_USER: plexo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: plexo
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - postgres-backups:/backups
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U plexo -d plexo" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Enforced cgroup limits (mem_limit/memswap_limit apply without Swarm mode)
+    mem_limit: 512m
+    memswap_limit: 1g
+
+  # ── Database backup sidecar ──────────────────────────────
+  # Runs pg_dump on a fixed interval and writes gzipped archives to the
+  # postgres-backups named volume. Retention is controlled by
+  # BACKUP_RETENTION_DAYS (default 7). See scripts/backup.sh for details
+  # and docs/operations/disaster-recovery.md for the restore runbook.
+  postgres-backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - postgres-backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    environment:
+      POSTGRES_HOST: plexo-db
+      POSTGRES_USER: plexo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: plexo
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      # DI-008: MinIO asset backup (used by backup.sh if mc is available)
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-plexo-assets}
+    # Loop: sleep a few seconds to let pg_isready settle, then run
+    # backup.sh every BACKUP_INTERVAL_SECONDS. Using a shell loop keeps
+    # the image tiny (no cron dep) and lets us tweak the cadence via env.
+    entrypoint: ["/bin/sh", "-c", "sleep 10; while true; do /backup.sh || echo '[backup] run failed'; sleep \"$${BACKUP_INTERVAL_SECONDS:-86400}\"; done"]
+    mem_limit: 128m
+    memswap_limit: 192m
+
+  # ── Cache / State ────────────────────────────────────────
+
+  redis:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    command: valkey-server --maxmemory 128mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: [ "CMD", "valkey-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 192m
+    memswap_limit: 256m
+
+  # ── DB Migrations (runs once, exits) ────────────────────
+
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
+    entrypoint: [ "/bin/sh", "/migrate.sh" ]
+    restart: "no"
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
+      MIGRATIONS_DIR: /app/packages/db/drizzle
+    # 256m RAM + up to 256m swap = 512m ceiling total.
+    # OOM-kill enforced by cgroup — prevents runaway swap consumption.
+    mem_limit: 256m
+    memswap_limit: 512m
+
+  # ── API Server ───────────────────────────────────────────
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+      args:
+        APP_VERSION: ${APP_VERSION:-auto}
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      embeddings:
+        condition: service_healthy
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      PUBLIC_URL: ${PUBLIC_URL}
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
+      SESSION_SECRET: ${SESSION_SECRET}
+      ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
+      # Better Auth — shared identity layer (replaces Supabase)
+      AUTH_PROVIDER: better-auth
+      AUTH_DATABASE_URL: ${AUTH_DATABASE_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      # Analytics relay — Command Engine ingest
+      ANALYTICS_RELAY_URL: ${ANALYTICS_RELAY_URL:-}
+      ANALYTICS_RELAY_KEY: ${ANALYTICS_RELAY_KEY:-}
+      # Supabase JWT still accepted during transition (optional — remove after full migration)
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-}
+      LEVIO_PUBLIC_URL: ${LEVIO_PUBLIC_URL:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID:-}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      DISCORD_APP_ID: ${DISCORD_APP_ID:-}
+      DISCORD_PUBLIC_KEY: ${DISCORD_PUBLIC_KEY:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      MAX_SPRINT_WORKERS: ${MAX_SPRINT_WORKERS:-5}
+      API_COST_CEILING_USD: ${API_COST_CEILING_USD:-10.00}
+      APP_VERSION: ${APP_VERSION:-auto}
+      # Asset storage (MinIO or S3-compatible)
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-http://minio:9000}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-plexo-assets}
+      # One-click update: set to "true" and uncomment the volumes block below.
+      # Requires the Docker socket to be mounted. See the comment near 'volumes:' below.
+      DOCKER_SOCKET_ENABLED: ${DOCKER_SOCKET_ENABLED:-false}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-plexo}
+      # Plexo Embeddings Server — native ONNX embeddings (highest priority).
+      # Active only when running with --profile local-embeddings.
+      EMBEDDINGS_URL: ${EMBEDDINGS_URL:-http://embeddings:3001}
+      # Managed Ollama sidecar — fallback for LLM + embedding calls
+      OLLAMA_INTERNAL_URL: http://ollama:11434
+      # Extension sideloading — disabled by default. See docs/security/
+      # extension-security-model.md §Q3. Self-hosted operators who want to
+      # install extensions from a raw manifest without going through the Hub
+      # should set ALLOW_SIDELOAD=true in .env.
+      ALLOW_SIDELOAD: ${ALLOW_SIDELOAD:-false}
+    volumes:
+      - generated_skills:/var/plexo/generated-skills
+    # When Coolify connects this container to its proxy network, 'postgres'
+    # may resolve to coolify-db instead of our database. Use the unique
+    # hostname 'plexo-db' (set on the postgres service) to avoid collisions.
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    mem_limit: 512m
+    memswap_limit: 768m
+
+  # ── Embeddings Server (native ONNX embeddings, opt-in) ─────
+  # Bundled local embeddings via snowflake-arctic-embed.
+  # Only starts with: docker compose --profile local-embeddings up
+  # Self-hosters who BYO embedding provider keys (OpenAI, Voyage, etc.)
+  # do not need this service running.
+
+  embeddings:
+    profiles: ["local-embeddings"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.embeddings
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      EMBEDDING_MODEL_NAME: plexo-embed-v1
+      EMBEDDING_MODEL_DIR: /app/apps/embeddings/models/snowflake-arctic-embed-s
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    mem_limit: 512m
+    memswap_limit: 768m
+
+  # ── Web Dashboard ────────────────────────────────────────
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # Better Auth — shared identity layer
+      AUTH_DATABASE_URL: ${AUTH_DATABASE_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      BETTER_AUTH_URL: ${PUBLIC_URL}
+      NEXT_PUBLIC_API_URL: ${PUBLIC_URL}/api
+      INTERNAL_API_URL: http://api:3001
+      PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-}
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3000 2>/dev/null | grep -q html || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    mem_limit: 512m
+    memswap_limit: 768m
+
+  # ── Asset Storage (S3-compatible) ──────────────────────────
+  # MinIO provides local S3-compatible storage for agent-produced assets.
+  # Operators can swap this for real S3/Cloudflare R2/Backblaze B2 by
+  # changing STORAGE_ENDPOINT, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY in .env.
+  minio:
+    profiles: ["object-storage"]
+    image: minio/minio:latest
+    restart: unless-stopped
+    logging: *default-logging
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"] 
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    mem_limit: 256m
+    memswap_limit: 384m
+
+  # ── Ollama — local LLM + embeddings for GPU users ────────
+  # Only starts with: docker compose --profile local-llm up
+  # Default embeddings are handled by the embeddings service when enabled
+  ollama:
+    profiles: ["local-llm"]
+    image: ollama/ollama:0.6.2
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:11434/api/tags >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    mem_limit: 6g
+    memswap_limit: 8g
+    cpus: 2.0
+
+  # ── Ollama Init (one-shot model pull) ────────────────────
+  # Pulls default models on first startup. Idempotent — skips if already present.
+  ollama-init:
+    profiles: ["local-llm"]
+    image: ollama/ollama:0.6.2
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "[ollama-init] Checking default models..."
+        export OLLAMA_HOST=http://ollama:11434
+
+        # Embedding model — snowflake-arctic-embed (1024 dims, best-in-class for size)
+        if ollama list | grep -q 'snowflake-arctic-embed'; then
+          echo "[ollama-init] snowflake-arctic-embed already pulled, skipping"
+        else
+          echo "[ollama-init] Pulling snowflake-arctic-embed..."
+          ollama pull snowflake-arctic-embed
+        fi
+
+        # Chat model — llama3.2:3b (small, fits in 6GB alongside embedding model)
+        if ollama list | grep -q 'llama3.2:3b'; then
+          echo "[ollama-init] llama3.2:3b already pulled, skipping"
+        else
+          echo "[ollama-init] Pulling llama3.2:3b..."
+          ollama pull llama3.2:3b
+        fi
+
+        echo "[ollama-init] Default models ready."
+        ollama list
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+
+  # ── Reverse Proxy (self-hosted only) ─────────────────────
+  # For managed deployments (Coolify), the platform proxy handles TLS.
+  # To enable caddy for self-hosted, use: docker compose --profile selfhosted up
+  caddy:
+    profiles: ["selfhosted"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.caddy
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_started
+      api:
+        condition: service_started
+    mem_limit: 128m
+    memswap_limit: 192m
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  ollama_models:
+  caddy_data:
+  caddy_config:
+  generated_skills:
+  postgres-backups:

@@ -1,0 +1,34 @@
+# Plexo CLI — `.github/workflows/plexo-sprint.yml`
+#
+# Example: trigger a Plexo sprint automatically after merging to main.
+# The sprint reviews the changes, updates SPEC.md and FEATURES.json,
+# and runs typecheck. Fails the CI job if the sprint fails.
+
+name: Plexo Sprint on Merge
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  plexo-sprint:
+    name: Run Plexo Sprint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dispatch sprint
+        run: |
+          npx plexo@latest sprint start \
+            "Review merged changes, update SPEC.md and FEATURES.json, run typecheck" \
+            --wait \
+            --timeout 2h
+        env:
+          PLEXO_HOST: ${{ secrets.PLEXO_HOST }}
+          PLEXO_TOKEN: ${{ secrets.PLEXO_TOKEN }}
+          PLEXO_WORKSPACE: ${{ secrets.PLEXO_WORKSPACE }}
+        # Exit codes:
+        #   0 = success (quality ≥ 7)
+        #   2 = sprint failed or quality < 7
+        #   3 = blocked — awaiting OWD approval
+        #   5 = timed out

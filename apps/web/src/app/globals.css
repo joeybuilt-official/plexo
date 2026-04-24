@@ -1,0 +1,384 @@
+@import "tailwindcss";
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Plexo Design Tokens — Single Source of Truth
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Canonical token vocabulary. DO NOT introduce shadcn-style aliases
+ * (`text-foreground`, `bg-surface`, `text-muted-foreground`, `border-input`
+ * etc.) — they do not resolve in this theme.
+ *
+ * Colors (use these class names):
+ *   bg-canvas            — page background
+ *   bg-surface-1/2/3     — card / panel / pressed surface hierarchy
+ *   border-border        — default border
+ *   border-border-subtle — low-emphasis border
+ *   text-text-primary    — primary body copy
+ *   text-text-secondary  — secondary / label copy
+ *   text-text-muted      — disabled / tertiary copy
+ *   text-azure / bg-azure / border-azure           — brand accent
+ *   text-amber / bg-amber / border-amber           — warning / one-way-door
+ *   text-red   / bg-red   / border-red             — error
+ *
+ * Radius: rounded-md (7px), rounded-lg (10px), rounded-xl (12px)
+ * Fonts:  font-display (Syne), font-body (Inter), font-mono (JetBrains Mono)
+ *
+ * Focus rings: add `focus-ring` utility (below) to interactive elements.
+ * Global `*:focus-visible` also applies a visible outline for keyboard nav.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Dark mode via class strategy (next-themes adds class="dark" / class="light" to <html>).
+ * Tailwind v4: declare the variant explicitly so dark: utilities resolve to .dark selector.
+ */
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Colors */
+  --color-canvas:       #0C0E14;
+  --color-surface-1:    #12151E;
+  --color-surface-2:    #181C28;
+  --color-surface-3:    #1F2437;
+  --color-border:       #252A3A;
+  --color-border-subtle:#1A1E2C;
+
+  --color-text-primary: #EEF0F7;
+  --color-text-secondary:#8C95AD;
+  --color-text-muted:   #545C72;
+
+  /* Core Palette */
+  /* Azure — platform color (hue 217°, pure electric blue, not purple) */
+  --color-azure:        #3B82F6;
+  --color-azure-500:    var(--color-azure);
+  --color-azure-600:    #2563EB;
+  --color-azure-700:    #1D4ED8;
+  --color-azure-800:    #1E40AF;
+  --color-azure-900:    #1E3A8A;
+  --color-azure-dim:    rgba(59,130,246,0.14);
+  --color-azure-glow:   rgba(59,130,246,0.07);
+
+  /* Legacy aliases — map to azure so existing class references resolve */
+  --color-indigo:       #3B82F6;
+  --color-indigo-500:   var(--color-azure);
+  --color-indigo-600:   var(--color-azure-600);
+  --color-indigo-dim:   var(--color-azure-dim);
+  --color-indigo-glow:  var(--color-azure-glow);
+
+  /* Amber — agent active / one-way-door signal */
+  --color-amber:        #F59E0B;
+  --color-amber-500:    var(--color-amber);
+  --color-amber-600:    #D97706;
+  --color-amber-dim:    rgba(245,158,11,0.13);
+
+  --color-red:          #EF4444;
+  --color-red-500:      var(--color-red);
+  --color-red-600:      var(--color-red);
+  --color-red-dim:      rgba(239,68,68,0.12);
+
+  /* Radius */
+  --radius-md:          7px;  /* buttons, inputs */
+  --radius-lg:          10px; /* cards, panels */
+  --radius-xl:          12px; /* large surfaces */
+
+  /* Fonts */
+  /* TODO: UX-031 — Unify token vocabulary: some components still use raw zinc/gray instead of theme tokens */
+  /* TODO: UX-032 — Token audit: ensure all text-text-* / bg-surface-* usage is consistent */
+  /* Font families — next/font/google injects optimized values via CSS variables
+     on <html>. These @theme fallbacks only apply if next/font somehow fails. */
+  --font-display: 'Syne', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+  --font-sans:    'Inter', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+}
+
+@layer base {
+  html {
+    font-size: 16px;
+  }
+  
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    line-height: 1.5;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: theme(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: theme(--color-text-muted);
+}
+
+/*
+ * Global focus-visible outline — required for keyboard accessibility (WCAG 2.4.7).
+ * Uses azure accent on 2px offset so it's visible against any surface.
+ * Mouse users don't see this (only :focus-visible), so it doesn't show on click.
+ * Inputs / textareas can opt out with the `.no-focus-ring` class if their
+ * internal styling already indicates focus (e.g. border color change + ring).
+ */
+*:focus-visible {
+  outline: 2px solid var(--color-azure);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.no-focus-ring:focus-visible {
+  outline: none;
+}
+
+/*
+ * Inputs/textareas/selects opt out of the global azure focus outline.
+ * The user explicitly does not want a blue ring on click into a text
+ * field — Chromium treats text-entry fields as always-focus-visible
+ * for a11y, so the global rule above fires on every click.
+ *
+ * Mouse focus → no outline (clean field). Keyboard focus → muted
+ * outline so WCAG 2.4.7 keyboard navigation is still satisfied.
+ *
+ * Buttons / links / toggles still get the global azure outline
+ * because their focus indicator is intentional brand signal.
+ */
+input:focus,
+textarea:focus,
+select:focus,
+[contenteditable]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: none !important;
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[contenteditable]:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--color-text-muted) 40%, transparent) !important;
+  outline-offset: 2px;
+  box-shadow: none !important;
+  --tw-ring-shadow: none !important;
+}
+
+/* Smooth transitions on interactive elements only */
+a, button, [role="button"], input, select, textarea,
+.card-glow, [data-interactive] {
+  transition-property: color, background-color, border-color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Card hover glow */
+.card-glow:hover {
+  box-shadow: 0 0 0 1px theme(--color-border), 0 0 20px -5px theme(--color-azure-glow);
+}
+
+/* Activity log entry animation */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Landing page: scroll reveal ────────────────────────────────────────────── */
+.reveal-section {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-section[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Landing page: gradient text ───────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, theme(--color-text-primary) 0%, theme(--color-azure) 60%, theme(--color-amber) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Landing page: glow effects ────────────────────────────────────────────── */
+.glow-azure {
+  box-shadow: 0 0 60px -12px rgba(59, 130, 246, 0.35),
+              0 0 120px -24px rgba(59, 130, 246, 0.12);
+}
+.glow-border {
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.glow-border:hover {
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 0 30px -8px rgba(59, 130, 246, 0.18);
+}
+
+/* ── Landing page: backgrounds ─────────────────────────────────────────────── */
+.bg-grid-dots {
+  background-image: radial-gradient(circle, rgba(59, 130, 246, 0.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.hero-glow {
+  background: radial-gradient(
+    ellipse 600px 400px at 50% 40%,
+    rgba(59, 130, 246, 0.1) 0%,
+    rgba(59, 130, 246, 0.03) 40%,
+    transparent 70%
+  );
+}
+
+/* ── Landing page: terminal cursor ─────────────────────────────────────────── */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.terminal-cursor::after {
+  content: '▊';
+  animation: blink 1s step-end infinite;
+  color: theme(--color-azure);
+  margin-left: 2px;
+  font-size: 0.85em;
+}
+
+/* ── Landing page: concept graph animation ─────────────────────────────────── */
+@keyframes concept-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+@keyframes concept-orbit {
+  from { transform: rotate(0deg) translateX(14px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(14px) rotate(-360deg); }
+}
+
+/*
+ * ── Light mode palette ─────────────────────────────────────────────────────────
+ * High-contrast light palette. WCAG AA compliant for all text/bg combinations.
+ * Activated when next-themes sets class="light" on <html>.
+ *
+ * Surface hierarchy (darkest → lightest):
+ *   surface-3  #DDE1EA  (hover, pressed — clearly distinct)
+ *   surface-2  #E8EBF2  (selected, secondary bg)
+ *   surface-1  #F1F3F7  (cards, panels — slightly off-white)
+ *   canvas     #F7F8FC  (page background — near-white)
+ *   white      #FFFFFF  (inputs, dropdowns, modals)
+ *
+ * Borders are fully visible: subtle at 60% opacity of border, normal at 100%.
+ */
+.light {
+  /* Page background */
+  --color-canvas:        #F7F8FC;
+
+  /* Card / panel surfaces — clearly off-white, not white */
+  --color-surface-1:     #F1F3F7;
+  /* Selected states, secondary backgrounds */
+  --color-surface-2:     #E5E8F0;
+  /* Hover, pressed states */
+  --color-surface-3:     #D8DCE8;
+
+  /* Fully visible borders — no ghosting on light bg */
+  --color-border:        #C4C9D8;
+  --color-border-subtle: #D8DCE8;
+
+  /* Text — high contrast slate (passes WCAG AA on all surfaces above) */
+  --color-text-primary:   #0F1624;   /* ~15:1 on canvas */
+  --color-text-secondary: #374151;   /* ~8:1 on canvas  */
+  --color-text-muted:     #6B7280;   /* ~4.5:1 on canvas — AA compliant */
+
+  /* Azure — darker shade for WCAG AA contrast on light backgrounds */
+  --color-azure:        #2563EB;
+
+  /* Accent dims — slightly stronger on light backgrounds */
+  --color-azure-dim:    rgba(59,130,246,0.12);
+  --color-azure-glow:   rgba(59,130,246,0.06);
+  --color-indigo-dim:   rgba(59,130,246,0.12);
+  --color-indigo-glow:  rgba(59,130,246,0.06);
+  --color-amber-dim:    rgba(245,158,11,0.12);
+  --color-red-dim:      rgba(239,68,68,0.10);
+}
+
+/* Light mode body */
+.light body {
+  background-color: var(--color-canvas);
+  color: var(--color-text-primary);
+}
+
+/*
+ * ── Light mode zinc overrides ─────────────────────────────────────────────────
+ * Components use hardcoded zinc-* utility classes for dark mode. These overrides
+ * remap them to light equivalents when the .light class is on <html>.
+ * Covers: sidebar active state, group labels, dropdowns, user footer, badges.
+ */
+
+/* Nav group labels: zinc-600 → readable slate */
+.light .text-zinc-600 { color: #6B7280; }
+/* Sidebar active icon (azure already correct) */
+.light .text-zinc-700 { color: #9CA3AF; }
+
+/* Hardcoded dark badge / text in dropdowns */
+.light .text-zinc-200 { color: #111827; }
+.light .text-zinc-300 { color: #374151; }
+
+/* Sidebar active item background: zinc-800/80 → azure-dim */
+.light .bg-zinc-800\/80 { background-color: rgba(59,130,246,0.10); }
+.light .bg-zinc-800 { background-color: var(--color-surface-2); }
+.light .bg-zinc-700 { background-color: var(--color-surface-3); }
+
+/* Workspace switcher / dropdown surfaces */
+.light .border-zinc-700\/60 { border-color: var(--color-border); }
+.light .border-zinc-700 { border-color: var(--color-border); }
+
+/* User avatar / initials chip */
+.light .ring-zinc-700\/50 { --tw-ring-color: var(--color-border); }
+.light .ring-inset { --tw-ring-color: var(--color-border); }
+
+/* Input in workspace name creation */
+.light .border-zinc-700 { border-color: var(--color-border); }
+.light .bg-canvas { background-color: var(--color-canvas); }
+
+/* Scrollbar thumb */
+.light ::-webkit-scrollbar-thumb { background: var(--color-border); }
+.light ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+@layer utilities {
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /*
+   * Preferred focus treatment for buttons/links/selects — explicit ring
+   * on azure with canvas offset, replacing the global outline.
+   * Apply this class to interactive elements for a component-level ring.
+   */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

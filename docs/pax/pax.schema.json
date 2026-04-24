@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plexo.dev/schemas/pax/0.1.0/pax.schema.json",
+  "title": "PAX Manifest",
+  "description": "Schema for pax.json — the Plexo Application eXchange manifest file.",
+  "type": "object",
+  "required": ["plexo", "name", "version", "displayName", "description", "author", "license"],
+  "additionalProperties": false,
+  "properties": {
+    "plexo": {
+      "type": "string",
+      "const": "0.1.0",
+      "description": "PAX specification version."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^(@[a-z0-9-]+/)?[a-z0-9-]+$",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "App identifier. @scope/name or plain name."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$",
+      "description": "Semantic version of the app."
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Human-readable display name."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "One-line description of the app."
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Author name or organization."
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "SPDX license identifier."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(ai:(complete|embed)|memory:(read|write|search):[a-z0-9:.]+|events:(publish|subscribe):[a-z0-9:.]+|entities:(read|create):[a-z_]+|agents:invoke|connections:proxy:[a-z0-9*-]+)$"
+      },
+      "uniqueItems": true,
+      "description": "Capability tokens requested by the app."
+    },
+    "memoryNamespace": {
+      "type": "string",
+      "pattern": "^pax:[a-z0-9-]+$",
+      "description": "Memory namespace. Must start with pax:."
+    },
+    "eventNamespace": {
+      "type": "string",
+      "pattern": "^pax\\.[a-z0-9-]+$",
+      "description": "Event namespace. Must start with pax.."
+    },
+    "events": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "publishes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Event names this app publishes."
+        },
+        "subscribes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Event names this app subscribes to."
+        }
+      }
+    },
+    "dataResidency": {
+      "type": "object",
+      "properties": {
+        "regions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed data residency regions."
+        },
+        "compliance": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Compliance frameworks (e.g., GDPR, SOC2)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["person", "task", "thread", "note", "transaction", "calendar_event", "file"]
+      },
+      "uniqueItems": true,
+      "description": "Entity types the app interacts with."
+    },
+    "workspace": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target workspace ID. Can also be provided at registration time."
+    }
+  }
+}

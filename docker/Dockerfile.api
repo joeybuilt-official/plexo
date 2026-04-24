@@ -1,0 +1,113 @@
+FROM node:22-alpine AS base
+RUN apk add --no-cache git
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# ── Resolve git commit hash ──────────────────────────────────────────────────
+# Parse .git/HEAD (+ refs or packed-refs) to resolve the current commit SHA.
+# .dockerignore excludes .git/objects and other heavy dirs but keeps HEAD, refs,
+# and packed-refs so this stage can resolve the commit without bloating the context.
+# When SOURCE_COMMIT is passed explicitly (e.g. by the updater), that value wins.
+FROM alpine:3.20 AS git-meta
+ARG SOURCE_COMMIT=unknown
+WORKDIR /meta
+COPY .gi[t] /meta/git
+COPY .source-commit-overrid[e] /meta/
+RUN SC="${SOURCE_COMMIT}"; \
+    if [ "$SC" = "unknown" ] && [ -f /meta/.source-commit-override ]; then \
+      SC=$(cat /meta/.source-commit-override); \
+    fi; \
+    if [ "$SC" = "unknown" ] && [ -f /meta/git/HEAD ]; then \
+      REF=$(cat /meta/git/HEAD); \
+      case "$REF" in \
+        ref:*) RPATH=$(echo "$REF" | sed 's/^ref: *//'); \
+               if [ -f "/meta/git/$RPATH" ]; then SC=$(cat "/meta/git/$RPATH"); \
+               elif [ -f /meta/git/packed-refs ]; then SC=$(grep " $RPATH" /meta/git/packed-refs | head -1 | cut -d' ' -f1); fi ;; \
+        *) SC="$REF" ;; \
+      esac; \
+    fi; \
+    echo "${SC:-unknown}" > /meta/SOURCE_COMMIT
+
+# ── Install workspace deps ────────────────────────────────────────────────────
+FROM base AS deps
+WORKDIR /app
+
+# Workspace manifests first — maximise layer cache
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/api/package.json              apps/api/
+COPY apps/web/package.json              apps/web/
+COPY packages/agent/package.json        packages/agent/
+COPY packages/db/package.json           packages/db/
+COPY packages/queue/package.json        packages/queue/
+COPY packages/sdk/package.json          packages/sdk/
+COPY packages/logger/package.json       packages/logger/
+COPY packages/storage/package.json      packages/storage/
+COPY packages/ui/package.json           packages/ui/
+COPY packages/scl-core/package.json    packages/scl-core/
+
+RUN pnpm install --frozen-lockfile --filter @plexo/api...
+
+# ── Runtime image ─────────────────────────────────────────────────────────────
+FROM base AS runner
+WORKDIR /app
+
+RUN apk add --no-cache docker-cli && \
+    addgroup --system --gid 1001 plexo && \
+    adduser  --system --uid 1001 --ingroup plexo plexo
+
+# Workspace manifests (needed for pnpm workspace resolution)
+COPY --from=deps /app/node_modules              ./node_modules
+COPY --from=deps /app/apps/api/node_modules     ./apps/api/node_modules
+COPY --from=deps /app/packages/agent/node_modules  ./packages/agent/node_modules
+COPY --from=deps /app/packages/db/node_modules     ./packages/db/node_modules
+COPY --from=deps /app/packages/queue/node_modules  ./packages/queue/node_modules
+COPY --from=deps /app/packages/sdk/node_modules    ./packages/sdk/node_modules
+COPY --from=deps /app/packages/logger/node_modules    ./packages/logger/node_modules
+COPY --from=deps /app/packages/scl-core/node_modules  ./packages/scl-core/node_modules
+COPY --from=deps /app/packages/storage/node_modules    ./packages/storage/node_modules
+
+# Source files
+COPY tsconfig.base.json ./
+COPY apps/api        ./apps/api
+COPY packages/agent  ./packages/agent
+COPY packages/db     ./packages/db
+COPY packages/queue  ./packages/queue
+COPY packages/sdk    ./packages/sdk
+COPY packages/logger   ./packages/logger
+COPY packages/scl-core ./packages/scl-core
+COPY packages/storage  ./packages/storage
+
+# Bundled reference extensions (Phase 5) — activate() entry points loaded by
+# the persistent worker pool at /app/extensions/core/<name>/dist/index.js
+COPY extensions/core/research-agent/dist    ./extensions/core/research-agent/dist
+COPY extensions/core/research-agent/plexo.json ./extensions/core/research-agent/plexo.json
+
+# Root manifest — needed to read version field at build time
+COPY --from=deps /app/package.json ./
+
+# Drizzle migrations — run via migrate service (compose.yml) before api starts
+COPY docker/migrate.sh /migrate.sh
+RUN chmod +x /migrate.sh
+
+# Bake the version from package.json into the image at build time.
+# Override via: docker build --build-arg APP_VERSION=x.y.z
+# Defaults to the version field in root package.json if not supplied.
+ARG APP_VERSION=auto
+RUN V="${APP_VERSION}"; \
+    [ "$V" = "auto" ] && V=$(node -p "require('./package.json').version"); \
+    echo "$V" > /app/.version && \
+    echo "APP_VERSION baked: $V"
+# Bake source commit and build timestamp — used for commit-aware update detection
+COPY --from=git-meta /meta/SOURCE_COMMIT /tmp/SOURCE_COMMIT
+RUN SC=$(cat /tmp/SOURCE_COMMIT); \
+    echo "$SC" > /app/.source-commit && echo "Commit: $SC" && \
+    date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build-time && rm /tmp/SOURCE_COMMIT
+ENV APP_VERSION=auto
+
+RUN chown -R plexo:plexo /app
+
+# TODO: OPS-004 — Zero-downtime deploy: add healthcheck + rolling update config in compose
+# TODO: DI-008 — MinIO backup: add scheduled mc mirror to offsite storage
+USER plexo
+EXPOSE 3001
+
+CMD ["node", "--max-old-space-size=350", "/app/apps/api/node_modules/tsx/dist/cli.mjs", "apps/api/src/index.ts"]
