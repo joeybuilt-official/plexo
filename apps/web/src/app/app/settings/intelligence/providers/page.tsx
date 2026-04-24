@@ -1175,15 +1175,18 @@ export default function ProvidersPage() {
                     // 2. If unconnected but the user is typing a key and we got live
                     //    discovery back: use those models (authoritative for this key).
                     // 3. Otherwise: the hardcoded catalog sampleModels (last-resort hint).
+                    // For non-chat providers (fal.ai, voyage), chatModels is always empty.
+                    // Use discoveredModels (from fallback catalog) or sampleModels instead.
+                    const isNonChat = selectedInstance && !selectedInstance.capabilities.supportsChat
                     const liveModels = isConnected && selectedInstance
-                        ? selectedInstance.capabilities.chatModels
+                        ? (isNonChat ? (discoveredModels ?? selectedCatalog.sampleModels) : selectedInstance.capabilities.chatModels)
                         : discoveredModels ?? null
                     const usingLive = liveModels !== null
                     const displayModels = usingLive && liveModels.length > 0
                         ? liveModels
                         : selectedCatalog.sampleModels
                     const catalogSet = new Set(selectedCatalog.sampleModels)
-                    const emptyDiscovery = usingLive && liveModels.length === 0
+                    const emptyDiscovery = usingLive && liveModels.length === 0 && !isNonChat
 
                     // Empty state: live discovery returned 0 models — this key has
                     // literally no access to any chat model on this provider.
