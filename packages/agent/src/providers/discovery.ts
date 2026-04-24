@@ -32,7 +32,7 @@ export interface ProviderCapabilities {
 const CLOUD_CAPABILITIES: Record<string, Omit<ProviderCapabilities, 'discoveryError'>> = {
     anthropic: { supportsChat: true, supportsEmbeddings: false, chatModels: ['claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-haiku-4-5'], embeddingModels: [] },
     openai: { supportsChat: true, supportsEmbeddings: true, chatModels: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini'], embeddingModels: ['text-embedding-3-small', 'text-embedding-3-large'] },
-    google: { supportsChat: true, supportsEmbeddings: true, chatModels: ['gemini-2.5-flash', 'gemini-2.5-pro'], embeddingModels: ['text-embedding-004'] },
+    google: { supportsChat: true, supportsEmbeddings: true, chatModels: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash-001', 'gemini-2.0-flash-lite', 'gemini-flash-latest', 'gemini-pro-latest'], embeddingModels: ['text-embedding-004'] },
     openrouter: { supportsChat: true, supportsEmbeddings: true, chatModels: [], embeddingModels: ['openai/text-embedding-3-small'] },
     deepseek: { supportsChat: true, supportsEmbeddings: false, chatModels: ['deepseek-chat', 'deepseek-reasoner'], embeddingModels: [] },
     groq: { supportsChat: true, supportsEmbeddings: false, chatModels: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'], embeddingModels: [] },
@@ -100,9 +100,26 @@ export async function discoverCapabilities(instance: {
         }
     }
 
-    // Cloud providers: static capabilities
+    // Cloud providers: try live discovery if API key available, fall back to static
     const known = CLOUD_CAPABILITIES[providerType]
     if (known) {
+        if (instance.encryptedKey && instance.workspaceId) {
+            try {
+                const apiKey = decrypt(instance.encryptedKey, instance.workspaceId)
+                const { discoverModels } = await import('./discover-models.js')
+                const disco = await discoverModels(providerType, { apiKey })
+                if (disco.ok && disco.models.length > 0) {
+                    const liveChat = disco.models.map(m => m.id)
+                    return {
+                        ...known,
+                        chatModels: liveChat.length > 0 ? liveChat : known.chatModels,
+                        discoveryError: null,
+                    }
+                }
+            } catch (err) {
+                logger.debug({ err, provider: providerType }, 'Live discovery failed for cloud provider — using static')
+            }
+        }
         return { ...known, discoveryError: null }
     }
 
