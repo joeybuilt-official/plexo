@@ -63,7 +63,7 @@ export const FALLBACK_MODELS: Record<string, string[]> = {
     voyage: ['voyage-3'],
     ollama: [],
     ollama_cloud: ['gpt-oss:120b', 'gpt-oss:20b', 'deepseek-v3.2', 'qwen3-coder:480b', 'gemma4:31b'],
-    fal: ['fal-ai/flux/schnell', 'fal-ai/flux/dev', 'fal-ai/flux-pro/v1.1', 'fal-ai/stable-diffusion-v35', 'fal-ai/recraft/v4/pro/text-to-image'],
+    fal: ['fal-ai/flux/schnell', 'fal-ai/flux/dev', 'fal-ai/flux-pro/v1.1', 'fal-ai/stable-diffusion-v35', 'fal-ai/recraft/v4/pro/text-to-image', 'bytedance/seedance-2.0/image-to-video', 'bytedance/seedance-2.0/text-to-video'],
 }
 
 /**
