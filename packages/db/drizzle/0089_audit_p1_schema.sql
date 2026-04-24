@@ -7,7 +7,7 @@
 --> statement-breakpoint
 ALTER TABLE "session_logs" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
 --> statement-breakpoint
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "memory_entries_content_fts_idx"
+CREATE INDEX IF NOT EXISTS "memory_entries_content_fts_idx"
   ON "memory_entries" USING gin(to_tsvector('english', "content"));
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "installed_connections_registry_idx"
