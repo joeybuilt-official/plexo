@@ -977,6 +977,30 @@ export default function ProvidersPage() {
                     </p>
                 </div>
 
+                {/* Test result — shown prominently right after description */}
+                {testResult && (
+                    <div className={`rounded-lg border px-4 py-3 ${testResult.ok ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'}`}>
+                        <div className="flex items-start gap-2">
+                            {testResult.ok
+                                ? <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
+                                : <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />}
+                            <div>
+                                <p className={`text-sm font-medium ${testResult.ok ? 'text-emerald-300' : 'text-red-300'}`}>
+                                    {testResult.ok ? 'Connected' : 'Connection failed'}
+                                </p>
+                                <p className={`text-xs mt-0.5 ${testResult.ok ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+                                    {testResult.message}
+                                </p>
+                                {!testResult.ok && selectedCatalog.getKeyUrl && (
+                                    <a href={selectedCatalog.getKeyUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-block text-xs text-azure hover:text-azure/80 transition-colors">
+                                        Get a new API key &rarr;
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {isConnected && selectedInstance && (
                     <>
                         {selectedInstance.capabilities.chatModels.length > 0 && (
@@ -1058,18 +1082,7 @@ export default function ProvidersPage() {
                             </div>
                         )}
 
-                        {testResult && (
-                            <div className={`rounded-lg border p-3 ${testResult.ok ? 'border-emerald-800/40 bg-emerald-900/10' : 'border-amber-800/40 bg-amber-900/10'}`}>
-                                <p className={`text-xs font-medium ${testResult.ok ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                    {testResult.message}
-                                </p>
-                                {!testResult.ok && (testResult.errorCode === '401' || testResult.errorCode === '403' || testResult.errorCode === 'quota') && (
-                                    <a href={selectedCatalog.getKeyUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-block text-xs text-azure hover:text-azure/80 transition-colors">
-                                        Get a new API key &rarr;
-                                    </a>
-                                )}
-                            </div>
-                        )}
+                        {/* Test result now shown above, near the top of the detail pane */}
                     </>
                 )}
 
