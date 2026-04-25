@@ -71,7 +71,7 @@ export function ReembedModal(props: ReembedModalProps) {
             aria-modal="true"
             aria-labelledby="reembed-modal-title"
         >
-            <div className="w-full max-w-md rounded-xl border border-border bg-surface-1 shadow-2xl">
+            <div className="w-full max-w-md rounded-sm border border-border bg-surface-1">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
                     <AlertTriangle className="h-4 w-4 text-amber-400" />
                     <h2 id="reembed-modal-title" className="text-sm font-medium text-text-primary flex-1">Re-embed required</h2>

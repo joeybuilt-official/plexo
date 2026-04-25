@@ -55,21 +55,21 @@ export default function ConnectionDetail({
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 border-b border-border">
                 <div className="flex items-start gap-3">
                     {selected.logoUrl ? (
-                        <Image src={selected.logoUrl} alt={selected.name} width={40} height={40} className="mt-1 sm:mt-0 rounded-lg object-contain bg-white/5 shrink-0" />
+                        <Image src={selected.logoUrl} alt={selected.name} width={40} height={40} className="mt-1 sm:mt-0 rounded-sm object-contain bg-white/5 shrink-0" />
                     ) : (
-                        <div className="h-10 w-10 mt-1 sm:mt-0 rounded-lg bg-surface-2 flex items-center justify-center text-sm font-bold text-text-secondary shrink-0">
+                        <div className="h-10 w-10 mt-1 sm:mt-0 rounded-sm bg-surface-2 flex items-center justify-center text-sm font-medium text-text-secondary shrink-0">
                             {selected.name.slice(0, 2).toUpperCase()}
                         </div>
                     )}
                     <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h2 className="text-base font-semibold text-text-primary">{selected.name}</h2>
-                            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide ${categoryColor(selected.category)}`}>
+                            <h2 className="text-base font-medium text-text-primary">{selected.name}</h2>
+                            <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wide ${categoryColor(selected.category)}`}>
                                 {selected.category}
                             </span>
                             <AuthBadge type={selected.authType} />
                             {selected.mcpPackage && (
-                                <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-medium text-rose-400">
+                                <span className="inline-flex items-center gap-1 rounded-sm border border-rose-500/20 bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-medium text-rose-400">
                                     <Code2 className="h-2.5 w-2.5" />
                                     MCP
                                 </span>
@@ -90,7 +90,7 @@ export default function ConnectionDetail({
                         <button
                             onClick={() => onTest(connectedItem.id)}
                             disabled={testing === connectedItem.id}
-                            className="flex items-center justify-center gap-1 rounded-lg border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
+                            className="flex items-center justify-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
                         >
                             {testing === connectedItem.id ? (
                                 <RefreshCw className="h-3 w-3 animate-spin" />
@@ -109,7 +109,7 @@ export default function ConnectionDetail({
                             href={selected.docUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-1 rounded-lg border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
+                            className="flex items-center justify-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
                         >
                             <ExternalLink className="h-3 w-3" />
                             Docs
@@ -119,7 +119,7 @@ export default function ConnectionDetail({
                         <button
                             onClick={onDisconnect}
                             disabled={disconnecting}
-                            className="flex items-center justify-center gap-1.5 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial whitespace-nowrap"
+                            className="flex items-center justify-center gap-1.5 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial whitespace-nowrap"
                         >
                             <Trash2 className="h-3 w-3" />
                             {disconnecting ? 'Removing…' : 'Disconnect'}
@@ -128,7 +128,7 @@ export default function ConnectionDetail({
                         <button
                             onClick={onInstall}
                             disabled={installing || !WS_ID}
-                            className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-4 py-2 sm:px-3 sm:py-1.5 text-sm sm:text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-[2] sm:flex-initial"
+                            className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-4 py-2 sm:px-3 sm:py-1.5 text-sm sm:text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-[2] sm:flex-initial"
                         >
                             <Link2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                             {installing ? 'Connecting…' : 'Connect'}
@@ -167,8 +167,8 @@ export default function ConnectionDetail({
                         <p className="text-sm text-text-secondary">{selected.description}</p>
 
                         {isConnected && connectedItem && (
-                            <div className="rounded-xl border border-border bg-surface-1/60 p-4 flex flex-col gap-2">
-                                <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Integration details</p>
+                            <div className="rounded-sm border border-border bg-surface-1/60 p-4 flex flex-col gap-2">
+                                <p className="text-xs font-medium text-text-muted uppercase tracking-wider">Integration details</p>
                                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 sm:gap-y-1.5 text-sm">
                                     <div>
                                         <dt className="text-text-muted text-[11px] sm:text-xs">Status</dt>
@@ -199,7 +199,7 @@ export default function ConnectionDetail({
 
                         {!isConnected && (selected.setupFields ?? []).length > 0 && (
                             <div className="flex flex-col gap-3">
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Configuration</h3>
+                                <h3 className="text-xs font-medium uppercase tracking-wider text-text-muted">Configuration</h3>
                                 {selected.setupFields.map((field) => (
                                     <div key={field.key} className="flex flex-col gap-1">
                                         <div className="flex items-center justify-between">
@@ -223,7 +223,7 @@ export default function ConnectionDetail({
                                             value={fieldValues[field.key] ?? ''}
                                             onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                                             placeholder={field.placeholder ?? ''}
-                                            className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                            className="min-h-[44px] rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                                         />
                                     </div>
                                 ))}
@@ -231,15 +231,15 @@ export default function ConnectionDetail({
                         )}
 
                         {!isConnected && selected.authType === 'oauth2' && (
-                            <div className="rounded-lg border border-azure-800/40 bg-azure-dim px-3 py-3 text-xs text-azure">
-                                <p className="font-semibold mb-1">OAuth2 — secure redirect flow</p>
+                            <div className="rounded-sm border border-azure-800/40 bg-azure-dim px-3 py-3 text-xs text-azure">
+                                <p className="font-medium mb-1">OAuth2 — secure redirect flow</p>
                                 <p className="text-azure">Clicking Connect will open a popup to authenticate with {selected.name}. Requires <code className="text-azure/80">{selected.id.toUpperCase().replace('-', '_')}_CLIENT_ID</code> set in the API environment.</p>
                             </div>
                         )}
 
                         {linkedChannels.length > 0 && (
-                            <div className="rounded-lg border border-teal-800/30 bg-surface-2 px-3 py-3 flex flex-col gap-1.5">
-                                <p className="text-xs font-semibold text-teal-400 flex items-center gap-1.5">
+                            <div className="rounded-sm border border-teal-800/30 bg-surface-2 px-3 py-3 flex flex-col gap-1.5">
+                                <p className="text-xs font-medium text-teal-400 flex items-center gap-1.5">
                                     <MessageSquare className="h-3.5 w-3.5" />
                                     {linkedChannels.length === 1 ? 'Channel adapter active' : `${linkedChannels.length} channel adapters active`}
                                 </p>
@@ -264,8 +264,8 @@ export default function ConnectionDetail({
                         )}
 
                         {!isConnected && selected.authType === 'api_key' && selected.mcpPackage && (
-                            <div className="rounded-lg border border-rose-800/30 bg-red-dim px-3 py-3 flex flex-col gap-1.5">
-                                <p className="text-xs font-semibold text-rose-400 flex items-center gap-1.5"><Code2 className="h-3.5 w-3.5" /> Plexo manages the MCP integration</p>
+                            <div className="rounded-sm border border-rose-800/30 bg-red-dim px-3 py-3 flex flex-col gap-1.5">
+                                <p className="text-xs font-medium text-rose-400 flex items-center gap-1.5"><Code2 className="h-3.5 w-3.5" /> Plexo manages the MCP integration</p>
                                 <p className="text-[11px] text-rose-400/70 leading-relaxed">
                                     After you save your token, Plexo automatically adds <code className="text-rose-300">{selected.mcpPackage}</code> to the agent&apos;s MCP runtime. No manual config editing required.
                                 </p>
@@ -274,7 +274,7 @@ export default function ConnectionDetail({
 
                         {allTools.length > 0 && (
                             <div>
-                                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">Tools provided</h3>
+                                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-text-muted">Tools provided</h3>
                                 <div className="flex flex-wrap gap-1.5">
                                     {allTools.map((t) => (
                                         <span key={t} className="rounded border border-border bg-surface-2/60 px-2 py-0.5 text-xs text-text-secondary font-mono">{t}</span>
@@ -285,7 +285,7 @@ export default function ConnectionDetail({
 
                         {selected.oauthScopes.length > 0 && (
                             <div>
-                                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">OAuth scopes requested</h3>
+                                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-text-muted">OAuth scopes requested</h3>
                                 <div className="flex flex-wrap gap-1.5">
                                     {selected.oauthScopes.map((s) => (
                                         <span key={s} className="rounded border border-border bg-surface-2/60 px-2 py-0.5 text-xs text-text-secondary font-mono">{s}</span>
@@ -344,7 +344,7 @@ export default function ConnectionDetail({
                                             onClick={() => onToggleTool(t.name, t.shortName)}
                                             disabled={savingTools}
                                             title={t.name}
-                                            className={`flex items-start justify-between gap-3 min-h-[48px] rounded-lg border px-3 py-2.5 text-left transition-all disabled:opacity-60 ${enabled
+                                            className={`flex items-start justify-between gap-3 min-h-[48px] rounded-sm border px-3 py-2.5 text-left transition-all disabled:opacity-60 ${enabled
                                                 ? 'border-border/60 bg-surface-1/60 hover:border-border'
                                                 : 'border-border/40 bg-surface-1/20 opacity-60 hover:opacity-80'
                                                 }`}
@@ -354,12 +354,12 @@ export default function ConnectionDetail({
                                                     <Wrench className="h-3.5 w-3.5 text-text-muted shrink-0" />
                                                     <span className="text-sm font-mono text-text-secondary truncate">{t.shortName}</span>
                                                     {t.isWrite && (
-                                                        <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400 shrink-0">
+                                                        <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-400 shrink-0">
                                                             write
                                                         </span>
                                                     )}
                                                     {t.stub && (
-                                                        <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted shrink-0">
+                                                        <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-text-muted shrink-0">
                                                             stub
                                                         </span>
                                                     )}
@@ -390,7 +390,7 @@ export default function ConnectionDetail({
                             <div className="mt-3 flex flex-col gap-2">
                                 <div className="flex items-center gap-1.5">
                                     <Code2 className="h-3.5 w-3.5 text-rose-400" />
-                                    <p className="text-xs font-semibold text-text-secondary">Managed MCP config</p>
+                                    <p className="text-xs font-medium text-text-secondary">Managed MCP config</p>
                                     <span className="text-[11px] text-text-muted">— Plexo writes this for you</span>
                                 </div>
                                 <CopySnippet code={JSON.stringify({
@@ -423,7 +423,7 @@ export default function ConnectionDetail({
                                             value={fieldValues[field.key] ?? ''}
                                             onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                                             placeholder="Leave blank to keep current value"
-                                            className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                            className="min-h-[44px] rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                                         />
                                     </div>
                                 ))}
@@ -431,7 +431,7 @@ export default function ConnectionDetail({
                         ) : selected.authType === 'oauth2' ? (
                             <div className="flex flex-col gap-2">
                                 <p className="text-sm text-text-secondary">OAuth2 integration — no manual credentials required.</p>
-                                <div className="rounded-lg border border-border bg-surface-1/60 px-3 py-2 flex items-center gap-2">
+                                <div className="rounded-sm border border-border bg-surface-1/60 px-3 py-2 flex items-center gap-2">
                                     <Globe2 className="h-4 w-4 text-azure" />
                                     <span className="text-xs text-text-muted">Scopes: {connectedItem?.scopesGranted.join(', ') || 'none recorded'}</span>
                                 </div>

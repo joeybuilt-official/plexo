@@ -59,7 +59,7 @@ export default function IntelligenceDashboardPage() {
                 <div className="flex items-center gap-2">
                     <BrainCircuit className="h-5 w-5 text-azure" />
                     <div>
-                        <h1 className="text-base font-semibold text-text-primary">Intelligence</h1>
+                        <h1 className="text-base font-medium text-text-primary">Intelligence</h1>
                         <p className="text-xs text-text-muted">
                             Where your data goes — embeddings, memory, SCL, router, logs, cost.
                         </p>
@@ -77,7 +77,7 @@ export default function IntelligenceDashboardPage() {
 
             {!workspaceId ? (
                 <div className="p-4">
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         Pick a workspace from the sidebar.
                     </div>
                 </div>
@@ -127,14 +127,14 @@ function CostCard({ workspaceId }: { workspaceId: string }) {
     const { data, isLoading } = useCostSummary(workspaceId)
     if (isLoading || !data) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+            <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                 <Loader2 className="mr-2 inline h-3 w-3 animate-spin" /> Loading cost summary…
             </div>
         )
     }
     const month = new Date(data.spend.monthStart).toLocaleString('en-US', { month: 'long' })
     return (
-        <div className="rounded-xl border border-border bg-surface-1 p-4">
+        <div className="rounded-sm border border-border bg-surface-1 p-4">
             <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-azure" />
                 <h3 className="text-sm font-medium text-text-primary">{month} spend</h3>
@@ -189,7 +189,7 @@ function FlowView({ workspaceId }: { workspaceId: string }) {
     const { data, isLoading } = useFlow(workspaceId)
     if (isLoading || !data) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+            <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                 <Loader2 className="mr-2 inline h-3 w-3 animate-spin" /> Loading flow…
             </div>
         )
@@ -197,7 +197,7 @@ function FlowView({ workspaceId }: { workspaceId: string }) {
     const enabledProviders = data.providers.filter(p => p.enabled)
     return (
         <div className="space-y-4">
-            <div className="rounded-xl border border-border bg-surface-1 p-4">
+            <div className="rounded-sm border border-border bg-surface-1 p-4">
                 <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-azure" />
                     <h3 className="text-sm font-medium text-text-primary">Providers ({enabledProviders.length} enabled)</h3>
@@ -242,7 +242,7 @@ function FlowView({ workspaceId }: { workspaceId: string }) {
                 />
             </div>
 
-            <div className="rounded-xl border border-border bg-surface-1 p-4">
+            <div className="rounded-sm border border-border bg-surface-1 p-4">
                 <div className="flex items-center gap-2">
                     <ListTree className="h-4 w-4 text-azure" />
                     <h3 className="text-sm font-medium text-text-primary">Routing chains by task type</h3>
@@ -270,7 +270,7 @@ function FlowStep({ icon: Icon, title, primary, secondary, href }: {
     return (
         <Link
             href={href}
-            className="group rounded-xl border border-border bg-surface-1 p-4 transition-colors hover:border-azure"
+            className="group rounded-sm border border-border bg-surface-1 p-4 transition-colors hover:border-azure"
         >
             <div className="flex items-center gap-2">
                 <Icon className="h-4 w-4 text-azure" />
@@ -288,7 +288,7 @@ function HealthView({ workspaceId }: { workspaceId: string }) {
     const { data, isLoading, mutate } = useHealth(workspaceId)
     if (isLoading || !data) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+            <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                 <Loader2 className="mr-2 inline h-3 w-3 animate-spin" /> Probing services…
             </div>
         )
@@ -314,7 +314,7 @@ function HealthView({ workspaceId }: { workspaceId: string }) {
                         : s.status === 'down' ? 'text-rose-300 border-rose-700/40'
                         : 'text-text-muted border-border'
                     return (
-                        <div key={s.name} className={`rounded-xl border bg-surface-1 p-3 ${tone}`}>
+                        <div key={s.name} className={`rounded-sm border bg-surface-1 p-3 ${tone}`}>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <Icon className="h-4 w-4" />
@@ -378,11 +378,11 @@ function LogsView({ workspaceId }: { workspaceId: string }) {
                     <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Loading logs…
                 </div>
             ) : !data || data.logs.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                     No inference logs match.
                 </div>
             ) : (
-                <div className="overflow-x-auto rounded-xl border border-border bg-surface-1">
+                <div className="overflow-x-auto rounded-sm border border-border bg-surface-1">
                     <table className="w-full text-left text-[11px]">
                         <thead className="border-b border-border text-text-muted">
                             <tr>

@@ -29,8 +29,8 @@ function LogoStrip({ items, columns = 5 }: { items: LogoItem[]; columns?: number
             {items.map(item => (
                 <a key={item.name} href={item.href} target="_blank" rel="noopener noreferrer"
                     className={compact
-                        ? 'flex items-center justify-center h-12 rounded-lg bg-surface-1/20 border border-border/20 hover:border-azure/30 hover:bg-surface-1/50 transition-all group'
-                        : 'flex items-center justify-center h-14 rounded-xl bg-surface-1/30 border border-border/30 hover:border-azure/30 hover:bg-surface-1/60 transition-all group'
+                        ? 'flex items-center justify-center h-12 rounded-md bg-surface-1/20 border border-border/20 hover:border-accent-dim hover:bg-surface-1/50 transition-all group'
+                        : 'flex items-center justify-center h-14 rounded-md bg-surface-1/30 border border-border/30 hover:border-accent-dim hover:bg-surface-1/60 transition-all group'
                     }
                     title={item.name}>
                     {item.logo ? (
@@ -71,16 +71,13 @@ function ConceptGraphSVG({ className }: { className?: string }) {
                     key={i}
                     x1={REGIONS[a].cx} y1={REGIONS[a].cy}
                     x2={REGIONS[b].cx} y2={REGIONS[b].cy}
-                    stroke="rgba(59,130,246,0.12)"
+                    stroke="rgba(109,184,204,0.12)"
                     strokeWidth={1}
                 />
             ))}
             {/* Region nodes */}
             {REGIONS.map((r, i) => (
                 <g key={r.id}>
-                    {/* Outer glow */}
-                    <circle cx={r.cx} cy={r.cy} r={r.r + 8}
-                        fill={`hsla(${r.hue}, 60%, 50%, 0.06)`} />
                     {/* Main circle */}
                     <circle cx={r.cx} cy={r.cy} r={r.r}
                         fill={`hsla(${r.hue}, 60%, 50%, 0.15)`}
@@ -122,10 +119,10 @@ export default async function LandingPage() {
     return (
         <div className="flex min-h-screen flex-col bg-canvas text-text-primary">
             {/* ── Nav ─────────────────────────────────────────────────── */}
-            <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 border-b border-border/50 bg-canvas/80 backdrop-blur-xl">
+            <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 border-b border-border/50 bg-canvas/80">
                 <div className="flex items-center gap-2.5">
                     <PlexoMark className="h-7 w-7" />
-                    <span className="font-display text-lg font-bold tracking-tight">Plexo</span>
+                    <span className="font-display text-lg font-semibold tracking-tight">Plexo</span>
                 </div>
                 <nav className="flex items-center gap-5">
                     <a href="https://github.com/joeybuilt-official/plexo" target="_blank" rel="noopener noreferrer"
@@ -134,7 +131,7 @@ export default async function LandingPage() {
                         className="text-sm text-text-muted hover:text-text-primary transition-colors">Hub</a>
                     <Link href="/login" className="text-sm text-text-muted hover:text-text-primary transition-colors">Log in</Link>
                     <Link href="/register"
-                        className="rounded-lg bg-azure px-4 py-2 text-sm font-medium text-white hover:bg-azure-600 transition-colors">
+                        className="rounded-md bg-text-primary px-4 py-2 text-sm font-medium text-canvas hover:opacity-90 transition-colors">
                         Get Started
                     </Link>
                 </nav>
@@ -142,115 +139,95 @@ export default async function LandingPage() {
 
             <main className="flex flex-1 flex-col items-center px-5 sm:px-8">
                 {/* ── Hero ────────────────────────────────────────────── */}
-                <section className="relative w-full max-w-4xl overflow-hidden pt-24 pb-20 sm:pt-32 sm:pb-28 flex flex-col items-center text-center">
-                    <div className="hero-glow absolute inset-0 pointer-events-none" />
-                    <div className="bg-grid-dots absolute inset-0 pointer-events-none opacity-60" />
-
-                    {/* Large animated PlexoMark */}
-                    <div className="relative mb-10">
-                        <div className="absolute inset-0 blur-3xl bg-azure/10 rounded-full scale-150" />
-                        <PlexoMark className="relative h-20 w-20 sm:h-28 sm:w-28" />
-                    </div>
-
-                    <h1 className="relative font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight gradient-text leading-[1.1]">
+                <section className="w-full max-w-4xl pt-32 pb-32 flex flex-col items-center text-center">
+                    <h1 className="font-display text-4xl sm:text-5xl md:text-[48px] font-medium tracking-tight text-accent leading-[1.1]">
                         Autonomous AI agents
                         <br />
                         on your infrastructure.
                     </h1>
 
-                    <p className="relative mt-6 max-w-2xl text-base sm:text-lg text-text-secondary leading-relaxed">
+                    <p className="mt-8 max-w-[640px] text-lg text-text-secondary leading-relaxed">
                         Self-hosted agent platform with intelligent model routing, persistent memory,
                         and multi-channel access. Bring your own keys. Keep your data.
                         AGPL-3.0 open source.
                     </p>
 
                     {/* Primary CTAs */}
-                    <div className="relative mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                    <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                         <Link href="/register"
-                            className="rounded-lg bg-azure px-10 py-4 text-base font-semibold text-white hover:bg-azure-600 transition-colors shadow-lg shadow-azure/20 glow-azure">
+                            className="rounded-md bg-text-primary px-10 py-4 text-base font-medium text-canvas hover:opacity-90 transition-colors">
                             Get Started
                         </Link>
                         <a href="https://github.com/joeybuilt-official/plexo" target="_blank" rel="noopener noreferrer"
-                            className="rounded-lg border border-border px-8 py-3.5 text-sm font-medium text-text-primary hover:border-azure/40 hover:bg-surface-1 transition-all">
+                            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors">
                             View Source &rarr;
                         </a>
                     </div>
 
                     {/* Self-host install */}
-                    <div className="relative mt-8 w-full max-w-lg rounded-xl border border-border/40 bg-surface-1/60 backdrop-blur-sm overflow-hidden">
+                    <div className="mt-10 w-full max-w-lg rounded-md border border-border/40 bg-surface-1/60 overflow-hidden">
                         <div className="flex items-center justify-between px-4 py-2 border-b border-border/30">
                             <div className="flex items-center gap-2">
-                                <div className="flex gap-1.5">
-                                    <span className="w-2 h-2 rounded-full bg-red/40" />
-                                    <span className="w-2 h-2 rounded-full bg-amber/40" />
-                                    <span className="w-2 h-2 rounded-full bg-green-500/40" />
-                                </div>
                                 <span className="text-[11px] text-text-muted font-mono tracking-wide">self-host</span>
                             </div>
                             <CopyButton text="curl -fsSL https://getplexo.com/install.sh | bash" />
                         </div>
                         <div className="px-5 py-3 font-mono text-sm text-text-secondary">
-                            <span className="text-azure/60 select-none">$ </span>
+                            <span className="text-accent/60 select-none">$ </span>
                             <span className="terminal-cursor">curl -fsSL https://getplexo.com/install.sh | bash</span>
                         </div>
                     </div>
                 </section>
 
                 {/* ── Core Capabilities ──────────────────────────────── */}
-                <ScrollReveal className="w-full max-w-5xl py-20 sm:py-28 border-t border-border/30">
-                    <h2 className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-azure text-center mb-14">
+                <ScrollReveal className="w-full max-w-5xl py-32 border-t border-border/30">
+                    <p className="text-[13px] text-text-muted tracking-wide mb-4 text-center">Capabilities</p>
+                    <h2 className="font-display text-[32px] font-medium tracking-tight text-center mb-8">
                         What Plexo does
                     </h2>
+                    <p className="text-lg text-text-secondary max-w-[640px] mx-auto text-center mb-16">
+                        A self-hosted platform for running autonomous AI agents with full control over models, data, and cost.
+                    </p>
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                         {[
                             {
                                 icon: 'R',
-                                color: 'azure',
                                 title: 'Intelligent Model Routing',
                                 desc: 'Configure fallback chains across providers. If your primary model fails or hits rate limits, Plexo automatically tries the next in your chain. Per-model reliability scoring learns which providers work best.',
                             },
                             {
                                 icon: 'K',
-                                color: 'amber',
                                 title: 'Bring Your Own Keys',
                                 desc: '17 providers supported: Anthropic, OpenAI, DeepSeek, Groq, Mistral, Google, xAI, Ollama, OpenRouter, Cerebras, Cohere, Fireworks, Together, Perplexity, SambaNova, Cloudflare, and any OpenAI-compatible endpoint. Your keys, your costs, your control.',
                             },
                             {
                                 icon: 'C',
-                                color: 'text-primary',
                                 title: 'Multi-Channel',
                                 desc: 'Same agent, everywhere. Web dashboard, Telegram, Slack, Discord, REST API, embeddable widget. Voice messages transcribed via Deepgram. Images analyzed through vision-capable models.',
                             },
                             {
                                 icon: 'Q',
-                                color: 'azure',
                                 title: 'Independent Quality Judge',
                                 desc: 'A separate model evaluates every task output against rubrics. Ensemble mode runs multiple local judges via Ollama with weighted consensus. Cross-provider judging prevents self-evaluation bias.',
                             },
                             {
                                 icon: 'S',
-                                color: 'amber',
                                 title: 'Self-Extending Agent',
                                 desc: 'Need an integration that does not exist? The agent scrapes API docs and generates a working PEX extension on the fly -- complete with credential UI and sandboxed execution. No manual plugin development.',
                             },
                             {
                                 icon: 'P',
-                                color: 'text-primary',
                                 title: 'Project Decomposition',
                                 desc: 'Describe a project. Plexo decomposes it into parallel tasks with dependency-aware wave scheduling. Each task gets its own branch, agent, and draft PR. Budget ceilings enforce cost control.',
                             },
                         ].map((f, i) => (
                             <div key={f.title}
-                                className="group rounded-xl bg-surface-1/40 backdrop-blur-sm p-7 glow-border"
+                                className="rounded-md border border-border p-7 hover:border-accent-dim transition-colors"
                                 style={{ transitionDelay: `${i * 80}ms` }}>
-                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-5 ${
-                                    f.color === 'azure' ? 'bg-azure-dim text-azure' :
-                                    f.color === 'amber' ? 'bg-amber-dim text-amber' :
-                                    'bg-surface-2 text-text-primary'
-                                }`}>
-                                    <span className="text-base font-display font-bold">{f.icon}</span>
+                                <div className="w-10 h-10 rounded-md flex items-center justify-center mb-5 bg-surface-2 text-text-primary">
+                                    <span className="text-base font-display font-semibold">{f.icon}</span>
                                 </div>
-                                <h3 className="font-display text-base font-semibold tracking-tight">{f.title}</h3>
+                                <h3 className="font-display text-base font-medium tracking-tight">{f.title}</h3>
                                 <p className="mt-3 text-sm text-text-secondary leading-relaxed">{f.desc}</p>
                             </div>
                         ))}
@@ -258,10 +235,14 @@ export default async function LandingPage() {
                 </ScrollReveal>
 
                 {/* ── Safety & Intelligence ──────────────────────────── */}
-                <ScrollReveal className="w-full max-w-5xl py-20 sm:py-28 border-t border-border/30">
-                    <h2 className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-azure text-center mb-14">
+                <ScrollReveal className="w-full max-w-5xl py-32 border-t border-border/30">
+                    <p className="text-[13px] text-text-muted tracking-wide mb-4 text-center">Safety</p>
+                    <h2 className="font-display text-[32px] font-medium tracking-tight text-center mb-8">
                         Built-in safety
                     </h2>
+                    <p className="text-lg text-text-secondary max-w-[640px] mx-auto text-center mb-16">
+                        Guardrails that keep agents accountable without slowing them down.
+                    </p>
                     <div className="grid gap-5 sm:grid-cols-2">
                         {[
                             {
@@ -282,9 +263,9 @@ export default async function LandingPage() {
                             },
                         ].map((f, i) => (
                             <div key={f.title}
-                                className="rounded-xl bg-surface-1/40 backdrop-blur-sm p-7 glow-border"
+                                className="rounded-md border border-border p-7 hover:border-accent-dim transition-colors"
                                 style={{ transitionDelay: `${i * 80}ms` }}>
-                                <h3 className="font-display text-sm font-semibold">{f.title}</h3>
+                                <h3 className="font-display text-sm font-medium">{f.title}</h3>
                                 <p className="mt-2.5 text-sm text-text-secondary leading-relaxed">{f.desc}</p>
                             </div>
                         ))}
@@ -292,11 +273,14 @@ export default async function LandingPage() {
                 </ScrollReveal>
 
                 {/* ── Built On ────────────────────────────────────────── */}
-                <ScrollReveal className="w-full max-w-5xl py-16 sm:py-24 border-t border-border/30">
-                    <h2 className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-azure text-center mb-3">
+                <ScrollReveal className="w-full max-w-5xl py-32 border-t border-border/30">
+                    <p className="text-[13px] text-text-muted tracking-wide mb-4 text-center">Stack</p>
+                    <h2 className="font-display text-[32px] font-medium tracking-tight text-center mb-8">
                         Built on open foundations
                     </h2>
-                    <p className="text-center text-sm text-text-muted mb-10">Production-grade infrastructure you can inspect, extend, and trust</p>
+                    <p className="text-lg text-text-secondary max-w-[640px] mx-auto text-center mb-16">
+                        Production-grade infrastructure you can inspect, extend, and trust.
+                    </p>
 
                     <LogoStrip columns={8} items={[
                         { name: 'Next.js', href: 'https://nextjs.org' },
@@ -311,11 +295,14 @@ export default async function LandingPage() {
                 </ScrollReveal>
 
                 {/* ── Model-Agnostic ────────────────────────────────── */}
-                <ScrollReveal className="w-full max-w-5xl py-16 sm:py-24 border-t border-border/30">
-                    <h2 className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-azure text-center mb-3">
+                <ScrollReveal className="w-full max-w-5xl py-32 border-t border-border/30">
+                    <p className="text-[13px] text-text-muted tracking-wide mb-4 text-center">Providers</p>
+                    <h2 className="font-display text-[32px] font-medium tracking-tight text-center mb-8">
                         Model-agnostic
                     </h2>
-                    <p className="text-center text-sm text-text-muted mb-10">Your keys, any provider. Automatic fallback routing across your configured chain.</p>
+                    <p className="text-lg text-text-secondary max-w-[640px] mx-auto text-center mb-16">
+                        Your keys, any provider. Automatic fallback routing across your configured chain.
+                    </p>
 
                     <LogoStrip columns={5} items={[
                         { name: 'Anthropic', href: 'https://www.anthropic.com' },
@@ -333,24 +320,16 @@ export default async function LandingPage() {
                     <p className="text-center text-xs text-text-muted mt-5">
                         + Cerebras, Cohere, Fireworks, Perplexity, SambaNova, Cloudflare Workers AI, and any OpenAI-compatible endpoint
                     </p>
-
-                    <div className="flex flex-wrap justify-center gap-3 mt-8">
-                        {(['MCP', 'SKILL.md', 'A2A', 'AGENTS.md'] as const).map(name => (
-                            <span key={name}
-                                className="px-5 py-2 rounded-full bg-surface-1 border border-azure/20 font-mono text-xs text-azure tracking-wide">
-                                {name}
-                            </span>
-                        ))}
-                    </div>
                 </ScrollReveal>
 
                 {/* ── Compatibility ────────────────────────────────── */}
-                <ScrollReveal className="w-full max-w-5xl py-16 sm:py-24 border-t border-border/30">
-                    <h2 className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-azure text-center mb-3">
+                <ScrollReveal className="w-full max-w-5xl py-32 border-t border-border/30">
+                    <p className="text-[13px] text-text-muted tracking-wide mb-4 text-center">Interop</p>
+                    <h2 className="font-display text-[32px] font-medium tracking-tight text-center mb-8">
                         Works with your tools
                     </h2>
-                    <p className="text-center text-sm text-text-muted mb-8">
-                        Works with: Claude Code · Cursor · VS Code · Codex · Gemini CLI · GitHub Copilot
+                    <p className="text-lg text-text-secondary max-w-[640px] mx-auto text-center mb-16">
+                        Claude Code, Cursor, VS Code, Codex, Gemini CLI, GitHub Copilot.
                     </p>
                     <div className="flex flex-wrap justify-center gap-3">
                         {[
@@ -360,7 +339,7 @@ export default async function LandingPage() {
                             { label: 'AGENTS.md', title: 'Agent configuration standard' },
                         ].map(p => (
                             <span key={p.label} title={p.title}
-                                className="px-5 py-2 rounded-full bg-surface-1 border border-azure/20 font-mono text-xs text-azure tracking-wide">
+                                className="px-5 py-2 rounded-md bg-surface-1 border border-border font-mono text-xs text-accent tracking-wide">
                                 {p.label}
                             </span>
                         ))}
@@ -368,14 +347,14 @@ export default async function LandingPage() {
                 </ScrollReveal>
 
                 {/* ── Workspace Memory (SCL) ──────────────────────────── */}
-                <ScrollReveal id="scl" className="w-full max-w-6xl py-20 sm:py-28 border-t border-border/30">
+                <ScrollReveal id="scl" className="w-full max-w-6xl py-32 border-t border-border/30">
                     <div className="grid gap-12 lg:grid-cols-2 items-center">
                         <div>
-                            <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-azure mb-4">Semantic Context Lattice</p>
-                            <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight">
+                            <p className="text-[13px] text-text-muted tracking-wide mb-4">Semantic Context Lattice</p>
+                            <h2 className="font-display text-[32px] sm:text-[40px] font-medium tracking-tight">
                                 Knowledge that compounds.
                             </h2>
-                            <p className="mt-3 text-base font-medium text-text-secondary">
+                            <p className="mt-8 text-lg text-text-secondary max-w-[640px]">
                                 Plexo learns how you work.
                             </p>
                             <p className="mt-5 text-text-secondary leading-relaxed max-w-lg">
@@ -385,37 +364,36 @@ export default async function LandingPage() {
                                 task. It doesn&apos;t just store what happened. It maps how concepts relate, which
                                 patterns are stable, and what&apos;s drifting.
                             </p>
-                            <div className="mt-8 space-y-3">
+                            <div className="mt-16 space-y-3">
                                 {[
                                     { title: 'Concept Attractors', desc: 'Vector-positioned knowledge nodes with salience scoring, mutation tracking, and two depth classes: spirit (core values, drift-protected) and mechanics (operational knowledge, freely evolving).' },
                                     { title: 'Domain Regions', desc: 'Semantic clusters with centroids, radius, and density. Regions organize concepts spatially. Transformation rules define typed edges between regions — CAUSES, ENABLES, PREVENTS, IMPLIES, and 26 more relation types.' },
                                     { title: 'Drift Detection', desc: 'When a mutation would shift a protected attractor beyond its threshold, a DriftWarning fires for human review. The system won\'t silently forget what it fundamentally knows.' },
                                     { title: 'Budget-Aware Expansion', desc: 'Context retrieval is token-budget-constrained with three resolution levels (L0/L1/L2). Not top-K nearest — priority-sorted, region-aware, and budget-packed.' },
                                 ].map(f => (
-                                    <div key={f.title} className="rounded-xl bg-surface-1/40 border border-border/40 p-5 glow-border">
-                                        <p className="text-sm font-display font-semibold">{f.title}</p>
+                                    <div key={f.title} className="rounded-md border border-border p-5 hover:border-accent-dim transition-colors">
+                                        <p className="text-sm font-display font-medium">{f.title}</p>
                                         <p className="mt-1.5 text-xs text-text-secondary leading-relaxed">{f.desc}</p>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                        <div className="flex justify-center lg:justify-end relative">
-                            <div className="absolute inset-0 hero-glow opacity-50 pointer-events-none" />
-                            <ConceptGraphSVG className="w-full max-w-[320px] h-auto relative" />
+                        <div className="flex justify-center lg:justify-end">
+                            <ConceptGraphSVG className="w-full max-w-[320px] h-auto" />
                         </div>
                     </div>
                 </ScrollReveal>
 
                 {/* ── PEX — Extension System ─────────────────────────── */}
-                <ScrollReveal id="pex" className="w-full max-w-5xl py-20 sm:py-28 border-t border-border/30">
-                    <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-azure text-center mb-4">Plexo Extension Protocol</p>
-                    <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-center mb-6">
+                <ScrollReveal id="pex" className="w-full max-w-5xl py-32 border-t border-border/30">
+                    <p className="text-[13px] text-text-muted tracking-wide mb-4 text-center">Extensions</p>
+                    <h2 className="font-display text-[32px] sm:text-[40px] font-medium tracking-tight text-center mb-8">
                         Six extension types. One runtime.
                     </h2>
-                    <p className="text-text-secondary text-center max-w-2xl mx-auto leading-relaxed mb-12">
+                    <p className="text-lg text-text-secondary text-center max-w-[640px] mx-auto leading-relaxed mb-16">
                         PEX is a specification for packaging agent capabilities. Every extension declares its
-                        permissions, data access, and escalation contract in a <code className="text-azure text-xs">plexo.json</code> manifest.
-                        Install from the <a href="https://hub.getplexo.com" target="_blank" rel="noopener noreferrer" className="text-azure hover:underline">Hub</a> or build your own.
+                        permissions, data access, and escalation contract in a <code className="text-accent text-xs">plexo.json</code> manifest.
+                        Install from the <a href="https://hub.getplexo.com" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Hub</a> or build your own.
                     </p>
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {[
@@ -426,23 +404,27 @@ export default async function LandingPage() {
                             { type: 'Agent', desc: 'Autonomous actor with plan, executeStep, verifyStep, and escalation contract.' },
                             { type: 'MCP Server', desc: 'Model Context Protocol server — stdio or SSE transport, standard tool discovery.' },
                         ].map(f => (
-                            <div key={f.type} className="rounded-xl bg-surface-1/40 border border-border/40 p-5 glow-border">
-                                <p className="text-sm font-display font-semibold">{f.type}</p>
+                            <div key={f.type} className="rounded-md border border-border p-5 hover:border-accent-dim transition-colors">
+                                <p className="text-sm font-display font-medium">{f.type}</p>
                                 <p className="mt-1.5 text-xs text-text-secondary leading-relaxed">{f.desc}</p>
                             </div>
                         ))}
                     </div>
                     <p className="mt-8 text-xs text-text-muted text-center">
-                        Entity-scoped permissions (<code className="text-azure/70">memory:read:transaction</code>), three compliance levels (Core/Standard/Full),
-                        and mandatory escalation for irreversible actions. <a href="https://github.com/joeybuilt-official/plexo/tree/main/docs/pex" target="_blank" rel="noopener noreferrer" className="text-azure hover:underline">Read the spec &rarr;</a>
+                        Entity-scoped permissions (<code className="text-accent/70">memory:read:transaction</code>), three compliance levels (Core/Standard/Full),
+                        and mandatory escalation for irreversible actions. <a href="https://github.com/joeybuilt-official/plexo/tree/main/docs/pex" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Read the spec &rarr;</a>
                     </p>
                 </ScrollReveal>
 
                 {/* ── Why Self-Hosted ─────────────────────────────────── */}
-                <ScrollReveal className="w-full max-w-5xl py-20 sm:py-28 border-t border-border/30">
-                    <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-center mb-12">
+                <ScrollReveal className="w-full max-w-5xl py-32 border-t border-border/30">
+                    <p className="text-[13px] text-text-muted tracking-wide mb-4 text-center">Self-hosted</p>
+                    <h2 className="font-display text-[32px] sm:text-[40px] font-medium tracking-tight text-center mb-8">
                         Why self-hosted
                     </h2>
+                    <p className="text-lg text-text-secondary max-w-[640px] mx-auto text-center mb-16">
+                        Full ownership of your agent infrastructure, models, and data.
+                    </p>
                     <div className="grid gap-5 sm:grid-cols-2">
                         {[
                             { title: 'Your data never leaves', desc: 'Task history, agent memory, conversation logs, and workspace state run entirely on your infrastructure. No telemetry phones home.' },
@@ -451,25 +433,26 @@ export default async function LandingPage() {
                             { title: 'One-command deploy', desc: 'Docker Compose. The install script generates secrets, writes your env file, and has you running in 60 seconds. No Kubernetes required.' },
                         ].map((f, i) => (
                             <div key={f.title}
-                                className="rounded-xl bg-surface-1/40 backdrop-blur-sm p-7 glow-border"
+                                className="rounded-md border border-border p-7 hover:border-accent-dim transition-colors"
                                 style={{ transitionDelay: `${i * 80}ms` }}>
-                                <h3 className="font-display text-sm font-semibold">{f.title}</h3>
+                                <h3 className="font-display text-sm font-medium">{f.title}</h3>
                                 <p className="mt-2.5 text-sm text-text-secondary leading-relaxed">{f.desc}</p>
                             </div>
                         ))}
                     </div>
                 </ScrollReveal>
 
-                {/* ── Social Proof Placeholder ────────────────────────── */}
-                <ScrollReveal className="w-full max-w-3xl py-16 sm:py-24 border-t border-border/30 text-center">
-                    <h2 className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-azure mb-8">
+                {/* ── Social Proof ────────────────────────────────────── */}
+                <ScrollReveal className="w-full max-w-3xl py-32 border-t border-border/30 text-center">
+                    <p className="text-[13px] text-text-muted tracking-wide mb-4">Community</p>
+                    <h2 className="font-display text-[32px] font-medium tracking-tight mb-8">
                         Early adopters
                     </h2>
-                    <p className="text-text-secondary text-sm leading-relaxed max-w-lg mx-auto">
+                    <p className="text-lg text-text-secondary max-w-[640px] mx-auto mb-16">
                         Plexo is in public beta. Teams running production workloads on self-hosted Plexo
                         include SaaS operators, dev agencies, and solo founders managing multi-service deployments.
                     </p>
-                    <div className="mt-10 grid gap-4 sm:grid-cols-3 text-left">
+                    <div className="grid gap-4 sm:grid-cols-3 text-left">
                         {[
                             {
                                 quote: "Plexo lets me delegate multi-step infra tasks to agents I can audit. It's the first AI tool I'd run on my own servers without hesitation.",
@@ -484,7 +467,7 @@ export default async function LandingPage() {
                                 author: "Engineering lead, ML team",
                             },
                         ].map((t) => (
-                            <blockquote key={t.author} className="rounded-xl bg-surface-1/30 border border-border/30 p-5 text-left">
+                            <blockquote key={t.author} className="rounded-md border border-border p-5 text-left">
                                 <p className="text-sm text-text-secondary leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
                                 <footer className="mt-3 text-xs text-text-muted font-medium">{t.author}</footer>
                             </blockquote>
@@ -493,20 +476,20 @@ export default async function LandingPage() {
                 </ScrollReveal>
 
                 {/* ── Final CTA ───────────────────────────────────────── */}
-                <ScrollReveal className="w-full max-w-3xl py-20 sm:py-28 border-t border-border/30 text-center">
-                    <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight">
+                <ScrollReveal className="w-full max-w-3xl py-32 border-t border-border/30 text-center">
+                    <h2 className="font-display text-[32px] sm:text-[40px] font-medium tracking-tight">
                         Ready to deploy
                     </h2>
-                    <p className="mt-4 text-text-secondary max-w-md mx-auto leading-relaxed">
+                    <p className="mt-8 text-lg text-text-secondary max-w-[640px] mx-auto leading-relaxed">
                         One command. Your server. Full control over models, data, and cost.
                     </p>
-                    <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                    <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                         <Link href="/register"
-                            className="rounded-lg bg-azure px-8 py-3.5 text-sm font-medium text-white hover:bg-azure-600 transition-colors shadow-lg shadow-azure/20">
+                            className="rounded-md bg-text-primary px-8 py-3.5 text-sm font-medium text-canvas hover:opacity-90 transition-colors">
                             Get Started Free
                         </Link>
                         <a href="https://github.com/joeybuilt-official/plexo" target="_blank" rel="noopener noreferrer"
-                            className="rounded-lg border border-border px-8 py-3.5 text-sm font-medium text-text-primary hover:border-azure/40 hover:bg-surface-1 transition-all">
+                            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors">
                             Star on GitHub &rarr;
                         </a>
                     </div>
@@ -520,14 +503,14 @@ export default async function LandingPage() {
                     </div>
                     <div className="flex items-center gap-5">
                         <a href="https://joeybuilt.com" target="_blank" rel="noopener noreferrer"
-                            className="hover:text-azure transition-colors">Joeybuilt</a>
+                            className="hover:text-accent transition-colors">Joeybuilt</a>
                         <a href="https://github.com/joeybuilt-official/plexo" target="_blank" rel="noopener noreferrer"
-                            className="hover:text-azure transition-colors">GitHub</a>
+                            className="hover:text-accent transition-colors">GitHub</a>
                         <a href="https://hub.getplexo.com" target="_blank" rel="noopener noreferrer"
-                            className="hover:text-azure transition-colors">Hub</a>
-                        <Link href="/login" className="hover:text-azure transition-colors">Log in</Link>
+                            className="hover:text-accent transition-colors">Hub</a>
+                        <Link href="/login" className="hover:text-accent transition-colors">Log in</Link>
                         <a href="https://github.com/joeybuilt-official/plexo/blob/main/ANALYTICS.md" target="_blank" rel="noopener noreferrer"
-                            className="hover:text-azure transition-colors">ANALYTICS.md</a>
+                            className="hover:text-accent transition-colors">ANALYTICS.md</a>
                     </div>
                 </footer>
             </main>

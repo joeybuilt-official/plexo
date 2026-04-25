@@ -50,12 +50,12 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                                 <img
                                     src={img.dataUrl}
                                     alt={img.name}
-                                    className="h-20 w-20 rounded-lg border border-border object-cover"
+                                    className="h-20 w-20 rounded-sm border border-border object-cover"
                                 />
                             ) : (
-                                <div className="h-20 w-28 rounded-lg border border-border/60 bg-surface-2/60 flex flex-col items-center justify-center gap-1 px-2">
+                                <div className="h-20 w-28 rounded-sm border border-border/60 bg-surface-2/60 flex flex-col items-center justify-center gap-1 px-2">
                                     <FileText className="h-6 w-6 text-azure shrink-0" />
-                                    <span className="text-[11px] text-text-muted font-bold uppercase tracking-wide">{img.kind}</span>
+                                    <span className="text-[11px] text-text-muted font-medium uppercase tracking-wide">{img.kind}</span>
                                     <span className="text-[11px] text-text-secondary truncate max-w-full px-1 text-center leading-tight">{img.name}</span>
                                 </div>
                             )}
@@ -70,7 +70,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                         </div>
                     ))}
                     {pastedDocs.map((doc) => (
-                        <div key={doc.id} className="relative group flex items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-xs text-text-secondary">
+                        <div key={doc.id} className="relative group flex items-center gap-2 rounded-sm border border-border bg-surface-2/60 px-3 py-2 text-xs text-text-secondary">
                             <FileText className="h-3.5 w-3.5 shrink-0 text-azure" />
                             <p className="font-medium truncate max-w-[120px]">{doc.name}</p>
                             <button
@@ -93,7 +93,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                         onClick={onVoiceToggle}
                         disabled={sending}
                         aria-label={isListening ? 'Stop listening' : 'Start voice input'}
-                        className={`hidden sm:flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all ${
+                        className={`hidden sm:flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-sm p-3 transition-all ${
                             isListening ? 'bg-red/20 text-red animate-pulse' : 'border border-border bg-surface-1 text-text-muted'
                         }`}
                     >
@@ -104,7 +104,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                     onClick={onFileInputClick}
                     disabled={sending || isListening}
                     aria-label="Attach file"
-                    className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border bg-surface-1 text-text-muted"
+                    className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-sm p-3 border border-border bg-surface-1 text-text-muted"
                 >
                     <ImageIcon className="h-4 w-4" />
                 </button>
@@ -113,12 +113,12 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                 <button
                     onClick={onLiveModeToggle}
                     aria-label={isLiveMode ? 'Disable live mode' : 'Enable live mode'}
-                    className={`relative hidden sm:flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border transition-all ${
+                    className={`relative hidden sm:flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-sm p-3 border transition-all ${
                         isLiveMode ? 'bg-amber-500/10 border-amber-500/40 text-amber-500' : 'border-border bg-surface-1 text-text-muted'
                     }`}
                 >
                     <Volume2 className={`h-4 w-4 ${isLiveMode ? 'animate-pulse' : ''}`} />
-                    {isLiveMode && <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />}
+                    {isLiveMode && <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2 rounded-full bg-amber-500" />}
                 </button>
 
                 <textarea
@@ -132,7 +132,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                     placeholder={placeholder}
                     rows={1}
                     disabled={sending || isListening}
-                    className="flex-1 resize-none rounded-xl border border-border bg-surface-1/80 px-4 py-3.5 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-text-muted/40 focus:ring-0 disabled:opacity-50 max-h-32 leading-relaxed transition-all shadow-sm"
+                    className="flex-1 resize-none rounded-sm border border-border bg-surface-1/80 px-4 py-3.5 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-text-muted/40 focus:ring-0 disabled:opacity-50 max-h-32 leading-relaxed transition-all"
                     style={{ minHeight: '48px' }}
                 />
 
@@ -141,7 +141,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                     onClick={onSend}
                     disabled={sending || (!input.trim() && pastedImages.length === 0 && pastedDocs.length === 0) || isListening}
                     aria-label={sending ? 'Sending…' : 'Send message'}
-                    className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-azure p-3 text-text-primary hover:bg-azure/90 disabled:opacity-40 shadow-lg"
+                    className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-sm bg-azure p-3 text-text-primary hover:bg-azure/90 disabled:opacity-40"
                 >
                     {sending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </button>

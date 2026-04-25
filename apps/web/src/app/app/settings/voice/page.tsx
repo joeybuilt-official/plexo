@@ -200,7 +200,7 @@ export default function VoiceSettingsPage() {
 
             {/* Page header */}
             <div>
-                <h1 className="text-2xl font-bold text-text-primary tracking-tight">Voice</h1>
+                <h1 className="text-2xl font-medium text-text-primary tracking-tight">Voice</h1>
                 <p className="mt-1 text-sm text-text-muted">
                     Speech-to-text pipeline for any audio source — web chat, messaging channels,
                     integrations, and future apps. One key, one budget, independent of your LLM providers.
@@ -208,18 +208,18 @@ export default function VoiceSettingsPage() {
             </div>
 
             {/* Deepgram card */}
-            <div className="rounded-2xl border border-border bg-surface-1/60 overflow-hidden">
+            <div className="rounded-sm border border-border bg-surface-1/60 overflow-hidden">
 
                 {/* Card header */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-4 sm:px-6 py-4 sm:py-5 border-b border-border">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-azure-dim border border-azure/20">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-azure-dim border border-azure/20">
                             <Mic className="h-5 w-5 text-azure" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <span className="text-base font-semibold text-text-primary">Deepgram</span>
-                                <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold tracking-wide bg-azure/15 text-azure border border-azure/30">
+                                <span className="text-base font-medium text-text-primary">Deepgram</span>
+                                <span className="rounded px-1.5 py-0.5 text-[11px] font-medium tracking-wide bg-azure/15 text-azure border border-azure/30">
                                     RECOMMENDED
                                 </span>
                             </div>
@@ -240,7 +240,7 @@ export default function VoiceSettingsPage() {
                 <div className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-5">
 
                     {/* Free credits callout */}
-                    <div className="flex items-start gap-3 rounded-xl border border-azure/20 bg-azure/5 p-4">
+                    <div className="flex items-start gap-3 rounded-sm border border-azure/20 bg-azure/5 p-4">
                         <Volume2 className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
                         <div>
                             <p className="text-sm font-medium text-azure-300">$200 in free credits — no credit card required to start</p>
@@ -279,7 +279,7 @@ export default function VoiceSettingsPage() {
                         {settings?.configured && !editing ? (
                             // Configured state — show locked field + Change button
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2">
-                                <div className="flex-1 flex items-center gap-3 rounded-lg border border-border/50 bg-surface-2/30 px-3 py-2.5 min-h-[44px]">
+                                <div className="flex-1 flex items-center gap-3 rounded-sm border border-border/50 bg-surface-2/30 px-3 py-2.5 min-h-[44px]">
                                     <CheckCircle2 className="h-4 w-4 text-azure shrink-0" />
                                     <span className="text-xs text-azure font-medium whitespace-nowrap">Key saved and verified</span>
                                     <span className="ml-auto font-mono text-xs text-text-muted truncate max-w-[50px] sm:max-w-none">••••••••••••••••••••••••</span>
@@ -287,7 +287,7 @@ export default function VoiceSettingsPage() {
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={startEditing}
-                                        className="flex-1 sm:flex-initial rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-xs text-text-secondary hover:text-text-primary hover:border-border transition-colors min-h-[44px]"
+                                        className="flex-1 sm:flex-initial rounded-sm border border-border bg-surface-2 px-3 py-2.5 text-xs text-text-secondary hover:text-text-primary hover:border-border transition-colors min-h-[44px]"
                                     >
                                         Change
                                     </button>
@@ -295,7 +295,7 @@ export default function VoiceSettingsPage() {
                                         onClick={clearKey}
                                         disabled={saving}
                                         title="Remove key"
-                                        className="rounded-lg border border-border bg-surface-2 p-2.5 text-text-muted hover:text-red hover:border-red-500/40 transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                        className="rounded-sm border border-border bg-surface-2 p-2.5 text-text-muted hover:text-red hover:border-red-500/40 transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
                                     >
                                         <X className="h-4 w-4" />
                                     </button>
@@ -313,7 +313,7 @@ export default function VoiceSettingsPage() {
                                             onChange={e => setKeyInput(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && void saveAndTest()}
                                             placeholder="Paste your Deepgram API key…"
-                                            className="w-full rounded-lg border border-border bg-surface-2/60 px-3 py-2.5 pr-11 text-[16px] sm:text-sm text-text-primary placeholder-text-muted focus-ring focus:ring-1 focus:ring-azure focus:border-azure transition-colors font-mono min-h-[44px]"
+                                            className="w-full rounded-sm border border-border bg-surface-2/60 px-3 py-2.5 pr-11 text-[16px] sm:text-sm text-text-primary placeholder-text-muted focus-ring focus:ring-1 focus:ring-azure focus:border-azure transition-colors font-mono min-h-[44px]"
                                         />
                                         <button
                                             type="button"
@@ -329,7 +329,7 @@ export default function VoiceSettingsPage() {
                                         <button
                                             onClick={() => void saveAndTest()}
                                             disabled={saving || (!keyInput.trim() && !settings?.configured)}
-                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-lg bg-azure hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-medium text-text-primary transition-colors whitespace-nowrap min-h-[44px]"
+                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-sm bg-azure hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-medium text-text-primary transition-colors whitespace-nowrap min-h-[44px]"
                                         >
                                             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                                             Save &amp; Test
@@ -339,7 +339,7 @@ export default function VoiceSettingsPage() {
                                             <button
                                                 onClick={cancelEditing}
                                                 aria-label="Cancel editing"
-                                                className="rounded-lg border border-border bg-surface-2 p-2.5 text-text-muted hover:text-text-secondary transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                                className="rounded-sm border border-border bg-surface-2 p-2.5 text-text-muted hover:text-text-secondary transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
                                             >
                                                 <X className="h-4 w-4" />
                                             </button>
@@ -355,7 +355,7 @@ export default function VoiceSettingsPage() {
 
                     {/* Balance strip — visible once configured */}
                     {settings?.configured && (
-                        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-2/30 px-4 py-3">
+                        <div className="flex items-center justify-between gap-3 rounded-sm border border-border/50 bg-surface-2/30 px-4 py-3">
                             <div className="flex items-center gap-2.5">
                                 <Wallet className="h-4 w-4 text-azure shrink-0" />
                                 <span className="text-sm font-medium text-text-secondary">Balance</span>
@@ -364,7 +364,7 @@ export default function VoiceSettingsPage() {
                                 {usageLoading ? (
                                     <Loader2 className="h-4 w-4 animate-spin text-text-muted" />
                                 ) : usageData ? (
-                                    <span className="text-sm font-semibold text-text-primary tabular-nums">
+                                    <span className="text-sm font-medium text-text-primary tabular-nums">
                                         ${usageData.amount.toFixed(2)}
                                         <span className="ml-1.5 text-xs font-normal text-text-muted uppercase">{usageData.units}</span>
                                     </span>
@@ -386,7 +386,7 @@ export default function VoiceSettingsPage() {
 
                     {/* Test result */}
                     {testMessage && (
-                        <div className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-xs ${
+                        <div className={`flex items-start gap-2.5 rounded-sm px-3 py-2.5 text-xs ${
                             testStatus === 'ok'
                                 ? 'bg-azure-dim border border-azure/20 text-azure-300'
                                 : 'bg-red-dim border border-red-500/20 text-red-300'
@@ -401,8 +401,8 @@ export default function VoiceSettingsPage() {
             </div>
 
             {/* How voice works */}
-            <div className="rounded-2xl border border-border bg-surface-1/60 px-4 sm:px-6 py-4 sm:py-5 mt-4">
-                <h2 className="text-sm font-semibold text-text-primary mb-4">How voice processing works</h2>
+            <div className="rounded-sm border border-border bg-surface-1/60 px-4 sm:px-6 py-4 sm:py-5 mt-4">
+                <h2 className="text-sm font-medium text-text-primary mb-4">How voice processing works</h2>
                 <div className="flex flex-col gap-4">
                     {[
                         {
@@ -422,7 +422,7 @@ export default function VoiceSettingsPage() {
                         },
                     ].map(item => (
                         <div key={item.title} className="flex items-start gap-3">
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 border border-border/50">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-surface-2 border border-border/50">
                                 {item.icon}
                             </div>
                             <div>

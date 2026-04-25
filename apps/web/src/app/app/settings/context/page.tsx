@@ -64,7 +64,7 @@ const BUDGET_LIMIT = 51200
 function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
     return (
         <input
-            className={`min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 disabled:opacity-40 w-full ${className ?? ''}`}
+            className={`min-h-[44px] rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 disabled:opacity-40 w-full ${className ?? ''}`}
             {...props}
         />
     )
@@ -73,7 +73,7 @@ function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputEleme
 function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
     return (
         <textarea
-            className={`min-h-[44px] w-full resize-none rounded-lg border border-border bg-surface-1 px-4 py-3 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 leading-relaxed ${className ?? ''}`}
+            className={`min-h-[44px] w-full resize-none rounded-sm border border-border bg-surface-1 px-4 py-3 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 leading-relaxed ${className ?? ''}`}
             {...props}
         />
     )
@@ -132,7 +132,7 @@ function BudgetBar({ budget }: { budget: BudgetInfo | null }) {
     const textColor = pct < 60 ? 'text-green-400' : pct < 85 ? 'text-amber' : 'text-red-400'
 
     return (
-        <div className="rounded-xl border border-border bg-surface-1/40 p-4">
+        <div className="rounded-sm border border-border bg-surface-1/40 p-4">
             <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-text-secondary">Token Budget</span>
                 <span className={`text-sm font-mono font-medium ${textColor}`}>
@@ -162,7 +162,7 @@ function ContextCard({ ctx, onToggle, onEdit, onDelete }: {
     const isExpired = ctx.expiresAt && new Date(ctx.expiresAt) < new Date()
 
     return (
-        <div className={`rounded-lg border bg-surface-1/40 p-4 transition-colors ${ctx.enabled ? 'border-border' : 'border-border/50 opacity-60'} ${isExpired ? 'border-red-800/40' : ''}`}>
+        <div className={`rounded-sm border bg-surface-1/40 p-4 transition-colors ${ctx.enabled ? 'border-border' : 'border-border/50 opacity-60'} ${isExpired ? 'border-red-800/40' : ''}`}>
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -218,24 +218,24 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
     return (
         <div
             ref={trapRef}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-context-title"
         >
-            <div className="bg-surface-1 border border-border rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="bg-surface-1 border border-border rounded-sm p-6 max-w-sm w-full mx-4">
                 <div className="flex items-center gap-2 mb-3">
                     <AlertCircle className="h-5 w-5 text-red-400" />
-                    <h3 id="delete-context-title" className="text-sm font-semibold text-text-primary">Delete Context</h3>
+                    <h3 id="delete-context-title" className="text-sm font-medium text-text-primary">Delete Context</h3>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
                     Are you sure you want to delete <span className="font-medium text-text-primary">{name}</span>? This action cannot be undone.
                 </p>
                 <div className="flex justify-end gap-2">
-                    <button onClick={onCancel} className="min-h-[44px] px-4 py-2 text-sm rounded-lg border border-border text-text-secondary hover:bg-surface-2 transition-colors">
+                    <button onClick={onCancel} className="min-h-[44px] px-4 py-2 text-sm rounded-sm border border-border text-text-secondary hover:bg-surface-2 transition-colors">
                         Cancel
                     </button>
-                    <button onClick={onConfirm} className="min-h-[44px] px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">
+                    <button onClick={onConfirm} className="min-h-[44px] px-4 py-2 text-sm rounded-sm bg-red-600 text-white hover:bg-red-700 transition-colors">
                         Delete
                     </button>
                 </div>
@@ -264,10 +264,10 @@ function ContextForm({ initial, onSubmit, onCancel, saving }: {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="rounded-xl border border-azure/30 bg-surface-1/40 p-4 sm:p-5">
+        <form onSubmit={handleSubmit} className="rounded-sm border border-azure/30 bg-surface-1/40 p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
                 <BookOpen className="h-4 w-4 text-azure" />
-                <h2 className="text-sm font-semibold text-text-primary">{isEdit ? 'Edit Context' : 'New Context'}</h2>
+                <h2 className="text-sm font-medium text-text-primary">{isEdit ? 'Edit Context' : 'New Context'}</h2>
             </div>
 
             <div className="flex flex-col gap-4">
@@ -315,7 +315,7 @@ function ContextForm({ initial, onSubmit, onCancel, saving }: {
                         <select
                             value={form.priority}
                             onChange={e => set('priority', e.target.value as Priority)}
-                            className="min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring"
+                            className="min-h-[44px] w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring"
                         >
                             {PRIORITY_ORDER.map(p => (
                                 <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
@@ -346,14 +346,14 @@ function ContextForm({ initial, onSubmit, onCancel, saving }: {
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="min-h-[44px] px-4 py-2 text-sm rounded-lg border border-border text-text-secondary hover:bg-surface-2 transition-colors"
+                        className="min-h-[44px] px-4 py-2 text-sm rounded-sm border border-border text-text-secondary hover:bg-surface-2 transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         type="submit"
                         disabled={saving || !form.name.trim() || !form.content.trim()}
-                        className="min-h-[44px] px-4 py-2 text-sm rounded-lg bg-azure text-white hover:bg-azure/90 disabled:opacity-40 transition-colors flex items-center gap-2"
+                        className="min-h-[44px] px-4 py-2 text-sm rounded-sm bg-azure text-white hover:bg-azure/90 disabled:opacity-40 transition-colors flex items-center gap-2"
                     >
                         {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                         {isEdit ? 'Update' : 'Create'}
@@ -575,7 +575,7 @@ function ContextLibraryContent() {
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                    <h1 className="text-lg font-medium text-text-primary flex items-center gap-2">
                         <BookOpen className="h-5 w-5 text-azure" />
                         Context Library
                     </h1>
@@ -590,7 +590,7 @@ function ContextLibraryContent() {
                     <button
                         onClick={() => void fetchData()}
                         disabled={loading}
-                        className="min-h-[44px] p-2 rounded-lg border border-border text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors disabled:opacity-40"
+                        className="min-h-[44px] p-2 rounded-sm border border-border text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors disabled:opacity-40"
                         title="Refresh"
                     >
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -598,7 +598,7 @@ function ContextLibraryContent() {
                     <button
                         onClick={openCreate}
                         disabled={showForm || !!editingCtx}
-                        className="min-h-[44px] px-4 py-2 text-sm rounded-lg bg-azure text-white hover:bg-azure/90 disabled:opacity-40 transition-colors flex items-center gap-2"
+                        className="min-h-[44px] px-4 py-2 text-sm rounded-sm bg-azure text-white hover:bg-azure/90 disabled:opacity-40 transition-colors flex items-center gap-2"
                     >
                         <Plus className="h-4 w-4" /> Add Context
                     </button>
@@ -607,7 +607,7 @@ function ContextLibraryContent() {
 
             {/* Error */}
             {error && (
-                <div role="alert" className="flex items-center gap-2 p-3 rounded-lg border border-red-800/40 bg-red-dim text-sm text-red-400">
+                <div role="alert" className="flex items-center gap-2 p-3 rounded-sm border border-red-800/40 bg-red-dim text-sm text-red-400">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     <span className="flex-1">{error}</span>
                     <button onClick={() => setError(null)} aria-label="Dismiss error" className="p-1 hover:bg-red-900/30 rounded">
@@ -650,7 +650,7 @@ function ContextLibraryContent() {
 
             {/* Empty state */}
             {!loading && contexts.length === 0 && (
-                <div className="rounded-xl border border-border bg-surface-1/40 p-8 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 p-8 text-center">
                     <BookOpen className="h-8 w-8 text-text-muted mx-auto mb-3" />
                     <p className="text-sm text-text-muted">No context blocks yet. Add one to get started.</p>
                 </div>
@@ -664,7 +664,7 @@ function ContextLibraryContent() {
                     <div key={key} className="flex flex-col gap-2">
                         <button
                             onClick={() => toggleGroup(key)}
-                            className="flex items-center gap-2 py-1 text-xs font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary transition-colors"
+                            className="flex items-center gap-2 py-1 text-xs font-medium text-text-muted uppercase tracking-wider hover:text-text-secondary transition-colors"
                         >
                             {isCollapsed
                                 ? <ChevronRight className="h-3.5 w-3.5" />

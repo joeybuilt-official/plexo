@@ -51,7 +51,7 @@ export default function WorkbenchPage() {
         <div className="flex flex-col h-full">
             <div className="flex items-start justify-between gap-4 pb-4">
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold text-text-primary">Workbench</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">Workbench</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
                         {pins.length} pinned work{pins.length === 1 ? '' : 's'} — iterate without losing context.
                     </p>
@@ -78,7 +78,7 @@ export default function WorkbenchPage() {
                         <div className="text-xs text-text-muted italic p-3">Loading…</div>
                     )}
                     {!loading && filtered.length === 0 && (
-                        <div className="rounded-lg border border-dashed border-border p-6 text-center">
+                        <div className="rounded-sm border border-dashed border-border p-6 text-center">
                             <Pin className="h-6 w-6 text-text-muted mx-auto mb-2" />
                             <p className="text-xs text-text-muted">
                                 {filter ? 'No pins match your filter.' : 'Pin a work from the artifact panel to get started.'}
@@ -91,7 +91,7 @@ export default function WorkbenchPage() {
                         return (
                             <div
                                 key={p.pinId}
-                                className={`group rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
+                                className={`group rounded-sm border px-3 py-2.5 cursor-pointer transition-colors ${
                                     selected
                                         ? 'border-azure/50 bg-azure/5'
                                         : 'border-border bg-surface-1/40 hover:bg-surface-1/70'
@@ -131,7 +131,7 @@ export default function WorkbenchPage() {
                 </div>
 
                 {/* Right pane — active work */}
-                <div className="flex-1 min-w-0 rounded-xl border border-border bg-surface-1/20 overflow-hidden">
+                <div className="flex-1 min-w-0 rounded-sm border border-border bg-surface-1/20 overflow-hidden">
                     {active ? (
                         <WorkRenderer
                             work={active.work}

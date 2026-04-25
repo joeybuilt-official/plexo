@@ -73,8 +73,8 @@ function StatusBadge({ status }: { status: string }) {
     }
     const { label, cls } = map[status] ?? { label: status, cls: 'border-border bg-surface-2/50 text-text-muted' }
     return (
-        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${cls}`}>
-            {label}
+        <span className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] font-mono font-medium uppercase tracking-wider ${cls}`}>
+            [{label}]
         </span>
     )
 }
@@ -144,11 +144,11 @@ function AddNodeModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
             aria-labelledby="add-node-modal-title"
         >
             <div
-                className="w-full max-w-md rounded-xl border border-border bg-surface-1 p-6 shadow-2xl"
+                className="w-full max-w-md rounded-sm border border-border bg-surface-1 p-6"
                 onClick={e => e.stopPropagation()}
             >
                 <div className="mb-4 flex items-center justify-between">
-                    <h3 id="add-node-modal-title" className="text-sm font-semibold text-text-primary">Pair Remote Node</h3>
+                    <h3 id="add-node-modal-title" className="text-sm font-medium text-text-primary">Pair Remote Node</h3>
                     <button onClick={onClose} aria-label="Close pair dialog" className="text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>
                 </div>
 
@@ -159,7 +159,7 @@ function AddNodeModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
                             value={did}
                             onChange={e => setDid(e.target.value)}
                             placeholder="did:plexo:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                            className="w-full rounded-sm border border-border bg-surface-2 px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                         />
                     </div>
                     <div>
@@ -168,7 +168,7 @@ function AddNodeModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
                             value={displayName}
                             onChange={e => setDisplayName(e.target.value)}
                             placeholder="Production EU node"
-                            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                            className="w-full rounded-sm border border-border bg-surface-2 px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                         />
                     </div>
                     <div>
@@ -177,11 +177,11 @@ function AddNodeModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
                             value={url}
                             onChange={e => setUrl(e.target.value)}
                             placeholder="https://plexo.example.com"
-                            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                            className="w-full rounded-sm border border-border bg-surface-2 px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                         />
                     </div>
 
-                    <div className="rounded-lg border border-border bg-surface-2/50 p-3 space-y-2">
+                    <div className="rounded-sm border border-border bg-surface-2/50 p-3 space-y-2">
                         <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">Trust Scopes</p>
                         <TrustToggle label="Memory Sync" active={memorySync} onChange={setMemorySync} />
                         <TrustToggle label="Agent Routing" active={agentRouting} onChange={setAgentRouting} />
@@ -189,7 +189,7 @@ function AddNodeModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
                     </div>
 
                     {error && (
-                        <div className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red-400" role="alert">
+                        <div className="flex items-center gap-2 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red-400" role="alert">
                             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                             {error}
                         </div>
@@ -199,14 +199,14 @@ function AddNodeModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
                 <div className="mt-5 flex justify-end gap-2">
                     <button
                         onClick={onClose}
-                        className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-2 transition-colors"
+                        className="rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-2 transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={submit}
                         disabled={saving}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-sm font-medium text-white hover:bg-azure/90 disabled:opacity-50 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-sm bg-azure px-3 py-1.5 text-sm font-medium text-white hover:bg-azure/90 disabled:opacity-50 transition-colors"
                     >
                         {saving ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                         Pair Node
@@ -246,12 +246,12 @@ function NodeRow({ node, onDeleted, onTrustUpdated }: { node: Node; onDeleted: (
     }
 
     return (
-        <div className="rounded-lg border border-border bg-surface-1 overflow-hidden">
+        <div className="rounded-sm border border-border bg-surface-1 overflow-hidden">
             <div
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-2/50 transition-colors"
                 onClick={() => !node.isSelf && setExpanded(v => !v)}
             >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-border bg-surface-2">
                     {node.isSelf
                         ? <ShieldCheck className="h-4 w-4 text-azure" />
                         : <Globe className="h-4 w-4 text-text-muted" />
@@ -264,7 +264,7 @@ function NodeRow({ node, onDeleted, onTrustUpdated }: { node: Node; onDeleted: (
                             {node.displayName ?? node.did.slice(0, 32) + '…'}
                         </span>
                         {node.isSelf && (
-                            <span className="rounded-full border border-azure/40 bg-azure/10 px-1.5 py-0.5 text-[11px] font-semibold text-azure">SELF</span>
+                            <span className="rounded-sm border border-azure/40 bg-azure/10 px-1.5 py-0.5 text-[11px] font-medium text-azure">SELF</span>
                         )}
                         <StatusBadge status={node.status} />
                     </div>
@@ -427,12 +427,12 @@ function AppProfilesPanel() {
 
     if (loading) return <div className="py-6 text-center text-xs text-text-muted">Loading app profiles…</div>
     if (error) return (
-        <div className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red-400" role="alert">
+        <div className="flex items-center gap-2 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red-400" role="alert">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
         </div>
     )
     if (profiles.length === 0) return (
-        <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+        <div className="rounded-sm border border-dashed border-border px-4 py-6 text-center">
             <p className="text-xs text-text-muted">No app profiles registered. External Joeybuilt apps (fylo, fonto, etc.) register automatically on startup.</p>
         </div>
     )
@@ -440,8 +440,8 @@ function AppProfilesPanel() {
     return (
         <div className="space-y-2">
             {profiles.map(p => (
-                <div key={p.appId} className="flex items-center gap-3 rounded-lg border border-border bg-surface-1 px-4 py-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 text-xs font-bold text-azure">
+                <div key={p.appId} className="flex items-center gap-3 rounded-sm border border-border bg-surface-1 px-4 py-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-border bg-surface-2 text-xs font-medium text-azure">
                         {p.displayName.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -505,7 +505,7 @@ export default function FederationPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                    <h1 className="text-lg font-medium text-text-primary flex items-center gap-2">
                         <Network className="h-5 w-5 text-azure" />
                         Federation
                     </h1>
@@ -514,7 +514,7 @@ export default function FederationPage() {
                 <button
                     onClick={() => void loadNodes()}
                     aria-label="Refresh federation nodes"
-                    className="rounded-lg border border-border p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
+                    className="rounded-sm border border-border p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
                 >
                     <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                 </button>
@@ -522,9 +522,9 @@ export default function FederationPage() {
 
             {/* Self Node Identity */}
             <section>
-                <h2 className="mb-3 text-xs font-semibold text-text-muted uppercase tracking-wider">This Node</h2>
+                <h2 className="mb-3 text-xs font-medium text-text-muted uppercase tracking-wider">This Node</h2>
                 {selfDid ? (
-                    <div className="flex items-center gap-3 rounded-lg border border-azure/30 bg-azure/5 px-4 py-3">
+                    <div className="flex items-center gap-3 rounded-sm border border-azure/30 bg-azure/5 px-4 py-3">
                         <ShieldCheck className="h-5 w-5 shrink-0 text-azure" />
                         <div className="min-w-0 flex-1">
                             <p className="text-xs font-medium text-text-secondary">Node DID — share this with remote nodes to initiate pairing</p>
@@ -538,7 +538,7 @@ export default function FederationPage() {
                         </button>
                     </div>
                 ) : (
-                    <div className="rounded-lg border border-yellow-700/40 bg-amber-dim/20 px-4 py-3 text-xs text-yellow-400">
+                    <div className="rounded-sm border border-yellow-700/40 bg-amber-dim/20 px-4 py-3 text-xs text-yellow-400">
                         Self-node not initialised. Set PLEXO_INSTANCE_ID and restart.
                     </div>
                 )}
@@ -547,12 +547,12 @@ export default function FederationPage() {
             {/* Remote Nodes */}
             <section>
                 <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    <h2 className="text-xs font-medium text-text-muted uppercase tracking-wider">
                         Remote Nodes ({remoteNodes.length})
                     </h2>
                     <button
                         onClick={() => setShowAdd(true)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
                     >
                         <Plus className="h-3 w-3" />
                         Pair Node
@@ -560,7 +560,7 @@ export default function FederationPage() {
                 </div>
 
                 {error && (
-                    <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red-400" role="alert">
+                    <div className="mb-3 flex items-center gap-2 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red-400" role="alert">
                         <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
                     </div>
                 )}
@@ -568,13 +568,13 @@ export default function FederationPage() {
                 {loading ? (
                     <div className="py-8 text-center text-xs text-text-muted">Loading nodes…</div>
                 ) : remoteNodes.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center">
+                    <div className="rounded-sm border border-dashed border-border px-4 py-8 text-center">
                         <Network className="mx-auto mb-2 h-8 w-8 text-text-muted/40" />
                         <p className="text-sm font-medium text-text-secondary">No remote nodes</p>
                         <p className="mt-1 text-xs text-text-muted">Pair another Plexo instance to enable federation.</p>
                         <button
                             onClick={() => setShowAdd(true)}
-                            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-2 transition-colors"
+                            className="mt-3 inline-flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-2 transition-colors"
                         >
                             <Plus className="h-3 w-3" /> Pair your first node
                         </button>
@@ -596,7 +596,7 @@ export default function FederationPage() {
             {/* App Profiles */}
             <section>
                 <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Registered App Profiles</h2>
+                    <h2 className="text-xs font-medium text-text-muted uppercase tracking-wider">Registered App Profiles</h2>
                 </div>
                 <AppProfilesPanel />
             </section>

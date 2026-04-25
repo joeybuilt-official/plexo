@@ -41,19 +41,19 @@ export function LoginForm() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-surface-1 px-4 py-10">
+        <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
             <div className="relative w-full max-w-sm">
                 <div className="mb-8 text-center">
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
-                        <PlexoMark className="h-10 w-10 text-text-primary drop-shadow-lg" />
+                        <PlexoMark className="h-10 w-10 text-text-primary" />
                     </div>
-                    <h1 className="text-lg font-semibold tracking-tight text-text-primary">Sign in to {process.env.NEXT_PUBLIC_APP_NAME || 'Plexo'}</h1>
+                    <h1 className="text-lg font-medium tracking-tight text-text-primary">Sign in to {process.env.NEXT_PUBLIC_APP_NAME || 'Plexo'}</h1>
                     <p className="mt-1.5 text-sm text-text-muted">Your account</p>
                 </div>
 
-                <div className="rounded-2xl border border-border bg-surface-1 p-6 shadow-xl backdrop-blur-sm">
+                <div className="rounded-md border border-border bg-surface-1 p-6">
                     {justRegistered && (
-                        <div className="mb-4 rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-muted">
+                        <div className="mb-4 rounded-md border border-border bg-surface-1 px-3 py-2 text-xs text-text-muted">
                             Account created. Sign in below.
                         </div>
                     )}
@@ -74,7 +74,7 @@ export function LoginForm() {
                                 setGoogleLoading(false)
                             }
                         }}
-                        className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-text-primary/5 disabled:opacity-50"
+                        className="flex w-full items-center justify-center gap-2.5 rounded-md border border-border bg-surface-1 px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-text-primary/5 disabled:opacity-50"
                     >
                         {googleLoading ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -113,7 +113,7 @@ export function LoginForm() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="you@example.com"
-                                    className="w-full rounded-lg border border-border bg-surface-1 py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
+                                    className="w-full rounded-md border border-border bg-surface-1 py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent/30 focus-ring focus:ring-1 focus:ring-accent/20"
                                     required
                                     autoComplete="email"
                                 />
@@ -134,7 +134,7 @@ export function LoginForm() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••••••"
-                                className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
+                                className="w-full rounded-md border border-border bg-surface-1 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent/30 focus-ring focus:ring-1 focus:ring-accent/20"
                                 required
                                 minLength={8}
                                 autoComplete="current-password"
@@ -142,7 +142,7 @@ export function LoginForm() {
                         </div>
 
                         {error && (
-                            <div className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
+                            <div className="rounded-md border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
                                 {error}
                             </div>
                         )}
@@ -150,7 +150,7 @@ export function LoginForm() {
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-text-primary px-4 py-2.5 text-sm font-medium text-canvas transition-colors hover:opacity-90 disabled:opacity-50"
+                            className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-text-primary px-4 py-2.5 text-sm font-medium text-canvas transition-colors hover:opacity-90 disabled:opacity-50"
                         >
                             {isLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />

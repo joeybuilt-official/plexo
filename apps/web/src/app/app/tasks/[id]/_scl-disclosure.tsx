@@ -78,7 +78,7 @@ export function SclDisclosure({ taskId, workspaceId, domainRegion }: SclDisclosu
     if (!domainRegion) return null
 
     return (
-        <div className="rounded-xl border border-border/60 bg-surface-1/40 overflow-hidden">
+        <div className="rounded-sm border border-border/60 bg-surface-1/40 overflow-hidden">
             <button
                 type="button"
                 onClick={() => setOpen(v => !v)}
@@ -172,12 +172,12 @@ export function SclDisclosure({ taskId, workspaceId, domainRegion }: SclDisclosu
 
 function MiniStat({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: number }) {
     return (
-        <div className="rounded-lg border border-border/40 bg-canvas px-2 py-1.5">
+        <div className="rounded-sm border border-border/40 bg-canvas px-2 py-1.5">
             <div className="flex items-center gap-1">
                 <Icon className="h-2.5 w-2.5 text-text-muted" />
                 <span className="text-[10px] text-text-muted uppercase tracking-wider">{label}</span>
             </div>
-            <span className="text-sm font-semibold text-text-primary">{value}</span>
+            <span className="text-sm font-medium text-text-primary">{value}</span>
         </div>
     )
 }

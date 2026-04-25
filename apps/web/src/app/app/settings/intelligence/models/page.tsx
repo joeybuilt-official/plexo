@@ -49,11 +49,11 @@ export default function ModelCatalogPage() {
         <div className="flex h-full flex-col overflow-hidden">
             <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-surface-1 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-sm bg-surface-1 flex items-center justify-center shrink-0">
                         <Boxes className="h-5 w-5 text-azure" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-text-primary">Model catalog</h2>
+                        <h2 className="text-base font-medium text-text-primary">Model catalog</h2>
                         <p className="text-xs text-text-muted mt-0.5">
                             Browse the {data?.total ?? 506} models in the routing knowledge base.
                         </p>
@@ -78,7 +78,7 @@ export default function ModelCatalogPage() {
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading catalog…
                         </div>
                     ) : error ? (
-                        <div role="alert" className="flex items-start gap-3 rounded-xl border border-rose-700/40 bg-surface-1 p-4 text-xs text-rose-300">
+                        <div role="alert" className="flex items-start gap-3 rounded-sm border border-rose-700/40 bg-surface-1 p-4 text-xs text-rose-300">
                             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
                             <div className="flex-1">
                                 <p className="font-medium">Failed to load catalog</p>
@@ -120,7 +120,7 @@ export default function ModelCatalogPage() {
                                     return (
                                         <div
                                             key={item.id}
-                                            className="rounded-xl border border-border bg-surface-1 p-3"
+                                            className="rounded-sm border border-border bg-surface-1 p-3"
                                         >
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0 flex-1">

@@ -131,7 +131,7 @@ export default function ExtensionPromptsTab({ workspaceId }: { workspaceId: stri
                 <Section title="Tool Prompts" icon={BookOpen}>
                     <div className="flex flex-col gap-3">
                         {prompts.map((p) => (
-                            <div key={p.id} className="flex items-start gap-3 p-3 rounded-xl border border-border bg-surface-primary">
+                            <div key={p.id} className="flex items-start gap-3 p-3 rounded-sm border border-border bg-surface-primary">
                                 <button
                                     onClick={() => void togglePrompt(p.id, !p.enabled)}
                                     className={`mt-0.5 shrink-0 w-9 h-5 rounded-full transition-colors ${p.enabled ? 'bg-emerald-600' : 'bg-surface-secondary'}`}
@@ -166,7 +166,7 @@ export default function ExtensionPromptsTab({ workspaceId }: { workspaceId: stri
                 <Section title="Tool Context" icon={Brain}>
                     <div className="flex flex-col gap-3">
                         {contexts.map((c) => (
-                            <div key={c.id} className={`flex items-start gap-3 p-3 rounded-xl border bg-surface-primary ${c.expired ? 'border-amber-800/40 opacity-60' : 'border-border'}`}>
+                            <div key={c.id} className={`flex items-start gap-3 p-3 rounded-sm border bg-surface-primary ${c.expired ? 'border-amber-800/40 opacity-60' : 'border-border'}`}>
                                 <button
                                     onClick={() => void toggleContext(c.id, !c.enabled)}
                                     className={`mt-0.5 shrink-0 w-9 h-5 rounded-full transition-colors ${c.enabled ? 'bg-emerald-600' : 'bg-surface-secondary'}`}

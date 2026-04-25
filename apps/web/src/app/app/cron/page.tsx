@@ -257,7 +257,7 @@ export default function CronPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary">Schedules</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">Schedules</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
                         {loading
                             ? '…'
@@ -269,13 +269,13 @@ export default function CronPage() {
                         onClick={() => void fetchJobs()}
                         disabled={loading}
                         aria-label="Refresh schedules"
-                        className="rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors"
+                        className="rounded-sm border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                     <button
                         onClick={() => setAdding(true)}
-                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                        className="flex items-center gap-1.5 rounded-sm bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         Add schedule
@@ -284,15 +284,15 @@ export default function CronPage() {
             </div>
 
             {message && (
-                <div className={`rounded-lg border px-3 py-2.5 text-sm ${message.ok ? 'border-azure/30 bg-azure/30 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
+                <div className={`rounded-sm border px-3 py-2.5 text-sm ${message.ok ? 'border-azure/30 bg-azure/30 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
                     {message.text}
                 </div>
             )}
 
             {/* Add form */}
             {adding && (
-                <div className="rounded-xl border border-azure/30 bg-surface-1/60 p-4 flex flex-col gap-4">
-                    <h2 className="text-sm font-semibold text-text-primary">New schedule</h2>
+                <div className="rounded-sm border border-azure/30 bg-surface-1/60 p-4 flex flex-col gap-4">
+                    <h2 className="text-sm font-medium text-text-primary">New schedule</h2>
 
                     <div className="flex flex-col gap-2">
                         <label className="text-xs font-medium text-text-secondary">Describe the schedule in plain English</label>
@@ -303,12 +303,12 @@ export default function CronPage() {
                                 onChange={(e) => setNlText(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') void handleParseNl() }}
                                 placeholder='e.g. "every Monday at 9am" or "daily at midnight"'
-                                className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                className="flex-1 rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                             />
                             <button
                                 onClick={() => void handleParseNl()}
                                 disabled={nlParsing || !nlText.trim()}
-                                className="flex items-center gap-1.5 rounded-lg border border-azure/40 bg-azure/20 px-3 py-2 text-xs font-medium text-azure hover:bg-azure/30 disabled:opacity-50 transition-colors"
+                                className="flex items-center gap-1.5 rounded-sm border border-azure/40 bg-azure/20 px-3 py-2 text-xs font-medium text-azure hover:bg-azure/30 disabled:opacity-50 transition-colors"
                             >
                                 {nlParsing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                                 Parse
@@ -330,7 +330,7 @@ export default function CronPage() {
                                 value={newName}
                                 onChange={(e) => setNewName(e.target.value)}
                                 placeholder="Daily digest"
-                                className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                             />
                         </div>
                         <div className="flex flex-col gap-1.5">
@@ -340,7 +340,7 @@ export default function CronPage() {
                                 value={newSchedule}
                                 onChange={(e) => setNewSchedule(e.target.value)}
                                 placeholder="0 9 * * 1"
-                                className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                             />
                         </div>
                     </div>
@@ -350,7 +350,7 @@ export default function CronPage() {
                             <button
                                 key={p.value}
                                 onClick={() => setNewSchedule(p.value)}
-                                className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${newSchedule === p.value
+                                className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${newSchedule === p.value
                                     ? 'border-azure/50 bg-azure/20 text-azure'
                                     : 'border-border text-text-muted hover:text-text-secondary'
                                     }`}
@@ -364,14 +364,14 @@ export default function CronPage() {
                         <button
                             onClick={() => void handleAdd()}
                             disabled={saving || !newName.trim() || !newSchedule.trim()}
-                            className="flex items-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-1.5 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors"
                         >
                             {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                             {saving ? 'Saving…' : 'Schedule'}
                         </button>
                         <button
                             onClick={() => { setAdding(false); setMessage(null) }}
-                            className="rounded-lg border border-border px-3 py-2 text-sm text-text-muted hover:text-text-secondary transition-colors"
+                            className="rounded-sm border border-border px-3 py-2 text-sm text-text-muted hover:text-text-secondary transition-colors"
                         >
                             Cancel
                         </button>
@@ -401,28 +401,28 @@ export default function CronPage() {
                     <RefreshCw className="h-4 w-4 animate-spin" /> Loading…
                 </div>
             ) : jobs.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-1/40 p-12 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 p-12 text-center">
                     <Clock className="h-10 w-10 text-text-muted mx-auto mb-3" />
                     <p className="text-sm font-medium text-text-secondary">No schedules configured</p>
                     <p className="text-xs text-text-muted mt-1">Schedule recurring tasks for your agent.</p>
                 </div>
             ) : displayed.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-1/40 py-12 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 py-12 text-center">
                     <p className="text-sm text-text-muted">No schedules match your filters</p>
                     <button
                         onClick={lf.clearAll}
-                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
+                        className="mt-3 flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
                     >
                         Clear filters
                     </button>
                 </div>
             ) : (
-                <div className="rounded-xl border border-border bg-surface-1/40 overflow-hidden overflow-x-auto">
+                <div className="rounded-sm border border-border bg-surface-1/40 overflow-hidden overflow-x-auto">
                     <table className="w-full min-w-[600px]">
                         <thead className="border-b border-border">
                             <tr>
                                 {['Name', 'Schedule', 'Last run', 'Status', 'Failures', ''].map((h) => (
-                                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-text-muted">{h}</th>
+                                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-text-muted">{h}</th>
                                 ))}
                             </tr>
                         </thead>

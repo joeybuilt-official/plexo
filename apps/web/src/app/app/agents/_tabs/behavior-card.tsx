@@ -47,26 +47,26 @@ function RuleValueEditor({ val, locked, onChange }: { val: RuleValue; locked: bo
             return (
                 <input type="number" value={val.value as number} min={val.min} max={val.max}
                     onChange={e => onChange({ ...val, value: parseFloat(e.target.value) })}
-                    className="w-full sm:w-24 min-h-[44px] rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring"
+                    className="w-full sm:w-24 min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring"
                 />
             )
         case 'enum':
             return (
                 <select value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
-                    className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring">
+                    className="w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring">
                     {(val.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
             )
         case 'string':
             return (
                 <input type="text" value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
-                    className="flex-1 w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring"
+                    className="flex-1 w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring"
                 />
             )
         case 'text_block':
             return (
                 <textarea value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })} rows={3}
-                    className="flex-1 w-full resize-none min-h-[44px] rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring leading-relaxed"
+                    className="flex-1 w-full resize-none min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring leading-relaxed"
                 />
             )
         default:
@@ -130,7 +130,7 @@ function RuleRow({ rule, onUpdate, onDelete, showSource = false, overriddenBy }:
                     </div>
                     {needsTextSave && dirty && (
                         <button onClick={() => void handleSave()} disabled={saving}
-                            className="text-[16px] sm:text-xs bg-azure text-text-primary min-h-[44px] min-w-[44px] rounded-lg hover:bg-azure/90 disabled:opacity-50 flex flex-col items-center justify-center shrink-0">
+                            className="text-[16px] sm:text-xs bg-azure text-text-primary min-h-[44px] min-w-[44px] rounded-sm hover:bg-azure/90 disabled:opacity-50 flex flex-col items-center justify-center shrink-0">
                             {saving ? <RefreshCw className="h-4 w-4 sm:h-3 sm:w-3 animate-spin" /> : <Check className="h-4 w-4 sm:h-3 sm:w-3" />}
                         </button>
                     )}
@@ -171,20 +171,20 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
     }
 
     return (
-        <div className="mt-3 border border-dashed border-border rounded-xl p-4 flex flex-col gap-4 sm:gap-3 bg-surface-1/30 w-full">
+        <div className="mt-3 border border-dashed border-border rounded-sm p-4 flex flex-col gap-4 sm:gap-3 bg-surface-1/30 w-full">
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-3">
                 <div className="flex-1">
                     <label className="text-xs text-text-muted mb-1 block">Label</label>
                     <input type="text" value={label} onChange={e => setLabel(e.target.value)} autoFocus
                         placeholder="e.g. Always use TypeScript strict mode"
-                        className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                        className="w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                     />
                     {autoKey && <p className="text-[11px] text-text-muted mt-1 sm:mt-0.5 font-mono">key: {autoKey}</p>}
                 </div>
                 <div>
                     <label className="text-xs text-text-muted mb-1 block">Type</label>
                     <select value={valueType} onChange={e => setValueType(e.target.value as RuleValue['type'])}
-                        className="w-full sm:w-auto min-h-[44px] rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring">
+                        className="w-full sm:w-auto min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring">
                         <option value="text_block">Text block</option>
                         <option value="string">Short string</option>
                         <option value="boolean">Toggle</option>
@@ -200,12 +200,12 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                 {valueType === 'text_block' ? (
                     <textarea rows={3} value={value} onChange={e => setValue(e.target.value)}
                         placeholder="Enter the rule content…"
-                        className="w-full resize-none min-h-[44px] rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                        className="w-full resize-none min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                     />
                 ) : (
                     <input type={valueType === 'number' ? 'number' : 'text'} value={value} onChange={e => setValue(e.target.value)}
                         placeholder={valueType === 'enum' ? 'option1, option2, option3' : ''}
-                        className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                        className="w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                     />
                 )}
             </div>
@@ -213,14 +213,14 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                 <label className="text-xs text-text-muted mb-1 block">Description (optional)</label>
                 <input type="text" value={description} onChange={e => setDescription(e.target.value)}
                     placeholder="What does this rule do?"
-                    className="w-full min-h-[44px] rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                    className="w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                 />
             </div>
             <div className="flex flex-col sm:flex-row gap-2 justify-end mt-2">
-                <button onClick={onCancel} className="text-[16px] sm:text-xs text-text-secondary hover:text-text-primary min-h-[44px] px-4 rounded-lg transition-colors border border-border sm:border-transparent">Cancel</button>
+                <button onClick={onCancel} className="text-[16px] sm:text-xs text-text-secondary hover:text-text-primary min-h-[44px] px-4 rounded-sm transition-colors border border-border sm:border-transparent">Cancel</button>
                 <button onClick={() => { if (!label.trim()) return; onAdd({ type, key: autoKey, label: label.trim(), description, value: buildValue() }) }}
                     disabled={!label.trim()}
-                    className="flex justify-center items-center text-[16px] sm:text-xs bg-azure text-text-primary min-h-[44px] px-4 rounded-lg hover:bg-azure/90 disabled:opacity-40 transition-colors cursor-pointer">
+                    className="flex justify-center items-center text-[16px] sm:text-xs bg-azure text-text-primary min-h-[44px] px-4 rounded-sm hover:bg-azure/90 disabled:opacity-40 transition-colors cursor-pointer">
                     Add rule
                 </button>
             </div>
@@ -246,15 +246,15 @@ export function BehaviorCard({ group, rules, inheritanceMode, resolvedRules, onU
         : rules.filter(r => group.ruleTypes.includes(r.type))
 
     return (
-        <div className={`rounded-xl border ${colors.border} border-l-4 ${colors.accent} bg-surface-1/40 overflow-hidden`}>
+        <div className={`rounded-sm border ${colors.border} border-l-4 ${colors.accent} bg-surface-1/40 overflow-hidden`}>
             <button onClick={() => setExpanded(e => !e)}
                 className="w-full flex items-center gap-3 px-4 sm:px-5 py-4 min-h-[64px] hover:bg-surface-2/20 transition-colors text-left">
-                <div className={`p-1.5 rounded-lg ${colors.bg}`}>
+                <div className={`p-1.5 rounded-sm ${colors.bg}`}>
                     <Icon className={`h-4 w-4 ${colors.text}`} />
                 </div>
                 <div className="flex-1 min-w-0 pr-2">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-text-primary">{group.label}</span>
+                        <span className="text-sm font-medium text-text-primary">{group.label}</span>
                         {group.locked && <Lock className="h-3 w-3 text-text-muted shrink-0" />}
                     </div>
                     <p className="text-xs text-text-muted truncate mt-0.5 max-w-[200px] sm:max-w-none">{group.description}</p>
@@ -292,7 +292,7 @@ export function BehaviorCard({ group, rules, inheritanceMode, resolvedRules, onU
                                 onCancel={() => setAdding(false)} />
                         ) : (
                             <button onClick={() => setAdding(true)}
-                                className={`mt-2 flex items-center justify-center gap-1.5 text-[16px] sm:text-xs ${colors.text} hover:opacity-80 transition-opacity min-h-[44px] w-full sm:w-auto sm:justify-start border border-dashed border-border sm:border-transparent rounded-lg`}>
+                                className={`mt-2 flex items-center justify-center gap-1.5 text-[16px] sm:text-xs ${colors.text} hover:opacity-80 transition-opacity min-h-[44px] w-full sm:w-auto sm:justify-start border border-dashed border-border sm:border-transparent rounded-sm`}>
                                 <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> Add rule
                             </button>
                         )
@@ -331,7 +331,7 @@ export function SystemPromptPreview({ workspaceId, refreshTick }: { workspaceId:
     }, [open, workspaceId, refreshTick])
 
     return (
-        <div className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
+        <div className="rounded-sm border border-border bg-surface-1/40 overflow-hidden">
             <button onClick={() => setOpen(o => !o)}
                 className="w-full flex items-center gap-3 px-4 sm:px-5 py-4 min-h-[64px] hover:bg-surface-2/20 transition-colors text-left">
                 {open ? <EyeOff className="h-4 w-4 text-text-muted shrink-0" /> : <Eye className="h-4 w-4 text-text-muted shrink-0" />}
@@ -343,7 +343,7 @@ export function SystemPromptPreview({ workspaceId, refreshTick }: { workspaceId:
                     {loading ? (
                         <div className="flex items-center gap-2 py-4 text-sm text-text-muted"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Compiling…</div>
                     ) : prompt ? (
-                        <pre className="text-xs text-text-secondary bg-canvas rounded-lg p-4 overflow-auto max-h-80 whitespace-pre-wrap leading-relaxed border border-border">{prompt}</pre>
+                        <pre className="text-xs text-text-secondary bg-canvas rounded-sm p-4 overflow-auto max-h-80 whitespace-pre-wrap leading-relaxed border border-border">{prompt}</pre>
                     ) : (
                         <p className="text-sm text-text-muted py-2 italic">No rules configured yet.</p>
                     )}

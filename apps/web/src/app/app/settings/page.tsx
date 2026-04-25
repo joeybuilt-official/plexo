@@ -48,7 +48,7 @@ function CodeSnippet({ label, code }: { label?: string; code: string }) {
         <div className="flex flex-col gap-1.5">
             {label && <p className="text-[11px] uppercase tracking-widest text-text-muted font-medium">{label}</p>}
             <div className="relative group">
-                <code className="block rounded-lg bg-canvas border border-border/80 p-3 pr-10 text-[11px] font-mono text-text-secondary whitespace-pre overflow-x-auto leading-relaxed max-h-[400px]">
+                <code className="block rounded-sm bg-canvas border border-border/80 p-3 pr-10 text-[11px] font-mono text-text-secondary whitespace-pre overflow-x-auto leading-relaxed max-h-[400px]">
                     {code}
                 </code>
                 <button
@@ -79,7 +79,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     return (
         <input
             {...props}
-            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 disabled:opacity-50 min-h-[44px] md:min-h-[36px]"
+            className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 disabled:opacity-50 min-h-[44px] md:min-h-[36px]"
         />
     )
 }
@@ -91,7 +91,7 @@ function SaveButton({ saved, saving }: { saved: boolean; saving: boolean }) {
         <button
             type="submit"
             disabled={saving}
-            className="flex items-center justify-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] md:min-h-[36px] w-full md:w-auto"
+            className="flex items-center justify-center gap-2 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] md:min-h-[36px] w-full md:w-auto"
         >
             {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
             {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
@@ -360,7 +360,7 @@ export default function SettingsPage() {
                             key={id}
                             onClick={() => setActive(id)}
                             aria-current={active === id ? 'page' : undefined}
-                            className={`flex items-center gap-2.5 rounded-lg px-4 md:px-3 py-2.5 md:py-2 text-sm text-left transition-colors min-h-[44px] md:min-h-[32px] ${active === id ? 'bg-surface-2 text-text-primary' : 'text-text-muted hover:bg-surface-1 hover:text-text-secondary'}`}
+                            className={`flex items-center gap-2.5 rounded-sm px-4 md:px-3 py-2.5 md:py-2 text-sm text-left transition-colors min-h-[44px] md:min-h-[32px] ${active === id ? 'bg-surface-2 text-text-primary' : 'text-text-muted hover:bg-surface-1 hover:text-text-secondary'}`}
                         >
                             <Icon className={`h-4 w-4 shrink-0 ${active === id ? 'text-azure' : 'text-text-muted'}`} />
                             {label}
@@ -372,7 +372,7 @@ export default function SettingsPage() {
             {/* Content */}
             <form onSubmit={handleSave} className="flex-1 min-w-0 flex flex-col gap-4">
                 {saveError && (
-                    <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2.5 text-sm text-red">
+                    <div role="alert" className="flex items-start gap-2 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2.5 text-sm text-red">
                         <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                         {saveError}
                     </div>
@@ -380,29 +380,29 @@ export default function SettingsPage() {
                 {active === 'account' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-text-primary">Account</h2>
+                            <h2 className="text-lg font-medium text-text-primary">Account</h2>
                             <p className="mt-0.5 text-sm text-text-muted">Manage your account security.</p>
                         </div>
 
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center gap-2.5 mb-1">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-azure-dim text-azure">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-azure-dim text-azure">
                                     <Lock className="h-3.5 w-3.5" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-text-primary">Change Password</h3>
+                                    <h3 className="text-sm font-medium text-text-primary">Change Password</h3>
                                     <p className="text-[11px] text-text-muted">Update your login password</p>
                                 </div>
                             </div>
 
                             {pwError && (
-                                <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2.5 text-sm text-red">
+                                <div role="alert" className="flex items-start gap-2 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2.5 text-sm text-red">
                                     <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                                     {pwError}
                                 </div>
                             )}
                             {pwSuccess && (
-                                <div className="flex items-start gap-2 rounded-lg border border-azure/30 bg-azure/5 px-3 py-2.5 text-sm text-azure">
+                                <div className="flex items-start gap-2 rounded-sm border border-azure/30 bg-azure/5 px-3 py-2.5 text-sm text-azure">
                                     <Check className="h-4 w-4 shrink-0 mt-0.5" />
                                     Password updated successfully.
                                 </div>
@@ -417,7 +417,7 @@ export default function SettingsPage() {
                                         onChange={(e) => setCurrentPassword(e.target.value)}
                                         placeholder="Enter current password"
                                         autoComplete="current-password"
-                                        className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 min-h-[44px] md:min-h-[36px]"
+                                        className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 min-h-[44px] md:min-h-[36px]"
                                     />
                                 </Field>
                                 <Field label="New password" id="new-password">
@@ -428,7 +428,7 @@ export default function SettingsPage() {
                                         onChange={(e) => setNewPassword(e.target.value)}
                                         placeholder="Min. 8 characters"
                                         autoComplete="new-password"
-                                        className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 min-h-[44px] md:min-h-[36px]"
+                                        className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 min-h-[44px] md:min-h-[36px]"
                                     />
                                 </Field>
                                 <Field label="Confirm new password" id="confirm-password">
@@ -439,14 +439,14 @@ export default function SettingsPage() {
                                         onChange={(e) => setConfirmPassword(e.target.value)}
                                         placeholder="Re-enter new password"
                                         autoComplete="new-password"
-                                        className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 min-h-[44px] md:min-h-[36px]"
+                                        className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 min-h-[44px] md:min-h-[36px]"
                                     />
                                 </Field>
                                 <button
                                     type="button"
                                     onClick={handlePasswordChange}
                                     disabled={pwSaving || !currentPassword || !newPassword || !confirmPassword}
-                                    className="flex items-center justify-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] md:min-h-[36px] w-full md:w-auto"
+                                    className="flex items-center justify-center gap-2 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] md:min-h-[36px] w-full md:w-auto"
                                 >
                                     {pwSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : pwSuccess ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                                     {pwSaving ? 'Updating...' : pwSuccess ? 'Updated' : 'Update password'}
@@ -459,12 +459,12 @@ export default function SettingsPage() {
                 {active === 'workspace' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-text-primary">Workspace</h2>
+                            <h2 className="text-lg font-medium text-text-primary">Workspace</h2>
                             <p className="mt-0.5 text-sm text-text-muted">Manage your workspaces and configure the active one</p>
                         </div>
 
                         {/* Active workspace config */}
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-4 sm:p-5 flex flex-col gap-4 sm:gap-5">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-4 sm:p-5 flex flex-col gap-4 sm:gap-5">
                             <p className="text-[11px] uppercase tracking-widest text-text-muted font-medium">Active workspace</p>
                             <Field id="workspace-name" label="Workspace name" description="Displayed in the sidebar and agent context.">
                                 <Input id="workspace-name" value={workspaceName} onChange={(e) => { setWorkspaceName(e.target.value); setDirty(true) }} placeholder="My Workspace" />
@@ -483,7 +483,7 @@ export default function SettingsPage() {
                         {/* All workspaces */}
                         <div className="flex flex-col gap-3">
                             {wsError && (
-                                <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2.5 text-sm text-red">
+                                <div role="alert" className="flex items-start gap-2 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2.5 text-sm text-red">
                                     <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
                                     {wsError}
                                 </div>
@@ -493,7 +493,7 @@ export default function SettingsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setCreatingWs((v) => !v)}
-                                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-[32px] text-sm md:text-[12px] text-text-secondary hover:border-azure-600/50 hover:text-azure transition-colors"
+                                    className="flex items-center gap-1.5 rounded-sm border border-border px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-[32px] text-sm md:text-[12px] text-text-secondary hover:border-azure-600/50 hover:text-azure transition-colors"
                                 >
                                     <Plus className="h-4 w-4 md:h-3.5 md:w-3.5" />
                                     New workspace
@@ -501,7 +501,7 @@ export default function SettingsPage() {
                             </div>
 
                             {creatingWs && (
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-xl border border-azure-800/40 bg-azure/20 px-4 py-3">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-sm border border-azure-800/40 bg-azure/20 px-4 py-3">
                                     <input
                                         autoFocus
                                         value={newWsName}
@@ -518,7 +518,7 @@ export default function SettingsPage() {
                                             type="button"
                                             onClick={() => void handleCreateWorkspace()}
                                             disabled={creating || !newWsName.trim()}
-                                            className="flex items-center justify-center gap-1 rounded-lg bg-azure px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 text-sm sm:text-[12px] font-semibold text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors flex-1 sm:flex-none"
+                                            className="flex items-center justify-center gap-1 rounded-sm bg-azure px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 text-sm sm:text-[12px] font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors flex-1 sm:flex-none"
                                         >
                                             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                                             Create
@@ -528,7 +528,7 @@ export default function SettingsPage() {
                                 </div>
                             )}
 
-                            <div className="rounded-xl border border-border overflow-hidden">
+                            <div className="rounded-sm border border-border overflow-hidden">
                                 {wsListLoading ? (
                                     <div className="flex items-center justify-center py-8">
                                         <Loader2 className="h-4 w-4 animate-spin text-text-muted" />
@@ -543,7 +543,7 @@ export default function SettingsPage() {
                                                 key={ws.id}
                                                 className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-border' : ''} ${isActive ? 'bg-azure/20' : 'hover:bg-surface-1/40'} transition-colors`}
                                             >
-                                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-azure/20 text-[11px] font-bold text-azure">
+                                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-azure/20 text-[11px] font-medium text-azure">
                                                     {ws.name.slice(0, 1).toUpperCase()}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -551,7 +551,7 @@ export default function SettingsPage() {
                                                     <p className="text-[11px] font-mono text-text-muted truncate">{ws.id}</p>
                                                 </div>
                                                 {isActive ? (
-                                                    <span className="flex items-center gap-1 rounded-full bg-azure-900/40 border border-azure-700/30 px-2 py-0.5 text-[11px] sm:text-xs font-medium text-azure shrink-0">
+                                                    <span className="flex items-center gap-1 rounded-sm bg-azure-900/40 border border-azure-700/30 px-2 py-0.5 text-[11px] sm:text-xs font-medium text-azure shrink-0">
                                                         <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
                                                         Active
                                                     </span>
@@ -562,7 +562,7 @@ export default function SettingsPage() {
                                                             type="button"
                                                             onClick={() => void handleDeleteWorkspace(ws.id)}
                                                             disabled={deletingWs}
-                                                            className="flex items-center justify-center gap-1 rounded-lg bg-red-700/80 px-3 sm:px-2.5 py-1.5 sm:py-1 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[11px] font-medium text-text-primary hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                                            className="flex items-center justify-center gap-1 rounded-sm bg-red-700/80 px-3 sm:px-2.5 py-1.5 sm:py-1 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[11px] font-medium text-text-primary hover:bg-red-600 disabled:opacity-50 transition-colors"
                                                         >
                                                             {deletingWs ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                                                             Confirm
@@ -580,7 +580,7 @@ export default function SettingsPage() {
                                                         <button
                                                             type="button"
                                                             onClick={() => setWorkspace(ws.id, ws.name)}
-                                                            className="flex items-center justify-center gap-1 rounded-lg border border-border px-3 sm:px-2.5 py-2 sm:py-1 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[11px] text-text-secondary hover:border-azure-600/50 hover:text-azure transition-colors"
+                                                            className="flex items-center justify-center gap-1 rounded-sm border border-border px-3 sm:px-2.5 py-2 sm:py-1 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[11px] text-text-secondary hover:border-azure-600/50 hover:text-azure transition-colors"
                                                         >
                                                             <LogIn className="h-4 w-4 sm:h-3 sm:w-3 shrink-0" />
                                                             Switch
@@ -588,7 +588,7 @@ export default function SettingsPage() {
                                                         <button
                                                             type="button"
                                                             onClick={() => setConfirmDeleteId(ws.id)}
-                                                            className="flex items-center justify-center min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] sm:p-1.5 text-text-muted hover:text-red hover:bg-red-dim rounded-lg transition-colors"
+                                                            className="flex items-center justify-center min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] sm:p-1.5 text-text-muted hover:text-red hover:bg-red-dim rounded-sm transition-colors"
                                                             title={`Delete ${ws.name}`}
                                                             aria-label={`Delete ${ws.name}`}
                                                         >
@@ -608,11 +608,11 @@ export default function SettingsPage() {
                 {active === 'api-keys' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-text-primary">API Keys</h2>
+                            <h2 className="text-lg font-medium text-text-primary">API Keys</h2>
                             <p className="mt-0.5 text-sm text-text-muted">Configure credentials for AI providers.</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-6 flex flex-col gap-4">
-                            <div className="flex items-start gap-3 rounded-lg border border-azure-800/40 bg-azure/20 px-4 py-3">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-6 flex flex-col gap-4">
+                            <div className="flex items-start gap-3 rounded-sm border border-azure-800/40 bg-azure/20 px-4 py-3">
                                 <AlertCircle className="h-4 w-4 shrink-0 text-azure mt-0.5" />
                                 <div>
                                     <p className="text-sm text-azure font-medium">Manage keys in AI Providers</p>
@@ -630,7 +630,7 @@ export default function SettingsPage() {
 
                             <div className="pt-2 border-t border-border">
                                 <p className="text-xs font-medium text-text-secondary mb-2">Self-hosted environment variables</p>
-                                <code className="block rounded-lg bg-canvas border border-border p-3 text-[11px] font-mono text-text-secondary whitespace-pre leading-relaxed">
+                                <code className="block rounded-sm bg-canvas border border-border p-3 text-[11px] font-mono text-text-secondary whitespace-pre leading-relaxed">
                                     {`OPENAI_API_KEY=sk-…
 OPENROUTER_API_KEY=sk-or-v1-…
 GROQ_API_KEY=gsk_…`}
@@ -640,21 +640,21 @@ GROQ_API_KEY=gsk_…`}
                         </div>
 
                         {/* Instance API Keys */}
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2.5 mb-1">
-                                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-pink-500/10 text-pink-400">
+                                    <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-pink-500/10 text-pink-400">
                                         <Key className="h-3.5 w-3.5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-sm font-semibold text-text-primary">Instance API Keys</h3>
+                                        <h3 className="text-sm font-medium text-text-primary">Instance API Keys</h3>
                                         <p className="text-[11px] text-text-muted">Create keys to access the Plexo API programmatically</p>
                                     </div>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => setCreatingApiKey((v) => !v)}
-                                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-0 text-sm md:text-[12px] text-text-secondary hover:border-azure-600/50 hover:text-azure transition-colors"
+                                    className="flex items-center gap-1.5 rounded-sm border border-border px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-0 text-sm md:text-[12px] text-text-secondary hover:border-azure-600/50 hover:text-azure transition-colors"
                                 >
                                     <Plus className="h-4 w-4 md:h-3.5 md:w-3.5" />
                                     <span className="hidden sm:inline">New API Key</span>
@@ -663,7 +663,7 @@ GROQ_API_KEY=gsk_…`}
                             </div>
 
                             {creatingApiKey && (
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-xl border border-azure-800/40 bg-azure/20 px-4 py-3 mt-1">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-sm border border-azure-800/40 bg-azure/20 px-4 py-3 mt-1">
                                     <input
                                         autoFocus
                                         value={newApiKeyName}
@@ -680,7 +680,7 @@ GROQ_API_KEY=gsk_…`}
                                                 type="button"
                                                 onClick={() => void handleCreateApiKey()}
                                                 disabled={creatingKey || !newApiKeyName.trim()}
-                                                className="flex flex-1 sm:flex-none items-center justify-center gap-1 rounded-lg bg-azure px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[12px] font-semibold text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors"
+                                                className="flex flex-1 sm:flex-none items-center justify-center gap-1 rounded-sm bg-azure px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[12px] font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors"
                                             >
                                             {creatingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                                             Create
@@ -690,7 +690,7 @@ GROQ_API_KEY=gsk_…`}
                                 </div>
                             )}
 
-                            <div className="rounded-xl border border-border overflow-hidden mt-1">
+                            <div className="rounded-sm border border-border overflow-hidden mt-1">
                                 {keysLoading ? (
                                     <div className="flex items-center justify-center py-6">
                                         <Loader2 className="h-4 w-4 animate-spin text-text-muted" />
@@ -709,7 +709,7 @@ GROQ_API_KEY=gsk_…`}
                                                     <button
                                                         type="button"
                                                         onClick={() => void handleRevokeApiKey(key.id)}
-                                                        className="flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center p-2 sm:p-1.5 text-text-muted hover:text-red hover:bg-red-dim rounded-lg transition-colors"
+                                                        className="flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center p-2 sm:p-1.5 text-text-muted hover:text-red hover:bg-red-dim rounded-sm transition-colors"
                                                         title="Revoke and delete key"
                                                         aria-label="Revoke and delete key"
                                                     >
@@ -718,7 +718,7 @@ GROQ_API_KEY=gsk_…`}
                                                 </div>
                                                 {key.token && (
                                                     <div className="px-4 pb-4 pt-1">
-                                                        <div className="rounded-lg border border-yellow-800/50 bg-amber-dim/20 px-3 py-2.5 mb-2">
+                                                        <div className="rounded-sm border border-yellow-800/50 bg-amber-dim/20 px-3 py-2.5 mb-2">
                                                             <div className="flex items-start gap-2">
                                                                 <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500 mt-0.5" />
                                                                 <p className="text-xs text-yellow-500 font-medium">Please copy your API key now. You won&apos;t be able to see it again!</p>
@@ -740,16 +740,16 @@ GROQ_API_KEY=gsk_…`}
                 {active === 'api' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-text-primary">REST API</h2>
+                            <h2 className="text-lg font-medium text-text-primary">REST API</h2>
                             <p className="mt-0.5 text-sm text-text-muted">Interact programmatically with this Plexo instance.</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center gap-2.5 mb-1">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-azure/10 text-azure">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-azure/10 text-azure">
                                     <Server className="h-3.5 w-3.5" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-text-primary">REST API Configuration</h3>
+                                    <h3 className="text-sm font-medium text-text-primary">REST API Configuration</h3>
                                     <p className="text-[11px] text-text-muted">Base configuration and authentication</p>
                                 </div>
                             </div>
@@ -768,16 +768,16 @@ GROQ_API_KEY=gsk_…`}
                 {active === 'cli' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-text-primary">Command Line Interface</h2>
+                            <h2 className="text-lg font-medium text-text-primary">Command Line Interface</h2>
                             <p className="mt-0.5 text-sm text-text-muted">Manage tasks and workspaces from your terminal.</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center gap-2.5 mb-1">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-azure-dim text-azure">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-azure-dim text-azure">
                                     <Terminal className="h-3.5 w-3.5" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-text-primary">Plexo CLI</h3>
+                                    <h3 className="text-sm font-medium text-text-primary">Plexo CLI</h3>
                                     <p className="text-[11px] text-text-muted">Global installation and login command</p>
                                 </div>
                             </div>
@@ -792,16 +792,16 @@ GROQ_API_KEY=gsk_…`}
                 {active === 'mcp' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-text-primary">Model Context Protocol</h2>
+                            <h2 className="text-lg font-medium text-text-primary">Model Context Protocol</h2>
                             <p className="mt-0.5 text-sm text-text-muted">Connect Cursor, Claude Desktop, or Windsurf directly to this instance.</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center gap-2.5 mb-1">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber/10 text-orange-400">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-amber/10 text-orange-400">
                                     <Puzzle className="h-3.5 w-3.5" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-text-primary">MCP Configuration</h3>
+                                    <h3 className="text-sm font-medium text-text-primary">MCP Configuration</h3>
                                     <p className="text-[11px] text-text-muted">Using the npx runtime</p>
                                 </div>
                             </div>
@@ -823,7 +823,7 @@ GROQ_API_KEY=gsk_…`}
   }
 }`}
                                 />
-                                <div className="rounded-lg border border-border bg-canvas/50 p-3">
+                                <div className="rounded-sm border border-border bg-canvas/50 p-3">
                                     <p className="text-[11px] uppercase tracking-widest text-text-muted font-medium mb-2">Available Tools (8)</p>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-4">
                                         {[
@@ -852,16 +852,16 @@ GROQ_API_KEY=gsk_…`}
                 {active === 'webhooks' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-text-primary">Webhooks</h2>
+                            <h2 className="text-lg font-medium text-text-primary">Webhooks</h2>
                             <p className="mt-0.5 text-sm text-text-muted">Trigger tasks from external services via HTTP POST.</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center gap-2.5 mb-1">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-violet-500/10 text-violet-400">
                                     <Webhook className="h-3.5 w-3.5" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-text-primary">Webhook Endpoint</h3>
+                                    <h3 className="text-sm font-medium text-text-primary">Webhook Endpoint</h3>
                                     <p className="text-[11px] text-text-muted">POST a JSON payload to create tasks automatically</p>
                                 </div>
                             </div>
@@ -885,7 +885,7 @@ curl -X POST ${API_BASE}/api/v1/webhooks/${WS_ID} \\
   -d "$BODY"`}
                                 />
                             </div>
-                            <div className="rounded-lg border border-border bg-canvas/50 p-3">
+                            <div className="rounded-sm border border-border bg-canvas/50 p-3">
                                 <p className="text-[11px] uppercase tracking-widest text-text-muted font-medium mb-2">Payload Fields</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-4">
                                     {[
@@ -912,12 +912,12 @@ curl -X POST ${API_BASE}/api/v1/webhooks/${WS_ID} \\
                         <AppearanceSection />
                         <div className="flex flex-col gap-6 mt-8">
                             <div>
-                                <h2 className="text-lg font-bold text-text-primary">Interface Density</h2>
+                                <h2 className="text-lg font-medium text-text-primary">Interface Density</h2>
                                 <p className="mt-0.5 text-sm text-text-muted">
                                     Simple mode hides advanced controls. You can override this per-page.
                                 </p>
                             </div>
-                            <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                            <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                                 <div className="flex flex-col gap-2">
                                     <p className="text-[11px] uppercase tracking-widest text-text-muted font-medium">Default View Mode</p>
                                     <ViewModeToggle />
@@ -930,23 +930,23 @@ curl -X POST ${API_BASE}/api/v1/webhooks/${WS_ID} \\
                 {active === 'about' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-text-primary">About</h2>
+                            <h2 className="text-lg font-medium text-text-primary">About</h2>
                             <p className="mt-0.5 text-sm text-text-muted">Instance health, version, and update status.</p>
                         </div>
 
                         {/* Instance Health */}
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center gap-2.5 mb-1">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-azure-dim text-azure">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-azure-dim text-azure">
                                     <Activity className="h-3.5 w-3.5" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-text-primary">Instance Status</h3>
+                                    <h3 className="text-sm font-medium text-text-primary">Instance Status</h3>
                                     <p className="text-[11px] text-text-muted">Real-time health of the Plexo backend</p>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div className="rounded-lg border border-border/80 bg-canvas/50 p-3">
+                                <div className="rounded-sm border border-border/80 bg-canvas/50 p-3">
                                     <p className="text-[11px] uppercase tracking-widest text-text-muted mb-1">Status</p>
                                     <div className="flex items-center gap-2">
                                         <div className={`flex h-2 w-2 items-center justify-center rounded-full ${health?.status === 'ok' ? 'bg-azure/20' : 'bg-red/20'}`}>
@@ -955,11 +955,11 @@ curl -X POST ${API_BASE}/api/v1/webhooks/${WS_ID} \\
                                         <span className="text-xs font-medium text-text-primary">{health?.status === 'ok' ? 'Healthy' : health?.status ? 'Degraded' : 'Unknown'}</span>
                                     </div>
                                 </div>
-                                <div className="rounded-lg border border-border/80 bg-canvas/50 p-3">
+                                <div className="rounded-sm border border-border/80 bg-canvas/50 p-3">
                                     <p className="text-[11px] uppercase tracking-widest text-text-muted mb-1">Version</p>
                                     <p className="text-xs font-mono text-text-primary">{health?.version || '...'}</p>
                                 </div>
-                                <div className="rounded-lg border border-border/80 bg-canvas/50 p-3">
+                                <div className="rounded-sm border border-border/80 bg-canvas/50 p-3">
                                     <p className="text-[11px] uppercase tracking-widest text-text-muted mb-1">Uptime</p>
                                     <p className="text-xs font-mono text-text-primary">{health?.uptime ? `${Math.floor(health.uptime / 60)}m` : '...'}</p>
                                 </div>
@@ -970,21 +970,21 @@ curl -X POST ${API_BASE}/api/v1/webhooks/${WS_ID} \\
                 {active === 'app' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-text-primary">App Settings</h2>
+                            <h2 className="text-lg font-medium text-text-primary">App Settings</h2>
                             <p className="mt-0.5 text-sm text-text-muted">Configure your local device app connection.</p>
                         </div>
 
-                        <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                             <div className="flex items-center gap-2.5 mb-1">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-dim text-red">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-red-dim text-red">
                                     <Globe className="h-3.5 w-3.5" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-text-primary">Connection Mode</h3>
+                                    <h3 className="text-sm font-medium text-text-primary">Connection Mode</h3>
                                     <p className="text-[11px] text-text-muted">Change which Plexo instance this app connects to.</p>
                                 </div>
                             </div>
-                            <div className="rounded-lg border border-red-800/80 bg-red-dim p-4">
+                            <div className="rounded-sm border border-red-800/80 bg-red-dim p-4">
                                 <p className="text-sm text-red-200 mb-3">
                                     Switching connection modes will disconnect you from this instance and return you to the initial setup screen. You will need to sign in again.
                                 </p>
@@ -999,7 +999,7 @@ curl -X POST ${API_BASE}/api/v1/webhooks/${WS_ID} \\
                                             window.location.href = '/onboarding?step=1'
                                         }
                                     }}
-                                    className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-text-primary hover:bg-red transition-colors w-full sm:w-auto justify-center"
+                                    className="flex items-center gap-2 rounded-sm bg-red-600 px-4 py-2 text-sm font-medium text-text-primary hover:bg-red transition-colors w-full sm:w-auto justify-center"
                                 >
                                     <LogOut className="h-4 w-4" />
                                     Switch Connection

@@ -112,7 +112,7 @@ export function CostCeilingSlider({ workspaceId }: { workspaceId: string }) {
 
             {/* Banners */}
             {ceilingState === 'warn' && ceilingUsd != null && (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-700/40 bg-surface-1 p-3">
+                <div className="flex items-start gap-2 rounded-sm border border-amber-700/40 bg-surface-1 p-3">
                     <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-400 flex-shrink-0" />
                     <div className="text-xs text-text-primary">
                         <span className="font-medium">Approaching the ceiling.</span>{' '}
@@ -121,7 +121,7 @@ export function CostCeilingSlider({ workspaceId }: { workspaceId: string }) {
                 </div>
             )}
             {ceilingState === 'block' && ceilingUsd != null && (
-                <div className="flex items-start gap-2 rounded-lg border border-rose-700/40 bg-surface-1 p-3">
+                <div className="flex items-start gap-2 rounded-sm border border-rose-700/40 bg-surface-1 p-3">
                     <ShieldAlert className="mt-0.5 h-4 w-4 text-rose-400 flex-shrink-0" />
                     <div className="text-xs text-text-primary">
                         <span className="font-medium">Ceiling reached.</span>{' '}
@@ -194,7 +194,7 @@ export function CostCeilingSlider({ workspaceId }: { workspaceId: string }) {
                         disabled={saving}
                         onClick={() => void commitMode('soft_warn')}
                         aria-pressed={mode === 'soft_warn'}
-                        className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                        className={`rounded-sm border px-3 py-2 text-left text-xs transition-colors ${
                             mode === 'soft_warn'
                                 ? 'border-azure bg-surface-1 ring-1 ring-azure/40'
                                 : 'border-border bg-surface-1 hover:border-muted'
@@ -208,7 +208,7 @@ export function CostCeilingSlider({ workspaceId }: { workspaceId: string }) {
                         disabled={saving}
                         onClick={() => void commitMode('hard_block')}
                         aria-pressed={mode === 'hard_block'}
-                        className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                        className={`rounded-sm border px-3 py-2 text-left text-xs transition-colors ${
                             mode === 'hard_block'
                                 ? 'border-azure bg-surface-1 ring-1 ring-azure/40'
                                 : 'border-border bg-surface-1 hover:border-muted'

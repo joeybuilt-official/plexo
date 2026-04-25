@@ -411,7 +411,7 @@ export default function IntelligenceLayout({ children }: { children: ReactNode }
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold text-text-primary">AI &amp; Memory</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">AI &amp; Memory</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
                         Providers, routing, memory, and semantic context — all in one place
                     </p>
@@ -442,9 +442,9 @@ export default function IntelligenceLayout({ children }: { children: ReactNode }
                                                 <Link
                                                     key={item.href}
                                                     href={item.href}
-                                                    className={`block rounded-xl border px-3 py-2.5 transition-all text-sm min-h-[44px] ${
+                                                    className={`block rounded-sm border px-3 py-2.5 transition-all text-sm min-h-[44px] ${
                                                         active
-                                                            ? 'border-azure/50 bg-surface-1 shadow-sm shadow-azure/10'
+                                                            ? 'border-azure/50 bg-surface-1'
                                                             : 'border-border/60 bg-surface-1/30 hover:border-border hover:bg-surface-1/60'
                                                     }`}
                                                 >
@@ -456,7 +456,7 @@ export default function IntelligenceLayout({ children }: { children: ReactNode }
                                                             </span>
                                                         </div>
                                                         {showBadge && (
-                                                            <span className="rounded-full px-1.5 py-0.5 text-[10px] font-medium text-amber-300 bg-amber-950/30 border border-amber-800/40 shrink-0">
+                                                            <span className="rounded-sm px-1.5 py-0.5 text-[10px] font-medium text-amber-300 bg-amber-950/30 border border-amber-800/40 shrink-0">
                                                                 {item.badge}
                                                             </span>
                                                         )}
@@ -475,7 +475,7 @@ export default function IntelligenceLayout({ children }: { children: ReactNode }
                 </nav>
 
                 {/* Detail slot */}
-                <div className="flex-1 rounded-xl border border-border bg-surface-1/40 flex flex-col overflow-hidden min-h-0 max-w-[100vw] sm:max-w-none">
+                <div className="flex-1 rounded-sm border border-border bg-surface-1/40 flex flex-col overflow-hidden min-h-0 max-w-[100vw] sm:max-w-none">
                     {children}
                 </div>
             </div>

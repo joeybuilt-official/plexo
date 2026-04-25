@@ -26,11 +26,11 @@ export default function SclControlsPage() {
         <div className="flex h-full flex-col overflow-y-auto">
             <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-surface-1 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-sm bg-surface-1 flex items-center justify-center shrink-0">
                         <BrainCircuit className="h-5 w-5 text-azure" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-text-primary">Semantic Concept Lattice</h2>
+                        <h2 className="text-base font-medium text-text-primary">Semantic Concept Lattice</h2>
                         <p className="text-xs text-text-muted mt-0.5">
                             Workspace memory organized as concept attractors. Toggle, tune drift, scope regions, verify scrubbing.
                         </p>
@@ -40,7 +40,7 @@ export default function SclControlsPage() {
 
             <div className="p-4">
                 {!workspaceId ? (
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         Pick a workspace from the sidebar to configure SCL.
                     </div>
                 ) : (

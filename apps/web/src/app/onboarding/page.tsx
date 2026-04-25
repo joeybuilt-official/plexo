@@ -63,14 +63,14 @@ function OnboardingContent() {
             return (
                 <div className="flex flex-col p-6 space-y-6 max-w-md mx-auto h-full justify-center text-center">
                     <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4">
-                        <PlexoMark className="w-12 h-12 text-azure drop-shadow-lg" />
+                        <PlexoMark className="w-12 h-12 text-accent" />
                     </div>
-                    <h1 className="text-3xl font-bold text-text-primary">Welcome to Plexo</h1>
+                    <h1 className="text-3xl font-medium text-text-primary">Welcome to Plexo</h1>
                     <p className="text-text-secondary">Your AI agentic platform.</p>
 
                     <button
                         onClick={() => router.push('/app/onboarding?step=2')}
-                        className="w-full py-3 bg-azure hover:bg-azure/90 text-white rounded-lg font-semibold flex items-center justify-center transition-colors shadow-lg shadow-azure/20 mt-12"
+                        className="w-full py-3 bg-text-primary hover:opacity-90 text-canvas rounded-md font-medium flex items-center justify-center transition-colors mt-12"
                     >
                         Get Started
                     </button>

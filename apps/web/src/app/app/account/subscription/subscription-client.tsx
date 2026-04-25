@@ -91,12 +91,12 @@ export function SubscriptionClient({ stripeProPriceId }: { stripeProPriceId: str
                 <Link href="/app/account" className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-text-primary">
                     <ArrowLeft className="h-3 w-3" /> Back to account
                 </Link>
-                <h1 className="text-xl font-semibold tracking-tight text-text-primary">Subscription</h1>
+                <h1 className="text-xl font-medium tracking-tight text-text-primary">Subscription</h1>
                 <p className="text-sm text-text-muted">Your current plan and billing state.</p>
             </header>
 
-            <section className="rounded-2xl border border-border bg-surface-1 p-5">
-                <h2 className="mb-4 text-sm font-semibold text-text-primary">Current plan</h2>
+            <section className="rounded-sm border border-border bg-surface-1 p-5">
+                <h2 className="mb-4 text-sm font-medium text-text-primary">Current plan</h2>
                 {loading ? (
                     <div className="flex items-center gap-2 text-sm text-text-muted">
                         <Loader2 className="h-4 w-4 animate-spin" /> Loading…
@@ -128,8 +128,8 @@ export function SubscriptionClient({ stripeProPriceId }: { stripeProPriceId: str
             </section>
 
             {sub.tier === 'free' && (
-                <section className="rounded-2xl border border-border bg-surface-1 p-5">
-                    <h2 className="mb-2 text-sm font-semibold text-text-primary">Upgrade to Pro</h2>
+                <section className="rounded-sm border border-border bg-surface-1 p-5">
+                    <h2 className="mb-2 text-sm font-medium text-text-primary">Upgrade to Pro</h2>
                     <ul className="mb-4 space-y-1 text-xs text-text-muted">
                         <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3 w-3 text-text-primary" /> Unlimited workspaces</li>
                         <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3 w-3 text-text-primary" /> All channels and integrations</li>
@@ -141,19 +141,19 @@ export function SubscriptionClient({ stripeProPriceId }: { stripeProPriceId: str
                             type="button"
                             onClick={handleUpgrade}
                             disabled={upgrading}
-                            className="flex items-center gap-1.5 rounded-lg border border-border bg-text-primary px-3 py-1.5 text-xs font-medium text-canvas hover:opacity-90 disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded-sm border border-border bg-text-primary px-3 py-1.5 text-xs font-medium text-canvas hover:opacity-90 disabled:opacity-50"
                         >
                             {upgrading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
                             Upgrade to Pro
                         </button>
                     ) : (
-                        <div className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-muted">
+                        <div className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-xs text-text-muted">
                             Pro coming soon.
                         </div>
                     )}
 
                     {error && (
-                        <div className="mt-3 rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
+                        <div className="mt-3 rounded-sm border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
                             {error}
                         </div>
                     )}
@@ -161,7 +161,7 @@ export function SubscriptionClient({ stripeProPriceId }: { stripeProPriceId: str
             )}
 
             {sub.tier !== 'free' && (
-                <section className="rounded-2xl border border-border bg-surface-1 p-5 text-xs text-text-muted">
+                <section className="rounded-sm border border-border bg-surface-1 p-5 text-xs text-text-muted">
                     Manage billing, invoices, and cancellation through the Stripe customer portal (coming soon).
                 </section>
             )}

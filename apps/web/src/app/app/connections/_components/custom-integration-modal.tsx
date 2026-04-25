@@ -45,13 +45,13 @@ export default function CustomIntegrationModal({
     return (
         <div
             ref={trapRef}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
             onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
             role="dialog"
             aria-modal="true"
             aria-labelledby="custom-integration-modal-title"
         >
-            <div className="w-full max-w-lg rounded-xl border border-border bg-surface-0 shadow-2xl">
+            <div className="w-full max-w-lg rounded-sm border border-border bg-surface-0">
                 <div className="flex items-center justify-between border-b border-border px-5 py-4">
                     <div className="flex items-center gap-2">
                         {addCustomType === 'mcp' ? (
@@ -59,7 +59,7 @@ export default function CustomIntegrationModal({
                         ) : (
                             <Zap className="h-4 w-4 text-emerald-400" aria-hidden="true" />
                         )}
-                        <h2 id="custom-integration-modal-title" className="text-base font-semibold text-text-primary">
+                        <h2 id="custom-integration-modal-title" className="text-base font-medium text-text-primary">
                             {addCustomType === 'mcp' ? 'Add Custom Connector' : 'Add Custom API'}
                         </h2>
                     </div>
@@ -80,7 +80,7 @@ export default function CustomIntegrationModal({
                             onChange={(e) => setCustomName(e.target.value)}
                             placeholder={addCustomType === 'mcp' ? 'Lumi MCP' : 'Internal API'}
                             autoFocus
-                            className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                            className="rounded-sm border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                         />
                     </div>
 
@@ -93,7 +93,7 @@ export default function CustomIntegrationModal({
                             value={customUrl}
                             onChange={(e) => setCustomUrl(e.target.value)}
                             placeholder={addCustomType === 'mcp' ? 'https://example.com/mcp-config' : 'https://api.example.com/v1'}
-                            className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                            className="rounded-sm border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                         />
                         {addCustomType === 'mcp' && (
                             <p className="text-[11px] text-text-muted">The SSE endpoint URL for the connector.</p>
@@ -107,7 +107,7 @@ export default function CustomIntegrationModal({
                             value={customDescription}
                             onChange={(e) => setCustomDescription(e.target.value)}
                             placeholder="What does this service provide?"
-                            className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                            className="rounded-sm border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                         />
                     </div>
 
@@ -116,7 +116,7 @@ export default function CustomIntegrationModal({
                         <select
                             value={customAuthType}
                             onChange={(e) => setCustomAuthType(e.target.value as typeof customAuthType)}
-                            className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                            className="rounded-sm border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                         >
                             <option value="none">No Authentication</option>
                             <option value="api_key">API Key</option>
@@ -136,15 +136,15 @@ export default function CustomIntegrationModal({
                                 onChange={(e) => setCustomAuthValue(e.target.value)}
                                 placeholder={customAuthType === 'basic' ? 'user:password' : 'sk-••••••••'}
                                 autoComplete="new-password"
-                                className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                                className="rounded-sm border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                             />
                             <p className="text-xs text-text-muted">Encrypted at rest (AES-256-GCM).</p>
                         </div>
                     )}
 
                     {addCustomType === 'mcp' && (
-                        <div className="rounded-lg border border-rose-800/30 bg-red-dim px-3 py-3 flex flex-col gap-1.5">
-                            <p className="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
+                        <div className="rounded-sm border border-rose-800/30 bg-red-dim px-3 py-3 flex flex-col gap-1.5">
+                            <p className="text-xs font-medium text-rose-400 flex items-center gap-1.5">
                                 <Code2 className="h-3.5 w-3.5" />
                                 Connector
                             </p>
@@ -158,14 +158,14 @@ export default function CustomIntegrationModal({
                 <div className="flex items-center justify-end gap-3 border-t border-border px-5 py-4">
                     <button
                         onClick={onClose}
-                        className="rounded-lg border border-border px-4 min-h-[44px] text-sm font-medium text-text-secondary hover:bg-surface-2 transition-colors"
+                        className="rounded-sm border border-border px-4 min-h-[44px] text-sm font-medium text-text-secondary hover:bg-surface-2 transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onSave}
                         disabled={!customName.trim() || !customUrl.trim() || customSaving}
-                        className="rounded-lg bg-azure px-4 min-h-[44px] text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
+                        className="rounded-sm bg-azure px-4 min-h-[44px] text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
                     >
                         {customSaving ? 'Saving...' : 'Connect'}
                     </button>

@@ -144,11 +144,11 @@ export default function SelfHostedPage() {
         <div className="flex flex-col h-full overflow-y-auto">
             <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-surface-1 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-sm bg-surface-1 flex items-center justify-center shrink-0">
                         <Server className="h-5 w-5 text-azure" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-text-primary">Self-hosted servers</h2>
+                        <h2 className="text-base font-medium text-text-primary">Self-hosted servers</h2>
                         <p className="text-xs text-text-muted mt-0.5">
                             Point Plexo at a local Ollama or LM Studio server you control.
                         </p>
@@ -158,20 +158,20 @@ export default function SelfHostedPage() {
 
             <div className="p-4 space-y-6 max-w-3xl">
                 {!workspaceId ? (
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         Pick a workspace from the sidebar to configure self-hosted servers.
                     </div>
                 ) : (
                     <>
                         {/* Existing servers */}
                         <section className="space-y-2">
-                            <h3 className="text-sm font-semibold text-text-primary">Configured servers</h3>
+                            <h3 className="text-sm font-medium text-text-primary">Configured servers</h3>
                             {isLoading ? (
-                                <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                                <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                                     Loading…
                                 </div>
                             ) : selfHosted.length === 0 ? (
-                                <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                                <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                                     No self-hosted servers configured.
                                 </div>
                             ) : (
@@ -179,7 +179,7 @@ export default function SelfHostedPage() {
                                     {selfHosted.map((p) => (
                                         <div
                                             key={p.id}
-                                            className="rounded-xl border border-border bg-surface-1 p-3 flex items-start gap-3"
+                                            className="rounded-sm border border-border bg-surface-1 p-3 flex items-start gap-3"
                                         >
                                             <Server className="h-4 w-4 text-text-muted shrink-0 mt-0.5" />
                                             <div className="min-w-0 flex-1">
@@ -211,9 +211,9 @@ export default function SelfHostedPage() {
                         </section>
 
                         {/* Add form */}
-                        <section className="rounded-xl border border-border bg-surface-1 p-4 space-y-3">
+                        <section className="rounded-sm border border-border bg-surface-1 p-4 space-y-3">
                             <div>
-                                <h3 className="text-sm font-semibold text-text-primary">Add a server</h3>
+                                <h3 className="text-sm font-medium text-text-primary">Add a server</h3>
                                 <p className="text-[11px] text-text-muted">
                                     Point to a local Ollama or LM Studio server you control.
                                 </p>
@@ -225,7 +225,7 @@ export default function SelfHostedPage() {
                                     <input
                                         value={serverNickname}
                                         onChange={(e) => setServerNickname(e.target.value)}
-                                        className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder-muted focus:border-azure focus-ring"
+                                        className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder-muted focus:border-azure focus-ring"
                                         placeholder="My Home Server"
                                     />
                                 </div>
@@ -234,7 +234,7 @@ export default function SelfHostedPage() {
                                     <input
                                         value={serverUrl}
                                         onChange={(e) => { setServerUrl(e.target.value); setServerError(null) }}
-                                        className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary font-mono placeholder-muted focus:border-azure focus-ring"
+                                        className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary font-mono placeholder-muted focus:border-azure focus-ring"
                                         placeholder="http://localhost:11434"
                                     />
                                 </div>
@@ -244,7 +244,7 @@ export default function SelfHostedPage() {
                                         type="password"
                                         value={serverAuth}
                                         onChange={(e) => setServerAuth(e.target.value)}
-                                        className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder-muted focus:border-azure focus-ring"
+                                        className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder-muted focus:border-azure focus-ring"
                                         placeholder="Leave blank if not required"
                                         autoComplete="off"
                                     />
@@ -254,7 +254,7 @@ export default function SelfHostedPage() {
                                     <button
                                         onClick={() => void handleSave()}
                                         disabled={serverTesting || !serverUrl.trim()}
-                                        className="flex items-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        className="flex items-center gap-1.5 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                                     >
                                         {serverTesting ? <><Loader2 className="h-3 w-3 animate-spin" /> Testing…</> : (
                                             <>

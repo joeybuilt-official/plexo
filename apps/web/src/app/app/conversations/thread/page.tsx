@@ -68,7 +68,7 @@ function TurnBubble({ conv }: { conv: Conversation }) {
                     <User className="h-4 w-4 text-text-secondary" />
                 </div>
                 <div className="flex flex-col gap-1 max-w-[85%] min-w-0 items-end">
-                    <div className="rounded-2xl rounded-tr-md px-4 py-2.5 text-sm leading-relaxed bg-azure text-text-primary break-words overflow-hidden whitespace-pre-wrap">
+                    <div className="rounded-sm rounded-tr-md px-4 py-2.5 text-sm leading-relaxed bg-azure text-text-primary break-words overflow-hidden whitespace-pre-wrap">
                         {conv.message}
                     </div>
                     <span className="text-[11px] text-text-muted">
@@ -84,7 +84,7 @@ function TurnBubble({ conv }: { conv: Conversation }) {
                         <Bot className="h-4 w-4 text-text-primary" />
                     </div>
                     <div className="flex flex-col gap-1 max-w-[85%] min-w-0 items-start">
-                        <div className={`rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed break-words overflow-hidden whitespace-pre-wrap ${
+                        <div className={`rounded-sm rounded-tl-md px-4 py-2.5 text-sm leading-relaxed break-words overflow-hidden whitespace-pre-wrap ${
                             isFailed
                                 ? 'bg-red-dim border border-red-800/40 text-red-300'
                                 : 'bg-surface-2 text-text-primary'
@@ -123,7 +123,7 @@ function ThreadView({ sessionId, workspaceId }: { sessionId: string; workspaceId
 
     if (turns.length === 0) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1/40 p-12 text-center">
+            <div className="rounded-sm border border-border bg-surface-1/40 p-12 text-center">
                 <MessageCircle className="h-10 w-10 text-text-muted mx-auto mb-3" />
                 <p className="text-sm font-medium text-text-secondary">No turns found</p>
                 <p className="text-xs text-text-muted mt-1">This session has no recorded messages.</p>
@@ -144,7 +144,7 @@ function ThreadView({ sessionId, workspaceId }: { sessionId: string; workspaceId
             </Link>
 
             {/* Header */}
-            <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+            <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -167,14 +167,14 @@ function ThreadView({ sessionId, workspaceId }: { sessionId: string; workspaceId
                         {linkedTaskId && (
                             <Link
                                 href={`/app/tasks/${linkedTaskId}`}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2/60 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:border-border transition-colors"
+                                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-surface-2/60 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:border-border transition-colors"
                             >
                                 View task
                             </Link>
                         )}
                         <Link
                             href={`/app/chat?sessionId=${encodeURIComponent(sessionId)}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                            className="inline-flex items-center gap-1.5 rounded-sm bg-azure px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
                         >
                             <MessageCircle className="h-3.5 w-3.5" />
                             Continue

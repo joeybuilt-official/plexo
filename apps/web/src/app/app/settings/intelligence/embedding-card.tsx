@@ -67,7 +67,7 @@ export function EmbeddingCard({ row, availableModels, onModelChange }: Embedding
     ]))
 
     return (
-        <div className="rounded-xl border border-border bg-surface-1 p-3 flex flex-col gap-2 min-w-[180px]">
+        <div className="rounded-sm border border-border bg-surface-1 p-3 flex flex-col gap-2 min-w-[180px]">
             <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-text-primary truncate">{row.nickname}</span>
                 <span

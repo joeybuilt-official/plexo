@@ -29,7 +29,7 @@ export function StepRow({ step }: { step: StepData }) {
     const [open, setOpen] = useState(false)
 
     return (
-        <div className="rounded-xl border border-border bg-surface-1/30 overflow-hidden">
+        <div className="rounded-sm border border-border bg-surface-1/30 overflow-hidden">
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
@@ -110,7 +110,7 @@ export function StepRow({ step }: { step: StepData }) {
                             </p>
                             <div className="flex flex-col gap-2">
                                 {step.toolCalls.map((tc, i) => (
-                                    <details key={i} className="rounded-lg border border-border bg-canvas overflow-hidden group/tc">
+                                    <details key={i} className="rounded-sm border border-border bg-canvas overflow-hidden group/tc">
                                         <summary className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-surface-2/40 transition-colors list-none text-[11px]">
                                             <span className="text-violet-400 font-mono font-medium">{tc.tool}</span>
                                             <span className="ml-auto text-[11px] text-text-muted shrink-0 group-open/tc:hidden">+</span>

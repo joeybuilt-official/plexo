@@ -161,7 +161,7 @@ export default function WorksPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary">Works</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">Works</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
                         {loading
                             ? '...'
@@ -171,7 +171,7 @@ export default function WorksPage() {
                 <button
                     onClick={() => void refetch()}
                     disabled={refreshing}
-                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
                 >
                     <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
                     Refresh
@@ -192,7 +192,7 @@ export default function WorksPage() {
 
             {/* Works list */}
             {fetchError && !worksData ? (
-                <div className="rounded-xl border border-red-800/40 bg-red-dim p-8 text-center">
+                <div className="rounded-sm border border-red-800/40 bg-red-dim p-8 text-center">
                     <AlertCircle className="h-5 w-5 text-red mx-auto mb-2" />
                     <p className="text-sm text-red">Failed to load works</p>
                     <button onClick={() => refetch()} className="mt-2 text-xs text-text-muted underline">Retry</button>
@@ -202,13 +202,13 @@ export default function WorksPage() {
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading...
                 </div>
             ) : displayed.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-1/40 p-12 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 p-12 text-center">
                     {hasFilters ? (
                         <>
                             <p className="text-sm text-text-muted">No works match your filters</p>
                             <button
                                 onClick={clearAll}
-                                className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
+                                className="mt-3 flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
                             >
                                 <X className="h-3.5 w-3.5" /> Clear filters
                             </button>
@@ -263,7 +263,7 @@ function WorksList({ works, formatAge, formatSize }: {
                 const isOpen = openId === work.id
                 const content = contentCache[work.id]
                 return (
-                    <div key={work.id} className="rounded-xl border border-border bg-surface-1/40 overflow-hidden transition-all">
+                    <div key={work.id} className="rounded-sm border border-border bg-surface-1/40 overflow-hidden transition-all">
                         <button
                             onClick={() => void toggle(work)}
                             className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full text-left px-4 py-3.5 hover:bg-surface-1/70 transition-all group"

@@ -24,7 +24,7 @@ export function PiiPreview({ workspaceId }: PiiPreviewProps) {
 
     if (isLoading) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+            <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                 Loading PII preview…
             </div>
         )
@@ -32,7 +32,7 @@ export function PiiPreview({ workspaceId }: PiiPreviewProps) {
 
     if (!data?.available) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-3">
+            <div className="rounded-sm border border-border bg-surface-1 p-3">
                 <div className="flex items-center gap-2 text-xs text-text-muted">
                     <EyeOff className="h-3 w-3" />
                     {data?.reason ?? 'No PII preview yet for this workspace.'}
@@ -43,7 +43,7 @@ export function PiiPreview({ workspaceId }: PiiPreviewProps) {
 
     return (
         <div className="space-y-3">
-            <div className="rounded-xl border border-border bg-surface-1 p-3">
+            <div className="rounded-sm border border-border bg-surface-1 p-3">
                 <div className="flex items-center gap-2">
                     <Eye className="h-3 w-3 text-text-muted" />
                     <h3 className="text-sm font-medium text-text-primary">PII scrub preview</h3>
@@ -68,7 +68,7 @@ export function PiiPreview({ workspaceId }: PiiPreviewProps) {
             </div>
 
             {data.latest && (
-                <div className="rounded-xl border border-border bg-surface-1 p-3">
+                <div className="rounded-sm border border-border bg-surface-1 p-3">
                     <h3 className="text-sm font-medium text-text-primary">Latest scrubbed log</h3>
                     <div className="mt-2 space-y-1 text-[11px] text-text-muted">
                         <div>id: <span className="text-text-primary">{data.latest.id}</span></div>

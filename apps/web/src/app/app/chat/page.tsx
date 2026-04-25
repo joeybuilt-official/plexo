@@ -1076,10 +1076,10 @@ function ChatContent() {
             onDrop={handlePageDrop}
         >
             {isDraggingOver && (
-                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-azure/60 bg-surface-0/90 backdrop-blur-sm pointer-events-none">
+                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 rounded-sm border-2 border-dashed border-azure/60 bg-surface-0/90 pointer-events-none">
                     <div className="flex flex-col items-center gap-2">
                         <FileUp className="h-10 w-10 text-azure opacity-80" />
-                        <p className="text-base font-semibold text-text-primary">Drop files here</p>
+                        <p className="text-base font-medium text-text-primary">Drop files here</p>
                         <p className="text-xs text-text-muted">Images, SVG, PDF</p>
                     </div>
                 </div>
@@ -1088,13 +1088,13 @@ function ChatContent() {
             <div className="flex items-center justify-between px-3 md:px-6 py-3 md:py-4 border-b border-border shrink-0 bg-surface-1/20">
                 <div>
                     <div className="flex items-center gap-3">
-                        <h1 className="text-2xl font-bold text-text-primary">Chat</h1>
+                        <h1 className="text-2xl font-medium text-text-primary">Chat</h1>
                         <button
                             id="workbench-toggle"
                             onClick={() => setIsWorkbenchOpen((v) => !v)}
                             aria-label={isWorkbenchOpen ? 'Hide Workbench' : 'Show Workbench'}
                             aria-pressed={isWorkbenchOpen}
-                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                            className={`flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs font-medium transition-all ${
                                 isWorkbenchOpen
                                     ? 'bg-azure/10 text-azure border border-azure/20 hover:bg-azure/20'
                                     : 'text-text-muted hover:text-text-secondary border border-transparent hover:border-border'
@@ -1150,7 +1150,7 @@ function ChatContent() {
                 >
                     {messages.length === 0 && historyLoading && (
                         <div className="flex items-center justify-center py-16 gap-3 text-text-tertiary animate-in fade-in duration-300" aria-live="polite" aria-label="Loading conversation">
-                            <div className="h-4 w-4 rounded-full border-2 border-azure/40 border-t-azure animate-spin" />
+                            <span className="font-mono text-azure animate-pulse">_</span>
                             <span className="text-sm">Loading conversation...</span>
                         </div>
                     )}
@@ -1177,16 +1177,12 @@ function ChatContent() {
                     )}
                     {messages.length === 0 && !historyLoading && !historyError && (
                         <div className="flex flex-col items-center justify-center py-10 gap-2 mx-auto w-full max-w-2xl animate-in fade-in duration-700">
-                            <div className={`relative flex items-center justify-center transition-all duration-500 mb-2 ${
-                                isListening
-                                    ? 'drop-shadow-[0_0_28px_rgba(99,102,241,0.6)]'
-                                    : 'drop-shadow-[0_0_12px_rgba(99,102,241,0.2)]'
-                            }`}>
+                            <div className="relative flex items-center justify-center transition-all duration-500 mb-2">
                                 <PlexoMark className="h-14 w-14" idle={!isListening} working={isListening} />
                                 {isListening && <div className="absolute inset-0 rounded-full border border-azure/40 animate-ping" />}
                             </div>
                             <div className="text-center">
-                                <h1 className="text-2xl md:text-[28px] font-display font-medium text-text-primary tracking-tight mb-2 text-transparent bg-clip-text bg-gradient-to-br from-text-primary to-text-muted">
+                                <h1 className="text-2xl md:text-[28px] font-display font-medium text-text-primary tracking-tight mb-2 text-text-primary">
                                     {isListening
                                         ? 'Listening…'
                                         : (() => {
@@ -1223,7 +1219,7 @@ function ChatContent() {
             </div>
 
             {error && (
-                <div role="alert" className="shrink-0 flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 text-sm text-red mb-2 mx-3 md:mx-6">
+                <div role="alert" className="shrink-0 flex items-center gap-2 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 text-sm text-red mb-2 mx-3 md:mx-6">
                     <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
                     {error}
                 </div>
@@ -1239,17 +1235,17 @@ function ChatContent() {
 
             {visionUnavailable && !sending && (
                 <div className="shrink-0 px-3 md:px-6 mb-3">
-                    <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-dim px-4 py-3 text-sm text-amber-300 shadow-sm shadow-amber-500/5">
+                    <div className="flex items-start gap-3 rounded-sm border border-amber-500/30 bg-amber-dim px-4 py-3 text-sm text-amber-300">
                         <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber" />
                         <div className="flex-1 min-w-0">
                             <p className="text-amber/90 text-xs font-medium">
-                                <span className="font-semibold">{modelToUse}</span> does not support image recognition. If you have a vision-capable model configured (GPT-4o, Claude, Gemini, Grok, or Llama Vision), the system will route this image to it automatically.
+                                <span className="font-medium">{modelToUse}</span> does not support image recognition. If you have a vision-capable model configured (GPT-4o, Claude, Gemini, Grok, or Llama Vision), the system will route this image to it automatically.
                             </p>
                             <p className="text-amber/70 text-xs mt-1">
-                                No vision model configured? Add a free <span className="font-semibold">Groq</span> API key and set the model to <code className="font-mono bg-amber/10 px-1 rounded">llama-3.2-90b-vision-preview</code> — it&apos;s free.
+                                No vision model configured? Add a free <span className="font-medium">Groq</span> API key and set the model to <code className="font-mono bg-amber/10 px-1 rounded">llama-3.2-90b-vision-preview</code> — it&apos;s free.
                             </p>
                         </div>
-                        <Link href="/app/settings/intelligence/providers" aria-label="Add Groq provider in settings" className="whitespace-nowrap rounded-lg bg-amber/20 hover:bg-amber/30 border border-amber-500/20 px-3 py-1.5 text-sm font-medium text-amber transition-colors shadow-sm shrink-0">
+                        <Link href="/app/settings/intelligence/providers" aria-label="Add Groq provider in settings" className="whitespace-nowrap rounded-sm bg-amber/20 hover:bg-amber/30 border border-amber-500/20 px-3 py-1.5 text-sm font-medium text-amber transition-colors shrink-0">
                             Add Groq
                         </Link>
                     </div>
@@ -1259,24 +1255,24 @@ function ChatContent() {
             {(suggestion || wantsAttachment) && !sending && !isListening && (
                 <div className="shrink-0 flex flex-col gap-2 mb-3 px-3 md:px-6">
                     {suggestion && (
-                        <div className="flex items-start gap-3 rounded-xl border border-azure/30 bg-azure-dim px-4 py-3 text-sm text-azure shadow-sm shadow-azure-500/5 transition-all">
+                        <div className="flex items-start gap-3 rounded-sm border border-azure/30 bg-azure-dim px-4 py-3 text-sm text-azure transition-all">
                             <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
                             <div className="flex-1">
-                                <span className="font-semibold block text-azure-200">Suggested Model: {suggestion.suggestedModel}</span>
+                                <span className="font-medium block text-azure-200">Suggested Model: {suggestion.suggestedModel}</span>
                                 <span className="text-azure/80 text-xs mt-0.5 block">{suggestion.reason}</span>
                             </div>
-                            <Link href="/app/settings/intelligence/providers" aria-label="Change AI model in settings" className="whitespace-nowrap rounded-lg bg-azure-dim hover:bg-azure/90/30 border border-azure/20 px-3 py-1.5 text-sm font-medium text-azure transition-colors">
+                            <Link href="/app/settings/intelligence/providers" aria-label="Change AI model in settings" className="whitespace-nowrap rounded-sm bg-azure-dim hover:bg-azure/90/30 border border-azure/20 px-3 py-1.5 text-sm font-medium text-azure transition-colors">
                                 Change model →
                             </Link>
                         </div>
                     )}
                     {wantsAttachment && (
-                        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-dim px-4 py-3 text-sm text-amber-300 shadow-sm shadow-amber-500/5 transition-all">
+                        <div className="flex items-center gap-3 rounded-sm border border-amber-500/30 bg-amber-dim px-4 py-3 text-sm text-amber-300 transition-all">
                             <FileUp className="h-4 w-4 shrink-0 text-amber" />
                             <span className="flex-1 text-amber/90 text-xs font-medium">
                                 Did you forget an attachment? We noticed you mentioned a file or image in your prompt.
                             </span>
-                            <button aria-label="Attach a file to this message" className="whitespace-nowrap rounded-lg bg-amber/20 hover:bg-amber/30 border border-amber-500/20 px-3 py-1.5 text-sm font-medium text-amber transition-colors shadow-sm"
+                            <button aria-label="Attach a file to this message" className="whitespace-nowrap rounded-sm bg-amber/20 hover:bg-amber/30 border border-amber-500/20 px-3 py-1.5 text-sm font-medium text-amber transition-colors"
                                 onClick={() => fileInputRef.current?.click()}
                             >
                                 Attach file
@@ -1287,7 +1283,7 @@ function ChatContent() {
             )}
 
             <div
-                className="shrink-0 flex flex-col items-center gap-3 px-3 md:px-6 pt-4 md:pt-5 border-t border-border bg-surface-1/5 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] backdrop-blur-md"
+                className="shrink-0 flex flex-col items-center gap-3 px-3 md:px-6 pt-4 md:pt-5 border-t border-border bg-surface-1/5"
                 style={{ paddingBottom: 'calc(1.5rem + var(--safe-bottom))' }}
             >
                 <div className={`flex flex-col gap-3 w-full ${(!isWorkbenchOpen || !isPinned) ? 'max-w-3xl' : ''}`}>
@@ -1363,7 +1359,7 @@ function ChatContent() {
             )}
 
             {openArtifactData && !isWorkbenchOpen && (
-                <div className="absolute inset-0 md:inset-auto md:top-0 md:right-0 md:bottom-0 md:left-auto md:w-full md:max-w-[600px] z-50 bg-surface-2 backdrop-blur-xl border-l border-border/40 shadow-2xl animate-in slide-in-from-right fade-in duration-500">
+                <div className="absolute inset-0 md:inset-auto md:top-0 md:right-0 md:bottom-0 md:left-auto md:w-full md:max-w-[600px] z-50 bg-surface-2 border-l border-border/40 animate-in slide-in-from-right fade-in duration-500">
                     <ArtifactPanel
                         asset={openArtifactData.asset}
                         taskId={openArtifactData.taskId}

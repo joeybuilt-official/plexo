@@ -64,7 +64,7 @@ export function StatusBadge({
     return (
         <span
             className={cn(
-                'inline-flex items-center rounded-full border font-medium transition-all duration-300',
+                'inline-flex items-center rounded-sm border font-mono font-medium uppercase tracking-wider transition-all duration-300',
                 sizeClasses[size],
                 bgColor,
                 borderColor,
@@ -73,13 +73,7 @@ export function StatusBadge({
             )}
             {...props}
         >
-            {showIcon && Icon && (
-                <Icon className={cn(iconSizes[size], animate && 'animate-pulse')} />
-            )}
-            {!showIcon && (
-                <span className={cn('h-1.5 w-1.5 rounded-full', dotColor, animate && 'animate-pulse')} />
-            )}
-            {label}
+            [{label}]
         </span>
     )
 }

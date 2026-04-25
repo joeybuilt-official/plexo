@@ -39,7 +39,7 @@ export function SclSettingsForm({ workspaceId }: SettingsFormProps) {
 
     if (isLoading || !draft || !data) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+            <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                 Loading SCL settings…
             </div>
         )
@@ -73,7 +73,7 @@ export function SclSettingsForm({ workspaceId }: SettingsFormProps) {
     return (
         <div className="space-y-6">
             {/* Drift threshold */}
-            <div className="rounded-xl border border-border bg-surface-1 p-3">
+            <div className="rounded-sm border border-border bg-surface-1 p-3">
                 <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-text-primary">Drift threshold</h3>
@@ -100,7 +100,7 @@ export function SclSettingsForm({ workspaceId }: SettingsFormProps) {
             </div>
 
             {/* Expand depth */}
-            <div className="rounded-xl border border-border bg-surface-1 p-3">
+            <div className="rounded-sm border border-border bg-surface-1 p-3">
                 <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-text-primary">Expand depth</h3>
@@ -125,7 +125,7 @@ export function SclSettingsForm({ workspaceId }: SettingsFormProps) {
             </div>
 
             {/* Expand width */}
-            <div className="rounded-xl border border-border bg-surface-1 p-3">
+            <div className="rounded-sm border border-border bg-surface-1 p-3">
                 <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-text-primary">Expand width</h3>
@@ -150,7 +150,7 @@ export function SclSettingsForm({ workspaceId }: SettingsFormProps) {
             </div>
 
             {/* Domain region picker */}
-            <div className="rounded-xl border border-border bg-surface-1 p-3">
+            <div className="rounded-sm border border-border bg-surface-1 p-3">
                 <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-text-primary">Domain regions</h3>
@@ -186,7 +186,7 @@ export function SclSettingsForm({ workspaceId }: SettingsFormProps) {
             </div>
 
             {/* PII scrub toggle */}
-            <div className="rounded-xl border border-border bg-surface-1 p-3">
+            <div className="rounded-sm border border-border bg-surface-1 p-3">
                 <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-text-primary">PII scrub</h3>
@@ -205,7 +205,7 @@ export function SclSettingsForm({ workspaceId }: SettingsFormProps) {
                         } disabled:opacity-50`}
                     >
                         <span
-                            className={`absolute top-0.5 h-5 w-5 rounded-full shadow-sm transition-transform ${
+                            className={`absolute top-0.5 h-5 w-5 rounded-full transition-transform ${
                                 draft.piiScrubEnabled ? 'translate-x-5 bg-azure' : 'translate-x-0.5 bg-text-muted'
                             }`}
                         />

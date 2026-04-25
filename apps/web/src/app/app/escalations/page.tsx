@@ -142,7 +142,7 @@ export default function EscalationsPage() {
                             <div className="flex items-start gap-3">
                                 <ShieldAlert className="mt-0.5 h-5 w-5 text-text-primary" />
                                 <div>
-                                    <h3 className="text-base font-semibold text-text-primary">
+                                    <h3 className="text-base font-medium text-text-primary">
                                         {row.toolName}
                                     </h3>
                                     <p className="text-sm text-text-muted">
@@ -213,7 +213,7 @@ export default function EscalationsPage() {
         <div className="mx-auto max-w-3xl p-6">
             <header className="mb-6 flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-semibold text-text-primary">Escalations</h1>
+                    <h1 className="text-xl font-medium text-text-primary">Escalations</h1>
                     <p className="text-sm text-text-muted">
                         Per-invocation approvals for risky agent tool calls.
                     </p>

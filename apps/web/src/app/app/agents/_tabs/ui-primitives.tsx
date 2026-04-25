@@ -24,7 +24,7 @@ export function Input({ className, id, ...props }: React.InputHTMLAttributes<HTM
     return (
         <input
             id={fieldId}
-            className={`min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 disabled:opacity-40 w-full ${className ?? ''}`}
+            className={`min-h-[44px] rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 disabled:opacity-40 w-full ${className ?? ''}`}
             {...props}
         />
     )
@@ -36,7 +36,7 @@ export function Textarea({ className, id, ...props }: React.TextareaHTMLAttribut
     return (
         <textarea
             id={fieldId}
-            className={`min-h-[44px] w-full resize-none rounded-lg border border-border bg-surface-1 px-4 py-3 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 leading-relaxed ${className ?? ''}`}
+            className={`min-h-[44px] w-full resize-none rounded-sm border border-border bg-surface-1 px-4 py-3 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 leading-relaxed ${className ?? ''}`}
             {...props}
         />
     )
@@ -91,10 +91,10 @@ export function Field({ label, description, children }: { label: string; descrip
 
 export function Section({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
     return (
-        <div className="rounded-xl border border-border bg-surface-1/40 p-4 sm:p-5">
+        <div className="rounded-sm border border-border bg-surface-1/40 p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
                 <Icon className="h-4 w-4 text-text-muted" />
-                <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
+                <h2 className="text-sm font-medium text-text-primary">{title}</h2>
             </div>
             <div className="flex flex-col gap-4">{children}</div>
         </div>

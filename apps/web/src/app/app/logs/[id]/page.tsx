@@ -92,7 +92,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                 <Link href="/app/logs" className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors w-fit">
                     <ArrowLeft size={12} /> Back to logs
                 </Link>
-                <div className="rounded-xl border border-border bg-surface-1/40 px-6 py-12 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 px-6 py-12 text-center">
                     <p className="text-sm text-text-secondary font-medium mb-1">Task not found</p>
                     <p className="text-xs text-text-muted font-mono">{id}</p>
                 </div>
@@ -151,7 +151,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     </span>
                     <span className="font-mono text-xs text-text-muted">{task.id}</span>
                 </div>
-                <p className="text-lg font-semibold text-text-primary leading-snug">
+                <p className="text-lg font-medium text-text-primary leading-snug">
                     {description?.slice(0, 200) || `${task.type} task`}
                 </p>
             </div>
@@ -168,7 +168,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     ['Created', fmt(task.createdAt), false],
                     ['Completed', fmt(task.completedAt), false],
                 ] as [string, string, boolean][]).map(([label, value, mono]) => (
-                    <div key={label} className="rounded-lg border border-border bg-surface-1/40 px-3 py-2.5">
+                    <div key={label} className="rounded-sm border border-border bg-surface-1/40 px-3 py-2.5">
                         <p className="text-[11px] text-text-muted uppercase tracking-wider mb-1">{label}</p>
                         <p className={`text-sm text-text-secondary truncate capitalize ${mono ? 'font-mono' : ''}`}>{value}</p>
                     </div>
@@ -179,12 +179,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             {task.outcomeSummary && (task.status === 'blocked' || task.status === 'failed') ? (
                 <TaskError outcomeSummary={task.outcomeSummary} status={task.status} />
             ) : task.outcomeSummary ? (
-                <div className="rounded-lg border border-border bg-surface-1/40 p-4">
+                <div className="rounded-sm border border-border bg-surface-1/40 p-4">
                     <p className="text-[11px] text-text-muted uppercase tracking-wider mb-2">Outcome</p>
                     <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">{task.outcomeSummary}</p>
                 </div>
             ) : ['blocked', 'failed', 'cancelled'].includes(task.status) ? (
-                <div className="rounded-lg border border-amber-900/40 bg-amber-dim p-4">
+                <div className="rounded-sm border border-amber-900/40 bg-amber-dim p-4">
                     <p className="text-[11px] text-amber-700 uppercase tracking-wider mb-2">
                         {task.status === 'blocked' ? 'Blocked — no execution' : task.status === 'failed' ? 'Failed' : 'Cancelled'}
                     </p>
@@ -201,7 +201,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
             {/* Context */}
             {(description || Object.keys(contextRest).length > 0) && (
-                <div className="rounded-lg border border-border bg-surface-1/40 p-4">
+                <div className="rounded-sm border border-border bg-surface-1/40 p-4">
                     <p className="text-[11px] text-text-muted uppercase tracking-wider mb-3">Context</p>
                     {description && (
                         <div className="mb-4">
@@ -224,7 +224,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
             {/* Steps */}
             {steps.length > 0 && (
-                <div className="rounded-lg border border-border bg-surface-1/40 p-4">
+                <div className="rounded-sm border border-border bg-surface-1/40 p-4">
                     <p className="text-[11px] text-text-muted uppercase tracking-wider mb-3">Execution steps ({steps.length})</p>
                     <ol className="flex flex-col gap-3">
                         {steps.map((step) => {

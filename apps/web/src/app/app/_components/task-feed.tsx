@@ -48,16 +48,16 @@ export async function TaskFeed() {
 
     if (tasks.length === 0) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1/50 p-6 text-center">
+            <div className="rounded-sm border border-border bg-surface-1/50 p-6 text-center">
                 <p className="text-sm text-text-muted">No tasks yet. Send a message to get started.</p>
             </div>
         )
     }
 
     return (
-        <div className="rounded-xl border border-border bg-surface-1/50 backdrop-blur-sm">
+        <div className="rounded-sm border border-border bg-surface-1/50">
             <div className="border-b border-border-subtle px-4 py-3">
-                <h2 className="text-[13px] font-semibold">Recent Tasks</h2>
+                <h2 className="text-[13px] font-medium">Recent Tasks</h2>
             </div>
             <ul className="divide-y divide-border">
                 {tasks.map((task) => (

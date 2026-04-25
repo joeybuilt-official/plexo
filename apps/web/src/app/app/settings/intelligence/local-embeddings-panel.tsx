@@ -62,7 +62,7 @@ export function LocalEmbeddingsPanel({ workspaceId, canReload }: LocalEmbeddings
 
     if (isLoading) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-4 flex items-center gap-2 text-sm text-text-muted">
+            <div className="rounded-sm border border-border bg-surface-1 p-4 flex items-center gap-2 text-sm text-text-muted">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Probing local embeddings server…
             </div>
@@ -73,7 +73,7 @@ export function LocalEmbeddingsPanel({ workspaceId, canReload }: LocalEmbeddings
 
     if (!data.installed) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-4 space-y-3">
+            <div className="rounded-sm border border-border bg-surface-1 p-4 space-y-3">
                 <div className="flex items-center gap-2">
                     <Server className="h-4 w-4 text-text-muted" />
                     <h3 className="text-sm font-medium text-text-primary">Local embeddings server</h3>
@@ -96,7 +96,7 @@ docker compose --profile local-embeddings up -d
     }
 
     return (
-        <div className="rounded-xl border border-border bg-surface-1 p-4 space-y-3">
+        <div className="rounded-sm border border-border bg-surface-1 p-4 space-y-3">
             <div className="flex items-center gap-2">
                 <Server className="h-4 w-4 text-text-muted" />
                 <h3 className="text-sm font-medium text-text-primary">Local embeddings server</h3>

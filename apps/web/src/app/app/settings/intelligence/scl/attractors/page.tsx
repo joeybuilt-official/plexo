@@ -42,11 +42,11 @@ export default function AttractorBrowserPage() {
         <div className="flex h-full flex-col overflow-hidden">
             <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-surface-1 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-sm bg-surface-1 flex items-center justify-center shrink-0">
                         <Network className="h-5 w-5 text-azure" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-text-primary">Attractor browser</h2>
+                        <h2 className="text-base font-medium text-text-primary">Attractor browser</h2>
                         <p className="text-xs text-text-muted mt-0.5">
                             Per-task concept graphs extracted from inference logs. Click a row to inspect the graph JSON.
                         </p>
@@ -83,7 +83,7 @@ export default function AttractorBrowserPage() {
 
                     <div className="flex-1 overflow-y-auto p-3">
                         {!workspaceId ? (
-                            <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                            <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                                 Pick a workspace.
                             </div>
                         ) : isLoading ? (
@@ -91,11 +91,11 @@ export default function AttractorBrowserPage() {
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
                             </div>
                         ) : error ? (
-                            <div className="rounded-xl border border-rose-700/40 bg-surface-1 p-3 text-xs text-rose-300">
+                            <div className="rounded-sm border border-rose-700/40 bg-surface-1 p-3 text-xs text-rose-300">
                                 Failed to load. {String(error)}
                             </div>
                         ) : !data || data.attractors.length === 0 ? (
-                            <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                            <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                                 No attractors match.
                             </div>
                         ) : (
@@ -134,7 +134,7 @@ export default function AttractorBrowserPage() {
 
                 <div className="flex-1 overflow-y-auto p-3">
                     {!selectedId ? (
-                        <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                        <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                             Select an attractor on the left to inspect its concept graph.
                         </div>
                     ) : detailLoading ? (
@@ -142,12 +142,12 @@ export default function AttractorBrowserPage() {
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading detail…
                         </div>
                     ) : !detailData ? (
-                        <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                        <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                             Attractor not found.
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            <div className="rounded-xl border border-border bg-surface-1 p-3">
+                            <div className="rounded-sm border border-border bg-surface-1 p-3">
                                 <div className="text-[11px] text-text-muted">id</div>
                                 <div className="font-mono text-[11px] text-text-primary break-all">
                                     {detailData.attractor.id}
@@ -171,14 +171,14 @@ export default function AttractorBrowserPage() {
                                     {new Date(detailData.attractor.createdAt).toLocaleString()}
                                 </div>
                             </div>
-                            <div className="rounded-xl border border-border bg-surface-1 p-3">
+                            <div className="rounded-sm border border-border bg-surface-1 p-3">
                                 <div className="text-[11px] uppercase tracking-wide text-text-muted">graph_json</div>
                                 <pre className="mt-1 max-h-96 overflow-auto rounded-md border border-border bg-surface-1 p-2 text-[10px] text-text-primary">
 {JSON.stringify(detailData.attractor.graphJson, null, 2)}
                                 </pre>
                             </div>
                             {detailData.attractor.mindsetObject && (
-                                <div className="rounded-xl border border-border bg-surface-1 p-3">
+                                <div className="rounded-sm border border-border bg-surface-1 p-3">
                                     <div className="text-[11px] uppercase tracking-wide text-text-muted">mindset_object</div>
                                     <pre className="mt-1 max-h-96 overflow-auto rounded-md border border-border bg-surface-1 p-2 text-[10px] text-text-primary">
 {JSON.stringify(detailData.attractor.mindsetObject, null, 2)}

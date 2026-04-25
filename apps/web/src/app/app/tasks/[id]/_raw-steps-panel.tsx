@@ -43,7 +43,7 @@ export function RawStepsPanel({ taskId }: RawStepsPanelProps) {
     )
 
     return (
-        <div className="rounded-xl border border-border/60 bg-surface-1/40">
+        <div className="rounded-sm border border-border/60 bg-surface-1/40">
             <button
                 type="button"
                 onClick={() => setOpen(!open)}

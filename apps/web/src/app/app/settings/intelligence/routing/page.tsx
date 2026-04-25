@@ -28,11 +28,11 @@ export default function RoutingPage() {
         <div className="flex flex-col h-full overflow-y-auto">
             <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-surface-1 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-sm bg-surface-1 flex items-center justify-center shrink-0">
                         <Route className="h-5 w-5 text-azure" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-text-primary">Inference mode &amp; cost</h2>
+                        <h2 className="text-base font-medium text-text-primary">Inference mode &amp; cost</h2>
                         <p className="text-xs text-text-muted mt-0.5">
                             How Plexo picks a provider and how much it&apos;s allowed to spend each month.
                         </p>
@@ -42,7 +42,7 @@ export default function RoutingPage() {
 
             <div className="p-4 space-y-6 max-w-3xl">
                 {!workspaceId ? (
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         Pick a workspace from the sidebar to configure routing.
                     </div>
                 ) : (
@@ -51,7 +51,7 @@ export default function RoutingPage() {
                         <CostCeilingSlider workspaceId={workspaceId} />
                         <StepBudgetPicker workspaceId={workspaceId} />
 
-                        <div className="rounded-xl border border-border bg-surface-1 p-3">
+                        <div className="rounded-sm border border-border bg-surface-1 p-3">
                             <div className="flex items-start gap-2.5">
                                 <ListOrdered className="h-4 w-4 text-text-muted shrink-0 mt-0.5" />
                                 <div className="text-xs text-text-muted leading-relaxed">

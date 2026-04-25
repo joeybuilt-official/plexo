@@ -112,7 +112,7 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
                         : 'bg-surface-2 text-text-muted border-border'
 
     return (
-        <div className={`rounded-xl border transition-all ${ext.enabled
+        <div className={`rounded-sm border transition-all ${ext.enabled
             ? 'border-border/60 bg-surface-1/60'
             : 'border-border/40 bg-surface-1/20 opacity-70'
             }`}>
@@ -123,16 +123,16 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
                 aria-label={`${expanded ? 'Hide' : 'Show'} details for ${ext.name}`}
                 onClick={() => setExpanded((e) => !e)}
             >
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ext.enabled ? 'bg-azure/20' : 'bg-surface-2'}`}>
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-sm ${ext.enabled ? 'bg-azure/20' : 'bg-surface-2'}`}>
                     <Zap className={`h-4 w-4 ${ext.enabled ? 'text-azure' : 'text-text-muted'}`} aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground truncate">{ext.name}</span>
                         <span className="text-[11px] font-mono text-muted-foreground shrink-0">v{ext.version}</span>
-                        <span className={`text-[10px] font-semibold uppercase tracking-wide rounded-full border px-1.5 py-0.5 shrink-0 ${badgeStyle}`}>{typeBadge}</span>
+                        <span className={`text-[10px] font-medium uppercase tracking-wide rounded-sm border px-1.5 py-0.5 shrink-0 ${badgeStyle}`}>{typeBadge}</span>
                         {ext.isFirstParty && (
-                            <span className="flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 shrink-0">
+                            <span className="flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide rounded-sm border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 shrink-0">
                                 <ShieldCheck className="h-3 w-3" aria-hidden="true" />
                                 Official
                             </span>
@@ -153,7 +153,7 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
                         disabled={toggling}
                         aria-label={toggling ? `Updating ${ext.name}…` : `${ext.enabled ? 'Disable' : 'Enable'} ${ext.name}`}
                         aria-busy={toggling}
-                        className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs transition-colors hover:border-border disabled:opacity-40"
+                        className="flex items-center gap-1 rounded-sm border border-border px-2.5 py-1 text-xs transition-colors hover:border-border disabled:opacity-40"
                     >
                         {toggling ? (
                             <RefreshCw className="h-3.5 w-3.5 animate-spin text-text-muted" aria-hidden="true" />
@@ -173,7 +173,7 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
             {expanded && (
                 <div className="border-t border-border px-4 py-3 flex flex-col gap-3">
                     {ext.isFirstParty && (
-                        <div className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+                        <div className="flex items-center justify-between rounded-sm border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
                             <div className="flex items-center gap-2">
                                 <Circle className={`h-2 w-2 shrink-0 ${ext.enabled ? 'fill-emerald-400 text-emerald-400' : 'fill-muted-foreground text-muted-foreground'}`} aria-hidden="true" />
                                 <span className="text-[11px] font-medium text-foreground">
@@ -198,7 +198,7 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
                     )}
                     {isAdvanced && (manifest?.capabilities ?? []).length > 0 && (
                         <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Capabilities</p>
+                            <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted mb-1.5">Capabilities</p>
                             <div className="flex flex-wrap gap-1">
                                 {manifest!.capabilities!.map((p) => (
                                     <span key={p} className="rounded border border-amber-800/40 bg-amber-dim px-2 py-0.5 text-[11px] font-mono text-amber">{p}</span>
@@ -211,7 +211,7 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
                         if (entityGroups.length === 0) return null
                         return (
                             <div>
-                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Entity Access</p>
+                                <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted mb-1.5">Entity Access</p>
                                 <div className="flex flex-wrap gap-2">
                                     {entityGroups.map(g => (
                                         <span key={g.entity} className="rounded border border-azure-800/30 bg-azure/10 px-2 py-0.5 text-[11px] text-azure">
@@ -247,7 +247,7 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
                             disabled={uninstalling}
                             aria-label={uninstalling ? `Uninstalling ${ext.name}…` : `Uninstall ${ext.name}`}
                             aria-busy={uninstalling}
-                            className="flex items-center gap-1 rounded-lg border border-red-800/40 px-2.5 py-1 text-[11px] font-medium text-red hover:bg-red/10 transition-colors disabled:opacity-40"
+                            className="flex items-center gap-1 rounded-sm border border-red-800/40 px-2.5 py-1 text-[11px] font-medium text-red hover:bg-red/10 transition-colors disabled:opacity-40"
                         >
                             {uninstalling ? <RefreshCw className="h-3 w-3 animate-spin" /> : <ZapOff className="h-3 w-3" />}
                             Uninstall
@@ -351,7 +351,7 @@ export default function ToolsPage() {
         <div className="flex flex-col gap-6 max-w-4xl">
             <div className="flex items-start justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-text-primary">Extensions</h1>
+                    <h1 className="text-2xl font-medium tracking-tight text-text-primary">Extensions</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
                         Manage all installed extensions — skills, tools, agents, channels, and connectors.
                     </p>
@@ -363,7 +363,7 @@ export default function ToolsPage() {
                     disabled={loading}
                     aria-label="Refresh extensions"
                     title="Refresh"
-                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
                 >
                     <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
                     <span className="hidden sm:inline">Refresh</span>
@@ -372,7 +372,7 @@ export default function ToolsPage() {
             </div>
 
             {/* Agent context banner */}
-            <div className="rounded-xl border border-border/50 bg-surface-1/30 px-4 py-3 flex items-center gap-3">
+            <div className="rounded-sm border border-border/50 bg-surface-1/30 px-4 py-3 flex items-center gap-3">
                 <Bot className="h-4 w-4 text-text-muted shrink-0" aria-hidden="true" />
                 <p className="text-xs text-text-muted flex-1">
                     Agent extensions are managed here alongside other extensions. To configure your primary agent (personality, model, limits), visit the agent settings page.
@@ -383,23 +383,23 @@ export default function ToolsPage() {
             </div>
 
             {/* Info banner */}
-            <div className="rounded-xl border border-border/50 bg-surface-1/30 px-4 py-3 flex items-start gap-3">
+            <div className="rounded-sm border border-border/50 bg-surface-1/30 px-4 py-3 flex items-start gap-3">
                 <Info className="h-4 w-4 text-text-muted shrink-0 mt-0.5" aria-hidden="true" />
                 <div className="space-y-1.5">
                     <p className="text-xs font-medium text-text-secondary">
                         Extensions add capabilities to your agent. Install from the Hub, then enable here.
                     </p>
                     <div className="grid gap-1 text-[11px] text-text-muted">
-                        <span><span className="font-semibold text-text-secondary">Skills</span> — operating instructions: playbooks, checklists, workflows</span>
-                        <span><span className="font-semibold text-text-secondary">Tools</span> — executable actions: PDF generation, image processing, data transforms</span>
-                        <span><span className="font-semibold text-text-secondary">Channels</span> — communication endpoints: how you talk to Plexo</span>
-                        <span><span className="font-semibold text-text-secondary">Connectors</span> — external service bridges: Notion, Stripe, GitHub, Slack</span>
+                        <span><span className="font-medium text-text-secondary">Skills</span> — operating instructions: playbooks, checklists, workflows</span>
+                        <span><span className="font-medium text-text-secondary">Tools</span> — executable actions: PDF generation, image processing, data transforms</span>
+                        <span><span className="font-medium text-text-secondary">Channels</span> — communication endpoints: how you talk to Plexo</span>
+                        <span><span className="font-medium text-text-secondary">Connectors</span> — external service bridges: Notion, Stripe, GitHub, Slack</span>
                     </div>
                 </div>
             </div>
 
             {error && (
-                <div role="alert" className="rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 flex items-center gap-2 text-xs text-red">
+                <div role="alert" className="rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 flex items-center gap-2 text-xs text-red">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     <span className="flex-1">{error}</span>
                     <button
@@ -453,7 +453,7 @@ export default function ToolsPage() {
                     Loading extensions…
                 </div>
             ) : filteredByType.length === 0 ? (
-                <div role="status" aria-live="polite" className="rounded-xl border border-border bg-surface-1/40 p-12 text-center">
+                <div role="status" aria-live="polite" className="rounded-sm border border-border bg-surface-1/40 p-12 text-center">
                     <ZapOff className="h-10 w-10 text-text-muted mx-auto mb-3" aria-hidden="true" />
                     <p className="text-sm font-medium text-text-secondary">No extensions installed</p>
                     <p className="text-xs text-text-muted mt-1">
@@ -461,10 +461,10 @@ export default function ToolsPage() {
                     </p>
                 </div>
             ) : filteredTools.length === 0 ? (
-                <div role="status" aria-live="polite" className="rounded-xl border border-border bg-surface-1/40 p-12 text-center">
+                <div role="status" aria-live="polite" className="rounded-sm border border-border bg-surface-1/40 p-12 text-center">
                     <SearchX className="h-10 w-10 text-text-muted mx-auto mb-3" aria-hidden="true" />
                     <p className="text-sm font-medium text-text-secondary">No results match your filters</p>
-                    <button type="button" onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto">
+                    <button type="button" onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto">
                         <X className="h-3.5 w-3.5" /> Clear filters
                     </button>
                 </div>
@@ -481,7 +481,7 @@ export default function ToolsPage() {
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-center gap-2">
                                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
-                                    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Official Apps</h2>
+                                    <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Official Apps</h2>
                                 </div>
                                 {officialApps.map((p) => (
                                     <ToolCard key={p.id} ext={p} onToggle={handleToggle} onUninstall={handleUninstall} />
@@ -492,7 +492,7 @@ export default function ToolsPage() {
                         {communityExts.length > 0 && (
                             <div className="flex flex-col gap-2">
                                 {officialApps.length > 0 && (
-                                    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-2">Installed Extensions</h2>
+                                    <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mt-2">Installed Extensions</h2>
                                 )}
                                 {communityExts.map((p) => (
                                     <ToolCard key={p.id} ext={p} onToggle={handleToggle} onUninstall={handleUninstall} />

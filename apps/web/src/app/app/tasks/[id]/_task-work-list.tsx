@@ -35,7 +35,7 @@ export function TaskWorkList({ assets }: { assets: TaskAsset[] }) {
                         : `${(asset.bytes / (1024 * 1024)).toFixed(1)}MB`
                 const kind = resolveKind(asset)
                 return (
-                    <div key={id} className="rounded-lg border border-border/60 bg-surface-2/40 overflow-hidden">
+                    <div key={id} className="rounded-sm border border-border/60 bg-surface-2/40 overflow-hidden">
                         <button
                             type="button"
                             onClick={() => toggle(id)}

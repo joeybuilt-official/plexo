@@ -70,7 +70,7 @@ function RoleBadge({ role }: { role: MemberRole }) {
         viewer: <Eye className="h-3 w-3" />,
     }
     return (
-        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${styles[role]}`}>
+        <span className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider ${styles[role]}`}>
             {icons[role]}{role}
         </span>
     )
@@ -126,7 +126,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
     const roles: MemberRole[] = ['viewer', 'member', 'admin']
 
     return (
-        <div className="rounded-xl border border-border/50 bg-surface-1 p-5 flex flex-col gap-4">
+        <div className="rounded-sm border border-border/50 bg-surface-1 p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                     <Link2 className="h-4 w-4 text-azure" />
@@ -146,7 +146,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="colleague@example.com"
-                            className="min-h-[44px] rounded-lg border border-border bg-canvas px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                            className="min-h-[44px] rounded-sm border border-border bg-canvas px-3 py-2 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                         />
                     </div>
 
@@ -157,7 +157,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                                 <button
                                     key={r}
                                     onClick={() => setRole(r)}
-                                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 min-h-[44px] md:min-h-0 text-xs capitalize transition-all ${role === r
+                                    className={`flex items-center gap-1.5 rounded-sm border px-3 py-1.5 min-h-[44px] md:min-h-0 text-xs capitalize transition-all ${role === r
                                         ? 'border-azure/50 bg-azure/10 text-azure'
                                         : 'border-border text-text-muted hover:border-border'
                                         }`}
@@ -169,7 +169,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                     </div>
 
                     {error && (
-                        <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-800/40 bg-red-dim px-3 py-2 text-xs text-red">
+                        <div role="alert" className="flex items-center gap-2 rounded-sm border border-red-800/40 bg-red-dim px-3 py-2 text-xs text-red">
                             <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
                         </div>
                     )}
@@ -177,7 +177,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                     <button
                         onClick={() => void createInvite()}
                         disabled={creating}
-                        className="flex items-center justify-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px]"
+                        className="flex items-center justify-center gap-2 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px]"
                     >
                         {creating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
                         Generate link
@@ -188,7 +188,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                     <p className="text-xs text-text-muted">
                         Expires {timeAgo(invite.expiresAt)} — share this link with your teammate
                     </p>
-                    <div className="flex items-center gap-2 rounded-lg border border-border bg-canvas pl-3">
+                    <div className="flex items-center gap-2 rounded-sm border border-border bg-canvas pl-3">
                         <span className="flex-1 truncate font-mono text-[16px] md:text-sm text-text-secondary">{invite.inviteUrl}</span>
                         <button onClick={copyLink} className="shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] text-text-muted hover:text-text-secondary transition-colors">
                             {copied ? <Check className="h-4 w-4 text-azure" /> : <Copy className="h-4 w-4" />}
@@ -346,7 +346,7 @@ export default function UsersPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary">Members</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">Members</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
                         {members.length} member{members.length !== 1 ? 's' : ''} in this workspace
                     </p>
@@ -354,7 +354,7 @@ export default function UsersPage() {
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button
                         onClick={() => setShowInvite((v) => !v)}
-                        className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                        className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                     >
                         <UserPlus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         Invite
@@ -363,7 +363,7 @@ export default function UsersPage() {
                         onClick={() => void fetchMembers()}
                         disabled={loading}
                         aria-label="Refresh members"
-                        className="flex items-center justify-center rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors min-h-[44px] min-w-[44px] shrink-0"
+                        className="flex items-center justify-center rounded-sm border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors min-h-[44px] min-w-[44px] shrink-0"
                     >
                         <RefreshCw className={`h-4 w-4 sm:h-3.5 sm:w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
@@ -413,13 +413,13 @@ export default function UsersPage() {
                             <button
                                 key={m.userId}
                                 onClick={() => selectMember(m)}
-                                className={`text-left rounded-xl border p-3 transition-all shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${active
-                                    ? 'border-azure/50 bg-surface-1 shadow-sm shadow-azure/10'
+                                className={`text-left rounded-sm border p-3 transition-all shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${active
+                                    ? 'border-azure/50 bg-surface-1'
                                     : 'border-border bg-surface-1/40 hover:border-border'
                                     }`}
                             >
                                 <div className="flex items-center gap-2.5">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-azure/20 text-xs font-bold text-azure shrink-0">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-azure/20 text-xs font-medium text-azure shrink-0">
                                         {initials(m.name, m.email)}
                                     </div>
                                     <div className="min-w-0 flex-1">
@@ -436,7 +436,7 @@ export default function UsersPage() {
                 </div>
 
                 {/* Right — member detail */}
-                <div className="flex-1 rounded-xl border border-border bg-surface-1/40 overflow-y-auto max-w-[100vw] sm:max-w-none">
+                <div className="flex-1 rounded-sm border border-border bg-surface-1/40 overflow-y-auto max-w-[100vw] sm:max-w-none">
                     {!selected ? (
                         <div className="flex h-full items-center justify-center py-20">
                             <div className="text-center">
@@ -449,11 +449,11 @@ export default function UsersPage() {
                             {/* Member header */}
                             <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-4 border-b border-border">
                                 <div className="flex flex-row items-center gap-3">
-                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-azure/20 text-xl font-bold text-azure shrink-0">
+                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-azure/20 text-xl font-medium text-azure shrink-0">
                                         {initials(selected.name, selected.email)}
                                     </div>
                                     <div>
-                                        <h2 className="text-base font-semibold text-text-primary break-all">
+                                        <h2 className="text-base font-medium text-text-primary break-all">
                                             {selected.name ?? selected.email.split('@')[0]}
                                         </h2>
                                         <div className="flex items-center gap-1.5 mt-1">
@@ -478,7 +478,7 @@ export default function UsersPage() {
                                             <button
                                                 key={r}
                                                 onClick={() => setEditRole(r)}
-                                                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[16px] md:text-sm transition-all min-h-[44px] md:min-h-0 ${editRole === r
+                                                className={`flex items-center gap-2 rounded-sm border px-3 py-2 text-[16px] md:text-sm transition-all min-h-[44px] md:min-h-0 ${editRole === r
                                                     ? 'border-azure/50 bg-azure/10 text-azure'
                                                     : 'border-border text-text-muted hover:border-border'
                                                     }`}
@@ -496,19 +496,19 @@ export default function UsersPage() {
                             )}
 
                             {selected.role === 'owner' && (
-                                <div className="rounded-lg border border-yellow-800/30 bg-amber-dim/10 px-3 py-2.5 text-xs text-yellow-500/80">
+                                <div className="rounded-sm border border-yellow-800/30 bg-amber-dim/10 px-3 py-2.5 text-xs text-yellow-500/80">
                                     Workspace owner — role cannot be changed here. Transfer ownership in Settings &gt; Workspace.
                                 </div>
                             )}
 
                             {/* Member ID */}
-                            <div className="rounded-lg bg-canvas px-3 py-2 flex items-center justify-between">
+                            <div className="rounded-sm bg-canvas px-3 py-2 flex items-center justify-between">
                                 <span className="text-xs text-text-muted">User ID</span>
                                 <span className="font-mono text-[11px] text-text-muted">{selected.userId}</span>
                             </div>
 
                             {error && (
-                                <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2.5 text-sm text-red">
+                                <div role="alert" className="flex items-center gap-2 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2.5 text-sm text-red">
                                     <AlertCircle className="h-4 w-4 shrink-0" />{error}
                                 </div>
                             )}
@@ -519,7 +519,7 @@ export default function UsersPage() {
                                         <button
                                             onClick={() => void handleSaveRole()}
                                             disabled={saving || editRole === selected.role}
-                                            className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                                            className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                                         >
                                             {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-azure" /> : null}
                                             {saved ? 'Saved' : 'Save role'}
@@ -527,7 +527,7 @@ export default function UsersPage() {
                                         <button
                                             onClick={() => void handleRemove()}
                                             disabled={removing || ownerCount === members.length}
-                                            className="flex items-center justify-center gap-1.5 rounded-lg border border-red-800/40 bg-red-dim px-3 py-2 text-sm text-red hover:bg-red-dim disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                                            className="flex items-center justify-center gap-1.5 rounded-sm border border-red-800/40 bg-red-dim px-3 py-2 text-sm text-red hover:bg-red-dim disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                                         >
                                             {removing ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                                             Remove

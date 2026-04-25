@@ -43,7 +43,7 @@ function InlineMarkdown({ text }: { text: string }) {
             parts.push(<code key={key++} className="rounded bg-surface-2/60 px-1 py-0.5 font-mono text-[0.9em] text-text-secondary">{match[4].slice(1, -1)}</code>)
         } else if (match[5]) {
             // **bold**
-            parts.push(<strong key={key++} className="font-semibold">{match[5].slice(2, -2)}</strong>)
+            parts.push(<strong key={key++} className="font-medium">{match[5].slice(2, -2)}</strong>)
         } else if (match[6]) {
             // *italic*
             parts.push(<em key={key++}>{match[6].slice(1, -1)}</em>)
@@ -82,7 +82,7 @@ function PhaseIndicator({ phases, currentPhase }: {
                 aria-expanded={expanded}
                 aria-label={expanded ? 'Hide progress steps' : 'Show progress steps'}
                 onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-1/30 border border-border/20 hover:bg-surface-1/50 transition-all text-xs"
+                className="flex items-center gap-2 px-3 py-1 rounded-sm bg-surface-1/30 border border-border/20 hover:bg-surface-1/50 transition-all text-xs"
             >
                 <Loader2 className="h-3 w-3 text-azure animate-spin" />
                 <span className="text-text-secondary">
@@ -120,10 +120,10 @@ function AssetCard({ asset, taskId, onOpen }: { asset: TaskAsset; taskId?: strin
            type="button"
            aria-label={`Open ${asset.filename}`}
            onClick={() => onOpen?.(asset)}
-           className="group/asset flex flex-col gap-2 rounded-xl border border-border/60 bg-surface-2/50 p-2 cursor-pointer hover:bg-surface-2/40 transition-all list-none select-none text-left w-full max-w-full sm:max-w-[280px]"
+           className="group/asset flex flex-col gap-2 rounded-sm border border-border/60 bg-surface-2/50 p-2 cursor-pointer hover:bg-surface-2/40 transition-all list-none select-none text-left w-full max-w-full sm:max-w-[280px]"
         >
             {isImage && assetUrl && (
-                <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-surface-2 border border-border/30">
+                <div className="relative aspect-video w-full overflow-hidden rounded-sm bg-surface-2 border border-border/30">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={assetUrl} alt={asset.filename} loading="lazy" className="h-full w-full object-cover transition-transform group-hover/asset:scale-105" />
                 </div>
@@ -184,16 +184,16 @@ function MessageBubbleBase({
                         src={img.dataUrl}
                         alt={img.name}
                         loading="lazy"
-                        className="max-h-60 max-w-[300px] rounded-lg border border-border/50 object-cover shadow-sm transition-transform hover:scale-[1.02]"
+                        className="max-h-60 max-w-[300px] rounded-sm border border-border/50 object-cover transition-transform"
                     />
                 ) : (
                     <div
                         key={img.id}
-                        className="flex items-center gap-2 rounded-lg border border-border/60 bg-surface-2/60 px-3 py-2 text-xs text-text-secondary"
+                        className="flex items-center gap-2 rounded-sm border border-border/60 bg-surface-2/60 px-3 py-2 text-xs text-text-secondary"
                     >
                         <FileText className="h-3.5 w-3.5 shrink-0 text-azure" />
                         <span className="font-medium truncate max-w-[160px]">{img.name}</span>
-                        <span className="text-text-muted shrink-0 uppercase text-[11px] font-bold">{img.kind}</span>
+                        <span className="text-text-muted shrink-0 uppercase text-[11px] font-medium">{img.kind}</span>
                     </div>
                 )
             ))}
@@ -206,7 +206,7 @@ function MessageBubbleBase({
                 <div
                     key={doc.id}
                     title={doc.content}
-                    className="flex items-center gap-2 rounded-lg border border-border/60 bg-surface-2/60 px-3 py-2 text-xs text-text-secondary"
+                    className="flex items-center gap-2 rounded-sm border border-border/60 bg-surface-2/60 px-3 py-2 text-xs text-text-secondary"
                 >
                     <FileText className="h-3.5 w-3.5 shrink-0 text-text-secondary" />
                     <span className="font-medium truncate max-w-[160px]">{doc.name}</span>
@@ -234,7 +234,7 @@ function MessageBubbleBase({
             <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-surface-2' : ' '}`}>
                 {msg.role === 'user'
                     ? userInitial
-                        ? <span className="text-sm font-semibold text-text-primary select-none">{userInitial}</span>
+                        ? <span className="text-sm font-medium text-text-primary select-none">{userInitial}</span>
                         : <User className="h-4 w-4 text-text-secondary" />
                     : <PlexoMark className="h-6 w-6" idle={msg.status !== 'queued' && msg.status !== 'running'} working={msg.status === 'queued' || msg.status === 'running'} />
                 }
@@ -265,11 +265,11 @@ function MessageBubbleBase({
                     the thinking panel is already conveying progress. Only
                     render the bubble container when there's something to say. */}
                 {!(msg.role === 'agent' && (msg.status === 'running' || msg.status === 'queued')) && (
-                <div className={`relative w-full overflow-x-auto rounded-2xl px-4 py-2 text-[15px] leading-relaxed transition-all duration-300 ${msg.role === 'user'
-                    ? 'bg-azure text-white rounded-tr-sm shadow-md hover:shadow-lg hover:-translate-y-0.5'
+                <div className={`relative w-full overflow-x-auto rounded-sm px-4 py-2 text-[15px] leading-relaxed transition-all duration-300 ${msg.role === 'user'
+                    ? 'bg-azure text-white rounded-tr-sm'
                     : msg.status === 'failed'
                         ? 'bg-red-500/10 border border-red-500/20 text-red-200 rounded-tl-sm'
-                        : 'bg-surface-1/40 border border-border/40 text-text-primary rounded-tl-sm hover:bg-surface-1/60 hover:border-border/60 hover:-translate-y-0.5 shadow-sm hover:shadow-md'
+                        : 'bg-surface-1/40 border border-border/40 text-text-primary rounded-tl-sm hover:bg-surface-1/60 hover:border-border/60'
                     }`}>
                     {msg.status === 'failed' ? (
                         <div className="flex flex-col gap-2">
@@ -308,7 +308,7 @@ function MessageBubbleBase({
                                     type="button"
                                     aria-label="Create a coordinated project from this task"
                                     onClick={() => onExecute(msg.id, 'PROJECT', msg.actionDescription!)}
-                                    className="rounded-lg bg-azure px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                                    className="rounded-sm bg-azure px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
                                 >
                                     Create Project
                                 </button>
@@ -366,7 +366,7 @@ function MessageBubbleBase({
                     </button>
                 )}
 
-                <div className="flex items-center gap-2 text-[11px] text-text-muted">
+                <div className="flex items-center gap-2 text-[11px] text-text-muted font-mono">
                     <span>{fmt(msg.at)}</span>
                     {msg.taskId && (
                         <Link

@@ -153,18 +153,18 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
     return (
         <>
             <div
-                className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={`fixed inset-0 z-40 bg-black/50 transition-opacity ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={onClose}
             />
             <div
-                className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border bg-canvas shadow-2xl transition-transform duration-300 ${open ? 'translate-x-0' : 'translate-x-full'}`}
+                className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border bg-canvas transition-transform duration-300 ${open ? 'translate-x-0' : 'translate-x-full'}`}
             >
                 <div className="flex h-14 items-center justify-between border-b border-border px-5">
-                    <h2 className="text-sm font-semibold text-text-primary">New task</h2>
+                    <h2 className="text-sm font-medium text-text-primary">New task</h2>
                     <button
                         onClick={onClose}
                         aria-label="Close new task panel"
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:bg-surface-2 hover:text-text-secondary transition-colors"
+                        className="flex h-7 w-7 items-center justify-center rounded-sm text-text-muted hover:bg-surface-2 hover:text-text-secondary transition-colors"
                     >
                         <X className="h-4 w-4" />
                     </button>
@@ -180,7 +180,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                             onKeyDown={handleKeyDown}
                             placeholder="Describe the task the agent should execute…"
                             rows={5}
-                            className="rounded-xl border border-border bg-surface-1 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 resize-none"
+                            className="rounded-sm border border-border bg-surface-1 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 resize-none"
                         />
                         <p className="text-[11px] text-text-muted">⌘ Enter to submit</p>
                     </div>
@@ -193,7 +193,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                                     key={t}
                                     type="button"
                                     onClick={() => setType(t)}
-                                    className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition-colors ${type === t ? 'bg-azure text-white' : 'border border-border text-text-secondary hover:border-border hover:text-text-primary'}`}
+                                    className={`rounded-sm px-3 py-1.5 text-sm font-medium capitalize transition-colors ${type === t ? 'bg-azure text-white' : 'border border-border text-text-secondary hover:border-border hover:text-text-primary'}`}
                                 >
                                     {t}
                                 </button>
@@ -211,7 +211,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                             <select
                                 value={projectId}
                                 onChange={(e) => setProjectId(e.target.value)}
-                                className="rounded-xl border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure focus-ring"
+                                className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure focus-ring"
                             >
                                 <option value="">— No project (standalone) —</option>
                                 {sprints.map((s) => (
@@ -224,21 +224,21 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                     </div>
 
                     {error && (
-                        <p role="alert" className="rounded-lg border border-red-800/40 bg-red-dim px-3 py-2 text-xs text-red">{error}</p>
+                        <p role="alert" className="rounded-sm border border-red-800/40 bg-red-dim px-3 py-2 text-xs text-red">{error}</p>
                     )}
 
                     <div className="mt-auto flex justify-end gap-2.5 pt-2">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="rounded-lg border border-border px-4 py-2 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors"
+                            className="rounded-sm border border-border px-4 py-2 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={submitting || !description.trim()}
-                            className="flex items-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-white hover:bg-azure/90 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-2 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-white hover:bg-azure/90 disabled:opacity-50 transition-colors"
                         >
                             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                             Create task
@@ -407,7 +407,7 @@ export default function TasksPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary">Tasks</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">Tasks</h1>
                     <p className="mt-0.5 text-sm text-text-muted flex items-center gap-1.5">
                         {loading
                             ? <><Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /><span className="sr-only">Loading tasks…</span></>
@@ -419,7 +419,7 @@ export default function TasksPage() {
                         onClick={() => void load(true)}
                         disabled={refreshing}
                         aria-label="Refresh task list"
-                        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
                     >
                         <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
                         Refresh
@@ -428,7 +428,7 @@ export default function TasksPage() {
                         id="new-task-btn"
                         aria-label="Create new task"
                         onClick={() => setSheetOpen(true)}
-                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-sm font-medium text-white hover:bg-azure/90 transition-colors"
+                        className="flex items-center gap-1.5 rounded-sm bg-azure px-3 py-1.5 text-sm font-medium text-white hover:bg-azure/90 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                         New task
@@ -451,7 +451,7 @@ export default function TasksPage() {
 
             {/* Task list */}
             {fetchError && !tasksData ? (
-                <div className="rounded-xl border border-red-800/40 bg-red-dim p-8 text-center">
+                <div className="rounded-sm border border-red-800/40 bg-red-dim p-8 text-center">
                     <AlertCircle className="h-5 w-5 text-red mx-auto mb-2" />
                     <p className="text-sm text-red">
                         {String(fetchError?.message ?? '').toLowerCase().includes('provider')
@@ -471,13 +471,13 @@ export default function TasksPage() {
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
                 </div>
             ) : displayed.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-1/40 p-12 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 p-12 text-center">
                     {hasFilters ? (
                         <>
                             <p className="text-sm text-text-muted">No tasks match your filters</p>
                             <button
                                 onClick={clearAll}
-                                className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
+                                className="mt-3 flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
                             >
                                 <X className="h-3.5 w-3.5" /> Clear filters
                             </button>
@@ -503,7 +503,7 @@ export default function TasksPage() {
                             <div key={task.id} className="relative group/row">
                                 <Link
                                     href={`/app/tasks/${task.id}`}
-                                    className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-xl border border-border bg-surface-1/40 px-4 py-3.5 hover:border-azure/20 hover:bg-surface-1/70 transition-all group"
+                                    className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-sm border border-border bg-surface-1/40 px-4 py-3.5 hover:border-azure/20 hover:bg-surface-1/70 transition-all group"
                                 >
                                     <div className="flex items-start sm:items-center gap-4 flex-1 min-w-0">
                                         <StatusBadge status={task.status} size="sm" className="mt-0.5 sm:mt-0 shrink-0" />
@@ -511,7 +511,7 @@ export default function TasksPage() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap mb-1">
                                                 <span className="text-[11px] font-mono text-text-muted opacity-40 group-hover:opacity-100 transition-opacity">#{task.id.slice(0, 8)}</span>
-                                                <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-text-secondary uppercase tracking-tight">{task.type}</span>
+                                                <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-text-secondary uppercase tracking-tight">{task.type}</span>
                                                 <span className="rounded bg-surface-2/50 px-1.5 py-0.5 text-[10px] text-text-muted opacity-60 hidden sm:inline-block uppercase tracking-tight">{task.source}</span>
                                                 {projectLabel && (
                                                     <span className="flex items-center gap-1 rounded bg-azure/5 border border-azure/10 px-1.5 py-0.5 text-[11px] text-azure/80 max-w-[140px] sm:max-w-[180px]">
@@ -559,7 +559,7 @@ export default function TasksPage() {
                                     {isCancellable && (
                                         <button
                                             onClick={(e) => cancelTask(task.id, e)}
-                                            className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-red hover:border-red-500/30 hover:bg-red-dim shadow-xl transition-all"
+                                            className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-red hover:border-red-500/30 hover:bg-red-dim transition-all"
                                             title={`Cancel task ${task.id.slice(0, 8)}`}
                                             aria-label={`Cancel task ${task.id.slice(0, 8)}`}
                                         >

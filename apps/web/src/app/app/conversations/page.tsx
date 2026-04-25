@@ -28,10 +28,10 @@ export default async function ConversationsPage() {
         return (
             <div className="flex flex-col gap-6 max-w-3xl">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary">Conversations</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">Conversations</h1>
                     <p className="mt-0.5 text-sm text-text-muted">Agent task history from all channels</p>
                 </div>
-                <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center flex flex-col items-center gap-4">
+                <div className="rounded-sm border border-border bg-surface-1/40 py-16 text-center flex flex-col items-center gap-4">
                     <MessageSquare className="h-8 w-8 text-text-muted" />
                     <div>
                         <p className="text-sm font-medium text-text-secondary">No workspace configured</p>
@@ -40,7 +40,7 @@ export default async function ConversationsPage() {
                     <div className="flex flex-col items-center gap-2 mt-1">
                         <Link
                             href="/setup"
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                            className="inline-flex items-center gap-1.5 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
                         >
                             Create workspace <ArrowRight className="h-3.5 w-3.5" />
                         </Link>

@@ -298,13 +298,13 @@ export default function MemoryPage() {
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary">Memory</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">Memory</h1>
                     <p className="mt-0.5 text-sm text-text-muted">What Plexo knows about your work</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setTeachOpen(true)}
-                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                        className="flex items-center gap-1.5 rounded-sm bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         Teach Plexo
@@ -313,7 +313,7 @@ export default function MemoryPage() {
                         onClick={() => void loadEntries()}
                         disabled={loading}
                         aria-label="Refresh memory entries"
-                        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-text-muted hover:text-text-secondary transition-colors"
+                        className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-2 text-xs text-text-muted hover:text-text-secondary transition-colors"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
@@ -352,9 +352,9 @@ export default function MemoryPage() {
 
             {/* Teach Modal */}
             {teachOpen && (
-                <div className="rounded-xl border border-azure/30 bg-surface-1/80 p-4 space-y-3">
+                <div className="rounded-sm border border-azure/30 bg-surface-1/80 p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-text-primary">Teach Plexo something new</h3>
+                        <h3 className="text-sm font-medium text-text-primary">Teach Plexo something new</h3>
                         <button onClick={() => setTeachOpen(false)} aria-label="Close teach panel" className="text-text-muted hover:text-text-secondary">
                             <X className="h-4 w-4" />
                         </button>
@@ -363,7 +363,7 @@ export default function MemoryPage() {
                         value={teachContent}
                         onChange={e => setTeachContent(e.target.value)}
                         placeholder="Tell Plexo something it should remember about your work, preferences, or domain..."
-                        className="w-full rounded-lg border border-border bg-canvas px-4 py-3 text-sm text-text-primary placeholder:text-text-muted resize-none"
+                        className="w-full rounded-sm border border-border bg-canvas px-4 py-3 text-sm text-text-primary placeholder:text-text-muted resize-none"
                         rows={4}
                     />
 
@@ -371,7 +371,7 @@ export default function MemoryPage() {
                     {teachFiles.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                             {teachFiles.map((f, i) => (
-                                <div key={i} className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2/60 px-2.5 py-1.5 text-sm text-text-secondary">
+                                <div key={i} className="flex items-center gap-1.5 rounded-sm border border-border bg-surface-2/60 px-2.5 py-1.5 text-sm text-text-secondary">
                                     {f.preview ? (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img src={f.preview} alt={f.name} className="h-6 w-6 rounded object-cover" />
@@ -394,14 +394,14 @@ export default function MemoryPage() {
                             <select
                                 value={teachType}
                                 onChange={e => setTeachType(e.target.value)}
-                                className="rounded-lg border border-border bg-canvas px-2 py-1.5 text-xs text-text-secondary"
+                                className="rounded-sm border border-border bg-canvas px-2 py-1.5 text-xs text-text-secondary"
                             >
                                 <option value="pattern">Pattern / Preference</option>
                                 <option value="task">Task Context</option>
                                 <option value="session">Session Note</option>
                                 <option value="incident">Incident</option>
                             </select>
-                            <label className={`flex items-center gap-1 rounded-lg border border-border px-2 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:border-border cursor-pointer transition-colors ${teachFiles.length >= 5 ? 'opacity-40 pointer-events-none' : ''}`}>
+                            <label className={`flex items-center gap-1 rounded-sm border border-border px-2 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:border-border cursor-pointer transition-colors ${teachFiles.length >= 5 ? 'opacity-40 pointer-events-none' : ''}`}>
                                 <Paperclip className="h-3.5 w-3.5" />
                                 <span className="hidden sm:inline">Attach</span>
                                 <input
@@ -417,7 +417,7 @@ export default function MemoryPage() {
                         <button
                             onClick={() => void handleTeach()}
                             disabled={teaching || !teachContent.trim()}
-                            className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 disabled:opacity-40 transition-colors"
+                            className="flex items-center gap-1.5 rounded-sm bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 disabled:opacity-40 transition-colors"
                         >
                             {teaching ? 'Saving…' : 'Save to memory'}
                         </button>
@@ -433,7 +433,7 @@ export default function MemoryPage() {
                         <select
                             value={typeFilter}
                             onChange={e => setTypeFilter(e.target.value)}
-                            className="rounded-lg border border-border bg-canvas px-2 py-1.5 text-xs text-text-secondary"
+                            className="rounded-sm border border-border bg-canvas px-2 py-1.5 text-xs text-text-secondary"
                         >
                             <option value="">All types</option>
                             <option value="task">Task</option>
@@ -444,7 +444,7 @@ export default function MemoryPage() {
                         <select
                             value={tierFilter}
                             onChange={e => setTierFilter(e.target.value)}
-                            className="rounded-lg border border-border bg-canvas px-2 py-1.5 text-xs text-text-secondary"
+                            className="rounded-sm border border-border bg-canvas px-2 py-1.5 text-xs text-text-secondary"
                         >
                             <option value="">All tiers</option>
                             <option value="hot">Hot</option>
@@ -458,7 +458,7 @@ export default function MemoryPage() {
                     {loading ? (
                         <div className="space-y-3">
                             {Array.from({ length: 5 }).map((_, i) => (
-                                <div key={i} className="h-20 rounded-lg bg-surface-1/40 animate-pulse" />
+                                <div key={i} className="h-20 rounded-sm bg-surface-1/40 animate-pulse" />
                             ))}
                         </div>
                     ) : entries.length === 0 ? (
@@ -472,13 +472,13 @@ export default function MemoryPage() {
                     ) : (
                         <div className="space-y-2">
                             {entries.map(entry => (
-                                <div key={entry.id} className="rounded-lg border border-border bg-surface-1/40 p-3 group">
+                                <div key={entry.id} className="rounded-sm border border-border bg-surface-1/40 p-3 group">
                                     {editingId === entry.id ? (
                                         <div className="space-y-2">
                                             <textarea
                                                 value={editContent}
                                                 onChange={e => setEditContent(e.target.value)}
-                                                className="w-full rounded-lg border border-border bg-canvas px-4 py-3 text-sm text-text-primary resize-none"
+                                                className="w-full rounded-sm border border-border bg-canvas px-4 py-3 text-sm text-text-primary resize-none"
                                                 rows={3}
                                             />
                                             <div className="flex gap-2 justify-end">
@@ -503,7 +503,7 @@ export default function MemoryPage() {
                                                     <span className={`text-[11px] font-medium uppercase tracking-wider ${TYPE_STYLE[entry.type] ?? 'text-text-muted'}`}>
                                                         {entry.type}
                                                     </span>
-                                                    <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${TIER_STYLE[entry.tier] ?? TIER_STYLE.active}`}>
+                                                    <span className={`rounded-sm px-1.5 py-0.5 text-[11px] ${TIER_STYLE[entry.tier] ?? TIER_STYLE.active}`}>
                                                         {entry.tier}
                                                     </span>
                                                     <span className="text-[11px] text-text-muted">{timeAgo(entry.created_at)}</span>
@@ -563,12 +563,12 @@ export default function MemoryPage() {
                             value={searchQ}
                             onChange={e => setSearchQ(e.target.value)}
                             placeholder="Search memories by meaning..."
-                            className="flex-1 rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
+                            className="flex-1 rounded-sm border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
                         />
                         <button
                             type="submit"
                             disabled={searching || !searchQ.trim()}
-                            className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 disabled:opacity-40 transition-colors"
+                            className="flex items-center gap-1.5 rounded-sm bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 disabled:opacity-40 transition-colors"
                         >
                             <Search className="h-3.5 w-3.5" />
                             {searching ? 'Searching…' : 'Search'}
@@ -585,7 +585,7 @@ export default function MemoryPage() {
                     ) : (
                         <div className="space-y-2">
                             {searchResults.map((r, i) => (
-                                <div key={r.id} className="rounded-lg border border-border bg-surface-1/40 p-3">
+                                <div key={r.id} className="rounded-sm border border-border bg-surface-1/40 p-3">
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-[11px] font-medium text-azure">#{i + 1}</span>
                                         {r.similarity != null && (
@@ -623,13 +623,13 @@ export default function MemoryPage() {
                                                 { label: 'Tasks analyzed', value: mindset.taskCount ?? 0 },
                                                 { label: 'Last updated', value: mindset.updatedAt ? new Date(mindset.updatedAt).toLocaleDateString() : '—' },
                                             ].map(s => (
-                                                <div key={s.label} className="rounded-lg border border-border bg-surface-1/40 p-3">
+                                                <div key={s.label} className="rounded-sm border border-border bg-surface-1/40 p-3">
                                                     <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">{s.label}</p>
-                                                    <p className="mt-1 text-lg font-bold text-text-primary">{s.value}</p>
+                                                    <p className="mt-1 text-lg font-medium text-text-primary">{s.value}</p>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="rounded-xl border border-border bg-surface-1/40 p-4">
+                                        <div className="rounded-sm border border-border bg-surface-1/40 p-4">
                                             <MindsetObjectViewer mindset={mindset} />
                                         </div>
                                     </div>
@@ -641,27 +641,27 @@ export default function MemoryPage() {
                     </section>
 
                     {/* Golden Record Dashboard */}
-                    <section className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
+                    <section className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
                         <GoldenRecordDashboard workspaceId={WS_ID} />
                     </section>
 
                     {/* Region Map */}
-                    <section className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
+                    <section className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
                         <RegionMap workspaceId={WS_ID} />
                     </section>
 
                     {/* Attractor Browser */}
-                    <section className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
+                    <section className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
                         <AttractorBrowser workspaceId={WS_ID} />
                     </section>
 
                     {/* Promotion Log */}
-                    <section className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
+                    <section className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
                         <PromotionLog workspaceId={WS_ID} />
                     </section>
 
                     {/* Advanced SCL Tuning — collapsed by default (9.4) */}
-                    <section className="rounded-xl border border-border/60 bg-surface-1/40">
+                    <section className="rounded-sm border border-border/60 bg-surface-1/40">
                         <button
                             onClick={() => setTuningOpen((o) => !o)}
                             className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-text-primary hover:text-text-secondary transition-colors"
@@ -678,10 +678,10 @@ export default function MemoryPage() {
 
                     {/* Drift Warnings */}
                     {driftWarnings.length > 0 && (
-                        <section className="rounded-xl border border-amber/30 bg-amber/5 p-4 space-y-3">
+                        <section className="rounded-sm border border-amber/30 bg-amber/5 p-4 space-y-3">
                             <div className="flex items-center gap-2">
                                 <AlertTriangle className="h-4 w-4 text-amber" />
-                                <h3 className="text-sm font-bold text-text-primary">
+                                <h3 className="text-sm font-medium text-text-primary">
                                     {driftWarnings.length} drift warning{driftWarnings.length > 1 ? 's' : ''}
                                 </h3>
                             </div>
@@ -690,7 +690,7 @@ export default function MemoryPage() {
                             </p>
                             <div className="space-y-2">
                                 {driftWarnings.map(w => (
-                                    <div key={w.id} className="flex items-center justify-between rounded-lg border border-border bg-canvas p-3">
+                                    <div key={w.id} className="flex items-center justify-between rounded-sm border border-border bg-canvas p-3">
                                         <div>
                                             <p className="text-sm font-medium text-text-primary">{w.attractor_label}</p>
                                             <p className="text-xs text-text-muted">
@@ -700,13 +700,13 @@ export default function MemoryPage() {
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => void resolveDrift(w.id, 'reject')}
-                                                className="rounded-lg border border-border px-2.5 py-1.5 text-sm text-text-muted hover:text-text-secondary"
+                                                className="rounded-sm border border-border px-2.5 py-1.5 text-sm text-text-muted hover:text-text-secondary"
                                             >
                                                 Reject
                                             </button>
                                             <button
                                                 onClick={() => void resolveDrift(w.id, 'confirm')}
-                                                className="rounded-lg bg-azure px-2.5 py-1.5 text-sm font-medium text-text-primary hover:bg-azure/90"
+                                                className="rounded-sm bg-azure px-2.5 py-1.5 text-sm font-medium text-text-primary hover:bg-azure/90"
                                             >
                                                 Confirm
                                             </button>

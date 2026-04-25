@@ -96,7 +96,7 @@ function ClarificationPanel({ taskId, clarification }: {
 
     if (chosen !== null) {
         return (
-            <div role="status" aria-live="polite" className="rounded-xl border border-azure-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
+            <div role="status" aria-live="polite" className="rounded-sm border border-azure-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
                 <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Alternative queued — redirecting to new task…
             </div>
@@ -104,14 +104,14 @@ function ClarificationPanel({ taskId, clarification }: {
     }
 
     return (
-        <div className="rounded-xl border border-amber-900/40 bg-amber-dim/10 overflow-hidden">
+        <div className="rounded-sm border border-amber-900/40 bg-amber-dim/10 overflow-hidden">
             {/* Header */}
             <div className="flex items-start gap-3 border-b border-amber-900/30 px-4 py-3.5">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber/15 text-amber mt-0.5">
                     <Lightbulb className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-amber-300">Capability gap detected</p>
+                    <p className="text-[13px] font-medium text-amber-300">Capability gap detected</p>
                     <p className="text-[12px] text-amber/80 mt-0.5 leading-relaxed">{clarification.message}</p>
                 </div>
             </div>
@@ -125,7 +125,7 @@ function ClarificationPanel({ taskId, clarification }: {
                             key={idx}
                             onClick={() => void handleChoose(idx)}
                             disabled={choosing !== null}
-                            className="group flex items-center gap-3 rounded-lg border border-border/60 bg-surface-1/60 px-3.5 py-3 text-left hover:bg-surface-2/80 hover:border-border/60 transition-all disabled:opacity-50"
+                            className="group flex items-center gap-3 rounded-sm border border-border/60 bg-surface-1/60 px-3.5 py-3 text-left hover:bg-surface-2/80 hover:border-border/60 transition-all disabled:opacity-50"
                         >
                             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-azure-500/15 text-azure">
                                 {choosing === idx ? (
@@ -229,7 +229,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked', emb
 
     if (retried) {
         return (
-            <div role="status" aria-live="polite" className="rounded-xl border border-azure-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
+            <div role="status" aria-live="polite" className="rounded-sm border border-azure-800/40 bg-azure/30 px-4 py-3 flex items-center gap-2 text-sm text-azure">
                 <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
                 Task re-queued — redirecting…
             </div>
@@ -238,7 +238,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked', emb
 
     if (dismissed) {
         return (
-            <div role="status" aria-live="polite" className="rounded-xl border border-border/40 bg-surface-1/30 px-4 py-3 text-sm text-text-muted">
+            <div role="status" aria-live="polite" className="rounded-sm border border-border/40 bg-surface-1/30 px-4 py-3 text-sm text-text-muted">
                 Task dismissed.
             </div>
         )
@@ -252,7 +252,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked', emb
             )}
 
             {/* Standard blocked or failed panel */}
-            <div className={`${embedded ? '' : 'rounded-xl border'} overflow-hidden ${status === 'blocked' ? `${embedded ? '' : 'border-red-900/40'} bg-red-dim` : `${embedded ? '' : 'border-border/60'} bg-surface-1/30`}`}>
+            <div className={`${embedded ? '' : 'rounded-sm border'} overflow-hidden ${status === 'blocked' ? `${embedded ? '' : 'border-red-900/40'} bg-red-dim` : `${embedded ? '' : 'border-border/60'} bg-surface-1/30`}`}>
                 {/* Header — hidden when embedded inside a unified error section */}
                 {!embedded && (
                 <div className={`flex items-center gap-2.5 border-b px-4 py-3 ${status === 'blocked' || status === 'failed' ? 'border-red-900/30' : 'border-border/40'}`}>
@@ -262,7 +262,7 @@ export function BlockedActions({ taskId, outcomeSummary, status = 'blocked', emb
                         <XCircle className="h-4 w-4 shrink-0 text-text-muted" />
                     )}
                     <div>
-                        <p className={`text-[13px] font-semibold ${status === 'blocked' || status === 'failed' ? 'text-red-300' : 'text-text-secondary'}`}>
+                        <p className={`text-[13px] font-medium ${status === 'blocked' || status === 'failed' ? 'text-red-300' : 'text-text-secondary'}`}>
                             {status === 'blocked'
                                 ? 'This task is blocked'
                                 : status === 'failed'

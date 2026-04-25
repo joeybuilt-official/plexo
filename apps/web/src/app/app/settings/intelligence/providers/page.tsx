@@ -889,24 +889,24 @@ export default function ProvidersPage() {
         <>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 border-b border-border">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 mt-1 sm:mt-0 rounded-lg bg-surface-2 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 mt-1 sm:mt-0 rounded-sm bg-surface-2 flex items-center justify-center shrink-0">
                         <selectedCatalog.icon className="h-5 w-5 text-text-secondary" />
                     </div>
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h2 className="text-base font-semibold text-text-primary">{selectedCatalog.name}</h2>
+                            <h2 className="text-base font-medium text-text-primary">{selectedCatalog.name}</h2>
                             {selectedCatalog.free && (
-                                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wide bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                                     Free tier
                                 </span>
                             )}
                             {!selectedCatalog.free && (
-                                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide bg-surface-2/40 text-text-secondary border border-border">
+                                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wide bg-surface-2/40 text-text-secondary border border-border">
                                     Paid
                                 </span>
                             )}
                             {isConnected && selectedInstance && (
-                                <span className="inline-flex items-center gap-1 rounded-full border border-azure/30 bg-azure/15 px-1.5 py-0.5 text-[11px] font-medium text-azure">
+                                <span className="inline-flex items-center gap-1 rounded-sm border border-azure/30 bg-azure/15 px-1.5 py-0.5 text-[11px] font-medium text-azure">
                                     <CheckCircle2 className="h-2.5 w-2.5" />
                                     Chain #{chainPositionByType.get(selectedCatalog.type)}
                                 </span>
@@ -920,7 +920,7 @@ export default function ProvidersPage() {
                         <button
                             onClick={() => void handleTest(selectedInstance)}
                             disabled={testing}
-                            className="flex items-center justify-center gap-1 rounded-lg border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0"
+                            className="flex items-center justify-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0"
                         >
                             {testing ? <Loader2 className="h-3 w-3 animate-spin" />
                                 : testResult?.ok ? <CheckCircle2 className="h-3 w-3 text-azure" />
@@ -933,7 +933,7 @@ export default function ProvidersPage() {
                         href={selectedCatalog.docsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-1 rounded-lg border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0"
+                        className="flex items-center justify-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0"
                     >
                         <ExternalLink className="h-3 w-3" />
                         Docs
@@ -944,7 +944,7 @@ export default function ProvidersPage() {
                                 <button
                                     onClick={() => void handleRemove(selectedInstance)}
                                     disabled={removing}
-                                    className="flex items-center justify-center gap-1.5 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 whitespace-nowrap"
+                                    className="flex items-center justify-center gap-1.5 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 whitespace-nowrap"
                                 >
                                     <Trash2 className="h-3 w-3" />
                                     {removing ? 'Removing…' : 'Confirm'}
@@ -959,7 +959,7 @@ export default function ProvidersPage() {
                         ) : (
                             <button
                                 onClick={() => setConfirmRemove(true)}
-                                className="flex items-center justify-center gap-1.5 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors min-h-[44px] sm:min-h-0 whitespace-nowrap"
+                                className="flex items-center justify-center gap-1.5 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors min-h-[44px] sm:min-h-0 whitespace-nowrap"
                             >
                                 <Trash2 className="h-3 w-3" />
                                 Remove
@@ -979,7 +979,7 @@ export default function ProvidersPage() {
 
                 {/* Test result — shown prominently right after description */}
                 {testResult && (
-                    <div className={`rounded-lg border px-4 py-3 ${testResult.ok ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'}`}>
+                    <div className={`rounded-sm border px-4 py-3 ${testResult.ok ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'}`}>
                         <div className="flex items-start gap-2">
                             {testResult.ok
                                 ? <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
@@ -1018,13 +1018,13 @@ export default function ProvidersPage() {
                             return (
                                 <div className="flex flex-col gap-1.5">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Active model</label>
+                                        <label className="text-xs font-medium uppercase tracking-wider text-text-muted">Active model</label>
                                         {savingModel && <span className="text-[10px] text-azure animate-pulse">Saving...</span>}
                                     </div>
                                     <select
                                         value={selectedInstance.selectedModel || modelOptions[0]}
                                         onChange={(e) => void handleModelChange(selectedInstance.id, e.target.value)}
-                                        className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary font-mono focus:border-azure focus-ring"
+                                        className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary font-mono focus:border-azure focus-ring"
                                     >
                                         {modelOptions.map((m) => (
                                             <option key={m} value={m}>{m}</option>
@@ -1036,10 +1036,10 @@ export default function ProvidersPage() {
 
                         {userProviders.length > 1 && (
                             <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Chain position</label>
-                                <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-1/60 px-3 py-2">
+                                <label className="text-xs font-medium uppercase tracking-wider text-text-muted">Chain position</label>
+                                <div className="flex items-center gap-2 rounded-sm border border-border bg-surface-1/60 px-3 py-2">
                                     <span className="text-sm text-text-secondary flex-1">
-                                        Position <span className="font-semibold text-text-primary">{chainPositionByType.get(selectedCatalog.type)}</span> of {userProviders.length}
+                                        Position <span className="font-medium text-text-primary">{chainPositionByType.get(selectedCatalog.type)}</span> of {userProviders.length}
                                     </span>
                                     <button
                                         onClick={() => moveInChain(selectedCatalog.type, -1)}
@@ -1066,8 +1066,8 @@ export default function ProvidersPage() {
 
                         {!selectedInstance.endpointUrl && (
                             <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">API key</label>
-                                <div className="rounded-lg border border-border bg-surface-1/60 px-3 py-2 flex items-center justify-between gap-3">
+                                <label className="text-xs font-medium uppercase tracking-wider text-text-muted">API key</label>
+                                <div className="rounded-sm border border-border bg-surface-1/60 px-3 py-2 flex items-center justify-between gap-3">
                                     <span className="font-mono text-xs text-text-muted">
                                         {selectedCatalog.keyPrefix || ''}••••••••
                                     </span>
@@ -1088,8 +1088,8 @@ export default function ProvidersPage() {
 
                         {selectedInstance.endpointUrl && (
                             <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Endpoint</label>
-                                <div className="rounded-lg border border-border bg-surface-1/60 px-3 py-2">
+                                <label className="text-xs font-medium uppercase tracking-wider text-text-muted">Endpoint</label>
+                                <div className="rounded-sm border border-border bg-surface-1/60 px-3 py-2">
                                     <span className="font-mono text-xs text-text-secondary">{selectedInstance.endpointUrl}</span>
                                 </div>
                             </div>
@@ -1102,8 +1102,8 @@ export default function ProvidersPage() {
                 {!isConnected && (
                     <>
                         {selectedCatalog.free && (
-                            <div className="rounded-lg border border-emerald-800/40 bg-emerald-900/10 px-3 py-3">
-                                <p className="text-xs font-semibold text-emerald-400 mb-1">Free tier available</p>
+                            <div className="rounded-sm border border-emerald-800/40 bg-emerald-900/10 px-3 py-3">
+                                <p className="text-xs font-medium text-emerald-400 mb-1">Free tier available</p>
                                 <p className="text-[11px] text-emerald-400/80">{selectedCatalog.pricing}</p>
                             </div>
                         )}
@@ -1112,7 +1112,7 @@ export default function ProvidersPage() {
                             {/* Base URL input — shown for base-url and base-url-and-key auth types */}
                             {(selectedCatalog.authType === 'base-url' || selectedCatalog.authType === 'base-url-and-key') && (
                                 <div className="flex flex-col gap-1.5 mb-1">
-                                    <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                                    <label className="text-xs font-medium uppercase tracking-wider text-text-muted">
                                         Server URL
                                     </label>
                                     <input
@@ -1121,7 +1121,7 @@ export default function ProvidersPage() {
                                         onChange={(e) => { setBaseUrlInput(e.target.value); setConnectError(null) }}
                                         placeholder="http://localhost:11434"
                                         autoComplete="off"
-                                        className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary font-mono placeholder:text-text-muted focus:border-azure focus-ring"
+                                        className="min-h-[44px] rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary font-mono placeholder:text-text-muted focus:border-azure focus-ring"
                                     />
                                 </div>
                             )}
@@ -1129,7 +1129,7 @@ export default function ProvidersPage() {
                             {/* API key input — shown for api-key (default) and base-url-and-key auth types */}
                             {(selectedCatalog.authType ?? 'api-key') !== 'base-url' && (
                                 <div className="flex flex-col gap-1.5">
-                                    <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                                    <label className="text-xs font-medium uppercase tracking-wider text-text-muted">
                                         {selectedCatalog.authType === 'base-url-and-key' ? 'API key (optional)' : 'API key'}
                                     </label>
                                     <input
@@ -1138,7 +1138,7 @@ export default function ProvidersPage() {
                                         onChange={(e) => { setApiKeyInput(e.target.value); setConnectError(null) }}
                                         placeholder={selectedCatalog.keyPrefix ? `${selectedCatalog.keyPrefix}...` : 'Your API key'}
                                         autoComplete="off"
-                                        className="min-h-[44px] rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary font-mono placeholder:text-text-muted focus:border-azure focus-ring"
+                                        className="min-h-[44px] rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary font-mono placeholder:text-text-muted focus:border-azure focus-ring"
                                     />
                                 </div>
                             )}
@@ -1149,7 +1149,7 @@ export default function ProvidersPage() {
                                         href={selectedCatalog.getKeyUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px]"
+                                        className="inline-flex items-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px]"
                                     >
                                         <ExternalLink className="h-3 w-3" />
                                         {selectedCatalog.authType === 'base-url' ? 'Download Ollama' : 'Get API key'}
@@ -1161,7 +1161,7 @@ export default function ProvidersPage() {
                                                 : selectedCatalog.authType === 'base-url-and-key' ? !baseUrlInput.trim()
                                                     : !apiKeyInput.trim()
                                         )}
-                                        className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] flex-1 sm:flex-initial"
+                                        className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50 min-h-[44px] flex-1 sm:flex-initial"
                                     >
                                         {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
                                         {connecting ? 'Connecting…' : 'Connect'}
@@ -1174,7 +1174,7 @@ export default function ProvidersPage() {
                                 </p>
                             )}
                             {connectError && (
-                                <div role="alert" className="rounded-lg border border-red-800/40 bg-red-dim px-3 py-2">
+                                <div role="alert" className="rounded-sm border border-red-800/40 bg-red-dim px-3 py-2">
                                     <p className="text-xs text-red">{connectError}</p>
                                 </div>
                             )}
@@ -1206,10 +1206,10 @@ export default function ProvidersPage() {
                     if (emptyDiscovery) {
                         return (
                             <div>
-                                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
+                                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-text-muted">
                                     Available models
                                 </h3>
-                                <div className="rounded-lg border border-amber-800/40 bg-amber-900/10 px-3 py-2">
+                                <div className="rounded-sm border border-amber-800/40 bg-amber-900/10 px-3 py-2">
                                     <p className="text-xs text-amber-300">
                                         No models available on this API key — check your provider dashboard.
                                     </p>
@@ -1223,7 +1223,7 @@ export default function ProvidersPage() {
                     return (
                         <div>
                             <div className="mb-2 flex items-center gap-2">
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                                <h3 className="text-xs font-medium uppercase tracking-wider text-text-muted">
                                     Available models
                                 </h3>
                                 {discovering && (
@@ -1273,8 +1273,8 @@ export default function ProvidersPage() {
                 })()}
 
                 {!selectedCatalog.free && (
-                    <div className="rounded-lg border border-border/60 bg-surface-1/40 px-3 py-2.5">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-0.5">Pricing</p>
+                    <div className="rounded-sm border border-border/60 bg-surface-1/40 px-3 py-2.5">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted mb-0.5">Pricing</p>
                         <p className="text-xs text-text-secondary">{selectedCatalog.pricing}</p>
                     </div>
                 )}
@@ -1287,7 +1287,7 @@ export default function ProvidersPage() {
             <div className="max-w-sm text-center flex flex-col gap-3">
                 <BrainCircuit className="mx-auto h-10 w-10 text-text-muted/60" />
                 <div>
-                    <h2 className="text-base font-semibold text-text-primary">Choose a provider</h2>
+                    <h2 className="text-base font-medium text-text-primary">Choose a provider</h2>
                     <p className="text-sm text-text-muted mt-1">
                         Pick an AI provider from the list to connect it or manage its settings.
                     </p>
@@ -1311,9 +1311,9 @@ export default function ProvidersPage() {
             <button
                 key={c.type}
                 onClick={() => setSelectedType(c.type)}
-                className={`text-left rounded-xl border px-3 py-2.5 transition-all text-sm shrink-0 min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${
+                className={`text-left rounded-sm border px-3 py-2.5 transition-all text-sm shrink-0 min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${
                     selected
-                        ? 'border-azure/50 bg-surface-1 shadow-sm shadow-azure/10'
+                        ? 'border-azure/50 bg-surface-1'
                         : 'border-border/60 bg-surface-1/30 hover:border-border hover:bg-surface-1/60'
                 }`}
             >
@@ -1329,7 +1329,7 @@ export default function ProvidersPage() {
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                         {chainPos !== undefined && (
-                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-azure/15 text-[10px] font-bold text-azure">
+                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-azure/15 text-[10px] font-medium text-azure">
                                 {chainPos}
                             </span>
                         )}
@@ -1368,7 +1368,7 @@ export default function ProvidersPage() {
                 <div className="w-full md:w-[280px] shrink-0 flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-y-auto pb-2 md:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {loading ? (
                         <div className="flex items-center justify-center gap-2 py-8 min-w-[200px] shrink-0 text-xs text-text-muted">
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-azure" aria-hidden="true" />
+                            <span className="font-mono text-azure animate-pulse" aria-hidden="true">_</span>
                             Loading providers…
                         </div>
                     ) : sorted.length === 0 ? (
@@ -1380,7 +1380,7 @@ export default function ProvidersPage() {
                     )}
                 </div>
 
-                <div className="flex-1 rounded-xl border border-border bg-surface-1/40 flex flex-col overflow-hidden min-h-0 max-w-[100vw] sm:max-w-none">
+                <div className="flex-1 rounded-sm border border-border bg-surface-1/40 flex flex-col overflow-hidden min-h-0 max-w-[100vw] sm:max-w-none">
                     {detail ?? emptyDetail}
                 </div>
             </div>

@@ -69,11 +69,11 @@ export function ParallelStatusPanel() {
     if (!status) return null
 
     return (
-        <div className="rounded-xl border border-border bg-surface-1/40 p-4 sm:p-5">
+        <div className="rounded-sm border border-border bg-surface-1/40 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     <Server className="h-4 w-4 text-azure" />
-                    <h2 className="text-sm font-semibold text-text-primary">Parallel Execution Control</h2>
+                    <h2 className="text-sm font-medium text-text-primary">Parallel Execution Control</h2>
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-text-muted">{status.slots.length} / {status.maxSlots} slots</span>
@@ -82,14 +82,14 @@ export function ParallelStatusPanel() {
 
             <div className="flex flex-col gap-3">
                 {status.slots.length === 0 ? (
-                    <div className="text-xs text-text-muted italic py-2 border border-border-subtle rounded-lg text-center bg-canvas/30">
+                    <div className="text-xs text-text-muted italic py-2 border border-border-subtle rounded-sm text-center bg-canvas/30">
                         No active parallel tasks. Empty slots ready.
                     </div>
                 ) : (
                     status.slots.map((slot) => {
                         const remaining = Math.max(0, Math.floor(slot.expiresAt - Date.now() / 1000))
                         return (
-                            <div key={slot.taskId} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-surface-2/20">
+                            <div key={slot.taskId} className="flex items-center justify-between p-3 rounded-sm border border-border/50 bg-surface-2/20">
                                 <div className="flex items-center gap-3">
                                     <Activity className="h-4 w-4 text-azure" />
                                     <div>
@@ -115,7 +115,7 @@ export function ParallelStatusPanel() {
                 <button
                     onClick={() => void claimBatch()}
                     disabled={claiming}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-azure-dim text-azure hover:bg-azure-dim hover:text-azure py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-sm bg-azure-dim text-azure hover:bg-azure-dim hover:text-azure py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
                 >
                     <Play className={`h-3.5 w-3.5 ${claiming ? 'animate-pulse' : ''}`} />
                     Claim Batch
@@ -123,7 +123,7 @@ export function ParallelStatusPanel() {
                 <button
                     onClick={() => void clearSlots()}
                     disabled={clearing}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-surface-2 text-text-secondary hover:bg-red-900/40 hover:text-red px-4 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 rounded-sm bg-surface-2 text-text-secondary hover:bg-red-900/40 hover:text-red px-4 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
                 >
                     <Shield className="h-3.5 w-3.5" />
                     Force Clear

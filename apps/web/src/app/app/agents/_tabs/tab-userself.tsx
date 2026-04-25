@@ -13,7 +13,7 @@ function InfoSection({ label, icon, children }: { label: string; icon: React.Rea
         <div>
             <div className="flex items-center gap-2 mb-3">
                 <span className="text-text-muted">{icon}</span>
-                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">{label}</p>
+                <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">{label}</p>
             </div>
             {children}
         </div>
@@ -53,7 +53,7 @@ export default function UserSelfTab({ workspaceId }: { workspaceId: string }) {
 
     if (!data) {
         return (
-            <div className="rounded-2xl border border-border bg-surface-1/60 p-7">
+            <div className="rounded-sm border border-border bg-surface-1/60 p-7">
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                     <User className="h-10 w-10 text-text-muted" />
                     <div className="text-center">
@@ -69,14 +69,14 @@ export default function UserSelfTab({ workspaceId }: { workspaceId: string }) {
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="rounded-xl border border-azure-800/30 bg-azure/10 px-4 py-3 flex items-start gap-3">
+            <div className="rounded-sm border border-azure-800/30 bg-azure/10 px-4 py-3 flex items-start gap-3">
                 <User className="h-4 w-4 text-azure shrink-0 mt-0.5" />
                 <p className="text-xs text-azure/70">
                     The UserSelf graph persists across all tools and sessions. Tools contribute via structured proposals; the host resolves conflicts.
                 </p>
             </div>
 
-            <div className="rounded-2xl border border-border bg-surface-1/60 p-7 flex flex-col gap-6">
+            <div className="rounded-sm border border-border bg-surface-1/60 p-7 flex flex-col gap-6">
                 <InfoSection label="Identity" icon={<User className="h-4 w-4" />}>
                     <div className="grid grid-cols-2 gap-3">
                         {data.identity?.name && <KV label="Name" value={data.identity.name} />}
@@ -106,7 +106,7 @@ export default function UserSelfTab({ workspaceId }: { workspaceId: string }) {
                     <InfoSection label="Contexts" icon={<BookOpen className="h-4 w-4" />}>
                         <div className="flex flex-col gap-2">
                             {Object.entries(data.contexts).map(([key, ctx]) => (
-                                <div key={key} className="flex items-start gap-3 rounded-lg border border-border bg-canvas px-3 py-2">
+                                <div key={key} className="flex items-start gap-3 rounded-sm border border-border bg-canvas px-3 py-2">
                                     <span className="text-xs font-mono font-medium text-text-secondary">{key}</span>
                                     <span className="text-xs text-text-muted flex-1">{ctx.summary}</span>
                                     <span className="text-[11px] text-text-muted shrink-0">

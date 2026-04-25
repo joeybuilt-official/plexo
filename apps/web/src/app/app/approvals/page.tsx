@@ -320,9 +320,9 @@ export default function ApprovalsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <div className="flex items-center gap-2">
-                        <h1 className="text-2xl font-bold tracking-tight text-text-primary">Approvals</h1>
+                        <h1 className="text-2xl font-medium tracking-tight text-text-primary">Approvals</h1>
                         {items.length > 0 && (
-                            <span className="rounded-full bg-amber/15 border border-amber-700/40 px-2 py-0.5 text-xs font-semibold text-amber">
+                            <span className="rounded-sm bg-amber/15 border border-amber-700/40 px-2 py-0.5 text-xs font-medium text-amber">
                                 {items.length}
                             </span>
                         )}
@@ -336,7 +336,7 @@ export default function ApprovalsPage() {
                         onClick={() => void fetchApprovals()}
                         disabled={loading}
                         aria-label="Refresh approvals"
-                        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors disabled:opacity-40"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
                         <span className="hidden sm:inline">Refresh</span>
@@ -346,7 +346,7 @@ export default function ApprovalsPage() {
 
             {/* Toast */}
             {toast && (
-                <div className={`rounded-lg border px-4 py-2.5 text-sm ${toast.ok ? 'border-azure/30 bg-azure/20 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
+                <div className={`rounded-sm border px-4 py-2.5 text-sm ${toast.ok ? 'border-azure/30 bg-azure/20 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
                     {toast.text}
                 </div>
             )}
@@ -370,7 +370,7 @@ export default function ApprovalsPage() {
 
             {/* Bulk actions */}
             {filtered.length > 1 && (
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-1/50 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-sm border border-border bg-surface-1/50 px-3 py-2">
                     <span className="text-xs text-text-muted flex-1">
                         {filtered.length} {filterValues.risk || search ? 'matching' : 'pending'} approval{filtered.length !== 1 ? 's' : ''}
                     </span>
@@ -400,15 +400,15 @@ export default function ApprovalsPage() {
                     Loading…
                 </div>
             ) : items.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-1/40 p-12 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 p-12 text-center">
                     <CheckCircle className="h-10 w-10 text-text-muted mx-auto mb-3" />
                     <p className="text-sm font-medium text-text-secondary">Nothing needs your approval right now</p>
                     <p className="text-xs text-text-muted mt-1">The agent will ask before performing irreversible operations.</p>
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-1/40 py-12 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 py-12 text-center">
                     <p className="text-sm text-text-muted">No results match your filters.</p>
-                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto">
+                    <button onClick={clearAll} className="mt-3 flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto">
                         Clear filters
                     </button>
                 </div>
@@ -420,7 +420,7 @@ export default function ApprovalsPage() {
                         const isActing = !!acting[item.id]
 
                         return (
-                            <div key={item.id} className="rounded-xl border border-border bg-surface-1/60 overflow-hidden">
+                            <div key={item.id} className="rounded-sm border border-border bg-surface-1/60 overflow-hidden">
                                 {/* Row — always visible */}
                                 <button
                                     onClick={() => toggleExpand(item.id)}
@@ -435,7 +435,7 @@ export default function ApprovalsPage() {
                                     </span>
 
                                     {/* Risk label */}
-                                    <span className={`hidden sm:inline-flex items-center gap-1 shrink-0 text-[11px] font-semibold ${risk.color}`}>
+                                    <span className={`hidden sm:inline-flex items-center gap-1 shrink-0 text-[11px] font-medium ${risk.color}`}>
                                         <AlertTriangle className="h-3 w-3" />
                                         {risk.label}
                                     </span>
@@ -529,7 +529,7 @@ export default function ApprovalsPage() {
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] uppercase tracking-wide text-text-muted mb-0.5">Risk</p>
-                                                    <span className={`text-xs font-semibold ${risk.color}`}>{risk.label}</span>
+                                                    <span className={`text-xs font-medium ${risk.color}`}>{risk.label}</span>
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] uppercase tracking-wide text-text-muted mb-0.5">Requested</p>
@@ -548,7 +548,7 @@ export default function ApprovalsPage() {
                                             <button
                                                 onClick={() => void decide(item.id, 'approve')}
                                                 disabled={isActing}
-                                                className="flex items-center gap-1.5 rounded-lg bg-azure-600 px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure disabled:opacity-50 transition-colors"
+                                                className="flex items-center gap-1.5 rounded-sm bg-azure-600 px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure disabled:opacity-50 transition-colors"
                                             >
                                                 <CheckCircle className="h-3.5 w-3.5" />
                                                 {isActing ? 'Processing…' : 'Approve'}
@@ -556,7 +556,7 @@ export default function ApprovalsPage() {
                                             <button
                                                 onClick={() => void approveAndRemember(item.id)}
                                                 disabled={isActing}
-                                                className="flex items-center gap-1.5 rounded-lg border border-emerald-700/40 bg-surface-2 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-surface-2/40 disabled:opacity-50 transition-colors"
+                                                className="flex items-center gap-1.5 rounded-sm border border-emerald-700/40 bg-surface-2 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-surface-2/40 disabled:opacity-50 transition-colors"
                                             >
                                                 <CheckCheck className="h-3.5 w-3.5" />
                                                 Approve & Remember
@@ -564,7 +564,7 @@ export default function ApprovalsPage() {
                                             <button
                                                 onClick={() => void decide(item.id, 'reject')}
                                                 disabled={isActing}
-                                                className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-secondary hover:border-red-800/60 hover:text-red disabled:opacity-50 transition-colors"
+                                                className="flex items-center gap-1.5 rounded-sm border border-border px-4 py-2 text-sm font-medium text-text-secondary hover:border-red-800/60 hover:text-red disabled:opacity-50 transition-colors"
                                             >
                                                 <XCircle className="h-3.5 w-3.5" />
                                                 Reject
@@ -579,7 +579,7 @@ export default function ApprovalsPage() {
             )}
 
             {/* Info panel */}
-            <div className="rounded-xl border border-border bg-surface-1/30 p-4">
+            <div className="rounded-sm border border-border bg-surface-1/30 p-4">
                 <div className="flex items-start gap-3">
                     <ShieldAlert className="h-4 w-4 text-text-muted shrink-0 mt-0.5" />
                     <div>
@@ -593,14 +593,14 @@ export default function ApprovalsPage() {
 
             {/* Standing Approvals (§23) */}
             {standingApprovals.length > 0 && (
-                <div className="rounded-xl border border-border bg-surface-1/30 p-4">
-                    <p className="text-xs font-semibold text-text-secondary mb-3">Standing Approvals</p>
+                <div className="rounded-sm border border-border bg-surface-1/30 p-4">
+                    <p className="text-xs font-medium text-text-secondary mb-3">Standing Approvals</p>
                     <p className="text-xs text-text-muted mb-3">
                         These rules auto-approve future actions matching the same pattern. Created via &ldquo;Approve &amp; Remember&rdquo;.
                     </p>
                     <div className="flex flex-col gap-2">
                         {standingApprovals.map((sa) => (
-                            <div key={sa.id} className="flex items-center gap-3 rounded-lg border border-border bg-canvas px-3 py-2">
+                            <div key={sa.id} className="flex items-center gap-3 rounded-sm border border-border bg-canvas px-3 py-2">
                                 <span className="rounded border border-emerald-700/40 bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-emerald-400">{sa.trigger}</span>
                                 <span className="text-xs text-text-secondary font-mono flex-1 truncate">{sa.actionPattern}</span>
                                 <span className="text-[11px] text-text-muted shrink-0">{new Date(sa.createdAt).toLocaleDateString()}</span>

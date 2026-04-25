@@ -15,7 +15,7 @@ export default function DashboardError({
     return (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
             <PlexoMark className="h-10 w-10 text-text-muted" />
-            <h2 className="text-lg font-semibold text-text-primary">Something went wrong</h2>
+            <h2 className="text-lg font-medium text-text-primary">Something went wrong</h2>
             <p className="max-w-md text-center text-sm text-text-muted">
                 An unexpected error occurred. Try again or head back to the dashboard.
             </p>

@@ -198,19 +198,19 @@ export function AccountClient() {
     return (
         <div className="mx-auto w-full max-w-2xl space-y-8 p-4 sm:p-6">
             <header className="space-y-1">
-                <h1 className="text-xl font-semibold tracking-tight text-text-primary">Account</h1>
+                <h1 className="text-xl font-medium tracking-tight text-text-primary">Account</h1>
                 <p className="text-sm text-text-muted">Your Joeybuilt identity. Used across every Joeybuilt app.</p>
             </header>
 
             {error && (
-                <div className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
+                <div className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
                     {error}
                 </div>
             )}
 
             {/* Profile */}
-            <section className="rounded-2xl border border-border bg-surface-1 p-5">
-                <h2 className="mb-4 text-sm font-semibold text-text-primary">Profile</h2>
+            <section className="rounded-sm border border-border bg-surface-1 p-5">
+                <h2 className="mb-4 text-sm font-medium text-text-primary">Profile</h2>
                 <form onSubmit={saveProfile} className="space-y-3">
                     <div>
                         <label htmlFor="acct-name" className="mb-1 block text-xs font-medium text-text-muted">Display name</label>
@@ -219,7 +219,7 @@ export function AccountClient() {
                             type="text"
                             value={name}
                             onChange={(e) => { setName(e.target.value); setProfileDirty(true) }}
-                            className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
+                            className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
                             placeholder="How you want to be called"
                         />
                     </div>
@@ -230,7 +230,7 @@ export function AccountClient() {
                             type="email"
                             value={user.email}
                             disabled
-                            className="w-full cursor-not-allowed rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-muted"
+                            className="w-full cursor-not-allowed rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-muted"
                         />
                         <p className="mt-1 text-[11px] text-text-muted">
                             Email changes are handled separately by Better Auth — contact support if you need to change it.
@@ -245,7 +245,7 @@ export function AccountClient() {
                             value={image}
                             onChange={(e) => { setImage(e.target.value); setProfileDirty(true) }}
                             placeholder="https://…"
-                            className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
+                            className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
                         />
                     </div>
 
@@ -254,7 +254,7 @@ export function AccountClient() {
                         <button
                             type="submit"
                             disabled={savingProfile}
-                            className="ml-auto flex items-center gap-1.5 rounded-lg border border-border bg-text-primary px-3 py-1.5 text-xs font-medium text-canvas hover:opacity-90 disabled:opacity-50"
+                            className="ml-auto flex items-center gap-1.5 rounded-sm border border-border bg-text-primary px-3 py-1.5 text-xs font-medium text-canvas hover:opacity-90 disabled:opacity-50"
                         >
                             {savingProfile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                             Save profile
@@ -264,12 +264,12 @@ export function AccountClient() {
             </section>
 
             {/* Linked accounts */}
-            <section className="rounded-2xl border border-border bg-surface-1 p-5">
-                <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-text-primary">
+            <section className="rounded-sm border border-border bg-surface-1 p-5">
+                <h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-text-primary">
                     <Link2 className="h-4 w-4" /> Linked accounts
                 </h2>
                 {linkedAccounts.some((a) => a.providerId === 'google') ? (
-                    <div className="flex items-center justify-between rounded-lg border border-border bg-surface-1 px-3 py-2.5">
+                    <div className="flex items-center justify-between rounded-sm border border-border bg-surface-1 px-3 py-2.5">
                         <div className="flex items-center gap-2.5">
                             <svg className="h-4 w-4" viewBox="0 0 24 24">
                                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
@@ -293,7 +293,7 @@ export function AccountClient() {
                                 } catch { /* ignore */ }
                                 setUnlinkingId(null)
                             }}
-                            className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-text-muted hover:text-text-primary disabled:opacity-50"
+                            className="flex items-center gap-1 rounded-sm border border-border px-2 py-1 text-[11px] text-text-muted hover:text-text-primary disabled:opacity-50"
                         >
                             {unlinkingId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unlink className="h-3 w-3" />}
                             Unlink
@@ -311,7 +311,7 @@ export function AccountClient() {
                                 setLinkingGoogle(false)
                             }
                         }}
-                        className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-text-primary/5 disabled:opacity-50"
+                        className="flex w-full items-center justify-center gap-2.5 rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-text-primary/5 disabled:opacity-50"
                     >
                         {linkingGoogle ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -334,8 +334,8 @@ export function AccountClient() {
             </section>
 
             {/* Password */}
-            <section className="rounded-2xl border border-border bg-surface-1 p-5">
-                <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-text-primary">
+            <section className="rounded-sm border border-border bg-surface-1 p-5">
+                <h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-text-primary">
                     <KeyRound className="h-4 w-4" /> Change password
                 </h2>
                 <form onSubmit={savePassword} className="space-y-3">
@@ -346,7 +346,7 @@ export function AccountClient() {
                             type="password"
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
-                            className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
+                            className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
                             required
                             autoComplete="current-password"
                         />
@@ -358,7 +358,7 @@ export function AccountClient() {
                             type="password"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
+                            className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
                             required
                             minLength={12}
                             autoComplete="new-password"
@@ -371,7 +371,7 @@ export function AccountClient() {
                             type="password"
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
-                            className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
+                            className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
                             required
                             minLength={12}
                             autoComplete="new-password"
@@ -379,7 +379,7 @@ export function AccountClient() {
                     </div>
 
                     {passwordErr && (
-                        <div className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
+                        <div className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
                             {passwordErr}
                         </div>
                     )}
@@ -389,7 +389,7 @@ export function AccountClient() {
                         <button
                             type="submit"
                             disabled={savingPassword}
-                            className="ml-auto flex items-center gap-1.5 rounded-lg border border-border bg-text-primary px-3 py-1.5 text-xs font-medium text-canvas hover:opacity-90 disabled:opacity-50"
+                            className="ml-auto flex items-center gap-1.5 rounded-sm border border-border bg-text-primary px-3 py-1.5 text-xs font-medium text-canvas hover:opacity-90 disabled:opacity-50"
                         >
                             {savingPassword ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
                             Update password
@@ -399,15 +399,15 @@ export function AccountClient() {
             </section>
 
             {/* Subscription link */}
-            <section className="rounded-2xl border border-border bg-surface-1 p-5">
+            <section className="rounded-sm border border-border bg-surface-1 p-5">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-sm font-semibold text-text-primary">Billing & subscription</h2>
+                        <h2 className="text-sm font-medium text-text-primary">Billing & subscription</h2>
                         <p className="mt-1 text-xs text-text-muted">View your plan and upgrade options.</p>
                     </div>
                     <Link
                         href="/app/account/subscription"
-                        className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-1.5 text-xs font-medium text-text-primary hover:opacity-90"
+                        className="flex items-center gap-1.5 rounded-sm border border-border bg-surface-1 px-3 py-1.5 text-xs font-medium text-text-primary hover:opacity-90"
                     >
                         <CreditCard className="h-3.5 w-3.5" /> Manage
                     </Link>
@@ -415,8 +415,8 @@ export function AccountClient() {
             </section>
 
             {/* Danger zone */}
-            <section className="rounded-2xl border border-border bg-surface-1 p-5">
-                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-primary">
+            <section className="rounded-sm border border-border bg-surface-1 p-5">
+                <h2 className="mb-2 flex items-center gap-2 text-sm font-medium text-text-primary">
                     <AlertTriangle className="h-4 w-4" /> Danger zone
                 </h2>
                 <p className="mb-3 text-xs text-text-muted">
@@ -433,13 +433,13 @@ export function AccountClient() {
                             type="password"
                             value={confirmDelete}
                             onChange={(e) => setConfirmDelete(e.target.value)}
-                            className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
+                            className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
                             placeholder="Current password"
                             autoComplete="current-password"
                         />
                     </div>
                     {deleteErr && (
-                        <div className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
+                        <div className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
                             {deleteErr}
                         </div>
                     )}
@@ -447,7 +447,7 @@ export function AccountClient() {
                         type="button"
                         onClick={handleDelete}
                         disabled={deleting || !confirmDelete}
-                        className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-text-primary/5 disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-sm border border-border bg-surface-1 px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-text-primary/5 disabled:opacity-50"
                     >
                         {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                         Delete my account

@@ -78,7 +78,7 @@ export function ModelPickerModal({ open, onClose, providers, onPick }: ModelPick
             aria-modal="true"
             aria-labelledby="model-picker-modal-title"
         >
-            <div className="w-full max-w-3xl max-h-[80vh] overflow-hidden rounded-xl border border-border bg-surface-1">
+            <div className="w-full max-w-3xl max-h-[80vh] overflow-hidden rounded-sm border border-border bg-surface-1">
                 <div className="flex items-center justify-between border-b border-border p-3">
                     <div>
                         <h2 id="model-picker-modal-title" className="text-sm font-medium text-text-primary">Add a model</h2>
@@ -164,7 +164,7 @@ export function ModelPickerModal({ open, onClose, providers, onPick }: ModelPick
                                 return (
                                     <div
                                         key={item.id}
-                                        className="rounded-xl border border-border bg-surface-1 p-3"
+                                        className="rounded-sm border border-border bg-surface-1 p-3"
                                     >
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="min-w-0 flex-1">

@@ -231,7 +231,7 @@ const TAXONOMY_ENTRIES: { type: string; description: string }[] = [
 function TaxonomyExplainer() {
     const [open, setOpen] = useState(false)
     return (
-        <div className="rounded-xl border border-border/50 bg-surface-1/30">
+        <div className="rounded-sm border border-border/50 bg-surface-1/30">
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
@@ -254,7 +254,7 @@ function TaxonomyExplainer() {
                                     <Icon className={`h-3 w-3 ${meta.iconColor}`} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <span className="text-xs font-semibold text-text-primary">{meta.label}</span>
+                                    <span className="text-xs font-medium text-text-primary">{meta.label}</span>
                                     <span className="text-xs text-text-muted ml-1.5">{entry.description}</span>
                                 </div>
                             </div>
@@ -600,7 +600,7 @@ export default function HubClient() {
 
         return (
             <div className="flex items-center gap-2.5">
-                <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center ${meta.iconBg}`}>
+                <div className={`h-8 w-8 shrink-0 rounded-sm flex items-center justify-center ${meta.iconBg}`}>
                     <Icon className={`h-4 w-4 ${meta.iconColor}`} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -609,7 +609,7 @@ export default function HubClient() {
                         {item.trust === 'verified' && (
                             <ShieldCheck className="h-3 w-3 shrink-0 text-azure" />
                         )}
-                        <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.badge}`}>
+                        <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${meta.badge}`}>
                             {meta.label}
                         </span>
                         <ScoreBadge score={score} />
@@ -662,7 +662,7 @@ export default function HubClient() {
     )
 
     const errorBanner = error ? (
-        <div className="rounded-lg border border-red-800/40 bg-red-950/20 px-3 py-2 flex items-center justify-between gap-3">
+        <div className="rounded-sm border border-red-800/40 bg-red-950/20 px-3 py-2 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-red-300">
                 <AlertCircle className="h-4 w-4" />
                 <span>Couldn&apos;t load the hub. {extractErrorMessage(error)}</span>
@@ -681,7 +681,7 @@ export default function HubClient() {
             <button
                 onClick={refresh}
                 disabled={isLoading}
-                className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-sm border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
                 title="Refresh catalog"
             >
                 <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -691,7 +691,7 @@ export default function HubClient() {
                 href="https://hub.getplexo.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors"
+                className="flex items-center gap-1.5 rounded-sm border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors"
             >
                 <ExternalLink className="h-3.5 w-3.5" />
                 Open Hub
@@ -806,18 +806,18 @@ function DetailPane({
             {/* Header */}
             <div className="p-5 border-b border-border/60">
                 <div className="flex items-start gap-4">
-                    <div className={`h-12 w-12 shrink-0 rounded-xl flex items-center justify-center ${meta.iconBg}`}>
+                    <div className={`h-12 w-12 shrink-0 rounded-sm flex items-center justify-center ${meta.iconBg}`}>
                         <Icon className={`h-6 w-6 ${meta.iconColor}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h2 className="text-lg font-semibold text-text-primary truncate">{item.displayName}</h2>
+                            <h2 className="text-lg font-medium text-text-primary truncate">{item.displayName}</h2>
                             <ScoreBadge score={item.score ?? 0} />
-                            <span title={meta.tooltip} className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.badge}`}>
+                            <span title={meta.tooltip} className={`rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${meta.badge}`}>
                                 {meta.label}
                             </span>
                             {item.trust === 'verified' && (
-                                <span className="flex items-center gap-1 rounded-full border border-azure/30 bg-azure/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-azure">
+                                <span className="flex items-center gap-1 rounded-sm border border-azure/30 bg-azure/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-azure">
                                     <ShieldCheck className="h-3 w-3" />
                                     Verified
                                 </span>
@@ -836,14 +836,14 @@ function DetailPane({
                 <div className="mt-4 flex items-center gap-2 flex-wrap">
                     {item.installStatus === 'installed' ? (
                         <>
-                            <span className="flex items-center gap-1.5 rounded-lg border border-green-600/30 bg-green-900/20 px-2.5 py-1 text-xs font-medium text-green-300">
+                            <span className="flex items-center gap-1.5 rounded-sm border border-green-600/30 bg-green-900/20 px-2.5 py-1 text-xs font-medium text-green-300">
                                 <CheckCircle2 className="h-3.5 w-3.5" />
                                 {item.enabled ? 'Enabled' : 'Installed (disabled)'}
                             </span>
                             <button
                                 onClick={onToggleEnabled}
                                 disabled={toggling}
-                                className="rounded-lg border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
+                                className="rounded-sm border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
                             >
                                 {toggling
                                     ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" />
@@ -852,7 +852,7 @@ function DetailPane({
                             <button
                                 onClick={onUninstall}
                                 disabled={uninstalling}
-                                className="rounded-lg border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-red-800 hover:text-red-300 transition-colors disabled:opacity-40"
+                                className="rounded-sm border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-red-800 hover:text-red-300 transition-colors disabled:opacity-40"
                             >
                                 {uninstalling
                                     ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" />
@@ -860,7 +860,7 @@ function DetailPane({
                             </button>
                         </>
                     ) : item.installStatus === 'coming_soon' ? (
-                        <span className="flex items-center gap-1.5 rounded-lg border border-amber-600/30 bg-amber-900/20 px-2.5 py-1 text-xs font-medium text-amber-300">
+                        <span className="flex items-center gap-1.5 rounded-sm border border-amber-600/30 bg-amber-900/20 px-2.5 py-1 text-xs font-medium text-amber-300">
                             <Clock className="h-3.5 w-3.5" />
                             Coming soon
                         </span>
@@ -868,7 +868,7 @@ function DetailPane({
                         <button
                             onClick={onInstall}
                             disabled={installing}
-                            className="flex items-center gap-1.5 rounded-lg border border-azure/50 bg-azure/15 px-3 py-1.5 text-xs font-semibold text-azure hover:bg-azure/25 transition-colors disabled:opacity-40"
+                            className="flex items-center gap-1.5 rounded-sm border border-azure/50 bg-azure/15 px-3 py-1.5 text-xs font-medium text-azure hover:bg-azure/25 transition-colors disabled:opacity-40"
                         >
                             {installing
                                 ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Installing…</>
@@ -879,7 +879,7 @@ function DetailPane({
                         href={hubUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors"
+                        className="flex items-center gap-1.5 rounded-sm border border-border bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors"
                     >
                         <ExternalLink className="h-3.5 w-3.5" />
                         Details
@@ -891,7 +891,7 @@ function DetailPane({
             <div className="p-5 space-y-5">
                 {/* Community score + vote controls */}
                 <section>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-1.5">Community</h3>
+                    <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted mb-1.5">Community</h3>
                     <VoteControls
                         upvotes={item.upvotes ?? 0}
                         downvotes={item.downvotes ?? 0}
@@ -906,14 +906,14 @@ function DetailPane({
 
                 {/* Description */}
                 <section>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-1.5">About</h3>
+                    <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted mb-1.5">About</h3>
                     <p className="text-sm text-text-secondary whitespace-pre-wrap">{item.description || 'No description.'}</p>
                 </section>
 
                 {/* Attribution — imported third-party items */}
                 {item.sourceRepo && (
                     <section>
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-1.5">Attribution</h3>
+                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted mb-1.5">Attribution</h3>
                         <AttributionBlock item={item} />
                     </section>
                 )}
@@ -921,7 +921,7 @@ function DetailPane({
                 {/* Capabilities */}
                 {capabilities.length > 0 && (
                     <section>
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-1.5">Capabilities</h3>
+                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted mb-1.5">Capabilities</h3>
                         <div className="flex flex-wrap gap-1.5">
                             {capabilities.map((c) => (
                                 <span key={c} className="rounded-md border border-border bg-surface-1 px-2 py-0.5 text-[11px] font-mono text-text-secondary">
@@ -935,7 +935,7 @@ function DetailPane({
                 {/* Tools provided */}
                 {toolNames.length > 0 && (
                     <section>
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-1.5">Tools provided</h3>
+                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted mb-1.5">Tools provided</h3>
                         <ul className="space-y-1">
                             {toolNames.map((name) => (
                                 <li key={name} className="flex items-center gap-2 text-xs text-text-secondary">
@@ -950,7 +950,7 @@ function DetailPane({
                 {/* Required context / model */}
                 {requires && Object.keys(requires).length > 0 && (
                     <section>
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-1.5">Requires</h3>
+                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted mb-1.5">Requires</h3>
                         <div className="rounded-md border border-border bg-surface-1/40 p-3">
                             <pre className="text-[11px] text-text-muted font-mono whitespace-pre-wrap">
                                 {JSON.stringify(requires, null, 2)}
@@ -962,10 +962,10 @@ function DetailPane({
                 {/* Tags */}
                 {tags.length > 0 && (
                     <section>
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-1.5">Tags</h3>
+                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted mb-1.5">Tags</h3>
                         <div className="flex flex-wrap gap-1.5">
                             {tags.map((t) => (
-                                <span key={t} className="rounded-full border border-border bg-surface-1 px-2 py-0.5 text-[11px] text-text-muted">
+                                <span key={t} className="rounded-sm border border-border bg-surface-1 px-2 py-0.5 text-[11px] text-text-muted">
                                     #{t}
                                 </span>
                             ))}
@@ -975,7 +975,7 @@ function DetailPane({
 
                 {/* Coming soon helper copy */}
                 {item.installStatus === 'coming_soon' && (
-                    <section className="rounded-lg border border-amber-600/30 bg-amber-900/10 p-3">
+                    <section className="rounded-sm border border-amber-600/30 bg-amber-900/10 p-3">
                         <p className="text-xs text-amber-200 flex items-start gap-2">
                             <Circle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                             <span>
@@ -998,7 +998,7 @@ function ScoreBadge({ score }: { score: number }) {
     const label = score > 0 ? `+${score}` : `${score}`
     return (
         <span
-            className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-mono font-semibold tabular-nums ${color}`}
+            className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-mono font-medium tabular-nums ${color}`}
             title={`Community score: ${label}`}
         >
             {label}
@@ -1099,7 +1099,7 @@ function AttributionBlock({ item }: { item: HubItem }) {
     const author = item.sourceAuthor ?? 'upstream author'
     const host = repoHost(item.sourceRepo || item.sourceUrl || undefined)
     return (
-        <div className="rounded-lg border border-border bg-surface-1/40 p-3 space-y-2">
+        <div className="rounded-sm border border-border bg-surface-1/40 p-3 space-y-2">
             <p className="text-xs text-text-secondary">
                 Imported from <span className="font-medium text-text-primary">{author}</span> on {host}.
             </p>

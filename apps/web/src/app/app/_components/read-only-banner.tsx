@@ -40,10 +40,10 @@ export function ReadOnlyBanner() {
     if (!readOnly) return null
 
     return (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-800/40 bg-amber-900/10 px-3 py-2 text-xs text-amber">
+        <div className="mb-3 flex items-center gap-2 rounded-sm border border-amber-800/40 bg-amber-900/10 px-3 py-2 text-xs text-amber">
             <Eye className="h-3.5 w-3.5 shrink-0" />
             <span className="flex-1">
-                <strong className="font-semibold">Read-only mode is on.</strong>{' '}
+                <strong className="font-medium">Read-only mode is on.</strong>{' '}
                 The agent can read, search, and analyze — but every write tool
                 (GitHub push, Slack send, Notion create, SSH exec, etc.) has
                 been stripped from this workspace.

@@ -379,7 +379,7 @@ function AgentThinkingPanelBase({ events, isRunning, compactOnComplete = true }:
     if (events.length === 0) {
         if (!isRunning) return null
         return (
-            <div className="mb-1.5 rounded-lg border border-border/40 bg-surface-1/40 px-3 py-2 flex items-center gap-2 text-[12px]">
+            <div className="mb-1.5 rounded-sm border border-border/40 bg-surface-1/40 px-3 py-2 flex items-center gap-2 text-[12px]">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-azure" />
                 <span className="text-text-secondary animate-pulse">Thinking…</span>
                 <span className="ml-auto text-[10px] text-text-muted/60 tabular-nums">
@@ -424,7 +424,7 @@ function AgentThinkingPanelBase({ events, isRunning, compactOnComplete = true }:
 
     // ── Full expanded panel ──────────────────────────────────────────────
     return (
-        <div className="mb-2 rounded-lg border border-border/40 bg-surface-1/30 overflow-hidden">
+        <div className="mb-2 rounded-sm border border-border/40 bg-surface-1/30 overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-2 border-b border-border/30 bg-surface-1/40">
                 {isRunning
                     ? <Loader2 className="w-3.5 h-3.5 text-azure animate-spin" />

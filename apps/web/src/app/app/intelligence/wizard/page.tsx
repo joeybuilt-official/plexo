@@ -79,7 +79,7 @@ export default function FirstRunWizardPage() {
     if (!wsId) {
         return (
             <div className="flex h-full items-center justify-center p-8">
-                <div className="rounded-xl border border-border bg-surface-1 p-6 text-sm text-text-muted">
+                <div className="rounded-sm border border-border bg-surface-1 p-6 text-sm text-text-muted">
                     Pick a workspace from the sidebar to start the wizard.
                 </div>
             </div>
@@ -138,21 +138,21 @@ export default function FirstRunWizardPage() {
             {/* Ambient gradient backdrop — subtle, pinned to the top, fades out fast. */}
             <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-azure/[0.06] via-azure/[0.02] to-transparent"
+                className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-azure/5"
             />
 
             <div className="relative flex flex-1 overflow-hidden">
                 {/* ── Left rail ─────────────────────────────────────────── */}
-                <aside className="relative hidden w-[320px] shrink-0 flex-col border-r border-border/80 bg-surface-1/60 backdrop-blur-sm lg:flex">
+                <aside className="relative hidden w-[320px] shrink-0 flex-col border-r border-border/80 bg-surface-1/60 lg:flex">
                     {/* Brand row */}
                     <div className="relative border-b border-border/80 px-6 py-6">
                         <div className="flex items-center gap-3">
-                            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-azure/40 bg-gradient-to-br from-azure/20 to-azure/5 text-azure shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                            <div className="relative flex h-10 w-10 items-center justify-center rounded-sm border border-azure/40 bg-azure/10 text-azure">
                                 <Wand2 className="h-5 w-5" />
-                                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-azure shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
+                                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-azure" />
                             </div>
                             <div className="min-w-0">
-                                <div className="text-[13px] font-semibold tracking-tight text-text-primary">First-run setup</div>
+                                <div className="text-[13px] font-medium tracking-tight text-text-primary">First-run setup</div>
                                 <div className="text-[11px] text-text-muted">Under 60 seconds</div>
                             </div>
                         </div>
@@ -164,7 +164,7 @@ export default function FirstRunWizardPage() {
                             {/* Vertical connector line behind the badges */}
                             <div
                                 aria-hidden
-                                className="absolute left-[30px] top-4 bottom-4 w-px bg-gradient-to-b from-border via-border/60 to-border/20"
+                                className="absolute left-[30px] top-4 bottom-4 w-px bg-border"
                             />
                             {STEPS.map((s, i) => {
                                 const status: 'done' | 'active' | 'upcoming' =
@@ -175,9 +175,9 @@ export default function FirstRunWizardPage() {
                                         <button
                                             type="button"
                                             onClick={() => setStep(s.key)}
-                                            className={`group relative flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-all ${
+                                            className={`group relative flex w-full items-start gap-3 rounded-sm px-3 py-3 text-left transition-all ${
                                                 status === 'active'
-                                                    ? 'bg-gradient-to-r from-azure/[0.08] to-transparent'
+                                                    ? 'bg-azure/5'
                                                     : 'hover:bg-canvas/60'
                                             }`}
                                         >
@@ -222,7 +222,7 @@ export default function FirstRunWizardPage() {
                     <div className="flex items-center justify-between border-b border-border bg-surface-1 p-4 lg:hidden">
                         <div className="flex items-center gap-2">
                             <Wand2 className="h-4 w-4 text-azure" />
-                            <span className="text-sm font-semibold text-text-primary">First-run setup</span>
+                            <span className="text-sm font-medium text-text-primary">First-run setup</span>
                         </div>
                         <Link href="/app/intelligence" className="text-[11px] text-text-muted hover:text-text-primary">Skip</Link>
                     </div>
@@ -257,7 +257,7 @@ export default function FirstRunWizardPage() {
                             {step === 'done' && <DoneStep />}
 
                             {error && (
-                                <div className="mt-6 rounded-lg border border-rose-700/40 bg-surface-1 p-3 text-xs text-rose-300">
+                                <div className="mt-6 rounded-sm border border-rose-700/40 bg-surface-1 p-3 text-xs text-rose-300">
                                     {error}
                                 </div>
                             )}
@@ -267,18 +267,18 @@ export default function FirstRunWizardPage() {
             </div>
 
             {/* ── Sticky footer ─────────────────────────────────────────── */}
-            <footer className="relative border-t border-border/80 bg-surface-1/60 backdrop-blur-sm">
+            <footer className="relative border-t border-border/80 bg-surface-1/60">
                 {/* Thin accent line along the top of the footer */}
                 <div
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-azure/25 to-transparent"
+                    className="pointer-events-none absolute inset-x-0 top-0 h-px bg-azure/10"
                 />
                 <div className="flex items-center justify-between px-6 py-4">
                     <button
                         type="button"
                         onClick={goBack}
                         disabled={stepIndex === 0 || busy}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-canvas px-3.5 py-2 text-xs font-medium text-text-muted transition-all hover:border-border/60 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
+                        className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-canvas px-3.5 py-2 text-xs font-medium text-text-muted transition-all hover:border-border/60 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
                     >
                         <ArrowLeft className="h-3.5 w-3.5" /> Back
                     </button>
@@ -306,7 +306,7 @@ export default function FirstRunWizardPage() {
                             type="button"
                             onClick={finish}
                             disabled={busy}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-azure/60 bg-gradient-to-b from-azure/20 to-azure/10 px-5 py-2 text-xs font-semibold text-azure shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_-2px_rgba(56,189,248,0.25)] transition-all hover:from-azure/25 hover:to-azure/15 disabled:opacity-40"
+                            className="inline-flex items-center gap-1.5 rounded-sm border border-azure/60 bg-azure/15 px-5 py-2 text-xs font-medium text-azure transition-all disabled:opacity-40"
                         >
                             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                             Finish setup <ArrowRight className="h-3.5 w-3.5" />
@@ -316,7 +316,7 @@ export default function FirstRunWizardPage() {
                             type="button"
                             onClick={persistAndAdvance}
                             disabled={busy || (step === 'detect' && (!detect || detectLoading))}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-azure/60 bg-gradient-to-b from-azure/20 to-azure/10 px-5 py-2 text-xs font-semibold text-azure shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_-2px_rgba(56,189,248,0.25)] transition-all hover:from-azure/25 hover:to-azure/15 disabled:opacity-40"
+                            className="inline-flex items-center gap-1.5 rounded-sm border border-azure/60 bg-azure/15 px-5 py-2 text-xs font-medium text-azure transition-all disabled:opacity-40"
                         >
                             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                             Continue <ArrowRight className="h-3.5 w-3.5" />
@@ -339,20 +339,20 @@ function StepBadge({
 }) {
     if (status === 'done') {
         return (
-            <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-azure/50 bg-gradient-to-br from-azure/25 to-azure/10 text-azure shadow-[0_0_0_4px_rgba(13,17,23,1)]">
+            <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-azure/50 bg-azure/15 text-azure">
                 <Check className="h-3.5 w-3.5" strokeWidth={3} />
             </span>
         )
     }
     if (status === 'active') {
         return (
-            <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-azure bg-gradient-to-br from-azure/20 to-canvas text-azure shadow-[0_0_0_4px_rgba(13,17,23,1),0_0_16px_rgba(56,189,248,0.25)]">
+            <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-azure bg-azure/10 text-azure">
                 <Icon className="h-3.5 w-3.5" />
             </span>
         )
     }
     return (
-        <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-canvas text-[11px] font-medium text-text-muted shadow-[0_0_0_4px_rgba(13,17,23,1)]">
+        <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-canvas text-[11px] font-medium text-text-muted">
             {index}
         </span>
     )
@@ -363,11 +363,11 @@ function StepBadge({
 function StepHeader({ icon: Icon, title, body }: { icon: typeof Network; title: string; body: string }) {
     return (
         <div className="mb-8">
-            <div className="relative mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-azure/40 bg-gradient-to-br from-azure/15 via-azure/8 to-transparent text-azure shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_24px_rgba(56,189,248,0.12)]">
+            <div className="relative mb-4 inline-flex h-12 w-12 items-center justify-center rounded-sm border border-azure/40 bg-azure/10 text-azure">
                 <Icon className="h-5 w-5" />
-                <span className="absolute inset-0 rounded-2xl ring-1 ring-azure/10" />
+                <span className="absolute inset-0 rounded-sm ring-1 ring-azure/10" />
             </div>
-            <h2 className="text-[26px] font-semibold leading-tight tracking-tight text-text-primary">{title}</h2>
+            <h2 className="text-[26px] font-medium leading-tight tracking-tight text-text-primary">{title}</h2>
             <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-text-muted">{body}</p>
         </div>
     )
@@ -393,7 +393,7 @@ function DetectStep({
         return (
             <div>
                 <StepHeader icon={Search} title="Detecting your environment" body="Probing services and provider keys…" />
-                <div className="rounded-xl border border-border bg-surface-1 p-6 text-center text-xs text-text-muted">
+                <div className="rounded-sm border border-border bg-surface-1 p-6 text-center text-xs text-text-muted">
                     <Loader2 className="mr-2 inline h-3.5 w-3.5 animate-spin" /> Probing services…
                 </div>
             </div>
@@ -410,7 +410,7 @@ function DetectStep({
             />
 
             <div className="space-y-4">
-                <div className="rounded-xl border border-border bg-surface-1">
+                <div className="rounded-sm border border-border bg-surface-1">
                     <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                         <span className="text-xs font-medium text-text-primary">Services</span>
                         <button
@@ -426,7 +426,7 @@ function DetectStep({
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-border bg-surface-1 p-4">
+                <div className="rounded-sm border border-border bg-surface-1 p-4">
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-medium text-text-primary">Provider keys</span>
                         <span className="text-[11px] text-text-muted">
@@ -602,10 +602,10 @@ function BudgetStep({ value, onChange }: { value: number; onChange: (n: number) 
                 title="Monthly budget"
                 body="Soft warn at 80% and 100% — Plexo doesn't block requests by default. Switch to hard block in Settings → Intelligence → Routing if you need a strict ceiling."
             />
-            <div className="rounded-xl border border-border bg-surface-1 p-6">
+            <div className="rounded-sm border border-border bg-surface-1 p-6">
                 <div className="flex items-baseline justify-between">
                     <span className="text-xs uppercase tracking-wide text-text-muted">Monthly ceiling</span>
-                    <span className="text-3xl font-semibold tabular-nums text-text-primary">${value.toFixed(0)}</span>
+                    <span className="text-3xl font-medium tabular-nums text-text-primary">${value.toFixed(0)}</span>
                 </div>
                 <input
                     type="range"
@@ -645,7 +645,7 @@ function DoneStep() {
             <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-azure/40 bg-azure/10 text-azure">
                 <Sparkles className="h-7 w-7" />
             </div>
-            <h2 className="text-2xl font-semibold text-text-primary">You&apos;re ready</h2>
+            <h2 className="text-2xl font-medium text-text-primary">You&apos;re ready</h2>
             <p className="mx-auto mt-2 max-w-sm text-sm text-text-muted">
                 Plexo&apos;s intelligence stack is configured. Click finish to land on the dashboard —
                 you&apos;ll see live providers, health, and inference logs from there.
@@ -672,29 +672,29 @@ function ChoiceTile({
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className={`group relative flex flex-col gap-4 overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`group relative flex flex-col gap-4 overflow-hidden rounded-sm border p-5 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
                 active
-                    ? 'border-azure/70 bg-gradient-to-br from-azure/[0.08] via-azure/[0.04] to-transparent shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_12px_32px_-8px_rgba(56,189,248,0.15),inset_0_1px_0_rgba(255,255,255,0.05)]'
-                    : 'border-border bg-surface-1 hover:-translate-y-0.5 hover:border-azure/40 hover:bg-surface-1/80 hover:shadow-[0_8px_20px_-8px_rgba(0,0,0,0.4)]'
+                    ? 'border-azure/70 bg-azure/5'
+                    : 'border-border bg-surface-1 hover:border-azure/40 hover:bg-surface-1/80'
             }`}
         >
             {/* Subtle gradient sheen on active */}
             {active && (
                 <div
                     aria-hidden
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-azure/[0.04] via-transparent to-transparent"
+                    className="pointer-events-none absolute inset-0 bg-azure/5"
                 />
             )}
             <div className="relative flex items-center justify-between">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-all ${
+                <div className={`flex h-10 w-10 items-center justify-center rounded-sm border transition-all ${
                     active
-                        ? 'border-azure/50 bg-gradient-to-br from-azure/25 to-azure/5 text-azure shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
+                        ? 'border-azure/50 bg-azure/15 text-azure'
                         : 'border-border bg-canvas text-text-muted group-hover:border-azure/30 group-hover:text-text-primary'
                 }`}>
                     <Icon className="h-4 w-4" />
                 </div>
                 {badge && (
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                    <span className={`rounded-sm border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${
                         active
                             ? 'border-azure/40 bg-azure/15 text-azure'
                             : 'border-azure/25 bg-azure/5 text-azure/80'
@@ -703,13 +703,13 @@ function ChoiceTile({
                     </span>
                 )}
                 {active && !badge && (
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-azure/20 text-azure shadow-[0_0_12px_rgba(56,189,248,0.25)]">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-azure/20 text-azure">
                         <Check className="h-3.5 w-3.5" strokeWidth={3} />
                     </span>
                 )}
             </div>
             <div className="relative">
-                <div className={`text-[15px] font-semibold tracking-tight transition-colors ${active ? 'text-text-primary' : 'text-text-primary/90'}`}>
+                <div className={`text-[15px] font-medium tracking-tight transition-colors ${active ? 'text-text-primary' : 'text-text-primary/90'}`}>
                     {title}
                 </div>
                 <div className="mt-1.5 text-[12px] leading-relaxed text-text-muted">{body}</div>

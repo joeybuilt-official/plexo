@@ -112,7 +112,7 @@ function turnLabel(item: ConversationItem): string | null {
 
 function SkeletonRow() {
     return (
-        <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-1/40 p-4 animate-pulse">
+        <div className="flex items-start gap-3 rounded-sm border border-border bg-surface-1/40 p-4 animate-pulse">
             <div className="mt-0.5 h-3.5 w-3.5 rounded-full bg-surface-2 shrink-0" />
             <div className="flex-1 space-y-2">
                 <div className="flex gap-2">
@@ -274,7 +274,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
         <div className="flex flex-col gap-6 max-w-3xl">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-text-primary">Conversations</h1>
+                <h1 className="text-2xl font-medium text-text-primary">Conversations</h1>
                 <p className="mt-0.5 text-sm text-text-muted">
                     {loading
                         ? 'Loading…'
@@ -297,7 +297,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
 
             {/* Content */}
             {fetchError && !data ? (
-                <div className="rounded-xl border border-red-800/40 bg-red-dim p-8 text-center">
+                <div className="rounded-sm border border-red-800/40 bg-red-dim p-8 text-center">
                     <AlertCircle className="h-5 w-5 text-red mx-auto mb-2" />
                     <p className="text-sm text-red">Failed to load conversations</p>
                     <button onClick={() => mutate()} className="mt-2 text-xs text-text-muted underline">Retry</button>
@@ -315,11 +315,11 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                     actionHref="/app/chat"
                 />
             ) : displayed.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 py-16 text-center">
                     <p className="text-sm text-text-muted">No conversations match your filters</p>
                     <button
                         onClick={clearAll}
-                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
+                        className="mt-3 flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
                     >
                         Clear filters
                     </button>
@@ -327,7 +327,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             ) : (
                 Object.entries(groups).map(([date, groupItems]) => (
                     <div key={date}>
-                        <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-text-muted">{date}</p>
+                        <p className="mb-3 text-[11px] font-medium uppercase tracking-widest text-text-muted">{date}</p>
                         <div className="flex flex-col gap-2">
                             {groupItems.map((item) => {
                                 const preview = getPreview(item)
@@ -339,7 +339,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                 return (
                                     <div
                                         key={item.id}
-                                        className="flex items-start gap-3 rounded-xl border border-border bg-surface-1/40 p-4 hover:border-border transition-colors group"
+                                        className="flex items-start gap-3 rounded-sm border border-border bg-surface-1/40 p-4 hover:border-border transition-colors group"
                                     >
                                         <span className="mt-0.5 shrink-0">
                                             {STATUS_ICON[item.status] ?? STATUS_ICON['pending']}
@@ -389,7 +389,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                             {item.taskId && (
                                                 <Link
                                                     href={`/app/tasks/${item.taskId}`}
-                                                    className="rounded-lg p-2.5 sm:p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
+                                                    className="rounded-sm p-2.5 sm:p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
                                                     title="View spawned task"
                                                 >
                                                     <ExternalLink className="h-4 w-4" />
@@ -402,7 +402,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                                         ? `/app/conversations/thread?sessionId=${encodeURIComponent(item.sessionId)}`
                                                         : `/app/conversations/${encodeURIComponent(item.id)}`
                                                 }
-                                                className="rounded-lg p-2.5 sm:p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
+                                                className="rounded-sm p-2.5 sm:p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
                                                 title={isThread ? 'View thread' : 'Conversation info'}
                                             >
                                                 <Info className="h-4 w-4" />
@@ -410,7 +410,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                             {/* Continue in chat */}
                                             <Link
                                                 href={continueHref(item)}
-                                                className="rounded-lg p-2.5 sm:p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-text-muted hover:text-azure hover:bg-surface-2 transition-colors"
+                                                className="rounded-sm p-2.5 sm:p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-text-muted hover:text-azure hover:bg-surface-2 transition-colors"
                                                 title="Continue conversation"
                                             >
                                                 <MessageCircle className="h-4 w-4" />
@@ -429,7 +429,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                     <button
                         onClick={() => void loadMore(nextCursor)}
                         disabled={loadingMore}
-                        className="flex items-center gap-2 rounded-xl border border-border bg-surface-1/40 px-6 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-2 hover:border-border/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 rounded-sm border border-border bg-surface-1/40 px-6 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-2 hover:border-border/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {loadingMore ? (
                             <>

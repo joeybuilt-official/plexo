@@ -36,7 +36,7 @@ export interface ChainModelCardProps {
 export function ChainModelCard(props: ChainModelCardProps) {
     const { position, providerType, modelId, attributes, isFirst, isLast, onMoveUp, onMoveDown, onRemove, disabled } = props
     return (
-        <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-1 p-3">
+        <div className="flex items-start gap-3 rounded-sm border border-border bg-surface-1 p-3">
             <div className="flex flex-col items-center gap-1 text-text-muted">
                 <GripVertical className="h-4 w-4" aria-hidden />
                 <span className="text-[11px] tabular-nums">#{position + 1}</span>

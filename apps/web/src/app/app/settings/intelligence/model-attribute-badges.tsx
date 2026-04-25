@@ -46,7 +46,7 @@ function Badge({ icon: Icon, label, tone = 'default' }: BadgeProps) {
         : tone === 'slow' ? 'border-rose-700/40 text-rose-300'
         : 'border-border text-text-muted'
     return (
-        <span className={`inline-flex items-center gap-1 rounded-full border bg-surface-1 px-2 py-0.5 text-[11px] ${toneClass}`}>
+        <span className={`inline-flex items-center gap-1 rounded-sm border bg-surface-1 px-2 py-0.5 text-[11px] ${toneClass}`}>
             <Icon className="h-3 w-3" aria-hidden />
             {label}
         </span>

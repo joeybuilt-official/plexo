@@ -150,7 +150,7 @@ function TelegramWizard({
                     </a>
                     <button
                         onClick={() => setStep(1)}
-                        className="self-start rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                        className="self-start rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
                     >
                         I have my token →
                     </button>
@@ -168,12 +168,12 @@ function TelegramWizard({
                             value={fields.bot_token ?? ''}
                             onChange={(e) => onChange('bot_token', e.target.value)}
                             placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
-                            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                            className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
                             autoComplete="new-password"
                         />
                     </div>
                     {verifyResult && (
-                        <div className={`rounded-lg border px-3 py-2 text-sm ${verifyResult.ok ? 'border-azure/30 bg-azure/20 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
+                        <div className={`rounded-sm border px-3 py-2 text-sm ${verifyResult.ok ? 'border-azure/30 bg-azure/20 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
                             {verifyResult.ok ? `✓ ${verifyResult.botName ?? 'Bot verified'}` : '✗ Invalid token — check and try again'}
                         </div>
                     )}
@@ -181,7 +181,7 @@ function TelegramWizard({
                         <button
                             onClick={() => void verifyToken()}
                             disabled={verifying || !fields.bot_token?.trim()}
-                            className="rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors flex flex-1 sm:flex-initial items-center justify-center min-h-[44px]"
+                            className="rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors flex flex-1 sm:flex-initial items-center justify-center min-h-[44px]"
                         >
                             {verifying ? 'Verifying…' : 'Verify token'}
                         </button>
@@ -197,7 +197,7 @@ function TelegramWizard({
             content: (
                 <div className="flex flex-col gap-4">
                     {verifyResult?.ok && (
-                        <div className="rounded-lg border border-azure/30 bg-azure/20 px-3 py-2 text-sm text-azure">
+                        <div className="rounded-sm border border-azure/30 bg-azure/20 px-3 py-2 text-sm text-azure">
                             ✓ {verifyResult.botName} connected
                         </div>
                     )}
@@ -208,7 +208,7 @@ function TelegramWizard({
                             value={fields.webhook_secret ?? ''}
                             onChange={(e) => onChange('webhook_secret', e.target.value)}
                             placeholder="Random secret for verifying webhook authenticity"
-                            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                            className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
                             autoComplete="new-password"
                         />
                         <p className="text-xs text-text-muted">Leave blank to auto-generate one. Plexo will register the webhook automatically on save.</p>
@@ -513,7 +513,7 @@ export default function ChannelsPage() {
             <button
                 onClick={() => void fetchChannels()}
                 disabled={loading}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] shrink-0"
+                className="flex items-center justify-center gap-1.5 rounded-sm border border-border bg-surface-1 p-2 text-text-muted hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] shrink-0"
                 title="Refresh"
                 aria-label="Refresh channels"
             >
@@ -521,7 +521,7 @@ export default function ChannelsPage() {
             </button>
             <button
                 onClick={() => { setAdding(true); setSelected(null) }}
-                className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors min-h-[44px]"
+                className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors min-h-[44px]"
             >
                 <Plus className="h-4 w-4" />
                 Add channel
@@ -531,14 +531,14 @@ export default function ChannelsPage() {
 
     // ── Banner slot (webchat embed snippet) ─────────────────────────────────
     const bannerSlot = WS_ID ? (
-        <div className="rounded-xl border border-azure/20 bg-azure/10 p-4 flex flex-col gap-3">
+        <div className="rounded-sm border border-azure/20 bg-azure/10 p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-azure" />
-                <h2 className="text-sm font-semibold text-azure">Webchat widget</h2>
+                <h2 className="text-sm font-medium text-azure">Webchat widget</h2>
                 <span className="ml-auto text-[11px] text-azure">Paste this snippet into any website to add a chat bubble</span>
             </div>
             <div className="relative group">
-                <pre className="rounded-lg bg-canvas border border-border p-3 text-[11px] font-mono text-text-secondary overflow-x-auto whitespace-pre-wrap break-all">{`<script src="${API_BASE}/api/v1/chat/widget.js"
+                <pre className="rounded-sm bg-canvas border border-border p-3 text-[11px] font-mono text-text-secondary overflow-x-auto whitespace-pre-wrap break-all">{`<script src="${API_BASE}/api/v1/chat/widget.js"
         data-workspace="${WS_ID}"
         data-site-name="My Site"
 ></script>`}</pre>
@@ -557,7 +557,7 @@ export default function ChannelsPage() {
     // ── Detail pane ─────────────────────────────────────────────────────────
     const detail = adding ? (
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
-            <h2 className="text-sm font-semibold text-text-primary">Add channel</h2>
+            <h2 className="text-sm font-medium text-text-primary">Add channel</h2>
 
             {/* Type selector */}
             <div className="flex flex-col gap-1.5">
@@ -570,7 +570,7 @@ export default function ChannelsPage() {
                             <button
                                 key={t}
                                 onClick={() => setAddState((s) => ({ ...s, type: t }))}
-                                className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 transition-all min-h-[44px] ${addState.type === t
+                                className={`flex flex-col items-center justify-center gap-1.5 rounded-sm border p-2.5 transition-all min-h-[44px] ${addState.type === t
                                     ? 'border-azure/50 bg-surface-2'
                                     : 'border-border hover:border-border'
                                     }`}
@@ -591,7 +591,7 @@ export default function ChannelsPage() {
                     value={addState.name}
                     onChange={(e) => setAddState((s) => ({ ...s, name: e.target.value }))}
                     placeholder={`My ${CHANNEL_META[addState.type].label} bot`}
-                    className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                    className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                 />
             </div>
 
@@ -611,14 +611,14 @@ export default function ChannelsPage() {
                             onChange={(e) => setAddState((s) => ({ ...s, fields: { ...s.fields, [field]: e.target.value } }))}
                             placeholder={field.includes('token') || field.includes('secret') ? '••••••••' : ''}
                             autoComplete="new-password"
-                            className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                            className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
                         />
                     </div>
                 ))
             )}
 
             {message && (
-                <div className={`rounded-lg border px-3 py-2 text-sm ${message.ok ? 'border-azure/30 bg-azure/30 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
+                <div className={`rounded-sm border px-3 py-2 text-sm ${message.ok ? 'border-azure/30 bg-azure/30 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
                     {message.text}
                 </div>
             )}
@@ -627,14 +627,14 @@ export default function ChannelsPage() {
                 <button
                     onClick={() => void handleAdd()}
                     disabled={saving || !addState.name.trim()}
-                    className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                    className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                 >
                     {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                     {saving ? 'Adding…' : 'Add'}
                 </button>
                 <button
                     onClick={() => { setAdding(false); setMessage(null) }}
-                    className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm text-text-muted hover:text-text-secondary transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                    className="flex items-center justify-center rounded-sm border border-border px-3 py-2 text-sm text-text-muted hover:text-text-secondary transition-colors min-h-[44px] flex-1 sm:flex-initial"
                 >
                     Cancel
                 </button>
@@ -646,23 +646,23 @@ export default function ChannelsPage() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 border-b border-border">
                 <div className="flex items-start gap-3">
                     {meta && (
-                        <div className="h-10 w-10 rounded-lg bg-surface-2 flex items-center justify-center shrink-0">
+                        <div className="h-10 w-10 rounded-sm bg-surface-2 flex items-center justify-center shrink-0">
                             <meta.icon className={`h-5 w-5 ${meta.color}`} />
                         </div>
                     )}
                     <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h2 className="text-base font-semibold text-text-primary">{selected.name}</h2>
-                            <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide bg-surface-2/40 text-text-secondary border border-border">
+                            <h2 className="text-base font-medium text-text-primary">{selected.name}</h2>
+                            <span className="text-[11px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wide bg-surface-2/40 text-text-secondary border border-border">
                                 {meta?.label}
                             </span>
                             {selected.enabled ? (
-                                <span className="inline-flex items-center gap-1 rounded-full border border-azure/30 bg-azure/10 px-1.5 py-0.5 text-[11px] font-medium text-azure">
+                                <span className="inline-flex items-center gap-1 rounded-sm border border-azure/30 bg-azure/10 px-1.5 py-0.5 text-[11px] font-medium text-azure">
                                     <CheckCircle2 className="h-2.5 w-2.5" />
                                     Enabled
                                 </span>
                             ) : (
-                                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2/30 px-1.5 py-0.5 text-[11px] font-medium text-text-muted">
+                                <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-surface-2/30 px-1.5 py-0.5 text-[11px] font-medium text-text-muted">
                                     Disabled
                                 </span>
                             )}
@@ -675,7 +675,7 @@ export default function ChannelsPage() {
                         onClick={() => void handleToggle(selected)}
                         disabled={toggling === selected.id}
                         title={selected.enabled ? 'Disable' : 'Enable'}
-                        className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0"
+                        className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0"
                     >
                         {toggling === selected.id
                             ? <RefreshCw className="h-3 w-3 animate-spin text-text-muted" />
@@ -687,7 +687,7 @@ export default function ChannelsPage() {
                     </button>
                     <button
                         onClick={() => editing ? cancelEditing() : startEditing(selected)}
-                        className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0"
+                        className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0"
                     >
                         {editing ? <X className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
                         {editing ? 'Cancel' : 'Edit'}
@@ -695,7 +695,7 @@ export default function ChannelsPage() {
                     <button
                         onClick={() => void handleDelete(selected.id)}
                         disabled={deleting === selected.id}
-                        className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0"
+                        className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0"
                     >
                         {deleting === selected.id
                             ? <RefreshCw className="h-3 w-3 animate-spin" />
@@ -710,21 +710,21 @@ export default function ChannelsPage() {
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
                 {/* Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="rounded-lg bg-surface-1 border border-border p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-1">Status</p>
-                        <p className={`text-sm font-semibold ${selected.enabled ? 'text-azure' : 'text-text-muted'}`}>
+                    <div className="rounded-sm bg-surface-1 border border-border p-3">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted mb-1">Status</p>
+                        <p className={`text-sm font-medium ${selected.enabled ? 'text-azure' : 'text-text-muted'}`}>
                             {selected.enabled ? 'Active' : 'Disabled'}
                         </p>
                     </div>
-                    <div className="rounded-lg bg-surface-1 border border-border p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-1">Errors</p>
-                        <p className={`text-sm font-semibold ${selected.errorCount > 0 ? 'text-red' : 'text-text-secondary'}`}>
+                    <div className="rounded-sm bg-surface-1 border border-border p-3">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted mb-1">Errors</p>
+                        <p className={`text-sm font-medium ${selected.errorCount > 0 ? 'text-red' : 'text-text-secondary'}`}>
                             {selected.errorCount}
                         </p>
                     </div>
-                    <div className="rounded-lg bg-surface-1 border border-border p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-1">Last message</p>
-                        <p className="text-sm font-semibold text-text-secondary flex items-center gap-1">
+                    <div className="rounded-sm bg-surface-1 border border-border p-3">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted mb-1">Last message</p>
+                        <p className="text-sm font-medium text-text-secondary flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             {selected.lastMessageAt ? timeAgo(selected.lastMessageAt) : 'Never'}
                         </p>
@@ -733,8 +733,8 @@ export default function ChannelsPage() {
 
                 {/* Edit form or read-only config */}
                 {editing ? (
-                    <div className="rounded-xl border border-azure/30 bg-surface-1/40 p-4 flex flex-col gap-4">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-azure">Edit configuration</h3>
+                    <div className="rounded-sm border border-azure/30 bg-surface-1/40 p-4 flex flex-col gap-4">
+                        <h3 className="text-xs font-medium uppercase tracking-wider text-azure">Edit configuration</h3>
 
                         {/* Channel name */}
                         <div className="flex flex-col gap-1.5">
@@ -744,7 +744,7 @@ export default function ChannelsPage() {
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
                                 placeholder="Channel name"
-                                className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                             />
                         </div>
 
@@ -771,7 +771,7 @@ export default function ChannelsPage() {
                                             onChange={(e) => setEditFields((f) => ({ ...f, [field]: e.target.value }))}
                                             placeholder={hasExisting ? 'Leave blank to keep current' : field.includes('token') || field.includes('secret') ? '••••••••' : ''}
                                             autoComplete="new-password"
-                                            className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 pr-9 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                                            className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 pr-9 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
                                         />
                                         <button
                                             type="button"
@@ -793,7 +793,7 @@ export default function ChannelsPage() {
                         })}
 
                         {message && (
-                            <div className={`rounded-lg border px-3 py-2 text-sm ${message.ok ? 'border-azure/30 bg-azure/30 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
+                            <div className={`rounded-sm border px-3 py-2 text-sm ${message.ok ? 'border-azure/30 bg-azure/30 text-azure' : 'border-red-800/50 bg-red-dim text-red'}`}>
                                 {message.text}
                             </div>
                         )}
@@ -802,14 +802,14 @@ export default function ChannelsPage() {
                             <button
                                 onClick={() => void handleEditSave()}
                                 disabled={editSaving || !editName.trim()}
-                                className="flex items-center justify-center gap-1.5 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                                className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                             >
                                 {editSaving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : <Save className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                                 {editSaving ? 'Saving…' : 'Save changes'}
                             </button>
                             <button
                                 onClick={cancelEditing}
-                                className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm text-text-muted hover:text-text-secondary transition-colors min-h-[44px] flex-1 sm:flex-initial"
+                                className="flex items-center justify-center rounded-sm border border-border px-3 py-2 text-sm text-text-muted hover:text-text-secondary transition-colors min-h-[44px] flex-1 sm:flex-initial"
                             >
                                 Cancel
                             </button>
@@ -819,8 +819,8 @@ export default function ChannelsPage() {
                     <>
                         {/* Config keys (masked) */}
                         {Object.keys(selected.config).length > 0 && (
-                            <div className="rounded-xl border border-border bg-surface-1/40 p-4">
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-3">Configuration</h3>
+                            <div className="rounded-sm border border-border bg-surface-1/40 p-4">
+                                <h3 className="text-xs font-medium uppercase tracking-wider text-text-muted mb-3">Configuration</h3>
                                 <div className="flex flex-col gap-2">
                                     {Object.keys(selected.config).map((k) => (
                                         <div key={k} className="flex items-center justify-between text-sm">
@@ -842,8 +842,8 @@ export default function ChannelsPage() {
                         : undefined
                     if (!linkedConnection) return null
                     return (
-                        <div className="rounded-lg border border-violet-800/30 bg-surface-2/20 px-3 py-3 flex flex-col gap-1.5">
-                            <p className="text-xs font-semibold text-violet-400 flex items-center gap-1.5">
+                        <div className="rounded-sm border border-violet-800/30 bg-surface-2/20 px-3 py-3 flex flex-col gap-1.5">
+                            <p className="text-xs font-medium text-violet-400 flex items-center gap-1.5">
                                 <Puzzle className="h-3.5 w-3.5" />
                                 Connector linked
                             </p>
@@ -863,7 +863,7 @@ export default function ChannelsPage() {
                 })()}
 
                 {selected.errorCount > 0 && (
-                    <div role="alert" className="rounded-lg border border-red-800/40 bg-red-dim px-3 py-2.5 flex items-center gap-2 text-sm text-red">
+                    <div role="alert" className="rounded-sm border border-red-800/40 bg-red-dim px-3 py-2.5 flex items-center gap-2 text-sm text-red">
                         <AlertCircle className="h-4 w-4 shrink-0" />
                         {selected.errorCount} consecutive error{selected.errorCount !== 1 ? 's' : ''} — check token validity and webhook configuration.
                     </div>

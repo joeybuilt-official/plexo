@@ -67,7 +67,7 @@ function Section({ title, description, children }: {
     return (
         <div className="border-b border-border pb-8 last:border-0 last:pb-0">
             <div className="mb-5">
-                <h2 className="text-base font-semibold text-text-primary">{title}</h2>
+                <h2 className="text-base font-medium text-text-primary">{title}</h2>
                 {description && <p className="mt-1 text-sm text-text-muted">{description}</p>}
             </div>
             {children}
@@ -123,11 +123,11 @@ function Modal({ open, onClose, title, children }: {
             aria-modal="true"
             aria-labelledby="privacy-modal-title"
         >
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-border bg-surface-1 shadow-2xl">
+            <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+            <div className="relative z-10 w-full max-w-2xl rounded-sm border border-border bg-surface-1">
                 <div className="flex items-center justify-between border-b border-border px-6 py-4">
-                    <h3 id="privacy-modal-title" className="text-sm font-semibold text-text-primary">{title}</h3>
-                    <button onClick={onClose} aria-label="Close dialog" className="rounded-lg p-1 text-text-muted hover:text-text-primary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center -mr-3">
+                    <h3 id="privacy-modal-title" className="text-sm font-medium text-text-primary">{title}</h3>
+                    <button onClick={onClose} aria-label="Close dialog" className="rounded-sm p-1 text-text-muted hover:text-text-primary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center -mr-3">
                         <X className="h-5 w-5 sm:h-4 sm:w-4" />
                     </button>
                 </div>
@@ -156,7 +156,7 @@ function ErrorPayloadModal({ open, onClose, enabled }: { open: boolean; onClose:
     return (
         <Modal open={open} onClose={onClose} title="What gets sent — crash reports">
             {!enabled && (
-                <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-900/50 bg-amber-dim/30 px-4 py-3 text-xs text-amber">
+                <div className="mb-4 flex items-start gap-2 rounded-sm border border-amber-900/50 bg-amber-dim/30 px-4 py-3 text-xs text-amber">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                     This is what would be sent if crash reporting were enabled. Nothing is being transmitted now.
                 </div>
@@ -170,7 +170,7 @@ function ErrorPayloadModal({ open, onClose, enabled }: { open: boolean; onClose:
                 <p className="py-6 text-center text-sm text-text-muted">No reports recorded yet.</p>
             )}
             {!loading && payload && (
-                <pre className="overflow-auto rounded-xl bg-canvas border border-border p-4 text-xs font-mono text-azure leading-relaxed max-h-96">
+                <pre className="overflow-auto rounded-sm bg-canvas border border-border p-4 text-xs font-mono text-azure leading-relaxed max-h-96">
                     {JSON.stringify(payload, null, 2)}
                 </pre>
             )}
@@ -184,7 +184,7 @@ function UsagePayloadModal({ open, onClose, enabled }: { open: boolean; onClose:
     return (
         <Modal open={open} onClose={onClose} title="What gets sent — usage events">
             {!enabled && (
-                <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-900/50 bg-amber-dim/30 px-4 py-3 text-xs text-amber">
+                <div className="mb-4 flex items-start gap-2 rounded-sm border border-amber-900/50 bg-amber-dim/30 px-4 py-3 text-xs text-amber">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                     This is what would be sent if usage sharing were enabled. Nothing is being transmitted now.
                 </div>
@@ -192,7 +192,7 @@ function UsagePayloadModal({ open, onClose, enabled }: { open: boolean; onClose:
             <p className="mb-3 text-xs text-text-muted">
                 Example event. All events follow this structure — only properties from the allowlist are ever included.
             </p>
-            <pre className="overflow-auto rounded-xl bg-canvas border border-border p-4 text-xs font-mono text-azure leading-relaxed max-h-96">
+            <pre className="overflow-auto rounded-sm bg-canvas border border-border p-4 text-xs font-mono text-azure leading-relaxed max-h-96">
                 {JSON.stringify(EXAMPLE_USAGE_PAYLOAD, null, 2)}
             </pre>
             <p className="mt-3 text-xs text-text-muted">
@@ -221,14 +221,14 @@ function RegenerateModal({ open, onClose, onConfirm, loading }: {
                 reports will no longer be associated with this instance.
             </p>
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                <button onClick={onClose} className="flex-1 rounded-xl border border-border py-2.5 text-sm text-text-secondary hover:border-border transition-colors min-h-[44px]">
+                <button onClick={onClose} className="flex-1 rounded-sm border border-border py-2.5 text-sm text-text-secondary hover:border-border transition-colors min-h-[44px]">
                     Cancel
                 </button>
                 <button
                     id="privacy-confirm-regenerate"
                     onClick={onConfirm}
                     disabled={loading}
-                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2 min-h-[44px]"
+                    className="flex-1 rounded-sm bg-azure py-2.5 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2 min-h-[44px]"
                 >
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                     {loading ? 'Regenerating…' : 'Regenerate ID'}
@@ -395,16 +395,16 @@ export default function PrivacyPage() {
 
             <div className="mx-auto max-w-2xl">
                 <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="flex h-12 w-12 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-surface-2 border border-border">
+                    <div className="flex h-12 w-12 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-sm bg-surface-2 border border-border">
                         <ShieldCheck className="h-6 w-6 sm:h-5 sm:w-5 text-azure" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-text-primary">Privacy</h1>
+                        <h1 className="text-2xl font-medium text-text-primary">Privacy</h1>
                         <p className="text-sm text-text-muted">You can change these at any time. Changes take effect immediately.</p>
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-8 rounded-2xl border border-border bg-surface-1/60 p-7">
+                <div className="flex flex-col gap-8 rounded-sm border border-border bg-surface-1/60 p-7">
 
                     {/* ── Share crash reports ── */}
                     <Section title="Share crash reports">
@@ -418,7 +418,7 @@ export default function PrivacyPage() {
                             Without it, we only hear about problems when someone files a report manually.
                         </p>
 
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border border-border bg-canvas px-4 py-3.5 gap-4 sm:gap-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between rounded-sm border border-border bg-canvas px-4 py-3.5 gap-4 sm:gap-0">
                             <div>
                                 <p className="text-sm font-medium text-text-primary">
                                     {config.errorsEnabled ? 'Sending anonymous crash reports' : 'Crash reporting disabled'}
@@ -473,7 +473,7 @@ export default function PrivacyPage() {
                             what the data shows they need.
                         </p>
 
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border border-border bg-canvas px-4 py-3.5 gap-4 sm:gap-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between rounded-sm border border-border bg-canvas px-4 py-3.5 gap-4 sm:gap-0">
                             <div>
                                 <p className="text-sm font-medium text-text-primary">
                                     {config.usageEnabled ? 'Sending anonymous usage events' : 'Usage sharing disabled'}
@@ -522,13 +522,13 @@ export default function PrivacyPage() {
                                 id="privacy-instance-id"
                                 readOnly
                                 value={config.instanceId || '—'}
-                                className="flex-1 rounded-lg border border-border bg-canvas px-3 py-2 text-[16px] sm:text-xs font-mono text-text-secondary focus-ring min-h-[44px]"
+                                className="flex-1 rounded-sm border border-border bg-canvas px-3 py-2 text-[16px] sm:text-xs font-mono text-text-secondary focus-ring min-h-[44px]"
                             />
                             <button
                                 id="privacy-copy-id"
                                 onClick={() => void copyId()}
                                 title="Copy to clipboard"
-                                className="flex items-center justify-center rounded-lg border border-border bg-canvas p-2 text-text-muted hover:text-text-primary transition-colors min-h-[44px] sm:min-w-[44px] w-full sm:w-auto"
+                                className="flex items-center justify-center rounded-sm border border-border bg-canvas p-2 text-text-muted hover:text-text-primary transition-colors min-h-[44px] sm:min-w-[44px] w-full sm:w-auto"
                             >
                                 {copied ? <Check className="h-4 w-4 text-azure mr-2 sm:mr-0" /> : <Copy className="h-4 w-4 mr-2 sm:mr-0" />}
                                 <span className="sm:hidden text-sm font-medium">{copied ? 'Copied' : 'Copy'}</span>
@@ -558,7 +558,7 @@ export default function PrivacyPage() {
                                     const dr = p.dataResidency!
                                     const hasUnknownDests = dr.sendsDataExternally && (!dr.externalDestinations || dr.externalDestinations.length === 0)
                                     return (
-                                        <div key={p.name} className="rounded-xl border border-border bg-canvas p-4">
+                                        <div key={p.name} className="rounded-sm border border-border bg-canvas p-4">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <span className="text-sm font-medium text-text-primary">{p.name}</span>
                                                 <span className="text-[11px] rounded border border-border px-1.5 py-0.5 text-text-muted">{p.type}</span>
@@ -594,7 +594,7 @@ export default function PrivacyPage() {
 
                     {/* ── Data We Don't Have ── */}
                     <Section title="Data We Don't Have">
-                        <div className="rounded-xl border border-border bg-canvas p-5">
+                        <div className="rounded-sm border border-border bg-canvas p-5">
                             <p className="text-sm text-text-secondary leading-relaxed">
                                 Because Plexo is self-hosted, we have no record of your tasks, workspace
                                 configuration, or agent outputs. We have no access to your database, your

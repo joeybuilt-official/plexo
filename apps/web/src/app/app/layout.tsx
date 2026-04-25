@@ -47,7 +47,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 accent. The target #main-content lives on DashboardMain. */}
             <a
                 href="#main-content"
-                className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-azure focus:px-3 focus:py-2 focus:text-text-primary focus:shadow-lg"
+                className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-azure focus:px-3 focus:py-2 focus:text-text-primary"
             >
                 Skip to content
             </a>

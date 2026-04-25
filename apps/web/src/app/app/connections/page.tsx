@@ -472,14 +472,14 @@ function IntegrationsContent() {
         <div className="relative">
             <button
                 onClick={() => setShowAddMenu(v => !v)}
-                className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                className="flex items-center gap-1.5 rounded-sm bg-azure px-3 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
             >
                 <Plus className="h-4 w-4" />
                 Add
                 <ChevronDown className="h-3 w-3" />
             </button>
             {showAddMenu && (
-                <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-lg border border-border bg-surface-0 shadow-lg py-1">
+                <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-sm border border-border bg-surface-0 py-1">
                     <button
                         onClick={() => { setShowAddMenu(false); setAddCustomType('mcp') }}
                         className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-text-secondary hover:bg-surface-2 transition-colors text-left"
@@ -545,12 +545,12 @@ function IntegrationsContent() {
                                     (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'flex')
                                 }}
                             />
-                            <span className="h-6 w-6 rounded bg-surface-2 items-center justify-center text-[11px] font-bold text-text-secondary hidden" style={{ display: 'none' }}>
+                            <span className="h-6 w-6 rounded bg-surface-2 items-center justify-center text-[11px] font-medium text-text-secondary hidden" style={{ display: 'none' }}>
                                 {r.name.slice(0, 2).toUpperCase()}
                             </span>
                         </span>
                     ) : (
-                        <div className="h-6 w-6 rounded bg-surface-2 flex items-center justify-center text-[11px] font-bold text-text-secondary">
+                        <div className="h-6 w-6 rounded bg-surface-2 flex items-center justify-center text-[11px] font-medium text-text-secondary">
                             {r.name.slice(0, 2).toUpperCase()}
                         </div>
                     )}
@@ -558,7 +558,7 @@ function IntegrationsContent() {
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                     {r.stub && (
-                        <span className="text-[9px] font-semibold uppercase tracking-wide text-text-muted bg-surface-2 rounded px-1 py-0.5 border border-border">
+                        <span className="text-[9px] font-medium uppercase tracking-wide text-text-muted bg-surface-2 rounded px-1 py-0.5 border border-border">
                             Soon
                         </span>
                     )}
@@ -638,7 +638,7 @@ function IntegrationsContent() {
                 detail={detail}
                 emptyDetail={emptyDetail}
                 errorBanner={error ? (
-                    <div className="rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red flex items-center justify-between">
+                    <div className="rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red flex items-center justify-between">
                         {error}
                         <button onClick={() => setError(null)} aria-label="Dismiss error" className="text-red-600 hover:text-red">✕</button>
                     </div>
@@ -670,17 +670,17 @@ function IntegrationsContent() {
             {addCustomType === 'a2a' && (
                 <div
                     ref={a2aTrapRef}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
                     onClick={(e) => { if (e.target === e.currentTarget) resetCustomForm() }}
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="a2a-modal-title"
                 >
-                    <div className="w-full max-w-lg rounded-xl border border-border bg-surface-0 shadow-2xl">
+                    <div className="w-full max-w-lg rounded-sm border border-border bg-surface-0">
                         <div className="flex items-center justify-between border-b border-border px-5 py-4">
                             <div className="flex items-center gap-2">
                                 <Bot className="h-4 w-4 text-azure" aria-hidden="true" />
-                                <h2 id="a2a-modal-title" className="text-base font-semibold text-text-primary">
+                                <h2 id="a2a-modal-title" className="text-base font-medium text-text-primary">
                                     Add External A2A Agent
                                 </h2>
                             </div>
@@ -697,7 +697,7 @@ function IntegrationsContent() {
                                     onChange={(e) => setCustomUrl(e.target.value)}
                                     placeholder="https://agent.example.com"
                                     autoFocus
-                                    className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                                    className="rounded-sm border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                                 />
                                 <p className="text-[11px] text-text-muted">Plexo will fetch <code className="font-mono">/.well-known/agent.json</code> to validate the agent card.</p>
                             </div>
@@ -709,10 +709,10 @@ function IntegrationsContent() {
                                     onChange={(e) => setCustomAuthValue(e.target.value)}
                                     placeholder="sk-••••••••"
                                     autoComplete="new-password"
-                                    className="rounded-lg border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
+                                    className="rounded-sm border border-border bg-surface-1 px-3 min-h-[44px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30"
                                 />
                             </div>
-                            <div className="rounded-lg border border-azure/20 bg-azure/5 px-3 py-3">
+                            <div className="rounded-sm border border-azure/20 bg-azure/5 px-3 py-3">
                                 <p className="text-[11px] text-azure/70 leading-relaxed">
                                     The agent will appear as a callable tool in the extension library. Plexo routes tasks to it via the A2A protocol.
                                 </p>
@@ -721,14 +721,14 @@ function IntegrationsContent() {
                         <div className="flex items-center justify-end gap-3 border-t border-border px-5 py-4">
                             <button
                                 onClick={resetCustomForm}
-                                className="rounded-lg border border-border px-4 min-h-[44px] text-sm font-medium text-text-secondary hover:bg-surface-2 transition-colors"
+                                className="rounded-sm border border-border px-4 min-h-[44px] text-sm font-medium text-text-secondary hover:bg-surface-2 transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={() => void handleA2aSave()}
                                 disabled={!customUrl.trim() || customSaving}
-                                className="rounded-lg bg-azure px-4 min-h-[44px] text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
+                                className="rounded-sm bg-azure px-4 min-h-[44px] text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
                             >
                                 {customSaving ? 'Connecting...' : 'Connect Agent'}
                             </button>

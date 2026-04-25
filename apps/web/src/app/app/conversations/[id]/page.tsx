@@ -101,7 +101,7 @@ export default function ConversationDetailPage() {
                 <Link href="/app/conversations" className="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-text-secondary transition-colors mb-6">
                     <ArrowLeft className="h-4 w-4" /> Back to conversations
                 </Link>
-                <div className="rounded-xl border border-border bg-surface-1/40 py-16 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 py-16 text-center">
                     <p className="text-sm text-text-muted">Conversation not found.</p>
                 </div>
             </div>
@@ -125,7 +125,7 @@ export default function ConversationDetailPage() {
             </Link>
 
             {/* Header card */}
-            <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+            <div className="rounded-sm border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -150,7 +150,7 @@ export default function ConversationDetailPage() {
                         {conv.taskId && (
                             <Link
                                 href={`/app/tasks/${conv.taskId}`}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2/60 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:border-border transition-colors"
+                                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-surface-2/60 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:border-border transition-colors"
                             >
                                 <ExternalLink className="h-3.5 w-3.5" />
                                 View task
@@ -158,7 +158,7 @@ export default function ConversationDetailPage() {
                         )}
                         <Link
                             href={`/app/chat?context=${encodeURIComponent(conv.id)}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                            className="inline-flex items-center gap-1.5 rounded-sm bg-azure px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-azure/90 transition-colors"
                         >
                             <MessageCircle className="h-3.5 w-3.5" />
                             Continue
@@ -181,7 +181,7 @@ export default function ConversationDetailPage() {
                         <User className="h-4 w-4 text-text-secondary" />
                     </div>
                     <div className="flex flex-col gap-1 max-w-[85%] min-w-0 items-end">
-                        <div className="rounded-2xl rounded-tr-md px-4 py-2.5 text-sm leading-relaxed bg-azure text-text-primary break-words overflow-hidden whitespace-pre-wrap">
+                        <div className="rounded-sm rounded-tr-md px-4 py-2.5 text-sm leading-relaxed bg-azure text-text-primary break-words overflow-hidden whitespace-pre-wrap">
                             {conv.message}
                         </div>
                     </div>
@@ -194,7 +194,7 @@ export default function ConversationDetailPage() {
                             <Bot className="h-4 w-4 text-text-primary" />
                         </div>
                         <div className="flex flex-col gap-1 max-w-[85%] min-w-0 items-start">
-                            <div className={`rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed break-words overflow-hidden whitespace-pre-wrap ${
+                            <div className={`rounded-sm rounded-tl-md px-4 py-2.5 text-sm leading-relaxed break-words overflow-hidden whitespace-pre-wrap ${
                                 conv.status === 'failed' && conv.errorMsg
                                     ? 'bg-red-dim border border-red-800/40 text-red-300'
                                     : 'bg-surface-2 text-text-primary'
@@ -208,7 +208,7 @@ export default function ConversationDetailPage() {
 
             {/* Meta footer */}
             {conv.sessionId && (
-                <div className="rounded-lg border border-border/60 bg-surface-1/20 px-4 py-3">
+                <div className="rounded-sm border border-border/60 bg-surface-1/20 px-4 py-3">
                     <p className="text-[11px] text-text-muted">
                         Session ID: <span className="font-mono text-text-muted">{conv.sessionId}</span>
                     </p>

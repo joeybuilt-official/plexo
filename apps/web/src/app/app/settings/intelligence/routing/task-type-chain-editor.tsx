@@ -219,7 +219,7 @@ export function TaskTypeChainEditor({ workspaceId }: TaskTypeChainEditorProps) {
 
     if (isLoading) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+            <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                 Loading routing chains…
             </div>
         )
@@ -240,7 +240,7 @@ export function TaskTypeChainEditor({ workspaceId }: TaskTypeChainEditorProps) {
                     const list = getDraft(tier)
                     const isSaving = saving === tier
                     return (
-                        <div key={tier} className="rounded-xl border border-border bg-surface-1">
+                        <div key={tier} className="rounded-sm border border-border bg-surface-1">
                             <button
                                 type="button"
                                 onClick={() => setOpen(o => ({ ...o, [tier]: !o[tier] }))}
@@ -258,7 +258,7 @@ export function TaskTypeChainEditor({ workspaceId }: TaskTypeChainEditorProps) {
                             {isOpen && (
                                 <div className="border-t border-border p-3 space-y-2">
                                     {list.length === 0 ? (
-                                        <div className="rounded-xl border border-dashed border-border p-3 text-center text-xs text-text-muted">
+                                        <div className="rounded-sm border border-dashed border-border p-3 text-center text-xs text-text-muted">
                                             No models in this chain. The router will fall through to the legacy primary provider.
                                         </div>
                                     ) : (

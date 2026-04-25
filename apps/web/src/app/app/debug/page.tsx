@@ -63,7 +63,7 @@ const ROUTE_CHECKS: RouteCheck[] = [
 
 function ServiceBadge({ name, health }: { name: string; health: ServiceHealth }) {
     return (
-        <div className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${health.ok
+        <div className={`flex items-center justify-between rounded-sm border px-3 py-2.5 ${health.ok
             ? 'border-azure-800/40 bg-azure/20'
             : 'border-red-800/40 bg-red-dim'
             }`}>
@@ -308,7 +308,7 @@ export default function DebugPage() {
         }
         return (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-                <h1 className="text-2xl font-bold text-text-primary">404</h1>
+                <h1 className="text-2xl font-medium text-text-primary">404</h1>
                 <p className="mt-2 text-sm text-text-muted">This page could not be found.</p>
             </div>
         )
@@ -319,13 +319,13 @@ export default function DebugPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary">Debug</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">Debug</h1>
                     <p className="mt-0.5 text-sm text-text-muted">Service health, route diagnostics, and SSE stream monitor</p>
                 </div>
                 <button
                     onClick={() => { void fetchHealth(); void runRouteChecks() }}
                     disabled={healthLoading || routeLoading}
-                    className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-muted hover:text-text-secondary transition-colors"
+                    className="flex items-center gap-1.5 rounded-sm border border-border bg-surface-1 px-3 py-2 text-xs text-text-muted hover:text-text-secondary transition-colors"
                 >
                     <RefreshCw className={`h-3.5 w-3.5 ${(healthLoading || routeLoading) ? 'animate-spin' : ''}`} />
                     Refresh all
@@ -333,11 +333,11 @@ export default function DebugPage() {
             </div>
 
             {/* Snapshot panel */}
-            <div className="rounded-xl border border-border bg-surface-1/40 p-4">
+            <div className="rounded-sm border border-border bg-surface-1/40 p-4">
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <Cpu className="h-4 w-4 text-text-muted" />
-                        <span className="text-sm font-semibold text-text-primary">Runtime Snapshot</span>
+                        <span className="text-sm font-medium text-text-primary">Runtime Snapshot</span>
                     </div>
                     <button
                         onClick={() => void fetchSnapshot()}
@@ -351,17 +351,17 @@ export default function DebugPage() {
                 {!snapshot ? (
                     <p className="text-xs text-text-muted">Click Fetch to load runtime state from /api/v1/debug/snapshot</p>
                 ) : (
-                    <pre className="rounded-lg bg-canvas p-3 text-[11px] font-mono text-text-secondary overflow-auto max-h-56 whitespace-pre-wrap">{JSON.stringify(snapshot, null, 2)}</pre>
+                    <pre className="rounded-sm bg-canvas p-3 text-[11px] font-mono text-text-secondary overflow-auto max-h-56 whitespace-pre-wrap">{JSON.stringify(snapshot, null, 2)}</pre>
                 )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
                 {/* Health status card */}
-                <div className="col-span-2 xl:col-span-1 rounded-xl border border-border bg-surface-1/40 p-4">
+                <div className="col-span-2 xl:col-span-1 rounded-sm border border-border bg-surface-1/40 p-4">
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                             <Activity className="h-4 w-4 text-text-muted" />
-                            <span className="text-sm font-semibold text-text-primary">Service Health</span>
+                            <span className="text-sm font-medium text-text-primary">Service Health</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-text-muted">
                             <Clock className="h-3.5 w-3.5" />
@@ -374,7 +374,7 @@ export default function DebugPage() {
                         </div>
                     ) : health ? (
                         <div className="flex flex-col gap-2">
-                            <div className={`mb-1 text-xs font-semibold uppercase tracking-wider ${health.status === 'ok' ? 'text-azure' : 'text-red'
+                            <div className={`mb-1 text-xs font-medium uppercase tracking-wider ${health.status === 'ok' ? 'text-azure' : 'text-red'
                                 }`}>{health.status.toUpperCase()}</div>
                             {Object.entries(health.services).map(([name, svc]) => (
                                 <ServiceBadge key={name} name={name} health={svc} />
@@ -387,13 +387,13 @@ export default function DebugPage() {
                 </div>
 
                 {/* SSE monitor */}
-                <div className="col-span-2 rounded-xl border border-border bg-surface-1/40 p-4">
+                <div className="col-span-2 rounded-sm border border-border bg-surface-1/40 p-4">
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                             <Wifi className="h-4 w-4 text-text-muted" />
-                            <span className="text-sm font-semibold text-text-primary">SSE Stream</span>
+                            <span className="text-sm font-medium text-text-primary">SSE Stream</span>
                         </div>
-                        <div className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${sseStatus === 'open'
+                        <div className={`flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11px] font-medium uppercase ${sseStatus === 'open'
                             ? 'bg-azure/15 text-azure'
                             : sseStatus === 'connecting'
                                 ? 'bg-amber/15 text-amber'
@@ -403,7 +403,7 @@ export default function DebugPage() {
                             {sseStatus}
                         </div>
                     </div>
-                    <div className="h-36 overflow-y-auto rounded-lg bg-canvas p-3 font-mono text-[11px] text-text-muted">
+                    <div className="h-36 overflow-y-auto rounded-sm bg-canvas p-3 font-mono text-[11px] text-text-muted">
                         {sseEvents.length === 0 ? (
                             <span className="text-text-muted">Waiting for events…</span>
                         ) : (
@@ -421,16 +421,16 @@ export default function DebugPage() {
             </div>
 
             {/* Route diagnostics */}
-            <div className="rounded-xl border border-border bg-surface-1/40 p-4">
+            <div className="rounded-sm border border-border bg-surface-1/40 p-4">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Server className="h-4 w-4 text-text-muted" />
-                        <span className="text-sm font-semibold text-text-primary">Route Diagnostics</span>
+                        <span className="text-sm font-medium text-text-primary">Route Diagnostics</span>
                     </div>
                     <button
                         onClick={() => void runRouteChecks()}
                         disabled={routeLoading}
-                        className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors"
+                        className="flex items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors"
                     >
                         <Terminal className={`h-3.5 w-3.5 ${routeLoading ? 'animate-pulse' : ''}`} />
                         Run checks
@@ -440,10 +440,10 @@ export default function DebugPage() {
                 <table className="w-full">
                     <thead>
                         <tr className="border-b border-border text-left">
-                            <th className="pb-2 text-xs font-semibold text-text-muted">Endpoint</th>
-                            <th className="pb-2 text-xs font-semibold text-text-muted">Route</th>
-                            <th className="pb-2 text-xs font-semibold text-text-muted">Status</th>
-                            <th className="pb-2 text-xs font-semibold text-text-muted">Latency</th>
+                            <th className="pb-2 text-xs font-medium text-text-muted">Endpoint</th>
+                            <th className="pb-2 text-xs font-medium text-text-muted">Route</th>
+                            <th className="pb-2 text-xs font-medium text-text-muted">Status</th>
+                            <th className="pb-2 text-xs font-medium text-text-muted">Latency</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -461,10 +461,10 @@ export default function DebugPage() {
             </div>
 
             {/* Environment */}
-            <div className="rounded-xl border border-border bg-surface-1/40 overflow-hidden">
+            <div className="rounded-sm border border-border bg-surface-1/40 overflow-hidden">
                 <button
                     onClick={() => setEnvOpen((v) => !v)}
-                    className="flex w-full items-center justify-between p-4 text-left text-sm font-semibold text-text-primary hover:bg-surface-2/30 transition-colors"
+                    className="flex w-full items-center justify-between p-4 text-left text-sm font-medium text-text-primary hover:bg-surface-2/30 transition-colors"
                 >
                     <div className="flex items-center gap-2">
                         <Database className="h-4 w-4 text-text-muted" />
@@ -475,7 +475,7 @@ export default function DebugPage() {
                 {envOpen && (
                     <div className="border-t border-border px-4 pb-4 pt-3 flex flex-col gap-2">
                         {envVars.map(([key, val]) => (
-                            <div key={key} className="flex items-center justify-between rounded-lg bg-canvas px-3 py-2">
+                            <div key={key} className="flex items-center justify-between rounded-sm bg-canvas px-3 py-2">
                                 <span className="font-mono text-xs text-text-muted">{key}</span>
                                 <div className="flex items-center gap-1.5">
                                     <span className="font-mono text-xs text-text-secondary">{val}</span>
@@ -488,17 +488,17 @@ export default function DebugPage() {
             </div>
 
             {/* RPC console */}
-            <div className="rounded-xl border border-border bg-surface-1/40 p-4">
+            <div className="rounded-sm border border-border bg-surface-1/40 p-4">
                 <div className="flex items-center gap-2 mb-3">
                     <Terminal className="h-4 w-4 text-text-muted" />
-                    <span className="text-sm font-semibold text-text-primary">RPC Console</span>
+                    <span className="text-sm font-medium text-text-primary">RPC Console</span>
                 </div>
                 <div className="flex flex-col gap-2">
                     <div className="flex gap-2">
                         <select
                             value={rpcMethod}
                             onChange={(e) => setRpcMethod(e.target.value)}
-                            className="flex-1 rounded-lg border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-secondary focus:border-azure focus-ring"
+                            className="flex-1 rounded-sm border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-secondary focus:border-azure focus-ring"
                         >
                             {['ping', 'queue.stats', 'memory.list', 'memory.run_improvement', 'agent.status'].map((m) => (
                                 <option key={m} value={m}>{m}</option>
@@ -507,7 +507,7 @@ export default function DebugPage() {
                         <button
                             onClick={() => void runRpc()}
                             disabled={rpcLoading}
-                            className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-sm text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded-sm bg-azure px-3 py-1.5 text-sm text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
                         >
                             <Play className="h-3 w-3" />
                             {rpcLoading ? 'Running…' : 'Run'}
@@ -518,10 +518,10 @@ export default function DebugPage() {
                         onChange={(e) => setRpcParams(e.target.value)}
                         placeholder='Optional JSON params e.g. {"workspaceId": "..."}'
                         rows={2}
-                        className="w-full rounded-lg border border-border bg-surface-1 px-4 py-2.5 text-xs font-mono text-text-secondary placeholder:text-text-muted focus:border-azure focus-ring resize-none"
+                        className="w-full rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-xs font-mono text-text-secondary placeholder:text-text-muted focus:border-azure focus-ring resize-none"
                     />
                     {rpcResult && (
-                        <pre className="rounded-lg bg-canvas p-3 text-[11px] font-mono text-text-secondary overflow-auto max-h-48 whitespace-pre-wrap">{rpcResult}</pre>
+                        <pre className="rounded-sm bg-canvas p-3 text-[11px] font-mono text-text-secondary overflow-auto max-h-48 whitespace-pre-wrap">{rpcResult}</pre>
                     )}
                 </div>
             </div>

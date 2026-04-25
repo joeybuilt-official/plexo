@@ -67,11 +67,11 @@ export default function RsiInboxPage() {
         <div className="flex h-full flex-col overflow-hidden">
             <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-surface-1 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-sm bg-surface-1 flex items-center justify-center shrink-0">
                         <Brain className="h-5 w-5 text-azure" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-text-primary">RSI proposals</h2>
+                        <h2 className="text-base font-medium text-text-primary">RSI proposals</h2>
                         <p className="text-xs text-text-muted mt-0.5">
                             Real-Time Self-Inspection anomalies that suggest a routing or config change. Approve to action; reject to dismiss.
                         </p>
@@ -105,7 +105,7 @@ export default function RsiInboxPage() {
 
             <div className="flex-1 overflow-y-auto p-4">
                 {!workspaceId ? (
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         Pick a workspace from the sidebar.
                     </div>
                 ) : isLoading ? (
@@ -113,11 +113,11 @@ export default function RsiInboxPage() {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading RSI proposals…
                     </div>
                 ) : error ? (
-                    <div className="rounded-xl border border-rose-700/40 bg-surface-1 p-3 text-xs text-rose-300">
+                    <div className="rounded-sm border border-rose-700/40 bg-surface-1 p-3 text-xs text-rose-300">
                         Failed to load proposals. {String(error)}
                     </div>
                 ) : !data || data.proposals.length === 0 ? (
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         No {status === 'all' ? '' : status} proposals.
                     </div>
                 ) : (
@@ -126,14 +126,14 @@ export default function RsiInboxPage() {
                             const isPending = pending === p.id
                             const tone = RISK_TONE[p.risk] ?? 'border-border text-text-muted'
                             return (
-                                <div key={p.id} className="rounded-xl border border-border bg-surface-1 p-3">
+                                <div key={p.id} className="rounded-sm border border-border bg-surface-1 p-3">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-medium text-text-primary truncate">
                                                     {p.anomalyType}
                                                 </span>
-                                                <span className={`inline-flex items-center rounded-full border bg-surface-1 px-2 py-0.5 text-[10px] ${tone}`}>
+                                                <span className={`inline-flex items-center rounded-sm border bg-surface-1 px-2 py-0.5 text-[10px] ${tone}`}>
                                                     {p.risk} risk
                                                 </span>
                                             </div>

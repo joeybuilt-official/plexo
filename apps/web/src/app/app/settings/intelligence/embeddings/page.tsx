@@ -91,11 +91,11 @@ export default function EmbeddingsPage() {
         <div className="flex flex-col h-full overflow-y-auto">
             <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-surface-1 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-sm bg-surface-1 flex items-center justify-center shrink-0">
                         <Sparkles className="h-5 w-5 text-azure" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-text-primary">Embeddings</h2>
+                        <h2 className="text-base font-medium text-text-primary">Embeddings</h2>
                         <p className="text-xs text-text-muted mt-0.5">
                             Memory recall, SCL expansion, and any RAG flow run through the embeddings stack.
                         </p>
@@ -105,7 +105,7 @@ export default function EmbeddingsPage() {
 
             <div className="p-4 space-y-8 max-w-4xl">
                 {!workspaceId ? (
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         Pick a workspace from the sidebar to configure embeddings.
                     </div>
                 ) : (
@@ -115,7 +115,7 @@ export default function EmbeddingsPage() {
                             <div className="flex items-start gap-2">
                                 <Server className="h-4 w-4 text-text-muted shrink-0 mt-0.5" />
                                 <div>
-                                    <h3 className="text-sm font-semibold text-text-primary">Bundled services</h3>
+                                    <h3 className="text-sm font-medium text-text-primary">Bundled services</h3>
                                     <p className="text-[11px] text-text-muted">
                                         Services shipped inside Plexo. The local embeddings
                                         server is the primary path when it&apos;s running.
@@ -126,7 +126,7 @@ export default function EmbeddingsPage() {
                             <LocalEmbeddingsPanel workspaceId={workspaceId} canReload={true} />
 
                             {localEmbeddingsUp && (
-                                <div className="rounded-xl border border-emerald-800/40 bg-emerald-900/10 p-3 flex items-start gap-2">
+                                <div className="rounded-sm border border-emerald-800/40 bg-emerald-900/10 p-3 flex items-start gap-2">
                                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
                                     <div className="text-xs">
                                         <p className="font-medium text-emerald-400">Active</p>
@@ -142,7 +142,7 @@ export default function EmbeddingsPage() {
                                     {managedHealthyRows.map((row) => (
                                         <div
                                             key={row.instanceId}
-                                            className="rounded-xl border border-border bg-surface-1 p-3 flex items-start gap-2"
+                                            className="rounded-sm border border-border bg-surface-1 p-3 flex items-start gap-2"
                                         >
                                             <Server className="h-4 w-4 text-text-muted shrink-0 mt-0.5" />
                                             <div className="min-w-0 flex-1">
@@ -169,7 +169,7 @@ export default function EmbeddingsPage() {
                             <div className="flex items-start gap-2">
                                 <Sparkles className="h-4 w-4 text-text-muted shrink-0 mt-0.5" />
                                 <div>
-                                    <h3 className="text-sm font-semibold text-text-primary">BYO fallback providers</h3>
+                                    <h3 className="text-sm font-medium text-text-primary">BYO fallback providers</h3>
                                     <p className="text-[11px] text-text-muted">
                                         User-added providers with an embedding model configured.
                                         Used as a fallback when the bundled server is down.
@@ -178,11 +178,11 @@ export default function EmbeddingsPage() {
                             </div>
 
                             {isLoading ? (
-                                <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                                <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                                     Loading embedding providers…
                                 </div>
                             ) : byoEmbeddingProviders.length === 0 ? (
-                                <div className="rounded-xl border border-border bg-surface-1 p-3 flex items-start gap-2">
+                                <div className="rounded-sm border border-border bg-surface-1 p-3 flex items-start gap-2">
                                     <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
                                     <p className="text-xs text-text-muted">
                                         No BYO embedding providers connected. Add OpenAI, Voyage, Cohere, Google,

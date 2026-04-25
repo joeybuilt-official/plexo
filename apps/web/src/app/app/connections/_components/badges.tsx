@@ -23,7 +23,7 @@ export function AuthBadge({ type }: { type: AuthType }) {
     }
     const { label, cls } = map[type]
     return (
-        <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>
+        <span className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>
             <AuthIcon type={type} />
             {label}
         </span>
@@ -40,7 +40,7 @@ export function CopySnippet({ code }: { code: string }) {
     const [copied, setCopied] = useState(false)
     return (
         <div className="relative group">
-            <pre className="rounded-lg border border-border bg-canvas p-3 text-[11px] font-mono text-text-secondary overflow-x-auto whitespace-pre leading-relaxed pr-9">{code}</pre>
+            <pre className="rounded-sm border border-border bg-canvas p-3 text-[11px] font-mono text-text-secondary overflow-x-auto whitespace-pre leading-relaxed pr-9">{code}</pre>
             <button
                 onClick={() => { void navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
                 className="absolute right-2 top-2 p-1.5 rounded-md bg-surface-2 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity hover:text-text-primary"

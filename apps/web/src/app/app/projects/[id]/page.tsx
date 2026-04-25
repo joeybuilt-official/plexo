@@ -172,9 +172,9 @@ function WorkerCard({ task }: { task: SprintTaskItem }) {
         <Link
             href={`/app/tasks/${task.id}`}
             className={cn(
-                "group flex flex-col justify-between rounded-xl border p-3.5 transition-all",
+                "group flex flex-col justify-between rounded-sm border p-3.5 transition-all",
                 isRunning
-                    ? "border-azure/30 bg-azure-dim/10 shadow-[0_0_15px_-5px_var(--color-azure)]"
+                    ? "border-azure/30 bg-azure-dim/10"
                     : "border-border bg-surface-1/40 hover:border-border-hover"
             )}
         >
@@ -219,7 +219,7 @@ function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) 
     return (
         <div
             className={cn(
-                "group flex gap-3 px-3 py-2.5 rounded-lg border transition-all duration-300",
+                "group flex gap-3 px-3 py-2.5 rounded-sm border transition-all duration-300",
                 cfg.bgColor,
                 isNew ? "animate-[fadeSlideIn_0.3s_ease-out]" : ""
             )}
@@ -231,7 +231,7 @@ function LogEntry({ entry, isNew }: { entry: SprintLogEntry; isNew?: boolean }) 
             <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-[11px] font-semibold uppercase tracking-wider ${cfg.color} opacity-70`}>
+                        <span className={`text-[11px] font-medium uppercase tracking-wider ${cfg.color} opacity-70`}>
                             {cfg.label}
                         </span>
                         <p className="text-xs text-text-secondary leading-relaxed">{entry.message}</p>
@@ -321,8 +321,8 @@ function ActivityLog({ sprintId, isActive }: { sprintId: string; isActive: boole
         <div className="flex flex-col gap-2 max-h-[70vh] min-h-[400px]">
             <div className="flex items-center justify-between px-1 mb-1">
                 <div className="flex items-center gap-2">
-                    <span className={cn("h-1.5 w-1.5 rounded-full shadow-[0_0_5px_var(--color-azure)]", connected ? "bg-azure" : "bg-text-muted")} />
-                    <span className="text-[11px] font-semibold text-text-muted uppercase tracking-widest">{connected ? 'Live Trace' : 'Trace Offline'}</span>
+                    <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-azure" : "bg-text-muted")} />
+                    <span className="text-[11px] font-medium text-text-muted uppercase tracking-widest">{connected ? 'Live Trace' : 'Trace Offline'}</span>
                 </div>
                 {connected && <span className="text-[11px] text-text-muted font-mono animate-pulse">UPDATING…</span>}
             </div>
@@ -493,7 +493,7 @@ export default function SprintDetailPage() {
                 <div className="rounded-full bg-surface-2 p-4 text-text-muted">
                     <AlertTriangle className="h-10 w-10" />
                 </div>
-                <h2 className="text-xl font-bold text-text-primary">Project Not Found</h2>
+                <h2 className="text-xl font-medium text-text-primary">Project Not Found</h2>
                 <p className="text-text-muted">The project you are looking for does not exist or has been deleted.</p>
                 <Link href="/app/projects" className="mt-4 text-azure hover:underline">Return to Projects</Link>
             </div>
@@ -527,7 +527,7 @@ export default function SprintDetailPage() {
                     <button
                         onClick={() => router.back()}
                         aria-label="Back"
-                        className="rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:bg-surface-2 transition-colors shrink-0"
+                        className="rounded-sm border border-border bg-surface-1 p-2 text-text-muted hover:bg-surface-2 transition-colors shrink-0"
                     >
                         <ArrowLeft className="h-4 w-4" />
                     </button>
@@ -537,7 +537,7 @@ export default function SprintDetailPage() {
                             <span className="text-text-muted text-[11px]">/</span>
                             <span className="text-[11px] font-mono text-text-muted opacity-60">{formatAge(sprint.createdAt)}</span>
                         </div>
-                        <h1 className="truncate text-2xl font-bold text-text-primary tracking-tight">{sprint.request}</h1>
+                        <h1 className="truncate text-2xl font-medium text-text-primary tracking-tight">{sprint.request}</h1>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -547,10 +547,10 @@ export default function SprintDetailPage() {
             </div>
 
             {/* Actions Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-border bg-surface-1/30">
+            <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-sm border border-border bg-surface-1/30">
                  <div className="flex items-center gap-3">
                     {sprint.repo && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-2 border border-border text-xs font-mono text-text-secondary">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-surface-2 border border-border text-xs font-mono text-text-secondary">
                             <GitBranch className="h-3.5 w-3.5" />
                             {sprint.repo}
                         </div>
@@ -561,7 +561,7 @@ export default function SprintDetailPage() {
                         <button
                             onClick={() => void handleRetry()}
                             disabled={retrying}
-                            className="flex items-center gap-1.5 rounded-lg bg-azure px-4 py-1.5 text-xs font-medium text-white hover:bg-azure/90 transition-all disabled:opacity-40"
+                            className="flex items-center gap-1.5 rounded-sm bg-azure px-4 py-1.5 text-xs font-medium text-white hover:bg-azure/90 transition-all disabled:opacity-40"
                         >
                             <RefreshCw className={cn("h-3.5 w-3.5", retrying && "animate-spin")} />
                             {retrying ? 'Retrying…' : 'Retry Project'}
@@ -571,7 +571,7 @@ export default function SprintDetailPage() {
                         <button
                             onClick={() => void handleStop()}
                             disabled={stopping}
-                            className="flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-dim px-3 py-1.5 text-sm text-red hover:bg-red-900/40 transition-all disabled:opacity-40"
+                            className="flex items-center gap-1.5 rounded-sm border border-red-800/60 bg-red-dim px-3 py-1.5 text-sm text-red hover:bg-red-900/40 transition-all disabled:opacity-40"
                         >
                             <StopCircle className="h-3.5 w-3.5" />
                             {stopping ? 'Stopping…' : 'Stop project'}
@@ -579,7 +579,7 @@ export default function SprintDetailPage() {
                     )}
                     <button
                         onClick={() => void fetchData()}
-                        className="rounded-lg border border-border bg-surface-1 p-2 text-text-muted hover:bg-surface-2 transition-colors"
+                        className="rounded-sm border border-border bg-surface-1 p-2 text-text-muted hover:bg-surface-2 transition-colors"
                         aria-label="Refresh"
                     >
                         <RefreshCw className={cn("h-3.5 w-3.5", isActive && "animate-spin")} />
@@ -597,25 +597,25 @@ export default function SprintDetailPage() {
                     { icon: DollarSign, label: 'Cost', value: sprint.costUsd != null ? `$${sprint.costUsd.toFixed(3)}` : '—', sub: 'USD Total', color: 'text-text-secondary' },
                     { icon: TrendingUp, label: 'Velocity', value: throughput ? `${throughput}/m` : '—', sub: 'tasks / min', color: 'text-text-secondary' },
                 ].map(({ icon: Icon, label, value, sub, color }) => (
-                    <div key={label} className="rounded-xl border border-border bg-surface-1/40 p-4 flex flex-col gap-1 shadow-sm">
+                    <div key={label} className="rounded-sm border border-border bg-surface-1/40 p-4 flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 text-text-muted">
                             <Icon className="h-3 w-3" />
-                            <span className="text-[11px] font-semibold uppercase tracking-wider">{label}</span>
+                            <span className="text-[11px] font-medium uppercase tracking-wider">{label}</span>
                         </div>
-                        <div className={cn("text-xl font-bold tracking-tight", color)}>{value}</div>
+                        <div className={cn("text-xl font-medium tracking-tight", color)}>{value}</div>
                         <div className="text-[11px] text-text-muted font-mono mt-1">{sub}</div>
                     </div>
                 ))}
             </div>
 
             {/* Progress Visualization */}
-            <div className="rounded-xl border border-border bg-surface-1/50 p-5 shadow-inner">
+            <div className="rounded-sm border border-border bg-surface-1/50 p-5">
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-text-secondary uppercase tracking-widest text-shadow-glow">Performance Engine</span>
+                        <span className="text-xs font-medium text-text-secondary uppercase tracking-widest">Performance Engine</span>
                         <div className="flex gap-1">
                             {Array.from({ length: 3 }).map((_, i) => (
-                                <span key={i} className={cn("h-1 w-3 rounded-full", i < (progressPct / 33) ? "bg-azure shadow-[0_0_8px_var(--color-azure)]" : "bg-surface-2")} />
+                                <span key={i} className={cn("h-1 w-3 rounded-full", i < (progressPct / 33) ? "bg-azure" : "bg-surface-2")} />
                             ))}
                         </div>
                     </div>
@@ -626,7 +626,7 @@ export default function SprintDetailPage() {
                 <div className="space-y-1.5">
                     <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
                         <div
-                            className="h-full rounded-full transition-all duration-1000 ease-in-out bg-gradient-to-r from-azure/60 to-azure shadow-[0_0_15px_var(--color-azure-dim)]"
+                            className="h-full rounded-full transition-all duration-1000 ease-in-out bg-azure"
                             style={{ width: `${progressPct}%` }}
                         />
                     </div>
@@ -653,7 +653,7 @@ export default function SprintDetailPage() {
                             key={id}
                             onClick={() => setTab(id)}
                             className={cn(
-                                "px-5 py-3 text-xs font-bold uppercase tracking-widest transition-all border-b-2 -mb-px flex items-center gap-2",
+                                "px-5 py-3 text-xs font-medium uppercase tracking-widest transition-all border-b-2 -mb-px flex items-center gap-2",
                                 tab === id
                                     ? "border-azure text-text-primary bg-azure/5"
                                     : "border-transparent text-text-muted hover:text-text-secondary hover:bg-surface-1/50"
@@ -672,7 +672,7 @@ export default function SprintDetailPage() {
                     {tab === 'workers' && (
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-in slide-in-from-bottom-2 duration-300">
                             {tasks.length === 0 ? (
-                                <div className="col-span-full flex flex-col items-center justify-center py-20 text-text-muted gap-3 border border-dashed border-border rounded-xl">
+                                <div className="col-span-full flex flex-col items-center justify-center py-20 text-text-muted gap-3 border border-dashed border-border rounded-sm">
                                     <Cpu className="h-8 w-8 opacity-20" />
                                     <p className="text-sm">Initializing {def.unitPlural.toLowerCase()} team...</p>
                                 </div>
@@ -683,7 +683,7 @@ export default function SprintDetailPage() {
                     )}
 
                     {tab === 'tasks' && (
-                        <div className="rounded-xl border border-border bg-surface-1/20 overflow-hidden shadow-xl animate-in fade-in duration-300">
+                        <div className="rounded-sm border border-border bg-surface-1/20 overflow-hidden animate-in fade-in duration-300">
                              {tasks.length === 0 ? (
                                 <p className="py-20 text-center text-sm text-text-muted">Operation pending...</p>
                             ) : (
@@ -691,11 +691,11 @@ export default function SprintDetailPage() {
                                     <table className="w-full text-left">
                                         <thead>
                                             <tr className="border-b border-border/50 bg-surface-1/40">
-                                                <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-widest w-16">Rank</th>
-                                                <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-widest">Objective</th>
-                                                {isCode && <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-widest">Environment</th>}
-                                                <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-widest w-32 text-center">Efficiency</th>
-                                                {isCode && <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-widest w-24 text-right">Work</th>}
+                                                <th className="px-5 py-3 text-[11px] font-medium text-text-muted uppercase tracking-widest w-16">Rank</th>
+                                                <th className="px-5 py-3 text-[11px] font-medium text-text-muted uppercase tracking-widest">Objective</th>
+                                                {isCode && <th className="px-5 py-3 text-[11px] font-medium text-text-muted uppercase tracking-widest">Environment</th>}
+                                                <th className="px-5 py-3 text-[11px] font-medium text-text-muted uppercase tracking-widest w-32 text-center">Efficiency</th>
+                                                {isCode && <th className="px-5 py-3 text-[11px] font-medium text-text-muted uppercase tracking-widest w-24 text-right">Work</th>}
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border/30">
@@ -714,7 +714,7 @@ export default function SprintDetailPage() {
                                                     </td>
                                                     {isCode && (
                                                        <td className="px-5 py-4">
-                                                            <div className="flex items-center gap-2 text-[11px] font-mono text-text-muted bg-surface-2 px-2 py-1 rounded-lg border border-border/40 w-fit">
+                                                            <div className="flex items-center gap-2 text-[11px] font-mono text-text-muted bg-surface-2 px-2 py-1 rounded-sm border border-border/40 w-fit">
                                                                 <GitBranch className="h-3 w-3" />
                                                                 <span className="truncate max-w-[120px]">{t.branch}</span>
                                                             </div>
@@ -730,7 +730,7 @@ export default function SprintDetailPage() {
                                                                     href={t.handoff.prUrl}
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
-                                                                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-azure hover:text-white transition-colors"
+                                                                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-azure hover:text-white transition-colors"
                                                                 >
                                                                     PR #{t.handoff.prNumber} 
                                                                     <ExternalLink className="h-3 w-3" />
@@ -750,12 +750,12 @@ export default function SprintDetailPage() {
                     {tab === 'features' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in duration-300">
                             {sprint.featuresCompleted.length === 0 ? (
-                                <div className="col-span-full py-20 text-center text-sm text-text-muted border border-dashed border-border rounded-xl">
+                                <div className="col-span-full py-20 text-center text-sm text-text-muted border border-dashed border-border rounded-sm">
                                     No features delivered yet.
                                 </div>
                             ) : (
                                 sprint.featuresCompleted.map((f, i) => (
-                                    <div key={i} className="flex items-start gap-4 rounded-xl border border-border bg-surface-1/40 px-5 py-4 hover:border-azure/20 transition-all group">
+                                    <div key={i} className="flex items-start gap-4 rounded-sm border border-border bg-surface-1/40 px-5 py-4 hover:border-azure/20 transition-all group">
                                         <div className="mt-1 rounded-full p-1.5 bg-azure/10 text-azure group-hover:scale-110 transition-transform">
                                             <Zap className="h-4 w-4 fill-current" />
                                         </div>
@@ -771,18 +771,18 @@ export default function SprintDetailPage() {
                             {delivLoading ? (
                                 <div className="flex flex-col items-center gap-4 py-20 text-center">
                                     <div className="relative">
-                                        <div className="h-10 w-10 rounded-full border-2 border-azure/20" />
-                                        <div className="absolute inset-0 h-10 w-10 rounded-full border-2 border-azure border-t-transparent animate-spin" />
+                                        
+                                        <span className="font-mono text-lg text-azure animate-pulse">_</span>
                                     </div>
-                                    <span className="text-sm font-bold text-text-muted uppercase tracking-widest">Loading work</span>
+                                    <span className="text-sm font-medium text-text-muted uppercase tracking-widest">Loading work</span>
                                 </div>
                             ) : deliverables.length === 0 ? (
-                                <div className="flex flex-col items-center gap-4 py-20 text-center border border-dashed border-border rounded-2xl bg-surface-1/10">
+                                <div className="flex flex-col items-center gap-4 py-20 text-center border border-dashed border-border rounded-sm bg-surface-1/10">
                                     <div className="rounded-full bg-surface-2 p-5 text-text-muted">
                                         <FileText className="h-10 w-10" />
                                     </div>
                                     <div className="max-w-xs space-y-2">
-                                        <p className="text-sm font-bold text-text-primary uppercase tracking-wider">No work yet</p>
+                                        <p className="text-sm font-medium text-text-primary uppercase tracking-wider">No work yet</p>
                                         <p className="text-xs text-text-muted leading-relaxed">Agent-produced documents, reports, or research summaries will propagate here as work cycles complete.</p>
                                     </div>
                                 </div>
@@ -793,7 +793,7 @@ export default function SprintDetailPage() {
                                         const isOpen = openDeliv === key
                                         return (
                                             <div key={i} className={cn(
-                                                "rounded-2xl border transition-all duration-300 overflow-hidden shadow-lg",
+                                                "rounded-sm border transition-all duration-300 overflow-hidden",
                                                 isOpen ? "border-azure/40 bg-canvas ring-1 ring-azure/10" : "border-border bg-surface-1/40 hover:border-azure/20"
                                             )}>
                                                 <button
@@ -802,13 +802,13 @@ export default function SprintDetailPage() {
                                                 >
                                                     <div className="flex items-center gap-4">
                                                         <div className={cn(
-                                                            "p-2.5 rounded-xl transition-all",
+                                                            "p-2.5 rounded-sm transition-all",
                                                             isOpen ? "bg-azure text-white" : "bg-surface-2 text-text-muted"
                                                         )}>
                                                             <FileText className="h-5 w-5" />
                                                         </div>
                                                         <div>
-                                                            <p className="text-sm font-bold text-text-primary tracking-tight">{d.filename}</p>
+                                                            <p className="text-sm font-medium text-text-primary tracking-tight">{d.filename}</p>
                                                             <div className="flex items-center gap-2 mt-0.5">
                                                                 <span className="text-[11px] font-mono text-text-primary0 uppercase">{(d.bytes / 1024).toFixed(1)} KB</span>
                                                                 <span className="text-text-muted">·</span>
@@ -817,7 +817,7 @@ export default function SprintDetailPage() {
                                                         </div>
                                                     </div>
                                                     <div className={cn(
-                                                        "p-1.5 rounded-lg border border-border text-text-muted transition-all",
+                                                        "p-1.5 rounded-sm border border-border text-text-muted transition-all",
                                                         isOpen && "border-azure/30 text-azure"
                                                     )}>
                                                         <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
@@ -826,13 +826,13 @@ export default function SprintDetailPage() {
                                                 {isOpen && d.content && (
                                                     <div className="border-t border-border/50 bg-black/40">
                                                         <div className="flex items-center justify-between px-5 py-2 bg-surface-1/60 border-b border-border/30">
-                                                             <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Raw Manifest Source</span>
+                                                             <span className="text-[10px] font-medium text-text-muted uppercase tracking-widest">Raw Manifest Source</span>
                                                              <button 
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     void navigator.clipboard.writeText(d.content!);
                                                                 }}
-                                                                className="text-[10px] font-bold text-azure hover:text-white transition-colors uppercase tracking-widest"
+                                                                className="text-[10px] font-medium text-azure hover:text-white transition-colors uppercase tracking-widest"
                                                              >
                                                                 Copy Content
                                                              </button>
@@ -856,7 +856,7 @@ export default function SprintDetailPage() {
                     )}
 
                     {tab === 'log' && (
-                        <div className="rounded-2xl border border-border bg-black/40 p-4 shadow-2xl animate-in zoom-in-95 duration-300 ring-1 ring-border">
+                        <div className="rounded-sm border border-border bg-black/40 p-4 animate-in zoom-in-95 duration-300 ring-1 ring-border">
                             <ActivityLog sprintId={sprintId} isActive={isActive} />
                         </div>
                     )}

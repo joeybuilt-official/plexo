@@ -52,11 +52,11 @@ export default function MemoryUIPage() {
         <div className="flex h-full flex-col overflow-hidden">
             <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-surface-1 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-sm bg-surface-1 flex items-center justify-center shrink-0">
                         <Database className="h-5 w-5 text-azure" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-text-primary">Memory browser</h2>
+                        <h2 className="text-base font-medium text-text-primary">Memory browser</h2>
                         <p className="text-xs text-text-muted mt-0.5">
                             Tiered workspace memory (hot / active / cold) with namespace slicing and semantic search.
                         </p>
@@ -88,7 +88,7 @@ export default function MemoryUIPage() {
 
             {!workspaceId ? (
                 <div className="p-4">
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         Pick a workspace from the sidebar.
                     </div>
                 </div>
@@ -209,7 +209,7 @@ function TierColumn({ workspaceId, tier, label, Icon, namespace, query, onChange
     }
 
     return (
-        <div className="rounded-xl border border-border bg-surface-1">
+        <div className="rounded-sm border border-border bg-surface-1">
             <div className="flex items-center justify-between border-b border-border p-3">
                 <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-azure" />
@@ -321,14 +321,14 @@ function EvictionCard({ workspaceId }: { workspaceId: string }) {
 
     if (isLoading || !current || !data) {
         return (
-            <div className="rounded-xl border border-border bg-surface-1 p-3 text-[11px] text-text-muted">
+            <div className="rounded-sm border border-border bg-surface-1 p-3 text-[11px] text-text-muted">
                 Loading eviction…
             </div>
         )
     }
 
     return (
-        <div className="rounded-xl border border-border bg-surface-1 p-3 space-y-2">
+        <div className="rounded-sm border border-border bg-surface-1 p-3 space-y-2">
             <div className="flex items-center justify-between">
                 <h3 className="text-[11px] uppercase tracking-wide text-text-muted">Eviction</h3>
                 <button

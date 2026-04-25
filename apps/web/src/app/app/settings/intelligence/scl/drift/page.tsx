@@ -60,11 +60,11 @@ export default function DriftInboxPage() {
         <div className="flex h-full flex-col overflow-hidden">
             <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                 <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-surface-1 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-sm bg-surface-1 flex items-center justify-center shrink-0">
                         <AlertCircle className="h-5 w-5 text-azure" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-text-primary">Drift warnings</h2>
+                        <h2 className="text-base font-medium text-text-primary">Drift warnings</h2>
                         <p className="text-xs text-text-muted mt-0.5">
                             Concept centroids that have shifted beyond the drift threshold. Approve to apply, reject to keep the existing centroid.
                         </p>
@@ -98,7 +98,7 @@ export default function DriftInboxPage() {
 
             <div className="flex-1 overflow-y-auto p-4">
                 {!workspaceId ? (
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         Pick a workspace from the sidebar.
                     </div>
                 ) : isLoading ? (
@@ -106,11 +106,11 @@ export default function DriftInboxPage() {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading drift warnings…
                     </div>
                 ) : error ? (
-                    <div className="rounded-xl border border-rose-700/40 bg-surface-1 p-3 text-xs text-rose-300">
+                    <div className="rounded-sm border border-rose-700/40 bg-surface-1 p-3 text-xs text-rose-300">
                         Failed to load drift warnings. {String(error)}
                     </div>
                 ) : !data || data.warnings.length === 0 ? (
-                    <div className="rounded-xl border border-border bg-surface-1 p-3 text-xs text-text-muted">
+                    <div className="rounded-sm border border-border bg-surface-1 p-3 text-xs text-text-muted">
                         No {status === 'all' ? '' : status} drift warnings.
                     </div>
                 ) : (
@@ -118,7 +118,7 @@ export default function DriftInboxPage() {
                         {data.warnings.map(w => {
                             const isPending = pending === w.id
                             return (
-                                <div key={w.id} className="rounded-xl border border-border bg-surface-1 p-3">
+                                <div key={w.id} className="rounded-sm border border-border bg-surface-1 p-3">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">

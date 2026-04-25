@@ -131,7 +131,7 @@ export function InferenceModePicker({ workspaceId }: { workspaceId: string }) {
                             aria-pressed={active}
                             aria-disabled={isComingSoon || undefined}
                             title={isComingSoon ? 'Coming soon — managed Plexo subscription is not yet available' : undefined}
-                            className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors ${
+                            className={`flex items-start gap-3 rounded-sm border p-3 text-left transition-colors ${
                                 active
                                     ? 'border-azure bg-surface-1 ring-1 ring-azure/40'
                                     : isComingSoon
@@ -148,7 +148,7 @@ export function InferenceModePicker({ workspaceId }: { workspaceId: string }) {
                                         {opt.label}
                                     </span>
                                     {isComingSoon && (
-                                        <span className="rounded-full border border-amber-700/40 bg-amber-950/30 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300">
+                                        <span className="rounded-sm border border-amber-700/40 bg-amber-950/30 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-amber-300">
                                             Coming soon
                                         </span>
                                     )}

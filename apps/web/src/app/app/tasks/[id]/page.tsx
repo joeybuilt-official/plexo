@@ -157,7 +157,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <Link href="/app/tasks" aria-label="Back to tasks" className="flex items-center justify-center min-h-[40px] min-w-[40px] md:min-h-[32px] md:min-w-[32px] rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-2/50 transition-colors -ml-2">
+                    <Link href="/app/tasks" aria-label="Back to tasks" className="flex items-center justify-center min-h-[40px] min-w-[40px] md:min-h-[32px] md:min-w-[32px] rounded-sm text-text-muted hover:text-text-secondary hover:bg-surface-2/50 transition-colors -ml-2">
                         <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
                     </Link>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -186,7 +186,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
             {/* What was asked */}
             {message && (
-                <div className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
+                <div className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
                     <p className="mb-1.5 text-[11px] font-medium text-text-muted uppercase tracking-wider">Request</p>
                     <p className="text-sm text-text-primary leading-relaxed">{message}</p>
                 </div>
@@ -194,7 +194,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
             {/* Unified error + resolution actions for blocked/failed/cancelled */}
             {(task.status === 'blocked' || task.status === 'failed' || task.status === 'cancelled') ? (
-                <div className={`rounded-xl border overflow-hidden ${
+                <div className={`rounded-sm border overflow-hidden ${
                     task.status === 'failed' || task.status === 'blocked' ? 'border-red-900/40 bg-red-dim' : 'border-amber-900/40 bg-amber-dim'
                 }`}>
                     {task.outcomeSummary && (
@@ -209,13 +209,13 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                     )}
                 </div>
             ) : task.outcomeSummary ? (
-                <div className="rounded-xl border border-azure/20 bg-azure/5 p-4">
+                <div className="rounded-sm border border-azure/20 bg-azure/5 p-4">
                     <p className="mb-1.5 text-[11px] font-medium text-azure-600 uppercase tracking-wider">Outcome</p>
                     <p className="text-sm text-text-primary leading-relaxed">{task.outcomeSummary}</p>
                 </div>
             ) : task.status === 'running' || task.status === 'claimed' ? (
                 <div
-                    className="rounded-xl border border-azure/20 bg-azure/5 p-4 flex items-center gap-3"
+                    className="rounded-sm border border-azure/20 bg-azure/5 p-4 flex items-center gap-3"
                     role="status"
                     aria-live="polite"
                 >
@@ -253,7 +253,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
             {/* Assets produced by write_asset */}
             {assets.length > 0 && (
-                <div className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
+                <div className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
                     <p className="mb-3 text-[11px] font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
                         <FileText className="h-3 w-3" />
                         Work ({assets.length})
@@ -265,7 +265,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
             {/* Sub-task tree — A2A delegated children */}
             {children.length > 0 && (
-                <details open className="rounded-xl border border-border/60 bg-surface-1/40 p-4" data-testid="subtask-tree">
+                <details open className="rounded-sm border border-border/60 bg-surface-1/40 p-4" data-testid="subtask-tree">
                     <summary className="flex items-center gap-2 cursor-pointer list-none">
                         <GitBranch className="h-3 w-3 text-text-muted" />
                         <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">Sub-tasks ({children.length})</p>
@@ -275,7 +275,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                             <Link
                                 key={child.id}
                                 href={`/app/tasks/${child.id}`}
-                                className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-surface-0/60 px-3 py-2 hover:bg-surface-2/50 transition-colors"
+                                className="flex items-center justify-between gap-3 rounded-sm border border-border/40 bg-surface-0/60 px-3 py-2 hover:bg-surface-2/50 transition-colors"
                             >
                                 <div className="flex items-center gap-2 min-w-0">
                                     <span className="text-xs text-text-secondary truncate">
@@ -331,10 +331,10 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 const verPct = task.qualityScore != null ? Math.round(task.qualityScore * 100) : null
                 const delta = selfPct != null && verPct != null ? verPct - selfPct : null
                 return (
-                    <div className="rounded-xl border border-azure-800/30 bg-azure/20 p-4 flex flex-col gap-3">
+                    <div className="rounded-sm border border-azure-800/30 bg-azure/20 p-4 flex flex-col gap-3">
                         <div className="flex items-center gap-2">
                             <Users className="h-3.5 w-3.5 text-azure" />
-                            <span className="text-[11px] font-semibold text-azure uppercase tracking-wider">
+                            <span className="text-[11px] font-medium text-azure uppercase tracking-wider">
                                 Quality ensemble
                             </span>
                             <span className="ml-auto text-[11px] text-azure/60 capitalize">
@@ -344,15 +344,15 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                         <div className="grid grid-cols-3 gap-3">
                             <div className="flex flex-col gap-0.5">
                                 <span className="text-[11px] text-text-muted">Self-assessed</span>
-                                <span className="text-sm font-semibold text-text-secondary">{selfPct != null ? `${selfPct}%` : '—'}</span>
+                                <span className="text-sm font-medium text-text-secondary">{selfPct != null ? `${selfPct}%` : '—'}</span>
                             </div>
                             <div className="flex flex-col gap-0.5">
                                 <span className="text-[11px] text-text-muted">Verified</span>
-                                <span className="text-sm font-semibold text-azure">{verPct != null ? `${verPct}%` : '—'}</span>
+                                <span className="text-sm font-medium text-azure">{verPct != null ? `${verPct}%` : '—'}</span>
                             </div>
                             <div className="flex flex-col gap-0.5">
                                 <span className="text-[11px] text-text-muted">Delta</span>
-                                <span className={`text-sm font-semibold ${delta == null ? 'text-text-muted'
+                                <span className={`text-sm font-medium ${delta == null ? 'text-text-muted'
                                         : delta > 0 ? 'text-azure'
                                             : delta < 0 ? 'text-rose-400'
                                                 : 'text-text-secondary'
@@ -414,7 +414,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             {/* Context — human-readable fields only (Advanced only) */}
             <AdvancedSection>
             {contextItems.length > 0 && (
-                <div className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
+                <div className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
                     <p className="mb-3 text-[11px] font-medium text-text-muted uppercase tracking-wider">Context</p>
                     <dl className="flex flex-col gap-2">
                         {contextItems.map(({ label, value }) => (

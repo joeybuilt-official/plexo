@@ -83,7 +83,7 @@ export function StepBudgetPicker({ workspaceId }: { workspaceId: string }) {
                             disabled={isLoading || pending !== null}
                             onClick={() => void handlePick(opt.value)}
                             aria-pressed={active}
-                            className={`flex flex-col gap-1.5 rounded-xl border p-3 text-left transition-colors disabled:opacity-50 ${
+                            className={`flex flex-col gap-1.5 rounded-sm border p-3 text-left transition-colors disabled:opacity-50 ${
                                 active
                                     ? 'border-azure bg-surface-1 ring-1 ring-azure/40'
                                     : 'border-border bg-surface-1 hover:border-muted'

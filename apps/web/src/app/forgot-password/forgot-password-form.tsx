@@ -39,24 +39,24 @@ export function ForgotPasswordForm() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-surface-1 px-4 py-10">
+        <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
             <div className="relative w-full max-w-sm">
                 <div className="mb-8 text-center">
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
-                        <PlexoMark className="h-10 w-10 text-text-primary drop-shadow-lg" />
+                        <PlexoMark className="h-10 w-10 text-text-primary" />
                     </div>
-                    <h1 className="text-lg font-semibold tracking-tight text-text-primary">Reset your password</h1>
+                    <h1 className="text-lg font-medium tracking-tight text-text-primary">Reset your password</h1>
                     <p className="mt-1.5 text-sm text-text-muted">
                         We&apos;ll email you a link to set a new one.
                     </p>
                     {!process.env.NEXT_PUBLIC_SMTP_CONFIGURED && (
-                        <p className="mt-2 rounded-lg border border-amber-700/40 bg-amber-900/20 px-3 py-2 text-xs text-amber-200">
+                        <p className="mt-2 rounded-md border border-amber-700/40 bg-amber-900/20 px-3 py-2 text-xs text-amber-200">
                             Password reset emails are not configured for this instance. Contact your administrator.
                         </p>
                     )}
                 </div>
 
-                <div className="rounded-2xl border border-border bg-surface-1 p-6 shadow-xl backdrop-blur-sm">
+                <div className="rounded-md border border-border bg-surface-1 p-6">
                     {submitted ? (
                         <div className="space-y-3 text-sm text-text-primary">
                             <p>If an account exists for <span className="font-medium">{email}</span>, a reset link is on its way.</p>
@@ -79,7 +79,7 @@ export function ForgotPasswordForm() {
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="you@example.com"
-                                        className="w-full rounded-lg border border-border bg-surface-1 py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure/30 focus-ring focus:ring-1 focus:ring-azure/20"
+                                        className="w-full rounded-md border border-border bg-surface-1 py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent/30 focus-ring focus:ring-1 focus:ring-accent/20"
                                         required
                                         autoComplete="email"
                                     />
@@ -87,7 +87,7 @@ export function ForgotPasswordForm() {
                             </div>
 
                             {error && (
-                                <div className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
+                                <div className="rounded-md border border-border bg-surface-1 px-3 py-2 text-xs text-text-primary" role="alert">
                                     {error}
                                 </div>
                             )}
@@ -95,7 +95,7 @@ export function ForgotPasswordForm() {
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-text-primary px-4 py-2.5 text-sm font-medium text-canvas transition-colors hover:opacity-90 disabled:opacity-50"
+                                className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-text-primary px-4 py-2.5 text-sm font-medium text-canvas transition-colors hover:opacity-90 disabled:opacity-50"
                             >
                                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send reset link'}
                             </button>

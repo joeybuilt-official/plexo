@@ -138,7 +138,7 @@ function SortableProviderCard({
             onKeyDown={mergedKeyDown}
             className={`
                 group relative flex flex-col items-stretch
-                rounded-xl border transition-[border-color,background-color,opacity,box-shadow] duration-200
+                rounded-sm border transition-[border-color,background-color,opacity,box-shadow] duration-200
                 w-[148px] shrink-0 cursor-pointer select-none
                 focus:outline-none focus-visible:ring-2 focus-visible:ring-azure
                 ${isDragging ? 'opacity-40 z-50' : 'opacity-100'}
@@ -146,7 +146,7 @@ function SortableProviderCard({
                 ${isSelected
                     ? 'border-azure ring-1 ring-azure/60 bg-azure-dim'
                     : isActive
-                        ? 'border-azure/70 bg-azure-dim shadow-[0_0_0_1px_rgba(59,130,246,0.35)]'
+                        ? 'border-azure/70 bg-azure-dim'
                         : 'border-border/60 bg-surface-1/60 hover:border-border hover:bg-surface-1/80'}
             `}
             aria-label={`${card.nickname}, priority ${position}${isActive ? ', currently active' : ''}. Press Enter to open details.`}
@@ -173,7 +173,7 @@ function SortableProviderCard({
             {/* Priority number — absolute top-right */}
             <span
                 className={`
-                    absolute top-1.5 right-2 text-[11px] font-bold tabular-nums
+                    absolute top-1.5 right-2 text-[11px] font-medium tabular-nums
                     ${isActive ? 'text-azure' : 'text-text-muted/70'}
                 `}
                 aria-hidden="true"
@@ -202,7 +202,7 @@ function SortableProviderCard({
                         aria-label={`Health: ${card.health}`}
                     />
                     {card.free && (
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-400">
+                        <span className="text-[9px] font-medium uppercase tracking-wide text-emerald-400">
                             FREE
                         </span>
                     )}
@@ -211,7 +211,7 @@ function SortableProviderCard({
 
             {isActive && (
                 <span
-                    className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-azure px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white shadow-sm whitespace-nowrap pointer-events-none"
+                    className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-sm bg-azure px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white whitespace-nowrap pointer-events-none"
                     aria-hidden="true"
                 >
                     Active
@@ -228,13 +228,13 @@ function ProviderCardOverlay({ card, position }: { card: ChainCardData; position
         <div
             className="
                 relative flex flex-col items-center gap-1.5
-                rounded-xl border border-azure/60 bg-surface-2/95
+                rounded-sm border border-azure/60 bg-surface-2/95
                 px-3 pt-8 pb-2.5 w-[148px]
-                shadow-2xl scale-105 cursor-grabbing
+                scale-105 cursor-grabbing
             "
         >
             <GripVertical className="absolute top-1.5 left-1.5 h-4 w-4 text-text-primary" />
-            <span className="absolute top-1.5 right-2 text-[11px] font-bold tabular-nums text-azure">
+            <span className="absolute top-1.5 right-2 text-[11px] font-medium tabular-nums text-azure">
                 {position}
             </span>
             <div className="flex items-center gap-1.5">
@@ -301,7 +301,7 @@ export function ProviderChain({
     // ── Empty state ──────────────────────────────────────────────────────────
     if (cards.length === 0) {
         return (
-            <div className="rounded-xl border border-border/60 bg-surface-1/40 px-4 py-3 flex flex-col gap-3">
+            <div className="rounded-sm border border-border/60 bg-surface-1/40 px-4 py-3 flex flex-col gap-3">
                 <div className="flex items-center gap-3">
                     <span className={`inline-block h-2.5 w-2.5 rounded-full shrink-0 ${statusDotColor}`} />
                     <span className="text-sm text-text-primary flex-1 min-w-0 truncate">{bannerLabel}</span>
@@ -310,7 +310,7 @@ export function ProviderChain({
                     onClick={onAdd}
                     className="
                         flex items-center justify-center gap-2
-                        rounded-xl border border-dashed border-border/80
+                        rounded-sm border border-dashed border-border/80
                         bg-surface-1/40 hover:bg-surface-2/40 hover:border-azure/60
                         py-6 text-sm text-text-muted hover:text-text-primary
                         transition-colors
@@ -324,7 +324,7 @@ export function ProviderChain({
     }
 
     return (
-        <div className="rounded-xl border border-border/60 bg-surface-1/40 px-4 py-3 flex flex-col gap-3">
+        <div className="rounded-sm border border-border/60 bg-surface-1/40 px-4 py-3 flex flex-col gap-3">
             {/* Top row: status + test */}
             <div className="flex items-center gap-3">
                 <span className={`inline-block h-2.5 w-2.5 rounded-full shrink-0 ${statusDotColor}`} />
@@ -335,7 +335,7 @@ export function ProviderChain({
                     <button
                         onClick={onTest}
                         disabled={testing}
-                        className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-text-secondary hover:bg-surface-2 transition-colors shrink-0"
+                        className="flex items-center gap-1 rounded-sm border border-border px-2.5 py-1 text-xs font-medium text-text-secondary hover:bg-surface-2 transition-colors shrink-0"
                     >
                         {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                         Test
@@ -387,7 +387,7 @@ export function ProviderChain({
                             className="
                                 ml-1 flex flex-col items-center justify-center gap-1
                                 w-[148px] shrink-0
-                                rounded-xl border border-dashed border-border/60
+                                rounded-sm border border-dashed border-border/60
                                 bg-transparent hover:bg-surface-2/30 hover:border-azure/50
                                 text-text-muted hover:text-text-primary
                                 transition-colors
@@ -416,7 +416,7 @@ export function ProviderChain({
             {testResult && (
                 <div
                     className={`
-                        rounded-lg border px-3 py-2 flex items-start gap-2
+                        rounded-sm border px-3 py-2 flex items-start gap-2
                         ${testResult.ok
                             ? 'border-emerald-800/40 bg-emerald-900/10'
                             : 'border-amber-800/40 bg-amber-900/10'}

@@ -148,17 +148,17 @@ export async function DashboardCards() {
                     <div
                         key={card.title}
                         id={`dashboard-card-${card.title.toLowerCase().replace(/\s+/g, '-')}`}
-                        className="card-glow group rounded-xl border border-border bg-surface-1/50 backdrop-blur-sm transition-all hover:border-border"
+                        className="card-glow group rounded-sm border border-border bg-surface-1/50 transition-all hover:border-border"
                     >
                         {/* Card Header */}
                         <div className="flex items-center gap-3 border-b border-border-subtle p-4">
                             <div
-                                className={`flex h-8 w-8 items-center justify-center rounded-lg  ${card.accent} text-text-primary shadow-lg`}
+                                className={`flex h-8 w-8 items-center justify-center rounded-sm  ${card.accent} text-text-primary`}
                             >
                                 <Icon className="h-4 w-4" />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <h3 className="text-[13px] font-semibold">{card.title}</h3>
+                                <h3 className="text-[13px] font-medium">{card.title}</h3>
                                 <div className="flex items-center gap-1.5">
                                     <span className={`inline-block h-1.5 w-1.5 rounded-full ${card.dot}`} />
                                     <p className="text-[11px] text-text-muted">{card.subtitle}</p>

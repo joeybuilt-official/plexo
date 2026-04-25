@@ -11,7 +11,7 @@ export function Greeting() {
     return (
         // Fixed min-height prevents layout shift when greeting text changes length
         <div className="text-center mb-10 mt-8 min-h-[120px] flex flex-col items-center justify-center animate-in fade-in duration-700">
-            <h1 className="text-3xl md:text-[32px] font-display font-medium text-text-primary tracking-tight mb-2 text-transparent bg-clip-text bg-gradient-to-br from-text-primary to-text-muted">
+            <h1 className="text-3xl md:text-[32px] font-display font-medium text-text-primary tracking-tight mb-2 text-text-primary">
                 {greeting}
             </h1>
             <p className="text-base text-text-muted">

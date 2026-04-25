@@ -254,22 +254,22 @@ export function QuickSend() {
             {(suggestion || wantsAttachment) && status === 'idle' && !isListening && (
                 <div className="flex flex-col gap-2 animate-in slide-in-from-top-2 duration-300">
                     {suggestion && (
-                        <div className="flex items-start gap-3 rounded-xl border border-azure/30 bg-azure-500/5 px-4 py-3 text-sm text-azure shadow-sm transition-all border-dashed">
+                        <div className="flex items-start gap-3 rounded-sm border border-azure/30 bg-azure-500/5 px-4 py-3 text-sm text-azure transition-all border-dashed">
                             <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
                             <div className="flex-1">
-                                <span className="font-semibold block text-azure-200 text-xs">Suggested: {suggestion.suggestedModel}</span>
+                                <span className="font-medium block text-azure-200 text-xs">Suggested: {suggestion.suggestedModel}</span>
                                 <span className="text-azure/80 text-[11px] mt-0.5 block">{suggestion.reason}</span>
                             </div>
                         </div>
                     )}
                     {wantsAttachment && (
-                        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-300 shadow-sm transition-all border-dashed">
+                        <div className="flex items-center gap-3 rounded-sm border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-300 transition-all border-dashed">
                             <FileUp className="h-4 w-4 shrink-0 text-amber" />
                             <span className="flex-1 text-amber/90 text-[11px] font-medium font-display">
                                 Forgot an attachment?
                             </span>
                             <button
-                                className="whitespace-nowrap rounded-lg bg-amber/20 hover:bg-amber/30 border border-amber-500/20 px-2 py-1 text-[11px] font-bold text-amber transition-colors uppercase tracking-wider"
+                                className="whitespace-nowrap rounded-sm bg-amber/20 hover:bg-amber/30 border border-amber-500/20 px-2 py-1 text-[11px] font-medium text-amber transition-colors uppercase tracking-wider"
                                 onClick={() => fileInputRef.current?.click()}
                             >
                                 Attach
@@ -280,27 +280,27 @@ export function QuickSend() {
             )}
 
             {/* Main Input Box */}
-            <div className={`relative flex flex-col gap-2 p-3 rounded-[24px] border transition-all ${isListening ? 'border-red-500/40 bg-red-dim/10 shadow-[0_0_24px_rgba(239,68,68,0.15)]' : 'border-border bg-surface-1/50 backdrop-blur-sm shadow-[0_2px_24px_-12px_rgba(0,0,0,0.5)]'}`}>
+            <div className={`relative flex flex-col gap-2 p-3 rounded-sm border transition-all ${isListening ? 'border-red-500/40 bg-red-dim/10' : 'border-border bg-surface-1/50'}`}>
                 {/* File Previews */}
                 {(pastedImages.length > 0 || pastedDocs.length > 0) && (
                     <div className="flex flex-wrap gap-2 p-2 border-b border-border/50">
                         {pastedImages.map((img) => (
                             <div key={img.id} className="relative group">
                                 {img.kind === 'image' ? (
-                                    <img src={img.dataUrl} alt={img.name} className="h-14 w-14 rounded-lg border border-border object-cover" />
+                                    <img src={img.dataUrl} alt={img.name} className="h-14 w-14 rounded-sm border border-border object-cover" />
                                 ) : (
-                                    <div className="h-14 w-20 rounded-lg border border-border/60 bg-surface-2/60 flex flex-col items-center justify-center gap-1 px-1 text-center">
+                                    <div className="h-14 w-20 rounded-sm border border-border/60 bg-surface-2/60 flex flex-col items-center justify-center gap-1 px-1 text-center">
                                         <FileText className="h-4 w-4 text-azure" />
                                         <span className="text-[10px] text-text-secondary truncate w-full px-1">{img.name}</span>
                                     </div>
                                 )}
-                                <button onClick={() => removeImage(img.id)} aria-label="Remove image" className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-surface-2 border border-border flex items-center justify-center text-text-secondary hover:text-red transition-all shadow-lg">
+                                <button onClick={() => removeImage(img.id)} aria-label="Remove image" className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-surface-2 border border-border flex items-center justify-center text-text-secondary hover:text-red transition-all">
                                     <X className="h-2.5 w-2.5" />
                                 </button>
                             </div>
                         ))}
                         {pastedDocs.map((doc) => (
-                            <div key={doc.id} className="relative group flex items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 py-1.5 text-sm text-text-secondary">
+                            <div key={doc.id} className="relative group flex items-center gap-2 rounded-sm border border-border bg-surface-2/60 px-3 py-1.5 text-sm text-text-secondary">
                                 <FileText className="h-3.5 w-3.5 shrink-0 text-azure" />
                                 <span className="font-medium truncate max-w-[120px]">{doc.name}</span>
                                 <button onClick={() => removeDoc(doc.id)} aria-label="Remove document" className="h-4 w-4 rounded-full hover:text-red transition-colors ml-1">
@@ -322,7 +322,7 @@ export function QuickSend() {
                                 voice.stop()
                             }
                         }}
-                        className={`group relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
+                        className={`group relative flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[11px] font-medium transition-all ${
                             isLiveMode
                                 ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20'
                                 : 'text-text-muted hover:text-text-secondary border border-transparent hover:border-border'
@@ -364,7 +364,7 @@ export function QuickSend() {
                             <button
                                 onClick={() => isListening ? voice.stop() : voice.start()}
                                 disabled={status === 'sending'}
-                                className={`flex shrink-0 items-center justify-center h-9 w-9 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-text-muted hover:text-text-secondary hover:bg-surface-2'}`}
+                                className={`flex shrink-0 items-center justify-center h-9 w-9 rounded-sm transition-all ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-text-muted hover:text-text-secondary hover:bg-surface-2'}`}
                                 aria-label={isListening ? "Stop Recording" : "Voice Input"}
                             >
                                 {isListening ? <MicOff className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
@@ -374,7 +374,7 @@ export function QuickSend() {
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             disabled={status === 'sending' || isListening}
-                            className="flex shrink-0 items-center justify-center h-9 w-9 rounded-xl text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-all"
+                            className="flex shrink-0 items-center justify-center h-9 w-9 rounded-sm text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-all"
                             aria-label="Attach File"
                         >
                             <ImageIcon className="h-4 w-4" />
@@ -401,7 +401,7 @@ export function QuickSend() {
                             }}
                             disabled={status === 'sending' || isListening}
                             title={text.trim() ? 'Optimize this prompt' : 'Start prompt optimizer'}
-                            className="flex shrink-0 items-center justify-center h-9 w-9 rounded-xl text-text-muted hover:text-azure hover:bg-azure/10 transition-all"
+                            className="flex shrink-0 items-center justify-center h-9 w-9 rounded-sm text-text-muted hover:text-azure hover:bg-azure/10 transition-all"
                             aria-label="Optimize prompt"
                         >
                             <Sparkles className="h-4 w-4" />
@@ -410,20 +410,20 @@ export function QuickSend() {
 
                     <div className="flex items-center gap-2">
                         {status === 'sent' && taskId && (
-                            <Link href={`/app/tasks/${taskId}`} className="flex items-center gap-1.5 text-azure hover:text-azure-400 transition-colors bg-azure/10 px-2.5 py-1.5 rounded-lg border border-azure/20 text-[11px] font-medium tracking-wide">
+                            <Link href={`/app/tasks/${taskId}`} className="flex items-center gap-1.5 text-azure hover:text-azure-400 transition-colors bg-azure/10 px-2.5 py-1.5 rounded-sm border border-azure/20 text-[11px] font-medium tracking-wide">
                                 <span>✓ Task queued</span>
                                 <span>View task →</span>
                             </Link>
                         )}
                         {status === 'error' && (
-                            <span className="text-red-400 bg-red-dim px-2.5 py-1.5 rounded-lg border border-red-900/50 flex items-center gap-1.5 text-[11px] font-medium">
+                            <span className="text-red-400 bg-red-dim px-2.5 py-1.5 rounded-sm border border-red-900/50 flex items-center gap-1.5 text-[11px] font-medium">
                                 Failed.
                             </span>
                         )}
                         <button
                             onClick={() => handleSubmit()}
                             disabled={(!text.trim() && pastedImages.length === 0 && pastedDocs.length === 0) || status === 'sending' || isListening}
-                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-text-primary text-canvas hover:bg-text-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-sm bg-text-primary text-canvas hover:bg-text-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                             aria-label="Send Task"
                             data-testid="submit-task"
                         >
@@ -438,7 +438,7 @@ export function QuickSend() {
 
             {/* Voice Setup Banner */}
             {showVoiceSetupPrompt && !voice.deepgramConfigured && (
-                <div className="flex items-start gap-3 rounded-xl border border-azure/30 bg-azure-500/5 px-4 py-3 animate-in fade-in slide-in-from-bottom-2 duration-400">
+                <div className="flex items-start gap-3 rounded-sm border border-azure/30 bg-azure-500/5 px-4 py-3 animate-in fade-in slide-in-from-bottom-2 duration-400">
                     <Mic className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
                     <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-azure-200 uppercase tracking-wider">Better Voice Accuracy</p>
@@ -447,7 +447,7 @@ export function QuickSend() {
                         </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <Link href="/app/settings/voice" className="text-[11px] font-bold text-azure hover:text-azure-300 uppercase underline underline-offset-4 decoration-azure/40 transition-colors">
+                        <Link href="/app/settings/voice" className="text-[11px] font-medium text-azure hover:text-azure-300 uppercase underline underline-offset-4 decoration-azure/40 transition-colors">
                             Settings
                         </Link>
                         <button onClick={() => setShowVoiceSetupPrompt(false)} aria-label="Dismiss voice setup prompt" className="text-text-muted hover:text-text-secondary transition-colors">

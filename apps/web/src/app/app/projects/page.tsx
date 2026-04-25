@@ -68,14 +68,14 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
         <div className="relative group/row">
             <Link
                 href={`/app/projects/${sprint.id}`}
-                className="block rounded-xl border border-border bg-surface-1/40 p-4 transition-all hover:border-azure/20 hover:bg-surface-1/70 group"
+                className="block rounded-sm border border-border bg-surface-1/40 p-4 transition-all hover:border-azure/20 hover:bg-surface-1/70 group"
             >
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 min-w-0">
                         <StatusBadge status={sprint.status} size="sm" className="mt-1 shrink-0" />
                         
                         <div className="min-w-0">
-                            <h3 className="truncate text-sm font-semibold text-text-primary group-hover:text-azure transition-colors leading-6">
+                            <h3 className="truncate text-sm font-medium text-text-primary group-hover:text-azure transition-colors leading-6">
                                 {sprint.request}
                             </h3>
                             <div className="mt-1 flex items-center gap-2.5 flex-wrap">
@@ -111,12 +111,12 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
                     <div className="mt-4 pt-3 border-t border-border-subtle/50">
                         <div className="flex items-baseline justify-between mb-1.5">
                             <div className="flex items-center gap-2">
-                                <span className="text-[11px] font-bold text-text-secondary uppercase tracking-tight">Progress</span>
+                                <span className="text-[11px] font-medium text-text-secondary uppercase tracking-tight">Progress</span>
                                 <span className="text-[11px] text-text-muted">{sprint.completedTasks}/{sprint.totalTasks} {def.unitPlural.toLowerCase()}</span>
                             </div>
-                            <span className="text-[11px] font-bold text-azure">{pct}%</span>
+                            <span className="text-[11px] font-medium text-azure">{pct}%</span>
                         </div>
-                        <div className="h-1 rounded-full bg-surface-2 overflow-hidden shadow-inner">
+                        <div className="h-1 rounded-full bg-surface-2 overflow-hidden">
                             <div 
                                 className={cn(
                                     "h-full rounded-full transition-all duration-500 ease-out",
@@ -129,13 +129,13 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
                         {(sprint.failedTasks > 0 || sprint.conflictCount > 0) && (
                             <div className="mt-2 flex items-center gap-3">
                                 {sprint.failedTasks > 0 && (
-                                    <span className="text-[10px] font-bold text-red uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-medium text-red uppercase tracking-wider flex items-center gap-1">
                                         <X className="h-2.5 w-2.5" />
                                         {sprint.failedTasks} failed
                                     </span>
                                 )}
                                 {sprint.conflictCount > 0 && (
-                                    <span className="text-[10px] font-bold text-amber uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-medium text-amber uppercase tracking-wider flex items-center gap-1">
                                         <BarChart3 className="h-2.5 w-2.5" />
                                         {sprint.conflictCount} conflicts
                                     </span>
@@ -151,7 +151,7 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
                 {['cancelled', 'failed'].includes(sprint.status) && (
                     <button
                         onClick={(e) => { e.preventDefault(); onAction('start', sprint.id) }}
-                        className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-azure hover:border-azure/30 hover:bg-azure/5 shadow-xl transition-all"
+                        className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-azure hover:border-azure/30 hover:bg-azure/5 transition-all"
                         title="Restart project"
                     >
                         <Play className="h-3.5 w-3.5 fill-current" />
@@ -160,7 +160,7 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
                 {['planning', 'running', 'finalizing'].includes(sprint.status) && (
                     <button
                         onClick={(e) => { e.preventDefault(); onAction('stop', sprint.id) }}
-                        className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-amber hover:border-amber/30 hover:bg-amber/5 shadow-xl transition-all"
+                        className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-amber hover:border-amber/30 hover:bg-amber/5 transition-all"
                         title="Stop project"
                     >
                         <Square className="h-3.5 w-3.5 fill-current" />
@@ -168,7 +168,7 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
                 )}
                 <button
                     onClick={(e) => { e.preventDefault(); onAction('delete', sprint.id) }}
-                    className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-red hover:border-red-500/30 hover:bg-red-dim shadow-xl transition-all"
+                    className="p-1.5 rounded-md bg-surface-1 border border-border text-text-muted hover:text-red hover:border-red-500/30 hover:bg-red-dim transition-all"
                     title="Delete project"
                 >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -301,7 +301,7 @@ export default function ProjectsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary">Projects</h1>
+                    <h1 className="text-2xl font-medium text-text-primary">Projects</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
                         {loading
                             ? '…'
@@ -312,7 +312,7 @@ export default function ProjectsPage() {
                     <button
                         onClick={() => void load(true)}
                         disabled={refreshing}
-                        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-40"
                     >
                         <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
                         Refresh
@@ -341,13 +341,13 @@ export default function ProjectsPage() {
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
                 </div>
             ) : displayed.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-1/40 p-12 text-center">
+                <div className="rounded-sm border border-border bg-surface-1/40 p-12 text-center">
                     {hasFilters ? (
                         <>
                             <p className="text-sm text-text-muted">No projects match your filters</p>
                             <button
                                 onClick={clearAll}
-                                className="mt-3 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
+                                className="mt-3 flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
                             >
                                 <X className="h-3.5 w-3.5" /> Clear filters
                             </button>
