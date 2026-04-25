@@ -16,9 +16,21 @@
 import pino from 'pino'
 import { generateText } from 'ai'
 import { db, sql } from '@plexo/db'
-import { resolveModelFromEnv } from '../providers/registry.js'
+import { resolveModel, resolveModelFromEnv } from '../providers/registry.js'
+import type { TaskType } from '../providers/registry.js'
+import { loadSettingsFromInstances } from '../providers/settings-from-instances.js'
 
 const logger = pino({ name: 'behavior.reflect' })
+
+/** Resolve cheapest model from workspace chain, env-var fallback if no chain configured. */
+async function resolveReflectionModel(workspaceId: string) {
+    const aiSettings = await loadSettingsFromInstances(workspaceId)
+    if (aiSettings) {
+        return (await resolveModel('summarization' as TaskType, aiSettings, workspaceId)
+            .catch(() => ({ model: resolveModelFromEnv() }))).model
+    }
+    return resolveModelFromEnv()
+}
 
 export interface ReflectCtx {
     workspaceId: string
@@ -124,7 +136,7 @@ export async function reflectAndPromote(ctx: ReflectCtx): Promise<ReflectResult>
     if (!ctx.outcomeSummary || ctx.outcomeSummary.length < 50) return { track: 'skipped' as const, observationCount: 0 }
 
     // ── LLM call ──────────────────────────────────────────────────────────
-    const model = resolveModelFromEnv()  // cheap/fast model (defaults to summarization tier)
+    const model = await resolveReflectionModel(ctx.workspaceId)
 
     let observations: Observation[]
     try {
@@ -217,7 +229,7 @@ interface FailureObservation {
 async function reflectOnFailure(ctx: ReflectCtx): Promise<ReflectResult> {
     if (!ctx.outcomeSummary || ctx.outcomeSummary.length < 50) return { track: 'failure', observationCount: 0 }
 
-    const model = resolveModelFromEnv()
+    const model = await resolveReflectionModel(ctx.workspaceId)
 
     let observations: FailureObservation[]
     try {

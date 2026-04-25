@@ -14,7 +14,9 @@ import { z } from 'zod'
 import { db, sql } from '@plexo/db'
 import { mutate } from '@plexo/scl-core'
 import type { MutationInput, DriftWarning, ConceptType, RelationType } from '@plexo/scl-core'
-import { resolveModelFromEnv } from '../providers/registry.js'
+import { resolveModel, resolveModelFromEnv } from '../providers/registry.js'
+import type { TaskType } from '../providers/registry.js'
+import { loadSettingsFromInstances } from '../providers/settings-from-instances.js'
 import { loadGoldenRecord, saveGoldenRecord, loadSclMutationConfig } from './storage.js'
 import type { ReflectCtx } from '../behavior/reflect.js'
 
@@ -103,8 +105,11 @@ export async function reflectAndMutate(
         return { mutated: false, driftWarnings: [], attractorsRefined: 0, attractorsCreated: 0, ghostsArchived: 0 }
     }
 
-    // LLM extraction
-    const model = resolveModelFromEnv() // cheap/fast
+    // LLM extraction — use workspace's configured provider chain, fall back to env
+    const aiSettings = await loadSettingsFromInstances(ctx.workspaceId)
+    const model = aiSettings
+        ? (await resolveModel('summarization' as TaskType, aiSettings, ctx.workspaceId).catch(() => ({ model: resolveModelFromEnv() }))).model
+        : resolveModelFromEnv()
     let structured: SclReflectionOutput
 
     try {
