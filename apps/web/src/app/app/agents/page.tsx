@@ -353,9 +353,8 @@ function AgentsContent() {
                             <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="text-xl font-medium text-text-primary truncate">{settings.agentName || 'Plexo'}</h3>
                                 {agentStatus && (
-                                    <span className={`inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-[11px] font-medium ${agentStatus.status === 'running' ? 'border-green-800/40 bg-green-dim text-green' : 'border-border bg-surface-1 text-text-muted'}`}>
-                                        <span className={`h-1.5 w-1.5 rounded-full ${agentStatus.status === 'running' ? 'bg-green animate-pulse' : 'bg-surface-3'}`} />
-                                        {agentStatus.status}
+                                    <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[11px] font-mono font-medium uppercase tracking-wider ${agentStatus.status === 'running' ? 'border-green-800/40 bg-green-dim text-green' : 'border-border bg-surface-1 text-text-muted'}`}>
+                                        [{agentStatus.status}]
                                     </span>
                                 )}
                             </div>

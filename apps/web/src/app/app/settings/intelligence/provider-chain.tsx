@@ -230,7 +230,7 @@ function ProviderCardOverlay({ card, position }: { card: ChainCardData; position
                 relative flex flex-col items-center gap-1.5
                 rounded-sm border border-azure/60 bg-surface-2/95
                 px-3 pt-8 pb-2.5 w-[148px]
-                scale-105 cursor-grabbing
+                cursor-grabbing
             "
         >
             <GripVertical className="absolute top-1.5 left-1.5 h-4 w-4 text-text-primary" />

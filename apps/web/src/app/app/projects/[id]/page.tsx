@@ -756,7 +756,7 @@ export default function SprintDetailPage() {
                             ) : (
                                 sprint.featuresCompleted.map((f, i) => (
                                     <div key={i} className="flex items-start gap-4 rounded-sm border border-border bg-surface-1/40 px-5 py-4 hover:border-azure/20 transition-all group">
-                                        <div className="mt-1 rounded-full p-1.5 bg-azure/10 text-azure group-hover:scale-110 transition-transform">
+                                        <div className="mt-1 rounded-full p-1.5 bg-azure/10 text-azure  transition-transform">
                                             <Zap className="h-4 w-4 fill-current" />
                                         </div>
                                         <p className="text-sm text-text-secondary leading-relaxed pt-1">{f}</p>

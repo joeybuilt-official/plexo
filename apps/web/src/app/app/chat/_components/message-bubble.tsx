@@ -125,7 +125,7 @@ function AssetCard({ asset, taskId, onOpen }: { asset: TaskAsset; taskId?: strin
             {isImage && assetUrl && (
                 <div className="relative aspect-video w-full overflow-hidden rounded-sm bg-surface-2 border border-border/30">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={assetUrl} alt={asset.filename} loading="lazy" className="h-full w-full object-cover transition-transform group-hover/asset:scale-105" />
+                    <img src={assetUrl} alt={asset.filename} loading="lazy" className="h-full w-full object-cover transition-transform" />
                 </div>
             )}
             <div className="flex items-center justify-between gap-2 px-1">

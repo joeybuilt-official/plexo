@@ -76,7 +76,7 @@ export function RSIProposalsPanel() {
     }
 
     return (
-        <div className="rounded-sm border border-violet-500/20  from-surface-2 to-canvas overflow-hidden mb-6">
+        <div className="rounded-sm border border-violet-500/20 bg-surface-1 overflow-hidden mb-6">
             <div className="flex items-center justify-between border-b border-violet-500/10 px-4 py-3 bg-violet-500/5">
                 <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-violet-400" />
