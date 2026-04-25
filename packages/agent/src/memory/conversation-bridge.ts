@@ -269,7 +269,7 @@ async function mutateFromConversation(
         const { object } = await callModel({
             model,
             provider,
-            system: `Extract 0-2 reusable knowledge concepts from this conversation exchange. Only extract if there is genuine domain knowledge, user preferences, or operational patterns worth remembering. Return {"concepts":[]} if nothing worth extracting.`,
+            system: `You are a JSON-only extraction API. Respond with ONLY valid JSON — no reasoning, no explanation, no text before or after the JSON object.\nExtract 0-2 reusable knowledge concepts from the conversation. Return {"concepts":[]} if nothing is worth extracting.`,
             messages: [{
                 role: 'user',
                 content: `User: ${userMessage.slice(0, 300)}\nAssistant: ${assistantReply.slice(0, 300)}`,

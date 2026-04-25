@@ -185,8 +185,8 @@ async function summarizeMemory(params: {
     const { content, workspaceId, aiSettings } = params
 
     // Fire-and-forget memory writes must not burn 30s of retries when a
-    // provider is down. Cap at one attempt, five seconds total.
-    const abortSignal = AbortSignal.timeout(5_000)
+    // provider is down. Cap at one attempt, 15 seconds total.
+    const abortSignal = AbortSignal.timeout(15_000)
 
     try {
         if (aiSettings) {
