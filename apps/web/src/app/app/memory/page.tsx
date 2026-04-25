@@ -141,7 +141,8 @@ export default function MemoryPage() {
     // Advanced state
     const [mindset, setMindset] = useState<MindsetObject | null>(null)
     const [driftWarnings, setDriftWarnings] = useState<DriftWarning[]>([])
-    const [advancedOpen, setAdvancedOpen] = useState(false)
+    const [advancedOpen, setAdvancedOpen] = useState(true)
+    const [tuningOpen, setTuningOpen] = useState(false)
 
     // ── Browse ────────────────────────────────────────────────────────────────
 
@@ -602,6 +603,43 @@ export default function MemoryPage() {
             {/* ── Advanced Tab ─────────────────────────────────────────────── */}
             {tab === 'advanced' && (
                 <div className="space-y-6">
+                    {/* MindsetObject Viewer — primary view (9.4) */}
+                    <section>
+                        <button
+                            onClick={() => { setAdvancedOpen(!advancedOpen); if (!advancedOpen) void loadAdvanced() }}
+                            className="flex items-center gap-2 text-sm font-medium text-text-primary hover:text-text-secondary transition-colors"
+                        >
+                            {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            SCL Concept Graph
+                        </button>
+                        {advancedOpen && (
+                            <div className="mt-3">
+                                {mindset && mindset.regions && mindset.regions.length > 0 ? (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                            {[
+                                                { label: 'Concepts', value: mindset.attractors?.length ?? 0 },
+                                                { label: 'Regions', value: mindset.regions?.length ?? 0 },
+                                                { label: 'Tasks analyzed', value: mindset.taskCount ?? 0 },
+                                                { label: 'Last updated', value: mindset.updatedAt ? new Date(mindset.updatedAt).toLocaleDateString() : '—' },
+                                            ].map(s => (
+                                                <div key={s.label} className="rounded-lg border border-border bg-surface-1/40 p-3">
+                                                    <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">{s.label}</p>
+                                                    <p className="mt-1 text-lg font-bold text-text-primary">{s.value}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="rounded-xl border border-border bg-surface-1/40 p-4">
+                                            <MindsetObjectViewer mindset={mindset} />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-text-muted py-4">No concept data yet. Complete a few tasks to build the knowledge graph.</p>
+                                )}
+                            </div>
+                        )}
+                    </section>
+
                     {/* Golden Record Dashboard */}
                     <section className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
                         <GoldenRecordDashboard workspaceId={WS_ID} />
@@ -622,9 +660,20 @@ export default function MemoryPage() {
                         <PromotionLog workspaceId={WS_ID} />
                     </section>
 
-                    {/* SCL Tuning */}
-                    <section className="rounded-xl border border-border/60 bg-surface-1/40 p-4">
-                        <SclConfigPanel workspaceId={WS_ID} />
+                    {/* Advanced SCL Tuning — collapsed by default (9.4) */}
+                    <section className="rounded-xl border border-border/60 bg-surface-1/40">
+                        <button
+                            onClick={() => setTuningOpen((o) => !o)}
+                            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-text-primary hover:text-text-secondary transition-colors"
+                        >
+                            <span>Advanced SCL Tuning</span>
+                            {tuningOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                        {tuningOpen && (
+                            <div className="border-t border-border/60 p-4">
+                                <SclConfigPanel workspaceId={WS_ID} />
+                            </div>
+                        )}
                     </section>
 
                     {/* Drift Warnings */}
@@ -668,42 +717,6 @@ export default function MemoryPage() {
                         </section>
                     )}
 
-                    {/* MindsetObject Viewer */}
-                    <section>
-                        <button
-                            onClick={() => { setAdvancedOpen(!advancedOpen); if (!advancedOpen) void loadAdvanced() }}
-                            className="flex items-center gap-2 text-sm font-medium text-text-primary hover:text-text-secondary transition-colors"
-                        >
-                            {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            SCL Concept Graph
-                        </button>
-                        {advancedOpen && (
-                            <div className="mt-3">
-                                {mindset && mindset.regions && mindset.regions.length > 0 ? (
-                                    <div className="space-y-4">
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                            {[
-                                                { label: 'Concepts', value: mindset.attractors?.length ?? 0 },
-                                                { label: 'Regions', value: mindset.regions?.length ?? 0 },
-                                                { label: 'Tasks analyzed', value: mindset.taskCount ?? 0 },
-                                                { label: 'Last updated', value: mindset.updatedAt ? new Date(mindset.updatedAt).toLocaleDateString() : '—' },
-                                            ].map(s => (
-                                                <div key={s.label} className="rounded-lg border border-border bg-surface-1/40 p-3">
-                                                    <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">{s.label}</p>
-                                                    <p className="mt-1 text-lg font-bold text-text-primary">{s.value}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="rounded-xl border border-border bg-surface-1/40 p-4">
-                                            <MindsetObjectViewer mindset={mindset} />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-text-muted py-4">No concept data yet. Complete a few tasks to build the knowledge graph.</p>
-                                )}
-                            </div>
-                        )}
-                    </section>
                 </div>
             )}
         </div>

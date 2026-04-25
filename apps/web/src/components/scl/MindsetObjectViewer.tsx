@@ -271,90 +271,199 @@ function ForceGraph({ mindset, activatedRegion, width, height }: {
 
     const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes])
 
-    // Fit to viewport
-    const pad = 80
-    const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y)
-    const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad
-    const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad
-    const vw = maxX - minX, vh = maxY - minY
+    // Precompute adjacency for hover dimming (9.1)
+    const adjacency = useMemo(() => {
+        const m = new Map<string, Set<string>>()
+        for (const n of nodes) m.set(n.id, new Set())
+        for (const e of edges) {
+            m.get(e.source)?.add(e.target)
+            m.get(e.target)?.add(e.source)
+        }
+        return m
+    }, [nodes, edges])
+
+    // Initial transform that fits all nodes into the viewport (9.2)
+    const initialTransform = useMemo(() => {
+        if (nodes.length === 0) return { scale: 1, tx: 0, ty: 0 }
+        const pad = 80
+        const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y)
+        const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad
+        const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad
+        const s = Math.min(width / (maxX - minX), height / (maxY - minY), 1)
+        return {
+            scale: s,
+            tx: width / 2 - s * (minX + maxX) / 2,
+            ty: height / 2 - s * (minY + maxY) / 2,
+        }
+    }, [nodes, width, height])
 
     const [hover, setHover] = useState<string | null>(null)
+    const [selected, setSelected] = useState<FNode | null>(null)
+    const [transform, setTransform] = useState(() => initialTransform)
+    const svgRef = useRef<SVGSVGElement>(null)
+    const dragRef = useRef<{ sx: number; sy: number; tx: number; ty: number } | null>(null)
+    const didDragRef = useRef(false)
+
+    // Reset view when mindset changes
+    useEffect(() => { setTransform(initialTransform) }, [initialTransform])
+
+    // Wheel zoom centered on cursor (9.2)
+    function handleWheel(e: React.WheelEvent<SVGSVGElement>) {
+        e.preventDefault()
+        const rect = svgRef.current?.getBoundingClientRect()
+        if (!rect) return
+        const cx = e.clientX - rect.left
+        const cy = e.clientY - rect.top
+        const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
+        setTransform(t => {
+            const nextScale = Math.max(0.1, Math.min(10, t.scale * factor))
+            const ratio = nextScale / t.scale
+            return { scale: nextScale, tx: cx - (cx - t.tx) * ratio, ty: cy - (cy - t.ty) * ratio }
+        })
+    }
+
+    // Drag-to-pan (9.2)
+    function handleMouseDown(e: React.MouseEvent<SVGSVGElement>) {
+        if (e.button !== 0) return
+        didDragRef.current = false
+        dragRef.current = { sx: e.clientX, sy: e.clientY, tx: transform.tx, ty: transform.ty }
+    }
+
+    function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+        if (!dragRef.current) return
+        const dx = e.clientX - dragRef.current.sx
+        const dy = e.clientY - dragRef.current.sy
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didDragRef.current = true
+        setTransform(t => ({ ...t, tx: dragRef.current!.tx + dx, ty: dragRef.current!.ty + dy }))
+    }
+
+    function handleMouseUp() { dragRef.current = null }
+
+    function handleSvgClick() {
+        if (didDragRef.current) return
+        setSelected(null)
+    }
+
+    const isDragging = !!dragRef.current
 
     return (
-        <svg
-            viewBox={`${minX} ${minY} ${vw} ${vh}`}
-            width={width}
-            height={height}
-            className="select-none"
-            data-testid="mindset-graph"
-        >
-            {/* Edges */}
-            {edges.map((e, i) => {
-                const a = nodeMap.get(e.source), b = nodeMap.get(e.target)
-                if (!a || !b) return null
-                const isHovered = hover === e.source || hover === e.target
-                return (
-                    <line
-                        key={i}
-                        x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                        stroke={isHovered ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.08)'}
-                        strokeWidth={0.5 + e.confidence * 2}
-                    />
-                )
-            })}
+        <div className="relative" style={{ width, height }}>
+            <svg
+                ref={svgRef}
+                width={width}
+                height={height}
+                className={`select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                onWheel={handleWheel}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onClick={handleSvgClick}
+                data-testid="mindset-graph"
+            >
+                <g transform={`translate(${transform.tx},${transform.ty}) scale(${transform.scale})`}>
+                    {/* Edges */}
+                    {edges.map((e, i) => {
+                        const a = nodeMap.get(e.source), b = nodeMap.get(e.target)
+                        if (!a || !b) return null
+                        const connected = hover ? e.source === hover || e.target === hover : false
+                        const dimmed = hover ? !connected : false
+                        return (
+                            <line
+                                key={i}
+                                x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                                stroke={connected ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.15)'}
+                                strokeWidth={0.5 + e.confidence * 2}
+                                opacity={dimmed ? 0.15 : 1}
+                            />
+                        )
+                    })}
 
-            {/* Nodes */}
-            {nodes.map(n => {
-                const isActive = activatedRegion && n.region === activatedRegion
-                const isHovered = hover === n.id
-                const col = regionColor(n.region, isActive ? 65 : 45)
-                return (
-                    <g
-                        key={n.id}
-                        onMouseEnter={() => setHover(n.id)}
-                        onMouseLeave={() => setHover(null)}
-                        className="cursor-pointer"
-                    >
-                        {/* Glow for activated region */}
-                        {isActive && n.kind === 'region' && (
-                            <circle cx={n.x} cy={n.y} r={n.radius + 6} fill="none"
-                                stroke={regionColor(n.region, 70)} strokeWidth={2} opacity={0.5} />
-                        )}
-                        <circle
-                            cx={n.x} cy={n.y} r={n.radius}
-                            fill={col}
-                            opacity={n.kind === 'region' ? 0.8 : 0.6}
-                            stroke={isHovered ? '#fff' : 'none'}
-                            strokeWidth={1.5}
-                        />
-                        {/* Label for regions, high-salience attractors, and hovered attractors */}
-                        {(n.kind === 'region' || isHovered || n.salience >= 0.7) && (
-                            <text
-                                x={n.x} y={n.y + n.radius + 12}
-                                textAnchor="middle"
-                                fill="rgba(255,255,255,0.7)"
-                                fontSize={n.kind === 'region' ? 11 : 9}
-                                fontFamily="sans-serif"
+                    {/* Nodes */}
+                    {nodes.map(n => {
+                        const isActive = activatedRegion && n.region === activatedRegion
+                        const isHovered = hover === n.id
+                        const isSel = selected?.id === n.id
+                        const connectedToHover = hover ? (adjacency.get(n.id)?.has(hover) || n.id === hover) : false
+                        const dimmed = hover ? !connectedToHover : false
+                        const col = regionColor(n.region, isActive ? 65 : 45)
+                        return (
+                            <g
+                                key={n.id}
+                                onMouseEnter={() => setHover(n.id)}
+                                onMouseLeave={() => setHover(null)}
+                                onClick={(ev) => { ev.stopPropagation(); if (!didDragRef.current) setSelected(isSel ? null : n) }}
+                                className="cursor-pointer"
+                                opacity={dimmed ? 0.15 : 1}
                             >
-                                {n.label}
-                            </text>
-                        )}
-                        {/* Tooltip on hover */}
-                        {isHovered && n.kind === 'attractor' && (
-                            <text
-                                x={n.x} y={n.y - n.radius - 6}
-                                textAnchor="middle"
-                                fill="rgba(255,255,255,0.5)"
-                                fontSize={8}
-                                fontFamily="sans-serif"
-                            >
-                                {n.salience.toFixed(2)} salience
-                            </text>
-                        )}
-                    </g>
-                )
-            })}
-        </svg>
+                                {isActive && n.kind === 'region' && (
+                                    <circle cx={n.x} cy={n.y} r={n.radius + 6} fill="none"
+                                        stroke={regionColor(n.region, 70)} strokeWidth={2} opacity={0.5} />
+                                )}
+                                {isSel && (
+                                    <circle cx={n.x} cy={n.y} r={n.radius + 5} fill="none"
+                                        stroke="rgba(255,255,255,0.6)" strokeWidth={1.5} strokeDasharray="3 2" />
+                                )}
+                                <circle
+                                    cx={n.x} cy={n.y} r={n.radius}
+                                    fill={col}
+                                    opacity={n.kind === 'region' ? 0.8 : 0.6}
+                                    stroke={isHovered || isSel ? '#fff' : 'none'}
+                                    strokeWidth={1.5}
+                                />
+                                {(n.kind === 'region' || isHovered || n.salience >= 0.7) && (
+                                    <text
+                                        x={n.x} y={n.y + n.radius + 12}
+                                        textAnchor="middle"
+                                        fill="rgba(255,255,255,0.7)"
+                                        fontSize={n.kind === 'region' ? 11 : 9}
+                                        fontFamily="sans-serif"
+                                    >
+                                        {n.label}
+                                    </text>
+                                )}
+                                {isHovered && n.kind === 'attractor' && (
+                                    <text
+                                        x={n.x} y={n.y - n.radius - 6}
+                                        textAnchor="middle"
+                                        fill="rgba(255,255,255,0.5)"
+                                        fontSize={8}
+                                        fontFamily="sans-serif"
+                                    >
+                                        {n.salience.toFixed(2)} salience
+                                    </text>
+                                )}
+                            </g>
+                        )
+                    })}
+                </g>
+            </svg>
+
+            {/* Reset view button (9.2) */}
+            <button
+                onClick={() => setTransform(initialTransform)}
+                className="absolute bottom-2 right-2 rounded border border-white/10 bg-black/40 px-2 py-0.5 text-[11px] text-white/50 backdrop-blur hover:text-white/80"
+                title="Reset view"
+            >
+                Reset
+            </button>
+
+            {/* Node detail panel (9.3) */}
+            {selected && (
+                <div className="absolute right-0 top-0 z-10 w-44 rounded-lg border border-white/10 bg-black/70 p-3 backdrop-blur text-xs">
+                    <div className="flex items-start justify-between gap-1">
+                        <p className="font-medium text-white leading-snug break-all">{selected.label}</p>
+                        <button onClick={() => setSelected(null)} className="shrink-0 text-white/40 hover:text-white/80">✕</button>
+                    </div>
+                    <div className="mt-2 space-y-1 text-white/50">
+                        <p>Type: <span className="text-white/80 capitalize">{selected.kind}</span></p>
+                        <p>Region: <span className="text-white/80">{selected.region}</span></p>
+                        <p>Salience: <span className="text-white/80">{selected.salience.toFixed(3)}</span></p>
+                        <p>Links: <span className="text-white/80">{adjacency.get(selected.id)?.size ?? 0}</span></p>
+                    </div>
+                </div>
+            )}
+        </div>
     )
 }
 
