@@ -103,6 +103,13 @@ RUN SC=$(cat /tmp/SOURCE_COMMIT); \
     date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build-time && rm /tmp/SOURCE_COMMIT
 ENV APP_VERSION=auto
 
+# Link workspace packages so dynamic imports resolve at runtime (tsx static
+# imports work via process memory; dynamic imports need these symlinks)
+RUN mkdir -p /app/node_modules/@plexo && \
+    for pkg in agent db queue sdk logger scl-core storage; do \
+      ln -sf /app/packages/${pkg} /app/node_modules/@plexo/${pkg}; \
+    done
+
 RUN chown -R plexo:plexo /app
 
 # TODO: OPS-004 — Zero-downtime deploy: add healthcheck + rolling update config in compose

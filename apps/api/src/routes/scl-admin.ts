@@ -229,7 +229,7 @@ sclAdminRouter.post('/backfill', async (req, res) => {
             SELECT t.id, t.workspace_id, t.type, t.quality_score,
                    t.outcome_summary, t.completed_at, t.created_at
             FROM tasks t
-            WHERE t.status = 'completed'
+            WHERE t.status = 'complete'
               AND t.quality_score >= 0.3
               AND t.outcome_summary IS NOT NULL
               AND LENGTH(t.outcome_summary) >= 30
