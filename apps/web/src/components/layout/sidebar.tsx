@@ -277,10 +277,10 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                 className={`flex min-h-[64px] h-16 w-full items-center ${collapsed ? "justify-center" : "gap-3 px-3"} hover:bg-surface-1/60 transition-colors cursor-pointer ${className}`}
             >
                 {/* App icon */}
-                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-azure/10 ring-1 ring-inset ring-azure/20">
+                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded bg-azure/10 ring-1 ring-inset ring-azure/20">
                     <PlexoMark className="w-7 h-7 text-azure" />
                     {updateAvailable && collapsed && (
-                        <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-azure ring-2 ring-canvas animate-pulse" />
+                        <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-sm bg-azure ring-2 ring-canvas animate-pulse" />
                     )}
                 </div>
                 {!collapsed && (
@@ -301,7 +301,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                                     title="Update available — click to install"
                                     onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')) }}
                                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')); } }}
-                                    className="flex items-center gap-1 rounded-full px-2 py-0.5 bg-azure/15 ring-1 ring-inset ring-azure/25 cursor-pointer hover:bg-azure/25 transition-colors"
+                                    className="flex items-center gap-1 rounded-sm px-2 py-0.5 bg-azure/15 ring-1 ring-inset ring-azure/25 cursor-pointer hover:bg-azure/25 transition-colors"
                                 >
                                     <ArrowUpCircle className="h-3 w-3 text-azure shrink-0" />
                                     <span className="text-[11px] text-azure font-semibold uppercase tracking-wide">Update</span>
@@ -314,7 +314,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
             </button>
 
             {open && (
-                <div className="absolute left-2 top-[calc(100%+4px)] z-50 w-[240px] rounded-xl border border-border bg-surface-1 shadow-2xl shadow-black/20 overflow-hidden">
+                <div className="absolute left-2 top-[calc(100%+4px)] z-50 w-[240px] rounded border border-border bg-surface-1 overflow-hidden">
                     {/* Workspace list */}
                     <div className="max-h-80 overflow-y-auto p-1.5 space-y-0.5">
                         {isLoading && list.length === 0 && (
@@ -334,9 +334,9 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                                     }
                                     setOpen(false)
                                 }}
-                                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-surface-2 transition-colors"
+                                className="flex w-full items-center gap-3 rounded px-3 py-3 text-left hover:bg-surface-2 transition-colors"
                             >
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-azure/20 text-sm font-bold text-azure uppercase pb-[1px]">
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-azure/20 text-sm font-medium text-azure uppercase pb-[1px]">
                                     {ws.name.slice(0, 1)}
                                 </div>
                                 <span className="flex-1 truncate text-sm font-medium text-text-primary">{ws.name}</span>
@@ -357,11 +357,11 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                                         if (e.key === 'Escape') { setCreating(false); setNewName('') }
                                     }}
                                     placeholder="Workspace name"
-                                    className="flex-1 rounded-md border border-border bg-canvas px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                    className="flex-1 rounded-sm border border-border bg-canvas px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                                 />
                                 <button
                                     onClick={() => void handleCreate()}
-                                    className="rounded-md bg-azure px-2 py-1 text-[11px] font-semibold text-white hover:bg-azure/90"
+                                    className="rounded-sm bg-azure px-2 py-1 text-[11px] font-medium text-white hover:bg-azure/90"
                                 >
                                     Add
                                 </button>
@@ -369,7 +369,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                         ) : (
                             <button
                                 onClick={() => setCreating(true)}
-                                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-sm font-medium text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
+                                className="flex w-full items-center gap-2.5 rounded px-3 py-3 text-sm font-medium text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
                             >
                                 <Plus className="h-4 w-4" />
                                 New workspace
@@ -410,7 +410,7 @@ function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick
             )}
             <div className="space-y-0.5 px-1 md:px-0">
                 {!loaded && !collapsed && Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5">
+                    <div key={i} className="flex items-center gap-2.5 rounded px-2.5 py-1.5">
                         <div className="h-4 w-4 shrink-0 rounded bg-surface-2 animate-pulse" />
                         <div className="h-3 rounded bg-surface-2 animate-pulse" style={{ width: `${55 + i * 8}%` }} />
                     </div>
@@ -424,7 +424,7 @@ function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick
                             key={chat.id}
                             href={href}
                             onClick={onNavClick}
-                            className={`group flex items-center justify-center md:justify-start gap-2.5 rounded-lg px-2.5 py-1.5 min-h-[44px] text-[13px] font-medium transition-colors border-transparent text-text-muted hover:bg-surface-1 hover:text-text-secondary`}
+                            className={`group flex items-center justify-center md:justify-start gap-2.5 rounded px-2.5 py-1.5 min-h-[44px] text-[13px] font-medium transition-colors border-transparent text-text-muted hover:bg-surface-1 hover:text-text-secondary`}
                             title={collapsed ? chat.message : undefined}
                         >
                             <MessageCircle className="h-4 w-4 shrink-0 text-text-muted group-hover:text-text-secondary" />
@@ -455,19 +455,19 @@ function NavBadge({ href, sidebarCollapsed, pendingApprovals, blockedTasks, pend
     if (href === '/app/approvals' && pendingApprovals > 0) {
         return sidebarCollapsed
             ? <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />
-            : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{pendingApprovals}</span>
+            : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-sm bg-red-500 px-1 text-[10px] font-medium text-white">{pendingApprovals}</span>
     }
     // Blocked Tasks
     if (href === '/app/tasks' && blockedTasks > 0) {
         return sidebarCollapsed
             ? <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-amber-500" />
-            : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">{blockedTasks}</span>
+            : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-sm bg-amber-500 px-1 text-[10px] font-medium text-black">{blockedTasks}</span>
     }
     // Memory / Improvements
     if ((href === '/app/memory' || href === '/insights') && pendingImprovements > 0) {
         return sidebarCollapsed
             ? <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-azure" />
-            : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-azure px-1 text-[10px] font-bold text-white">{pendingImprovements}</span>
+            : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-sm bg-azure px-1 text-[10px] font-medium text-white">{pendingImprovements}</span>
     }
     // Integrations Warning
     if (href === '/app/connections' && capabilityWarning) {
@@ -477,7 +477,7 @@ function NavBadge({ href, sidebarCollapsed, pendingApprovals, blockedTasks, pend
     if (href === '/app/settings' && rsiPending > 0) {
         return sidebarCollapsed
             ? <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-azure" />
-            : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-azure px-1 text-[10px] font-bold text-white">{rsiPending}</span>
+            : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-sm bg-azure px-1 text-[10px] font-medium text-white">{rsiPending}</span>
     }
     return null
 }
@@ -514,7 +514,7 @@ function NavLink({ item, active, sidebarCollapsed, onNavClick, badgeProps }: {
                 onNavClick?.()
             }}
             title={sidebarCollapsed ? item.label : undefined}
-            className={`group flex relative items-center justify-center md:justify-start gap-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${sidebarCollapsed ? 'p-2' : 'px-3 py-2'} ${active
+            className={`group flex relative items-center justify-center md:justify-start gap-2.5 rounded text-sm font-medium transition-colors min-h-[44px] ${sidebarCollapsed ? 'p-2' : 'px-3 py-2'} ${active
                 ? 'bg-surface-2 text-text-primary'
                 : 'text-text-muted hover:bg-surface-1 hover:text-text-secondary'
                 }`}
@@ -548,7 +548,7 @@ function NavSection({ id, label, expanded, onToggle, collapsed: sidebarCollapsed
         <div>
             <button
                 onClick={() => onToggle(id)}
-                className="flex w-full items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.15em] text-text-muted/60 cursor-pointer hover:text-text-muted transition-colors"
+                className="flex w-full items-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted/60 cursor-pointer hover:text-text-muted transition-colors"
             >
                 <ChevronRight
                     className={`h-3 w-3 shrink-0 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
@@ -806,7 +806,7 @@ export function Sidebar({ user, onNavClick, className = '', mobile = false }: { 
             <div className={`relative group/collapse ${sidebarCollapsed ? 'border-b border-border-subtle' : ''}`}>
                 <WorkspaceSwitcher collapsed={sidebarCollapsed} className={!sidebarCollapsed ? 'border-b border-border-subtle' : ''} />
                 {!sidebarCollapsed && (
-                    <button onClick={toggleSidebar} aria-label="Collapse sidebar" className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 p-1.5 bg-surface-1 rounded-md text-text-muted hover:text-text-primary z-10 hidden md:flex items-center justify-center group-hover/collapse:opacity-100 transition-opacity ring-1 ring-inset ring-border/50 shadow-sm" title="Collapse Sidebar">
+                    <button onClick={toggleSidebar} aria-label="Collapse sidebar" className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 p-1.5 bg-surface-1 rounded-sm text-text-muted hover:text-text-primary z-10 hidden md:flex items-center justify-center group-hover/collapse:opacity-100 transition-opacity ring-1 ring-inset ring-border/50" title="Collapse Sidebar">
                         <PanelLeftClose className="h-4 w-4" />
                     </button>
                 )}
@@ -864,7 +864,7 @@ export function Sidebar({ user, onNavClick, className = '', mobile = false }: { 
                 {!sidebarCollapsed && (
                     <button
                         onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
-                        className="flex items-center gap-2 rounded-lg px-2.5 py-2 mb-1 text-[13px] text-text-muted hover:text-text-secondary hover:bg-surface-1/80 transition-colors"
+                        className="flex items-center gap-2 rounded px-2.5 py-2 mb-1 text-[13px] text-text-muted hover:text-text-secondary hover:bg-surface-1/80 transition-colors"
                         aria-label="Open command palette"
                     >
                         <Search className="h-3.5 w-3.5" />
@@ -899,7 +899,7 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
         <div ref={ref} className="relative w-full">
             <button
                 onClick={() => setOpen((o) => !o)}
-                className={`flex w-full items-center ${collapsed ? 'justify-center p-1' : 'gap-2.5 p-2'} rounded-lg text-left hover:bg-surface-1/80 transition-colors`}
+                className={`flex w-full items-center ${collapsed ? 'justify-center p-1' : 'gap-2.5 p-2'} rounded text-left hover:bg-surface-1/80 transition-colors`}
                 title={collapsed ? (user?.name ?? 'User') : undefined}
             >
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-2 text-[11px] font-semibold text-text-primary ring-1 ring-inset ring-border">
@@ -914,7 +914,7 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
             </button>
 
             {open && (
-                <div className={`absolute bottom-[calc(100%+8px)] z-50 rounded-xl border border-border bg-surface-1 shadow-2xl shadow-black/20 overflow-hidden ${collapsed ? 'left-2 min-w-[220px]' : 'left-0 w-full'}`}>
+                <div className={`absolute bottom-[calc(100%+8px)] z-50 rounded border border-border bg-surface-1 overflow-hidden ${collapsed ? 'left-2 min-w-[220px]' : 'left-0 w-full'}`}>
                     {/* Identity header */}
                     <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-2 text-xs font-semibold text-text-primary ring-1 ring-inset ring-border">
@@ -931,12 +931,12 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
                         <Link
                             href="/app/settings"
                             onClick={() => setOpen(false)}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
+                            className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
                         >
                             <SettingsIcon className="h-3.5 w-3.5" />
                             Settings
                         </Link>
-                        <div className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors">
+                        <div className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors">
                             <div className="flex items-center gap-2">
                                 <Palette className="h-3.5 w-3.5" />
                                 Theme
@@ -959,7 +959,7 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
                                     }
                                 } catch { /* non-fatal */ }
                             }}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
+                            className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
                         >
                             <ExternalLink className="h-3.5 w-3.5" />
                             Open Levio
@@ -979,7 +979,7 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
                                     }
                                 } catch { /* non-fatal */ }
                             }}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
+                            className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-sm text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
                         >
                             <ExternalLink className="h-3.5 w-3.5" />
                             Open Pushd
@@ -987,7 +987,7 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
                         <div className="my-1 border-t border-border" />
                         <button
                             onClick={() => { void authClient.signOut().then(() => { window.location.href = '/login' }) }}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-red-400 hover:bg-red-dim hover:text-red-300 transition-colors"
+                            className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-sm text-red-400 hover:bg-red-dim hover:text-red-300 transition-colors"
                         >
                             <LogOut className="h-3.5 w-3.5" />
                             Sign out

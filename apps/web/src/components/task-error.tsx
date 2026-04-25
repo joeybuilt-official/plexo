@@ -20,7 +20,7 @@ export function TaskError({ outcomeSummary, status }: {
 
     if (!presentation) {
         return (
-            <div className={`rounded-xl border ${borderColor} ${bgColor} p-4`}>
+            <div className={`rounded border ${borderColor} ${bgColor} p-4`}>
                 <div className="flex items-start gap-2.5">
                     <AlertTriangle className="h-4 w-4 shrink-0 text-red mt-0.5" />
                     <div className="min-w-0 flex-1">
@@ -35,7 +35,7 @@ export function TaskError({ outcomeSummary, status }: {
     }
 
     return (
-        <div className={`rounded-xl border ${borderColor} ${bgColor} overflow-hidden`}>
+        <div className={`rounded border ${borderColor} ${bgColor} overflow-hidden`}>
             <div className="p-4">
                 <div className="flex items-start gap-2.5">
                     <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${isFailed ? 'text-red' : 'text-amber'}`} />

@@ -4,12 +4,14 @@
 import React from 'react'
 
 /**
- * PlexoMark — animated brand mark.
+ * PlexoMark — Delta Frame brand mark.
+ *
+ * Open triangle with gap in the base, dots at all three vertices.
+ * Matches brand/plexo-symbol-mono.svg geometry.
  *
  * Props:
- *   idle    — default; soft breathing pulse on all nodes (2.4s cycle)
- *   working — agent is actively processing; faster, brighter, all lines
- *             light simultaneously to signal urgency (0.9s cycle)
+ *   idle    — default; soft breathing pulse on nodes (2.4s cycle)
+ *   working — agent is processing; faster pulse (0.9s cycle)
  */
 export function PlexoMark({
   className,
@@ -24,7 +26,7 @@ export function PlexoMark({
   return (
     <svg
       className={`plexo-mark ${mode} ${className || ''}`}
-      viewBox="0 0 44 44"
+      viewBox="0 0 48 48"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
@@ -32,100 +34,90 @@ export function PlexoMark({
         {`
           /* ── Idle: soft staggered breathe ───────────────────────────── */
           @keyframes think-line {
-            0%, 100% { opacity: 0.15; }
-            50%       { opacity: 0.8; }
-          }
-          @keyframes think-glow {
-            0%, 100% { opacity: 0.2; r: 5; }
-            50%       { opacity: 0.6; r: 9; }
+            0%, 100% { opacity: 0.25; }
+            50%       { opacity: 0.9; }
           }
           @keyframes think-core {
             0%, 100% { opacity: 0.7; }
             50%       { opacity: 1; }
           }
 
-          /* ── Entry: nodes fly in, lines draw in ─────────────────────── */
-          @keyframes fly-in-tl {
-            from { transform: translate(-20px,-20px); opacity: 0; }
-            to   { transform: translate(0,0); opacity: 1; }
-          }
-          @keyframes fly-in-bl {
-            from { transform: translate(-20px,20px); opacity: 0; }
-            to   { transform: translate(0,0); opacity: 1; }
-          }
-          @keyframes fly-in-r {
-            from { transform: translate(20px,0); opacity: 0; }
-            to   { transform: translate(0,0); opacity: 1; }
-          }
+          /* ── Entry: lines draw in ──────────────────────────────────── */
           @keyframes line-draw {
             from { stroke-dashoffset: 60; }
             to   { stroke-dashoffset: 0; }
           }
+          @keyframes fade-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+          }
 
-          /* ── Idle state animations ──────────────────────────────────── */
-          .mark-anim .line-1 { 
+          /* ── Idle state ────────────────────────────────────────────── */
+          .mark-anim .df-left {
+            stroke-dasharray: 60; stroke-dashoffset: 60;
+            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.4s forwards,
+                       think-line 2.4s ease-in-out 1.4s infinite;
+          }
+          .mark-anim .df-right {
             stroke-dasharray: 60; stroke-dashoffset: 60;
             animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.55s forwards,
-                       think-line 2.4s ease-in-out 1.55s infinite; 
+                       think-line 2.4s ease-in-out 1.8s infinite;
           }
-          .mark-anim .line-2 { 
+          .mark-anim .df-base-l {
             stroke-dasharray: 60; stroke-dashoffset: 60;
-            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.7s forwards,
-                       think-line 2.4s ease-in-out 1.95s infinite; 
+            animation: line-draw 0.3s cubic-bezier(0.16,1,0.3,1) 0.7s forwards,
+                       think-line 2.4s ease-in-out 2.0s infinite;
           }
-          .mark-anim .line-3 { 
+          .mark-anim .df-base-r {
             stroke-dasharray: 60; stroke-dashoffset: 60;
-            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.85s forwards,
-                       think-line 2.4s ease-in-out 2.35s infinite; 
+            animation: line-draw 0.3s cubic-bezier(0.16,1,0.3,1) 0.8s forwards,
+                       think-line 2.4s ease-in-out 2.2s infinite;
           }
-          .mark-anim .glow-ring  { opacity: 0; animation: think-glow 2.4s ease-in-out 1.95s infinite; }
-          .mark-anim .node-tl    { animation: fly-in-tl 0.5s cubic-bezier(0.16,1,0.3,1) 0s both,    think-core 2.4s ease-in-out 1.55s infinite; transform-origin: 10px 10px; }
-          .mark-anim .node-bl    { animation: fly-in-bl 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s both,  think-core 2.4s ease-in-out 2.35s infinite; transform-origin: 10px 34px; }
-          .mark-anim .node-r-outer { animation: fly-in-r 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both, think-core 2.4s ease-in-out 1.95s infinite; transform-origin: 34px 22px; }
-          .mark-anim .node-r-inner { animation: fly-in-r 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both; transform-origin: 34px 22px; }
+          .mark-anim .df-node {
+            animation: fade-in 0.4s cubic-bezier(0.16,1,0.3,1) 0.3s both,
+                       think-core 2.4s ease-in-out 1.4s infinite;
+          }
 
-          /* ── Working: faster simultaneous pulse, all lines fire together */
+          /* ── Working: faster simultaneous pulse ────────────────────── */
           @keyframes work-line {
-            0%, 100% { opacity: 0.25; }
+            0%, 100% { opacity: 0.3; }
             50%       { opacity: 1; }
-          }
-          @keyframes work-glow {
-            0%, 100% { opacity: 0.3; r: 6; }
-            50%       { opacity: 0.8; r: 11; }
           }
           @keyframes work-core {
             0%, 100% { opacity: 0.8; transform: scale(1); }
-            50%       { opacity: 1;   transform: scale(1.12); }
-          }
-          @keyframes work-inner {
-            0%, 100% { opacity: 0.9; }
-            50%       { opacity: 1; }
+            50%       { opacity: 1;   transform: scale(1.15); }
           }
 
-          .mark-working .line-1,
-          .mark-working .line-2,
-          .mark-working .line-3 {
+          .mark-working .df-left,
+          .mark-working .df-right,
+          .mark-working .df-base-l,
+          .mark-working .df-base-r {
             animation: work-line 0.9s ease-in-out infinite;
           }
-          .mark-working .line-2 { animation-delay: 0.15s; }
-          .mark-working .line-3 { animation-delay: 0.30s; }
-
-          .mark-working .glow-ring   { animation: work-glow 0.9s ease-in-out infinite; }
-          .mark-working .node-tl     { animation: work-core 0.9s ease-in-out infinite; transform-origin: 10px 10px; }
-          .mark-working .node-bl     { animation: work-core 0.9s ease-in-out 0.1s infinite; transform-origin: 10px 34px; }
-          .mark-working .node-r-outer{ animation: work-core 0.9s ease-in-out 0.2s infinite; transform-origin: 34px 22px; }
-          .mark-working .node-r-inner{ animation: work-inner 0.9s ease-in-out infinite; }
+          .mark-working .df-right  { animation-delay: 0.1s; }
+          .mark-working .df-base-l { animation-delay: 0.2s; }
+          .mark-working .df-base-r { animation-delay: 0.3s; }
+          .mark-working .df-node {
+            animation: work-core 0.9s ease-in-out infinite;
+          }
+          .mark-working .df-node-top    { transform-origin: 24px 10px; }
+          .mark-working .df-node-bl     { transform-origin: 12px 34px; }
+          .mark-working .df-node-br     { transform-origin: 36px 34px; }
         `}
       </style>
       <g>
-        <circle className="glow-ring" cx="34" cy="22" r="5" fill="var(--color-azure)" opacity="0.2"/>
-        <line className="line-1" x1="10" y1="10" x2="10" y2="34" stroke="var(--color-azure)" strokeWidth="1.8" strokeLinecap="round"/>
-        <line className="line-2" x1="10" y1="10" x2="34" y2="22" stroke="var(--color-azure)" strokeWidth="1.8" strokeLinecap="round"/>
-        <line className="line-3" x1="10" y1="34" x2="34" y2="22" stroke="var(--color-azure)" strokeWidth="1.8" strokeLinecap="round"/>
-        <circle className="node-tl" cx="10" cy="10" r="3.5" fill="var(--color-azure)"/>
-        <circle className="node-bl" cx="10" cy="34" r="3.5" fill="var(--color-azure)"/>
-        <circle className="node-r-outer" cx="34" cy="22" r="6" fill="var(--color-azure)"/>
-        <circle className="node-r-inner" cx="34" cy="22" r="3" fill="var(--color-amber)"/>
+        {/* Left edge: top -> bottom-left */}
+        <line className="df-left" x1="24" y1="10" x2="12" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Right edge: top -> bottom-right */}
+        <line className="df-right" x1="24" y1="10" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Base left segment (gap in center) */}
+        <line className="df-base-l" x1="12" y1="34" x2="20" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Base right segment (gap in center) */}
+        <line className="df-base-r" x1="28" y1="34" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Vertex dots */}
+        <circle className="df-node df-node-top" cx="24" cy="10" r="3" fill="currentColor"/>
+        <circle className="df-node df-node-bl" cx="12" cy="34" r="3" fill="currentColor"/>
+        <circle className="df-node df-node-br" cx="36" cy="34" r="3" fill="currentColor"/>
       </g>
     </svg>
   )
@@ -146,7 +138,7 @@ export function PlexoLogo({
     <div className={`flex items-center gap-3 ${className || ''}`}>
       <PlexoMark className="w-8 h-8 shrink-0" idle={idle} working={working} />
       {showWordmark && (
-        <span className="font-display font-bold text-xl tracking-tight text-text-primary leading-none -mt-1 pt-1">plexo</span>
+        <span className="font-display font-medium text-xl tracking-tight text-text-primary leading-none -mt-1 pt-1">plexo</span>
       )}
     </div>
   )

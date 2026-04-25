@@ -45,7 +45,7 @@ function TabButton({ active, onClick, icon, label }: { active: boolean, onClick:
         <button
             onClick={onClick}
             className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors flex items-center gap-1.5 ${
-                active ? 'bg-surface-2/80 text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+                active ? 'bg-surface-2/80 text-text-primary' : 'text-text-muted hover:text-text-secondary'
             }`}
         >
             {icon}

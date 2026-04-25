@@ -63,7 +63,7 @@ export function ChartRenderer({ work }: WorkRendererProps) {
                 </div>
                 <span className="text-[10px] text-text-muted">{data.length} points</span>
             </div>
-            <div className="rounded-xl border border-border bg-surface-1/30 p-4">
+            <div className="rounded border border-border bg-surface-1/30 p-4">
                 {chartType === 'pie'
                     ? <PieSvg data={data} color={color} />
                     : <CartesianSvg data={data} color={color} chartType={chartType} />

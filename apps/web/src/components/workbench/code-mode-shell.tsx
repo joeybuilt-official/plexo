@@ -358,7 +358,7 @@ export function CodeModeShell({
             {/* ── Repo picker modal ───────────────────────────────────── */}
             {repoModalOpen && (
                 <div
-                    className="absolute inset-0 z-50 flex items-center justify-center bg-canvas/70 backdrop-blur-sm"
+                    className="absolute inset-0 z-50 flex items-center justify-center bg-canvas/70"
                     onClick={(e) => { if (e.target === e.currentTarget) setRepoModalOpen(false) }}
                     onKeyDown={(e) => { if (e.key === 'Escape') setRepoModalOpen(false) }}
                 >

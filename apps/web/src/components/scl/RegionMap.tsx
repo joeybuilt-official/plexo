@@ -76,12 +76,12 @@ export function RegionMap({ workspaceId }: { workspaceId: string }) {
     return (
         <div className="space-y-3">
             <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-text-primary">Domain Regions</h3>
+                <h3 className="text-sm font-semibold text-text-primary">Domain Regions</h3>
                 <span className="text-[11px] text-text-muted">{regions.length} regions</span>
             </div>
 
             {/* Visual region bubbles */}
-            <div className="flex flex-wrap gap-3 p-4 rounded-xl border border-border bg-canvas">
+            <div className="flex flex-wrap gap-3 p-4 rounded border border-border bg-canvas">
                 {regions
                     .sort((a, b) => (regionAttractors.get(b.id)?.total ?? 0) - (regionAttractors.get(a.id)?.total ?? 0))
                     .map(region => {
@@ -95,7 +95,7 @@ export function RegionMap({ workspaceId }: { workspaceId: string }) {
                                 key={region.id}
                                 onMouseEnter={() => setHovered(region.id)}
                                 onMouseLeave={() => setHovered(null)}
-                                className="relative flex flex-col items-center justify-center rounded-2xl border transition-all cursor-default"
+                                className="relative flex flex-col items-center justify-center rounded border transition-all cursor-default"
                                 style={{
                                     width: size,
                                     height: size,
@@ -112,7 +112,7 @@ export function RegionMap({ workspaceId }: { workspaceId: string }) {
 
                                 {/* Tooltip on hover */}
                                 {isHovered && (
-                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 rounded-lg border border-border bg-surface-2 px-3 py-2 shadow-lg z-10 min-w-[140px]">
+                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 rounded border border-border bg-surface-2 px-3 py-2 z-10 min-w-[140px]">
                                         <p className="text-xs font-medium text-text-primary mb-1">{region.label}</p>
                                         <div className="flex items-center gap-3 text-[11px] text-text-muted">
                                             <span className="flex items-center gap-1"><Shield className="h-2.5 w-2.5 text-purple-400" /> {counts.spirit}</span>

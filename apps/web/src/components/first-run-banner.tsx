@@ -58,7 +58,7 @@ export function FirstRunBanner() {
                 </div>
                 <Link
                     href="/app/intelligence/wizard"
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-azure bg-surface-1 px-2.5 py-1 text-[11px] text-azure ring-1 ring-azure/40 transition-colors hover:text-text-primary"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-azure bg-surface-1 px-2.5 py-1 text-[11px] text-azure ring-1 ring-azure/40 transition-colors hover:text-text-primary"
                 >
                     Open wizard <ArrowRight className="h-3 w-3" />
                 </Link>

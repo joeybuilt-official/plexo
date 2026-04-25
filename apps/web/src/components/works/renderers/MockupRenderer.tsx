@@ -61,7 +61,7 @@ export function MockupRenderer({ work }: WorkRendererProps) {
     return (
         <div className="flex flex-col h-full">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface-1/50">
-                <div className="flex bg-surface-1 border border-border rounded-lg p-0.5">
+                <div className="flex bg-surface-1 border border-border rounded p-0.5">
                     <VpButton active={viewport === 'mobile'}  onClick={() => setViewport('mobile')}  icon={<Smartphone className="h-3 w-3" />} />
                     <VpButton active={viewport === 'tablet'}  onClick={() => setViewport('tablet')}  icon={<Tablet className="h-3 w-3" />} />
                     <VpButton active={viewport === 'desktop'} onClick={() => setViewport('desktop')} icon={<Monitor className="h-3 w-3" />} />
@@ -89,7 +89,7 @@ export function MockupRenderer({ work }: WorkRendererProps) {
             <div className="flex-1 min-h-0 overflow-auto flex items-start justify-center bg-surface-1/20 p-4">
                 <iframe
                     srcDoc={work.content}
-                    className="bg-white border-0 rounded-md shadow-xl"
+                    className="bg-white border-0 rounded-md"
                     sandbox="allow-same-origin"
                     style={{ width: VIEWPORT_WIDTH[viewport], height: '100%', minHeight: '600px' }}
                     title={work.filename}

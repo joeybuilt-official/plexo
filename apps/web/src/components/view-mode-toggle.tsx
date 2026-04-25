@@ -14,7 +14,7 @@ export function ViewModeToggle({ className = '' }: { className?: string }) {
     const { mode, setMode } = useViewMode()
 
     return (
-        <div className={`flex items-center gap-1 rounded-lg border border-border bg-canvas p-1 ${className}`}>
+        <div className={`flex items-center gap-1 rounded border border-border bg-canvas p-1 ${className}`}>
             {OPTIONS.map((opt) => (
                 <button
                     key={opt.value}
@@ -22,7 +22,7 @@ export function ViewModeToggle({ className = '' }: { className?: string }) {
                     onClick={() => setMode(opt.value)}
                     className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                         mode === opt.value
-                            ? 'bg-surface-2 text-text-primary shadow-sm'
+                            ? 'bg-surface-2 text-text-primary'
                             : 'text-text-muted hover:text-text-secondary'
                     }`}
                 >

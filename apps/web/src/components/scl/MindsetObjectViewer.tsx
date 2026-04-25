@@ -442,7 +442,7 @@ function ForceGraph({ mindset, activatedRegion, width, height }: {
             {/* Reset view button (9.2) */}
             <button
                 onClick={() => setTransform(initialTransform)}
-                className="absolute bottom-2 right-2 rounded border border-white/10 bg-black/40 px-2 py-0.5 text-[11px] text-white/50 backdrop-blur hover:text-white/80"
+                className="absolute bottom-2 right-2 rounded border border-white/10 bg-black/40 px-2 py-0.5 text-[11px] text-white/50 hover:text-white/80"
                 title="Reset view"
             >
                 Reset
@@ -450,7 +450,7 @@ function ForceGraph({ mindset, activatedRegion, width, height }: {
 
             {/* Node detail panel (9.3) */}
             {selected && (
-                <div className="absolute right-0 top-0 z-10 w-44 rounded-lg border border-white/10 bg-black/70 p-3 backdrop-blur text-xs">
+                <div className="absolute right-0 top-0 z-10 w-44 rounded border border-white/10 bg-black/70 p-3 text-xs">
                     <div className="flex items-start justify-between gap-1">
                         <p className="font-medium text-white leading-snug break-all">{selected.label}</p>
                         <button onClick={() => setSelected(null)} className="shrink-0 text-white/40 hover:text-white/80">✕</button>

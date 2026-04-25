@@ -82,7 +82,7 @@ export function PromotionLog({ workspaceId }: { workspaceId: string }) {
                     </div>
                     <div className="space-y-1">
                         {promotions.slice(0, 20).map(a => (
-                            <div key={a.id} className="flex items-center gap-2 rounded-lg border border-purple-800/20 bg-purple-900/10 px-3 py-2">
+                            <div key={a.id} className="flex items-center gap-2 rounded border border-purple-800/20 bg-purple-900/10 px-3 py-2">
                                 <Shield className="h-3 w-3 text-purple-400 shrink-0" />
                                 <span className="text-xs text-text-primary flex-1 truncate">{a.label}</span>
                                 <span className="text-[11px] text-text-muted shrink-0">×{a.mutationCount}</span>
@@ -103,7 +103,7 @@ export function PromotionLog({ workspaceId }: { workspaceId: string }) {
                     </div>
                     <div className="space-y-1">
                         {ghosts.slice(0, 10).map(g => (
-                            <div key={g.externalRef} className="flex items-center gap-2 rounded-lg border border-border/40 bg-surface-1/20 px-3 py-2 opacity-60">
+                            <div key={g.externalRef} className="flex items-center gap-2 rounded border border-border/40 bg-surface-1/20 px-3 py-2 opacity-60">
                                 <span className="text-xs text-text-muted flex-1 truncate line-through">{g.ghostLabel}</span>
                                 {g.displacedBy && <span className="text-[11px] text-azure">→ {g.displacedBy}</span>}
                                 <span className="text-[11px] text-text-muted shrink-0">{timeAgo(g.archivedAt)}</span>

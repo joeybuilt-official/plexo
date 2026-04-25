@@ -88,7 +88,7 @@ export function WorkRenderer(props: WorkRendererProps & { chrome?: boolean }) {
                         }
                         inner.onAction?.(action)
                     }}
-                    className="flex items-center gap-1 rounded-md bg-surface-1/90 border border-border px-2 py-1 text-[10px] font-medium text-text-muted hover:text-text-primary hover:bg-surface-1 transition-colors backdrop-blur"
+                    className="flex items-center gap-1 rounded-md bg-surface-1/90 border border-border px-2 py-1 text-[10px] font-medium text-text-muted hover:text-text-primary hover:bg-surface-1 transition-colors "
                     title="Pin to workbench"
                 >
                     <Pin className="h-3 w-3" />

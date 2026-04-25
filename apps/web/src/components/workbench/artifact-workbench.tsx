@@ -121,17 +121,17 @@ function BrowserPanel({ screenshots, isRunning }: { screenshots: StepScreenshotE
                 {/* Label overlay */}
                 {display && (
                     <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-                        <span className="text-[11px] font-mono bg-surface-2 text-text-muted px-2 py-0.5 rounded backdrop-blur-sm truncate max-w-[70%]">
+                        <span className="text-[11px] font-mono bg-surface-2 text-text-muted px-2 py-0.5 rounded truncate max-w-[70%]">
                             {display.label}
                         </span>
-                        <span className="text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded backdrop-blur-sm">
+                        <span className="text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded">
                             {displayIdx + 1}/{screenshots.length}
                         </span>
                     </div>
                 )}
                 {/* Live indicator */}
                 {isRunning && selected === null && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-surface-2 px-2 py-1 rounded-full backdrop-blur-sm">
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-surface-2 px-2 py-1 rounded-sm">
                         <span className="h-1.5 w-1.5 rounded-full bg-azure animate-pulse" />
                         <span className="text-[10px] font-medium text-azure uppercase tracking-wider">Live</span>
                     </div>
@@ -301,8 +301,8 @@ export function ArtifactWorkbench({
         <div
             className={`flex flex-col h-full overflow-hidden transition-all duration-500 ease-in-out ${
                 isPinned
-                    ? 'border-l border-border/40 bg-surface-2 backdrop-blur-md'
-                    : 'absolute right-0 top-0 bottom-0 w-[600px] max-w-[calc(100vw-340px)] z-30 rounded-none border-l border-border/40 bg-surface-2 backdrop-blur-xl shadow-2xl'
+                    ? 'border-l border-border/40 bg-surface-2'
+                    : 'absolute right-0 top-0 bottom-0 w-[600px] max-w-[calc(100vw-340px)] z-30 rounded-none border-l border-border/40 bg-surface-2'
             }`}
         >
             {/* ── Toolbar ─────────────────────────────────────────────────── */}
@@ -317,7 +317,7 @@ export function ArtifactWorkbench({
                         onClick={() => setShowSidebar((v) => !v)}
                         aria-label="Toggle files sidebar"
                         aria-pressed={showSidebar}
-                        className="p-1.5 rounded-lg hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors"
+                        className="p-1.5 rounded hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors"
                     >
                         <Layers className="w-3.5 h-3.5" />
                     </button>
@@ -326,7 +326,7 @@ export function ArtifactWorkbench({
                 {context.repo ? (
                     <button
                         onClick={() => setRepoModalOpen(true)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono bg-surface-2 hover:bg-surface-2 text-text-secondary transition-colors"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono bg-surface-2 hover:bg-surface-2 text-text-secondary transition-colors"
                     >
                         <GitBranch className="w-3.5 h-3.5 text-azure" />
                         <span>{context.repo}</span>
@@ -334,7 +334,7 @@ export function ArtifactWorkbench({
                 ) : (
                     <button
                         onClick={() => setRepoModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-azure/10 hover:bg-azure/20 border border-azure/30 text-xs font-medium text-azure transition-all"
+                        className="flex items-center gap-1.5 px-3 py-1 rounded bg-azure/10 hover:bg-azure/20 border border-azure/30 text-xs font-medium text-azure transition-all"
                     >
                         Connect Repository
                     </button>
@@ -343,7 +343,7 @@ export function ArtifactWorkbench({
                 <div className="flex-1" />
 
                 {/* Tab controls */}
-                <div className="flex items-center bg-surface-2/50 p-1 rounded-lg mr-2">
+                <div className="flex items-center bg-surface-2/50 p-1 rounded mr-2">
                     {tabs.map(({ id, Icon, label }) => {
                         const active = activeTab === id
                         // Show badge on browser tab if there are screenshots
@@ -353,7 +353,7 @@ export function ArtifactWorkbench({
                                 key={id}
                                 onClick={() => { setActiveTab(id); setShowBottom(true) }}
                                 className={`relative p-1.5 rounded-md transition-all ${
-                                    active ? 'bg-surface-2 text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+                                    active ? 'bg-surface-2 text-text-primary' : 'text-text-muted hover:text-text-secondary'
                                 }`}
                                 title={label}
                                 aria-label={label}
@@ -373,7 +373,7 @@ export function ArtifactWorkbench({
                 {/* Pin toggle */}
                 <button
                     onClick={onTogglePin}
-                    className="p-2 rounded-lg hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors"
+                    className="p-2 rounded hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors"
                     title={isPinned ? 'Unpin' : 'Pin side-by-side'}
                     aria-label={isPinned ? 'Unpin workbench' : 'Pin workbench side-by-side'}
                 >
@@ -384,7 +384,7 @@ export function ArtifactWorkbench({
                 <button
                     onClick={onClose}
                     aria-label="Close workbench"
-                    className="p-2 rounded-lg hover:bg-surface-2 text-text-muted hover:text-red transition-colors"
+                    className="p-2 rounded hover:bg-surface-2 text-text-muted hover:text-red transition-colors"
                 >
                     <X className="w-4 h-4" />
                 </button>
@@ -392,7 +392,7 @@ export function ArtifactWorkbench({
 
             {/* ── Repo picker modal ───────────────────────────────────── */}
             {repoModalOpen && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-canvas backdrop-blur-md">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-canvas">
                     <RepoPicker workspaceId={workspaceId} onSelect={handleRepoSelect} onClose={() => setRepoModalOpen(false)} />
                 </div>
             )}
@@ -400,7 +400,7 @@ export function ArtifactWorkbench({
             {/* ── Main content ────────────────────────────────────────────── */}
             <div className="flex flex-1 overflow-hidden">
                 {hasRepo && showSidebar && (
-                    <div className="w-[220px] border-r border-border/40 bg-canvas backdrop-blur-sm">
+                    <div className="w-[220px] border-r border-border/40 bg-canvas">
                         <FileTree
                             files={files}
                             modifiedPaths={modifiedPaths}

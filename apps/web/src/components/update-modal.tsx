@@ -286,7 +286,7 @@ export function UpdateModal() {
 
     // Inline status toast for manual checks (no modal needed)
     const statusToast = (checking || upToDate) && !open ? (
-        <div className="fixed top-[68px] left-2 z-50 flex items-center gap-2 rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-secondary shadow-lg shadow-black/20">
+        <div className="fixed top-[68px] left-2 z-50 flex items-center gap-2 rounded border border-border bg-surface-1 px-3 py-2 text-xs text-text-secondary ">
             {checking
                 ? <><RefreshCw className="h-3.5 w-3.5 animate-spin text-text-muted" /> Checking for updates…</>
                 : <><CheckCircle2 className="h-3.5 w-3.5 text-azure" /> <span className="text-azure">Up to date</span></>
@@ -300,7 +300,7 @@ export function UpdateModal() {
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                className="fixed inset-0 z-50 bg-black/60 "
                 onClick={() => { if (!updating) { markSeen(versionInfo.latest!); setOpen(false) } }}
                 aria-hidden="true"
             />
@@ -313,7 +313,7 @@ export function UpdateModal() {
                 aria-labelledby="update-modal-title"
                 className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4"
             >
-                <div className="relative rounded-xl bg-surface-1 border border-border shadow-2xl shadow-black/40 p-6 space-y-5">
+                <div className="relative rounded bg-surface-1 border border-border  p-6 space-y-5">
 
                     {/* Close button */}
                     {!updating && (
@@ -328,7 +328,7 @@ export function UpdateModal() {
 
                     {/* Header */}
                     <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 rounded-xl bg-azure/10 ring-1 ring-inset ring-azure/20 flex items-center justify-center shrink-0">
+                        <div className="h-11 w-11 rounded bg-azure/10 ring-1 ring-inset ring-azure/20 flex items-center justify-center shrink-0">
                             <PlexoMark
                                 className="h-7 w-7"
                                 idle={!updating}
@@ -350,7 +350,7 @@ export function UpdateModal() {
                     </div>
 
                     {/* Version diff */}
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-surface-2/60 border border-border/50">
+                    <div className="flex items-center gap-3 p-3 rounded bg-surface-2/60 border border-border/50">
                         <div className="flex-1">
                             <p className="text-xs text-text-muted mb-1">Current</p>
                             <code className="text-sm font-mono text-text-secondary">v{versionInfo.current}</code>
@@ -423,7 +423,7 @@ export function UpdateModal() {
 
                     {/* Manual update fallback */}
                     {!versionInfo.dockerEnabled && !versionInfo.isGitSource && !done && (
-                        <div className="rounded-lg bg-amber/5 border border-amber/20 p-3">
+                        <div className="rounded bg-amber/5 border border-amber/20 p-3">
                             <p className="text-xs text-amber font-medium mb-1.5">Manual update required</p>
                             <p className="text-xs text-text-secondary mb-3">
                                 One-click update is not enabled. Run these on your server:
@@ -448,7 +448,7 @@ export function UpdateModal() {
 
                     {/* Result states */}
                     {done && (
-                        <div className="rounded-lg bg-azure/5 border border-azure/20 p-3 space-y-2">
+                        <div className="rounded bg-azure/5 border border-azure/20 p-3 space-y-2">
                             <div className="flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-azure shrink-0" />
                                 <p className="text-sm text-azure font-medium">Update triggered successfully</p>
@@ -465,7 +465,7 @@ export function UpdateModal() {
                         </div>
                     )}
                     {failed && !done && (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red/5 border border-red/20">
+                        <div className="flex items-center gap-2 p-3 rounded bg-red/5 border border-red/20">
                             <XCircle className="h-4 w-4 text-red shrink-0" />
                             <p className="text-sm text-red">Update failed. Check the log or update manually.</p>
                         </div>
@@ -491,7 +491,7 @@ export function UpdateModal() {
                                     <button
                                         onClick={() => window.location.reload()}
                                         disabled={awaitingRestart && !restartTimedOut}
-                                        className={cn("h-8 px-3 text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5",
+                                        className={cn("h-8 px-3 text-xs rounded font-medium transition-colors flex items-center gap-1.5",
                                             awaitingRestart && !restartTimedOut 
                                                 ? "bg-surface-2 text-text-muted cursor-wait"
                                                 : "bg-azure hover:bg-azure/90 text-white"
@@ -508,7 +508,7 @@ export function UpdateModal() {
                                 ) : (
                                     <button
                                         onClick={() => window.location.reload()}
-                                        className="h-8 px-3 text-xs rounded-lg bg-azure hover:bg-azure/90 text-white font-medium transition-colors"
+                                        className="h-8 px-3 text-xs rounded bg-azure hover:bg-azure/90 text-white font-medium transition-colors"
                                     >
                                         Reload Page
                                     </button>
@@ -518,7 +518,7 @@ export function UpdateModal() {
                                     <button
                                         onClick={() => { markSeen(versionInfo.latest!); setOpen(false) }}
                                         disabled={updating}
-                                        className="h-8 px-3 text-xs rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-2 transition-colors disabled:opacity-40"
+                                        className="h-8 px-3 text-xs rounded text-text-secondary hover:text-text-primary hover:bg-surface-2 transition-colors disabled:opacity-40"
                                     >
                                         Later
                                     </button>
@@ -526,7 +526,7 @@ export function UpdateModal() {
                                         <button
                                             onClick={() => void handleUpdate()}
                                             disabled={updating}
-                                            className="h-8 px-3 text-xs rounded-lg bg-azure hover:bg-azure/90 text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                                            className="h-8 px-3 text-xs rounded bg-azure hover:bg-azure/90 text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
                                         >
                                             {updating ? (
                                                 <><PlexoMark className="h-3.5 w-3.5" idle={false} working /> Updating…</>

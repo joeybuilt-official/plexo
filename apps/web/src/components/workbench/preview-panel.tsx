@@ -96,7 +96,7 @@ export function PreviewPanel({ workspaceId, taskId, path = 'index.html', classNa
                 <div className="flex bg-surface-2/50 rounded-md p-0.5">
                     <button
                         onClick={() => setViewMode('desktop')}
-                        className={`p-1 rounded transition-colors ${viewMode === 'desktop' ? 'bg-surface-2 text-azure shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+                        className={`p-1 rounded transition-colors ${viewMode === 'desktop' ? 'bg-surface-2 text-azure' : 'text-text-muted hover:text-text-secondary'}`}
                         title="Desktop view"
                         aria-label="Desktop view"
                         aria-pressed={viewMode === 'desktop'}
@@ -105,7 +105,7 @@ export function PreviewPanel({ workspaceId, taskId, path = 'index.html', classNa
                     </button>
                     <button
                         onClick={() => setViewMode('mobile')}
-                        className={`p-1 rounded transition-colors ${viewMode === 'mobile' ? 'bg-surface-2 text-azure shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+                        className={`p-1 rounded transition-colors ${viewMode === 'mobile' ? 'bg-surface-2 text-azure' : 'text-text-muted hover:text-text-secondary'}`}
                         title="Mobile view"
                         aria-label="Mobile view"
                         aria-pressed={viewMode === 'mobile'}
@@ -143,13 +143,13 @@ export function PreviewPanel({ workspaceId, taskId, path = 'index.html', classNa
             {/* Preview area */}
             <div className="flex-1 bg-[radial-gradient(circle_at_center,_var(--color-border-subtle)_1px,_transparent_1px)] bg-[size:20px_20px] relative overflow-hidden flex items-center justify-center p-4">
                 {loading && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-canvas/40 backdrop-blur-[1px]">
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-canvas/401px]">
                         <Loader2 className="h-6 w-6 animate-spin text-azure" />
                     </div>
                 )}
                 
                 {error ? (
-                    <div className="text-center p-6 bg-surface-1 rounded-xl border border-border shadow-sm max-w-sm">
+                    <div className="text-center p-6 bg-surface-1 rounded border border-border max-w-sm">
                         <Smartphone className="h-8 w-8 text-text-muted mx-auto mb-3 opacity-20" />
                         <h3 className="text-sm font-medium text-text-primary mb-1">No preview available yet</h3>
                         <p className="text-xs text-text-muted mb-4 leading-relaxed">
@@ -160,7 +160,7 @@ export function PreviewPanel({ workspaceId, taskId, path = 'index.html', classNa
                     </div>
                 ) : (
                     <div 
-                        className={`bg-white border border-border shadow-2xl transition-all duration-300 origin-center ${
+                        className={`bg-white border border-border transition-all duration-300 origin-center ${
                             viewMode === 'mobile' ? 'w-[375px] h-[667px]' : 'w-full h-full'
                         }`}
                         style={{ borderRadius: viewMode === 'mobile' ? '24px' : '0px', overflow: 'hidden' }}

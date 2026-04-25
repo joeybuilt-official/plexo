@@ -89,7 +89,7 @@ export function LinkListRenderer({ work, onAction }: WorkRendererProps) {
                     type="button"
                     key={`${l.url}-${i}`}
                     onClick={() => openOne(l.url)}
-                    className="group flex items-center gap-3 rounded-xl border border-border bg-surface-1/40 px-4 py-3 hover:bg-surface-1/70 transition-colors text-left"
+                    className="group flex items-center gap-3 rounded border border-border bg-surface-1/40 px-4 py-3 hover:bg-surface-1/70 transition-colors text-left"
                 >
                     <div
                         className="h-8 w-8 rounded bg-surface-1 flex items-center justify-center shrink-0 overflow-hidden"

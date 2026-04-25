@@ -24,7 +24,7 @@ export function EmptyState({ icon: Icon, headline, description, actionLabel, act
             {actionLabel && actionHref && (
                 <Link
                     href={actionHref}
-                    className="mt-4 flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure/60"
+                    className="mt-4 flex items-center gap-1.5 rounded bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure/60"
                 >
                     {actionLabel}
                 </Link>
@@ -32,7 +32,7 @@ export function EmptyState({ icon: Icon, headline, description, actionLabel, act
             {actionLabel && onAction && !actionHref && (
                 <button
                     onClick={onAction}
-                    className="mt-4 flex items-center gap-1.5 rounded-lg bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure/60"
+                    className="mt-4 flex items-center gap-1.5 rounded bg-azure px-3 py-2 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure/60"
                 >
                     {actionLabel}
                 </button>

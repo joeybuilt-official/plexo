@@ -63,32 +63,32 @@ function GitHubNotConnected({ onClose }: { onClose?: () => void }) {
     return (
         <div className="flex items-center justify-center h-full w-full" onClick={onClose}>
             <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500" onClick={(e) => e.stopPropagation()}>
-                <div className="bg-surface-2/60 backdrop-blur-xl border border-border/60 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+                <div className="bg-surface-2/60 border border-border/60 rounded p-6 relative overflow-hidden">
                     {/* Top glow */}
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-amber/10 blur-[50px] pointer-events-none rounded-full" />
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-amber/10 blur-[50px] pointer-events-none rounded" />
 
                     {/* Close button */}
                     {onClose && (
                         <button
                             onClick={onClose}
                             aria-label="Close"
-                            className="absolute top-4 right-4 z-10 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-3 transition-colors"
+                            className="absolute top-4 right-4 z-10 p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-3 transition-colors"
                         >
                             <X className="w-4 h-4" />
                         </button>
                     )}
 
                     <div className="text-center mb-6 relative">
-                        <div className="w-12 h-12 rounded-xl bg-surface-3 border border-amber/30 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <div className="w-12 h-12 rounded bg-surface-3 border border-amber/30 flex items-center justify-center mx-auto mb-4">
                             <AlertCircle className="w-6 h-6 text-amber" />
                         </div>
-                        <h3 className="text-xl font-bold text-text-primary tracking-tight">GitHub not connected</h3>
+                        <h3 className="text-xl font-semibold text-text-primary tracking-tight">GitHub not connected</h3>
                         <p className="text-sm text-text-muted mt-1.5 leading-relaxed">
                             Code mode requires a GitHub integration so the agent can clone, read, and push to repositories.
                         </p>
                     </div>
 
-                    <div className="rounded-xl border border-border bg-surface-1/60 p-4 mb-5 text-xs text-text-secondary leading-relaxed">
+                    <div className="rounded border border-border bg-surface-1/60 p-4 mb-5 text-xs text-text-secondary leading-relaxed">
                         <p className="font-semibold text-text-primary mb-1">What you need</p>
                         <ul className="space-y-1 list-disc list-inside text-text-muted">
                             <li>A GitHub Personal Access Token with <code className="text-azure">repo</code> scope</li>
@@ -98,7 +98,7 @@ function GitHubNotConnected({ onClose }: { onClose?: () => void }) {
 
                     <Link
                         href="/app/settings/connections?highlight=github"
-                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold bg-azure hover:bg-azure/90 text-white transition-all group"
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded text-sm font-semibold bg-azure hover:bg-azure/90 text-white transition-all group"
                     >
                         <Github className="w-4 h-4" />
                         Connect GitHub
@@ -244,35 +244,35 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
     return (
         <div className={`flex items-center justify-center h-full w-full ${className}`} onClick={onClose}>
             <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500" onClick={(e) => e.stopPropagation()}>
-                <div className="bg-surface-2/60 backdrop-blur-xl border border-border/60 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
+                <div className="bg-surface-2/60 border border-border/60 rounded p-6 relative overflow-hidden group">
                     {/* Top glow */}
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-azure/20 blur-[50px] pointer-events-none rounded-full" />
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-azure/20 blur-[50px] pointer-events-none rounded" />
 
                     {/* Close button */}
                     {onClose && (
                         <button
                             onClick={onClose}
                             aria-label="Close"
-                            className="absolute top-4 right-4 z-10 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-3 transition-colors"
+                            className="absolute top-4 right-4 z-10 p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-3 transition-colors"
                         >
                             <X className="w-4 h-4" />
                         </button>
                     )}
 
                     <div className="text-center mb-6 relative">
-                        <div className="w-12 h-12 rounded-xl bg-surface-3 border border-border flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:border-azure/30 group-hover:bg-azure-dim transition-all duration-500">
+                        <div className="w-12 h-12 rounded bg-surface-3 border border-border flex items-center justify-center mx-auto mb-4 group-hover:border-azure/30 group-hover:bg-azure-dim transition-all duration-500">
                             <FolderGit2 className="w-6 h-6 text-azure" />
                         </div>
-                        <h3 className="text-xl font-bold text-text-primary tracking-tight font-display">Workspace Configuration</h3>
+                        <h3 className="text-xl font-semibold text-text-primary tracking-tight font-display">Workspace Configuration</h3>
                         <p className="text-sm text-text-muted mt-1.5">
                             Connect your agent to a codebase.
                         </p>
                     </div>
 
                     {/* Segmented control */}
-                    <div className={`flex p-1 bg-surface-1 rounded-xl mb-6 border border-border/50 relative`}>
+                    <div className={`flex p-1 bg-surface-1 rounded mb-6 border border-border/50 relative`}>
                         <div
-                            className="absolute inset-y-1 bg-surface-3 border border-border rounded-lg shadow-sm transition-all duration-300 ease-out z-0"
+                            className="absolute inset-y-1 bg-surface-3 border border-border rounded transition-all duration-300 ease-out z-0"
                             style={{
                                 width: `calc(${100 / tabs.length}% - 8px / ${tabs.length})`,
                                 left: `calc(${tabs.indexOf(tab)} * ${100 / tabs.length}% + 4px)`,
@@ -318,7 +318,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                         value={localPath}
                                         onChange={(e) => setLocalPath(e.target.value)}
                                         placeholder="/home/user/my-project"
-                                        className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono"
+                                        className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono"
                                         onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
                                         autoFocus
                                     />
@@ -339,7 +339,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                             <button
                                                 type="button"
                                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                                className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-10 py-3 text-sm text-text-primary text-left outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono min-h-[46px] group"
+                                                className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded pl-10 pr-10 py-3 text-sm text-text-primary text-left outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono min-h-[46px] group"
                                             >
                                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
                                                     <Github className="w-4 h-4" />
@@ -356,7 +356,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                             </button>
 
                                             {isDropdownOpen && (
-                                                <div className="absolute top-full left-0 right-0 mt-2 bg-surface-2 border border-border/60 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                                                <div className="absolute top-full left-0 right-0 mt-2 bg-surface-2 border border-border/60 rounded overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
                                                     <div className="p-2 border-b border-border/40 bg-surface-3/50">
                                                         <div className="relative">
                                                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
@@ -364,7 +364,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                                                 value={repoSearch}
                                                                 onChange={(e) => setRepoSearch(e.target.value)}
                                                                 placeholder="Search repositories..."
-                                                                className="w-full bg-surface-1 border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-text-primary outline-none focus:border-azure transition-all"
+                                                                className="w-full bg-surface-1 border border-border rounded pl-8 pr-3 py-1.5 text-xs text-text-primary outline-none focus:border-azure transition-all"
                                                                 autoFocus
                                                                 onClick={(e) => e.stopPropagation()}
                                                             />
@@ -394,7 +394,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                                                             fetchBranches(r.fullName)
                                                                         }}
                                                                         className={cn(
-                                                                            "w-full flex items-center justify-between px-3 py-2 text-left text-xs rounded-lg transition-colors",
+                                                                            "w-full flex items-center justify-between px-3 py-2 text-left text-xs rounded transition-colors",
                                                                             repo === r.fullName ? "bg-azure-dim text-azure" : "text-text-secondary hover:bg-surface-3 hover:text-text-primary"
                                                                         )}
                                                                     >
@@ -432,7 +432,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                                 value={newRepo}
                                                 onChange={(e) => setNewRepo(e.target.value)}
                                                 placeholder="my-awesome-project"
-                                                className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono"
+                                                className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono"
                                                 onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
                                                 autoFocus
                                             />
@@ -472,7 +472,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                                     value={tab === 'existing' ? branch : newBranch}
                                                     onChange={(e) => tab === 'existing' ? setBranch(e.target.value) : setNewBranch(e.target.value)}
                                                     placeholder="feature/my-new-branch"
-                                                    className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono shadow-sm"
+                                                    className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono"
                                                     onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
                                                     autoFocus
                                                 />
@@ -483,7 +483,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                                     type="button"
                                                     onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
                                                     disabled={!repo}
-                                                    className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-10 py-3 text-sm text-text-primary text-left outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono min-h-[46px] group disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded pl-10 pr-10 py-3 text-sm text-text-primary text-left outline-none focus:border-azure focus:ring-1 focus:ring-azure/20 transition-all font-mono min-h-[46px] group disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
                                                         <GitBranch className="w-4 h-4" />
@@ -500,7 +500,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                                 </button>
 
                                                 {isBranchDropdownOpen && (
-                                                    <div className="absolute top-full left-0 right-0 mt-2 bg-surface-2 border border-border/60 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                                                    <div className="absolute top-full left-0 right-0 mt-2 bg-surface-2 border border-border/60 rounded overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
                                                         <div className="p-2 border-b border-border/40 bg-surface-3/50">
                                                             <div className="relative">
                                                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
@@ -508,7 +508,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                                                     value={branchSearch}
                                                                     onChange={(e) => setBranchSearch(e.target.value)}
                                                                     placeholder="Search branches..."
-                                                                    className="w-full bg-surface-1 border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-text-primary outline-none focus:border-azure transition-all"
+                                                                    className="w-full bg-surface-1 border border-border rounded pl-8 pr-3 py-1.5 text-xs text-text-primary outline-none focus:border-azure transition-all"
                                                                     autoFocus
                                                                     onClick={(e) => e.stopPropagation()}
                                                                 />
@@ -535,7 +535,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                                                                 setBranchSearch('')
                                                                             }}
                                                                             className={cn(
-                                                                                "w-full flex items-center justify-between px-3 py-2 text-left text-xs rounded-lg transition-colors",
+                                                                                "w-full flex items-center justify-between px-3 py-2 text-left text-xs rounded transition-colors",
                                                                                 branch === b.name ? "bg-azure-dim text-azure" : "text-text-secondary hover:bg-surface-3 hover:text-text-primary"
                                                                             )}
                                                                         >
@@ -557,7 +557,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                                                     setBranch('')
                                                                     setIsBranchDropdownOpen(false)
                                                                 }}
-                                                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-azure hover:bg-surface-1 rounded-lg transition-colors font-medium"
+                                                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-azure hover:bg-surface-1 rounded transition-colors font-medium"
                                                             >
                                                                 <Plus className="w-3.5 h-3.5" />
                                                                 Create new branch...
@@ -583,7 +583,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                     <button
                         onClick={submit}
                         disabled={!isValid}
-                        className={`w-full mt-6 py-3 px-4 rounded-xl text-sm font-semibold text-white transition-all flex items-center justify-center gap-2 group relative z-10 overflow-hidden ${
+                        className={`w-full mt-6 py-3 px-4 rounded text-sm font-semibold text-white transition-all flex items-center justify-center gap-2 group relative z-10 overflow-hidden ${
                             tab === 'new'
                                 ? 'bg-azure hover:bg-azure-600 focus:ring-azure/50'
                                 : 'bg-azure hover:bg-azure/90 focus:ring-azure/50'

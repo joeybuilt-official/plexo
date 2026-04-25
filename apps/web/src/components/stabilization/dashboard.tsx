@@ -126,7 +126,7 @@ function agentStatusBadge(status: unknown) {
         s === 'completed' ? 'bg-green-900/30 text-green-400' :
         s === 'failed' ? 'bg-red-900/30 text-red-400' :
         'bg-yellow-900/30 text-yellow-400'
-    return <span className={`text-xs px-2 py-0.5 rounded-full ${colors}`}>{s}</span>
+    return <span className={`text-xs px-2 py-0.5 rounded-sm ${colors}`}>{s}</span>
 }
 
 function safeDate(ts: unknown): string {
@@ -165,7 +165,7 @@ function CollapsibleSection({ title, children, defaultOpen = false, badge }: {
 }) {
     const [open, setOpen] = useState(defaultOpen)
     return (
-        <div className="border border-border rounded-lg overflow-hidden">
+        <div className="border border-border rounded overflow-hidden">
             <button
                 onClick={() => setOpen(v => !v)}
                 className="w-full flex items-center gap-2 p-3 hover:bg-surface-2 text-left bg-surface-2/40"
@@ -230,7 +230,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <h1 className="text-2xl font-semibold flex items-center gap-2">
                         <Activity className="w-6 h-6" />
                         Stabilization Pipeline
                     </h1>
@@ -238,7 +238,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
                         Cycle {cc.cycle} &middot; {new Date(cc.timestamp).toLocaleString()}
                     </p>
                 </div>
-                <div className={`px-3 py-1 rounded-full text-sm font-medium ${isGreen ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                <div className={`px-3 py-1 rounded-sm text-sm font-medium ${isGreen ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
                     {isGreen ? 'GREEN' : 'RED'}
                 </div>
             </div>
@@ -316,7 +316,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
                     >
                         {t.label}
                         {t.count !== undefined && t.count > 0 && (
-                            <span className="ml-1.5 text-xs bg-surface-2 px-1.5 py-0.5 rounded-full">{t.count}</span>
+                            <span className="ml-1.5 text-xs bg-surface-2 px-1.5 py-0.5 rounded-sm">{t.count}</span>
                         )}
                     </button>
                 ))}
@@ -328,7 +328,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
                     {cycleHistory.length === 0 ? (
                         <p className="text-center py-8 text-text-muted text-sm">No cycle history yet.</p>
                     ) : (
-                        <div className="border border-border rounded-lg overflow-hidden">
+                        <div className="border border-border rounded overflow-hidden">
                             {cycleHistory.map(c => (
                                 <div key={c.cycle} className={`border-b border-border last:border-0 ${c.sloBreaches > 0 ? 'bg-red-900/10' : ''}`}>
                                     <button
@@ -392,7 +392,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
                     {proactiveAgents.length === 0 ? (
                         <p className="text-center py-8 text-text-muted text-sm">No proactive agent activity yet.</p>
                     ) : (
-                        <div className="border border-border rounded-lg overflow-hidden">
+                        <div className="border border-border rounded overflow-hidden">
                             {proactiveAgents.map((agent, i) => {
                                 if (!agent) return null
                                 const agentType = safeStr(agent.type)
@@ -471,7 +471,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
                     {fixerActivity.length === 0 ? (
                         <p className="text-center py-8 text-text-muted text-sm">No fixer activity yet.</p>
                     ) : (
-                        <div className="border border-border rounded-lg overflow-hidden">
+                        <div className="border border-border rounded overflow-hidden">
                             {fixerActivity.map((f, i) => {
                                 if (!f) return null
                                 // Guard all field accesses — JSONB can return any type at runtime
@@ -542,7 +542,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
             {activeTab === 'scl' && (
                 <div className="space-y-4">
                     {workloads.length > 0 && (
-                        <div className="border border-border rounded-lg overflow-hidden">
+                        <div className="border border-border rounded overflow-hidden">
                             <div className="p-3 bg-surface-2/60 border-b border-border">
                                 <h3 className="font-medium text-sm">Workload Results ({workloads.filter(w => w.passed).length}/{workloads.length})</h3>
                             </div>
@@ -563,7 +563,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
                     )}
 
                     {sclEval?.details && sclEval.details.length > 0 ? (
-                        <div className="border border-border rounded-lg overflow-hidden">
+                        <div className="border border-border rounded overflow-hidden">
                             <div className="p-3 bg-surface-2/60 border-b border-border">
                                 <h3 className="font-medium text-sm">Per-Stimulus Detail ({sclEval.details.length})</h3>
                             </div>
@@ -596,7 +596,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
                             <p className="text-text-muted text-sm">No open findings. Pipeline clean.</p>
                         </div>
                     ) : (
-                        <div className="border border-red-800/50 rounded-lg p-4">
+                        <div className="border border-red-800/50 rounded p-4">
                             <h3 className="font-medium flex items-center gap-2 mb-3">
                                 <AlertTriangle className="w-4 h-4 text-red-400" />
                                 Open Findings ({findings.length})
@@ -624,7 +624,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
             {/* Quality Tab */}
             {activeTab === 'quality' && (
                 <div className="space-y-3">
-                    <div className="border border-border rounded-lg p-3 bg-surface-1">
+                    <div className="border border-border rounded p-3 bg-surface-1">
                         <p className="text-xs text-text-muted">
                             Multi-turn conversations scored for relevance, helpfulness, coherence, memory retention, and format compliance.
                             Each eval runs real conversations against the live agent and diagnoses root causes for failures.
@@ -639,7 +639,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
                             const passRate = total > 0 ? Math.round((cq.passed / total) * 100) : 0
                             const isOpen = expandedQuality.has(i)
                             return (
-                                <div key={i} className="border border-border rounded-lg overflow-hidden">
+                                <div key={i} className="border border-border rounded overflow-hidden">
                                     <button
                                         onClick={() => setExpandedQuality(s => toggleSet(s, i))}
                                         className="w-full flex items-center gap-3 p-3 hover:bg-surface-2 text-left"
@@ -652,7 +652,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
                                             </p>
                                             <p className="text-xs text-text-muted mt-0.5">{safeDate(cq.timestamp)}</p>
                                         </div>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${(cq.failed ?? 0) === 0 ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                                        <span className={`text-xs px-2 py-0.5 rounded-sm shrink-0 ${(cq.failed ?? 0) === 0 ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
                                             {(cq.failed ?? 0) === 0 ? 'PASS' : `${cq.failed} failed`}
                                         </span>
                                     </button>
@@ -695,7 +695,7 @@ export function StabilizationDashboard({ data }: { data: DashboardData | null })
 
 function MetricCard({ label, value, status, icon }: { label: string; value: string; status: 'green' | 'red'; icon: React.ReactNode }) {
     return (
-        <div className="border border-border rounded-lg p-3 bg-surface-1">
+        <div className="border border-border rounded p-3 bg-surface-1">
             <div className="flex items-center gap-2 text-text-muted text-xs mb-1">{icon}{label}</div>
             <p className={`text-lg font-mono ${status === 'green' ? 'text-green-400' : 'text-red-400'}`}>{value}</p>
         </div>

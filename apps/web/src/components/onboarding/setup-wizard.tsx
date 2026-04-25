@@ -379,18 +379,18 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
     return (
         <div
             ref={trapRef}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
             role="dialog"
             aria-modal="true"
             aria-labelledby="setup-wizard-title"
         >
-            <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-border bg-surface-1 shadow-2xl overflow-hidden">
+            <div className="relative w-full max-w-lg mx-4 rounded border border-border bg-surface-1 overflow-hidden">
                 {/* Visually-hidden title for screen readers */}
                 <h2 id="setup-wizard-title" className="sr-only">Workspace Setup Wizard</h2>
                 {/* Dismiss button */}
                 <button
                     onClick={onDismiss}
-                    className="absolute top-4 right-4 p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors z-10"
+                    className="absolute top-4 right-4 p-1.5 rounded text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors z-10"
                     title="Skip for now"
                     aria-label="Skip for now"
                 >
@@ -401,7 +401,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                 <div className="flex items-center gap-2 px-7 pt-6 pb-2">
                     {[1, 2, 3].map((s) => (
                         <div key={s} className="flex items-center gap-2">
-                            <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition-all ${
+                            <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-all ${
                                 s < step ? 'bg-azure text-white' :
                                 s === step ? 'border-2 border-azure text-azure' :
                                 'border border-border text-text-muted'
@@ -421,7 +421,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                     {step === 1 && (
                         <div className="flex flex-col gap-5">
                             <div>
-                                <h2 className="text-lg font-bold text-text-primary">Connect an AI model</h2>
+                                <h2 className="text-lg font-semibold text-text-primary">Connect an AI model</h2>
                                 <p className="mt-1 text-sm text-text-secondary">
                                     Plexo needs an AI model to think. Paste an API key from any LLM provider (OpenAI, Anthropic, DeepSeek, Groq, etc.) and Plexo will detect which one it is.
                                 </p>
@@ -441,7 +441,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                                         value={credential}
                                         onChange={(e) => setCredential(e.target.value)}
                                         placeholder={showCustom ? 'API key for your endpoint' : 'sk-ant-…, sk-proj-…, gsk_…, sk-or-…'}
-                                        className="w-full rounded-lg border border-border bg-canvas px-3 py-3 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                                        className="w-full rounded border border-border bg-canvas px-3 py-3 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
                                         autoComplete="new-password"
                                         autoFocus
                                     />
@@ -482,7 +482,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                             </div>
 
                             {/* Free API key suggestions */}
-                            <div className="rounded-lg border border-border/40 bg-canvas/50 px-3 py-2.5">
+                            <div className="rounded border border-border/40 bg-canvas/50 px-3 py-2.5">
                                 <p className="text-[11px] font-medium text-text-secondary mb-1.5">Need a free API key?</p>
                                 <div className="flex flex-col gap-1">
                                     <a href="https://cloud.cerebras.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-azure hover:text-azure/80 transition-colors">
@@ -509,7 +509,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                                 </button>
 
                                 {showCustom && (
-                                    <div className="mt-3 flex flex-col gap-3 rounded-xl border border-border bg-canvas/50 p-4">
+                                    <div className="mt-3 flex flex-col gap-3 rounded border border-border bg-canvas/50 p-4">
                                         <div className="flex flex-col gap-1.5">
                                             <label className="text-xs font-medium text-text-secondary">
                                                 Provider name
@@ -519,7 +519,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                                                 value={customName}
                                                 onChange={(e) => setCustomName(e.target.value)}
                                                 placeholder="e.g. Ollama, LM Studio, Together AI"
-                                                className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                                className="rounded border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                                             />
                                         </div>
                                         <div className="flex flex-col gap-1.5">
@@ -531,7 +531,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                                                 value={customBaseUrl}
                                                 onChange={(e) => setCustomBaseUrl(e.target.value)}
                                                 placeholder="http://localhost:11434/v1"
-                                                className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                                                className="rounded border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
                                             />
                                         </div>
                                         <p className="text-[11px] text-text-muted">
@@ -550,7 +550,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                             <button
                                 onClick={() => void saveProvider()}
                                 disabled={!canSave || saving}
-                                className="w-full rounded-xl bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                className="w-full rounded bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                             >
                                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                                 {saving ? 'Saving...' : 'Save & continue'}
@@ -562,7 +562,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                     {step === 2 && (
                         <div className="flex flex-col gap-5">
                             <div>
-                                <h2 className="text-lg font-bold text-text-primary">Name your workspace</h2>
+                                <h2 className="text-lg font-semibold text-text-primary">Name your workspace</h2>
                                 <p className="mt-1 text-sm text-text-secondary">
                                     This is how your workspace appears in the sidebar.
                                 </p>
@@ -573,7 +573,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                                 value={wsName}
                                 onChange={(e) => setWsName(e.target.value)}
                                 placeholder="My Workspace"
-                                className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                className="rounded border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                                 autoFocus
                                 onKeyDown={(e) => e.key === 'Enter' && void updateWorkspaceName()}
                             />
@@ -581,7 +581,7 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                             <button
                                 onClick={() => void updateWorkspaceName()}
                                 disabled={saving}
-                                className="w-full rounded-xl bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                className="w-full rounded bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                             >
                                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                                 Continue
@@ -593,18 +593,18 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                     {step === 3 && (
                         <div className="flex flex-col gap-5">
                             <div>
-                                <h2 className="text-lg font-bold text-text-primary">Your first task</h2>
+                                <h2 className="text-lg font-semibold text-text-primary">Your first task</h2>
                                 <p className="mt-1 text-sm text-text-secondary">
                                     Try running a task to see Plexo in action.
                                 </p>
                             </div>
 
-                            <div className="rounded-xl border border-border bg-canvas px-4 py-3 text-sm text-text-secondary leading-relaxed">
+                            <div className="rounded border border-border bg-canvas px-4 py-3 text-sm text-text-secondary leading-relaxed">
                                 {EXAMPLE_TASK}
                             </div>
 
                             {taskDone ? (
-                                <div className="flex items-center justify-center gap-2 rounded-xl bg-azure/5 border border-azure/20 py-3 text-sm text-azure">
+                                <div className="flex items-center justify-center gap-2 rounded bg-azure/5 border border-azure/20 py-3 text-sm text-azure">
                                     <Check className="h-4 w-4" />
                                     Task queued — your agent will pick it up shortly.
                                 </div>
@@ -612,14 +612,14 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                                 <div className="flex gap-3">
                                     <button
                                         onClick={onComplete}
-                                        className="flex-1 rounded-xl border border-border py-3 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors"
+                                        className="flex-1 rounded border border-border py-3 text-sm text-text-secondary hover:border-border hover:text-text-primary transition-colors"
                                     >
                                         Skip
                                     </button>
                                     <button
                                         onClick={() => void submitFirstTask()}
                                         disabled={taskSubmitting}
-                                        className="flex-1 rounded-xl bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                        className="flex-1 rounded bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                                     >
                                         {taskSubmitting ? (
                                             <Loader2 className="h-4 w-4 animate-spin" />

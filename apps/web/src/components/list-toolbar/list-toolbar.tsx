@@ -36,7 +36,7 @@ function CustomSortDropdown({
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className={`flex justify-between items-center w-full gap-1.5 rounded-lg border px-3 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm transition-colors shadow-sm ${open ? 'border-border bg-surface-2 text-text-primary' : 'border-border bg-surface-1 text-text-secondary hover:border-border hover:text-text-secondary'
+                className={`flex justify-between items-center w-full gap-1.5 rounded border px-3 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm transition-colors ${open ? 'border-border bg-surface-2 text-text-primary' : 'border-border bg-surface-1 text-text-secondary hover:border-border hover:text-text-secondary'
                     }`}
             >
                 <div className="flex items-center gap-1.5">
@@ -47,7 +47,7 @@ function CustomSortDropdown({
             </button>
 
             {open && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[170px] rounded-xl border border-border bg-canvas py-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[170px] rounded border border-border bg-canvas py-1.5 animate-in fade-in zoom-in-95 duration-100">
                     <ul role="listbox" className="max-h-[300px] overflow-y-auto px-1.5 flex flex-col gap-0.5">
                         {options.map((opt) => {
                             const active = opt.value === value
@@ -130,7 +130,7 @@ export function ListToolbar({
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder={placeholder}
-                        className="w-full rounded-lg border border-border bg-surface-1/60 py-2 pl-10 pr-4 min-h-[44px] md:min-h-[32px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/20 transition-colors"
+                        className="w-full rounded border border-border bg-surface-1/60 py-2 pl-10 pr-4 min-h-[44px] md:min-h-[32px] text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/20 transition-colors"
                     />
                     {search && (
                         <button
@@ -147,7 +147,7 @@ export function ListToolbar({
                 {hasDimensions && (
                     <button
                         onClick={toggleFilters}
-                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 min-h-[44px] md:min-h-0 text-xs transition-colors ${showFilters
+                        className={`flex items-center gap-1.5 rounded border px-3 py-2 min-h-[44px] md:min-h-0 text-xs transition-colors ${showFilters
                             ? 'border-azure bg-azure/10 text-azure'
                             : 'border-border text-text-secondary hover:border-border hover:text-text-primary'
                             }`}
@@ -156,7 +156,7 @@ export function ListToolbar({
                         <SlidersHorizontal className="h-3.5 w-3.5" />
                         Filters
                         {activeFilterCount > 0 && (
-                            <span className="ml-0.5 rounded-full bg-azure px-1.5 py-0.5 text-[10px] font-semibold text-white leading-none">
+                            <span className="ml-0.5 rounded-sm bg-azure px-1.5 py-0.5 text-[10px] font-semibold text-white leading-none">
                                 {activeFilterCount}
                             </span>
                         )}
@@ -172,7 +172,7 @@ export function ListToolbar({
                 {hasFilters && (
                     <button
                         onClick={clearAll}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-border px-2.5 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm text-text-muted hover:border-border hover:text-text-secondary transition-colors"
+                        className="flex items-center justify-center gap-1 rounded border border-border px-2.5 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm text-text-muted hover:border-border hover:text-text-secondary transition-colors"
                     >
                         <X className="h-4 w-4 md:h-3 md:w-3" />
                         Clear
@@ -182,7 +182,7 @@ export function ListToolbar({
 
             {/* ── Expandable filter panel ──────────────────────────────────── */}
             {showFilters && hasDimensions && (
-                <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface-1/40 p-3.5">
+                <div className="flex flex-col gap-3 rounded border border-border bg-surface-1/40 p-3.5">
                     {dimensions.map((dim) => {
                         const current = filterValues[dim.key] ?? null
                         return (
@@ -194,7 +194,7 @@ export function ListToolbar({
                                     {/* "All" chip — always present */}
                                     <button
                                         onClick={() => setFilter(dim.key, null)}
-                                        className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${current === null
+                                        className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${current === null
                                             ? 'bg-azure text-white'
                                             : 'border border-border text-text-secondary hover:border-border hover:text-text-primary'
                                             }`}
@@ -213,7 +213,7 @@ export function ListToolbar({
                                                         current === opt.value ? null : opt.value,
                                                     )
                                             }}
-                                            className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium capitalize transition-colors ${current === opt.value
+                                            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium capitalize transition-colors ${current === opt.value
                                                 ? 'bg-azure text-white'
                                                 : opt.dimmed
                                                     ? 'border border-border text-text-muted opacity-40 cursor-default'
@@ -244,7 +244,7 @@ export function ListToolbar({
                         return (
                             <span
                                 key={dim.key}
-                                className="flex items-center gap-1 rounded-full border border-azure/50 bg-azure/10 pl-3 pr-1 py-1 text-[13px] md:py-0.5 md:pl-2.5 md:pr-0.5 md:text-[11px] text-azure"
+                                className="flex items-center gap-1 rounded-sm border border-azure/50 bg-azure/10 pl-3 pr-1 py-1 text-[13px] md:py-0.5 md:pl-2.5 md:pr-0.5 md:text-[11px] text-azure"
                             >
                                 {dim.label}: {label}
                                 <button

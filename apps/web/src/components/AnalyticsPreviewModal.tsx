@@ -82,7 +82,7 @@ export function AnalyticsPreviewModal() {
             aria-modal="true"
             aria-labelledby="analytics-modal-title"
         >
-            <div className="w-full max-w-lg rounded-lg border border-border bg-surface-1 p-6 shadow-xl">
+            <div className="w-full max-w-lg rounded border border-border bg-surface-1 p-6">
                 <h2 id="analytics-modal-title" className="text-lg font-semibold text-text-primary">Anonymous Usage Data</h2>
                 <p className="mt-2 text-sm text-text-muted">
                     Plexo collects anonymous usage data to improve the product.

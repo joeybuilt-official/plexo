@@ -270,7 +270,7 @@ export function buildComponents({ enrich, onAction }: BuildOpts): Record<string,
             return (
                 <pre
                     {...rest}
-                    className="my-4 rounded-lg bg-surface-2 border border-border/60 p-4 overflow-x-auto font-mono text-xs text-text-primary"
+                    className="my-4 rounded bg-surface-2 border border-border/60 p-4 overflow-x-auto font-mono text-xs text-text-primary"
                 >
                     {children}
                 </pre>
@@ -280,7 +280,7 @@ export function buildComponents({ enrich, onAction }: BuildOpts): Record<string,
         // ── Tables ──────────────────────────────────────────────────────
         table: function StyledTable({ children, ...rest }) {
             return (
-                <div className="my-4 overflow-x-auto rounded-lg border border-border/60">
+                <div className="my-4 overflow-x-auto rounded border border-border/60">
                     <table {...rest} className="w-full text-xs text-left text-text-primary">
                         {children}
                     </table>
@@ -330,7 +330,7 @@ export function buildComponents({ enrich, onAction }: BuildOpts): Record<string,
                 <img
                     src={src}
                     alt={alt ?? ''}
-                    className="my-4 max-w-full rounded-lg border border-border/60"
+                    className="my-4 max-w-full rounded border border-border/60"
                 />
             )
         },

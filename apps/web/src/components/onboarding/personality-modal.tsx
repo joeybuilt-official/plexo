@@ -92,16 +92,16 @@ export function PersonalityModalGate({ children }: { children: React.ReactNode }
         <>
             <div
                 ref={trapRef}
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="personality-modal-title"
             >
-                <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-border bg-surface-1 shadow-2xl overflow-hidden">
+                <div className="relative w-full max-w-lg mx-4 rounded border border-border bg-surface-1 overflow-hidden">
                     {/* Dismiss */}
                     <button
                         onClick={markDone}
-                        className="absolute top-4 right-4 p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors z-10"
+                        className="absolute top-4 right-4 p-1.5 rounded text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors z-10"
                         title="Skip for now"
                         aria-label="Skip for now"
                     >
@@ -114,7 +114,7 @@ export function PersonalityModalGate({ children }: { children: React.ReactNode }
                             <Sparkles className="h-5 w-5 text-azure" aria-hidden="true" />
                             <span className="text-xs font-medium text-azure uppercase tracking-wider">30 seconds</span>
                         </div>
-                        <h1 id="personality-modal-title" className="text-xl font-bold text-text-primary">Make Plexo yours</h1>
+                        <h1 id="personality-modal-title" className="text-xl font-semibold text-text-primary">Make Plexo yours</h1>
                         <p className="text-sm text-text-muted mt-1">Quick personality quiz — shape how your agent talks and works.</p>
                     </div>
 
@@ -152,22 +152,22 @@ export function PersonalityReconfigureModal({ open, onClose }: { open: boolean; 
     return (
         <div
             ref={reconfigTrapRef}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
             role="dialog"
             aria-modal="true"
             aria-labelledby="personality-reconfigure-title"
         >
-            <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-border bg-surface-1 shadow-2xl overflow-hidden">
+            <div className="relative w-full max-w-lg mx-4 rounded border border-border bg-surface-1 overflow-hidden">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors z-10"
+                    className="absolute top-4 right-4 p-1.5 rounded text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors z-10"
                     aria-label="Close"
                 >
                     <X className="h-4 w-4" aria-hidden="true" />
                 </button>
 
                 <div className="px-7 pt-6 pb-2 text-center">
-                    <h1 id="personality-reconfigure-title" className="text-xl font-bold text-text-primary">Reconfigure personality</h1>
+                    <h1 id="personality-reconfigure-title" className="text-xl font-semibold text-text-primary">Reconfigure personality</h1>
                     <p className="text-sm text-text-muted mt-1">Re-run the quiz to change how your agent communicates.</p>
                 </div>
 

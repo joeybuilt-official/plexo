@@ -28,7 +28,7 @@ export function CookieConsent() {
     if (!visible) return null
 
     return (
-        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg rounded-xl border border-border bg-surface-1 px-4 py-3 shadow-2xl shadow-black/20 animate-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg rounded border border-border bg-surface-1 px-4 py-3 animate-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                     <p className="text-xs text-text-secondary leading-relaxed">
@@ -39,7 +39,7 @@ export function CookieConsent() {
                 </div>
                 <button
                     onClick={accept}
-                    className="shrink-0 rounded-lg bg-azure px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
+                    className="shrink-0 rounded bg-azure px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors"
                 >
                     Got it
                 </button>

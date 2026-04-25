@@ -198,14 +198,14 @@ export function CommandPalette() {
     return (
         <div
             ref={trapRef}
-            className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 bg-black/50"
             onClick={() => setOpen(false)}
             role="dialog"
             aria-modal="true"
             aria-label="Command palette"
         >
             <div
-                className="w-full max-w-lg rounded-xl border border-border bg-surface-1 shadow-2xl shadow-black/40 overflow-hidden"
+                className="w-full max-w-lg rounded border border-border bg-surface-1 overflow-hidden"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Search input */}
@@ -248,7 +248,7 @@ export function CommandPalette() {
                                             data-index={idx}
                                             onClick={() => navigate(item)}
                                             onMouseEnter={() => setSelectedIndex(idx)}
-                                            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                                            className={`flex w-full items-center gap-3 rounded px-3 py-2 text-sm transition-colors ${
                                                 idx === selectedIndex
                                                     ? 'bg-surface-2 text-text-primary'
                                                     : 'text-text-secondary hover:bg-surface-2/50'

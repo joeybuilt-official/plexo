@@ -87,7 +87,7 @@ export function ConfigListLayout<T>({
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold text-text-primary">{title}</h1>
+                    <h1 className="text-2xl font-semibold text-text-primary">{title}</h1>
                     {subtitle && (
                         <p className="mt-0.5 text-sm text-text-muted">{subtitle}</p>
                     )}
@@ -138,9 +138,9 @@ export function ConfigListLayout<T>({
                                     <button
                                         key={getItemKey(item)}
                                         onClick={() => onSelect(item)}
-                                        className={`text-left rounded-xl border px-3 py-2.5 transition-all text-sm shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${
+                                        className={`text-left rounded border px-3 py-2.5 transition-all text-sm shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${
                                             selected
-                                                ? 'border-azure/50 bg-surface-1 shadow-sm shadow-azure/10'
+                                                ? 'border-azure/50 bg-surface-1'
                                                 : 'border-border/60 bg-surface-1/30 hover:border-border hover:bg-surface-1/60'
                                         }`}
                                     >
@@ -153,7 +153,7 @@ export function ConfigListLayout<T>({
                 </div>
 
                 {/* Right panel — detail */}
-                <div className="flex-1 rounded-xl border border-border bg-surface-1/40 flex flex-col overflow-hidden max-w-[100vw] sm:max-w-none">
+                <div className="flex-1 rounded border border-border bg-surface-1/40 flex flex-col overflow-hidden max-w-[100vw] sm:max-w-none">
                     {detail ?? emptyDetail ?? (
                         <div className="flex-1 flex items-center justify-center">
                             <p className="text-sm text-text-muted">Select an item</p>

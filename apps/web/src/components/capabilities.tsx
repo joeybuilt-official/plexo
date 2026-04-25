@@ -22,7 +22,7 @@ export function CapabilityList({ caps, className = '' }: { caps: ModelCapability
                 if (!Meta) return null
                 const Icon = Meta.icon
                 return (
-                    <span key={c} className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] uppercase font-bold tracking-wide border shadow-sm ${Meta.color}`} title={`Supports ${Meta.label} processing`}>
+                    <span key={c} className={`flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11px] uppercase font-medium tracking-wide border ${Meta.color}`} title={`Supports ${Meta.label} processing`}>
                         <Icon className="h-3 w-3" strokeWidth={2.5} />
                         {Meta.label}
                     </span>

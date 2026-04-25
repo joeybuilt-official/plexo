@@ -83,7 +83,7 @@ export function AttractorBrowser({ workspaceId }: { workspaceId: string }) {
     return (
         <div className="space-y-3">
             <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-text-primary">Attractors</h3>
+                <h3 className="text-sm font-semibold text-text-primary">Attractors</h3>
                 <span className="text-[11px] text-text-muted">{filtered.length} / {data.attractors.length}</span>
             </div>
 
@@ -95,17 +95,17 @@ export function AttractorBrowser({ workspaceId }: { workspaceId: string }) {
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         placeholder="Filter attractors..."
-                        className="w-full rounded-lg border border-border bg-surface-1 pl-7 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                        className="w-full rounded border border-border bg-surface-1 pl-7 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                     />
                 </div>
-                <div className="flex items-center gap-1 rounded-lg border border-border bg-canvas p-0.5">
+                <div className="flex items-center gap-1 rounded border border-border bg-canvas p-0.5">
                     {(['all', 'spirit', 'mechanics'] as const).map(v => (
                         <button
                             key={v}
                             onClick={() => setDepthFilter(v)}
                             className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
                                 depthFilter === v
-                                    ? 'bg-surface-2 text-text-primary shadow-sm'
+                                    ? 'bg-surface-2 text-text-primary'
                                     : 'text-text-muted hover:text-text-secondary'
                             }`}
                         >
@@ -123,7 +123,7 @@ export function AttractorBrowser({ workspaceId }: { workspaceId: string }) {
                         const region = regionMap.get(regionId)
                         const expanded = expandedRegion === regionId
                         return (
-                            <div key={regionId} className="rounded-xl border border-border/60 bg-surface-1/40 overflow-hidden">
+                            <div key={regionId} className="rounded border border-border/60 bg-surface-1/40 overflow-hidden">
                                 <button
                                     onClick={() => setExpandedRegion(expanded ? null : regionId)}
                                     className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-1/60 transition-colors"
@@ -137,7 +137,7 @@ export function AttractorBrowser({ workspaceId }: { workspaceId: string }) {
                                         {attractors
                                             .sort((a, b) => b.salience - a.salience)
                                             .map(a => (
-                                                <div key={a.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-2/40 transition-colors">
+                                                <div key={a.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-surface-2/40 transition-colors">
                                                     {a.depthClass === 'spirit'
                                                         ? <Shield className="h-3 w-3 text-purple-400 shrink-0" />
                                                         : <Zap className="h-3 w-3 text-azure shrink-0" />

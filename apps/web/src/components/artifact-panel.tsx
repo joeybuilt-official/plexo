@@ -306,7 +306,7 @@ export function ArtifactPanel({
             {/* Backdrop - only in overlay mode */}
             {mode === 'overlay' && (
                 <div 
-                    className={`absolute inset-0 z-40 bg-canvas/40 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                    className={`absolute inset-0 z-40 bg-canvas/40  transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                     onClick={() => {
                         setOpen(false)
                         setTimeout(onClose, 300)
@@ -317,8 +317,8 @@ export function ArtifactPanel({
             <div 
                 className={`
                     ${mode === 'overlay' 
-                        ? 'absolute z-50 top-4 bottom-4 right-4 w-full max-w-lg md:max-w-[45vw] rounded-[24px] shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] bg-surface-1' 
-                        : 'relative flex-1 h-full rounded-none border-l border-border/40 bg-canvas/40 backdrop-blur-xl'
+                        ? 'absolute z-50 top-4 bottom-4 right-4 w-full max-w-lg md:max-w-[45vw] rounded transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] bg-surface-1' 
+                        : 'relative flex-1 h-full rounded-none border-l border-border/40 bg-canvas/40 '
                     } 
                     flex flex-col overflow-hidden 
                     ${mode === 'overlay' ? (open ? 'translate-x-0' : 'translate-x-[110%]') : ''}
@@ -347,7 +347,7 @@ export function ArtifactPanel({
                                 </button>
 
                                 {showVersionMenu && (
-                                    <div className="absolute left-0 top-full mt-1.5 w-48 bg-surface-1 border border-border shadow-2xl rounded-xl overflow-hidden z-[60] py-1">
+                                    <div className="absolute left-0 top-full mt-1.5 w-48 bg-surface-1 border border-border rounded overflow-hidden z-[60] py-1">
                                         {versions.map((v) => (
                                             <button
                                                 key={v.version}
@@ -372,7 +372,7 @@ export function ArtifactPanel({
                             <>
                                 <button
                                     onClick={copyContent}
-                                    className="rounded-lg bg-surface-2 border border-border/60 p-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors"
+                                    className="rounded bg-surface-2 border border-border/60 p-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors"
                                     title="Copy content"
                                     aria-label="Copy to clipboard"
                                 >
@@ -380,7 +380,7 @@ export function ArtifactPanel({
                                 </button>
                                 <button
                                     onClick={downloadFile}
-                                    className="rounded-lg bg-surface-2 border border-border/60 p-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors"
+                                    className="rounded bg-surface-2 border border-border/60 p-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors"
                                     title="Download file"
                                     aria-label="Download file"
                                 >
@@ -392,7 +392,7 @@ export function ArtifactPanel({
                                     <div className="relative">
                                         <button
                                             onClick={() => setShowExportMenu(!showExportMenu)}
-                                            className="rounded-lg bg-azure/10 border border-azure/30 px-2 py-1.5 text-xs font-medium text-azure hover:bg-azure/20 transition-colors flex items-center gap-1"
+                                            className="rounded bg-azure/10 border border-azure/30 px-2 py-1.5 text-xs font-medium text-azure hover:bg-azure/20 transition-colors flex items-center gap-1"
                                             title="Export as..."
                                         >
                                             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
@@ -401,7 +401,7 @@ export function ArtifactPanel({
                                         </button>
                                         
                                         {showExportMenu && (
-                                            <div className="absolute right-0 mt-2 w-32 bg-surface-1 border border-border shadow-xl rounded-xl overflow-hidden z-[60]">
+                                            <div className="absolute right-0 mt-2 w-32 bg-surface-1 border border-border rounded overflow-hidden z-[60]">
                                                 <button
                                                     onClick={() => exportAsset('pdf')}
                                                     className="w-full text-left px-4 py-2 text-[11px] text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors flex items-center gap-2"
@@ -434,7 +434,7 @@ export function ArtifactPanel({
                                         }
                                     }}
                                     disabled={shareLoading}
-                                    className={`rounded-lg border p-1.5 transition-colors ${
+                                    className={`rounded border p-1.5 transition-colors ${
                                         shareUrl
                                             ? 'bg-azure/10 border-azure/30 text-azure hover:bg-azure/20'
                                             : 'bg-surface-2 border-border/60 text-text-secondary hover:text-text-primary hover:bg-surface-3'
@@ -446,7 +446,7 @@ export function ArtifactPanel({
                                 </button>
 
                                 {showSharePopover && shareUrl && (
-                                    <div className="absolute right-0 top-full mt-2 w-72 bg-surface-1 border border-border shadow-2xl rounded-xl overflow-hidden z-[60] p-3">
+                                    <div className="absolute right-0 top-full mt-2 w-72 bg-surface-1 border border-border rounded overflow-hidden z-[60] p-3">
                                         <div className="text-[11px] font-medium text-text-muted mb-2">Share Link</div>
                                         <div className="flex items-center gap-1.5">
                                             <input
@@ -491,7 +491,7 @@ export function ArtifactPanel({
                                 setShowSharePopover(false)
                                 setTimeout(onClose, 300)
                             }}
-                            className="rounded-lg bg-surface-2 border border-border/60 p-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-3 hover:text-red transition-colors"
+                            className="rounded bg-surface-2 border border-border/60 p-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-3 hover:text-red transition-colors"
                             title="Close"
                             aria-label="Close"
                         >
@@ -503,7 +503,7 @@ export function ArtifactPanel({
                 {/* Content Area */}
                 <div className="flex-1 overflow-hidden relative">
                     {fetchingVersion && (
-                        <div className="absolute inset-0 z-10 bg-surface-1/50 backdrop-blur-[2px] flex items-center justify-center">
+                        <div className="absolute inset-0 z-10 bg-surface-1/50  flex items-center justify-center">
                             <Loader2 className="h-8 w-8 animate-spin text-azure" />
                         </div>
                     )}
@@ -541,13 +541,13 @@ export function ArtifactPanel({
             {confirmApply && (
                 <div
                     ref={confirmTrapRef}
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 "
                     onClick={() => setConfirmApply(null)}
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="confirm-apply-title"
                 >
-                    <div className="max-w-md w-full mx-4 rounded-2xl bg-surface-1 border border-border shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+                    <div className="max-w-md w-full mx-4 rounded bg-surface-1 border border-border p-6" onClick={e => e.stopPropagation()}>
                         <div className="flex items-start gap-3 mb-4">
                             <AlertTriangle className="h-5 w-5 text-azure shrink-0 mt-0.5" />
                             <div>

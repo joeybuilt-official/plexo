@@ -54,7 +54,7 @@ export function WorksPanel({ deliverable }: { deliverable: TaskDeliverable }) {
     const Icon = meta.icon
 
     return (
-        <div className={`rounded-xl border ${meta.border} ${meta.bg} p-4`}>
+        <div className={`rounded border ${meta.border} ${meta.bg} p-4`}>
             <div className="flex items-center gap-2 mb-3">
                 <Icon className={`h-3.5 w-3.5 ${meta.badge.split(' ')[1]}`} />
                 <p className={`text-[11px] font-medium uppercase tracking-wider ${meta.badge.split(' ')[1]}`}>Work</p>

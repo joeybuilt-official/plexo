@@ -104,11 +104,11 @@ function ConfirmDialog({
     return (
         <div ref={trapRef} className="fixed inset-0 z-[100] flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-desc">
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+            <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
             {/* Panel */}
-            <div className="relative mx-4 w-full max-w-md rounded-xl border border-border bg-surface-1 shadow-2xl shadow-black/30 animate-in fade-in zoom-in-95 duration-150">
+            <div className="relative mx-4 w-full max-w-md rounded border border-border bg-surface-1 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-start gap-3 p-5">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded ${iconBg}`}>
                         <Icon className={`h-4.5 w-4.5 ${iconColor}`} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -122,14 +122,14 @@ function ConfirmDialog({
                 <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
                     <button
                         onClick={onCancel}
-                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary hover:border-border transition-colors"
+                        className="rounded border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary hover:border-border transition-colors"
                     >
                         {cancelLabel}
                     </button>
                     <button
                         ref={confirmRef}
                         onClick={onConfirm}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${confirmBtnClass}`}
+                        className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${confirmBtnClass}`}
                     >
                         {confirmLabel}
                     </button>

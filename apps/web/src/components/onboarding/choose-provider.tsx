@@ -170,7 +170,7 @@ export function ChooseProvider({ workspaceId, apiBase = '', onComplete, onSkip, 
         <div className="flex flex-col p-6 space-y-6 max-w-lg mx-auto h-full justify-center">
             {/* Header */}
             <div className="text-center space-y-2">
-                <h1 className="text-2xl font-bold text-text-primary">Choose your AI provider</h1>
+                <h1 className="text-2xl font-semibold text-text-primary">Choose your AI provider</h1>
                 <p className="text-sm text-text-muted leading-relaxed">
                     Plexo needs an AI model to think. Pick a free option to get started, or bring your own.
                 </p>
@@ -188,7 +188,7 @@ export function ChooseProvider({ workspaceId, apiBase = '', onComplete, onSkip, 
                     return (
                         <div
                             key={provider.id}
-                            className={`rounded-xl border p-4 transition-colors ${
+                            className={`rounded border p-4 transition-colors ${
                                 isSaved
                                     ? 'border-emerald-500/40 bg-emerald-500/5'
                                     : 'border-border bg-surface-1'
@@ -196,7 +196,7 @@ export function ChooseProvider({ workspaceId, apiBase = '', onComplete, onSkip, 
                         >
                             {/* Card header */}
                             <div className="flex items-start gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-azure/10 shrink-0">
+                                <div className="flex h-10 w-10 items-center justify-center rounded bg-azure/10 shrink-0">
                                     <Icon className="h-5 w-5 text-azure" />
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -220,14 +220,14 @@ export function ChooseProvider({ workspaceId, apiBase = '', onComplete, onSkip, 
                                                     value={key}
                                                     onChange={e => setKey(provider.id, e.target.value)}
                                                     placeholder="Paste your API key"
-                                                    className="flex-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary font-mono placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:border-azure"
+                                                    className="flex-1 rounded border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary font-mono placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:border-azure"
                                                     autoComplete="off"
                                                     disabled={isSaving}
                                                 />
                                                 <button
                                                     onClick={() => void handleConfigure(provider)}
                                                     disabled={isSaving || !key.trim()}
-                                                    className="focus-ring px-4 py-2 text-sm font-medium bg-azure text-white rounded-lg hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 shrink-0"
+                                                    className="focus-ring px-4 py-2 text-sm font-medium bg-azure text-white rounded hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 shrink-0"
                                                 >
                                                     {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Configure'}
                                                 </button>
@@ -254,14 +254,14 @@ export function ChooseProvider({ workspaceId, apiBase = '', onComplete, onSkip, 
                                                 />
                                                 <span className="text-xs text-text-primary">Enable Ollama</span>
                                             </label>
-                                            <span className="text-[11px] text-text-muted bg-surface-1 border border-border rounded-full px-2 py-0.5">
+                                            <span className="text-[11px] text-text-muted bg-surface-1 border border-border rounded-sm px-2 py-0.5">
                                                 Included with Plexo
                                             </span>
                                             {ollamaEnabled && (
                                                 <button
                                                     onClick={() => void handleConfigure(provider)}
                                                     disabled={isSaving}
-                                                    className="focus-ring ml-auto px-4 py-2 text-sm font-medium bg-azure text-white rounded-lg hover:bg-azure/90 disabled:opacity-40 transition-colors flex items-center gap-1.5 shrink-0"
+                                                    className="focus-ring ml-auto px-4 py-2 text-sm font-medium bg-azure text-white rounded hover:bg-azure/90 disabled:opacity-40 transition-colors flex items-center gap-1.5 shrink-0"
                                                 >
                                                     {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Configure'}
                                                 </button>
@@ -270,7 +270,7 @@ export function ChooseProvider({ workspaceId, apiBase = '', onComplete, onSkip, 
                                     )}
 
                                     {error && (
-                                        <div className="flex items-start gap-2 rounded-lg bg-red-500/5 border border-red-500/20 px-3 py-2">
+                                        <div className="flex items-start gap-2 rounded bg-red-500/5 border border-red-500/20 px-3 py-2">
                                             <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
                                             <p className="text-xs text-red-400">{error}</p>
                                         </div>

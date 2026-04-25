@@ -34,7 +34,7 @@ export function TaskCompletionMoment({ taskName, outcome, worksCount, durationMs
     const seconds = (durationMs / 1000).toFixed(1)
 
     return (
-        <div className={`rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-6 text-center transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`rounded border border-emerald-500/30 bg-emerald-500/5 p-6 text-center transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}>
             <div className="flex items-center justify-center gap-2 mb-3">
                 <CheckCheck className="h-5 w-5 text-emerald-400" />
                 <span className="text-sm font-medium text-emerald-400">Task complete</span>

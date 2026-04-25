@@ -263,7 +263,7 @@ export function SclConfigPanel({ workspaceId }: { workspaceId: string }) {
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Settings2 className="h-4 w-4 text-purple-400" />
-                    <h3 className="text-sm font-bold text-text-primary">SCL Tuning</h3>
+                    <h3 className="text-sm font-semibold text-text-primary">SCL Tuning</h3>
                     <button
                         type="button"
                         onClick={() => setExplainerOpen(true)}
@@ -284,7 +284,7 @@ export function SclConfigPanel({ workspaceId }: { workspaceId: string }) {
                     <button
                         onClick={() => void handleSave()}
                         disabled={saving}
-                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-xs font-medium text-white hover:bg-azure/90 disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded bg-azure px-3 py-1.5 text-xs font-medium text-white hover:bg-azure/90 disabled:opacity-50"
                     >
                         {saving ? <RefreshCw className="h-3 w-3 animate-spin" /> : saved ? <Check className="h-3 w-3" /> : <Save className="h-3 w-3" />}
                         {saving ? 'Saving...' : saved ? 'Saved' : 'Save'}
@@ -311,7 +311,7 @@ export function SclConfigPanel({ workspaceId }: { workspaceId: string }) {
                                 type="button"
                                 onClick={() => applyPreset(preset)}
                                 title={preset.blurb}
-                                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                                className={`flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                                     active
                                         ? 'border-azure bg-azure/15 text-text-primary'
                                         : 'border-border bg-surface-1/40 text-text-muted hover:text-text-primary hover:border-border/80'
@@ -326,7 +326,7 @@ export function SclConfigPanel({ workspaceId }: { workspaceId: string }) {
             </div>
 
             {error && (
-                <div className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red">
+                <div className="flex items-center gap-2 rounded border border-red-800/50 bg-red-dim px-3 py-2 text-xs text-red">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {error}
                 </div>
@@ -339,7 +339,7 @@ export function SclConfigPanel({ workspaceId }: { workspaceId: string }) {
                     const value = config[key]
 
                     return (
-                        <div key={key} className="rounded-lg border border-border bg-surface-1/40 p-3 space-y-1.5">
+                        <div key={key} className="rounded border border-border bg-surface-1/40 p-3 space-y-1.5">
                             <div className="flex items-center justify-between">
                                 <label className="text-xs font-medium text-text-primary">{meta.label}</label>
                                 <input
@@ -383,7 +383,7 @@ export function SclConfigPanel({ workspaceId }: { workspaceId: string }) {
                     onClick={() => setExplainerOpen(false)}
                 >
                     <div
-                        className="w-full max-w-xl max-h-[85vh] overflow-auto rounded-lg border border-border bg-surface-1 p-6 shadow-xl"
+                        className="w-full max-w-xl max-h-[85vh] overflow-auto rounded border border-border bg-surface-1 p-6"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-start justify-between">
@@ -415,7 +415,7 @@ export function SclConfigPanel({ workspaceId }: { workspaceId: string }) {
                         <button
                             type="button"
                             onClick={() => setExplainerOpen(false)}
-                            className="mt-4 w-full rounded-lg bg-azure px-4 py-2 text-xs font-medium text-white hover:bg-azure/90"
+                            className="mt-4 w-full rounded bg-azure px-4 py-2 text-xs font-medium text-white hover:bg-azure/90"
                         >
                             Got it
                         </button>

@@ -19,12 +19,12 @@ export function MobileHeader({ user }: { user?: SessionUser }) {
         <>
             {/* Mobile Sticky Header */}
             <div 
-                className="flex md:hidden sticky top-0 z-40 w-full items-center justify-between border-b border-border bg-canvas/80 p-4 backdrop-blur-md shrink-0"
+                className="flex md:hidden sticky top-0 z-40 w-full items-center justify-between border-b border-border bg-canvas p-4 shrink-0"
                 style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
             >
                 <button
                     onClick={() => setOpen(true)}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
+                    className="flex h-10 w-10 items-center justify-center rounded text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
                     aria-label="Open menu"
                 >
                     <Menu className="h-6 w-6" />
@@ -39,20 +39,20 @@ export function MobileHeader({ user }: { user?: SessionUser }) {
             {/* Mobile Drawer Overlay */}
             {open && (
                 <div className="fixed inset-0 z-50 flex md:hidden">
-                    <div 
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
-                        onClick={() => setOpen(false)} 
+                    <div
+                        className="fixed inset-0 bg-black/60 transition-opacity"
+                        onClick={() => setOpen(false)}
                     />
-                    <div className="relative flex w-[248px] shadow-2xl animate-in slide-in-from-left h-full duration-200">
+                    <div className="relative flex w-[248px] animate-in slide-in-from-left h-full duration-200 border-r border-border">
                         <Sidebar
                             user={user}
                             onNavClick={() => setOpen(false)}
-                            className="border-r-0 shadow-xl"
+                            className="border-r-0"
                             mobile
                         />
                         <button
                             onClick={() => setOpen(false)}
-                            className="absolute -right-12 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 text-text-secondary opacity-90 transition-all hover:bg-surface-2 hover:text-text-primary"
+                            className="absolute -right-12 top-4 flex h-10 w-10 items-center justify-center rounded bg-surface-2 text-text-secondary opacity-90 transition-all hover:bg-surface-2 hover:text-text-primary"
                             aria-label="Close menu"
                         >
                             <X className="h-5 w-5" />

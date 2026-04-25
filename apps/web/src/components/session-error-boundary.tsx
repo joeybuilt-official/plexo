@@ -41,11 +41,11 @@ export class SessionErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center p-4 text-center">
-          <h2 className="mb-2 text-xl font-bold text-red">Something went wrong</h2>
+          <h2 className="mb-2 text-xl font-semibold text-red">Something went wrong</h2>
           <p className="mb-4 text-sm text-text-muted">The error has been logged for remediation.</p>
           <button
             onClick={() => window.location.reload()}
-            className="rounded-lg bg-surface-2 px-4 py-2 text-sm font-medium transition-colors hover:bg-surface-3"
+            className="rounded bg-surface-2 px-4 py-2 text-sm font-medium transition-colors hover:bg-surface-3"
           >
             Try Refreshing
           </button>

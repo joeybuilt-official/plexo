@@ -75,9 +75,9 @@ function IntegrationCard({
     }
 
     return (
-        <div className="rounded-xl border border-border bg-surface-2/40 p-4 flex flex-col gap-3">
+        <div className="rounded border border-border bg-surface-2/40 p-4 flex flex-col gap-3">
             <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-azure-dim border border-azure/20 shrink-0">
+                <div className="flex h-9 w-9 items-center justify-center rounded bg-azure-dim border border-azure/20 shrink-0">
                     {icon}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -104,7 +104,7 @@ function IntegrationCard({
                         onKeyDown={e => e.key === 'Enter' && void handleSave()}
                         placeholder={placeholder}
                         disabled={state === 'saving' || state === 'ok'}
-                        className="w-full rounded-lg border border-border bg-canvas px-3 py-2 pr-10 text-[15px] sm:text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-1 focus:ring-azure focus:border-azure transition-colors font-mono min-h-[40px] disabled:opacity-50"
+                        className="w-full rounded border border-border bg-canvas px-3 py-2 pr-10 text-[15px] sm:text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-1 focus:ring-azure focus:border-azure transition-colors font-mono min-h-[40px] disabled:opacity-50"
                         autoComplete="new-password"
                     />
                     <button
@@ -119,7 +119,7 @@ function IntegrationCard({
                 <button
                     onClick={() => void handleSave()}
                     disabled={!key.trim() || state === 'saving' || state === 'ok'}
-                    className="flex items-center gap-1.5 rounded-lg bg-azure hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 text-sm font-medium text-text-primary transition-colors whitespace-nowrap min-h-[40px]"
+                    className="flex items-center gap-1.5 rounded bg-azure hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 text-sm font-medium text-text-primary transition-colors whitespace-nowrap min-h-[40px]"
                 >
                     {state === 'saving' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> :
                      state === 'ok' ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
@@ -128,7 +128,7 @@ function IntegrationCard({
             </div>
 
             {message && (
-                <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
+                <div className={`flex items-start gap-2 rounded px-3 py-2 text-xs ${
                     state === 'ok'
                         ? 'bg-azure/5 border border-azure/20 text-azure-300'
                         : 'bg-red-dim border border-red-900/40 text-red-300'
@@ -249,13 +249,13 @@ export function IntegrationsNudgeModal() {
     const unconfiguredCount = (missing.search && !configured.search ? 1 : 0) + (missing.voice && !configured.voice ? 1 : 0) + (missing.vision && !configured.vision ? 1 : 0)
 
     return (
-        <div ref={trapRef} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="integrations-modal-title">
-            <div className="w-full max-w-lg rounded-2xl border border-border bg-surface-1 shadow-2xl shadow-black/40 overflow-hidden">
+        <div ref={trapRef} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 " role="dialog" aria-modal="true" aria-labelledby="integrations-modal-title">
+            <div className="w-full max-w-lg rounded border border-border bg-surface-1  overflow-hidden">
 
                 {/* Header */}
                 <div className="flex items-start justify-between px-5 pt-5 pb-4">
                     <div>
-                        <h2 id="integrations-modal-title" className="text-base font-bold text-text-primary">
+                        <h2 id="integrations-modal-title" className="text-base font-semibold text-text-primary">
                             {unconfiguredCount === 1 ? 'One recommended integration' : `${unconfiguredCount} recommended integrations`} to set up
                         </h2>
                         <p className="mt-1 text-xs text-text-muted leading-relaxed">
@@ -265,7 +265,7 @@ export function IntegrationsNudgeModal() {
                     </div>
                     <button
                         onClick={() => dismiss(false)}
-                        className="ml-4 shrink-0 rounded-lg p-1.5 text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
+                        className="ml-4 shrink-0 rounded p-1.5 text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
                         aria-label="Dismiss"
                     >
                         <X className="h-4 w-4" />
@@ -299,9 +299,9 @@ export function IntegrationsNudgeModal() {
                         />
                     )}
                     {missing.vision && !configured.vision && (
-                        <div className="rounded-xl border border-border bg-surface-2/40 p-4 flex flex-col gap-3">
+                        <div className="rounded border border-border bg-surface-2/40 p-4 flex flex-col gap-3">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-azure-dim border border-azure/20 shrink-0">
+                                <div className="flex h-9 w-9 items-center justify-center rounded bg-azure-dim border border-azure/20 shrink-0">
                                     <ImageIcon className="h-4 w-4 text-azure" />
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -314,7 +314,7 @@ export function IntegrationsNudgeModal() {
                             <div className="flex items-center gap-2">
                                 <a
                                     href="/app/settings/intelligence"
-                                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-azure hover:bg-azure/90 px-3 py-2 text-sm font-medium text-text-primary transition-colors min-h-[40px]"
+                                    className="flex-1 flex items-center justify-center gap-2 rounded bg-azure hover:bg-azure/90 px-3 py-2 text-sm font-medium text-text-primary transition-colors min-h-[40px]"
                                     onClick={() => { dismiss(false); handleConfigured('vision') }}
                                 >
                                     Set up a vision provider
@@ -340,7 +340,7 @@ export function IntegrationsNudgeModal() {
                     </button>
                     <button
                         onClick={() => dismiss(false)}
-                        className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:border-border transition-colors"
+                        className="rounded border border-border bg-surface-2 px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:border-border transition-colors"
                     >
                         Not now
                     </button>

@@ -26,7 +26,7 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
             aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             aria-pressed={!isDark}
             title={isDark ? 'Light mode' : 'Dark mode'}
-            className={`flex items-center justify-center rounded-lg p-1.5 text-text-muted transition-colors hover:bg-surface-1 hover:text-text-primary ${className}`}
+            className={`flex items-center justify-center rounded p-1.5 text-text-muted transition-colors hover:bg-surface-1 hover:text-text-primary ${className}`}
         >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
@@ -48,17 +48,17 @@ export function AppearanceSection() {
     return (
         <div className="flex flex-col gap-6">
             <div>
-                <h2 className="text-lg font-bold text-text-primary">Appearance</h2>
+                <h2 className="text-lg font-semibold text-text-primary">Appearance</h2>
                 <p className="mt-0.5 text-sm text-text-muted">
                     Choose how Plexo looks. &ldquo;System&rdquo; follows your OS preference.
                 </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
+            <div className="rounded border border-border bg-surface-1/40 p-5 flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
                     <p className="text-[11px] uppercase tracking-widest text-text-muted font-medium">Theme</p>
                     {mounted ? (
-                        <div className="flex items-center gap-1 rounded-lg border border-border bg-canvas p-1 self-start">
+                        <div className="flex items-center gap-1 rounded border border-border bg-canvas p-1 self-start">
                             {options.map((opt) => (
                                 <button
                                     key={opt.value}
@@ -66,7 +66,7 @@ export function AppearanceSection() {
                                     onClick={() => setTheme(opt.value)}
                                     className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                                         theme === opt.value
-                                            ? 'bg-surface-2 text-text-primary shadow-sm'
+                                            ? 'bg-surface-2 text-text-primary'
                                             : 'text-text-muted hover:text-text-secondary'
                                     }`}
                                 >
@@ -75,7 +75,7 @@ export function AppearanceSection() {
                             ))}
                         </div>
                     ) : (
-                        <div className="h-9 w-52 rounded-lg border border-border bg-canvas animate-pulse" />
+                        <div className="h-9 w-52 rounded border border-border bg-canvas animate-pulse" />
                     )}
                     {mounted && theme === 'system' && (
                         <p className="text-xs text-text-muted">

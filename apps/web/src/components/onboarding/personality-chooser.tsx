@@ -216,7 +216,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
             {step === 1 && (
                 <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-right-2 duration-200">
                     <div className="text-center mb-2">
-                        <h2 className="text-lg font-bold text-text-primary">How should Plexo talk to you?</h2>
+                        <h2 className="text-lg font-semibold text-text-primary">How should Plexo talk to you?</h2>
                         <p className="text-sm text-text-muted mt-1">Pick the vibe that feels right.</p>
                     </div>
                     <div className="flex flex-col gap-2.5">
@@ -225,7 +225,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
                                 key={s.id}
                                 type="button"
                                 onClick={() => setCommStyle(s.id)}
-                                className={`group relative flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
+                                className={`group relative flex items-start gap-3 rounded border p-4 text-left transition-all ${
                                     commStyle === s.id
                                         ? 'border-azure bg-azure/5 ring-1 ring-azure/30'
                                         : 'border-border hover:border-border bg-surface-1/40 hover:bg-surface-1/60'
@@ -250,7 +250,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
             {step === 2 && (
                 <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-right-2 duration-200">
                     <div className="text-center mb-2">
-                        <h2 className="text-lg font-bold text-text-primary">How much detail do you want?</h2>
+                        <h2 className="text-lg font-semibold text-text-primary">How much detail do you want?</h2>
                         <p className="text-sm text-text-muted mt-1">You can always change this later.</p>
                     </div>
                     <div className="flex flex-col gap-2.5">
@@ -259,7 +259,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
                                 key={d.id}
                                 type="button"
                                 onClick={() => setDetailLevel(d.id)}
-                                className={`group flex items-center gap-3 rounded-xl border p-4 text-left transition-all ${
+                                className={`group flex items-center gap-3 rounded border p-4 text-left transition-all ${
                                     detailLevel === d.id
                                         ? 'border-azure bg-azure/5 ring-1 ring-azure/30'
                                         : 'border-border hover:border-border bg-surface-1/40 hover:bg-surface-1/60'
@@ -284,7 +284,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
             {step === 3 && (
                 <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-right-2 duration-200">
                     <div className="text-center mb-2">
-                        <h2 className="text-lg font-bold text-text-primary">Give your agent a personality</h2>
+                        <h2 className="text-lg font-semibold text-text-primary">Give your agent a personality</h2>
                         <p className="text-sm text-text-muted mt-1">What kind of teammate do you want?</p>
                     </div>
                     <div className="flex flex-col gap-2.5">
@@ -293,7 +293,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
                                 key={p.id}
                                 type="button"
                                 onClick={() => setPersonality(p.id)}
-                                className={`group flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
+                                className={`group flex items-start gap-3 rounded border p-4 text-left transition-all ${
                                     personality === p.id
                                         ? 'border-azure bg-azure/5 ring-1 ring-azure/30'
                                         : 'border-border hover:border-border bg-surface-1/40 hover:bg-surface-1/60'
@@ -316,7 +316,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
                             onChange={e => setCustomPersonality(e.target.value)}
                             placeholder="Describe your ideal AI teammate in a sentence..."
                             rows={2}
-                            className="w-full resize-none rounded-xl border border-border bg-surface-1 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 leading-relaxed"
+                            className="w-full resize-none rounded border border-border bg-surface-1 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30 leading-relaxed"
                             autoFocus
                         />
                     )}
@@ -327,13 +327,13 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
             {step === 4 && (
                 <div className="flex flex-col gap-5 animate-in fade-in slide-in-from-right-2 duration-200">
                     <div className="text-center mb-2">
-                        <h2 className="text-lg font-bold text-text-primary">What should we call your agent?</h2>
+                        <h2 className="text-lg font-semibold text-text-primary">What should we call your agent?</h2>
                         <p className="text-sm text-text-muted mt-1">Pick a name and face.</p>
                     </div>
 
                     {/* Avatar preview */}
                     <div className="flex flex-col items-center gap-2">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-full text-3xl shadow-lg shadow-azure/20">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full text-3xl shadow-azure/20">
                             {agentAvatar}
                         </div>
                         <span className="text-sm font-medium text-text-primary">{agentName || 'Plexo'}</span>
@@ -350,7 +350,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
                                     onClick={() => setAgentAvatar(emoji)}
                                     aria-label={`Select avatar ${emoji}`}
                                     aria-pressed={agentAvatar === emoji}
-                                    className={`min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-lg transition-all ${
+                                    className={`min-h-[44px] min-w-[44px] shrink-0 rounded text-lg transition-all ${
                                         agentAvatar === emoji
                                             ? 'bg-azure/30 ring-1 ring-azure'
                                             : 'bg-surface-2 hover:bg-surface-2/80'
@@ -370,7 +370,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
                             value={agentName}
                             onChange={e => setAgentName(e.target.value)}
                             placeholder="Plexo"
-                            className="w-full rounded-xl border border-border bg-surface-1 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30"
+                            className="w-full rounded border border-border bg-surface-1 px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring focus:ring-1 focus:ring-azure/30"
                         />
                         <div className="flex gap-1.5 flex-wrap">
                             {NAME_SUGGESTIONS.map(name => (
@@ -378,7 +378,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
                                     key={name}
                                     type="button"
                                     onClick={() => setAgentName(name)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                                         agentName === name
                                             ? 'bg-azure/20 text-azure border border-azure/30'
                                             : 'bg-surface-2 text-text-secondary hover:text-text-primary border border-transparent'
@@ -418,7 +418,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
                     type="button"
                     onClick={nextStep}
                     disabled={!canAdvance() || saving || done}
-                    className="flex items-center gap-2 rounded-xl bg-azure px-5 py-2.5 text-sm font-semibold text-white hover:bg-azure/90 transition-colors disabled:opacity-40"
+                    className="flex items-center gap-2 rounded bg-azure px-5 py-2.5 text-sm font-semibold text-white hover:bg-azure/90 transition-colors disabled:opacity-40"
                 >
                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                     {done && <Check className="h-4 w-4" />}
