@@ -71,6 +71,46 @@ handoffRouter.post('/generate', requireAuth, async (req, res) => {
     }
 })
 
+/**
+ * GET /api/auth/handoff/initiate?targetApp=levio
+ * Redirect-based SSO initiation — generates a token and redirects to the target app's handshake page.
+ * Returns 302 to the target app, or 302 to Plexo login if not authenticated.
+ */
+handoffRouter.get('/initiate', async (req, res, next) => {
+    const { targetApp } = req.query as { targetApp?: string }
+
+    if (!targetApp || !KNOWN_APPS[targetApp]) {
+        res.status(400).json({ error: 'unknown target app' })
+        return
+    }
+
+    // Use requireAuth inline — if no session, redirect to Plexo login
+    const session = (req as { user?: { id: string } }).user
+    if (!session) {
+        const loginUrl = `${KNOWN_APPS['plexo'] || ''}/login?redirect_to=${encodeURIComponent(KNOWN_APPS[targetApp])}`
+        res.redirect(302, loginUrl)
+        return
+    }
+
+    requireAuth(req, res, async () => {
+        const user = req.user!
+        const token = randomBytes(32).toString('hex')
+        const expiresAt = new Date(Date.now() + 30_000)
+        try {
+            await db.execute(sql`
+                INSERT INTO auth.cross_app_tokens (token, user_id, source_app, target_app, expires_at)
+                VALUES (${token}, ${user.id}::uuid, 'plexo', ${targetApp}, ${expiresAt.toISOString()})
+            `)
+            const redirectUrl = `${KNOWN_APPS[targetApp]}/auth/handshake?token=${token}&from=plexo`
+            logger.info({ userId: user.id, targetApp }, 'Cross-app SSO initiation redirect')
+            res.redirect(302, redirectUrl)
+        } catch (err) {
+            logger.error({ err }, 'Failed to initiate SSO redirect')
+            next(err)
+        }
+    })
+})
+
 interface TokenRow extends Record<string, unknown> {
     user_id: string
     source_app: string
