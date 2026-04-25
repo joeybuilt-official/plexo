@@ -384,7 +384,7 @@ const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
         keyPrefix: '',
         getKeyUrl: 'https://fal.ai/dashboard/keys',
         docsUrl: 'https://fal.ai/docs',
-        sampleModels: ['fal-ai/flux/schnell', 'fal-ai/flux/dev', 'fal-ai/flux-pro/v1.1', 'fal-ai/stable-diffusion-v35'],
+        sampleModels: ['fal-ai/flux/schnell', 'fal-ai/flux/dev', 'fal-ai/flux-pro/v1.1', 'fal-ai/stable-diffusion-v35', 'fal-ai/recraft/v4/pro/text-to-image', 'bytedance/seedance-2.0/image-to-video', 'bytedance/seedance-2.0/text-to-video'],
         keyHint: 'fal.ai is an image/video generation provider. Chat/text generation is not supported.',
     },
 ]
@@ -1003,23 +1003,36 @@ export default function ProvidersPage() {
 
                 {isConnected && selectedInstance && (
                     <>
-                        {selectedInstance.capabilities.chatModels.length > 0 && (
-                            <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Active model</label>
-                                    {savingModel && <span className="text-[10px] text-azure animate-pulse">Saving...</span>}
+                        {(() => {
+                            // Build model list for the dropdown: chat providers use chatModels,
+                            // non-chat providers (fal.ai, voyage, etc.) fall back to discovered
+                            // models or hardcoded catalog sampleModels.
+                            const isChatProvider = selectedInstance.capabilities.chatModels.length > 0
+                            const nonChatModels = !isChatProvider && !selectedInstance.capabilities.supportsChat
+                                ? (discoveredModels ?? selectedCatalog.sampleModels)
+                                : []
+                            const modelOptions = isChatProvider
+                                ? selectedInstance.capabilities.chatModels
+                                : nonChatModels
+                            if (modelOptions.length === 0) return null
+                            return (
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">Active model</label>
+                                        {savingModel && <span className="text-[10px] text-azure animate-pulse">Saving...</span>}
+                                    </div>
+                                    <select
+                                        value={selectedInstance.selectedModel || modelOptions[0]}
+                                        onChange={(e) => void handleModelChange(selectedInstance.id, e.target.value)}
+                                        className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary font-mono focus:border-azure focus-ring"
+                                    >
+                                        {modelOptions.map((m) => (
+                                            <option key={m} value={m}>{m}</option>
+                                        ))}
+                                    </select>
                                 </div>
-                                <select
-                                    value={selectedInstance.selectedModel || selectedInstance.capabilities.chatModels[0]}
-                                    onChange={(e) => void handleModelChange(selectedInstance.id, e.target.value)}
-                                    className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary font-mono focus:border-azure focus-ring"
-                                >
-                                    {selectedInstance.capabilities.chatModels.map((m) => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
+                            )
+                        })()}
 
                         {userProviders.length > 1 && (
                             <div className="flex flex-col gap-1.5">
