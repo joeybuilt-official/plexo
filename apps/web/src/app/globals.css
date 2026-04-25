@@ -10,19 +10,20 @@
  * etc.) — they do not resolve in this theme.
  *
  * Colors (use these class names):
- *   bg-canvas            — page background
+ *   bg-canvas            — page background (#242936)
  *   bg-surface-1/2/3     — card / panel / pressed surface hierarchy
  *   border-border        — default border
  *   border-border-subtle — low-emphasis border
- *   text-text-primary    — primary body copy
- *   text-text-secondary  — secondary / label copy
+ *   text-text-primary    — primary body copy (#e8edf2)
+ *   text-text-secondary  — secondary / label copy (#8a9ab0)
  *   text-text-muted      — disabled / tertiary copy
- *   text-azure / bg-azure / border-azure           — brand accent
- *   text-amber / bg-amber / border-amber           — warning / one-way-door
- *   text-red   / bg-red   / border-red             — error
+ *   text-accent / bg-accent / border-accent         — brand accent (#6db8cc)
+ *   text-azure / bg-azure / border-azure            — alias → accent
+ *   text-amber / bg-amber / border-amber            — warning / one-way-door
+ *   text-red   / bg-red   / border-red              — error
  *
  * Radius: rounded-md (7px), rounded-lg (10px), rounded-xl (12px)
- * Fonts:  font-display (Syne), font-body (Inter), font-mono (JetBrains Mono)
+ * Fonts:  font-display (Geist), font-body (IBM Plex Sans), font-mono (JetBrains Mono)
  *
  * Focus rings: add `focus-ring` utility (below) to interactive elements.
  * Global `*:focus-visible` also applies a visible outline for keyboard nav.
@@ -34,35 +35,46 @@
 @variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Colors */
-  --color-canvas:       #0C0E14;
-  --color-surface-1:    #12151E;
-  --color-surface-2:    #181C28;
-  --color-surface-3:    #1F2437;
-  --color-border:       #252A3A;
-  --color-border-subtle:#1A1E2C;
+  /* ── Joeybuilt Core Palette ─────────────────────────────────────────────── */
+  /* Plexo inherits Joeybuilt's steel-blue family with its own accent shift. */
 
-  --color-text-primary: #EEF0F7;
-  --color-text-secondary:#8C95AD;
-  --color-text-muted:   #545C72;
+  /* Surfaces */
+  --color-canvas:       #242936;   /* --color-bg-deep */
+  --color-surface-1:    #2e3748;   /* --color-bg */
+  --color-surface-2:    #364258;
+  --color-surface-3:    #3d4a5c;   /* --color-border (doubles as pressed) */
+  --color-border:       #3d4a5c;
+  --color-border-subtle:#333e50;
+
+  /* Text */
+  --color-text-primary: #e8edf2;   /* --color-text */
+  --color-text-secondary:#8a9ab0;  /* --color-text-muted */
+  --color-text-muted:   #6b7a92;
 
   /* Core Palette */
-  /* Azure — platform color (hue 217°, pure electric blue, not purple) */
-  --color-azure:        #3B82F6;
-  --color-azure-500:    var(--color-azure);
-  --color-azure-600:    #2563EB;
-  --color-azure-700:    #1D4ED8;
-  --color-azure-800:    #1E40AF;
-  --color-azure-900:    #1E3A8A;
-  --color-azure-dim:    rgba(59,130,246,0.14);
-  --color-azure-glow:   rgba(59,130,246,0.07);
+  /* Accent — Plexo variation of Joeybuilt steel-blue (hue 193°) */
+  --color-accent:       #6db8cc;
+  --color-accent-dim:   #5aa3b8;
+  --color-accent-hover: #82c6d6;
+  --color-accent-muted: rgba(109,184,204,0.14);
+  --color-accent-glow:  rgba(109,184,204,0.07);
 
-  /* Legacy aliases — map to azure so existing class references resolve */
-  --color-indigo:       #3B82F6;
-  --color-indigo-500:   var(--color-azure);
-  --color-indigo-600:   var(--color-azure-600);
-  --color-indigo-dim:   var(--color-azure-dim);
-  --color-indigo-glow:  var(--color-azure-glow);
+  /* Azure aliases — all existing bg-azure / text-azure / border-azure resolve here */
+  --color-azure:        var(--color-accent);
+  --color-azure-500:    var(--color-accent);
+  --color-azure-600:    var(--color-accent-dim);
+  --color-azure-700:    #4d92a6;
+  --color-azure-800:    #3f7d8f;
+  --color-azure-900:    #336878;
+  --color-azure-dim:    var(--color-accent-muted);
+  --color-azure-glow:   var(--color-accent-glow);
+
+  /* Legacy indigo aliases — resolve through azure → accent */
+  --color-indigo:       var(--color-accent);
+  --color-indigo-500:   var(--color-accent);
+  --color-indigo-600:   var(--color-accent-dim);
+  --color-indigo-dim:   var(--color-accent-muted);
+  --color-indigo-glow:  var(--color-accent-glow);
 
   /* Amber — agent active / one-way-door signal */
   --color-amber:        #F59E0B;
@@ -81,13 +93,9 @@
   --radius-xl:          12px; /* large surfaces */
 
   /* Fonts */
-  /* TODO: UX-031 — Unify token vocabulary: some components still use raw zinc/gray instead of theme tokens */
-  /* TODO: UX-032 — Token audit: ensure all text-text-* / bg-surface-* usage is consistent */
-  /* Font families — next/font/google injects optimized values via CSS variables
-     on <html>. These @theme fallbacks only apply if next/font somehow fails. */
-  --font-display: 'Syne', system-ui, sans-serif;
-  --font-body:    'Inter', system-ui, sans-serif;
-  --font-sans:    'Inter', system-ui, sans-serif;
+  --font-display: 'Geist', system-ui, sans-serif;
+  --font-body:    'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+  --font-sans:    'IBM Plex Sans', 'Inter', system-ui, sans-serif;
   --font-mono:    'JetBrains Mono', monospace;
 }
 
@@ -217,28 +225,28 @@ a, button, [role="button"], input, select, textarea,
 
 /* ── Landing page: glow effects ────────────────────────────────────────────── */
 .glow-azure {
-  box-shadow: 0 0 60px -12px rgba(59, 130, 246, 0.35),
-              0 0 120px -24px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 60px -12px rgba(109, 184, 204, 0.35),
+              0 0 120px -24px rgba(109, 184, 204, 0.12);
 }
 .glow-border {
-  border: 1px solid rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(109, 184, 204, 0.15);
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .glow-border:hover {
-  border-color: rgba(59, 130, 246, 0.35);
-  box-shadow: 0 0 30px -8px rgba(59, 130, 246, 0.18);
+  border-color: rgba(109, 184, 204, 0.35);
+  box-shadow: 0 0 30px -8px rgba(109, 184, 204, 0.18);
 }
 
 /* ── Landing page: backgrounds ─────────────────────────────────────────────── */
 .bg-grid-dots {
-  background-image: radial-gradient(circle, rgba(59, 130, 246, 0.07) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(109, 184, 204, 0.07) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 .hero-glow {
   background: radial-gradient(
     ellipse 600px 400px at 50% 40%,
-    rgba(59, 130, 246, 0.1) 0%,
-    rgba(59, 130, 246, 0.03) 40%,
+    rgba(109, 184, 204, 0.1) 0%,
+    rgba(109, 184, 204, 0.03) 40%,
     transparent 70%
   );
 }
@@ -300,14 +308,16 @@ a, button, [role="button"], input, select, textarea,
   --color-text-secondary: #374151;   /* ~8:1 on canvas  */
   --color-text-muted:     #6B7280;   /* ~4.5:1 on canvas — AA compliant */
 
-  /* Azure — darker shade for WCAG AA contrast on light backgrounds */
-  --color-azure:        #2563EB;
+  /* Accent — darker shade for WCAG AA contrast on light backgrounds */
+  --color-accent:       #3d92a6;
+  --color-accent-dim:   #357f91;
+  --color-azure:        var(--color-accent);
 
   /* Accent dims — slightly stronger on light backgrounds */
-  --color-azure-dim:    rgba(59,130,246,0.12);
-  --color-azure-glow:   rgba(59,130,246,0.06);
-  --color-indigo-dim:   rgba(59,130,246,0.12);
-  --color-indigo-glow:  rgba(59,130,246,0.06);
+  --color-azure-dim:    rgba(109,184,204,0.12);
+  --color-azure-glow:   rgba(109,184,204,0.06);
+  --color-indigo-dim:   rgba(109,184,204,0.12);
+  --color-indigo-glow:  rgba(109,184,204,0.06);
   --color-amber-dim:    rgba(245,158,11,0.12);
   --color-red-dim:      rgba(239,68,68,0.10);
 }
@@ -334,8 +344,8 @@ a, button, [role="button"], input, select, textarea,
 .light .text-zinc-200 { color: #111827; }
 .light .text-zinc-300 { color: #374151; }
 
-/* Sidebar active item background: zinc-800/80 → azure-dim */
-.light .bg-zinc-800\/80 { background-color: rgba(59,130,246,0.10); }
+/* Sidebar active item background: zinc-800/80 → accent-muted */
+.light .bg-zinc-800\/80 { background-color: rgba(109,184,204,0.10); }
 .light .bg-zinc-800 { background-color: var(--color-surface-2); }
 .light .bg-zinc-700 { background-color: var(--color-surface-3); }
 
