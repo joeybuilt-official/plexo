@@ -42,7 +42,7 @@ export function FirstRunBanner() {
     const upCount = services.filter(s => s.status === 'up').length
 
     return (
-        <div className="border-b border-azure/40 bg-surface-1 px-4 py-2">
+        <div className="border-b border-accent/30 bg-surface-1 px-4 py-2">
             <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                     <Wand2 className="h-4 w-4 shrink-0 text-azure" />
@@ -58,7 +58,7 @@ export function FirstRunBanner() {
                 </div>
                 <Link
                     href="/app/intelligence/wizard"
-                    className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-azure bg-surface-1 px-2.5 py-1 text-[11px] text-azure ring-1 ring-azure/40 transition-colors hover:text-text-primary"
+                    className="inline-flex shrink-0 items-center gap-1 rounded border border-accent bg-surface-1 px-2.5 py-1 text-[11px] text-accent transition-colors hover:bg-accent-muted hover:text-text-primary"
                 >
                     Open wizard <ArrowRight className="h-3 w-3" />
                 </Link>

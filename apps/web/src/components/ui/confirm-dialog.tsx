@@ -99,12 +99,12 @@ function ConfirmDialog({
         ? 'bg-red/90 hover:bg-red text-white'
         : variant === 'warning'
             ? 'bg-amber/90 hover:bg-amber text-black'
-            : 'bg-azure hover:bg-azure/90 text-text-primary'
+            : 'bg-accent hover:bg-accent-dim text-white'
 
     return (
         <div ref={trapRef} className="fixed inset-0 z-[100] flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-desc">
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
+            <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
             {/* Panel */}
             <div className="relative mx-4 w-full max-w-md rounded border border-border bg-surface-1 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-start gap-3 p-5">

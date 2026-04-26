@@ -24,7 +24,7 @@ export function PlexoAwarenessBadge({ action, model, compact }: PlexoAwarenessBa
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="plexo-awareness-badge"
-                className="inline-flex items-center gap-1 rounded-sm bg-surface-1 px-2 py-0.5 text-[11px] text-text-muted hover:text-text-primary transition-colors border border-border"
+                className="inline-flex items-center gap-1 rounded bg-surface-1 px-2 py-0.5 text-[11px] text-text-muted hover:text-text-primary transition-colors border border-border"
                 title={`${action}${model ? ` · ${model}` : ''}`}
             >
                 <PlexoIcon />
@@ -38,7 +38,7 @@ export function PlexoAwarenessBadge({ action, model, compact }: PlexoAwarenessBa
             target="_blank"
             rel="noopener noreferrer"
             data-testid="plexo-awareness-badge"
-            className="inline-flex items-center gap-1.5 rounded-sm bg-surface-1 px-2.5 py-1 text-[11px] text-text-muted hover:text-text-primary transition-colors border border-border"
+            className="inline-flex items-center gap-1.5 rounded bg-surface-1 px-2.5 py-1 text-[11px] text-text-muted hover:text-text-primary transition-colors border border-border"
         >
             <PlexoIcon />
             <span>{action}</span>

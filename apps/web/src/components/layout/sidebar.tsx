@@ -277,7 +277,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                 className={`flex min-h-[64px] h-16 w-full items-center ${collapsed ? "justify-center" : "gap-3 px-3"} hover:bg-surface-1/60 transition-colors cursor-pointer ${className}`}
             >
                 {/* App icon */}
-                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded bg-azure/10 ring-1 ring-inset ring-azure/20">
+                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded bg-accent-muted border border-accent/20">
                     <PlexoMark className="w-7 h-7 text-azure" />
                     {updateAvailable && collapsed && (
                         <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-sm bg-azure ring-2 ring-canvas animate-pulse" />
@@ -357,11 +357,11 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
                                         if (e.key === 'Escape') { setCreating(false); setNewName('') }
                                     }}
                                     placeholder="Workspace name"
-                                    className="flex-1 rounded-sm border border-border bg-canvas px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                    className="flex-1 rounded-sm border border-border bg-canvas px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-accent focus-ring"
                                 />
                                 <button
                                     onClick={() => void handleCreate()}
-                                    className="rounded-sm bg-azure px-2 py-1 text-[11px] font-medium text-white hover:bg-azure/90"
+                                    className="rounded bg-accent px-2 py-1 text-[11px] font-medium text-white hover:bg-accent-dim"
                                 >
                                     Add
                                 </button>

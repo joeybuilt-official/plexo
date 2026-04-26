@@ -148,7 +148,7 @@ export async function DashboardCards() {
                     <div
                         key={card.title}
                         id={`dashboard-card-${card.title.toLowerCase().replace(/\s+/g, '-')}`}
-                        className="card-glow group rounded-sm border border-border bg-surface-1/50 transition-all hover:border-border"
+                        className="card-glow group rounded border border-border bg-surface-1 transition-all"
                     >
                         {/* Card Header */}
                         <div className="flex items-center gap-3 border-b border-border-subtle p-4">

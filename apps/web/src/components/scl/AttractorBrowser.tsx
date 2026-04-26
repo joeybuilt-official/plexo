@@ -95,7 +95,7 @@ export function AttractorBrowser({ workspaceId }: { workspaceId: string }) {
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         placeholder="Filter attractors..."
-                        className="w-full rounded border border-border bg-surface-1 pl-7 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                        className="w-full rounded border border-border bg-surface-1 pl-7 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus-ring"
                     />
                 </div>
                 <div className="flex items-center gap-1 rounded border border-border bg-canvas p-0.5">
@@ -103,7 +103,7 @@ export function AttractorBrowser({ workspaceId }: { workspaceId: string }) {
                         <button
                             key={v}
                             onClick={() => setDepthFilter(v)}
-                            className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                            className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
                                 depthFilter === v
                                     ? 'bg-surface-2 text-text-primary'
                                     : 'text-text-muted hover:text-text-secondary'
@@ -123,10 +123,10 @@ export function AttractorBrowser({ workspaceId }: { workspaceId: string }) {
                         const region = regionMap.get(regionId)
                         const expanded = expandedRegion === regionId
                         return (
-                            <div key={regionId} className="rounded border border-border/60 bg-surface-1/40 overflow-hidden">
+                            <div key={regionId} className="rounded border border-border bg-surface-1 overflow-hidden">
                                 <button
                                     onClick={() => setExpandedRegion(expanded ? null : regionId)}
-                                    className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-1/60 transition-colors"
+                                    className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-2/40 transition-colors"
                                 >
                                     {expanded ? <ChevronDown className="h-3.5 w-3.5 text-text-muted" /> : <ChevronRight className="h-3.5 w-3.5 text-text-muted" />}
                                     <span className="text-xs font-medium text-text-primary">{region?.label ?? regionId}</span>

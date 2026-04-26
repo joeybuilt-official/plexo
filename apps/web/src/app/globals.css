@@ -376,6 +376,49 @@ a, button, [role="button"], input, select, textarea,
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
   }
+
+  /* ── V2 Button Variants ──────────────────────────────────────────────────── */
+  /* Primary: accent bg, white text, accent-dim hover */
+  .btn-primary {
+    @apply inline-flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-dim transition-colors focus-ring;
+  }
+  /* Secondary: text + arrow, no bg, accent text */
+  .btn-secondary {
+    @apply inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover transition-colors focus-ring;
+  }
+  .btn-secondary::after {
+    content: '\2192';
+    display: inline-block;
+    margin-left: 2px;
+    transition: transform 150ms ease;
+  }
+  .btn-secondary:hover::after {
+    transform: translateX(2px);
+  }
+  /* Inline: accent underline, for in-text links */
+  .btn-inline {
+    @apply text-xs font-medium text-accent underline underline-offset-2 decoration-accent/40 hover:decoration-accent transition-colors focus-ring;
+  }
+
+  /* ── V2 Status Bracket Stamps ────────────────────────────────────────────── */
+  .stamp {
+    @apply inline-flex items-center font-mono text-[11px] font-medium uppercase tracking-wider;
+  }
+  .stamp::before { content: '['; }
+  .stamp::after  { content: ']'; }
+  .stamp-active  { @apply text-accent; }
+  .stamp-idle    { @apply text-text-muted; }
+  .stamp-error   { @apply text-red; }
+  .stamp-warning { @apply text-amber; }
+  .stamp-success { @apply text-signal-green; }
+
+  /* ── V2 Blinking Cursor Loader ───────────────────────────────────────────── */
+  .loading-cursor::after {
+    content: '_';
+    animation: blink 1s step-end infinite;
+    color: var(--color-accent);
+    margin-left: 1px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

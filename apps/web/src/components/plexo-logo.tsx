@@ -129,7 +129,7 @@ export function PlexoLogo({
     <div className={`flex items-center gap-3 ${className || ''}`}>
       <PlexoMark className="w-8 h-8 shrink-0" idle={idle} working={working} />
       {showWordmark && (
-        <span className="font-display font-semibold text-xl tracking-tight text-text-primary leading-none" style={{ letterSpacing: '-0.03em' }}>plexo</span>
+        <span className="font-display font-semibold text-xl tracking-tight text-text-primary leading-none" style={{ letterSpacing: '-0.03em' }}>_plexo</span>
       )}
     </div>
   )

@@ -328,7 +328,7 @@ export function UpdateModal() {
 
                     {/* Header */}
                     <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 rounded bg-azure/10 ring-1 ring-inset ring-azure/20 flex items-center justify-center shrink-0">
+                        <div className="h-11 w-11 rounded bg-accent-muted border border-accent/20 flex items-center justify-center shrink-0">
                             <PlexoMark
                                 className="h-7 w-7"
                                 idle={!updating}
@@ -350,7 +350,7 @@ export function UpdateModal() {
                     </div>
 
                     {/* Version diff */}
-                    <div className="flex items-center gap-3 p-3 rounded bg-surface-2/60 border border-border/50">
+                    <div className="flex items-center gap-3 p-3 rounded bg-surface-1 border border-border">
                         <div className="flex-1">
                             <p className="text-xs text-text-muted mb-1">Current</p>
                             <code className="text-sm font-mono text-text-secondary">v{versionInfo.current}</code>
@@ -383,7 +383,7 @@ export function UpdateModal() {
                     {versionInfo.changelog && (
                         <div>
                             <p className="text-xs text-text-secondary mb-2 font-medium">What&apos;s new</p>
-                            <div className="h-28 overflow-y-auto rounded-md bg-surface-2/40 border border-border/50 p-3 scroll-smooth">
+                            <div className="h-28 overflow-y-auto rounded bg-surface-2 border border-border p-3 scroll-smooth">
                                 <pre className="text-xs text-text-secondary whitespace-pre-wrap font-sans leading-relaxed">
                                     {versionInfo.changelog}
                                 </pre>
@@ -397,7 +397,7 @@ export function UpdateModal() {
                             <p className="text-xs text-text-secondary mb-2 font-medium flex items-center gap-1.5">
                                 <Terminal className="h-3 w-3" /> Update log
                             </p>
-                            <div className="h-32 overflow-y-auto rounded-md bg-black/60 border border-border/50 p-3 space-y-1">
+                            <div className="h-32 overflow-y-auto rounded bg-canvas border border-border p-3 space-y-1">
                                 {logs.map((log, i) => (
                                     <div key={i} className={cn('text-xs font-mono flex items-start gap-2', {
                                         'text-text-secondary': log.type === 'status' || log.type === 'progress',
@@ -494,7 +494,7 @@ export function UpdateModal() {
                                         className={cn("h-8 px-3 text-xs rounded font-medium transition-colors flex items-center gap-1.5",
                                             awaitingRestart && !restartTimedOut 
                                                 ? "bg-surface-2 text-text-muted cursor-wait"
-                                                : "bg-azure hover:bg-azure/90 text-white"
+                                                : "bg-accent hover:bg-accent-dim text-white"
                                         )}
                                     >
                                         {awaitingRestart && !restartTimedOut ? (
@@ -508,7 +508,7 @@ export function UpdateModal() {
                                 ) : (
                                     <button
                                         onClick={() => window.location.reload()}
-                                        className="h-8 px-3 text-xs rounded bg-azure hover:bg-azure/90 text-white font-medium transition-colors"
+                                        className="h-8 px-3 text-xs rounded bg-accent hover:bg-accent-dim text-white font-medium transition-colors"
                                     >
                                         Reload Page
                                     </button>
@@ -526,7 +526,7 @@ export function UpdateModal() {
                                         <button
                                             onClick={() => void handleUpdate()}
                                             disabled={updating}
-                                            className="h-8 px-3 text-xs rounded bg-azure hover:bg-azure/90 text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                                            className="h-8 px-3 text-xs rounded bg-accent hover:bg-accent-dim text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
                                         >
                                             {updating ? (
                                                 <><PlexoMark className="h-3.5 w-3.5" idle={false} working /> Updating…</>

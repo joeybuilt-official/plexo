@@ -64,9 +64,6 @@ function GitHubNotConnected({ onClose }: { onClose?: () => void }) {
         <div className="flex items-center justify-center h-full w-full" onClick={onClose}>
             <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500" onClick={(e) => e.stopPropagation()}>
                 <div className="bg-surface-2/60 border border-border/60 rounded p-6 relative overflow-hidden">
-                    {/* Top glow */}
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-amber/10 blur-[50px] pointer-events-none rounded" />
-
                     {/* Close button */}
                     {onClose && (
                         <button
@@ -245,9 +242,6 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
         <div className={`flex items-center justify-center h-full w-full ${className}`} onClick={onClose}>
             <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500" onClick={(e) => e.stopPropagation()}>
                 <div className="bg-surface-2/60 border border-border/60 rounded p-6 relative overflow-hidden group">
-                    {/* Top glow */}
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-azure/20 blur-[50px] pointer-events-none rounded" />
-
                     {/* Close button */}
                     {onClose && (
                         <button

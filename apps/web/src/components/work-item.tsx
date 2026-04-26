@@ -41,7 +41,7 @@ export function WorkItem({ work }: { work: TaskWork }) {
     switch (work.type) {
         case 'file':
             return (
-                <div className="flex items-center gap-2 rounded border border-border/60 bg-surface-1/40 px-3 py-2">
+                <div className="flex items-center gap-2 rounded border border-border bg-surface-1 px-3 py-2">
                     <FileCode className="h-3.5 w-3.5 text-azure shrink-0" />
                     <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs font-medium text-text-primary">{work.label}</span>
@@ -53,7 +53,7 @@ export function WorkItem({ work }: { work: TaskWork }) {
 
         case 'diff':
             return (
-                <div className="rounded border border-border/60 bg-surface-1/40 overflow-hidden">
+                <div className="rounded border border-border bg-surface-1 overflow-hidden">
                     <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40">
                         <FileDiff className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
                         <span className="text-xs font-medium text-text-primary">{work.label}</span>
@@ -64,7 +64,7 @@ export function WorkItem({ work }: { work: TaskWork }) {
 
         case 'url':
             return (
-                <div className="flex items-center gap-2 rounded border border-border/60 bg-surface-1/40 px-3 py-2">
+                <div className="flex items-center gap-2 rounded border border-border bg-surface-1 px-3 py-2">
                     <ExternalLink className="h-3.5 w-3.5 text-azure shrink-0" />
                     <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs font-medium text-text-primary">{work.label}</span>
@@ -82,7 +82,7 @@ export function WorkItem({ work }: { work: TaskWork }) {
 
         case 'data':
             return (
-                <details className="rounded border border-border/60 bg-surface-1/40 overflow-hidden group/data">
+                <details className="rounded border border-border bg-surface-1 overflow-hidden group/data">
                     <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-surface-2/40 transition-colors list-none">
                         <Database className="h-3.5 w-3.5 text-text-muted shrink-0" />
                         <span className="text-xs font-medium text-text-primary flex-1">{work.label}</span>
@@ -100,7 +100,7 @@ export function WorkItem({ work }: { work: TaskWork }) {
 
         case 'command':
             return (
-                <div className="flex items-start gap-2 rounded border border-border/60 bg-surface-1/40 px-3 py-2">
+                <div className="flex items-start gap-2 rounded border border-border bg-surface-1 px-3 py-2">
                     <Terminal className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs font-medium text-text-primary">{work.label}</span>

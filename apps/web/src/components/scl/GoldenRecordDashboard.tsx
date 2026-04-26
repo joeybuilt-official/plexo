@@ -89,7 +89,7 @@ export function GoldenRecordDashboard({ workspaceId }: { workspaceId: string }) 
 
     if (!meta || !meta.booted) {
         return (
-            <div className="rounded border border-border/60 bg-surface-1/40 p-5 flex flex-col items-center gap-3">
+            <div className="rounded border border-border bg-surface-1 p-5 flex flex-col items-center gap-3">
                 <Brain className="h-8 w-8 text-text-muted" />
                 <p className="text-sm text-text-muted text-center">
                     Golden Record not initialized. Boot to create the semantic knowledge lattice.
@@ -97,7 +97,7 @@ export function GoldenRecordDashboard({ workspaceId }: { workspaceId: string }) 
                 <button
                     onClick={() => void handleBoot()}
                     disabled={booting}
-                    className="rounded bg-azure px-4 py-2 text-sm font-medium text-white hover:bg-azure/90 disabled:opacity-50"
+                    className="btn-primary disabled:opacity-50"
                 >
                     {booting ? (
                         <span className="flex items-center gap-2"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Booting...</span>
@@ -170,7 +170,7 @@ export function GoldenRecordDashboard({ workspaceId }: { workspaceId: string }) 
 
 function StatCard({ icon: Icon, label, value, accent }: { icon: React.ElementType; label: string; value: number; accent: string }) {
     return (
-        <div className="rounded border border-border bg-surface-1/40 p-3">
+        <div className="rounded border border-border bg-surface-1 p-3">
             <div className="flex items-center gap-1.5 mb-1">
                 <Icon className={`h-3 w-3 ${accent}`} />
                 <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">{label}</p>

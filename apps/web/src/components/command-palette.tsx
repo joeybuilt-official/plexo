@@ -198,7 +198,7 @@ export function CommandPalette() {
     return (
         <div
             ref={trapRef}
-            className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 bg-black/50"
+            className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 bg-black/60"
             onClick={() => setOpen(false)}
             role="dialog"
             aria-modal="true"

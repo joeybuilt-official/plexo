@@ -333,7 +333,7 @@ export function PersonalityChooser({ onComplete, onSkip, hideSkip }: Personality
 
                     {/* Avatar preview */}
                     <div className="flex flex-col items-center gap-2">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-full text-3xl shadow-azure/20">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-sm border border-border text-3xl">
                             {agentAvatar}
                         </div>
                         <span className="text-sm font-medium text-text-primary">{agentName || 'Plexo'}</span>

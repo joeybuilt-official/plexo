@@ -140,8 +140,8 @@ export function ConfigListLayout<T>({
                                         onClick={() => onSelect(item)}
                                         className={`text-left rounded border px-3 py-2.5 transition-all text-sm shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${
                                             selected
-                                                ? 'border-azure/50 bg-surface-1'
-                                                : 'border-border/60 bg-surface-1/30 hover:border-border hover:bg-surface-1/60'
+                                                ? 'border-accent-dim bg-surface-1'
+                                                : 'border-border bg-surface-1 hover:border-accent-dim'
                                         }`}
                                     >
                                         {renderListItem(item, { selected })}
@@ -153,7 +153,7 @@ export function ConfigListLayout<T>({
                 </div>
 
                 {/* Right panel — detail */}
-                <div className="flex-1 rounded border border-border bg-surface-1/40 flex flex-col overflow-hidden max-w-[100vw] sm:max-w-none">
+                <div className="flex-1 rounded border border-border bg-surface-1 flex flex-col overflow-hidden max-w-[100vw] sm:max-w-none">
                     {detail ?? emptyDetail ?? (
                         <div className="flex-1 flex items-center justify-center">
                             <p className="text-sm text-text-muted">Select an item</p>

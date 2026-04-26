@@ -132,7 +132,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                     placeholder={placeholder}
                     rows={1}
                     disabled={sending || isListening}
-                    className="flex-1 resize-none rounded-sm border border-border bg-surface-1/80 px-4 py-3.5 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-text-muted/40 focus:ring-0 disabled:opacity-50 max-h-32 leading-relaxed transition-all"
+                    className="flex-1 resize-none rounded border border-border bg-surface-1 px-4 py-3.5 text-[16px] md:text-sm font-mono text-text-primary placeholder:text-text-muted placeholder:font-mono focus:outline-none focus:border-accent-dim focus:ring-1 focus:ring-accent/20 disabled:opacity-50 max-h-32 leading-relaxed transition-all"
                     style={{ minHeight: '48px' }}
                 />
 
@@ -141,7 +141,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                     onClick={onSend}
                     disabled={sending || (!input.trim() && pastedImages.length === 0 && pastedDocs.length === 0) || isListening}
                     aria-label={sending ? 'Sending…' : 'Send message'}
-                    className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-sm bg-azure p-3 text-text-primary hover:bg-azure/90 disabled:opacity-40"
+                    className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded bg-accent p-3 text-white hover:bg-accent-dim disabled:opacity-40 transition-colors"
                 >
                     {sending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </button>

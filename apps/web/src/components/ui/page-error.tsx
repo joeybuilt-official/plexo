@@ -22,7 +22,7 @@ export function PageError({ message = 'Something went wrong', detail, onRetry }:
             {onRetry && (
                 <button
                     onClick={onRetry}
-                    className="mt-4 flex items-center gap-1.5 rounded border border-border px-3 py-2 text-xs text-text-secondary hover:text-text-primary transition-colors"
+                    className="btn-secondary mt-4"
                 >
                     Try again
                 </button>
