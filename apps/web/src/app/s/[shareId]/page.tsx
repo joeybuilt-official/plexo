@@ -111,7 +111,7 @@ export default async function SharePage(
                     <span>{share.viewCount} {share.viewCount === 1 ? 'view' : 'views'}</span>
                 </div>
 
-                <div className="mt-6 border border-border rounded-xl p-6 bg-surface overflow-auto">
+                <div className="mt-6 border border-border rounded p-6 bg-surface overflow-auto">
                     <ShareContent
                         content={artifact.content}
                         filename={artifact.filename}

@@ -110,7 +110,7 @@ export default function GithubSetupPage() {
 
                 {/* Header */}
                 <div className="mb-10">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-surface-2/50">
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded border border-border bg-surface-2/50">
                         <Github className="h-6 w-6 text-text-secondary" />
                     </div>
                     <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
@@ -129,7 +129,7 @@ export default function GithubSetupPage() {
                         return (
                             <div
                                 key={step.number}
-                                className="rounded-2xl border border-border bg-surface-1/50 p-6"
+                                className="rounded border border-border bg-surface-1/50 p-6"
                             >
                                 <div className="mb-4 flex items-start gap-4">
                                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-azure-dim border border-azure/20">

@@ -84,11 +84,11 @@ export default function InvitePage() {
 
     return (
         <div className="min-h-screen bg-canvas flex items-center justify-center p-4">
-            <div className="w-full max-w-sm rounded-2xl border border-border bg-surface-1 p-8 flex flex-col gap-5">
+            <div className="w-full max-w-sm rounded border border-border bg-surface-1 p-8 flex flex-col gap-5">
                 {/* Logo / brand */}
                 <div className="flex items-center gap-2 justify-center mb-2">
                     <div className="h-8 w-8 flex items-center justify-center">
-                        <PlexoMark className="h-6 w-6 text-azure drop-shadow-lg" />
+                        <PlexoMark className="h-6 w-6 text-azure" />
                     </div>
                     <span className="font-semibold text-text-primary text-lg">Plexo</span>
                 </div>
@@ -124,7 +124,7 @@ export default function InvitePage() {
 
                         <button
                             onClick={() => void accept()}
-                            className="flex items-center justify-center gap-2 rounded-xl bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors"
+                            className="flex items-center justify-center gap-2 rounded bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors"
                         >
                             Accept invitation
                         </button>

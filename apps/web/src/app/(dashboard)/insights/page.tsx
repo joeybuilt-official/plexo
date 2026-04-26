@@ -95,15 +95,15 @@ export default function InsightsPage() {
 
             {/* Main graph */}
             {loading ? (
-                <div className="h-96 rounded-xl border border-border bg-surface-1/40 animate-pulse" />
+                <div className="h-96 rounded border border-border bg-surface-1/40 animate-pulse" />
             ) : hasData ? (
-                <div className="rounded-xl border border-border bg-surface-1/40 p-4">
+                <div className="rounded border border-border bg-surface-1/40 p-4">
                     <MindsetObjectViewer mindset={mindset!} className="h-96" />
                 </div>
             ) : (
                 <div
                     data-testid="memory-empty-state"
-                    className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-1/20 p-16 text-center space-y-3"
+                    className="flex flex-col items-center justify-center rounded border border-dashed border-border bg-surface-1/20 p-16 text-center space-y-3"
                 >
                     <Brain className="h-12 w-12 text-text-muted/40" />
                     <h3 className="text-base font-medium text-text-secondary">

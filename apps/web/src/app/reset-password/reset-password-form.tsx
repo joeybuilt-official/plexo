@@ -65,13 +65,13 @@ export function ResetPasswordForm() {
             <div className="relative w-full max-w-sm">
                 <div className="mb-8 text-center">
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
-                        <PlexoMark className="h-10 w-10 text-text-primary drop-shadow-lg" />
+                        <PlexoMark className="h-10 w-10 text-text-primary" />
                     </div>
                     <h1 className="text-lg font-semibold tracking-tight text-text-primary">Set a new password</h1>
                     <p className="mt-1.5 text-sm text-text-muted">Pick something you won&apos;t forget.</p>
                 </div>
 
-                <div className="rounded-2xl border border-border bg-surface-1 p-6 shadow-xl backdrop-blur-sm">
+                <div className="rounded border border-border bg-surface-1 p-6">
                     {success ? (
                         <div className="space-y-3 text-sm text-text-primary">
                             <p>Password updated. Redirecting to sign in…</p>

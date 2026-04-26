@@ -62,9 +62,9 @@ export function VerifyEmailClient() {
         <div className="flex min-h-screen items-center justify-center bg-surface-1 px-4 py-10">
             <div className="relative w-full max-w-sm text-center">
                 <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
-                    <PlexoMark className="h-10 w-10 text-text-primary drop-shadow-lg" />
+                    <PlexoMark className="h-10 w-10 text-text-primary" />
                 </div>
-                <div className="rounded-2xl border border-border bg-surface-1 p-8 shadow-xl">
+                <div className="rounded border border-border bg-surface-1 p-8">
                     <div className="mb-4 flex justify-center">
                         {phase === 'pending' && <Loader2 className="h-8 w-8 animate-spin text-text-muted" />}
                         {phase === 'ok' && <CheckCircle2 className="h-8 w-8 text-text-primary" />}

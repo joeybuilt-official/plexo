@@ -122,7 +122,7 @@ export default async function LandingPage() {
             <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 border-b border-border/50 bg-canvas/80">
                 <div className="flex items-center gap-2.5">
                     <PlexoMark className="h-7 w-7" />
-                    <span className="font-display text-lg font-semibold tracking-tight">Plexo</span>
+                    <span className="font-display text-lg font-semibold tracking-tight" style={{ letterSpacing: '-0.03em' }}>_plexo</span>
                 </div>
                 <nav className="flex items-center gap-5">
                     <a href="https://github.com/joeybuilt-official/plexo" target="_blank" rel="noopener noreferrer"

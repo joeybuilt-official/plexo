@@ -380,11 +380,11 @@ a, button, [role="button"], input, select, textarea,
   /* ── V2 Button Variants ──────────────────────────────────────────────────── */
   /* Primary: accent bg, white text, accent-dim hover */
   .btn-primary {
-    @apply inline-flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-dim transition-colors focus-ring;
+    @apply inline-flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-dim transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
   }
   /* Secondary: text + arrow, no bg, accent text */
   .btn-secondary {
-    @apply inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover transition-colors focus-ring;
+    @apply inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
   }
   .btn-secondary::after {
     content: '\2192';
@@ -397,7 +397,7 @@ a, button, [role="button"], input, select, textarea,
   }
   /* Inline: accent underline, for in-text links */
   .btn-inline {
-    @apply text-xs font-medium text-accent underline underline-offset-2 decoration-accent/40 hover:decoration-accent transition-colors focus-ring;
+    @apply text-xs font-medium text-accent underline underline-offset-2 decoration-accent/40 hover:decoration-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
   }
 
   /* ── V2 Status Bracket Stamps ────────────────────────────────────────────── */

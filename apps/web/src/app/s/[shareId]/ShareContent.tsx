@@ -87,7 +87,7 @@ export function ShareContent({ content, filename, kind, meta }: ShareContentProp
     // HTML — sandbox disallows scripts on public share pages to prevent XSS via shared content
     if (normalizedKind === 'html' || normalizedKind === 'mockup') {
         return (
-            <div className="rounded-xl border border-border overflow-hidden">
+            <div className="rounded border border-border overflow-hidden">
                 <iframe
                     srcDoc={content}
                     className="w-full min-h-[400px] bg-white"
