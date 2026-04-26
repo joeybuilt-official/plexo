@@ -1,20 +1,41 @@
-# Plexo Brand System
+# Plexo Brand System — V2 Geometric Precision
 
-Direction: **Delta Frame** -- open triangle, gap in base, 3 dots at vertices.
+Direction: **Tesseract Frame** -- outer square + inner 45deg-rotated square, projection lines, center node. Projects higher-dimensional structure into navigable 2D. Four connecting lines map to Plexo's four primitives: agents, memory, cognition, execution.
 
-## Canonical Colors
+## Personality
+
+Cold, architectural, mathematically rigorous. Dense information grids, not marketing fluff. Geometric transitions only -- elements translate on axis, no curves or overshoot. The tesseract's inner square rotates slowly during agent work (8s/rev); static at idle. Navy-black canvas avoids generic dark mode. High-saturation blue accent reads as precision instrument.
+
+## Canonical Color Tokens
+
+### Dark (default)
 
 | Token              | Hex       | Usage                          |
 |--------------------|-----------|--------------------------------|
-| `--color-bg-deep`  | `#242936` | Page canvas (dark)             |
-| `--color-bg`       | `#2e3748` | Card / panel surface           |
-| `--color-accent`   | `#6db8cc` | Primary brand accent           |
-| `--color-accent-dim` | `#5aa3b8` | Hover / pressed accent       |
-| `--color-text`     | `#e8edf2` | Primary text                   |
-| `--color-text-muted` | `#8a9ab0` | Secondary / label text       |
-| `--color-border`   | `#3d4a5c` | Borders                        |
+| `--color-canvas`   | `#101520` | Page background (navy-black)   |
+| `--color-surface-1`| `#161D2C` | Card / panel surface           |
+| `--color-surface-2`| `#1D2640` | Active surfaces                |
+| `--color-surface-3`| `#243052` | Selected, focused              |
+| `--color-border`   | `#253354` | Structural borders             |
+| `--color-border-subtle` | `#1C2744` | Grid lines, dividers      |
+| `--color-text-primary`  | `#E2E8F0` | Primary text             |
+| `--color-text-secondary`| `#8294B0` | Secondary / labels       |
+| `--color-text-muted`    | `#576A88` | Disabled / dimensional   |
+| `--color-accent`   | `#4DAAFC` | Primary brand accent           |
+| `--color-accent-dim`| `#3B8FDE`| Hover states                   |
+| `--color-signal-red`| `#F43F5E`| Errors, destructive            |
+| `--color-signal-green`| `#10B981`| Success, active, healthy     |
+| `--color-amber`    | `#F59E0B` | Warnings, one-way-door signal  |
 
-Light mode accent: `#3d92a6` (darker for WCAG AA on white).
+### Light
+
+| Token              | Hex       |
+|--------------------|-----------|
+| `--color-canvas`   | `#F7F8FC` |
+| `--color-accent`   | `#2B7DC0` |
+| `--color-text-primary` | `#101520` |
+
+Light mode accent darkened for WCAG AA compliance on white surfaces.
 
 ## Token Import
 
@@ -28,13 +49,14 @@ Tailwind classes resolve automatically:
 
 ## Font Stack
 
-| Role    | Family          | Weight | Notes                           |
-|---------|-----------------|--------|---------------------------------|
-| Display | Geist           | 600    | Headings, wordmark, nav         |
-| Body    | IBM Plex Sans   | 400    | Prose, descriptions, UI labels  |
-| Code    | JetBrains Mono  | 400    | Code blocks, terminal, IDs      |
+| Role    | Family          | Weight | Tracking    | Notes                           |
+|---------|-----------------|--------|-------------|--------------------------------|
+| Display | Geist           | 600    | -0.03em     | Headings, wordmark, nav         |
+| Heading | Geist           | 500    | default     | Section headers                 |
+| Body    | IBM Plex Sans   | 400    | default     | Prose, descriptions, UI labels  |
+| Data    | JetBrains Mono  | 400    | tabular-nums| Timestamps, IDs, code, status   |
 
-Wordmark text: Geist 600, 22px, letter-spacing -0.02em.
+Wordmark text: Geist 600, 22px, letter-spacing -0.03em.
 
 ## Assets
 
@@ -58,6 +80,12 @@ PNG export: open `export-png.html` in a browser and click the download buttons.
 - **Favicon**: use `plexo-favicon.svg` (inline or link rel)
 - **App manifest**: use `plexo-app-icon-512.png`
 - **Social / OG tags**: use `plexo-og-image.png`
-- **In-app UI**: use `plexo-symbol-mono.svg` with currentColor
+- **In-app UI**: use `PlexoMark` component or `plexo-symbol-mono.svg` with currentColor
 - **Marketing / landing**: use `plexo-wordmark-lockup.svg`
 - **Print / mono**: use `plexo-symbol-mono.svg`
+
+## Component
+
+`apps/web/src/components/plexo-logo.tsx` exports:
+- `PlexoMark` -- tesseract frame SVG with `idle` (projection shimmer) and `working` (inner rotation) states
+- `PlexoLogo` -- mark + wordmark lockup

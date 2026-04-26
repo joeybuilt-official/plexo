@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <title>Plexo PNG Export</title>
 <style>
-  body { margin: 2rem; font-family: system-ui; background: #1a1a1a; color: #eee; }
-  canvas { border: 1px solid #333; margin: 1rem 0; display: block; }
+  body { margin: 2rem; font-family: system-ui; background: #101520; color: #E2E8F0; }
+  canvas { border: 1px solid #253354; margin: 1rem 0; display: block; }
   button { padding: 0.5rem 1rem; margin: 0.25rem; cursor: pointer; }
   h2 { margin-top: 2rem; }
 </style>
 </head>
 <body>
-<h1>Plexo PNG Export</h1>
+<h1>Plexo PNG Export — V2 Geometric Precision</h1>
 <p>Click each button to download the PNG.</p>
 
 <h2>App Icon (512x512)</h2>
@@ -23,10 +23,39 @@
 <button onclick="download('og','plexo-og-image.png')">Download OG Image</button>
 
 <script>
-const ACCENT = '#6db8cc';
-const BG = '#2e3748';
-const BG_DEEP = '#242936';
-const TEXT = '#e8edf2';
+const ACCENT = '#4DAAFC';
+const BG = '#101520';
+const SURFACE = '#161D2C';
+const TEXT = '#E2E8F0';
+
+// Helper: draw tesseract frame at given center/size
+function tesseract(ctx, cx, cy, half, strokeW, projW) {
+  // Outer square
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = strokeW;
+  ctx.strokeRect(cx - half, cy - half, half * 2, half * 2);
+  // Inner rotated square (diamond)
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - half);
+  ctx.lineTo(cx + half, cy);
+  ctx.lineTo(cx, cy + half);
+  ctx.lineTo(cx - half, cy);
+  ctx.closePath();
+  ctx.stroke();
+  // Projection lines (vertical at left/right edges)
+  ctx.lineWidth = projW;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath(); ctx.moveTo(cx - half, cy - half); ctx.lineTo(cx - half, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + half, cy - half); ctx.lineTo(cx + half, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - half, cy + half); ctx.lineTo(cx - half, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + half, cy + half); ctx.lineTo(cx + half, cy); ctx.stroke();
+  ctx.globalAlpha = 1.0;
+  // Center node
+  ctx.fillStyle = ACCENT;
+  ctx.beginPath();
+  ctx.arc(cx, cy, half * 0.16, 0, Math.PI * 2);
+  ctx.fill();
+}
 
 // ── App Icon 512 ──
 (function() {
@@ -36,70 +65,32 @@ const TEXT = '#e8edf2';
   ctx.fillStyle = BG;
   roundRect(ctx, 0, 0, 512, 512, 96);
   ctx.fill();
-  // Delta frame
-  ctx.strokeStyle = ACCENT;
-  ctx.fillStyle = ACCENT;
-  ctx.lineWidth = 16;
-  ctx.lineCap = 'round';
-  // Left edge
-  ctx.beginPath(); ctx.moveTo(256, 106); ctx.lineTo(128, 362); ctx.stroke();
-  // Right edge
-  ctx.beginPath(); ctx.moveTo(256, 106); ctx.lineTo(384, 362); ctx.stroke();
-  // Base left
-  ctx.beginPath(); ctx.moveTo(128, 362); ctx.lineTo(213, 362); ctx.stroke();
-  // Base right
-  ctx.beginPath(); ctx.moveTo(299, 362); ctx.lineTo(384, 362); ctx.stroke();
-  // Dots
-  circle(ctx, 256, 106, 32);
-  circle(ctx, 128, 362, 32);
-  circle(ctx, 384, 362, 32);
+  tesseract(ctx, 256, 256, 170, 16, 6);
 })();
 
 // ── OG Image 1200x630 ──
 (function() {
   const c = document.getElementById('og');
   const ctx = c.getContext('2d');
-  ctx.fillStyle = BG_DEEP;
+  ctx.fillStyle = BG;
   ctx.fillRect(0, 0, 1200, 630);
 
-  // Centered delta frame (scaled from 48 viewBox, factor ~4)
-  const ox = 480, oy = 200, s = 5;
-  ctx.strokeStyle = ACCENT;
-  ctx.fillStyle = ACCENT;
-  ctx.lineWidth = 2 * s;
-  ctx.lineCap = 'round';
+  // Tesseract frame left of center
+  tesseract(ctx, 440, 315, 120, 6, 2.5);
 
-  const pts = {
-    top: [24*s + ox, 10*s + oy],
-    bl:  [12*s + ox, 34*s + oy],
-    br:  [36*s + ox, 34*s + oy],
-    gl:  [20*s + ox, 34*s + oy],
-    gr:  [28*s + ox, 34*s + oy],
-  };
-
-  ctx.beginPath(); ctx.moveTo(...pts.top); ctx.lineTo(...pts.bl); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(...pts.top); ctx.lineTo(...pts.br); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(...pts.bl); ctx.lineTo(...pts.gl); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(...pts.gr); ctx.lineTo(...pts.br); ctx.stroke();
-
-  circle(ctx, ...pts.top, 3*s);
-  circle(ctx, ...pts.bl, 3*s);
-  circle(ctx, ...pts.br, 3*s);
-
-  // "plexo" text
+  // "plexo" wordmark
   ctx.fillStyle = TEXT;
-  ctx.font = "600 44px 'Geist', 'Inter', system-ui, sans-serif";
-  ctx.letterSpacing = '-0.02em';
+  ctx.font = "600 56px 'Geist', system-ui, sans-serif";
+  ctx.letterSpacing = '-0.03em';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText('plexo', 54*s + ox, 28*s + oy);
-})();
+  ctx.fillText('plexo', 600, 300);
 
-function circle(ctx, x, y, r) {
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-}
+  // Tagline
+  ctx.fillStyle = '#8294B0';
+  ctx.font = "400 20px 'IBM Plex Sans', system-ui, sans-serif";
+  ctx.fillText('structured intelligence, precisely routed.', 600, 345);
+})();
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();

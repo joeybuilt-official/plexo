@@ -4,14 +4,14 @@
 import React from 'react'
 
 /**
- * PlexoMark — Delta Frame brand mark.
+ * PlexoMark — Tesseract Frame brand mark (V2 Geometric Precision).
  *
- * Open triangle with gap in the base, dots at all three vertices.
- * Matches brand/plexo-symbol-mono.svg geometry.
+ * Outer square + inner rotated 45deg square, projection lines at corners,
+ * center node. Reads as a 2D projection of higher-dimensional structure.
  *
  * Props:
- *   idle    — default; soft breathing pulse on nodes (2.4s cycle)
- *   working — agent is processing; faster pulse (0.9s cycle)
+ *   idle    — default; subtle projection-line shimmer (2.4s cycle)
+ *   working — agent processing; inner square slow rotation (8s/rev)
  */
 export function PlexoMark({
   className,
@@ -22,7 +22,7 @@ export function PlexoMark({
   idle?: boolean
   working?: boolean
 }) {
-  const mode = working ? 'mark-working' : idle ? 'mark-anim' : ''
+  const mode = working ? 'tf-working' : idle ? 'tf-idle' : ''
   return (
     <svg
       className={`plexo-mark ${mode} ${className || ''}`}
@@ -32,92 +32,83 @@ export function PlexoMark({
     >
       <style>
         {`
-          /* ── Idle: soft staggered breathe ───────────────────────────── */
-          @keyframes think-line {
-            0%, 100% { opacity: 0.25; }
-            50%       { opacity: 0.9; }
-          }
-          @keyframes think-core {
-            0%, 100% { opacity: 0.7; }
-            50%       { opacity: 1; }
-          }
-
-          /* ── Entry: lines draw in ──────────────────────────────────── */
-          @keyframes line-draw {
-            from { stroke-dashoffset: 60; }
+          /* ── Entry: geometric draw-in ──────────────────────────────── */
+          @keyframes tf-draw {
+            from { stroke-dashoffset: 200; }
             to   { stroke-dashoffset: 0; }
           }
-          @keyframes fade-in {
+          @keyframes tf-fade {
             from { opacity: 0; }
             to   { opacity: 1; }
           }
 
-          /* ── Idle state ────────────────────────────────────────────── */
-          .mark-anim .df-left {
-            stroke-dasharray: 60; stroke-dashoffset: 60;
-            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.4s forwards,
-                       think-line 2.4s ease-in-out 1.4s infinite;
+          /* ── Idle: projection lines shimmer ────────────────────────── */
+          @keyframes tf-proj-pulse {
+            0%, 100% { opacity: 0.25; }
+            50%       { opacity: 0.6; }
           }
-          .mark-anim .df-right {
-            stroke-dasharray: 60; stroke-dashoffset: 60;
-            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.55s forwards,
-                       think-line 2.4s ease-in-out 1.8s infinite;
-          }
-          .mark-anim .df-base-l {
-            stroke-dasharray: 60; stroke-dashoffset: 60;
-            animation: line-draw 0.3s cubic-bezier(0.16,1,0.3,1) 0.7s forwards,
-                       think-line 2.4s ease-in-out 2.0s infinite;
-          }
-          .mark-anim .df-base-r {
-            stroke-dasharray: 60; stroke-dashoffset: 60;
-            animation: line-draw 0.3s cubic-bezier(0.16,1,0.3,1) 0.8s forwards,
-                       think-line 2.4s ease-in-out 2.2s infinite;
-          }
-          .mark-anim .df-node {
-            animation: fade-in 0.4s cubic-bezier(0.16,1,0.3,1) 0.3s both,
-                       think-core 2.4s ease-in-out 1.4s infinite;
-          }
-
-          /* ── Working: faster simultaneous pulse ────────────────────── */
-          @keyframes work-line {
-            0%, 100% { opacity: 0.3; }
+          @keyframes tf-core-pulse {
+            0%, 100% { opacity: 0.7; }
             50%       { opacity: 1; }
           }
-          @keyframes work-core {
-            0%, 100% { opacity: 0.8; transform: scale(1); }
-            50%       { opacity: 1;   transform: scale(1.15); }
+
+          /* ── Idle state ────────────────────────────────────────────── */
+          .tf-idle .tf-outer {
+            stroke-dasharray: 200; stroke-dashoffset: 200;
+            animation: tf-draw 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s forwards;
+          }
+          .tf-idle .tf-inner {
+            stroke-dasharray: 200; stroke-dashoffset: 200;
+            animation: tf-draw 0.6s cubic-bezier(0.16,1,0.3,1) 0.4s forwards;
+          }
+          .tf-idle .tf-proj {
+            animation: tf-fade 0.4s ease 0.6s both,
+                       tf-proj-pulse 2.4s ease-in-out 1.2s infinite;
+          }
+          .tf-idle .tf-node {
+            animation: tf-fade 0.4s ease 0.5s both,
+                       tf-core-pulse 2.4s ease-in-out 1.2s infinite;
           }
 
-          .mark-working .df-left,
-          .mark-working .df-right,
-          .mark-working .df-base-l,
-          .mark-working .df-base-r {
-            animation: work-line 0.9s ease-in-out infinite;
+          /* ── Working: inner square rotates ─────────────────────────── */
+          @keyframes tf-rotate {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
           }
-          .mark-working .df-right  { animation-delay: 0.1s; }
-          .mark-working .df-base-l { animation-delay: 0.2s; }
-          .mark-working .df-base-r { animation-delay: 0.3s; }
-          .mark-working .df-node {
-            animation: work-core 0.9s ease-in-out infinite;
+          @keyframes tf-work-proj {
+            0%, 100% { opacity: 0.3; }
+            50%       { opacity: 0.8; }
           }
-          .mark-working .df-node-top    { transform-origin: 24px 10px; }
-          .mark-working .df-node-bl     { transform-origin: 12px 34px; }
-          .mark-working .df-node-br     { transform-origin: 36px 34px; }
+          @keyframes tf-work-core {
+            0%, 100% { opacity: 0.8; transform: scale(1); }
+            50%       { opacity: 1;   transform: scale(1.2); }
+          }
+
+          .tf-working .tf-inner {
+            transform-origin: 24px 24px;
+            animation: tf-rotate 8s linear infinite;
+          }
+          .tf-working .tf-proj {
+            animation: tf-work-proj 1.2s ease-in-out infinite;
+          }
+          .tf-working .tf-node {
+            transform-origin: 24px 24px;
+            animation: tf-work-core 1.2s ease-in-out infinite;
+          }
         `}
       </style>
       <g>
-        {/* Left edge: top -> bottom-left */}
-        <line className="df-left" x1="24" y1="10" x2="12" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        {/* Right edge: top -> bottom-right */}
-        <line className="df-right" x1="24" y1="10" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        {/* Base left segment (gap in center) */}
-        <line className="df-base-l" x1="12" y1="34" x2="20" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        {/* Base right segment (gap in center) */}
-        <line className="df-base-r" x1="28" y1="34" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        {/* Vertex dots */}
-        <circle className="df-node df-node-top" cx="24" cy="10" r="3" fill="currentColor"/>
-        <circle className="df-node df-node-bl" cx="12" cy="34" r="3" fill="currentColor"/>
-        <circle className="df-node df-node-br" cx="36" cy="34" r="3" fill="currentColor"/>
+        {/* Outer square */}
+        <rect className="tf-outer" x="8" y="8" width="32" height="32" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+        {/* Inner rotated square (diamond) */}
+        <polygon className="tf-inner" points="24,8 40,24 24,40 8,24" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+        {/* Projection lines (outer corners to nearest inner vertex) */}
+        <line className="tf-proj" x1="8" y1="8" x2="8" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5"/>
+        <line className="tf-proj" x1="40" y1="8" x2="40" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5"/>
+        <line className="tf-proj" x1="8" y1="40" x2="8" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5"/>
+        <line className="tf-proj" x1="40" y1="40" x2="40" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5"/>
+        {/* Center node */}
+        <circle className="tf-node" cx="24" cy="24" r="2.5" fill="currentColor"/>
       </g>
     </svg>
   )
@@ -138,7 +129,7 @@ export function PlexoLogo({
     <div className={`flex items-center gap-3 ${className || ''}`}>
       <PlexoMark className="w-8 h-8 shrink-0" idle={idle} working={working} />
       {showWordmark && (
-        <span className="font-display font-medium text-xl tracking-tight text-text-primary leading-none -mt-1 pt-1">plexo</span>
+        <span className="font-display font-semibold text-xl tracking-tight text-text-primary leading-none" style={{ letterSpacing: '-0.03em' }}>plexo</span>
       )}
     </div>
   )

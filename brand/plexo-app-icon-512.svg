@@ -1,10 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="96" fill="#2e3748"/>
-  <line x1="256" y1="106" x2="128" y2="362" stroke="#6db8cc" stroke-width="16" stroke-linecap="round"/>
-  <line x1="256" y1="106" x2="384" y2="362" stroke="#6db8cc" stroke-width="16" stroke-linecap="round"/>
-  <line x1="128" y1="362" x2="213" y2="362" stroke="#6db8cc" stroke-width="16" stroke-linecap="round"/>
-  <line x1="299" y1="362" x2="384" y2="362" stroke="#6db8cc" stroke-width="16" stroke-linecap="round"/>
-  <circle cx="256" cy="106" r="32" fill="#6db8cc"/>
-  <circle cx="128" cy="362" r="32" fill="#6db8cc"/>
-  <circle cx="384" cy="362" r="32" fill="#6db8cc"/>
+  <rect width="512" height="512" rx="96" fill="#101520"/>
+  <!-- Outer square -->
+  <rect x="86" y="86" width="340" height="340" stroke="#4DAAFC" stroke-width="16" fill="none"/>
+  <!-- Inner rotated square -->
+  <polygon points="256,86 426,256 256,426 86,256" stroke="#4DAAFC" stroke-width="16" fill="none"/>
+  <!-- Projection lines -->
+  <line x1="86" y1="86" x2="86" y2="256" stroke="#4DAAFC" stroke-width="6" opacity="0.5"/>
+  <line x1="426" y1="86" x2="426" y2="256" stroke="#4DAAFC" stroke-width="6" opacity="0.5"/>
+  <line x1="86" y1="426" x2="86" y2="256" stroke="#4DAAFC" stroke-width="6" opacity="0.5"/>
+  <line x1="426" y1="426" x2="426" y2="256" stroke="#4DAAFC" stroke-width="6" opacity="0.5"/>
+  <!-- Center node -->
+  <circle cx="256" cy="256" r="28" fill="#4DAAFC"/>
 </svg>

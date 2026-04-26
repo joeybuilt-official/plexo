@@ -10,14 +10,14 @@
  * etc.) — they do not resolve in this theme.
  *
  * Colors (use these class names):
- *   bg-canvas            — page background (#242936)
+ *   bg-canvas            — page background (#101520)
  *   bg-surface-1/2/3     — card / panel / pressed surface hierarchy
  *   border-border        — default border
  *   border-border-subtle — low-emphasis border
- *   text-text-primary    — primary body copy (#e8edf2)
- *   text-text-secondary  — secondary / label copy (#8a9ab0)
+ *   text-text-primary    — primary body copy (#E2E8F0)
+ *   text-text-secondary  — secondary / label copy (#8294B0)
  *   text-text-muted      — disabled / tertiary copy
- *   text-accent / bg-accent / border-accent         — brand accent (#6db8cc)
+ *   text-accent / bg-accent / border-accent         — brand accent (#4DAAFC)
  *   text-azure / bg-azure / border-azure            — alias → accent
  *   text-amber / bg-amber / border-amber            — warning / one-way-door
  *   text-red   / bg-red   / border-red              — error
@@ -35,37 +35,36 @@
 @variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* ── Joeybuilt Core Palette ─────────────────────────────────────────────── */
-  /* Plexo inherits Joeybuilt's steel-blue family with its own accent shift. */
+  /* ── Plexo V2: Geometric Precision ──────────────────────────────────────── */
+  /* Navy-black canvas, high-sat blue accent, architectural density.          */
 
   /* Surfaces */
-  --color-canvas:       #242936;   /* --color-bg-deep */
-  --color-surface-1:    #2e3748;   /* --color-bg */
-  --color-surface-2:    #364258;
-  --color-surface-3:    #3d4a5c;   /* --color-border (doubles as pressed) */
-  --color-border:       #3d4a5c;
-  --color-border-subtle:#333e50;
+  --color-canvas:       #101520;   /* Deep navy-black. Mathematical blackboard. */
+  --color-surface-1:    #161D2C;   /* Blueprint layer one. */
+  --color-surface-2:    #1D2640;   /* Active surfaces. */
+  --color-surface-3:    #243052;   /* Selected, focused. */
+  --color-border:       #253354;   /* Structural. Construction lines. */
+  --color-border-subtle:#1C2744;   /* Grid lines, dividers. */
 
   /* Text */
-  --color-text-primary: #e8edf2;   /* --color-text */
-  --color-text-secondary:#8a9ab0;  /* --color-text-muted */
-  --color-text-muted:   #6b7a92;
+  --color-text-primary: #E2E8F0;   /* Slate-50 equivalent. */
+  --color-text-secondary:#8294B0;  /* Blueprint annotation tone. */
+  --color-text-muted:   #576A88;   /* Dimensional labels. */
 
-  /* Core Palette */
-  /* Accent — Plexo variation of Joeybuilt steel-blue (hue 193°) */
-  --color-accent:       #6db8cc;
-  --color-accent-dim:   #5aa3b8;
-  --color-accent-hover: #82c6d6;
-  --color-accent-muted: rgba(109,184,204,0.14);
-  --color-accent-glow:  rgba(109,184,204,0.07);
+  /* Accent — high-sat electric blue, 20% more saturated than V1. */
+  --color-accent:       #4DAAFC;
+  --color-accent-dim:   #3B8FDE;
+  --color-accent-hover: #6DBCFF;
+  --color-accent-muted: rgba(77,170,252,0.12);
+  --color-accent-glow:  rgba(77,170,252,0.06);
 
-  /* Azure aliases — all existing bg-azure / text-azure / border-azure resolve here */
+  /* Azure aliases — backward compat for existing bg-azure / text-azure */
   --color-azure:        var(--color-accent);
   --color-azure-500:    var(--color-accent);
   --color-azure-600:    var(--color-accent-dim);
-  --color-azure-700:    #4d92a6;
-  --color-azure-800:    #3f7d8f;
-  --color-azure-900:    #336878;
+  --color-azure-700:    #2E78C2;
+  --color-azure-800:    #2466A8;
+  --color-azure-900:    #1A548E;
   --color-azure-dim:    var(--color-accent-muted);
   --color-azure-glow:   var(--color-accent-glow);
 
@@ -76,23 +75,27 @@
   --color-indigo-dim:   var(--color-accent-muted);
   --color-indigo-glow:  var(--color-accent-glow);
 
-  /* Amber — agent active / one-way-door signal */
+  /* Signal colors */
+  --color-signal-green: #10B981;
+  --color-signal-red:   #F43F5E;
+
+  /* Amber — warnings, one-way-door signal */
   --color-amber:        #F59E0B;
   --color-amber-500:    var(--color-amber);
   --color-amber-600:    #D97706;
   --color-amber-dim:    rgba(245,158,11,0.13);
 
-  --color-red:          #EF4444;
+  --color-red:          #F43F5E;
   --color-red-500:      var(--color-red);
   --color-red-600:      var(--color-red);
-  --color-red-dim:      rgba(239,68,68,0.12);
+  --color-red-dim:      rgba(244,63,94,0.12);
 
   /* Radius — Joeybuilt ceiling: 4px */
   --radius-md:          4px;  /* buttons, inputs */
   --radius-lg:          4px;  /* cards, panels */
   --radius-xl:          4px;  /* large surfaces */
 
-  /* Fonts */
+  /* Fonts — Geist tight-tracked display, JetBrains Mono for data, Plex for prose */
   --font-display: 'Geist', system-ui, sans-serif;
   --font-body:    'IBM Plex Sans', 'Inter', system-ui, sans-serif;
   --font-sans:    'IBM Plex Sans', 'Inter', system-ui, sans-serif;
@@ -284,33 +287,33 @@ a, button, [role="button"], input, select, textarea,
   --color-canvas:        #F7F8FC;
 
   /* Card / panel surfaces — clearly off-white, not white */
-  --color-surface-1:     #F1F3F7;
+  --color-surface-1:     #F0F2F8;
   /* Selected states, secondary backgrounds */
-  --color-surface-2:     #E5E8F0;
+  --color-surface-2:     #E4E8F2;
   /* Hover, pressed states */
-  --color-surface-3:     #D8DCE8;
+  --color-surface-3:     #D6DCE8;
 
-  /* Fully visible borders — no ghosting on light bg */
-  --color-border:        #C4C9D8;
-  --color-border-subtle: #D8DCE8;
+  /* Fully visible borders */
+  --color-border:        #C0C8D8;
+  --color-border-subtle: #D6DCE8;
 
-  /* Text — high contrast slate (passes WCAG AA on all surfaces above) */
-  --color-text-primary:   #0F1624;   /* ~15:1 on canvas */
-  --color-text-secondary: #374151;   /* ~8:1 on canvas  */
-  --color-text-muted:     #6B7280;   /* ~4.5:1 on canvas — AA compliant */
+  /* Text — high contrast (WCAG AA on all surfaces) */
+  --color-text-primary:   #101520;   /* near-black navy */
+  --color-text-secondary: #364050;
+  --color-text-muted:     #6B7280;
 
-  /* Accent — darker shade for WCAG AA contrast on light backgrounds */
-  --color-accent:       #3d92a6;
-  --color-accent-dim:   #357f91;
+  /* Accent — darker for WCAG AA on light backgrounds */
+  --color-accent:       #2B7DC0;
+  --color-accent-dim:   #236AA8;
   --color-azure:        var(--color-accent);
 
   /* Accent dims — slightly stronger on light backgrounds */
-  --color-azure-dim:    rgba(109,184,204,0.12);
-  --color-azure-glow:   rgba(109,184,204,0.06);
-  --color-indigo-dim:   rgba(109,184,204,0.12);
-  --color-indigo-glow:  rgba(109,184,204,0.06);
+  --color-azure-dim:    rgba(77,170,252,0.10);
+  --color-azure-glow:   rgba(77,170,252,0.05);
+  --color-indigo-dim:   rgba(77,170,252,0.10);
+  --color-indigo-glow:  rgba(77,170,252,0.05);
   --color-amber-dim:    rgba(245,158,11,0.12);
-  --color-red-dim:      rgba(239,68,68,0.10);
+  --color-red-dim:      rgba(244,63,94,0.10);
 }
 
 /* Light mode body */
@@ -336,7 +339,7 @@ a, button, [role="button"], input, select, textarea,
 .light .text-zinc-300 { color: #374151; }
 
 /* Sidebar active item background: zinc-800/80 → accent-muted */
-.light .bg-zinc-800\/80 { background-color: rgba(109,184,204,0.10); }
+.light .bg-zinc-800\/80 { background-color: rgba(77,170,252,0.10); }
 .light .bg-zinc-800 { background-color: var(--color-surface-2); }
 .light .bg-zinc-700 { background-color: var(--color-surface-3); }
 
