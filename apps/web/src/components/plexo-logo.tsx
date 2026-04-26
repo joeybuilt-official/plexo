@@ -4,14 +4,14 @@
 import React from 'react'
 
 /**
- * PlexoMark — Tesseract Frame brand mark (V2 Geometric Precision).
+ * PlexoMark — Delta Frame brand mark.
  *
- * Outer square + inner rotated 45deg square, projection lines at corners,
- * center node. Reads as a 2D projection of higher-dimensional structure.
+ * Open triangle with gap in base, 3 dots at vertices.
+ * The gap reads as a threshold — an open platform.
  *
  * Props:
- *   idle    — default; subtle projection-line shimmer (2.4s cycle)
- *   working — agent processing; inner square slow rotation (8s/rev)
+ *   idle    — default; subtle vertex-dot pulse (2.4s cycle)
+ *   working — agent processing; dots pulse faster, edges brighten
  */
 export function PlexoMark({
   className,
@@ -22,7 +22,7 @@ export function PlexoMark({
   idle?: boolean
   working?: boolean
 }) {
-  const mode = working ? 'tf-working' : idle ? 'tf-idle' : ''
+  const mode = working ? 'df-working' : idle ? 'df-idle' : ''
   return (
     <svg
       className={`plexo-mark ${mode} ${className || ''}`}
@@ -32,83 +32,46 @@ export function PlexoMark({
     >
       <style>
         {`
-          /* ── Entry: geometric draw-in ──────────────────────────────── */
-          @keyframes tf-draw {
-            from { stroke-dashoffset: 200; }
-            to   { stroke-dashoffset: 0; }
-          }
-          @keyframes tf-fade {
-            from { opacity: 0; }
-            to   { opacity: 1; }
-          }
-
-          /* ── Idle: projection lines shimmer ────────────────────────── */
-          @keyframes tf-proj-pulse {
-            0%, 100% { opacity: 0.25; }
-            50%       { opacity: 0.6; }
-          }
-          @keyframes tf-core-pulse {
+          @keyframes df-dot-pulse {
             0%, 100% { opacity: 0.7; }
             50%       { opacity: 1; }
           }
-
-          /* ── Idle state ────────────────────────────────────────────── */
-          .tf-idle .tf-outer {
-            stroke-dasharray: 200; stroke-dashoffset: 200;
-            animation: tf-draw 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s forwards;
+          @keyframes df-edge-draw {
+            from { stroke-dashoffset: 100; }
+            to   { stroke-dashoffset: 0; }
           }
-          .tf-idle .tf-inner {
-            stroke-dasharray: 200; stroke-dashoffset: 200;
-            animation: tf-draw 0.6s cubic-bezier(0.16,1,0.3,1) 0.4s forwards;
+          .df-idle .df-edge {
+            stroke-dasharray: 100; stroke-dashoffset: 100;
+            animation: df-edge-draw 0.5s cubic-bezier(0.16,1,0.3,1) 0.2s forwards;
           }
-          .tf-idle .tf-proj {
-            animation: tf-fade 0.4s ease 0.6s both,
-                       tf-proj-pulse 2.4s ease-in-out 1.2s infinite;
+          .df-idle .df-dot {
+            animation: df-dot-pulse 2.4s ease-in-out 0.6s infinite;
           }
-          .tf-idle .tf-node {
-            animation: tf-fade 0.4s ease 0.5s both,
-                       tf-core-pulse 2.4s ease-in-out 1.2s infinite;
+          @keyframes df-work-pulse {
+            0%, 100% { opacity: 0.6; r: 3; }
+            50%       { opacity: 1; r: 3.5; }
           }
-
-          /* ── Working: inner square rotates ─────────────────────────── */
-          @keyframes tf-rotate {
-            from { transform: rotate(0deg); }
-            to   { transform: rotate(360deg); }
+          .df-working .df-dot {
+            animation: df-work-pulse 1s ease-in-out infinite;
           }
-          @keyframes tf-work-proj {
-            0%, 100% { opacity: 0.3; }
-            50%       { opacity: 0.8; }
-          }
-          @keyframes tf-work-core {
-            0%, 100% { opacity: 0.8; transform: scale(1); }
-            50%       { opacity: 1;   transform: scale(1.2); }
-          }
-
-          .tf-working .tf-inner {
-            transform-origin: 24px 24px;
-            animation: tf-rotate 8s linear infinite;
-          }
-          .tf-working .tf-proj {
-            animation: tf-work-proj 1.2s ease-in-out infinite;
-          }
-          .tf-working .tf-node {
-            transform-origin: 24px 24px;
-            animation: tf-work-core 1.2s ease-in-out infinite;
+          .df-working .df-edge {
+            opacity: 0.9;
           }
         `}
       </style>
       <g>
-        {/* Outer square */}
-        <rect className="tf-outer" x="8" y="8" width="32" height="32" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-        {/* Inner rotated square (diamond) */}
-        <polygon className="tf-inner" points="24,8 40,24 24,40 8,24" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-        {/* Projection lines (outer corners to nearest inner vertex) */}
-        <line className="tf-proj" x1="8" y1="8" x2="8" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5"/>
-        <line className="tf-proj" x1="40" y1="8" x2="40" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5"/>
-        <line className="tf-proj" x1="8" y1="40" x2="8" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5"/>
-        <line className="tf-proj" x1="40" y1="40" x2="40" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5"/>
-        {/* Center node */}
-        <circle className="tf-node" cx="24" cy="24" r="2.5" fill="currentColor"/>
+        {/* Left edge */}
+        <line className="df-edge" x1="24" y1="10" x2="12" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Right edge */}
+        <line className="df-edge" x1="24" y1="10" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Base left segment */}
+        <line className="df-edge" x1="12" y1="34" x2="20" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Base right segment */}
+        <line className="df-edge" x1="28" y1="34" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Vertex dots */}
+        <circle className="df-dot" cx="24" cy="10" r="3" fill="currentColor"/>
+        <circle className="df-dot" cx="12" cy="34" r="3" fill="currentColor"/>
+        <circle className="df-dot" cx="36" cy="34" r="3" fill="currentColor"/>
       </g>
     </svg>
   )
