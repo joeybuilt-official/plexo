@@ -4,32 +4,45 @@
 'use client'
 
 import { useTheme } from 'next-themes'
-import { Sun, Moon } from 'lucide-react'
+import { Sun, Monitor, Moon } from 'lucide-react'
 import { useEffect, useState } from 'react'
+
+type ThemeMode = { value: string; Icon: typeof Sun; label: string }
+
+const modes: ThemeMode[] = [
+    { value: 'light', Icon: Sun, label: 'Light' },
+    { value: 'system', Icon: Monitor, label: 'System' },
+    { value: 'dark', Icon: Moon, label: 'Dark' },
+]
 
 export function ThemeToggle({ className = '' }: { className?: string }) {
     const [mounted, setMounted] = useState(false)
-    const { setTheme, resolvedTheme } = useTheme()
+    const { theme, setTheme } = useTheme()
 
     useEffect(() => { setMounted(true) }, [])
 
     if (!mounted) {
-        return <div className={`h-7 w-7 ${className}`} aria-hidden />
+        return <div className={`h-7 w-20 ${className}`} aria-hidden />
     }
 
-    const isDark = resolvedTheme === 'dark'
-
     return (
-        <button
-            id="theme-toggle"
-            onClick={() => setTheme(isDark ? 'light' : 'dark')}
-            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            aria-pressed={!isDark}
-            title={isDark ? 'Light mode' : 'Dark mode'}
-            className={`flex items-center justify-center rounded p-1.5 text-text-muted transition-colors hover:bg-surface-1 hover:text-text-primary ${className}`}
-        >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+        <div className={`inline-flex items-center gap-0.5 rounded bg-surface-2 p-0.5 ${className}`}>
+            {modes.map(({ value, Icon, label }) => (
+                <button
+                    key={value}
+                    onClick={() => setTheme(value)}
+                    aria-label={label}
+                    title={label}
+                    className={`rounded p-1.5 transition-colors ${
+                        theme === value
+                            ? 'bg-accent text-white'
+                            : 'text-text-muted hover:text-text-primary'
+                    }`}
+                >
+                    <Icon className="h-3.5 w-3.5" />
+                </button>
+            ))}
+        </div>
     )
 }
 

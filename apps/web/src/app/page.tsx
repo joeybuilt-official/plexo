@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { getAuth } from '@web/lib/auth'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { ScrollReveal, CopyButton } from '@web/components/landing-client'
+import { LandingThemeToggle } from '@web/components/landing-theme-toggle'
 
 /* ── Logo Strip Component ────────────────────────────────────────────────── */
 
@@ -87,6 +88,7 @@ export default async function LandingPage() {
                     <a href="https://hub.getplexo.com" target="_blank" rel="noopener noreferrer"
                         className="text-sm text-text-muted hover:text-text-primary transition-colors">Hub</a>
                     <Link href="/login" className="text-sm text-text-muted hover:text-text-primary transition-colors">Log in</Link>
+                    <LandingThemeToggle />
                     <Link href="/register"
                         className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-dim transition-colors">
                         Get Started
