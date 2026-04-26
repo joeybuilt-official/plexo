@@ -231,10 +231,28 @@ CRITICAL: If the task involves ANY website, web service, social media platform, 
             stepTimeoutMs: 120_000,
             taskType: 'planning',
         })
-        const cleaned = textResult.text
+        // Extract JSON from response — models sometimes prefix with prose or reasoning
+        let cleaned = textResult.text
             .replace(/^```(?:json)?\s*/i, '')
             .replace(/\s*```$/i, '')
             .trim()
+        // If the response doesn't start with { or [, find the first JSON object
+        if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
+            const jsonStart = cleaned.indexOf('{')
+            if (jsonStart >= 0) {
+                cleaned = cleaned.slice(jsonStart)
+            }
+        }
+        // If there's trailing text after the JSON, find the matching closing brace
+        if (cleaned.startsWith('{')) {
+            let depth = 0
+            let end = 0
+            for (let i = 0; i < cleaned.length; i++) {
+                if (cleaned[i] === '{') depth++
+                else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i + 1; break } }
+            }
+            if (end > 0) cleaned = cleaned.slice(0, end)
+        }
         const jsonObj = JSON.parse(cleaned)
         return { object: PlannerOutputSchema.parse(jsonObj) }
     })
