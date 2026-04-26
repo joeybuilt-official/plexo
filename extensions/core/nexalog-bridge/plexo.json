@@ -1,0 +1,31 @@
+{
+  "plexo": "0.4.0",
+  "name": "@joeybuilt/nexalog-bridge",
+  "type": "tool",
+  "version": "1.0.0",
+  "displayName": "Nexalog Bridge",
+  "description": "Proxies tool calls to Nexalog's data API for note, capture, and observability operations.",
+  "author": "Joeybuilt LLC",
+  "license": "AGPL-3.0-only",
+  "entry": "/app/extensions/core/nexalog-bridge/dist/index.js",
+  "minPexVersion": "0.4.0",
+  "homepage": "https://getplexo.com/ext/@joeybuilt/nexalog-bridge",
+  "repository": "https://github.com/joeybuilt-official/plexo",
+  "keywords": ["nexalog", "notes", "logging", "observability", "bridge"],
+  "capabilities": ["storage:read"],
+  "capabilitiesRationale": {
+    "storage:read": "Reads the Nexalog connection credentials (nexalog_user_id) to authenticate data API calls."
+  },
+  "trust": "owner",
+  "escalation": {
+    "irreversibleActions": [],
+    "requestsStandingApprovals": false
+  },
+  "dataResidency": {
+    "sendsDataExternally": false,
+    "externalDestinations": []
+  },
+  "resourceHints": {
+    "maxInvocationMs": 15000
+  }
+}

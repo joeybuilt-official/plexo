@@ -1,0 +1,31 @@
+{
+  "plexo": "0.4.0",
+  "name": "@joeybuilt/fonto-bridge",
+  "type": "tool",
+  "version": "1.0.0",
+  "displayName": "Fonto Bridge",
+  "description": "Proxies tool calls to Fonto's data API for asset, collection, and tag operations.",
+  "author": "Joeybuilt LLC",
+  "license": "AGPL-3.0-only",
+  "entry": "/app/extensions/core/fonto-bridge/dist/index.js",
+  "minPexVersion": "0.4.0",
+  "homepage": "https://getplexo.com/ext/@joeybuilt/fonto-bridge",
+  "repository": "https://github.com/joeybuilt-official/plexo",
+  "keywords": ["fonto", "assets", "files", "bridge"],
+  "capabilities": ["storage:read"],
+  "capabilitiesRationale": {
+    "storage:read": "Reads the Fonto connection credentials (fonto_user_id) to authenticate data API calls."
+  },
+  "trust": "owner",
+  "escalation": {
+    "irreversibleActions": [],
+    "requestsStandingApprovals": false
+  },
+  "dataResidency": {
+    "sendsDataExternally": false,
+    "externalDestinations": []
+  },
+  "resourceHints": {
+    "maxInvocationMs": 15000
+  }
+}
