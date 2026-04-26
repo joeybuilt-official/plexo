@@ -178,14 +178,12 @@ routing:
 
                 {/* ── Core Capabilities ──────────────────────────────── */}
                 <ScrollReveal className="w-full max-w-6xl py-20 border-t border-border/30">
-                    <div className="flex items-end justify-between mb-8">
-                        <div>
-                            <p className="text-[11px] text-text-muted font-mono tracking-wider uppercase mb-2">Capabilities</p>
-                            <h2 className="font-display text-[28px] font-medium tracking-tight" style={{ letterSpacing: '-0.02em' }}>
-                                What Plexo does
-                            </h2>
-                        </div>
-                        <p className="text-sm text-text-secondary max-w-sm hidden md:block">
+                    <div className="mb-8">
+                        <p className="text-[11px] text-text-muted font-mono tracking-wider uppercase mb-2">Capabilities</p>
+                        <h2 className="font-display text-[28px] font-medium tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+                            What Plexo does
+                        </h2>
+                        <p className="text-sm text-text-secondary max-w-lg mt-3">
                             A self-hosted platform for running autonomous AI agents with full control over models, data, and cost.
                         </p>
                     </div>
