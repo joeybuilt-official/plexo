@@ -80,6 +80,10 @@ COPY packages/storage  ./packages/storage
 # the persistent worker pool at /app/extensions/core/<name>/dist/index.js
 COPY extensions/core/research-agent/dist    ./extensions/core/research-agent/dist
 COPY extensions/core/research-agent/plexo.json ./extensions/core/research-agent/plexo.json
+COPY extensions/core/fonto-bridge/dist    ./extensions/core/fonto-bridge/dist
+COPY extensions/core/fonto-bridge/plexo.json ./extensions/core/fonto-bridge/plexo.json
+COPY extensions/core/nexalog-bridge/dist    ./extensions/core/nexalog-bridge/dist
+COPY extensions/core/nexalog-bridge/plexo.json ./extensions/core/nexalog-bridge/plexo.json
 
 # Root manifest — needed to read version field at build time
 COPY --from=deps /app/package.json ./
