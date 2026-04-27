@@ -964,18 +964,28 @@ synthesisRouter.get('/inbox', async (req, res) => {
     const limit = Math.min(Math.max(parseInt(limitRaw, 10) || 7, 1), 100)
     const kinds = kindsRaw ? kindsRaw.split(',').map(s => s.trim()).filter(Boolean) : []
     try {
-        let q = sql`
-            SELECT id, workspace_id, kind, payload, score, source, status,
-                   surfaced_at, dismissed_at, accepted_at, dedupe_key, created_at
-            FROM synthesis_suggestions
-            WHERE workspace_id = ${workspaceId}::uuid
-              AND status = 'pending'
-        `
-        if (kinds.length > 0) {
-            q = sql`${q} AND kind IN ${sql(kinds)}`
-        }
-        q = sql`${q} ORDER BY score DESC, created_at DESC LIMIT ${limit}`
-        const rows = Array.from(await db.execute(q))
+        const rows = Array.from(await db.execute(
+            kinds.length > 0
+                ? sql`
+                    SELECT id, workspace_id, kind, payload, score, source, status,
+                           surfaced_at, dismissed_at, accepted_at, dedupe_key, created_at
+                    FROM synthesis_suggestions
+                    WHERE workspace_id = ${workspaceId}::uuid
+                      AND status = 'pending'
+                      AND kind = ANY(${kinds})
+                    ORDER BY score DESC, created_at DESC
+                    LIMIT ${limit}
+                  `
+                : sql`
+                    SELECT id, workspace_id, kind, payload, score, source, status,
+                           surfaced_at, dismissed_at, accepted_at, dedupe_key, created_at
+                    FROM synthesis_suggestions
+                    WHERE workspace_id = ${workspaceId}::uuid
+                      AND status = 'pending'
+                    ORDER BY score DESC, created_at DESC
+                    LIMIT ${limit}
+                  `
+        ))
         res.json({ workspaceId, items: rows, total: rows.length })
     } catch (err) {
         logger.error({ err, workspaceId }, 'synthesis.inbox failed')
