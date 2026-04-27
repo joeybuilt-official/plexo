@@ -481,6 +481,98 @@ function captureCreateTool(): ToolRegistration {
     }
 }
 
+function bookmarkTagsListTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.tags.list',
+        description: "List all bookmark tags in the user's Nexalog workspace. Returns tag IDs, names, and colors.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+            },
+            required: [],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string }
+            const userId = resolveUserId(p)
+            const qp = new URLSearchParams({ entity: 'bookmark_tag', userId })
+            const data = await nexalogGet(qp) as { tags: Array<{ id: string; name: string; color: string }>; total: number }
+            if (!data.tags?.length) return 'No tags defined.'
+            return [`${data.total} tags:`, ...data.tags.map((t) => `- ${t.id} | ${t.name} (${t.color})`)].join('\n')
+        },
+    }
+}
+
+function bookmarkTagCreateTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.tag.create',
+        description: "Create a new bookmark tag in the user's Nexalog workspace.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                name: { type: 'string', description: 'Tag name (lowercase, max 50 chars).' },
+                color: { type: 'string', description: 'Hex color code (e.g. #6366f1).' },
+            },
+            required: ['name'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; name: string; color?: string }
+            const userId = resolveUserId(p)
+            const data = await nexalogPost({ entity: 'bookmark_tag', action: 'create', userId, name: p.name, color: p.color }) as { tag: { id: string; name: string } }
+            return `Tag created: ${data.tag.name} (ID: ${data.tag.id})`
+        },
+    }
+}
+
+function bookmarkTagAssignTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.tag.assign',
+        description: "Assign a tag to a bookmark (capture source). Use nexalog.bookmark.tags.list to get tag IDs.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                captureSourceId: { type: 'string', description: 'Bookmark (capture source) UUID.' },
+                tagId: { type: 'string', description: 'Tag UUID.' },
+            },
+            required: ['captureSourceId', 'tagId'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: true },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; captureSourceId: string; tagId: string }
+            const userId = resolveUserId(p)
+            await nexalogPost({ entity: 'bookmark_tag', action: 'assign', userId, captureSourceId: p.captureSourceId, tagId: p.tagId })
+            return `Tag assigned (capture: ${p.captureSourceId}, tag: ${p.tagId})`
+        },
+    }
+}
+
+function bookmarkTagRemoveTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.tag.remove',
+        description: "Remove a tag from a bookmark (capture source).",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                captureSourceId: { type: 'string', description: 'Bookmark (capture source) UUID.' },
+                tagId: { type: 'string', description: 'Tag UUID to remove.' },
+            },
+            required: ['captureSourceId', 'tagId'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: true },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; captureSourceId: string; tagId: string }
+            const userId = resolveUserId(p)
+            await nexalogPost({ entity: 'bookmark_tag', action: 'unassign', userId, captureSourceId: p.captureSourceId, tagId: p.tagId })
+            return `Tag removed (capture: ${p.captureSourceId}, tag: ${p.tagId})`
+        },
+    }
+}
+
 export async function activate(sdk: PlexoSDK): Promise<void> {
     try {
         _cachedUserId = await sdk.storage.get('nexalog_user_id')
@@ -497,6 +589,10 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
     sdk.registerTool(bookmarkAddTool())
     sdk.registerTool(bookmarkUpdateTool())
     sdk.registerTool(bookmarkDeleteTool())
+    sdk.registerTool(bookmarkTagsListTool())
+    sdk.registerTool(bookmarkTagCreateTool())
+    sdk.registerTool(bookmarkTagAssignTool())
+    sdk.registerTool(bookmarkTagRemoveTool())
     sdk.registerTool(memoCreateTool())
     sdk.registerTool(captureListTool())
     sdk.registerTool(captureGetTool())
