@@ -1748,3 +1748,56 @@ export const artifactShares = pgTable('artifact_shares', {
 
 export type ArtifactShare = typeof artifactShares.$inferSelect
 export type NewArtifactShare = typeof artifactShares.$inferInsert
+
+// === entity_entries (§16, entities.* PAX capability) ===
+// Workspace-scoped named entities (people, places, orgs, concepts, etc.).
+// Extensions resolve, search, create, and link entities via the entities.*
+// PAX capability. `external_id` is an optional opaque identifier from the
+// originating system for deduplication (e.g. a CRM contact id).
+export const entityEntries = pgTable('entity_entries', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    externalId: text('external_id'),
+    name: text('name').notNull(),
+    aliases: jsonb('aliases').$type<string[]>().default([]),
+    data: jsonb('data').$type<Record<string, unknown>>().default({}),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table: any) => [
+    index('entity_entries_workspace_idx').on(table.workspaceId),
+    index('entity_entries_type_idx').on(table.workspaceId, table.type),
+    index('entity_entries_external_idx').on(table.workspaceId, table.type, table.externalId),
+])
+
+export type EntityEntry = typeof entityEntries.$inferSelect
+export type NewEntityEntry = typeof entityEntries.$inferInsert
+
+// === entity_links (§16) ===
+// Directed relationships between entity_entries. `kind` is a free-form
+// relationship label (e.g. "related_to", "is_a", "authored_by").
+// Unique per (source, target, kind) triple.
+export const entityLinks = pgTable('entity_links', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id').notNull(),
+    sourceId: uuid('source_id')
+        .notNull()
+        .references(() => entityEntries.id, { onDelete: 'cascade' }),
+    targetId: uuid('target_id')
+        .notNull()
+        .references(() => entityEntries.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull().default('related_to'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table: any) => [
+    index('entity_links_source_idx').on(table.sourceId),
+    index('entity_links_target_idx').on(table.targetId),
+    uniqueIndex('entity_links_unique_idx').on(table.sourceId, table.targetId, table.kind),
+])
+
+export type EntityLink = typeof entityLinks.$inferSelect
+export type NewEntityLink = typeof entityLinks.$inferInsert

@@ -48,6 +48,7 @@ export function createActivationSDK(
     settings: Record<string, unknown>,
     workspaceId: string,
     bridge: HostBridge = nullBridge,
+    onEventSubscribe?: (topic: string, handler: (payload: unknown) => void) => void,
 ): { sdk: PlexoSDK; getResult: () => ActivationResult } {
     const capSet = new Set(capabilities)
     // FUN-028: tools:register is auto-granted — every extension must register tools.
@@ -226,10 +227,10 @@ export function createActivationSDK(
         },
 
         events: {
-            subscribe(_topic, _handler) {
+            subscribe(topic, handler) {
                 requireCap('events:subscribe')
-                // Subscription in persistent worker is handled via event-bus directly by the host
-                // Extensions that need event subscriptions declare them in their manifest
+                onEventSubscribe?.(topic, handler as (payload: unknown) => void)
+                void bridge('events.subscribe', { topic })
             },
             async publish(topic, payload) {
                 requireCap('events:publish')

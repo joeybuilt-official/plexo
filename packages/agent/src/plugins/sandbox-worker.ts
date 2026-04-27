@@ -33,7 +33,8 @@ interface ActivateMsg { type: 'activate'; callId: string; input: SandboxInput }
 interface InvokeMsg { type: 'invoke'; callId: string; toolName: string; args: Record<string, unknown>; workspaceId: string }
 interface BridgeReply { type: 'bridge_reply'; callId: string; result?: unknown; error?: string }
 interface TerminateMsg { type: 'terminate' }
-type HostMsg = ActivateMsg | InvokeMsg | BridgeReply | TerminateMsg
+interface EventDispatchMsg { type: 'event_dispatch'; topic: string; payload: unknown }
+type HostMsg = ActivateMsg | InvokeMsg | BridgeReply | TerminateMsg | EventDispatchMsg
 
 // ── Pending bridge calls — awaiting host reply ────────────────────────────────
 
@@ -55,6 +56,7 @@ function makeMessageBridge(): HostBridge {
 
 let _registeredTools: ToolRegistration[] = []
 let _input: SandboxInput | null = null
+const _eventHandlers = new Map<string, (payload: unknown) => void>()
 
 function reply(msg: Record<string, unknown>) {
     parentPort?.postMessage(msg)
@@ -151,6 +153,7 @@ async function handleActivate(msg: ActivateMsg): Promise<void> {
             msg.input.settings,
             msg.input.workspaceId ?? 'sandbox',
             makeMessageBridge(),
+            (topic, handler) => { _eventHandlers.set(topic, handler) },
         )
 
         const extModule = await loadExtensionInSandbox(msg.input.entry, sdk)
@@ -205,6 +208,13 @@ function handleBridgeReply(msg: BridgeReply): void {
     }
 }
 
+function handleEventDispatch(msg: EventDispatchMsg): void {
+    const handler = _eventHandlers.get(msg.topic)
+    if (handler) {
+        try { handler(msg.payload) } catch { /* handlers must not crash the worker */ }
+    }
+}
+
 // ── Main message loop ─────────────────────────────────────────────────────────
 
 if (parentPort) {
@@ -215,6 +225,8 @@ if (parentPort) {
             void handleInvoke(msg)
         } else if (msg.type === 'bridge_reply') {
             handleBridgeReply(msg)
+        } else if (msg.type === 'event_dispatch') {
+            handleEventDispatch(msg as EventDispatchMsg)
         } else if (msg.type === 'terminate') {
             process.exit(0)
         }

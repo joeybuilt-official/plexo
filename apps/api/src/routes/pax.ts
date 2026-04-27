@@ -24,7 +24,7 @@ export const paxRouter: RouterType = Router()
 
 const PAX_NAME_RE = /^(@[a-z0-9-]+\/)?[a-z0-9-]+$/
 const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
-const CAPABILITY_RE = /^(ai:(complete|embed)|memory:(read|write|search):[a-z0-9:.]+|events:(publish|subscribe):[a-z0-9:.]+|entities:(read|create):[a-z_]+|agents:invoke|connections:proxy:[a-z0-9*-]+)$/
+const CAPABILITY_RE = /^(ai:(complete|embed)|memory:(read|write|search):[a-z0-9:.]+|events:(publish|subscribe):[a-z0-9:.]+|entities:(read|create):[a-z_]+|agents:invoke|connections:proxy:[a-z0-9*-]+|voice:transcribe)$/
 
 interface PaxManifest {
     plexo: string

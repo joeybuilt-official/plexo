@@ -26,8 +26,8 @@ import { existsSync } from 'fs'
 import { randomUUID } from 'node:crypto'
 import pino from 'pino'
 import { storeMemory, searchMemory } from '../memory/store.js'
-import { db, eq, and, sql, isNull } from '@plexo/db'
-import { installedConnections, connectionsRegistry, tasks, extensionContexts, extensionPrompts } from '@plexo/db'
+import { db, eq, and, sql, isNull, ilike } from '@plexo/db'
+import { installedConnections, connectionsRegistry, tasks, extensionContexts, extensionPrompts, entityEntries, entityLinks } from '@plexo/db'
 import { eventBus } from './event-bus.js'
 
 const logger = pino({ name: 'pex-persistent-pool' })
@@ -79,6 +79,9 @@ const _workers = new Map<string, WorkerHandle>()
 
 type PendingCall = { resolve: (r: InvokeResult) => void; timer: ReturnType<typeof setTimeout>; start: number }
 const _pending = new Map<string, PendingCall>()
+
+// eventBus unsubscribe functions per worker — cleaned up when worker terminates
+const _workerSubscriptions = new Map<string, Array<() => void>>()
 
 // Lazy Redis client for extension storage
 let _redis: { get(k: string): Promise<string | null>; set(k: string, v: string, opts?: { EX?: number }): Promise<unknown>; del(k: string): Promise<unknown> } | null = null
@@ -256,12 +259,109 @@ async function dispatchSdkCall(pluginName: string, method: string, args: Record<
             eventBus.publish(`plexo.${method}`, args)
             return null
 
-        // v0.3.0 — Entity resolution (§16)
-        case 'entities.resolve':
-        case 'entities.search':
-        case 'entities.create':
-        case 'entities.link':
-            throw new Error('NOT_IMPLEMENTED: Entity resolution is not yet available on this host')
+        // ── entities (§16) ───────────────────────────────────────────
+        case 'entities.resolve': {
+            const [row] = await db.select()
+                .from(entityEntries)
+                .where(and(
+                    eq(entityEntries.workspaceId, workspaceId),
+                    eq(entityEntries.type, args.type as string),
+                    eq(entityEntries.id, args.id as string),
+                ))
+                .limit(1)
+            return row ?? null
+        }
+        case 'entities.search': {
+            const query = args.query as string
+            const type = args.type as string | undefined
+            const conditions: ReturnType<typeof eq>[] = [eq(entityEntries.workspaceId, workspaceId)]
+            if (type) conditions.push(eq(entityEntries.type, type))
+            const rows = await db.select()
+                .from(entityEntries)
+                .where(and(...conditions, ilike(entityEntries.name, `%${query}%`)))
+                .limit((args.limit as number | undefined) ?? 20)
+            return rows
+        }
+        case 'entities.create': {
+            const type = args.type as string
+            const data = (args.data as Record<string, unknown>) ?? {}
+            const extId = data.externalId as string | undefined
+            if (extId) {
+                const [existing] = await db.select({ id: entityEntries.id })
+                    .from(entityEntries)
+                    .where(and(
+                        eq(entityEntries.workspaceId, workspaceId),
+                        eq(entityEntries.type, type),
+                        eq(entityEntries.externalId, extId),
+                    ))
+                    .limit(1)
+                if (existing) return existing
+            }
+            const [created] = await db.insert(entityEntries).values({
+                workspaceId,
+                type,
+                name: data.name as string,
+                externalId: extId ?? null,
+                aliases: (data.aliases as string[]) ?? [],
+                data,
+                createdBy: pluginName,
+            }).returning()
+            return created
+        }
+        case 'entities.link': {
+            const source = args.source as { id: string; type: string }
+            const target = args.target as { id: string; type: string }
+            const kind = (args.kind as string | undefined) ?? 'related_to'
+            const [link] = await db.insert(entityLinks).values({
+                workspaceId,
+                sourceId: source.id,
+                targetId: target.id,
+                kind,
+                metadata: (args.metadata as Record<string, unknown> | undefined) ?? {},
+                createdBy: pluginName,
+            }).onConflictDoNothing().returning()
+            return link ?? null
+        }
+
+        // ── voice ────────────────────────────────────────────────────
+        case 'voice.transcribe': {
+            const audioBase64 = args.audioBase64 as string
+            const contentType = (args.contentType as string | undefined) ?? 'audio/webm'
+            const apiPort = process.env.PORT ?? '3001'
+            const apiBase = process.env.API_INTERNAL_URL ?? `http://localhost:${apiPort}`
+            const serviceKey = process.env.PLEXO_SERVICE_KEY ?? ''
+            const audioBuffer = Buffer.from(audioBase64, 'base64')
+            const response = await fetch(
+                `${apiBase}/api/v1/voice/transcribe?workspaceId=${encodeURIComponent(workspaceId)}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': contentType,
+                        'Authorization': `Bearer ${serviceKey}`,
+                        'X-App-Id': 'pex-internal',
+                    },
+                    body: audioBuffer,
+                },
+            )
+            if (!response.ok) {
+                const errText = await response.text().catch(() => response.statusText)
+                throw new Error(`Voice transcription failed: ${response.status} ${errText}`)
+            }
+            return await response.json() as unknown
+        }
+
+        // ── events.subscribe ─────────────────────────────────────────
+        case 'events.subscribe': {
+            const topic = args.topic as string
+            const handle = _workers.get(pluginName)
+            if (!handle) return null
+            const unsub = eventBus.subscribe(topic, (payload) => {
+                handle.worker.postMessage({ type: 'event_dispatch', topic, payload })
+            })
+            if (!_workerSubscriptions.has(pluginName)) _workerSubscriptions.set(pluginName, [])
+            _workerSubscriptions.get(pluginName)!.push(unsub)
+            return null
+        }
 
         // v0.3.0 — UserSelf (§20)
         case 'self.read':
@@ -663,6 +763,11 @@ export async function invokeTool(
 
 function cleanupWorker(pluginName: string) {
     _workers.delete(pluginName)
+    const unsubs = _workerSubscriptions.get(pluginName)
+    if (unsubs) {
+        for (const unsub of unsubs) unsub()
+        _workerSubscriptions.delete(pluginName)
+    }
 }
 
 export function terminateWorker(pluginName: string): void {
