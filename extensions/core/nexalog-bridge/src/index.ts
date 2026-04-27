@@ -58,23 +58,25 @@ function noteListTool(): ToolRegistration {
     return {
         name: 'nexalog.note.list',
         description:
-            "List active notes in the user's Nexalog workspaces. Returns ID, title, kind, and updated time.",
+            "List active notes in the user's Nexalog workspaces. Returns ID, title, kind, and updated time. Use the kind filter to view only journals, logs, voice memos, etc.",
         parameters: {
             type: 'object',
             properties: {
                 userId: { type: 'string', description: 'Nexalog user ID (auto-resolved from connection).' },
+                kind: { type: 'string', description: 'Filter by note kind: note, log, journal, voice_memo, claude_conversation, etc.' },
                 limit: { type: 'number', description: 'Max results (1-100, default 30).' },
             },
             required: [],
         },
         hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
         handler: async (params: unknown, _ctx: InvokeContext) => {
-            const p = params as { userId?: string; limit?: number }
+            const p = params as { userId?: string; kind?: string; limit?: number }
             const userId = resolveUserId(p)
             const qp = new URLSearchParams({ entity: 'note', userId })
+            if (p.kind) qp.set('kind', p.kind)
             if (p.limit) qp.set('limit', String(p.limit))
             const data = await nexalogGet(qp) as { notes: Array<{ id: string; title: string; kind?: string; updatedAt?: string }>; total: number }
-            if (!data.notes?.length) return 'No notes found.'
+            if (!data.notes?.length) return p.kind ? `No ${p.kind} notes found.` : 'No notes found.'
             return [`${data.total} notes:`, ...data.notes.map((n) => `- ${n.id} | ${n.title || '(untitled)'}${n.kind && n.kind !== 'note' ? ` [${n.kind}]` : ''}`)].join('\n')
         },
     }
@@ -322,6 +324,78 @@ function bookmarkDeleteTool(): ToolRegistration {
             const userId = resolveUserId(p)
             await nexalogPost({ entity: 'capture_source', action: 'delete', userId, id: p.id })
             return `Bookmark deleted (ID: ${p.id})`
+        },
+    }
+}
+
+function bookmarkSearchTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.search',
+        description: 'Search saved bookmarks by title, URL, or description.',
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                q: { type: 'string', description: 'Search query (matches title, URL, OG description).' },
+                limit: { type: 'number', description: 'Max results (1-50, default 20).' },
+            },
+            required: ['q'],
+        },
+        hints: { estimatedMs: 2000, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; q: string; limit?: number }
+            const userId = resolveUserId(p)
+            const qp = new URLSearchParams({ entity: 'capture_source_search', userId, q: p.q, kind: 'url' })
+            if (p.limit) qp.set('limit', String(p.limit))
+            const data = await nexalogGet(qp) as { sources: Array<{ id: string; url?: string; ogTitle?: string }>; total: number }
+            if (!data.sources?.length) return `No bookmarks match "${p.q}".`
+            return [`${data.total} matches for "${p.q}":`, ...data.sources.map((s) => `- ${s.id} | ${s.ogTitle || s.url || '(no url)'}`)].join('\n')
+        },
+    }
+}
+
+function bookmarkTagUpdateTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.tag.update',
+        description: "Rename or recolor a bookmark tag.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Tag UUID.' },
+                name: { type: 'string', description: 'New tag name (omit to leave unchanged).' },
+                color: { type: 'string', description: 'New hex color (omit to leave unchanged).' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string; name?: string; color?: string }
+            const userId = resolveUserId(p)
+            const data = await nexalogPost({ entity: 'bookmark_tag', action: 'update', userId, id: p.id, name: p.name, color: p.color }) as { tag: { id: string; name: string } }
+            return `Tag updated: ${data.tag.name} (ID: ${data.tag.id})`
+        },
+    }
+}
+
+function bookmarkTagDeleteTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.tag.delete',
+        description: "Delete a bookmark tag. The tag is removed from all bookmarks it was applied to.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Tag UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string }
+            const userId = resolveUserId(p)
+            await nexalogPost({ entity: 'bookmark_tag', action: 'delete', userId, id: p.id })
+            return `Tag deleted (ID: ${p.id})`
         },
     }
 }
@@ -899,8 +973,11 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
     sdk.registerTool(bookmarkAddTool())
     sdk.registerTool(bookmarkUpdateTool())
     sdk.registerTool(bookmarkDeleteTool())
+    sdk.registerTool(bookmarkSearchTool())
     sdk.registerTool(bookmarkTagsListTool())
     sdk.registerTool(bookmarkTagCreateTool())
+    sdk.registerTool(bookmarkTagUpdateTool())
+    sdk.registerTool(bookmarkTagDeleteTool())
     sdk.registerTool(bookmarkTagAssignTool())
     sdk.registerTool(bookmarkTagRemoveTool())
     sdk.registerTool(memoCreateTool())

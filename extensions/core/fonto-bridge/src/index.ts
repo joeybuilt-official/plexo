@@ -65,18 +65,22 @@ function assetListTool(): ToolRegistration {
                 subtype: { type: 'string', description: 'Filter by classification (e.g. photo, screenshot, receipt, document).' },
                 collectionId: { type: 'string', description: 'Filter to assets in a specific collection (UUID).' },
                 tagId: { type: 'string', description: 'Filter to assets with a specific tag (UUID).' },
+                capturedAfter: { type: 'string', description: 'ISO 8601 date — only return assets captured on or after this date (e.g. 2026-03-01).' },
+                capturedBefore: { type: 'string', description: 'ISO 8601 date — only return assets captured before this date (e.g. 2026-04-01).' },
                 limit: { type: 'number', description: 'Max results (1-100, default 30).' },
             },
             required: [],
         },
         hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
         handler: async (params: unknown, _ctx: InvokeContext) => {
-            const p = params as { userId?: string; subtype?: string; collectionId?: string; tagId?: string; limit?: number }
+            const p = params as { userId?: string; subtype?: string; collectionId?: string; tagId?: string; capturedAfter?: string; capturedBefore?: string; limit?: number }
             const userId = resolveUserId(p)
             const qp = new URLSearchParams({ entity: 'asset', userId })
             if (p.subtype) qp.set('subtype', p.subtype)
             if (p.collectionId) qp.set('collectionId', p.collectionId)
             if (p.tagId) qp.set('tagId', p.tagId)
+            if (p.capturedAfter) qp.set('capturedAfter', p.capturedAfter)
+            if (p.capturedBefore) qp.set('capturedBefore', p.capturedBefore)
             if (p.limit) qp.set('limit', String(p.limit))
             const data = await fontoGet(qp) as { assets: Array<{ id: string; filename: string; classification?: string; description?: string }>; total: number }
             if (!data.assets?.length) return 'No assets found.'
@@ -269,6 +273,31 @@ function assetGetTool(): ToolRegistration {
                 a.extractedText ? `Extracted text: ${a.extractedText.slice(0, 500)}${a.extractedText.length > 500 ? '…' : ''}` : '',
             ].filter(Boolean)
             return lines.join('\n')
+        },
+    }
+}
+
+function assetUpdateTool(): ToolRegistration {
+    return {
+        name: 'fonto.asset.update',
+        description: "Update an asset's metadata — description, classification, or filename. Fetch current details with fonto.asset.get first.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Fonto user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Asset UUID.' },
+                filename: { type: 'string', description: 'New filename (omit to leave unchanged).' },
+                description: { type: 'string', description: 'New AI description or manual caption (omit to leave unchanged).' },
+                classification: { type: 'string', description: 'New classification: photo, screenshot, receipt, document, etc. (omit to leave unchanged).' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string; filename?: string; description?: string; classification?: string }
+            const userId = resolveUserId(p)
+            const data = await fontoPost({ entity: 'asset', action: 'update', userId, id: p.id, filename: p.filename, description: p.description, classification: p.classification }) as { asset: { id: string; filename: string } }
+            return `Asset updated: ${data.asset.filename} (ID: ${data.asset.id})`
         },
     }
 }
@@ -474,6 +503,7 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
     sdk.registerTool(assetListTool())
     sdk.registerTool(assetSearchTool())
     sdk.registerTool(assetGetTool())
+    sdk.registerTool(assetUpdateTool())
     sdk.registerTool(assetDeleteTool())
     sdk.registerTool(assetTagTool())
     sdk.registerTool(assetUntagTool())

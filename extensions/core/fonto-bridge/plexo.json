@@ -32,6 +32,7 @@
     { "name": "fonto.asset.list",              "description": "List active assets in the user's Fonto workspace, filtered by classification, collection, or tag." },
     { "name": "fonto.asset.search",            "description": "Search assets by filename, AI description, or extracted text." },
     { "name": "fonto.asset.get",               "description": "Fetch full details of a single asset by ID, including description and extracted text." },
+    { "name": "fonto.asset.update",            "description": "Update an asset's filename, description, or classification." },
     { "name": "fonto.asset.delete",            "description": "Soft-delete an asset by ID." },
     { "name": "fonto.asset.tag",               "description": "Apply a tag to an asset." },
     { "name": "fonto.asset.untag",             "description": "Remove a tag from an asset." },
