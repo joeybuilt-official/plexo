@@ -1240,12 +1240,15 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     const { buildEnvironmentTools } = await import('../tools/environment-tools.js')
     const environmentTools = buildEnvironmentTools()
 
-    // For conversational tasks, restrict to task_complete + connections + self-knowledge + env.
+    // For conversational tasks, restrict to task_complete + connections + plugins + self-knowledge + env.
     // Connection tools (levio__list_emails, levio__list_events, etc.) are included so the
     // agent can answer data questions ("what's on my calendar?") inline without spawning a
-    // full task. Plugin tools and base task-management tools remain off for conversational mode.
+    // full task. Plugin tools are included because bridge extensions (fonto-bridge, nexalog-bridge,
+    // levio-bridge) supersede factory connection tools via the dedup map — excluding pluginTools
+    // would leave those connections with zero callable tools in conversational mode.
+    // Base task-management tools remain off for conversational mode.
     const allTools = isConversational
-        ? { task_complete: baseTools.task_complete, ...connectionTools, ...selfKnowledgeTools, ...environmentTools }
+        ? { task_complete: baseTools.task_complete, ...connectionTools, ...pluginTools, ...selfKnowledgeTools, ...environmentTools }
         : { ...baseTools, ...connectionTools, ...pluginTools, ...selfKnowledgeTools, ...environmentTools }
 
     // Append plugin tool names to the capability block so the model knows the
