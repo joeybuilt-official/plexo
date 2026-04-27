@@ -217,9 +217,14 @@ function bookmarkListTool(): ToolRegistration {
             const userId = resolveUserId(p)
             const qp = new URLSearchParams({ entity: 'capture_source', userId, kind: 'url' })
             if (p.limit) qp.set('limit', String(p.limit))
-            const data = await nexalogGet(qp) as { sources: Array<{ id: string; url?: string; ogTitle?: string; state: string }>; total: number }
+            const data = await nexalogGet(qp) as { sources: Array<{ id: string; url?: string; ogTitle?: string; ogImage?: string; faviconUrl?: string; state: string }>; total: number }
             if (!data.sources?.length) return 'No bookmarks saved.'
-            return [`${data.total} bookmarks:`, ...data.sources.map((s) => `- ${s.id} | ${s.ogTitle || s.url || '(no url)'}`)].join('\n')
+            return [`${data.total} bookmarks:`, ...data.sources.map((s) => {
+                const parts = [`- ${s.id} | ${s.ogTitle || s.url || '(no url)'}`]
+                if (s.ogImage) parts.push(`  thumbnail: ${s.ogImage}`)
+                else if (s.faviconUrl) parts.push(`  favicon: ${s.faviconUrl}`)
+                return parts.join('\n')
+            })].join('\n')
         },
     }
 }
