@@ -231,6 +231,7 @@ function captureCreateTool(): ToolRegistration {
 export async function activate(sdk: PlexoSDK): Promise<void> {
     try {
         _cachedUserId = await sdk.storage.get('nexalog_user_id')
+            ?? await sdk.storage.get('_workspaceOwnerId')
     } catch { /* falls back to required userId param */ }
 
     sdk.registerTool(noteListTool())

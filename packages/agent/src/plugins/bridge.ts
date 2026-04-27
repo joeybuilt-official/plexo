@@ -136,6 +136,9 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
     try {
         const autoApproveThreshold = await resolveAutoApproveThreshold(workspaceId)
 
+        const wsRows = await db.select({ ownerId: workspaces.ownerId }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
+        const workspaceOwnerId = wsRows[0]?.ownerId ?? null
+
         const enabledExtensions = await db
             .select()
             .from(extensions)
@@ -144,7 +147,10 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
         for (const ext of enabledExtensions) {
             const manifest = ext.manifest as ExtensionManifest
             const capabilities = manifest.capabilities ?? []
-            const settings = ext.settings as Record<string, unknown>
+            const settings: Record<string, unknown> = {
+                ...(workspaceOwnerId ? { _workspaceOwnerId: workspaceOwnerId } : {}),
+                ...(ext.settings as Record<string, unknown>),
+            }
             const timeoutMs = manifest.resourceHints?.maxInvocationMs ?? DEFAULT_TIMEOUT_MS
             // Phase 7 — honor per-workspace identity overrides (stored under settings.identity)
             const identityOverride = (settings?.identity ?? null) as { displayName?: string; avatar?: string } | null
