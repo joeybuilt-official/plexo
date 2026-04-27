@@ -252,6 +252,57 @@ function bookmarkAddTool(): ToolRegistration {
     }
 }
 
+function bookmarkGetTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.get',
+        description: "Fetch the full details of a single bookmark by ID.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Bookmark (capture source) UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string }
+            const userId = resolveUserId(p)
+            const qp = new URLSearchParams({ entity: 'capture_source', userId, id: p.id })
+            const data = await nexalogGet(qp) as { source: { id: string; url?: string; ogTitle?: string; ogImage?: string; faviconUrl?: string; state: string; kind: string } }
+            const s = data.source
+            const lines = [`# ${s.ogTitle || s.url || '(no title)'}`, `ID: ${s.id}`, `URL: ${s.url || '(none)'}`, `State: ${s.state}`]
+            if (s.ogImage) lines.push(`Thumbnail: ${s.ogImage}`)
+            if (s.faviconUrl) lines.push(`Favicon: ${s.faviconUrl}`)
+            return lines.join('\n')
+        },
+    }
+}
+
+function bookmarkUpdateTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.update',
+        description: "Update the URL or title of an existing bookmark.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Bookmark (capture source) UUID.' },
+                url: { type: 'string', description: 'New URL (omit to leave unchanged).' },
+                title: { type: 'string', description: 'New display title (omit to leave unchanged).' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string; url?: string; title?: string }
+            const userId = resolveUserId(p)
+            const data = await nexalogPost({ entity: 'capture_source', action: 'update', userId, id: p.id, url: p.url, content: p.title }) as { source: { id: string; url?: string } }
+            return `Bookmark updated (ID: ${data.source.id})`
+        },
+    }
+}
+
 function bookmarkDeleteTool(): ToolRegistration {
     return {
         name: 'nexalog.bookmark.delete',
@@ -337,7 +388,9 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
     sdk.registerTool(noteUpdateTool())
     sdk.registerTool(noteDeleteTool())
     sdk.registerTool(bookmarkListTool())
+    sdk.registerTool(bookmarkGetTool())
     sdk.registerTool(bookmarkAddTool())
+    sdk.registerTool(bookmarkUpdateTool())
     sdk.registerTool(bookmarkDeleteTool())
     sdk.registerTool(captureListTool())
     sdk.registerTool(captureCreateTool())

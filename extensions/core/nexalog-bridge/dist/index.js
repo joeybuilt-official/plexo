@@ -47,7 +47,7 @@ async function nexalogPost(body) {
 function noteListTool() {
     return {
         name: 'nexalog.note.list',
-        description: "List active notes in the user's Nexalog workspaces. Returns title, kind, lifecycle, and updated time.",
+        description: "List active notes in the user's Nexalog workspaces. Returns ID, title, kind, and updated time.",
         parameters: {
             type: 'object',
             properties: {
@@ -66,7 +66,7 @@ function noteListTool() {
             const data = await nexalogGet(qp);
             if (!data.notes?.length)
                 return 'No notes found.';
-            return [`${data.total} notes:`, ...data.notes.map((n) => `- ${n.title || '(untitled)'}${n.kind && n.kind !== 'note' ? ` [${n.kind}]` : ''}`)].join('\n');
+            return [`${data.total} notes:`, ...data.notes.map((n) => `- ${n.id} | ${n.title || '(untitled)'}${n.kind && n.kind !== 'note' ? ` [${n.kind}]` : ''}`)].join('\n');
         },
     };
 }
@@ -93,7 +93,97 @@ function noteSearchTool() {
             const data = await nexalogGet(qp);
             if (!data.notes?.length)
                 return `No matches for "${p.q}".`;
-            return [`${data.total} matches for "${p.q}":`, ...data.notes.map((n) => `- ${n.title || '(untitled)'}${n.kind && n.kind !== 'note' ? ` [${n.kind}]` : ''}`)].join('\n');
+            return [`${data.total} matches for "${p.q}":`, ...data.notes.map((n) => `- ${n.id} | ${n.title || '(untitled)'}${n.kind && n.kind !== 'note' ? ` [${n.kind}]` : ''}`)].join('\n');
+        },
+    };
+}
+function noteGetTool() {
+    return {
+        name: 'nexalog.note.get',
+        description: "Fetch the full content of a single note by ID.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Note UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
+        handler: async (params, _ctx) => {
+            const p = params;
+            const userId = resolveUserId(p);
+            const qp = new URLSearchParams({ entity: 'note', userId, id: p.id });
+            const data = await nexalogGet(qp);
+            const n = data.note;
+            return [`# ${n.title || '(untitled)'}`, `ID: ${n.id}${n.kind && n.kind !== 'note' ? ` | Kind: ${n.kind}` : ''}`, '', n.content || '(no content)'].join('\n');
+        },
+    };
+}
+function noteCreateTool() {
+    return {
+        name: 'nexalog.note.create',
+        description: "Create a new text note in the user's Nexalog workspace. For saving URLs or web pages, use bookmark.add instead.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                title: { type: 'string', description: 'Note title.' },
+                content: { type: 'string', description: 'Note body (plain text or HTML).' },
+                kind: { type: 'string', description: 'Note kind (note, log, journal, etc.).' },
+            },
+            required: ['title'],
+        },
+        hints: { estimatedMs: 2000, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params, _ctx) => {
+            const p = params;
+            const userId = resolveUserId(p);
+            const data = await nexalogPost({ entity: 'note', action: 'create', userId, title: p.title, content: p.content, kind: p.kind });
+            return `Note created: ${data.note.title} (ID: ${data.note.id})`;
+        },
+    };
+}
+function noteUpdateTool() {
+    return {
+        name: 'nexalog.note.update',
+        description: "Update the title or content of an existing note. Use nexalog.note.get to retrieve current content first.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Note UUID.' },
+                title: { type: 'string', description: 'New title (omit to leave unchanged).' },
+                content: { type: 'string', description: 'New content (omit to leave unchanged).' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params, _ctx) => {
+            const p = params;
+            const userId = resolveUserId(p);
+            const data = await nexalogPost({ entity: 'note', action: 'update', userId, id: p.id, title: p.title, content: p.content });
+            return `Note updated: ${data.note.title} (ID: ${data.note.id})`;
+        },
+    };
+}
+function noteDeleteTool() {
+    return {
+        name: 'nexalog.note.delete',
+        description: "Soft-delete a note by ID. It will no longer appear in listings.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Note UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params, _ctx) => {
+            const p = params;
+            const userId = resolveUserId(p);
+            const data = await nexalogPost({ entity: 'note', action: 'delete', userId, id: p.id });
+            return `Note deleted: ${data.note.title} (ID: ${data.note.id})`;
         },
     };
 }
@@ -119,7 +209,14 @@ function bookmarkListTool() {
             const data = await nexalogGet(qp);
             if (!data.sources?.length)
                 return 'No bookmarks saved.';
-            return [`${data.total} bookmarks:`, ...data.sources.map((s) => `- ${s.ogTitle || s.url || '(no url)'}`)].join('\n');
+            return [`${data.total} bookmarks:`, ...data.sources.map((s) => {
+                    const parts = [`- ${s.id} | ${s.ogTitle || s.url || '(no url)'}`];
+                    if (s.ogImage)
+                        parts.push(`  thumbnail: ${s.ogImage}`);
+                    else if (s.faviconUrl)
+                        parts.push(`  favicon: ${s.faviconUrl}`);
+                    return parts.join('\n');
+                })].join('\n');
         },
     };
 }
@@ -145,26 +242,75 @@ function bookmarkAddTool() {
         },
     };
 }
-function noteCreateTool() {
+function bookmarkGetTool() {
     return {
-        name: 'nexalog.note.create',
-        description: "Create a new text note in the user's Nexalog workspace. For saving URLs or web pages, use bookmark.add instead.",
+        name: 'nexalog.bookmark.get',
+        description: "Fetch the full details of a single bookmark by ID.",
         parameters: {
             type: 'object',
             properties: {
                 userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
-                title: { type: 'string', description: 'Note title.' },
-                content: { type: 'string', description: 'Note body (plain text or HTML).' },
-                kind: { type: 'string', description: 'Note kind (note, log, journal, etc.).' },
+                id: { type: 'string', description: 'Bookmark (capture source) UUID.' },
             },
-            required: ['title'],
+            required: ['id'],
         },
-        hints: { estimatedMs: 2000, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
         handler: async (params, _ctx) => {
             const p = params;
             const userId = resolveUserId(p);
-            const data = await nexalogPost({ entity: 'note', action: 'create', userId, title: p.title, content: p.content, kind: p.kind });
-            return `Note created: ${data.note.title} (ID: ${data.note.id})`;
+            const qp = new URLSearchParams({ entity: 'capture_source', userId, id: p.id });
+            const data = await nexalogGet(qp);
+            const s = data.source;
+            const lines = [`# ${s.ogTitle || s.url || '(no title)'}`, `ID: ${s.id}`, `URL: ${s.url || '(none)'}`, `State: ${s.state}`];
+            if (s.ogImage)
+                lines.push(`Thumbnail: ${s.ogImage}`);
+            if (s.faviconUrl)
+                lines.push(`Favicon: ${s.faviconUrl}`);
+            return lines.join('\n');
+        },
+    };
+}
+function bookmarkUpdateTool() {
+    return {
+        name: 'nexalog.bookmark.update',
+        description: "Update the URL or title of an existing bookmark.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Bookmark (capture source) UUID.' },
+                url: { type: 'string', description: 'New URL (omit to leave unchanged).' },
+                title: { type: 'string', description: 'New display title (omit to leave unchanged).' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params, _ctx) => {
+            const p = params;
+            const userId = resolveUserId(p);
+            const data = await nexalogPost({ entity: 'capture_source', action: 'update', userId, id: p.id, url: p.url, content: p.title });
+            return `Bookmark updated (ID: ${data.source.id})`;
+        },
+    };
+}
+function bookmarkDeleteTool() {
+    return {
+        name: 'nexalog.bookmark.delete',
+        description: "Delete a saved bookmark by ID. Use nexalog.bookmark.list to find IDs.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Bookmark (capture source) UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params, _ctx) => {
+            const p = params;
+            const userId = resolveUserId(p);
+            await nexalogPost({ entity: 'capture_source', action: 'delete', userId, id: p.id });
+            return `Bookmark deleted (ID: ${p.id})`;
         },
     };
 }
@@ -193,7 +339,7 @@ function captureListTool() {
             const data = await nexalogGet(qp);
             if (!data.sources?.length)
                 return 'No capture sources.';
-            return [`${data.total} captures:`, ...data.sources.map((s) => `- [${s.state}] ${s.kind}${s.url ? ` ${s.url}` : ''}`)].join('\n');
+            return [`${data.total} captures:`, ...data.sources.map((s) => `- ${s.id} | [${s.state}] ${s.kind}${s.url ? ` ${s.url}` : ''}`)].join('\n');
         },
     };
 }
@@ -227,9 +373,15 @@ export async function activate(sdk) {
     catch { /* falls back to required userId param */ }
     sdk.registerTool(noteListTool());
     sdk.registerTool(noteSearchTool());
+    sdk.registerTool(noteGetTool());
     sdk.registerTool(noteCreateTool());
+    sdk.registerTool(noteUpdateTool());
+    sdk.registerTool(noteDeleteTool());
     sdk.registerTool(bookmarkListTool());
+    sdk.registerTool(bookmarkGetTool());
     sdk.registerTool(bookmarkAddTool());
+    sdk.registerTool(bookmarkUpdateTool());
+    sdk.registerTool(bookmarkDeleteTool());
     sdk.registerTool(captureListTool());
     sdk.registerTool(captureCreateTool());
 }
