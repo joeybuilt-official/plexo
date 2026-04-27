@@ -972,7 +972,7 @@ synthesisRouter.get('/inbox', async (req, res) => {
               AND status = 'pending'
         `
         if (kinds.length > 0) {
-            q = sql`${q} AND kind = ANY(${kinds}::text[])`
+            q = sql`${q} AND kind = ANY(${kinds})`
         }
         q = sql`${q} ORDER BY score DESC, created_at DESC LIMIT ${limit}`
         const rows = Array.from(await db.execute(q))
