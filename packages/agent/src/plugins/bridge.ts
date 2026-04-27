@@ -40,8 +40,9 @@ const logger = pino({ name: 'pex-bridge' })
 const DEFAULT_TIMEOUT_MS = 10_000
 
 function toolKey(extensionName: string, toolName: string): string {
-    const sanitized = extensionName.replace(/^@/, '').replace('/', '_')
-    return `plugin__${sanitized}__${toolName}`
+    const sanitizedExt = extensionName.replace(/^@/, '').replace('/', '_')
+    const sanitizedTool = toolName.replace(/[^a-zA-Z0-9_-]/g, '_')
+    return `plugin__${sanitizedExt}__${sanitizedTool}`
 }
 
 function buildZodShape(
