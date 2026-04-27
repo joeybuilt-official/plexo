@@ -30,6 +30,10 @@ vi.mock('pino', () => ({
     }),
 }))
 
+vi.mock('../providers/settings-from-instances.js', () => ({
+    loadSettingsFromInstances: vi.fn(() => Promise.resolve(null)),
+}))
+
 import { reflectAndPromote, type ReflectCtx } from './reflect.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

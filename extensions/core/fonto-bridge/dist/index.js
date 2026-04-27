@@ -55,6 +55,8 @@ function assetListTool() {
                 subtype: { type: 'string', description: 'Filter by classification (e.g. photo, screenshot, receipt, document).' },
                 collectionId: { type: 'string', description: 'Filter to assets in a specific collection (UUID).' },
                 tagId: { type: 'string', description: 'Filter to assets with a specific tag (UUID).' },
+                capturedAfter: { type: 'string', description: 'ISO 8601 date — only return assets captured on or after this date (e.g. 2026-03-01).' },
+                capturedBefore: { type: 'string', description: 'ISO 8601 date — only return assets captured before this date (e.g. 2026-04-01).' },
                 limit: { type: 'number', description: 'Max results (1-100, default 30).' },
             },
             required: [],
@@ -70,6 +72,10 @@ function assetListTool() {
                 qp.set('collectionId', p.collectionId);
             if (p.tagId)
                 qp.set('tagId', p.tagId);
+            if (p.capturedAfter)
+                qp.set('capturedAfter', p.capturedAfter);
+            if (p.capturedBefore)
+                qp.set('capturedBefore', p.capturedBefore);
             if (p.limit)
                 qp.set('limit', String(p.limit));
             const data = await fontoGet(qp);
@@ -263,6 +269,30 @@ function assetGetTool() {
         },
     };
 }
+function assetUpdateTool() {
+    return {
+        name: 'fonto.asset.update',
+        description: "Update an asset's metadata — description, classification, or filename. Fetch current details with fonto.asset.get first.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Fonto user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Asset UUID.' },
+                filename: { type: 'string', description: 'New filename (omit to leave unchanged).' },
+                description: { type: 'string', description: 'New AI description or manual caption (omit to leave unchanged).' },
+                classification: { type: 'string', description: 'New classification: photo, screenshot, receipt, document, etc. (omit to leave unchanged).' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params, _ctx) => {
+            const p = params;
+            const userId = resolveUserId(p);
+            const data = await fontoPost({ entity: 'asset', action: 'update', userId, id: p.id, filename: p.filename, description: p.description, classification: p.classification });
+            return `Asset updated: ${data.asset.filename} (ID: ${data.asset.id})`;
+        },
+    };
+}
 function assetDeleteTool() {
     return {
         name: 'fonto.asset.delete',
@@ -444,9 +474,19 @@ export async function activate(sdk) {
         _cachedUserId = await sdk.storage.get('fonto_user_id');
     }
     catch { /* falls back to required userId param */ }
+    // Auto-resolve: all Joeybuilt apps share Better Auth user IDs.
+    // _workspaceOwnerId is the workspace owner's auth ID, identical to
+    // the userId Fonto uses for data isolation — no manual setup needed.
+    if (!_cachedUserId) {
+        try {
+            _cachedUserId = (await sdk.storage.get('_workspaceOwnerId')) ?? null;
+        }
+        catch { /* ignore */ }
+    }
     sdk.registerTool(assetListTool());
     sdk.registerTool(assetSearchTool());
     sdk.registerTool(assetGetTool());
+    sdk.registerTool(assetUpdateTool());
     sdk.registerTool(assetDeleteTool());
     sdk.registerTool(assetTagTool());
     sdk.registerTool(assetUntagTool());
