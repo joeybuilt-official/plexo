@@ -241,6 +241,176 @@ function tagCreateTool(): ToolRegistration {
     }
 }
 
+function assetGetTool(): ToolRegistration {
+    return {
+        name: 'fonto.asset.get',
+        description: "Fetch full details of a single asset by ID, including description and extracted text.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Fonto user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Asset UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string }
+            const userId = resolveUserId(p)
+            const qp = new URLSearchParams({ entity: 'asset', userId, id: p.id })
+            const data = await fontoGet(qp) as { asset: { id: string; filename: string; mimeType?: string; sizeBytes?: number; classification?: string; description?: string; extractedText?: string; capturedAt?: string; createdAt?: string } }
+            const a = data.asset
+            const lines = [
+                `# ${a.filename}`,
+                `ID: ${a.id}`,
+                `Type: ${a.mimeType || 'unknown'}${a.classification ? ` [${a.classification}]` : ''}`,
+                a.sizeBytes ? `Size: ${Math.round(a.sizeBytes / 1024)} KB` : '',
+                a.description ? `Description: ${a.description}` : '',
+                a.extractedText ? `Extracted text: ${a.extractedText.slice(0, 500)}${a.extractedText.length > 500 ? '…' : ''}` : '',
+            ].filter(Boolean)
+            return lines.join('\n')
+        },
+    }
+}
+
+function assetDeleteTool(): ToolRegistration {
+    return {
+        name: 'fonto.asset.delete',
+        description: "Soft-delete an asset by ID. It will no longer appear in listings.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Fonto user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Asset UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string }
+            const userId = resolveUserId(p)
+            const data = await fontoPost({ entity: 'asset', action: 'delete', userId, id: p.id }) as { deleted: boolean; asset: { id: string; filename: string } }
+            return `Asset deleted: ${data.asset.filename} (ID: ${data.asset.id})`
+        },
+    }
+}
+
+function collectionGetTool(): ToolRegistration {
+    return {
+        name: 'fonto.collection.get',
+        description: "Fetch details of a single collection by ID.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Fonto user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Collection UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string }
+            const userId = resolveUserId(p)
+            const qp = new URLSearchParams({ entity: 'collection', userId, id: p.id })
+            const data = await fontoGet(qp) as { collection: { id: string; name: string; description?: string; createdAt?: string } }
+            const c = data.collection
+            return [`# ${c.name}`, `ID: ${c.id}`, c.description ? `Description: ${c.description}` : ''].filter(Boolean).join('\n')
+        },
+    }
+}
+
+function collectionUpdateTool(): ToolRegistration {
+    return {
+        name: 'fonto.collection.update',
+        description: "Rename or update the description of a collection.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Fonto user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Collection UUID.' },
+                name: { type: 'string', description: 'New name (omit to leave unchanged).' },
+                description: { type: 'string', description: 'New description (omit to leave unchanged).' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string; name?: string; description?: string }
+            const userId = resolveUserId(p)
+            const data = await fontoPost({ entity: 'collection', action: 'update', userId, id: p.id, name: p.name, description: p.description }) as { collection: { id: string; name: string } }
+            return `Collection updated: ${data.collection.name} (ID: ${data.collection.id})`
+        },
+    }
+}
+
+function collectionDeleteTool(): ToolRegistration {
+    return {
+        name: 'fonto.collection.delete',
+        description: "Delete a collection by ID. Assets in the collection are NOT deleted, only the collection itself.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Fonto user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Collection UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string }
+            const userId = resolveUserId(p)
+            await fontoPost({ entity: 'collection', action: 'delete', userId, id: p.id })
+            return `Collection deleted (ID: ${p.id})`
+        },
+    }
+}
+
+function tagUpdateTool(): ToolRegistration {
+    return {
+        name: 'fonto.tag.update',
+        description: "Rename or recolor a tag.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Fonto user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Tag UUID.' },
+                name: { type: 'string', description: 'New name (omit to leave unchanged).' },
+                color: { type: 'string', description: 'New hex color (omit to leave unchanged).' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string; name?: string; color?: string }
+            const userId = resolveUserId(p)
+            const data = await fontoPost({ entity: 'tag', action: 'update', userId, id: p.id, name: p.name, color: p.color }) as { tag: { id: string; name: string } }
+            return `Tag updated: ${data.tag.name} (ID: ${data.tag.id})`
+        },
+    }
+}
+
+function tagDeleteTool(): ToolRegistration {
+    return {
+        name: 'fonto.tag.delete',
+        description: "Delete a tag by ID. The tag is removed from all assets it was applied to.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Fonto user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Tag UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string }
+            const userId = resolveUserId(p)
+            await fontoPost({ entity: 'tag', action: 'delete', userId, id: p.id })
+            return `Tag deleted (ID: ${p.id})`
+        },
+    }
+}
+
 function assetTagTool(): ToolRegistration {
     return {
         name: 'fonto.asset.tag',
@@ -294,12 +464,19 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
 
     sdk.registerTool(assetListTool())
     sdk.registerTool(assetSearchTool())
+    sdk.registerTool(assetGetTool())
+    sdk.registerTool(assetDeleteTool())
     sdk.registerTool(assetTagTool())
     sdk.registerTool(assetUntagTool())
     sdk.registerTool(collectionListTool())
+    sdk.registerTool(collectionGetTool())
     sdk.registerTool(collectionCreateTool())
+    sdk.registerTool(collectionUpdateTool())
+    sdk.registerTool(collectionDeleteTool())
     sdk.registerTool(collectionAddAssetTool())
     sdk.registerTool(collectionRemoveAssetTool())
     sdk.registerTool(tagListTool())
     sdk.registerTool(tagCreateTool())
+    sdk.registerTool(tagUpdateTool())
+    sdk.registerTool(tagDeleteTool())
 }

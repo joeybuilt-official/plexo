@@ -376,6 +376,87 @@ function memoCreateTool(): ToolRegistration {
     }
 }
 
+function captureGetTool(): ToolRegistration {
+    return {
+        name: 'nexalog.capture.get',
+        description: "Fetch full details of a single capture source by ID.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Capture source UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1000, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string }
+            const userId = resolveUserId(p)
+            const qp = new URLSearchParams({ entity: 'capture_source', userId, id: p.id })
+            const data = await nexalogGet(qp) as { source: { id: string; kind: string; url?: string; content?: string; ogTitle?: string; ogDescription?: string; ogImage?: string; faviconUrl?: string; state: string; noteId?: string; createdAt?: string } }
+            const s = data.source
+            const lines = [
+                `ID: ${s.id} | Kind: ${s.kind} | State: ${s.state}`,
+                s.url ? `URL: ${s.url}` : '',
+                s.ogTitle ? `Title: ${s.ogTitle}` : '',
+                s.ogDescription ? `Description: ${s.ogDescription}` : '',
+                s.content ? `Content: ${s.content.slice(0, 300)}${s.content.length > 300 ? '…' : ''}` : '',
+                s.ogImage ? `Thumbnail: ${s.ogImage}` : '',
+                s.faviconUrl ? `Favicon: ${s.faviconUrl}` : '',
+                s.noteId ? `Linked note: ${s.noteId}` : '',
+            ].filter(Boolean)
+            return lines.join('\n')
+        },
+    }
+}
+
+function captureUpdateTool(): ToolRegistration {
+    return {
+        name: 'nexalog.capture.update',
+        description: "Update the state or content of a capture source. Use this to mark captures as processed or archived.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Capture source UUID.' },
+                state: { type: 'string', description: 'New state: raw, processed, or archived.' },
+                content: { type: 'string', description: 'Updated content (omit to leave unchanged).' },
+                url: { type: 'string', description: 'Updated URL (omit to leave unchanged).' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string; state?: string; content?: string; url?: string }
+            const userId = resolveUserId(p)
+            const data = await nexalogPost({ entity: 'capture_source', action: 'update', userId, id: p.id, state: p.state, content: p.content, url: p.url }) as { source: { id: string; state: string } }
+            return `Capture updated: state=${data.source.state} (ID: ${data.source.id})`
+        },
+    }
+}
+
+function captureDeleteTool(): ToolRegistration {
+    return {
+        name: 'nexalog.capture.delete',
+        description: "Delete a capture source by ID. Use nexalog.capture.list to find IDs.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                id: { type: 'string', description: 'Capture source UUID.' },
+            },
+            required: ['id'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; id: string }
+            const userId = resolveUserId(p)
+            await nexalogPost({ entity: 'capture_source', action: 'delete', userId, id: p.id })
+            return `Capture deleted (ID: ${p.id})`
+        },
+    }
+}
+
 function captureCreateTool(): ToolRegistration {
     return {
         name: 'nexalog.capture.create',
@@ -418,5 +499,8 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
     sdk.registerTool(bookmarkDeleteTool())
     sdk.registerTool(memoCreateTool())
     sdk.registerTool(captureListTool())
+    sdk.registerTool(captureGetTool())
     sdk.registerTool(captureCreateTool())
+    sdk.registerTool(captureUpdateTool())
+    sdk.registerTool(captureDeleteTool())
 }
