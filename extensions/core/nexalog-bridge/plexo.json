@@ -26,7 +26,7 @@
     "externalDestinations": []
   },
   "resourceHints": {
-    "maxInvocationMs": 15000
+    "maxInvocationMs": 60000
   },
   "tools": [
     { "name": "nexalog.note.list",           "description": "List active notes across the user's Nexalog workspaces." },
@@ -48,7 +48,9 @@
     { "name": "nexalog.capture.list",        "description": "List capture sources (raw inbox of links and snippets)." },
     { "name": "nexalog.capture.get",         "description": "Fetch full details of a single capture source by ID." },
     { "name": "nexalog.capture.create",      "description": "Create a new capture source (link, snippet) in the user's Nexalog workspace." },
-    { "name": "nexalog.capture.update",      "description": "Update the state or content of a capture source." },
-    { "name": "nexalog.capture.delete",      "description": "Delete a capture source by ID." }
+    { "name": "nexalog.capture.update",              "description": "Update the state or content of a capture source." },
+    { "name": "nexalog.capture.delete",              "description": "Delete a capture source by ID." },
+    { "name": "nexalog.claude.import_conversation",  "description": "Import a single Claude conversation as a Nexalog note, preserving full message history, model, timestamps, and artifacts." },
+    { "name": "nexalog.claude.import_export",        "description": "Batch-import a Claude data export (conversations.json + projects.json) into Nexalog notes. Call repeatedly with offset to process all conversations." }
   ]
 }

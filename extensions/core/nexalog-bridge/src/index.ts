@@ -4,6 +4,7 @@
 // @joeybuilt/nexalog-bridge — Pex tool extension that proxies tool calls to
 // Nexalog's /api/plexo/data endpoint. Mirrors @joeybuilt/levio-bridge.
 
+import { readFile } from 'node:fs/promises'
 import type { PlexoSDK, ToolRegistration, InvokeContext } from '@plexo/sdk'
 
 function nexalogBase(): string {
@@ -573,6 +574,306 @@ function bookmarkTagRemoveTool(): ToolRegistration {
     }
 }
 
+// ── Claude export format types ───────────────────────────────────────────────
+
+interface ClaudeContentItem {
+    type: string
+    text?: string
+    thinking?: string
+    name?: string
+    input?: {
+        id?: string
+        type?: string
+        title?: string
+        command?: string
+        content?: string
+        language?: string | null
+    }
+    content?: Array<{ type?: string; text?: string; uuid?: string }>
+    is_error?: boolean
+    start_timestamp?: string | null
+    stop_timestamp?: string | null
+}
+
+interface ClaudeMessage {
+    uuid: string
+    index?: number
+    sender: 'human' | 'assistant'
+    text?: string
+    content?: ClaudeContentItem[]
+    created_at: string
+    updated_at?: string
+    truncated?: boolean
+    parent_message_uuid?: string | null
+}
+
+interface ClaudeConversation {
+    uuid: string
+    name?: string
+    created_at: string
+    updated_at?: string
+    chat_messages: ClaudeMessage[]
+    summary?: string
+    is_starred?: boolean
+    current_leaf_message_uuid?: string | null
+    model?: string | null
+    project_uuid?: string | null
+}
+
+interface ClaudeProject {
+    uuid: string
+    name?: string
+    created_at: string
+    updated_at?: string
+}
+
+// ── Claude format helpers ────────────────────────────────────────────────────
+
+function linearizeMessages(messages: ClaudeMessage[], leafUuid?: string | null): ClaudeMessage[] {
+    if (!messages?.length) return []
+    const sorted = [...messages].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+    if (!leafUuid) return sorted
+    const byUuid = new Map(messages.map(m => [m.uuid, m]))
+    if (!byUuid.has(leafUuid)) return sorted
+    const path: ClaudeMessage[] = []
+    let cur: ClaudeMessage | undefined = byUuid.get(leafUuid)
+    while (cur) {
+        path.unshift(cur)
+        cur = cur.parent_message_uuid ? byUuid.get(cur.parent_message_uuid) : undefined
+    }
+    return path.length > 0 ? path : sorted
+}
+
+function extractText(items: ClaudeContentItem[] | undefined, fallback?: string): string {
+    if (!items?.length) return fallback ?? ''
+    const parts: string[] = []
+    for (const item of items) {
+        switch (item.type) {
+            case 'text':
+                if (item.text?.trim()) parts.push(item.text.trim())
+                break
+            case 'thinking':
+                if (item.thinking?.trim()) {
+                    const excerpt = item.thinking.length > 600 ? item.thinking.slice(0, 600) + '…' : item.thinking
+                    parts.push(`[Reasoning]\n${excerpt.trim()}\n[/Reasoning]`)
+                }
+                break
+            case 'tool_use':
+                if (item.name === 'artifacts' && item.input?.content != null) {
+                    const lang = item.input.language || ''
+                    const header = item.input.title ? ` (${item.input.title})` : ''
+                    parts.push(`\`\`\`${lang}${header}\n${item.input.content}\n\`\`\``)
+                } else if (item.name) {
+                    parts.push(`[Tool: ${item.name}]`)
+                }
+                break
+            case 'tool_result':
+                if (item.content?.length) {
+                    const text = item.content.map(c => c.text ?? '').join('\n').trim()
+                    if (text) parts.push(`[Tool result]\n${text.length > 300 ? text.slice(0, 300) + '…' : text}`)
+                }
+                break
+            case 'voice_note':
+                if (item.text?.trim()) parts.push(`[Voice note]\n${item.text.trim()}`)
+                break
+        }
+    }
+    return parts.join('\n\n') || fallback || ''
+}
+
+function fmtTs(iso: string): string {
+    try {
+        return new Date(iso).toLocaleString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit',
+        })
+    } catch { return iso }
+}
+
+function formatConversation(conv: ClaudeConversation, projectName?: string): { title: string; content: string } {
+    const messages = linearizeMessages(conv.chat_messages, conv.current_leaf_message_uuid)
+    const title = conv.name || `Conversation ${conv.uuid.slice(0, 8)}`
+
+    const metaLines = [
+        `uuid: ${conv.uuid}`,
+        conv.model ? `model: ${conv.model}` : '',
+        `created: ${fmtTs(conv.created_at)}`,
+        conv.updated_at ? `updated: ${fmtTs(conv.updated_at)}` : '',
+        projectName ? `project: ${projectName}` : '',
+        conv.is_starred ? `starred: true` : '',
+        conv.summary ? `summary: ${conv.summary.slice(0, 200)}` : '',
+    ].filter(Boolean)
+
+    const displayMessages = messages.slice(0, 200)
+    const truncatedCount = messages.length - displayMessages.length
+
+    const turns = displayMessages.map(msg => {
+        const speaker = msg.sender === 'human' ? 'You' : 'Claude'
+        const body = extractText(msg.content, msg.text)
+        return `**${speaker}** · ${fmtTs(msg.created_at)}\n\n${body || '(no content)'}`
+    })
+
+    if (truncatedCount > 0) turns.push(`[${truncatedCount} more messages not shown]`)
+
+    const content = [
+        `---\n${metaLines.join('\n')}\n---`,
+        `# ${title}`,
+        turns.join('\n\n---\n\n'),
+    ].join('\n\n')
+
+    return { title, content }
+}
+
+// ── Claude import tools ──────────────────────────────────────────────────────
+
+function claudeImportConversationTool(): ToolRegistration {
+    return {
+        name: 'nexalog.claude.import_conversation',
+        description:
+            'Import a single Claude conversation as a Nexalog note. Preserves full message history, model, timestamps, artifacts, and reasoning blocks. For bulk imports from a file, use nexalog.claude.import_export.',
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                conversation: {
+                    type: 'object',
+                    description: 'Claude conversation object from conversations.json (must have uuid and chat_messages).',
+                },
+                projectName: { type: 'string', description: 'Project name to include in note metadata (optional).' },
+            },
+            required: ['conversation'],
+        },
+        hints: { estimatedMs: 3000, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; conversation: ClaudeConversation; projectName?: string }
+            const userId = resolveUserId(p)
+            if (!p.conversation?.uuid) throw new Error('conversation.uuid is required')
+            const { title, content } = formatConversation(p.conversation, p.projectName)
+            const data = await nexalogPost({
+                entity: 'note', action: 'create', userId, title, content, kind: 'claude_conversation',
+            }) as { note: { id: string; title: string } }
+            return `Imported: "${data.note.title}" (Note: ${data.note.id}, Claude UUID: ${p.conversation.uuid})`
+        },
+    }
+}
+
+const IMPORT_TIMEOUT_MS = 30_000
+
+function claudeImportExportTool(): ToolRegistration {
+    return {
+        name: 'nexalog.claude.import_export',
+        description:
+            "Batch-import a Claude data export into Nexalog. Reads conversations.json (and optionally projects.json) from disk. Creates one note per conversation preserving full message history, model, timestamps, artifacts, and reasoning. Call repeatedly with increasing offset until all conversations are imported.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                filePath: {
+                    type: 'string',
+                    description: 'Absolute path to conversations.json from the Claude export ZIP.',
+                },
+                projectsFilePath: {
+                    type: 'string',
+                    description: 'Absolute path to projects.json (optional — adds project names to note metadata).',
+                },
+                offset: {
+                    type: 'number',
+                    description: 'Start index for this batch (default 0). Pass nextOffset from the previous result to continue.',
+                },
+                batchSize: {
+                    type: 'number',
+                    description: 'Conversations to process per call (default 20, max 50).',
+                },
+                dryRun: {
+                    type: 'boolean',
+                    description: 'Preview total count and batch plan without creating any notes.',
+                },
+            },
+            required: ['filePath'],
+        },
+        hints: { estimatedMs: IMPORT_TIMEOUT_MS, timeoutMs: IMPORT_TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as {
+                userId?: string
+                filePath: string
+                projectsFilePath?: string
+                offset?: number
+                batchSize?: number
+                dryRun?: boolean
+            }
+            const userId = resolveUserId(p)
+            const offset = Math.max(0, p.offset ?? 0)
+            const batchSize = Math.min(50, Math.max(1, p.batchSize ?? 20))
+
+            let conversations: ClaudeConversation[]
+            try {
+                const raw = await readFile(p.filePath, 'utf-8')
+                conversations = JSON.parse(raw) as ClaudeConversation[]
+                if (!Array.isArray(conversations)) throw new Error('Expected a JSON array at root')
+            } catch (e) {
+                throw new Error(`Cannot read ${p.filePath}: ${e instanceof Error ? e.message : String(e)}`)
+            }
+
+            const projectNames = new Map<string, string>()
+            if (p.projectsFilePath) {
+                try {
+                    const raw = await readFile(p.projectsFilePath, 'utf-8')
+                    const projects = JSON.parse(raw) as ClaudeProject[]
+                    if (Array.isArray(projects)) {
+                        for (const proj of projects) {
+                            if (proj.uuid && proj.name) projectNames.set(proj.uuid, proj.name)
+                        }
+                    }
+                } catch { /* optional — ignore */ }
+            }
+
+            const total = conversations.length
+            const batch = conversations.slice(offset, offset + batchSize)
+            const endIdx = offset + batch.length
+            const nextOffset = endIdx < total ? endIdx : null
+
+            if (p.dryRun) {
+                const batches = Math.ceil(total / batchSize)
+                return [
+                    `Dry run — ${total} conversations total${projectNames.size > 0 ? `, ${projectNames.size} projects loaded` : ''}`,
+                    `Batch size: ${batchSize} → ${batches} call(s) needed`,
+                    `This batch would cover: ${offset + 1}–${Math.min(offset + batchSize, total)}`,
+                ].join('\n')
+            }
+
+            let imported = 0
+            let failed = 0
+            const errs: string[] = []
+
+            for (const conv of batch) {
+                if (!conv?.uuid) { failed++; continue }
+                try {
+                    const projectName = conv.project_uuid ? projectNames.get(conv.project_uuid) : undefined
+                    const { title, content } = formatConversation(conv, projectName)
+                    await nexalogPost({
+                        entity: 'note', action: 'create', userId, title, content, kind: 'claude_conversation',
+                    })
+                    imported++
+                } catch (e) {
+                    failed++
+                    errs.push(`${conv.uuid.slice(0, 8)}: ${e instanceof Error ? e.message : String(e)}`)
+                }
+            }
+
+            const pct = Math.round((endIdx / total) * 100)
+            return [
+                `Batch ${offset + 1}–${endIdx} of ${total} (${pct}%)`,
+                `  Imported: ${imported} notes`,
+                failed > 0 ? `  Failed: ${failed}` : '',
+                errs.length > 0 ? `  Errors: ${errs.slice(0, 3).join('; ')}` : '',
+                nextOffset != null
+                    ? `\nCall again with offset=${nextOffset} to continue.`
+                    : '\nAll conversations imported.',
+            ].filter(Boolean).join('\n')
+        },
+    }
+}
+
 export async function activate(sdk: PlexoSDK): Promise<void> {
     try {
         _cachedUserId = await sdk.storage.get('nexalog_user_id')
@@ -599,4 +900,6 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
     sdk.registerTool(captureCreateTool())
     sdk.registerTool(captureUpdateTool())
     sdk.registerTool(captureDeleteTool())
+    sdk.registerTool(claudeImportConversationTool())
+    sdk.registerTool(claudeImportExportTool())
 }
