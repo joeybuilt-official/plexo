@@ -11,8 +11,8 @@ describe('agent constants', () => {
             expect(SAFETY_LIMITS.maxConsecutiveToolCalls).toBe(200)
         })
 
-        it('maxWallClockMs is 24 hours', () => {
-            expect(SAFETY_LIMITS.maxWallClockMs).toBe(24 * 60 * 60 * 1000)
+        it('maxWallClockMs is 4 hours', () => {
+            expect(SAFETY_LIMITS.maxWallClockMs).toBe(4 * 60 * 60 * 1000)
         })
 
         it('noForcePush is always true — not configurable', () => {
