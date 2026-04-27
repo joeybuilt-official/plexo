@@ -17,6 +17,7 @@
 import type { ReactNode } from 'react'
 import { ListToolbar } from '@web/components/list-toolbar'
 import type { ListFilterHook, FilterDimension } from '@web/components/list-toolbar'
+import { ChevronLeft } from 'lucide-react'
 
 export interface ConfigListLayoutProps<T> {
     // Header
@@ -82,15 +83,42 @@ export function ConfigListLayout<T>({
     errorBanner,
     footer,
 }: ConfigListLayoutProps<T>) {
+    // On mobile, detect whether an item is selected to show detail panel
+    const hasSelection = items.some((item) => isSelected(item))
+
+    function handleSelect(item: T) {
+        onSelect(item)
+    }
+
     return (
         <div className="flex flex-col gap-4 h-full">
-            {/* Header */}
+            {/* Header — on mobile detail view, show a back button instead */}
             <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                    <h1 className="text-2xl font-semibold text-text-primary">{title}</h1>
-                    {subtitle && (
-                        <p className="mt-0.5 text-sm text-text-muted">{subtitle}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                    {/* Back button: mobile only, shown when detail is open */}
+                    {hasSelection && (
+                        <button
+                            className="md:hidden flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors shrink-0 -ml-1 pr-1"
+                            onClick={() => {
+                                // Deselect by selecting a non-existent item — pages must
+                                // handle selection as toggle (second click deselects).
+                                // We find the currently-selected item and call onSelect to
+                                // toggle it off, which is the standard pattern used across pages.
+                                const selected = items.find((item) => isSelected(item))
+                                if (selected) onSelect(selected)
+                            }}
+                            aria-label="Back to list"
+                        >
+                            <ChevronLeft className="h-5 w-5 shrink-0" />
+                            <span>Back</span>
+                        </button>
                     )}
+                    <div className="min-w-0">
+                        <h1 className="text-2xl font-semibold text-text-primary">{title}</h1>
+                        {subtitle && (
+                            <p className="mt-0.5 text-sm text-text-muted">{subtitle}</p>
+                        )}
+                    </div>
                 </div>
                 {headerActions && (
                     <div className="shrink-0 flex items-center gap-2">{headerActions}</div>
@@ -106,8 +134,9 @@ export function ConfigListLayout<T>({
             {/* Error banner */}
             {errorBanner}
 
-            {/* Toolbar — skipped entirely when no filterHook is passed */}
-            {filterHook && (
+            {/* Toolbar — skipped entirely when no filterHook is passed.
+                On mobile, hide toolbar when detail is open to save space. */}
+            {filterHook && !hasSelection && (
                 <ListToolbar
                     hook={filterHook}
                     placeholder={searchPlaceholder}
@@ -115,45 +144,55 @@ export function ConfigListLayout<T>({
                     sortOptions={sortOptions ?? []}
                 />
             )}
+            {filterHook && hasSelection && (
+                <div className="hidden md:block">
+                    <ListToolbar
+                        hook={filterHook}
+                        placeholder={searchPlaceholder}
+                        dimensions={filterDimensions ?? []}
+                        sortOptions={sortOptions ?? []}
+                    />
+                </div>
+            )}
 
-            {/* Two-panel layout */}
+            {/* Two-panel layout
+                Mobile: show list OR detail (not both, not scroll).
+                md+:    show both side-by-side. */}
             <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0 pt-2 pb-4 md:pb-0">
-                {/* Left panel — list */}
+                {/* Left panel — list. Hidden on mobile when detail is open. */}
                 <div
-                    className={`w-full ${listWidthClass} shrink-0 flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-y-auto pb-2 md:pb-0 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]`}
+                    className={`w-full ${listWidthClass} shrink-0 flex flex-col gap-1 overflow-y-auto ${hasSelection ? 'hidden md:flex' : 'flex'}`}
                 >
-                    <div className="flex-1 flex flex-row md:flex-col gap-2 md:gap-1">
-                        {loading ? (
-                            <div className="flex items-center justify-center py-8 min-w-[200px] shrink-0 snap-start">
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-azure" />
-                            </div>
-                        ) : items.length === 0 ? (
-                            <div className="text-center py-6 min-w-[200px] shrink-0 snap-start">
-                                <p className="text-xs text-text-muted">{emptyMessage}</p>
-                            </div>
-                        ) : (
-                            items.map((item) => {
-                                const selected = isSelected(item)
-                                return (
-                                    <button
-                                        key={getItemKey(item)}
-                                        onClick={() => onSelect(item)}
-                                        className={`text-left rounded border px-3 py-2.5 transition-all text-sm shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${
-                                            selected
-                                                ? 'border-accent-dim bg-surface-1'
-                                                : 'border-border bg-surface-1 hover:border-accent-dim'
-                                        }`}
-                                    >
-                                        {renderListItem(item, { selected })}
-                                    </button>
-                                )
-                            })
-                        )}
-                    </div>
+                    {loading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-azure" />
+                        </div>
+                    ) : items.length === 0 ? (
+                        <div className="text-center py-6">
+                            <p className="text-xs text-text-muted">{emptyMessage}</p>
+                        </div>
+                    ) : (
+                        items.map((item) => {
+                            const selected = isSelected(item)
+                            return (
+                                <button
+                                    key={getItemKey(item)}
+                                    onClick={() => handleSelect(item)}
+                                    className={`text-left rounded border px-3 py-2.5 transition-all text-sm w-full min-h-[44px] ${
+                                        selected
+                                            ? 'border-accent-dim bg-surface-1'
+                                            : 'border-border bg-surface-1 hover:border-accent-dim'
+                                    }`}
+                                >
+                                    {renderListItem(item, { selected })}
+                                </button>
+                            )
+                        })
+                    )}
                 </div>
 
-                {/* Right panel — detail */}
-                <div className="flex-1 rounded border border-border bg-surface-1 flex flex-col overflow-hidden max-w-[100vw] sm:max-w-none">
+                {/* Right panel — detail. Hidden on mobile when no selection. */}
+                <div className={`flex-1 rounded border border-border bg-surface-1 flex flex-col overflow-hidden ${hasSelection ? 'flex' : 'hidden md:flex'}`}>
                     {detail ?? emptyDetail ?? (
                         <div className="flex-1 flex items-center justify-center">
                             <p className="text-sm text-text-muted">Select an item</p>

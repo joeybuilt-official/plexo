@@ -43,7 +43,7 @@ export function MobileHeader({ user }: { user?: SessionUser }) {
                         className="fixed inset-0 bg-black/60 transition-opacity"
                         onClick={() => setOpen(false)}
                     />
-                    <div className="relative flex w-[248px] animate-in slide-in-from-left h-full duration-200 border-r border-border">
+                    <div className="relative flex w-[min(248px,80vw)] animate-in slide-in-from-left h-full duration-200 border-r border-border">
                         <Sidebar
                             user={user}
                             onNavClick={() => setOpen(false)}

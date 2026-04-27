@@ -112,6 +112,7 @@
     color: var(--color-text-primary);
     font-family: var(--font-body);
     line-height: 1.5;
+    overflow-x: hidden;
   }
 }
 

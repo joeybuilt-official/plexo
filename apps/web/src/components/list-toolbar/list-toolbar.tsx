@@ -47,7 +47,7 @@ function CustomSortDropdown({
             </button>
 
             {open && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[170px] rounded border border-border bg-canvas py-1.5 animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[120px] md:min-w-[170px] max-w-[calc(100vw-1rem)] rounded border border-border bg-canvas py-1.5 animate-in fade-in zoom-in-95 duration-100">
                     <ul role="listbox" className="max-h-[300px] overflow-y-auto px-1.5 flex flex-col gap-0.5">
                         {options.map((opt) => {
                             const active = opt.value === value

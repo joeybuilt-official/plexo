@@ -314,7 +314,7 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
             </button>
 
             {open && (
-                <div className="absolute left-2 top-[calc(100%+4px)] z-50 w-[240px] rounded border border-border bg-surface-1 overflow-hidden">
+                <div className="absolute left-2 top-[calc(100%+4px)] z-50 w-[240px] max-w-[calc(100vw-2rem)] rounded border border-border bg-surface-1 overflow-hidden">
                     {/* Workspace list */}
                     <div className="max-h-80 overflow-y-auto p-1.5 space-y-0.5">
                         {isLoading && list.length === 0 && (
@@ -914,7 +914,7 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
             </button>
 
             {open && (
-                <div className={`absolute bottom-[calc(100%+8px)] z-50 rounded border border-border bg-surface-1 overflow-hidden ${collapsed ? 'left-2 min-w-[220px]' : 'left-0 w-full'}`}>
+                <div className={`absolute bottom-[calc(100%+8px)] z-50 rounded border border-border bg-surface-1 overflow-hidden ${collapsed ? 'left-2 min-w-[220px] max-w-[calc(100vw-1rem)]' : 'left-0 w-full max-w-[calc(100vw-1rem)]'}`}>
                     {/* Identity header */}
                     <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-2 text-xs font-semibold text-text-primary ring-1 ring-inset ring-border">
