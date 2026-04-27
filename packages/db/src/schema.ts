@@ -1801,3 +1801,59 @@ export const entityLinks = pgTable('entity_links', {
 
 export type EntityLink = typeof entityLinks.$inferSelect
 export type NewEntityLink = typeof entityLinks.$inferInsert
+
+
+// ── Synthesis (Phase α) ─────────────────────────────────────────
+// Cluster→theme registry written by /api/v1/memory/cluster.
+// `centroid` is a pgvector(384) column; populated via raw SQL since
+// drizzle-orm does not yet have a native vector column type.
+export const memoryThemes = pgTable('memory_themes', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    label: text('label').notNull(),
+    memberIds: uuid('member_ids').array().notNull(),
+    // centroid: vector(384) — managed via raw SQL in cluster.ts
+    size: integer('size').notNull(),
+    growth14d: integer('growth_14d').notNull().default(0),
+    coherence: real('coherence').notNull(),
+    status: text('status').notNull().default('pending'),
+    lastMemberAt: timestamp('last_member_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table: any) => [
+    index('memory_themes_workspace_idx').on(table.workspaceId),
+    index('memory_themes_workspace_status_idx').on(table.workspaceId, table.status),
+])
+
+export type MemoryTheme = typeof memoryThemes.$inferSelect
+export type NewMemoryTheme = typeof memoryThemes.$inferInsert
+
+// One inbox table for all system-driven suggestions across every Joeybuilt surface.
+// Kinds: link.note_to_note, link.bookmark_to_note, theme.page_draft, archive.stale_bookmark,
+//        cross_app.task_seed, cross_app.asset_project, cross_app.financial_pattern,
+//        journal.prompt, chat.followup.
+export const synthesisSuggestions = pgTable('synthesis_suggestions', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    payload: jsonb('payload').notNull(),
+    score: real('score').notNull(),
+    source: text('source').notNull(),
+    status: text('status').notNull().default('pending'),
+    surfacedAt: timestamp('surfaced_at', { withTimezone: true }),
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    dedupeKey: text('dedupe_key').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table: any) => [
+    index('synthesis_suggestions_workspace_kind_status_score_idx')
+        .on(table.workspaceId, table.kind, table.status, table.score),
+    index('synthesis_suggestions_workspace_status_idx').on(table.workspaceId, table.status),
+    uniqueIndex('synthesis_suggestions_workspace_dedupe_uq').on(table.workspaceId, table.dedupeKey),
+])
+
+export type SynthesisSuggestion = typeof synthesisSuggestions.$inferSelect
+export type NewSynthesisSuggestion = typeof synthesisSuggestions.$inferInsert

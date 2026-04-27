@@ -825,3 +825,212 @@ memoryRouter.patch('/eviction', async (req, res) => {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update eviction settings' } })
     }
 })
+
+// ── Synthesis (Phase α) ─────────────────────────────────────────
+//
+// Endpoints below are mounted twice:
+//   - cluster + suggest are appended to the workspace-gated memoryRouter
+//     (routes are user-driven from the dashboard).
+//   - inbox/accept/dismiss go on `synthesisRouter` (service-key only).
+//
+// Both write into `synthesis_suggestions` (ON CONFLICT (workspace_id,dedupe_key) DO UPDATE),
+// so re-running cluster + suggest on the same data is idempotent.
+import { clusterMemory } from '@plexo/agent/memory/cluster'
+import {
+    generateThemeSuggestions,
+    generateLinkSuggestions,
+} from '@plexo/agent/memory/suggest'
+import { requireServiceKey } from '../middleware/service-key-auth.js'
+import crypto from 'crypto'
+
+/**
+ * Stable identity hash for a cluster's member set, so re-runs upsert
+ * against the same theme row instead of creating duplicates.
+ */
+function memberSetHash(memberIds: string[]): string {
+    const sorted = [...memberIds].sort()
+    return crypto.createHash('sha256').update(sorted.join(',')).digest('hex').slice(0, 32)
+}
+
+// POST /api/v1/memory/cluster — recompute clusters and persist into memory_themes.
+memoryRouter.post('/cluster', async (req, res) => {
+    const { workspaceId, minClusterSize, coherenceFloor } = (req.body ?? {}) as {
+        workspaceId?: string
+        minClusterSize?: number
+        coherenceFloor?: number
+    }
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+    try {
+        const result = await clusterMemory(workspaceId, {
+            minClusterSize: typeof minClusterSize === 'number' ? minClusterSize : undefined,
+            coherenceFloor: typeof coherenceFloor === 'number' ? coherenceFloor : undefined,
+        })
+
+        // Upsert each cluster by member-set hash → label + size + coherence + centroid.
+        const persisted: Array<{ id: string; label: string; memberIds: string[]; coherence: number; size: number }> = []
+        for (const c of result.clusters) {
+            const hash = memberSetHash(c.memberIds)
+            const centroidLiteral = `[${c.centroid.join(',')}]`
+            const sortedKey = [...c.memberIds].sort().join(',')
+
+            // Find an existing theme with the same member-set hash.
+            const existing = Array.from(await db.execute<{ id: string }>(sql`
+                SELECT id FROM memory_themes
+                WHERE workspace_id = ${workspaceId}::uuid
+                  AND md5(array_to_string(
+                        ARRAY(SELECT unnest(member_ids) ORDER BY 1), ','
+                      )) = md5(${sortedKey})
+                LIMIT 1
+            `))
+
+            let themeId: string
+            if (existing[0]?.id) {
+                themeId = existing[0].id
+                await db.execute(sql`
+                    UPDATE memory_themes
+                    SET label = ${c.label},
+                        size = ${c.memberIds.length},
+                        coherence = ${c.coherence},
+                        centroid = ${centroidLiteral}::vector,
+                        last_member_at = NOW()
+                    WHERE id = ${themeId}::uuid
+                `)
+            } else {
+                const inserted = Array.from(await db.execute<{ id: string }>(sql`
+                    INSERT INTO memory_themes
+                        (workspace_id, label, member_ids, centroid, size, coherence, last_member_at)
+                    VALUES
+                        (${workspaceId}::uuid, ${c.label}, ${c.memberIds}::uuid[],
+                         ${centroidLiteral}::vector, ${c.memberIds.length}, ${c.coherence}, NOW())
+                    RETURNING id
+                `))
+                themeId = inserted[0]!.id
+            }
+            persisted.push({ id: themeId, label: c.label, memberIds: c.memberIds, coherence: c.coherence, size: c.memberIds.length })
+            void hash
+        }
+
+        res.json({
+            workspaceId,
+            clusters: persisted,
+            noiseCount: result.noise.length,
+        })
+    } catch (err) {
+        logger.error({ err, workspaceId }, 'memory.cluster failed')
+        res.status(500).json({ error: { code: 'CLUSTER_FAILED', message: 'Cluster run failed' } })
+    }
+})
+
+// POST /api/v1/memory/suggest — generate theme + link suggestions.
+memoryRouter.post('/suggest', async (req, res) => {
+    const { workspaceId } = (req.body ?? {}) as { workspaceId?: string }
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+    try {
+        const themes = await generateThemeSuggestions(workspaceId)
+        const links = await generateLinkSuggestions(workspaceId)
+        res.json({
+            workspaceId,
+            themes,
+            links,
+        })
+    } catch (err) {
+        logger.error({ err, workspaceId }, 'memory.suggest failed')
+        res.status(500).json({ error: { code: 'SUGGEST_FAILED', message: 'Suggestion run failed' } })
+    }
+})
+
+// ── Synthesis Router (service-key) ──────────────────────────────
+// Mounted in index.ts at /api/v1/synthesis. All routes require X-App-Id +
+// PLEXO_SERVICE_KEY since they are consumed by other Joeybuilt apps as well
+// as the dashboard's server-side proxy.
+export const synthesisRouter: RouterType = Router()
+synthesisRouter.use(requireServiceKey)
+
+// GET /api/v1/synthesis/inbox?workspaceId=&kinds=&limit=
+synthesisRouter.get('/inbox', async (req, res) => {
+    const workspaceId = String(req.query.workspaceId ?? '')
+    const kindsRaw = String(req.query.kinds ?? '').trim()
+    const limitRaw = String(req.query.limit ?? '7').trim()
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+    const limit = Math.min(Math.max(parseInt(limitRaw, 10) || 7, 1), 100)
+    const kinds = kindsRaw ? kindsRaw.split(',').map(s => s.trim()).filter(Boolean) : []
+    try {
+        let q = sql`
+            SELECT id, workspace_id, kind, payload, score, source, status,
+                   surfaced_at, dismissed_at, accepted_at, dedupe_key, created_at
+            FROM synthesis_suggestions
+            WHERE workspace_id = ${workspaceId}::uuid
+              AND status = 'pending'
+        `
+        if (kinds.length > 0) {
+            q = sql`${q} AND kind = ANY(${kinds}::text[])`
+        }
+        q = sql`${q} ORDER BY score DESC, created_at DESC LIMIT ${limit}`
+        const rows = Array.from(await db.execute(q))
+        res.json({ workspaceId, items: rows, total: rows.length })
+    } catch (err) {
+        logger.error({ err, workspaceId }, 'synthesis.inbox failed')
+        res.status(500).json({ error: { code: 'INBOX_FAILED', message: 'Failed to load inbox' } })
+    }
+})
+
+// POST /api/v1/synthesis/:id/accept
+synthesisRouter.post('/:id/accept', async (req, res) => {
+    const { id } = req.params as { id: string }
+    if (!id || !UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid suggestion id required' } })
+        return
+    }
+    try {
+        const rows = Array.from(await db.execute(sql`
+            UPDATE synthesis_suggestions
+            SET status = 'accepted', accepted_at = NOW()
+            WHERE id = ${id}::uuid AND status = 'pending'
+            RETURNING id, workspace_id, kind, payload, score, source, status,
+                      surfaced_at, dismissed_at, accepted_at, dedupe_key, created_at
+        `))
+        if (rows.length === 0) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Pending suggestion not found' } })
+            return
+        }
+        res.json({ suggestion: rows[0] })
+    } catch (err) {
+        logger.error({ err, id }, 'synthesis.accept failed')
+        res.status(500).json({ error: { code: 'ACCEPT_FAILED', message: 'Failed to accept suggestion' } })
+    }
+})
+
+// POST /api/v1/synthesis/:id/dismiss
+synthesisRouter.post('/:id/dismiss', async (req, res) => {
+    const { id } = req.params as { id: string }
+    if (!id || !UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid suggestion id required' } })
+        return
+    }
+    try {
+        const rows = Array.from(await db.execute(sql`
+            UPDATE synthesis_suggestions
+            SET status = 'dismissed', dismissed_at = NOW()
+            WHERE id = ${id}::uuid AND status = 'pending'
+            RETURNING id, workspace_id, kind, payload, score, source, status,
+                      surfaced_at, dismissed_at, accepted_at, dedupe_key, created_at
+        `))
+        if (rows.length === 0) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Pending suggestion not found' } })
+            return
+        }
+        res.json({ suggestion: rows[0] })
+    } catch (err) {
+        logger.error({ err, id }, 'synthesis.dismiss failed')
+        res.status(500).json({ error: { code: 'DISMISS_FAILED', message: 'Failed to dismiss suggestion' } })
+    }
+})
