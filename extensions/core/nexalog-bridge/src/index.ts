@@ -105,10 +105,58 @@ function noteSearchTool(): ToolRegistration {
     }
 }
 
+function bookmarkListTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.list',
+        description: "List saved URL bookmarks in the user's Nexalog workspace.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved from connection).' },
+                limit: { type: 'number', description: 'Max results (1-100, default 30).' },
+            },
+            required: [],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: false, idempotent: true },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; limit?: number }
+            const userId = resolveUserId(p)
+            const qp = new URLSearchParams({ entity: 'capture_source', userId, kind: 'url' })
+            if (p.limit) qp.set('limit', String(p.limit))
+            const data = await nexalogGet(qp) as { sources: Array<{ id: string; url?: string; ogTitle?: string; state: string }>; total: number }
+            if (!data.sources?.length) return 'No bookmarks saved.'
+            return [`${data.total} bookmarks:`, ...data.sources.map((s) => `- ${s.ogTitle || s.url || '(no url)'}`)].join('\n')
+        },
+    }
+}
+
+function bookmarkAddTool(): ToolRegistration {
+    return {
+        name: 'nexalog.bookmark.add',
+        description: "Save a URL as a bookmark in the user's Nexalog workspace. Use this for web pages, links, and URLs — NOT note.create.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                url: { type: 'string', description: 'The URL to bookmark.' },
+                title: { type: 'string', description: 'Optional display title for the bookmark.' },
+            },
+            required: ['url'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; url: string; title?: string }
+            const userId = resolveUserId(p)
+            const data = await nexalogPost({ entity: 'capture_source', action: 'create', userId, kind: 'url', url: p.url, content: p.title ?? '' }) as { source: { id: string; kind: string } }
+            return `Bookmark saved: ${p.url} (ID: ${data.source.id})`
+        },
+    }
+}
+
 function noteCreateTool(): ToolRegistration {
     return {
         name: 'nexalog.note.create',
-        description: "Create a new note in the user's Nexalog workspace.",
+        description: "Create a new text note in the user's Nexalog workspace. For saving URLs or web pages, use bookmark.add instead.",
         parameters: {
             type: 'object',
             properties: {
@@ -188,6 +236,8 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
     sdk.registerTool(noteListTool())
     sdk.registerTool(noteSearchTool())
     sdk.registerTool(noteCreateTool())
+    sdk.registerTool(bookmarkListTool())
+    sdk.registerTool(bookmarkAddTool())
     sdk.registerTool(captureListTool())
     sdk.registerTool(captureCreateTool())
 }
