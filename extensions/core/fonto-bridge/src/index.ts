@@ -462,6 +462,15 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
         _cachedUserId = await sdk.storage.get('fonto_user_id')
     } catch { /* falls back to required userId param */ }
 
+    // Auto-resolve: all Joeybuilt apps share Better Auth user IDs.
+    // _workspaceOwnerId is the workspace owner's auth ID, identical to
+    // the userId Fonto uses for data isolation — no manual setup needed.
+    if (!_cachedUserId) {
+        try {
+            _cachedUserId = (await sdk.storage.get('_workspaceOwnerId')) ?? null
+        } catch { /* ignore */ }
+    }
+
     sdk.registerTool(assetListTool())
     sdk.registerTool(assetSearchTool())
     sdk.registerTool(assetGetTool())
