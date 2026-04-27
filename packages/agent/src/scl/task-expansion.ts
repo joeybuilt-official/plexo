@@ -107,6 +107,8 @@ export interface TaskExpansionResult {
     attractorIds: string[]
     /** Number of attractors expanded */
     attractorsExpanded: number
+    /** Selected nodes for graph/UI consumers */
+    nodes: Array<{ id: string; label: string; type: string }>
 }
 
 /**
@@ -267,6 +269,7 @@ export async function expandForTask(
         regionsActivated,
         attractorIds: selectedNodes.map(n => n.id),
         attractorsExpanded: selectedNodes.length,
+        nodes: selectedNodes.map(n => ({ id: n.id, label: n.label, type: n.type as string })),
     }
 }
 
