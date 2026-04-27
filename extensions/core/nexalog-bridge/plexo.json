@@ -27,5 +27,18 @@
   },
   "resourceHints": {
     "maxInvocationMs": 15000
-  }
+  },
+  "tools": [
+    { "name": "nexalog.note.list", "description": "List active notes in the user's Nexalog workspaces." },
+    { "name": "nexalog.note.search", "description": "Full-text search across note titles and content." },
+    { "name": "nexalog.note.get", "description": "Fetch the full content of a single note by ID." },
+    { "name": "nexalog.note.create", "description": "Create a new text note in the user's Nexalog workspace." },
+    { "name": "nexalog.note.update", "description": "Update the title or content of an existing note." },
+    { "name": "nexalog.note.delete", "description": "Soft-delete a note by ID." },
+    { "name": "nexalog.bookmark.list", "description": "List saved URL bookmarks in the user's Nexalog workspace." },
+    { "name": "nexalog.bookmark.add", "description": "Save a URL as a bookmark in the user's Nexalog workspace." },
+    { "name": "nexalog.bookmark.delete", "description": "Delete a saved bookmark by ID." },
+    { "name": "nexalog.capture.list", "description": "List capture sources (raw inbox of links, snippets, ingested logs)." },
+    { "name": "nexalog.capture.create", "description": "Create a new capture source (link, snippet, or log entry)." }
+  ]
 }

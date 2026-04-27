@@ -27,5 +27,17 @@
   },
   "resourceHints": {
     "maxInvocationMs": 15000
-  }
+  },
+  "tools": [
+    { "name": "fonto.asset.list", "description": "List active assets in the user's Fonto workspace." },
+    { "name": "fonto.asset.search", "description": "Search assets by filename, AI description, or extracted text." },
+    { "name": "fonto.asset.tag", "description": "Apply a tag to an asset." },
+    { "name": "fonto.asset.untag", "description": "Remove a tag from an asset." },
+    { "name": "fonto.collection.list", "description": "List collections (curated asset groups) in the user's Fonto workspace." },
+    { "name": "fonto.collection.create", "description": "Create a new collection in the user's Fonto workspace." },
+    { "name": "fonto.collection.add_asset", "description": "Add an asset to a collection." },
+    { "name": "fonto.collection.remove_asset", "description": "Remove an asset from a collection." },
+    { "name": "fonto.tag.list", "description": "List tags (labels) in the user's Fonto workspace." },
+    { "name": "fonto.tag.create", "description": "Create a new tag in the user's Fonto workspace." }
+  ]
 }
