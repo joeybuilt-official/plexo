@@ -352,6 +352,30 @@ function captureListTool(): ToolRegistration {
     }
 }
 
+function memoCreateTool(): ToolRegistration {
+    return {
+        name: 'nexalog.memo.create',
+        description: "Save a voice memo transcript as a note in the user's Nexalog workspace. Use this after transcribing voice recordings or when the user asks to save a memo.",
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                content: { type: 'string', description: 'Transcript or memo body.' },
+                title: { type: 'string', description: 'Optional memo title. Defaults to a timestamp-based title if omitted.' },
+            },
+            required: ['content'],
+        },
+        hints: { estimatedMs: 2000, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params: unknown, _ctx: InvokeContext) => {
+            const p = params as { userId?: string; content: string; title?: string }
+            const userId = resolveUserId(p)
+            const title = p.title || `Voice memo ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+            const data = await nexalogPost({ entity: 'note', action: 'create', userId, title, content: p.content, kind: 'voice_memo' }) as { note: { id: string; title: string } }
+            return `Memo saved: ${data.note.title} (ID: ${data.note.id})`
+        },
+    }
+}
+
 function captureCreateTool(): ToolRegistration {
     return {
         name: 'nexalog.capture.create',
@@ -392,6 +416,7 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
     sdk.registerTool(bookmarkAddTool())
     sdk.registerTool(bookmarkUpdateTool())
     sdk.registerTool(bookmarkDeleteTool())
+    sdk.registerTool(memoCreateTool())
     sdk.registerTool(captureListTool())
     sdk.registerTool(captureCreateTool())
 }
