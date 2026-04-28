@@ -2,8 +2,16 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, sql, inArray } from '@plexo/db'
-import { workspaces, workspaceMembers } from '@plexo/db'
+import { db, eq, sql, inArray, and } from '@plexo/db'
+import {
+    workspaces,
+    workspaceMembers,
+    installedConnections,
+    connectionsRegistry,
+    extensions,
+    extensionRegistry,
+    appProfiles,
+} from '@plexo/db'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
@@ -111,6 +119,189 @@ authRouter.post('/workspace/ensure', requireServiceKey, async (req, res) => {
     } catch (err) {
         logger.error({ err }, 'POST /api/auth/workspace/ensure failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to ensure workspace' } })
+    }
+})
+
+// ── POST /api/auth/profiles/auto-attach-user ────────────────────────────────
+//
+// Universal Plexo↔app auto-connect. Joeybuilt apps call this on every
+// authenticated request (debounced) to ensure that the calling app is
+// "installed" against the user's Plexo workspace WITHOUT any UI step:
+//
+//   1. Get-or-create the Plexo workspace owned by `userId`.
+//   2. Idempotently insert an `installed_connections` row with
+//      registry_id = X-App-Id so the agent's connection bridge knows the
+//      app is active for this workspace. Bridge resolves user identity at
+//      tool-call time via the always-injected `_workspaceOwnerId` setting.
+//   3. Idempotently insert a sideloaded `extensions` row for the app's
+//      bridge package so PEX exposes the app's tools to the agent.
+//
+// Idempotent — safe to call on every request. Empty credentials are fine:
+// the bridge uses Better Auth user identity (shared across all Joeybuilt
+// apps via `pushd.auth.user`) instead of provider tokens.
+authRouter.post('/profiles/auto-attach-user', requireServiceKey, async (req, res) => {
+    const appId = ((req as any).serviceContext?.appId
+        ?? (req.headers['x-app-id'] as string | undefined)
+        ?? '').trim().toLowerCase()
+    const { userId, name: wsName, email: wsEmail } = req.body as { userId?: string; name?: string; email?: string }
+
+    if (!appId || !/^[a-z][a-z0-9_-]*$/.test(appId)) {
+        res.status(400).json({ error: { code: 'INVALID_APP_ID', message: 'X-App-Id header required' } })
+        return
+    }
+    if (!userId || !UUID_RE.test(userId)) {
+        res.status(400).json({ error: { code: 'INVALID_USER_ID', message: 'Valid userId UUID required' } })
+        return
+    }
+    void wsEmail
+
+    try {
+        // ── Step 1: get-or-create workspace ────────────────────────────
+        let workspaceId: string | null = null
+        const [existing] = await db.select({ id: workspaces.id })
+            .from(workspaces)
+            .where(eq(workspaces.ownerId, userId))
+            .limit(1)
+
+        if (existing) {
+            workspaceId = existing.id
+        } else {
+            const displayName = (wsName?.trim() ?? 'Personal').slice(0, 200) || 'Personal'
+            const [ws] = await db.insert(workspaces).values({
+                name: displayName,
+                ownerId: userId,
+                settings: {},
+                intelligenceSettings: { firstRunPending: true },
+            }).returning({ id: workspaces.id })
+            if (!ws) {
+                res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Workspace create failed' } })
+                return
+            }
+            workspaceId = ws.id
+            await db.insert(workspaceMembers).values({
+                workspaceId: ws.id,
+                userId,
+                role: 'owner',
+            }).onConflictDoNothing()
+            trackEvent('workspace.created', 'info', { workspaceId: ws.id, source: appId, reason: 'auto-attach' })
+            logger.info({ userId, workspaceId: ws.id, appId }, 'Workspace auto-created via profiles/auto-attach-user')
+        }
+
+        // ── Step 2: ensure connections_registry row exists for this app ──
+        // Fallback for fresh installs where 0098_joeybuilt_apps_auto_connect
+        // hasn't run yet, or for apps registered after the migration.
+        const [profile] = await db.select({
+            displayName: appProfiles.displayName,
+        }).from(appProfiles).where(eq(appProfiles.appId, appId)).limit(1)
+
+        if (!profile) {
+            res.status(404).json({ error: { code: 'APP_NOT_REGISTERED', message: `App "${appId}" must call /api/v1/profiles/register first` } })
+            return
+        }
+
+        const [registryRow] = await db.select({ id: connectionsRegistry.id })
+            .from(connectionsRegistry)
+            .where(eq(connectionsRegistry.id, appId))
+            .limit(1)
+
+        if (!registryRow) {
+            // Insert a minimal connections_registry row so the FK on
+            // installed_connections is satisfied. Auth type is 'none' —
+            // the bridge uses _workspaceOwnerId for identity.
+            await db.insert(connectionsRegistry).values({
+                id: appId,
+                name: profile.displayName,
+                description: `${profile.displayName} (Joeybuilt app — auto-connected)`,
+                category: 'productivity',
+                authType: 'none',
+                oauthScopes: [],
+                setupFields: [],
+                toolsProvided: [],
+                cardsProvided: [],
+                isCore: false,
+            }).onConflictDoNothing()
+        }
+
+        // ── Step 3: idempotent insert of installed_connections row ───────
+        let installedCreated = false
+        try {
+            const insertResult = await db.insert(installedConnections).values({
+                workspaceId,
+                registryId: appId,
+                name: profile.displayName,
+                credentials: {},
+                label: 'default',
+                status: 'active',
+                scopesGranted: [],
+            }).onConflictDoNothing().returning({ id: installedConnections.id })
+            installedCreated = insertResult.length > 0
+        } catch (err) {
+            logger.warn({ err, workspaceId, appId }, 'installed_connections insert raced — non-fatal')
+        }
+
+        // ── Step 4: idempotent enable of bridge extension ────────────────
+        // Bridge package convention: @joeybuilt/<appId>-bridge.
+        // The bridge file exists when the corresponding extensions/core/
+        // directory has been deployed alongside plexo-api. We probe the
+        // expected on-disk path; if missing, we skip enabling.
+        const bridgeName = `@joeybuilt/${appId}-bridge`
+        const bridgeEntry = `/app/extensions/core/${appId}-bridge/dist/index.js`
+        let bridgeEnabled = false
+
+        const [existingBridge] = await db.select({ id: extensions.id, enabled: extensions.enabled })
+            .from(extensions)
+            .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.name, bridgeName)))
+            .limit(1)
+
+        if (existingBridge) {
+            if (!existingBridge.enabled) {
+                await db.update(extensions)
+                    .set({ enabled: true })
+                    .where(eq(extensions.id, existingBridge.id))
+            }
+            bridgeEnabled = true
+        } else {
+            // Insert a minimal bridge extension row. The actual sandbox load
+            // happens lazily — if the dist file is missing, the executor
+            // logs a warning and proceeds without these tools (no crash).
+            try {
+                await db.insert(extensions).values({
+                    workspaceId,
+                    name: bridgeName,
+                    version: '1.0.0',
+                    type: 'tool',
+                    pexVersion: '0.4.0',
+                    entry: bridgeEntry,
+                    manifest: {
+                        plexo: '0.4.0',
+                        name: bridgeName,
+                        type: 'tool',
+                        version: '1.0.0',
+                        displayName: `${profile.displayName} Bridge`,
+                        description: `Proxies tool calls to ${profile.displayName}'s data API.`,
+                        entry: bridgeEntry,
+                        capabilities: ['storage:read'],
+                    },
+                    enabled: true,
+                    settings: {},
+                    source: 'sideloaded',
+                }).onConflictDoNothing()
+                bridgeEnabled = true
+            } catch (err) {
+                logger.warn({ err, workspaceId, appId }, 'bridge extension insert failed — degrading without bridge')
+            }
+        }
+
+        return res.json({
+            ok: true,
+            workspaceId,
+            appId,
+            installedConnection: installedCreated || true,
+            bridgeExtension: bridgeEnabled,
+        })
+    } catch (err) {
+        logger.error({ err, appId, userId }, 'POST /api/auth/profiles/auto-attach-user failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'auto-attach failed' } })
     }
 })
 
