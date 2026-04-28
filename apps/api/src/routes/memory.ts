@@ -963,6 +963,7 @@ synthesisRouter.get('/inbox', async (req, res) => {
     }
     const limit = Math.min(Math.max(parseInt(limitRaw, 10) || 7, 1), 100)
     const kinds = kindsRaw ? kindsRaw.split(',').map(s => s.trim()).filter(Boolean) : []
+    const kindsLit = kinds.length > 0 ? '{' + kinds.map(k => '"' + k.replace(/"/g, '\\"') + '"').join(',') + '}' : ''
     try {
         const rows = Array.from(await db.execute(
             kinds.length > 0
@@ -972,7 +973,7 @@ synthesisRouter.get('/inbox', async (req, res) => {
                     FROM synthesis_suggestions
                     WHERE workspace_id = ${workspaceId}::uuid
                       AND status = 'pending'
-                      AND kind = ANY(string_to_array(${kinds.join(",")}, ","))
+                      AND kind = ANY(${kindsLit}::text[])
                     ORDER BY score DESC, created_at DESC
                     LIMIT ${limit}
                   `
