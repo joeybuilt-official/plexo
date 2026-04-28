@@ -13,10 +13,12 @@
   "repository": "https://github.com/joeybuilt-official/plexo",
   "keywords": ["levio", "email", "calendar", "tasks", "bridge"],
   "capabilities": [
-    "storage:read"
+    "storage:read",
+    "events:subscribe"
   ],
   "capabilitiesRationale": {
-    "storage:read": "Reads the Levio connection credentials (levio_user_id) to authenticate data API calls."
+    "storage:read": "Reads the Levio connection credentials (levio_user_id) to authenticate data API calls.",
+    "events:subscribe": "Subscribes to ext.synthesis-promote.levio.tasks.create so Plexo's synthesis loop can promote a note → Levio task."
   },
   "trust": "owner",
   "escalation": {

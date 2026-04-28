@@ -1,0 +1,19 @@
+{
+  "name": "@joeybuilt/fylo-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pex bridge extension — proxies budget signals to Fylo's data API.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@plexo/sdk": "workspace:*",
+    "@types/node": "^22",
+    "typescript": "^5.7"
+  },
+  "license": "AGPL-3.0-only"
+}
