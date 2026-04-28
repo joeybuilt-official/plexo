@@ -972,7 +972,7 @@ synthesisRouter.get('/inbox', async (req, res) => {
                     FROM synthesis_suggestions
                     WHERE workspace_id = ${workspaceId}::uuid
                       AND status = 'pending'
-                      AND kind = ANY(${kinds})
+                      AND kind = ANY(string_to_array(${kinds.join(",")}, ","))
                     ORDER BY score DESC, created_at DESC
                     LIMIT ${limit}
                   `
