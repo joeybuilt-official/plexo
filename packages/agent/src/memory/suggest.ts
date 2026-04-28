@@ -193,8 +193,19 @@ export async function generateLinkSuggestions(workspaceId: string): Promise<Link
     for (const r of rows) {
         const v = parseVector(r.embedding)
         if (!v || v.length === 0) continue
-        const firstLine = (r.content || '').split('\n')[0] ?? ''
-        const label = (firstLine.trim() || (r.content || '').replace(/\s+/g, ' ')).slice(0, 80)
+        const lines = (r.content || '').split('\n').map(l => l.trim()).filter(Boolean)
+        // Prefer first non-generic line. If first line is a hosting platform
+        // name (YouTube/Twitter/Instagram/etc), use the second line's content
+        // (typically a URL → use the path) plus the description prefix.
+        const GENERIC_TITLES = new Set(['youtube','twitter','x','instagram','tiktok','facebook','linkedin','reddit','github','medium','substack','telegram','t.me'])
+        let chosen = lines[0] ?? ''
+        if (chosen && GENERIC_TITLES.has(chosen.toLowerCase())) {
+            // pick a more specific line: prefer the longest non-URL line
+            const nonUrl = lines.slice(1).filter(l => !/^https?:\/\//i.test(l))
+            const longest = nonUrl.sort((a, b) => b.length - a.length)[0]
+            if (longest && longest.length > 8) chosen = longest
+        }
+        const label = chosen.replace(/\s+/g, ' ').slice(0, 80)
         entries.push({ id: r.id, label, vec: v })
     }
 
@@ -213,6 +224,11 @@ export async function generateLinkSuggestions(workspaceId: string): Promise<Link
             if (sim < LINK_COSINE_FLOOR) continue
             const a = entries[i]!
             const b = entries[j]!
+            // Skip pairs whose labels are identical or both empty — they are
+            // platform-name dupes (e.g. two "YouTube" entries) that produce
+            // useless cards.
+            if (!a.label || !b.label) continue
+            if (a.label.trim().toLowerCase() === b.label.trim().toLowerCase()) continue
             const [minId, maxId] = a.id < b.id ? [a.id, b.id] : [b.id, a.id]
             const [minLabel, maxLabel] = a.id < b.id ? [a.label, b.label] : [b.label, a.label]
             candidates.push({
