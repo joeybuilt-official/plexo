@@ -24,6 +24,8 @@ export default defineConfig({
             '@plexo/agent/memory/preferences': resolve(root, 'packages/agent/src/memory/preferences.ts'),
             '@plexo/agent/memory/self-improvement': resolve(root, 'packages/agent/src/memory/self-improvement.ts'),
             '@plexo/agent/memory/prompt-improvement': resolve(root, 'packages/agent/src/memory/prompt-improvement.ts'),
+            '@plexo/agent/memory/cluster': resolve(root, 'packages/agent/src/memory/cluster.ts'),
+            '@plexo/agent/memory/suggest': resolve(root, 'packages/agent/src/memory/suggest.ts'),
             '@plexo/agent/types': resolve(root, 'packages/agent/src/types.ts'),
             '@plexo/agent/embeddings/router': resolve(root, 'packages/agent/src/embeddings/router.ts'),
             '@plexo/agent/embeddings/adapters': resolve(root, 'packages/agent/src/embeddings/adapters.ts'),
