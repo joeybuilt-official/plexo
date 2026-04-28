@@ -866,6 +866,7 @@ export async function loadConnectionTools(workspaceId: string): Promise<ToolSet>
                 '@joeybuilt/fonto-bridge': 'fonto',
                 '@joeybuilt/nexalog-bridge': 'nexalog',
                 '@joeybuilt/koforje-bridge': 'koforje',
+                '@joeybuilt/fylo-bridge': 'fylo',
             }
             const bridgeRows = await db
                 .select({ name: extensions.name, enabled: extensions.enabled })
