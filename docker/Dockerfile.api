@@ -50,7 +50,28 @@ COPY packages/storage/package.json      packages/storage/
 COPY packages/ui/package.json           packages/ui/
 COPY packages/scl-core/package.json    packages/scl-core/
 
+# Native build deps so sharp prebuild fetch + onnxruntime-node prebuild
+# fetch can fall through to source compile if needed.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ libc6-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+# Phase 4 N.6 — bookworm-slim base means alpine prebuilds (musl) are wrong.
+# pnpm 10 enforces an `onlyBuiltDependencies` allowlist (see root
+# package.json) — sharp isn't in it, so its install/check.js never fires
+# to fetch the linux-x64 (glibc) prebuild. Run sharp's install hook directly
+# after pnpm install to download the right binary into both pinned versions.
 RUN pnpm install --frozen-lockfile --filter @plexo/api...
+
+# sharp@0.32.6 install hook — its package.json `scripts.install` invokes
+# `node install/libvips && node install/dll-copy && prebuild-install`.
+# We replicate that here. sharp@0.34.5 ships its install differently
+# (single binary in @img/sharp-*); pnpm install resolves those packages
+# already since they're plain dependencies.
+RUN cd /app/node_modules/.pnpm/sharp@0.32.6/node_modules/sharp \
+ && node install/libvips \
+ && node install/dll-copy \
+ && (./node_modules/.bin/prebuild-install || (node install/can-compile && node-gyp rebuild && node install/dll-copy))
 
 # ── Runtime image ─────────────────────────────────────────────────────────────
 FROM base AS runner
