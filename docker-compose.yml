@@ -193,7 +193,9 @@ services:
     # may resolve to coolify-db instead of our database. Use the unique
     # hostname 'plexo-db' (set on the postgres service) to avoid collisions.
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
+      # node-based probe — bookworm-slim image has no wget/curl, but node
+      # is always present. Uses /health which returns JSON with `ok` field.
+      test: [ "CMD", "node", "-e", "require('http').get('http://127.0.0.1:3001/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>process.exit(/\"ok\"\\s*:\\s*true|\\bok\\b/.test(d)?0:1))}).on('error',()=>process.exit(1))" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -220,7 +222,8 @@ services:
       EMBEDDING_MODEL_NAME: plexo-embed-v1
       EMBEDDING_MODEL_DIR: /app/apps/embeddings/models/snowflake-arctic-embed-s
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
+      # node-based probe — slim image has no wget/curl. Uses /health.
+      test: [ "CMD", "node", "-e", "require('http').get('http://127.0.0.1:3001/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>process.exit(/\"ok\"\\s*:\\s*true|\\bok\\b/.test(d)?0:1))}).on('error',()=>process.exit(1))" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -252,7 +255,9 @@ services:
       INTERNAL_API_URL: http://api:3001
       PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-}
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3000 2>/dev/null | grep -q html || exit 1" ]
+      # node-based probe — alpine image has no wget by default. Hits root,
+      # accepts any 2xx/3xx (Next.js renders HTML or redirects unauthenticated users).
+      test: [ "CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))" ]
       interval: 30s
       timeout: 10s
       retries: 5
