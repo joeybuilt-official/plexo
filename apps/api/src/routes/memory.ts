@@ -826,7 +826,7 @@ memoryRouter.patch('/eviction', async (req, res) => {
     }
 })
 
-// ── Synthesis (Phase α) ─────────────────────────────────────────
+// ── Synthesis (Phase α + Phase 1) ───────────────────────────────
 //
 // Endpoints below are mounted twice:
 //   - cluster + suggest are appended to the workspace-gated memoryRouter
@@ -835,24 +835,31 @@ memoryRouter.patch('/eviction', async (req, res) => {
 //
 // Both write into `synthesis_suggestions` (ON CONFLICT (workspace_id,dedupe_key) DO UPDATE),
 // so re-running cluster + suggest on the same data is idempotent.
-import { clusterMemory } from '@plexo/agent/memory/cluster'
+import { clusterMemory, type ClusteredMemory } from '@plexo/agent/memory/cluster'
 import {
     generateThemeSuggestions,
     generateLinkSuggestions,
+    deriveMemberLabel,
 } from '@plexo/agent/memory/suggest'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
-import crypto from 'crypto'
 
 /**
- * Stable identity hash for a cluster's member set, so re-runs upsert
- * against the same theme row instead of creating duplicates.
+ * Build a Postgres array literal string `{a,b,c}` from a JS array.
+ *
+ * Drizzle-orm's `sql\`\${jsArr}\`` interpolation expands an array into
+ * `($1, $2, $3)` — a tuple/record. Casting that to `uuid[]` fires
+ * "cannot cast type record to uuid[]" (error 42846). Wrapping in a
+ * properly-quoted array literal and binding it as text + casting works.
+ *
+ * Caller MUST validate that elements are well-formed UUIDs (or text);
+ * we only escape the inner double-quotes here, not arbitrary content.
  */
-function memberSetHash(memberIds: string[]): string {
-    const sorted = [...memberIds].sort()
-    return crypto.createHash('sha256').update(sorted.join(',')).digest('hex').slice(0, 32)
+function uuidArrayLiteral(ids: string[]): string {
+    return `{${ids.map(id => `"${id.replace(/"/g, '\\"')}"`).join(',')}}`
 }
 
-// POST /api/v1/memory/cluster — recompute clusters and persist into memory_themes.
+// POST /api/v1/memory/cluster — recompute clusters and persist all 3
+// hierarchy levels into memory_themes, plus a memory_theme_runs row.
 memoryRouter.post('/cluster', async (req, res) => {
     const { workspaceId, minClusterSize, coherenceFloor } = (req.body ?? {}) as {
         workspaceId?: string
@@ -869,60 +876,271 @@ memoryRouter.post('/cluster', async (req, res) => {
             coherenceFloor: typeof coherenceFloor === 'number' ? coherenceFloor : undefined,
         })
 
-        // Upsert each cluster by member-set hash → label + size + coherence + centroid.
-        const persisted: Array<{ id: string; label: string; memberIds: string[]; coherence: number; size: number }> = []
-        for (const c of result.clusters) {
-            const hash = memberSetHash(c.memberIds)
-            const centroidLiteral = `[${c.centroid.join(',')}]`
-            const sortedKey = [...c.memberIds].sort().join(',')
-
-            // Find an existing theme with the same member-set hash.
-            const existing = Array.from(await db.execute<{ id: string }>(sql`
-                SELECT id FROM memory_themes
-                WHERE workspace_id = ${workspaceId}::uuid
-                  AND md5(array_to_string(
-                        ARRAY(SELECT unnest(member_ids) ORDER BY 1), ','
-                      )) = md5(${sortedKey})
-                LIMIT 1
-            `))
-
-            let themeId: string
-            if (existing[0]?.id) {
-                themeId = existing[0].id
-                await db.execute(sql`
-                    UPDATE memory_themes
-                    SET label = ${c.label},
-                        size = ${c.memberIds.length},
-                        coherence = ${c.coherence},
-                        centroid = ${centroidLiteral}::vector,
-                        last_member_at = NOW()
-                    WHERE id = ${themeId}::uuid
-                `)
-            } else {
-                const inserted = Array.from(await db.execute<{ id: string }>(sql`
-                    INSERT INTO memory_themes
-                        (workspace_id, label, member_ids, centroid, size, coherence, last_member_at)
-                    VALUES
-                        (${workspaceId}::uuid, ${c.label}, ${c.memberIds}::uuid[],
-                         ${centroidLiteral}::vector, ${c.memberIds.length}, ${c.coherence}, NOW())
-                    RETURNING id
-                `))
-                themeId = inserted[0]!.id
-            }
-            persisted.push({ id: themeId, label: c.label, memberIds: c.memberIds, coherence: c.coherence, size: c.memberIds.length })
-            void hash
+        // Persist UMAP coordinates back onto memory_entries.metadata.umap.
+        // jsonb_set merges so other metadata keys are preserved. Per-row
+        // UPDATE is fine at our scale — the postgres.js client pipelines
+        // these efficiently and 665 round trips finish in ~200ms.
+        for (const [id, xy] of Object.entries(result.umap)) {
+            await db.execute(sql`
+                UPDATE memory_entries
+                SET metadata = jsonb_set(
+                    COALESCE(metadata, '{}'::jsonb),
+                    '{umap}',
+                    ${JSON.stringify(xy)}::jsonb,
+                    true
+                )
+                WHERE id = ${id}::uuid AND workspace_id = ${workspaceId}::uuid
+            `)
         }
+
+        // Persist all three levels. Process level 0 first so children can
+        // resolve their parent_id, then level 1, then level 2.
+        const persistedByIdx = new Map<string, string>() // levelKey:idxInLevel → uuid
+        const keyOf = (level: number, idx: number) => `${level}:${idx}`
+
+        const persistedSummary: Array<{ id: string; level: number; label: string; size: number; coherence: number; stableId: string; parentId: string | null }> = []
+
+        const byLevel: Record<number, ClusteredMemory[]> = { 0: [], 1: [], 2: [] }
+        for (const c of result.clusters) byLevel[c.level]!.push(c)
+
+        for (const level of [0, 1, 2] as const) {
+            const list = byLevel[level] ?? []
+            for (let i = 0; i < list.length; i++) {
+                const c = list[i]!
+                const centroidLiteral = `[${c.centroid.join(',')}]`
+                let parentId: string | null = null
+                if (c.parentIdx != null && level > 0) {
+                    parentId = persistedByIdx.get(keyOf(level - 1, c.parentIdx)) ?? null
+                }
+
+                let themeId: string
+                const memberIdsLiteral = uuidArrayLiteral(c.memberIds)
+                if (c.matchedPriorId) {
+                    themeId = c.matchedPriorId
+                    await db.execute(sql`
+                        UPDATE memory_themes
+                        SET label = ${c.label},
+                            member_ids = ${memberIdsLiteral}::uuid[],
+                            size = ${c.memberIds.length},
+                            coherence = ${c.coherence},
+                            centroid = ${centroidLiteral}::vector,
+                            level = ${level},
+                            parent_id = ${parentId}::uuid,
+                            stable_id = ${c.stableId},
+                            last_member_at = NOW(),
+                            updated_at = NOW()
+                        WHERE id = ${themeId}::uuid
+                          AND workspace_id = ${workspaceId}::uuid
+                    `)
+                } else {
+                    const inserted = Array.from(await db.execute<{ id: string }>(sql`
+                        INSERT INTO memory_themes
+                            (workspace_id, label, member_ids, centroid, size, coherence,
+                             last_member_at, level, parent_id, stable_id)
+                        VALUES
+                            (${workspaceId}::uuid, ${c.label}, ${memberIdsLiteral}::uuid[],
+                             ${centroidLiteral}::vector, ${c.memberIds.length}, ${c.coherence},
+                             NOW(), ${level}, ${parentId}::uuid, ${c.stableId})
+                        RETURNING id
+                    `))
+                    themeId = inserted[0]!.id
+                }
+                persistedByIdx.set(keyOf(level, i), themeId)
+                persistedSummary.push({ id: themeId, level, label: c.label, size: c.memberIds.length, coherence: c.coherence, stableId: c.stableId, parentId })
+            }
+        }
+
+        // Drop themes that no longer exist in this run (stale rows). We key
+        // by `id` not by stable_id so the previous run's UUID survives if
+        // it was matched. Stale rows have their *id* missing from the map.
+        const keepIds = Array.from(persistedByIdx.values())
+        if (keepIds.length > 0) {
+            const keepLiteral = uuidArrayLiteral(keepIds)
+            await db.execute(sql`
+                DELETE FROM memory_themes
+                WHERE workspace_id = ${workspaceId}::uuid
+                  AND id <> ALL(${keepLiteral}::uuid[])
+            `)
+        } else {
+            await db.execute(sql`DELETE FROM memory_themes WHERE workspace_id = ${workspaceId}::uuid`)
+        }
+
+        // Insert the run-history row.
+        const runRows = Array.from(await db.execute<{ id: string }>(sql`
+            INSERT INTO memory_theme_runs
+                (workspace_id, n_entries, n_themes, n_subthemes, duration_ms, algo_version)
+            VALUES
+                (${workspaceId}::uuid,
+                 ${Object.keys(result.umap).length},
+                 ${(byLevel[1]?.length ?? 0)},
+                 ${(byLevel[2]?.length ?? 0)},
+                 ${result.durationMs},
+                 ${result.algoVersion})
+            RETURNING id
+        `))
+        const runId = runRows[0]?.id ?? null
 
         res.json({
             workspaceId,
-            clusters: persisted,
+            runId,
+            summary: result.summary,
+            counts: { regions: (byLevel[0]?.length ?? 0), themes: (byLevel[1]?.length ?? 0), subthemes: (byLevel[2]?.length ?? 0) },
             noiseCount: result.noise.length,
+            durationMs: result.durationMs,
+            algoVersion: result.algoVersion,
+            themes: persistedSummary,
         })
     } catch (err) {
         logger.error({ err, workspaceId }, 'memory.cluster failed')
         res.status(500).json({ error: { code: 'CLUSTER_FAILED', message: 'Cluster run failed' } })
     }
 })
+
+// GET /api/v1/themes/forest?workspaceId=…[&runId=…] — service-key auth.
+// Returns the full hierarchy (regions/themes/subthemes) plus all members
+// with their UMAP coordinates so the dashboard / Nexalog forest UI can
+// render in a single fetch.
+//
+// Mounted on `synthesisRouter` (service-key gated). Even though it's a
+// "themes" endpoint and the URL prefix in index.ts is /api/v1/synthesis,
+// we expose it under /themes/forest by appending it here so the contract
+// from the build doc — `/api/v1/themes/forest` — matches once we add the
+// alternate mount in index.ts (see below).
+async function themesForestHandler(req: import('express').Request, res: import('express').Response): Promise<void> {
+    const workspaceId = String(req.query.workspaceId ?? '')
+    const runIdRaw = String(req.query.runId ?? '').trim()
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+    if (runIdRaw && !UUID_RE.test(runIdRaw)) {
+        res.status(400).json({ error: { code: 'INVALID_RUN', message: 'runId must be a uuid' } })
+        return
+    }
+
+    try {
+        // Resolve the run we're describing. If a runId is supplied we still
+        // need its ran_at for the response shape; if not, the latest row.
+        const runRows = Array.from(await db.execute<{ id: string; ran_at: Date; algo_version: string }>(runIdRaw
+            ? sql`
+                SELECT id, ran_at, algo_version FROM memory_theme_runs
+                WHERE id = ${runIdRaw}::uuid AND workspace_id = ${workspaceId}::uuid
+                LIMIT 1
+            `
+            : sql`
+                SELECT id, ran_at, algo_version FROM memory_theme_runs
+                WHERE workspace_id = ${workspaceId}::uuid
+                ORDER BY ran_at DESC
+                LIMIT 1
+            `))
+        const run = runRows[0]
+
+        // Themes for the *current* state of memory_themes. We don't snapshot
+        // memory_themes per-run in Phase 1 — the table itself is the latest
+        // run. Future phases will add a runId column on memory_themes if we
+        // want historical forests.
+        const themeRows = Array.from(await db.execute<{
+            id: string
+            stable_id: string | null
+            parent_id: string | null
+            level: number
+            label: string
+            size: number
+            coherence: number
+            is_scl: boolean
+            member_ids: string[]
+            exemplar_ids: string[] | null
+        }>(sql`
+            SELECT id, stable_id, parent_id, level, label, size, coherence, is_scl,
+                   member_ids, exemplar_ids
+            FROM memory_themes
+            WHERE workspace_id = ${workspaceId}::uuid
+            ORDER BY level ASC, size DESC
+        `))
+
+        // All entries that belong to any theme — for the members[] array.
+        // We pull umap from metadata so the client doesn't have to compute it.
+        const memberIds = new Set<string>()
+        for (const t of themeRows) for (const m of t.member_ids ?? []) memberIds.add(m)
+        const memberArr = Array.from(memberIds)
+
+        let memberRows: Array<{ id: string; type: string; content: string; metadata: Record<string, unknown> | null }> = []
+        if (memberArr.length > 0) {
+            memberRows = Array.from(await db.execute<{
+                id: string; type: string; content: string; metadata: Record<string, unknown> | null
+            }>(sql`
+                SELECT id, type::text AS type, content, metadata
+                FROM memory_entries
+                WHERE workspace_id = ${workspaceId}::uuid
+                  AND id = ANY(${uuidArrayLiteral(memberArr)}::uuid[])
+            `))
+        }
+
+        // Build a memberId → (level=1 themeId, level=2 subthemeId) map.
+        const memberToTheme = new Map<string, string | null>()
+        const memberToSubtheme = new Map<string, string | null>()
+        for (const t of themeRows) {
+            if (t.level === 1) for (const m of t.member_ids ?? []) memberToTheme.set(m, t.id)
+            if (t.level === 2) for (const m of t.member_ids ?? []) memberToSubtheme.set(m, t.id)
+        }
+
+        const split = { regions: [] as unknown[], themes: [] as unknown[], subthemes: [] as unknown[] }
+        for (const t of themeRows) {
+            const shape: Record<string, unknown> = {
+                id: t.id,
+                stableId: t.stable_id,
+                parentId: t.parent_id,
+                label: t.label,
+                size: t.size,
+                coherence: t.coherence,
+                isScl: t.is_scl,
+                memberIds: t.member_ids ?? [],
+                exemplarIds: t.exemplar_ids ?? [],
+            }
+            if (t.level === 0) {
+                shape.centroid = null
+                split.regions.push(shape)
+            } else if (t.level === 1) {
+                split.themes.push(shape)
+            } else {
+                // Subthemes don't carry exemplars in the forest — keep
+                // payload tight per the build doc's response shape.
+                delete shape.exemplarIds
+                split.subthemes.push(shape)
+            }
+        }
+
+        const members = memberRows.map(m => {
+            const meta = (m.metadata ?? {}) as Record<string, unknown>
+            const umap = (meta.umap ?? null) as { x?: number; y?: number } | null
+            return {
+                id: m.id,
+                label: deriveMemberLabel(m.content),
+                kind: m.type,
+                x: typeof umap?.x === 'number' ? umap.x : 0,
+                y: typeof umap?.y === 'number' ? umap.y : 0,
+                themeId: memberToTheme.get(m.id) ?? null,
+                subthemeId: memberToSubtheme.get(m.id) ?? null,
+            }
+        })
+
+        const generatedAt = run?.ran_at
+            ? (run.ran_at instanceof Date ? run.ran_at.toISOString() : new Date(run.ran_at as unknown as string).toISOString())
+            : null
+        res.json({
+            runId: run?.id ?? null,
+            generatedAt,
+            algoVersion: run?.algo_version ?? null,
+            regions: split.regions,
+            themes: split.themes,
+            subthemes: split.subthemes,
+            members,
+        })
+    } catch (err) {
+        logger.error({ err, workspaceId }, 'themes.forest failed')
+        res.status(500).json({ error: { code: 'FOREST_FAILED', message: 'Failed to load forest' } })
+    }
+}
 
 // POST /api/v1/memory/suggest — generate theme + link suggestions.
 memoryRouter.post('/suggest', async (req, res) => {
@@ -1045,3 +1263,10 @@ synthesisRouter.post('/:id/dismiss', async (req, res) => {
         res.status(500).json({ error: { code: 'DISMISS_FAILED', message: 'Failed to dismiss suggestion' } })
     }
 })
+
+// ── Themes Router (service-key) ───────────────────────────────
+// Mounted in index.ts at /api/v1/themes. Service-key gated since it's
+// consumed by Nexalog and the dashboard's server-side proxy.
+export const themesRouter: RouterType = Router()
+themesRouter.use(requireServiceKey)
+themesRouter.get('/forest', themesForestHandler)

@@ -63,11 +63,15 @@ const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000
  * Score = coherence × ln(size).  Idempotent via dedupe_key=`theme.page_draft:{themeId}`.
  */
 export async function generateThemeSuggestions(workspaceId: string): Promise<ThemeSuggestionResult> {
+    // Phase 1 — only level=1 themes can be promoted to page drafts. Level 0
+    // (regions) are too coarse and level 2 (subthemes) live underneath a theme
+    // page already, so promoting them would create duplicate surfaces.
     const themes = Array.from(await db.execute<RawTheme>(sql`
         SELECT id, label, member_ids, size, growth_14d, coherence, last_member_at
         FROM memory_themes
         WHERE workspace_id = ${workspaceId}::uuid
           AND status = 'pending'
+          AND level = 1
     `))
 
     let inserted = 0
@@ -135,115 +139,77 @@ export async function generateThemeSuggestions(workspaceId: string): Promise<The
     return { inserted, skipped, inspected: themes.length }
 }
 
-/** Cosine of two equal-length number arrays. */
-function cosine(a: number[], b: number[]): number {
-    let dot = 0, na = 0, nb = 0
-    const len = a.length
-    for (let i = 0; i < len; i++) {
-        const x = a[i] ?? 0
-        const y = b[i] ?? 0
-        dot += x * y
-        na += x * x
-        nb += y * y
+/** Extract a useful label line from raw note content. Shared with the
+ *  forest endpoint so the same heuristics produce the same `members[].label`. */
+const GENERIC_TITLES = new Set(['youtube','twitter','x','instagram','tiktok','facebook','linkedin','reddit','github','medium','substack','telegram','t.me'])
+export function deriveMemberLabel(content: string | null | undefined): string {
+    const lines = (content || '').split('\n').map(l => l.trim()).filter(Boolean)
+    let chosen = lines[0] ?? ''
+    if (chosen && GENERIC_TITLES.has(chosen.toLowerCase())) {
+        const nonUrl = lines.slice(1).filter(l => !/^https?:\/\//i.test(l))
+        const longest = nonUrl.sort((a, b) => b.length - a.length)[0]
+        if (longest && longest.length > 8) chosen = longest
     }
-    const d = Math.sqrt(na) * Math.sqrt(nb)
-    return d === 0 ? 0 : dot / d
-}
-
-function parseVector(raw: unknown): number[] | null {
-    if (raw == null) return null
-    if (Array.isArray(raw)) return raw as number[]
-    if (typeof raw !== 'string') return null
-    const t = raw.trim().replace(/^\[/, '').replace(/\]$/, '')
-    if (!t) return null
-    const parts = t.split(',')
-    const out = new Array<number>(parts.length)
-    for (let i = 0; i < parts.length; i++) {
-        const n = Number(parts[i])
-        if (!Number.isFinite(n)) return null
-        out[i] = n
-    }
-    return out
+    return chosen.replace(/\s+/g, ' ').slice(0, 80)
 }
 
 /**
- * Walk every embedded memory_entry pair in a workspace; suggest links above
- * the 0.83 cosine floor. Caps at 50 inserts per run; orders by score desc so
- * the top hits land first when capped.
+ * Read precomputed kNN pairs above LINK_COSINE_FLOOR from `memory_knn_edges`
+ * and turn them into link.note_to_note suggestions. The pairwise scan that
+ * lived here in Phase α is gone — clusterMemory refreshes the edge cache so
+ * suggest is now a cheap reader.
  *
- * Dedup keys are `link.note_to_note:{minId}:{maxId}` (alphabetical), matching
- * the spec's note-link semantics. Pairs already represented in
- * synthesis_suggestions (any status) are skipped — `dismissed` rows hold the
- * cooldown via the workspace-unique constraint.
+ * Filters carried over from Phase α:
+ *   - skip identical-label pairs (platform-name dupes)
+ *   - skip "brandish" labels (single short token, e.g. "Facebook")
+ *   - dedupe (a,b) vs (b,a) by minId < maxId
+ *   - cap LINK_PER_RUN_CAP per run, ordered by score desc
+ *
+ * Idempotent via dedupe_key + ON CONFLICT DO UPDATE.
  */
 export async function generateLinkSuggestions(workspaceId: string): Promise<LinkSuggestionResult> {
-    type EntryRow = { id: string; content: string; embedding: string | null; metadata: Record<string, unknown> | null; [key: string]: unknown }
-    const rows = Array.from(await db.execute<EntryRow>(sql`
-        SELECT id, content, embedding::text AS embedding, metadata
+    // 1) Load every pattern entry's id + content for label derivation.
+    const entryRows = Array.from(await db.execute<{ id: string; content: string }>(sql`
+        SELECT id, content
         FROM memory_entries
         WHERE workspace_id = ${workspaceId}::uuid
           AND type = 'pattern'
           AND embedding IS NOT NULL
-        ORDER BY created_at DESC
-        LIMIT 2000
+    `))
+    const labels = new Map<string, string>()
+    for (const r of entryRows) labels.set(r.id, deriveMemberLabel(r.content))
+
+    // 2) Pull edges above the floor. SQL collapses (a,b)/(b,a) into one row
+    //    with LEAST/GREATEST so we never see both directions in JS.
+    const edgeRows = Array.from(await db.execute<{ a_id: string; b_id: string; weight: number }>(sql`
+        SELECT
+            LEAST(a_id, b_id)::uuid    AS a_id,
+            GREATEST(a_id, b_id)::uuid AS b_id,
+            MAX(weight)                AS weight
+        FROM memory_knn_edges
+        WHERE workspace_id = ${workspaceId}::uuid
+          AND weight >= ${LINK_COSINE_FLOOR}
+        GROUP BY LEAST(a_id, b_id), GREATEST(a_id, b_id)
     `))
 
-    interface Entry { id: string; label: string; vec: number[] }
-    const entries: Entry[] = []
-    for (const r of rows) {
-        const v = parseVector(r.embedding)
-        if (!v || v.length === 0) continue
-        const lines = (r.content || '').split('\n').map(l => l.trim()).filter(Boolean)
-        // Prefer first non-generic line. If first line is a hosting platform
-        // name (YouTube/Twitter/Instagram/etc), use the second line's content
-        // (typically a URL → use the path) plus the description prefix.
-        const GENERIC_TITLES = new Set(['youtube','twitter','x','instagram','tiktok','facebook','linkedin','reddit','github','medium','substack','telegram','t.me'])
-        let chosen = lines[0] ?? ''
-        if (chosen && GENERIC_TITLES.has(chosen.toLowerCase())) {
-            // pick a more specific line: prefer the longest non-URL line
-            const nonUrl = lines.slice(1).filter(l => !/^https?:\/\//i.test(l))
-            const longest = nonUrl.sort((a, b) => b.length - a.length)[0]
-            if (longest && longest.length > 8) chosen = longest
-        }
-        const label = chosen.replace(/\s+/g, ' ').slice(0, 80)
-        entries.push({ id: r.id, label, vec: v })
-    }
-
-    interface Candidate {
-        aId: string; bId: string
-        aLabel: string; bLabel: string
-        score: number
-        dedupeKey: string
-    }
+    interface Candidate { aId: string; bId: string; aLabel: string; bLabel: string; score: number; dedupeKey: string }
     const candidates: Candidate[] = []
-    let inspectedPairs = 0
-    for (let i = 0; i < entries.length; i++) {
-        for (let j = i + 1; j < entries.length; j++) {
-            inspectedPairs++
-            const sim = cosine(entries[i]!.vec, entries[j]!.vec)
-            if (sim < LINK_COSINE_FLOOR) continue
-            const a = entries[i]!
-            const b = entries[j]!
-            // Skip pairs whose labels are identical or both empty — they are
-            // platform-name dupes (e.g. two "YouTube" entries) that produce
-            // useless cards.
-            if (!a.label || !b.label) continue
-            if (a.label.trim().toLowerCase() === b.label.trim().toLowerCase()) continue
-            // Skip pairs where both labels look like single brand/site names —
-            // they produce useless cards ("Connect Facebook ↔ Amazon").
-            const isBrandish = (l: string) => !/\s/.test(l.trim()) && l.trim().length <= 20
-            if (isBrandish(a.label) || isBrandish(b.label)) continue
-            const [minId, maxId] = a.id < b.id ? [a.id, b.id] : [b.id, a.id]
-            const [minLabel, maxLabel] = a.id < b.id ? [a.label, b.label] : [b.label, a.label]
-            candidates.push({
-                aId: minId,
-                bId: maxId,
-                aLabel: minLabel,
-                bLabel: maxLabel,
-                score: sim,
-                dedupeKey: `link.note_to_note:${minId}:${maxId}`,
-            })
-        }
+    const inspectedPairs = edgeRows.length
+    for (const row of edgeRows) {
+        const aLabel = labels.get(row.a_id) ?? ''
+        const bLabel = labels.get(row.b_id) ?? ''
+        if (!aLabel || !bLabel) continue
+        if (aLabel.trim().toLowerCase() === bLabel.trim().toLowerCase()) continue
+        const isBrandish = (l: string) => !/\s/.test(l.trim()) && l.trim().length <= 20
+        if (isBrandish(aLabel) || isBrandish(bLabel)) continue
+        candidates.push({
+            aId: row.a_id,
+            bId: row.b_id,
+            aLabel,
+            bLabel,
+            score: Number(row.weight),
+            dedupeKey: `link.note_to_note:${row.a_id}:${row.b_id}`,
+        })
     }
 
     candidates.sort((x, y) => y.score - x.score)

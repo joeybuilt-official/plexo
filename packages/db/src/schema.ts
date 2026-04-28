@@ -21,6 +21,7 @@ import {
     uniqueIndex,
     primaryKey,
     varchar,
+    smallint,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -1821,13 +1822,63 @@ export const memoryThemes = pgTable('memory_themes', {
     status: text('status').notNull().default('pending'),
     lastMemberAt: timestamp('last_member_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    // Phase 1 (0096) — 3-level hierarchy + stable IDs.
+    // level: 0=region (γ=0.6), 1=theme (γ=1.0), 2=subtheme (γ=1.6)
+    parentId: uuid('parent_id'),
+    level: smallint('level').notNull().default(1),
+    stableId: text('stable_id'),
+    // is_scl flips true in Phase 3 once the SCL classifier marks a theme important.
+    isScl: boolean('is_scl').notNull().default(false),
+    exemplarIds: uuid('exemplar_ids').array(),
+    why: text('why'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table: any) => [
     index('memory_themes_workspace_idx').on(table.workspaceId),
     index('memory_themes_workspace_status_idx').on(table.workspaceId, table.status),
+    index('memory_themes_parent_idx').on(table.parentId),
+    index('memory_themes_level_idx').on(table.workspaceId, table.level),
+    index('memory_themes_stable_idx').on(table.workspaceId, table.stableId),
 ])
 
 export type MemoryTheme = typeof memoryThemes.$inferSelect
 export type NewMemoryTheme = typeof memoryThemes.$inferInsert
+
+// kNN edges between memory_entries — precomputed cosine pairs over the
+// HNSW index. Used by Leiden clustering and by link-suggestion generation
+// so we never re-compute the O(n²) pairwise scan.
+export const memoryKnnEdges = pgTable('memory_knn_edges', {
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    aId: uuid('a_id').notNull(),
+    bId: uuid('b_id').notNull(),
+    weight: real('weight').notNull(),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table: any) => [
+    index('memory_knn_edges_a_idx').on(table.workspaceId, table.aId),
+    primaryKey({ columns: [table.workspaceId, table.aId, table.bId] }),
+])
+
+export type MemoryKnnEdge = typeof memoryKnnEdges.$inferSelect
+export type NewMemoryKnnEdge = typeof memoryKnnEdges.$inferInsert
+
+// One row per cluster-rebuild run. Used by the forest endpoint to scope
+// "latest run" queries and by ops to track build cadence + cost.
+export const memoryThemeRuns = pgTable('memory_theme_runs', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    ranAt: timestamp('ran_at', { withTimezone: true }).notNull().defaultNow(),
+    nEntries: integer('n_entries').notNull(),
+    nThemes: integer('n_themes').notNull(),
+    nSubthemes: integer('n_subthemes').notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    algoVersion: text('algo_version').notNull(),
+})
+
+export type MemoryThemeRun = typeof memoryThemeRuns.$inferSelect
+export type NewMemoryThemeRun = typeof memoryThemeRuns.$inferInsert
 
 // One inbox table for all system-driven suggestions across every Joeybuilt surface.
 // Kinds: link.note_to_note, link.bookmark_to_note, theme.page_draft, archive.stale_bookmark,

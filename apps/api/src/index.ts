@@ -35,7 +35,7 @@ import { slackRouter } from './routes/slack.js'
 import { discordRouter } from './routes/discord.js'
 import { owdRouter } from './routes/approvals.js'
 import { sprintRunnerRouter } from './routes/sprint-runner.js'
-import { memoryRouter, synthesisRouter } from './routes/memory.js'
+import { memoryRouter, synthesisRouter, themesRouter } from './routes/memory.js'
 import { connectionsRouter } from './routes/connections.js'
 import { workspacesRouter } from './routes/workspaces.js'
 import { apiKeysRouter } from './routes/api-keys.js'
@@ -271,6 +271,7 @@ v1.use('/dashboard', requireWorkspaceMember('workspaceId'), dashboardRouter)
 v1.use('/approvals', owdRouter)
 v1.use('/memory', requireWorkspaceMember('workspaceId'), memoryRouter)
 v1.use('/synthesis', synthesisRouter) // service-key auth handled inside the router
+v1.use('/themes', themesRouter) // service-key auth handled inside the router (Phase 1: /forest)
 v1.use('/connections', connectionsRouter) // some endpoints have no workspaceId (registry); per-handler checks
 v1.use('/conversations', conversationsRouter) // per-handler workspace check
 v1.use('/workspaces', workspacesRouter) // list + /:id checked per-handler

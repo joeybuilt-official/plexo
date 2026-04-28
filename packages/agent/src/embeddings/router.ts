@@ -33,6 +33,27 @@ import {
     EMBEDDING_CAPABLE_PROVIDERS,
     DEFAULT_EMBEDDING_MODELS,
 } from './adapters.js'
+import { XenovaEmbeddingAdapter } from './xenova-adapter.js'
+
+// Phase 1 — Xenova/multilingual-e5-small is the locked default embedder
+// (384-d, multilingual, pure-JS ONNX). Set XENOVA_EMBEDDER=0 to fall
+// back to the prior resolution chain (gateway → workspace → env → ollama).
+function isXenovaEnabled(): boolean {
+    return process.env.XENOVA_EMBEDDER !== '0'
+}
+
+function buildXenovaResolution(workspaceId: string): EmbeddingRouterResult {
+    const adapter = new XenovaEmbeddingAdapter()
+    logger.info({ workspaceId, provider: adapter.providerId, model: adapter.model, dimensions: adapter.dimensions }, 'Embedding provider resolved to Xenova/multilingual-e5-small (Phase 1 default)')
+    return {
+        adapter,
+        providerId: adapter.providerId,
+        model: adapter.model,
+        dimensions: adapter.dimensions,
+        status: 'active',
+        message: 'Resolved from Xenova/multilingual-e5-small (Phase 1 default; set XENOVA_EMBEDDER=0 to disable)',
+    }
+}
 
 const logger = pino({ name: 'embeddings:router' })
 
@@ -220,6 +241,13 @@ export function resolveEmbeddingAdapter(
     workspaceId: string,
     aiSettings: WorkspaceAISettings | null,
 ): EmbeddingRouterResult {
+    // Phase 1 lock — Xenova/multilingual-e5-small (384-d, multilingual,
+    // pure-JS ONNX). No external dependency, no key. This is the floor;
+    // every other branch below is now a legacy escape hatch.
+    if (isXenovaEnabled()) {
+        return buildXenovaResolution(workspaceId)
+    }
+
     // Highest priority: Plexo's bundled embeddings server. Zero cost, no
     // keys, runs on the same docker network as the api. Preferred over any
     // workspace-configured provider because it removes an entire failure
@@ -529,3 +557,4 @@ export function checkProviderLineage(
 // Re-export for convenience
 export { HashEmbeddingAdapter, GatewayEmbeddingAdapter } from './adapters.js'
 export type { EmbeddingAdapter } from './adapters.js'
+export { XenovaEmbeddingAdapter, assertDefaultEmbedderDimensions } from './xenova-adapter.js'

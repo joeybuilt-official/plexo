@@ -274,15 +274,34 @@ export async function storeMemory(params: {
         logger.error({ err, id }, 'Failed to update shorthand')
     }
 
-    // Generate embedding async — don't await in hot path
-    embed(content, workspaceId, aiSettings).then(async (vector) => {
-        if (!vector) return
-        const vecStr = `[${vector.join(',')}]`
-        // Raw SQL for vector column (Drizzle doesn't support vector type natively)
-        await db.execute(
-            sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
-        )
-    }).catch((err) => logger.error({ err, id }, 'Failed to update embedding'))
+    // Embedding floor (Phase 1): pattern/note rows MUST land with an
+    // embedding so clusterMemory + suggest never see nulls. For other
+    // types we keep the legacy fire-and-forget path so non-knowledge
+    // hot-path writes (task outcomes, incidents) stay snappy.
+    const mustAwaitEmbedding = type === 'pattern' || (type as string) === 'note'
+    if (mustAwaitEmbedding) {
+        try {
+            const vector = await embed(content, workspaceId, aiSettings)
+            if (vector) {
+                const vecStr = `[${vector.join(',')}]`
+                await db.execute(
+                    sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
+                )
+            } else {
+                logger.warn({ id, workspaceId, type }, 'embed() returned null for pattern/note — row will land without embedding')
+            }
+        } catch (err) {
+            logger.error({ err, id }, 'Failed to embed pattern/note synchronously')
+        }
+    } else {
+        embed(content, workspaceId, aiSettings).then(async (vector) => {
+            if (!vector) return
+            const vecStr = `[${vector.join(',')}]`
+            await db.execute(
+                sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
+            )
+        }).catch((err) => logger.error({ err, id }, 'Failed to update embedding'))
+    }
 
     return id
 }
@@ -582,13 +601,30 @@ export async function writeShared(params: {
         logger.error({ err, id }, 'Failed to update shorthand (shared write)')
     }
 
-    embed(rest.content, rest.workspaceId, rest.aiSettings).then(async (vector) => {
-        if (!vector) return
-        const vecStr = `[${vector.join(',')}]`
-        await db.execute(
-            sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
-        )
-    }).catch((err) => logger.error({ err, id }, 'Failed to update embedding (shared write)'))
+    // Embedding floor (Phase 1): same rule as storeMemory — pattern/note
+    // shared writes await the embedding so the row never lands null.
+    const mustAwaitEmbedding = rest.type === 'pattern' || (rest.type as string) === 'note'
+    if (mustAwaitEmbedding) {
+        try {
+            const vector = await embed(rest.content, rest.workspaceId, rest.aiSettings)
+            if (vector) {
+                const vecStr = `[${vector.join(',')}]`
+                await db.execute(
+                    sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
+                )
+            }
+        } catch (err) {
+            logger.error({ err, id }, 'Failed to embed shared pattern/note synchronously')
+        }
+    } else {
+        embed(rest.content, rest.workspaceId, rest.aiSettings).then(async (vector) => {
+            if (!vector) return
+            const vecStr = `[${vector.join(',')}]`
+            await db.execute(
+                sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
+            )
+        }).catch((err) => logger.error({ err, id }, 'Failed to update embedding (shared write)'))
+    }
 
     return id
 }
