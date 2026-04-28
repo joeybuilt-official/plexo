@@ -240,7 +240,10 @@ async function runCodeSprint(
         // Project budget gate: block wave if project ceiling already exhausted
         await checkProjectBudget(sprintId, budget.projectCostCeiling)
 
-        await Promise.all(waveTasks.map(async (st) => {
+        // Executor-gap fix: use allSettled so a single failed push (e.g.,
+        // queue cap reached, branch create error) doesn't abort the whole
+        // wave mid-fan-out and leave half the sprint_tasks orphaned.
+        const dispatchResults = await Promise.allSettled(waveTasks.map(async (st) => {
             try {
                 await github.createBranch(st.branch, baseSha)
                 await logSprintEvent({
@@ -301,6 +304,30 @@ async function runCodeSprint(
                 metadata: { taskId, sprintTaskId: st.dbId, branch: st.branch },
             })
         }))
+
+        // Surface dispatch failures so the wave doesn't silently strand sprint_tasks
+        const dispatchFailures = dispatchResults
+            .map((r, i) => r.status === 'rejected' ? { task: waveTasks[i]!, reason: r.reason } : null)
+            .filter((x): x is { task: typeof waveTasks[number]; reason: unknown } => x !== null)
+        if (dispatchFailures.length > 0) {
+            // Mark the failed sprint_tasks as failed so the sprint accounting reflects reality
+            await db.update(sprintTasks)
+                .set({
+                    status: 'failed',
+                    handoff: sql`COALESCE(handoff, '{}'::jsonb) || ${JSON.stringify({ outcome: 'Dispatch failed before agent ran' })}::jsonb`,
+                })
+                .where(inArray(sprintTasks.id, dispatchFailures.map(f => f.task.dbId)))
+            for (const f of dispatchFailures) {
+                logger.warn({ sprintId, sprintTaskId: f.task.dbId, err: f.reason }, 'Sprint task dispatch failed — marked sprint_task as failed')
+                await logSprintEvent({
+                    sprintId,
+                    level: 'error',
+                    event: 'task_failed',
+                    message: `Failed to dispatch task: ${f.task.description.slice(0, 80)}`,
+                    metadata: { sprintTaskId: f.task.dbId, error: String(f.reason) },
+                })
+            }
+        }
 
         await waitForWave(waveTasks.map((t) => t.dbId), sprintId)
 
@@ -396,13 +423,21 @@ async function runCodeSprint(
                     message: `Task failed: "${st.description.slice(0, 80)}${st.description.length > 80 ? '…' : ''}"`,
                     metadata: { sprintTaskId: st.id, branch: st.branch },
                 })
+            } else if (st.status === 'blocked') {
+                await logSprintEvent({
+                    sprintId,
+                    level: 'warn',
+                    event: 'task_blocked',
+                    message: `Task blocked: "${st.description.slice(0, 80)}${st.description.length > 80 ? '…' : ''}"`,
+                    metadata: { sprintTaskId: st.id, branch: st.branch },
+                })
             }
         }
 
         await logSprintEvent({
             sprintId,
             event: 'wave_complete',
-            message: `Wave ${waveIdx + 1} complete — ${completed.filter(t => t.status === 'complete').length} succeeded, ${completed.filter(t => t.status === 'failed').length} failed`,
+            message: `Wave ${waveIdx + 1} complete — ${completed.filter(t => t.status === 'complete').length} succeeded, ${completed.filter(t => t.status === 'failed').length} failed, ${completed.filter(t => t.status === 'blocked').length} blocked`,
             metadata: {
                 wave: waveIdx + 1,
                 succeeded: completed.filter(t => t.status === 'complete').length,
@@ -433,7 +468,11 @@ async function runCodeSprint(
     const finalTasks = await db.select({ id: sprintTasks.id, status: sprintTasks.status }).from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
     const completedCount = finalTasks.filter((t) => t.status === 'complete').length
     const failedCount = finalTasks.filter((t) => t.status === 'failed').length
-    const sprintStatus: 'complete' | 'finalizing' | 'failed' = failedCount > 0
+    // Sprint-bug-fix: blocked tasks were silently dropped from accounting.
+    // Treat them as terminal-non-success so the sprint reflects the truth.
+    const blockedCount = finalTasks.filter((t) => t.status === 'blocked').length
+    const unsuccessfulCount = failedCount + blockedCount
+    const sprintStatus: 'complete' | 'finalizing' | 'failed' = unsuccessfulCount > 0
         ? (completedCount > 0 ? 'finalizing' : 'failed')
         : 'complete'
 
@@ -444,13 +483,17 @@ async function runCodeSprint(
         .where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
     const totalCostUsd = spendRow?.total ?? 0
 
+    // Sprint-bug-fix: only stamp completedAt when the sprint is actually
+    // terminal. 'finalizing' means there are unfinished tasks awaiting
+    // retry, so leaving completedAt null keeps reporting honest.
+    const isTerminal = sprintStatus === 'complete' || sprintStatus === 'failed'
     await db.update(sprints).set({
         status: sprintStatus,
         completedTasks: completedCount,
-        failedTasks: failedCount,
+        failedTasks: unsuccessfulCount,
         conflictCount: conflicts.length,
         costUsd: totalCostUsd,
-        completedAt: new Date(),
+        ...(isTerminal ? { completedAt: new Date() } : {}),
     }).where(eq(sprints.id, sprintId))
 
     await logSprintEvent({
@@ -460,12 +503,12 @@ async function runCodeSprint(
         message: sprintStatus === 'complete'
             ? `Sprint complete — ${completedCount}/${finalTasks.length} tasks succeeded, $${totalCostUsd.toFixed(4)} total cost`
             : sprintStatus === 'finalizing'
-            ? `Sprint finalizing — ${completedCount} succeeded, ${failedCount} failed, $${totalCostUsd.toFixed(4)} spent`
-            : `Sprint failed — all ${failedCount} tasks failed`,
-        metadata: { status: sprintStatus, completedCount, failedCount, totalCostUsd, conflictCount: conflicts.length },
+            ? `Sprint finalizing — ${completedCount} succeeded, ${failedCount} failed, ${blockedCount} blocked, $${totalCostUsd.toFixed(4)} spent`
+            : `Sprint failed — all ${unsuccessfulCount} tasks unsuccessful (${failedCount} failed, ${blockedCount} blocked)`,
+        metadata: { status: sprintStatus, completedCount, failedCount, blockedCount, totalCostUsd, conflictCount: conflicts.length },
     })
 
-    logger.info({ sprintId, sprintStatus, completedCount, failedCount }, 'Code sprint complete')
+    logger.info({ sprintId, sprintStatus, completedCount, failedCount, blockedCount }, 'Code sprint complete')
 
     await refreshSprintPatterns(repo, sprintId)
 
@@ -622,7 +665,9 @@ async function runGenericSprint(
     const finalTasks = await db.select({ id: sprintTasks.id, status: sprintTasks.status }).from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
     const completedCount = finalTasks.filter((t) => t.status === 'complete').length
     const failedCount = finalTasks.filter((t) => t.status === 'failed').length
-    const sprintStatus: 'complete' | 'finalizing' | 'failed' = failedCount > 0
+    const blockedCount = finalTasks.filter((t) => t.status === 'blocked').length
+    const unsuccessfulCount = failedCount + blockedCount
+    const sprintStatus: 'complete' | 'finalizing' | 'failed' = unsuccessfulCount > 0
         ? (completedCount > 0 ? 'finalizing' : 'failed')
         : 'complete'
 
@@ -633,12 +678,13 @@ async function runGenericSprint(
         .where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
     const totalCostUsd = spendRow?.total ?? 0
 
+    const isTerminal = sprintStatus === 'complete' || sprintStatus === 'failed'
     await db.update(sprints).set({
         status: sprintStatus,
         completedTasks: completedCount,
-        failedTasks: failedCount,
+        failedTasks: unsuccessfulCount,
         costUsd: totalCostUsd,
-        completedAt: new Date(),
+        ...(isTerminal ? { completedAt: new Date() } : {}),
     }).where(eq(sprints.id, sprintId))
 
     await logSprintEvent({
@@ -647,11 +693,11 @@ async function runGenericSprint(
         event: sprintStatus === 'failed' ? 'sprint_failed' : 'sprint_complete',
         message: sprintStatus === 'complete'
             ? `Sprint complete — ${completedCount}/${finalTasks.length} tasks done, $${totalCostUsd.toFixed(4)} total cost`
-            : `Sprint done with errors — ${completedCount} succeeded, ${failedCount} failed`,
-        metadata: { status: sprintStatus, completedCount, failedCount, totalCostUsd },
+            : `Sprint done with errors — ${completedCount} succeeded, ${failedCount} failed, ${blockedCount} blocked`,
+        metadata: { status: sprintStatus, completedCount, failedCount, blockedCount, totalCostUsd },
     })
 
-    logger.info({ sprintId, sprintStatus, completedCount, failedCount, category }, 'Generic sprint complete')
+    logger.info({ sprintId, sprintStatus, completedCount, failedCount, blockedCount, category }, 'Generic sprint complete')
 
     opts.onComplete?.({
         taskCount: finalTasks.length,

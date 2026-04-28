@@ -210,7 +210,9 @@ export async function runSprintRetry(sprintId: string, workspaceId: string): Pro
         const finalTasks = await db.select().from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId)).limit(500)
         const completedCount = finalTasks.filter((t) => t.status === 'complete').length
         const failedCount = finalTasks.filter((t) => t.status === 'failed').length
-        const sprintStatus: 'complete' | 'finalizing' | 'failed' = failedCount > 0
+        const blockedCount = finalTasks.filter((t) => t.status === 'blocked').length
+        const unsuccessfulCount = failedCount + blockedCount
+        const sprintStatus: 'complete' | 'finalizing' | 'failed' = unsuccessfulCount > 0
             ? (completedCount > 0 ? 'finalizing' : 'failed')
             : 'complete'
 
@@ -220,13 +222,14 @@ export async function runSprintRetry(sprintId: string, workspaceId: string): Pro
             .where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
         const totalCostUsd = spendRow?.total ?? 0
 
+        const isTerminal = sprintStatus === 'complete' || sprintStatus === 'failed'
         await db.update(sprints).set({
             status: sprintStatus,
             completedTasks: completedCount,
-            failedTasks: failedCount,
+            failedTasks: unsuccessfulCount,
             conflictCount: conflicts.length,
             costUsd: totalCostUsd,
-            completedAt: new Date(),
+            ...(isTerminal ? { completedAt: new Date() } : {}),
         }).where(eq(sprints.id, sprintId))
 
         await logSprintEvent({
@@ -235,9 +238,9 @@ export async function runSprintRetry(sprintId: string, workspaceId: string): Pro
             event: sprintStatus === 'failed' ? 'sprint_failed' : 'sprint_complete',
             message: sprintStatus === 'complete'
                 ? `Sprint complete — ${completedCount}/${finalTasks.length} tasks succeeded, $${totalCostUsd.toFixed(4)} total cost`
-                : sprintStatus === 'finalizing' ? `Sprint finalizing — ${completedCount} succeeded, ${failedCount} failed, $${totalCostUsd.toFixed(4)} spent`
-                : `Sprint failed — all ${failedCount} tasks failed`,
-            metadata: { status: sprintStatus, completedCount, failedCount, totalCostUsd, conflictCount: conflicts.length },
+                : sprintStatus === 'finalizing' ? `Sprint finalizing — ${completedCount} succeeded, ${failedCount} failed, ${blockedCount} blocked, $${totalCostUsd.toFixed(4)} spent`
+                : `Sprint failed — all ${unsuccessfulCount} tasks unsuccessful (${failedCount} failed, ${blockedCount} blocked)`,
+            metadata: { status: sprintStatus, completedCount, failedCount, blockedCount, totalCostUsd, conflictCount: conflicts.length },
         })
         
         if (category === 'code' && sprintRow.repo) {

@@ -229,6 +229,24 @@ const INTERNAL_JOBS: Array<{
             logger.info({ event: 'synthesis_nightly_complete', ...result }, 'Synthesis nightly complete')
         },
     },
+    {
+        // Stabilization monitoring agents — Romeo Backlog A.
+        // Drives all 10 agents on a 5-minute cadence. Each agent has its
+        // own internal threshold; this just ensures they all get woken up.
+        name: '__internal_stabilization_agents',
+        schedule: '*/5 * * * *',
+        intervalMs: 5 * 60 * 1000,
+        handler: async () => {
+            const { runMonitoringAgents } = await import('./stabilization/agents/index.js')
+            const results = await runMonitoringAgents()
+            const broken = results.filter((r) => !r.healthy).length
+            if (broken > 0) {
+                logger.warn({ broken, total: results.length }, 'Stabilization agents reported issues')
+            } else {
+                logger.info({ total: results.length }, 'Stabilization agents all healthy')
+            }
+        },
+    },
 ]
 
 /**

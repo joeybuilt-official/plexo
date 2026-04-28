@@ -10,6 +10,53 @@ import { createMistral } from '@ai-sdk/mistral'
 import { createGroq } from '@ai-sdk/groq'
 import { createXai } from '@ai-sdk/xai'
 import { createDeepSeek } from '@ai-sdk/deepseek'
+import { createHash } from 'crypto'
+
+/**
+ * DeepSeek-latency fix: createDeepSeek() (and other Vercel AI SDK provider
+ * factories) each instantiate a fresh fetch client and HTTP agent. Calling
+ * it on every request prevents Node's native keep-alive / connection-pool
+ * reuse, which is what was making DeepSeek calls feel slow even when the
+ * provider itself was healthy.
+ *
+ * We cache provider instances keyed by (providerKey, apiKey-hash) for the
+ * lifetime of the process. The map is bounded so a stream of unique keys
+ * (e.g. credential rotations) never grows unboundedly.
+ */
+const PROVIDER_CACHE_MAX = 64
+const providerCache = new Map<string, unknown>()
+
+function providerCacheKey(providerKey: string, apiKey: string | undefined): string {
+    const hashed = apiKey
+        ? createHash('sha1').update(apiKey).digest('hex').slice(0, 16)
+        : 'env'
+    return `${providerKey}:${hashed}`
+}
+
+function getCachedProvider<T>(providerKey: string, apiKey: string | undefined, build: () => T): T {
+    const key = providerCacheKey(providerKey, apiKey)
+    const hit = providerCache.get(key) as T | undefined
+    if (hit) return hit
+    const built = build()
+    if (providerCache.size >= PROVIDER_CACHE_MAX) {
+        // Drop oldest key (Map preserves insertion order)
+        const firstKey = providerCache.keys().next().value
+        if (firstKey !== undefined) providerCache.delete(firstKey)
+    }
+    providerCache.set(key, built)
+    return built
+}
+
+/** Drop a single cached provider — call after credential rotation/revocation. */
+export function clearProviderCache(providerKey?: string): void {
+    if (!providerKey) {
+        providerCache.clear()
+        return
+    }
+    for (const k of Array.from(providerCache.keys())) {
+        if (k.startsWith(`${providerKey}:`)) providerCache.delete(k)
+    }
+}
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 // Ollama uses OpenAI-compatible endpoint (ollama-ai-provider is V1 only)
@@ -357,9 +404,14 @@ export function buildModel(
             return xa(modelId)
         }
         case 'deepseek': {
-            const ds = config.apiKey
-                ? createDeepSeek({ apiKey: config.apiKey })
-                : createDeepSeek({ apiKey: process.env.DEEPSEEK_API_KEY ?? '' })
+            // Cache the provider factory across requests so the underlying
+            // fetch keep-alive pool is reused. See providerCache notes above.
+            const apiKey = config.apiKey ?? process.env.DEEPSEEK_API_KEY ?? ''
+            const ds = getCachedProvider(
+                'deepseek',
+                apiKey,
+                () => createDeepSeek({ apiKey }),
+            ) as ReturnType<typeof createDeepSeek>
             return ds(modelId)
         }
         case 'together': {
@@ -836,9 +888,12 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
             return xa(modelId)
         }
         case 'deepseek': {
-            const ds = apiKey
-                ? createDeepSeek({ apiKey })
-                : createDeepSeek({ apiKey: process.env.DEEPSEEK_API_KEY ?? '' })
+            const k = apiKey ?? process.env.DEEPSEEK_API_KEY ?? ''
+            const ds = getCachedProvider(
+                'deepseek',
+                k,
+                () => createDeepSeek({ apiKey: k }),
+            ) as ReturnType<typeof createDeepSeek>
             return ds(modelId)
         }
         case 'together': {

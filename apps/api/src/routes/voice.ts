@@ -255,6 +255,71 @@ voiceRouter.get('/usage', async (req, res) => {
     }
 })
 
+// ── POST /api/voice/test-transcribe ──────────────────────────────────────────
+// End-to-end Deepgram round-trip test. Frontend sends a short (≤10s) audio
+// blob captured from the user's mic; backend runs the same transcribe path
+// real traffic uses and returns the transcript + latency. This is the
+// "Deepgram test button" — distinct from /test which only validates auth.
+
+voiceRouter.post('/test-transcribe', async (req, res) => {
+    const { workspaceId, audioBase64, contentType: ct } = req.body as {
+        workspaceId?: string
+        audioBase64?: string
+        contentType?: string
+    }
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ ok: false, error: { code: 'INVALID_ID', message: 'Valid workspaceId required' } })
+        return
+    }
+    if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
+    if (!audioBase64 || typeof audioBase64 !== 'string') {
+        res.status(400).json({ ok: false, error: { code: 'NO_AUDIO', message: 'audioBase64 required' } })
+        return
+    }
+    // Cap inbound size at 5MB base64 (≈ 3.7MB raw). Test clips should be a
+    // few seconds, this gives generous headroom without enabling abuse.
+    if (audioBase64.length > 5 * 1024 * 1024) {
+        res.status(413).json({ ok: false, error: { code: 'TOO_LARGE', message: 'Test audio must be under 5MB' } })
+        return
+    }
+    let buffer: Buffer
+    try {
+        buffer = Buffer.from(audioBase64, 'base64')
+    } catch {
+        res.status(400).json({ ok: false, error: { code: 'INVALID_AUDIO', message: 'Could not decode audio' } })
+        return
+    }
+    const contentType = (typeof ct === 'string' && ct.length > 0) ? ct : 'audio/webm'
+
+    const start = Date.now()
+    try {
+        const result = await transcribeWithFallback(buffer, contentType, {
+            workspaceId,
+            source: 'voice-test',
+        })
+        const latencyMs = Date.now() - start
+        if (!result.ok) {
+            res.json({ ok: false, latencyMs, code: result.code, message: result.message })
+            return
+        }
+        res.json({
+            ok: true,
+            latencyMs,
+            text: result.transcript,
+            words: result.words ?? null,
+            duration: result.duration ?? null,
+        })
+    } catch (err) {
+        const latencyMs = Date.now() - start
+        logger.warn({ err, workspaceId, latencyMs }, 'Voice test-transcribe failed')
+        res.json({
+            ok: false,
+            latencyMs,
+            message: err instanceof Error ? err.message : 'Transcription failed',
+        })
+    }
+})
+
 // ── POST /api/voice/transcribe ────────────────────────────────────────────────
 
 // Accepts raw audio bytes. Client must set Content-Type to the audio MIME type.

@@ -1,0 +1,3 @@
+{"agent":"embedder-health","at":"2026-04-27T22:30:00.000Z","severity":"critical","message":"Embedding dimension drift: got 1024, expected 384","metadata":{"dim":1024,"expected":384}}
+{"agent":"cron-late","at":"2026-04-27T22:30:00.000Z","severity":"error","message":"1 cron job(s) overdue by 2x interval","metadata":{"stale":[{"name":"hub-discovery","schedule":"*/15 * * * *","sinceLastRunSec":2400}]}}
+{"agent":"disk-fill","at":"2026-04-27T22:30:00.000Z","severity":"critical","message":"Disk /var/lib/docker at 91.3% (>85%)","metadata":{"path":"/var/lib/docker","usage":0.913,"usedBytes":109893386240,"totalBytes":120259084288,"threshold":0.85}}

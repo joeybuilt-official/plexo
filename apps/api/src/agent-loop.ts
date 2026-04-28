@@ -1187,9 +1187,25 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 }
 
 /** Cancel stale blocked tasks older than 2 hours so they don't pile up.
- *  Queued tasks get a longer window (7 days) since they may be legitimately waiting. */
+ *  Queued tasks get a longer window (7 days) since they may be legitimately waiting.
+ *  Executor-gap fix: also requeue tasks stuck in 'claimed' for >5 minutes —
+ *  these were claimed by a worker that died before transitioning to 'running',
+ *  so ghost recovery (which only looks at 'running') misses them. */
 async function cleanupStaleTasks(): Promise<void> {
     try {
+        // 1. Recover stuck-claimed tasks back to queued so they can be re-picked.
+        const recovered = await db.execute<{ id: string }>(sql`
+            UPDATE tasks
+            SET status = 'queued', claimed_at = NULL
+            WHERE status = 'claimed'
+              AND claimed_at IS NOT NULL
+              AND claimed_at < NOW() - INTERVAL '5 minutes'
+            RETURNING id
+        `)
+        if (recovered.length > 0) {
+            logger.info({ count: recovered.length }, 'Recovered tasks stuck in "claimed" state back to "queued"')
+        }
+
         const result = await db.execute<typeof tasks.$inferSelect>(sql`
             UPDATE tasks
             SET status = 'cancelled',

@@ -399,6 +399,14 @@ app.use('/api/oauth', authLimiter, jsonDefault, oauthRouter)
 // A2A spec — agent discovery at /.well-known/agent.json (no API prefix)
 app.use('/.well-known', wellKnownAgentHandler())
 
+// ── Self-heal middleware (Backlog A — stabilization) ─────────
+// Catches transient/recoverable errors on idempotent routes and surfaces
+// a 503 with Retry-After. Mounted before the global error handler so
+// non-recoverable errors fall through to the existing INTERNAL_ERROR path.
+
+import { selfHealMiddleware } from './stabilization/self-heal.js'
+app.use(selfHealMiddleware())
+
 // ── Error Handler ────────────────────────────────────────────
 
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {

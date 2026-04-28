@@ -27,6 +27,7 @@ export type SprintLogEvent =
     | 'task_running'
     | 'task_complete'
     | 'task_failed'
+    | 'task_blocked'
     | 'task_timeout'
     | 'pr_created'
     | 'pr_failed'

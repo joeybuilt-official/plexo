@@ -69,8 +69,15 @@ export async function push(params: PushParams): Promise<string> {
     return id
 }
 
-export async function claim(agentId: string): Promise<typeof tasks.$inferSelect | null> {
-    // Atomic claim: SELECT FOR UPDATE SKIP LOCKED prevents double-claim
+/**
+ * Atomic single-task claim: SELECT FOR UPDATE SKIP LOCKED prevents double-claim.
+ *
+ * agentId is reserved for an upcoming claimed_by column. For now it's
+ * unused at the SQL layer but kept in the signature so call sites can
+ * already pass their agent identity. Using underscore prefix to silence
+ * the unused-arg lint without changing the public API.
+ */
+export async function claim(_agentId: string): Promise<typeof tasks.$inferSelect | null> {
     const result = await db.execute<typeof tasks.$inferSelect>(sql`
     UPDATE tasks
     SET status = 'claimed', claimed_at = NOW()
@@ -116,8 +123,10 @@ export async function fail(taskId: string, reason: string): Promise<void> {
 
 export async function cancel(taskId: string): Promise<void> {
     // Only cancel tasks in cancellable states — don't overwrite complete/failed/cancelled
+    // Queue-bug-fix: clear claimed_at + retry_after so the task doesn't keep
+    // holding a parallel slot or pending retry timer once cancelled.
     await db.update(tasks)
-        .set({ status: 'cancelled' })
+        .set({ status: 'cancelled', claimedAt: null, retryAfter: null })
         .where(and(eq(tasks.id, taskId), inArray(tasks.status, ['queued', 'claimed', 'running', 'blocked'] as TaskStatus[])))
 }
 
@@ -146,8 +155,14 @@ export async function list(filter: ListFilter = {}): Promise<(typeof tasks.$infe
     if (filter.parentId) {
         conditions.push(eq(tasks.parentId, filter.parentId))
     }
+    // Queue-bug-fix: cursor pagination must align with the order key.
+    // Order is (priority ASC, createdAt ASC), so the cursor is the createdAt
+    // of the last row from the previous page. Encoded as ISO timestamp.
     if (filter.cursor) {
-        conditions.push(sql`${tasks.id} < ${filter.cursor}`)
+        const cursorDate = new Date(filter.cursor)
+        if (!Number.isNaN(cursorDate.getTime())) {
+            conditions.push(sql`${tasks.createdAt} > ${cursorDate}`)
+        }
     }
 
     const query = db.select().from(tasks)
@@ -192,10 +207,14 @@ export async function requeueForRetry(
     }
 
     const backoffSec = backoffBase * Math.pow(2, nextAttempt - 1) // 120s, 240s, 480s
+    // Queue-bug-fix: clear claimed_at so the task is no longer treated as
+    // active. Without this, ghost recovery and parallel-slot eviction can
+    // both still see a stale claimed_at and refuse to release the slot.
     await db.update(tasks).set({
         status: 'queued' as TaskStatus,
         attemptCount: nextAttempt,
         retryAfter: new Date(Date.now() + backoffSec * 1000),
+        claimedAt: null,
     }).where(eq(tasks.id, taskId))
 
     return 'requeued'

@@ -127,6 +127,18 @@ export function observeHistogram(name: string, valueSeconds: number, labels: Lab
     }
 }
 
+/**
+ * Stabilization-agent helper: read raw counter series for a single metric.
+ * Returns a list of `{ labels, value }` pairs the agent can aggregate.
+ *
+ * Returns an empty array if the metric isn't registered or is not a counter.
+ */
+export function getCounterSeries(name: string): { labels: LabelMap; value: number }[] {
+    const m = registry.get(name)
+    if (!m || m.type !== 'counter') return []
+    return Array.from(m.values.values()).map((v) => ({ labels: { ...v.labels }, value: v.value }))
+}
+
 export function render(): string {
     const lines: string[] = []
     for (const [name, m] of registry.entries()) {

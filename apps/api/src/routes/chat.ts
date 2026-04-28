@@ -1216,7 +1216,23 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                 await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent, taskId, messageEmbedding: _resolvedEmbedding })
             } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
-            res.json({ status: 'task_queued', taskId, ...(confirmReply ? { reply: confirmReply } : {}), model: `${resolvedProvider}/${resolvedModel}` })
+            // Apr-14: chat-to-task UX — return a structured task summary so the
+            // dashboard can render a chip ("Task created: …") instead of just
+            // "task_queued". Frontend can read displayName / description and
+            // link to /app/tasks/<taskId> directly.
+            res.json({
+                status: 'task_queued',
+                taskId,
+                task: {
+                    id: taskId,
+                    displayName: cleanDescription.slice(0, 80),
+                    description: cleanDescription,
+                    source: 'dashboard',
+                    href: `/app/tasks/${taskId}`,
+                },
+                ...(confirmReply ? { reply: confirmReply } : {}),
+                model: `${resolvedProvider}/${resolvedModel}`,
+            })
             return
         }
 
