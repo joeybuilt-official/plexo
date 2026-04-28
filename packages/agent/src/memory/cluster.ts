@@ -36,6 +36,13 @@ import { callModel, CallModelError } from '../providers/call-model.js'
 import { resolveModel, resolveModelFromEnv, type AnyLanguageModel } from '../providers/registry.js'
 import { loadSettingsFromInstances } from '../providers/settings-from-instances.js'
 import { refreshKnnEdges, readKnnEdges } from './knn.js'
+// Shared primitive — Phase 5 promotion. Synthesis still uses the
+// inline llmLabel below for label+why semantics it needs (level=1
+// Haiku JSON), but the shared API is what cross-app callers consume
+// via memory.cluster.label. Importing here keeps the surface coherent
+// across the pipeline and guarantees a single source of truth for
+// future label-prompt evolution.
+export { topicLabel } from './cluster-api.js'
 
 const logger = pino({ name: 'memory-cluster' })
 

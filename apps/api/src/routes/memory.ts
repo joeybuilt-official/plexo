@@ -856,6 +856,7 @@ import {
     generateLinkSuggestions,
     deriveMemberLabel,
 } from '@plexo/agent/memory/suggest'
+import { promoteSuggestion } from '@plexo/agent/memory/promote'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 
 /**
@@ -1320,6 +1321,38 @@ synthesisRouter.post('/:id/dismiss', async (req, res) => {
     } catch (err) {
         logger.error({ err, id }, 'synthesis.dismiss failed')
         res.status(500).json({ error: { code: 'DISMISS_FAILED', message: 'Failed to dismiss suggestion' } })
+    }
+})
+
+// POST /api/v1/synthesis/promote/:suggestionId — Phase 5 cross-app promotion.
+// Idempotent: a second promotion of an already-promoted suggestion returns
+// the prior decision with `alreadyPromoted: true` and does not re-emit the
+// event. Body: { workspaceId: uuid, dryRun?: boolean }.
+synthesisRouter.post('/promote/:suggestionId', async (req, res) => {
+    const { suggestionId } = req.params as { suggestionId: string }
+    if (!suggestionId || !UUID_RE.test(suggestionId)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid suggestion id required' } })
+        return
+    }
+    const body = (req.body ?? {}) as { workspaceId?: string; dryRun?: boolean }
+    const workspaceId = body.workspaceId
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+    try {
+        const decision = await promoteSuggestion(workspaceId, suggestionId, {
+            dryRun: body.dryRun === true,
+        })
+        res.json({ decision })
+    } catch (err) {
+        const code = (err as { code?: string })?.code
+        if (code === 'SUGGESTION_NOT_FOUND') {
+            res.status(404).json({ error: { code, message: 'Suggestion not found' } })
+            return
+        }
+        logger.error({ err, suggestionId, workspaceId }, 'synthesis.promote failed')
+        res.status(500).json({ error: { code: 'PROMOTE_FAILED', message: 'Failed to promote suggestion' } })
     }
 })
 

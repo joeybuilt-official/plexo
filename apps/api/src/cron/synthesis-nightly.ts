@@ -27,6 +27,7 @@ import { clusterMemory } from '@plexo/agent/memory/cluster'
 import { generateThemeSuggestions, generateLinkSuggestions } from '@plexo/agent/memory/suggest'
 import { evaluateSclPromotion, snapshotThemeHistory } from '@plexo/agent/memory/scl'
 import { storeMemory, embed as embedMemory } from '@plexo/agent/memory/store'
+import { autoPromoteAboveThreshold } from '@plexo/agent/memory/promote'
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 
 const logger = pino({ name: 'synthesis-nightly' })
@@ -39,9 +40,29 @@ export interface SynthesisNightlyResult {
         suggestionsInserted: number
         sclPromoted: number
         sclDemoted: number
+        /** Phase 5 — cross-app promotions (note→levio, asset→fonto, spend→fylo) */
+        crossAppPromoted: number
+        crossAppNoRoute: number
     }
     staleArchive: { ok: boolean; status: number | null; error: string | null }
     durationMs: number
+}
+
+/** Confidence threshold for nightly auto-promotion. Set via env so ops can
+ *  raise/lower without a redeploy while we calibrate against real
+ *  workspaces. Default 1.5 = `coherence × ln(size)` of a coherent theme
+ *  with ~5 members at coherence 0.93 — well above the suggestion floor. */
+function autoPromoteThreshold(): number {
+    const raw = process.env.SYNTHESIS_AUTO_PROMOTE_THRESHOLD
+    if (!raw) return 1.5
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : 1.5
+}
+
+function autoPromoteEnabled(): boolean {
+    // Default ON — promotion is the whole point of Phase 5. Operators can
+    // disable via env if they want manual-only via the HTTP endpoint.
+    return process.env.SYNTHESIS_AUTO_PROMOTE !== '0' && process.env.SYNTHESIS_AUTO_PROMOTE !== 'false'
 }
 
 /** Backfill embeddings for any memory_entries with NULL embedding in this
@@ -149,6 +170,8 @@ async function runForWorkspace(workspaceId: string): Promise<{
     suggestionsInserted: number
     sclPromoted: number
     sclDemoted: number
+    crossAppPromoted: number
+    crossAppNoRoute: number
 }> {
     const t0 = Date.now()
     logger.info({ workspaceId }, 'synthesis-nightly: workspace start')
@@ -158,6 +181,8 @@ async function runForWorkspace(workspaceId: string): Promise<{
     let suggestionsInserted = 0
     let sclPromoted = 0
     let sclDemoted = 0
+    let crossAppPromoted = 0
+    let crossAppNoRoute = 0
 
     try {
         embeddingsBackfilled = await backfillEmbeddings(workspaceId)
@@ -194,7 +219,10 @@ async function runForWorkspace(workspaceId: string): Promise<{
         await persistClusterToDb(workspaceId, clusterResult)
     } catch (err) {
         logger.error({ err, workspaceId }, 'synthesis-nightly: cluster failed — aborting workspace')
-        return { embeddingsBackfilled, themesPersisted, suggestionsInserted, sclPromoted, sclDemoted }
+        return {
+            embeddingsBackfilled, themesPersisted, suggestionsInserted,
+            sclPromoted, sclDemoted, crossAppPromoted, crossAppNoRoute,
+        }
     }
 
     // 3a) snapshot theme history for SCL stability gate.
@@ -222,12 +250,35 @@ async function runForWorkspace(workspaceId: string): Promise<{
         logger.warn({ err, workspaceId }, 'synthesis-nightly: SCL eval failed')
     }
 
+    // 6) Phase 5 — cross-app promotion. Auto-promote any pending suggestion
+    //    that crossed the configured confidence threshold. Disabling env var
+    //    SYNTHESIS_AUTO_PROMOTE=0 leaves promotion to the manual HTTP path.
+    if (autoPromoteEnabled()) {
+        try {
+            const r = await autoPromoteAboveThreshold({
+                workspaceId,
+                confidenceThreshold: autoPromoteThreshold(),
+            })
+            crossAppPromoted = r.promoted
+            crossAppNoRoute = r.noRoute
+        } catch (err) {
+            logger.warn({ err, workspaceId }, 'synthesis-nightly: auto-promote failed')
+        }
+    }
+
     logger.info(
-        { workspaceId, embeddingsBackfilled, themesPersisted, suggestionsInserted, sclPromoted, sclDemoted, durationMs: Date.now() - t0 },
+        {
+            workspaceId, embeddingsBackfilled, themesPersisted, suggestionsInserted,
+            sclPromoted, sclDemoted, crossAppPromoted, crossAppNoRoute,
+            durationMs: Date.now() - t0,
+        },
         'synthesis-nightly: workspace complete',
     )
 
-    return { embeddingsBackfilled, themesPersisted, suggestionsInserted, sclPromoted, sclDemoted }
+    return {
+        embeddingsBackfilled, themesPersisted, suggestionsInserted,
+        sclPromoted, sclDemoted, crossAppPromoted, crossAppNoRoute,
+    }
 }
 
 /* ────── persistence helper (mirrors apps/api/src/routes/memory.ts) ────── */
@@ -332,7 +383,10 @@ export async function runSynthesisNightly(): Promise<SynthesisNightlyResult> {
         logger.error({ err }, 'synthesis-nightly: failed to list workspaces')
         return {
             workspaces: 0,
-            totals: { embeddingsBackfilled: 0, themesPersisted: 0, suggestionsInserted: 0, sclPromoted: 0, sclDemoted: 0 },
+            totals: {
+                embeddingsBackfilled: 0, themesPersisted: 0, suggestionsInserted: 0,
+                sclPromoted: 0, sclDemoted: 0, crossAppPromoted: 0, crossAppNoRoute: 0,
+            },
             staleArchive: { ok: false, status: null, error: 'workspace listing failed' },
             durationMs: Date.now() - t0,
         }
@@ -344,6 +398,8 @@ export async function runSynthesisNightly(): Promise<SynthesisNightlyResult> {
         suggestionsInserted: 0,
         sclPromoted: 0,
         sclDemoted: 0,
+        crossAppPromoted: 0,
+        crossAppNoRoute: 0,
     }
 
     for (const workspaceId of workspaces) {
@@ -354,6 +410,8 @@ export async function runSynthesisNightly(): Promise<SynthesisNightlyResult> {
             totals.suggestionsInserted += r.suggestionsInserted
             totals.sclPromoted += r.sclPromoted
             totals.sclDemoted += r.sclDemoted
+            totals.crossAppPromoted += r.crossAppPromoted
+            totals.crossAppNoRoute += r.crossAppNoRoute
         } catch (err) {
             logger.error({ err, workspaceId }, 'synthesis-nightly: workspace pass threw — continuing')
         }

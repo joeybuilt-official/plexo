@@ -12,9 +12,10 @@
   "homepage": "https://getplexo.com/ext/@joeybuilt/fonto-bridge",
   "repository": "https://github.com/joeybuilt-official/plexo",
   "keywords": ["fonto", "assets", "files", "bridge"],
-  "capabilities": ["storage:read"],
+  "capabilities": ["storage:read", "events:subscribe"],
   "capabilitiesRationale": {
-    "storage:read": "Reads the Fonto connection credentials (fonto_user_id) to authenticate data API calls."
+    "storage:read": "Reads the Fonto connection credentials (fonto_user_id) to authenticate data API calls.",
+    "events:subscribe": "Subscribes to ext.synthesis-promote.fonto.projects.create so Plexo's synthesis loop can promote an asset cluster → Fonto project."
   },
   "trust": "owner",
   "escalation": {

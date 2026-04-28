@@ -486,6 +486,32 @@ function assetUntagTool(): ToolRegistration {
     }
 }
 
+// Phase 5 synthesis promotion subscriber. When Plexo's synthesis loop
+// decides an asset cluster should become a Fonto project, it publishes
+// `ext.synthesis-promote.fonto.projects.create` on the PEX event-bus.
+async function handlePromotionToProject(payload: unknown): Promise<void> {
+    if (!payload || typeof payload !== 'object') return
+    const p = payload as { workspaceId?: string; suggestionId?: string; payload?: unknown }
+    const inner = (p.payload && typeof p.payload === 'object') ? p.payload as { name?: unknown; assetIds?: unknown } : {}
+    const name = typeof inner.name === 'string' ? inner.name : null
+    const assetIds = Array.isArray(inner.assetIds) ? inner.assetIds : []
+    const userId = _cachedUserId
+    if (!userId || !name) return
+
+    try {
+        await fontoPost({
+            entity: 'collection',
+            userId,
+            name,
+            assetIds,
+            source: 'plexo.synthesis',
+            sourceId: p.suggestionId,
+        })
+    } catch {
+        // Non-fatal; suggestion is already promoted upstream.
+    }
+}
+
 export async function activate(sdk: PlexoSDK): Promise<void> {
     try {
         _cachedUserId = await sdk.storage.get('fonto_user_id')
@@ -518,4 +544,13 @@ export async function activate(sdk: PlexoSDK): Promise<void> {
     sdk.registerTool(tagCreateTool())
     sdk.registerTool(tagUpdateTool())
     sdk.registerTool(tagDeleteTool())
+
+    // Phase 5 — synthesis cross-app promotion subscriber
+    try {
+        sdk.events.subscribe('ext.synthesis-promote.fonto.projects.create', (payload) => {
+            void handlePromotionToProject(payload)
+        })
+    } catch {
+        // events:subscribe may not be granted; promotion is opt-in.
+    }
 }

@@ -71,6 +71,7 @@
     "./scl/pii-scrub": "./src/scl/pii-scrub.ts",
     "./scl/inference-log": "./src/scl/inference-log.ts",
     "./scl/embedding-provider": "./src/scl/embedding-provider.ts",
+    "./scl/embeddings-cluster": "./src/scl/embeddings-cluster.ts",
     "./embeddings": "./src/embeddings/index.ts",
     "./embeddings/router": "./src/embeddings/router.ts",
     "./embeddings/adapters": "./src/embeddings/adapters.ts",
@@ -94,6 +95,9 @@
     "./memory/cluster": "./src/memory/cluster.ts",
     "./memory/suggest": "./src/memory/suggest.ts",
     "./memory/knn": "./src/memory/knn.ts",
+    "./memory/embeddings": "./src/memory/embeddings.ts",
+    "./memory/cluster-api": "./src/memory/cluster-api.ts",
+    "./memory/promote": "./src/memory/promote.ts",
     "./embeddings/xenova": "./src/embeddings/xenova-adapter.ts",
     "./memory/scl": "./src/memory/scl.ts",
     "./memory/streaming-touch": "./src/memory/streaming-touch.ts"
