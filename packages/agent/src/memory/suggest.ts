@@ -7,11 +7,15 @@
  * Two surfaces:
  *  - `generateThemeSuggestions`  → reads `memory_themes`, gates promotion-ready
  *    clusters into `synthesis_suggestions(kind='theme.page_draft')`.
- *  - `generateLinkSuggestions`   → walks `memory_entries.embedding` pairwise,
+ *  - `generateLinkSuggestions`   → reads precomputed `memory_knn_edges`,
  *    upserts `synthesis_suggestions(kind='link.note_to_note')` for any pair
  *    whose cosine ≥ 0.83 that is not already linked. Capped 50/run.
  *
  * Both upsert by `(workspaceId, dedupe_key)` so the routes are idempotent.
+ *
+ * Phase 5 note: cross-app suggestion promotion (note→levio.task,
+ * asset_cluster→fonto.project, spend_pattern→fylo.budget.signal) lives in
+ * `memory/promote.ts` and consumes the suggestions inserted here.
  */
 import pino from 'pino'
 import { db, sql } from '@plexo/db'
