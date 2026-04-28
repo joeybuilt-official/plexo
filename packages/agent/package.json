@@ -71,6 +71,7 @@
     "./scl/pii-scrub": "./src/scl/pii-scrub.ts",
     "./scl/inference-log": "./src/scl/inference-log.ts",
     "./scl/embedding-provider": "./src/scl/embedding-provider.ts",
+    "./scl/embeddings-cluster": "./src/scl/embeddings-cluster.ts",
     "./embeddings": "./src/embeddings/index.ts",
     "./embeddings/router": "./src/embeddings/router.ts",
     "./embeddings/adapters": "./src/embeddings/adapters.ts",
