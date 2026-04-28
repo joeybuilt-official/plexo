@@ -251,6 +251,7 @@ export async function clusterMemory(
         SELECT id, content, embedding::text AS embedding, created_at
         FROM memory_entries
         WHERE workspace_id = ${workspaceId}::uuid
+          AND type = 'pattern'
           AND embedding IS NOT NULL
         ORDER BY created_at ASC
         LIMIT ${MAX_ENTRIES_PER_RUN}

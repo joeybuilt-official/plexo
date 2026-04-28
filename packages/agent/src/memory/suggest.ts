@@ -182,6 +182,7 @@ export async function generateLinkSuggestions(workspaceId: string): Promise<Link
         SELECT id, content, embedding::text AS embedding, metadata
         FROM memory_entries
         WHERE workspace_id = ${workspaceId}::uuid
+          AND type = 'pattern'
           AND embedding IS NOT NULL
         ORDER BY created_at DESC
         LIMIT 2000
@@ -192,7 +193,8 @@ export async function generateLinkSuggestions(workspaceId: string): Promise<Link
     for (const r of rows) {
         const v = parseVector(r.embedding)
         if (!v || v.length === 0) continue
-        const label = (r.content || '').replace(/\s+/g, ' ').slice(0, 80)
+        const firstLine = (r.content || '').split('\n')[0] ?? ''
+        const label = (firstLine.trim() || (r.content || '').replace(/\s+/g, ' ')).slice(0, 80)
         entries.push({ id: r.id, label, vec: v })
     }
 

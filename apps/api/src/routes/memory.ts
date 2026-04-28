@@ -94,7 +94,7 @@ memoryRouter.get('/entries', async (req, res) => {
         let query = sql`
             SELECT id, type, content, shorthand, metadata, tier, namespace, created_at
             FROM memory_entries
-            WHERE workspace_id = ${workspaceId}::uuid
+            WHERE workspace_id = ${workspaceId}::uuid AND type = 'pattern'
         `
         if (type) query = sql`${query} AND type = ${type}::memory_type`
         if (tier) query = sql`${query} AND tier = ${tier}`
@@ -446,7 +446,7 @@ memoryRouter.get('/rules/export', async (req, res) => {
         }>(sql`
             SELECT id, key, type, label, description, value, source, tags, locked, created_at, updated_at
             FROM behavior_rules
-            WHERE workspace_id = ${workspaceId}::uuid
+            WHERE workspace_id = ${workspaceId}::uuid AND type = 'pattern'
               AND deleted_at IS NULL
             ORDER BY type, key
         `)
@@ -692,7 +692,7 @@ memoryRouter.get('/namespaces', async (req, res) => {
                    COUNT(*) FILTER (WHERE tier = 'active')::int AS active,
                    COUNT(*) FILTER (WHERE tier = 'cold')::int AS cold
             FROM memory_entries
-            WHERE workspace_id = ${workspaceId}::uuid
+            WHERE workspace_id = ${workspaceId}::uuid AND type = 'pattern'
             GROUP BY namespace
             ORDER BY total DESC, namespace ASC
         `))
@@ -879,7 +879,7 @@ memoryRouter.post('/cluster', async (req, res) => {
             // Find an existing theme with the same member-set hash.
             const existing = Array.from(await db.execute<{ id: string }>(sql`
                 SELECT id FROM memory_themes
-                WHERE workspace_id = ${workspaceId}::uuid
+                WHERE workspace_id = ${workspaceId}::uuid AND type = 'pattern'
                   AND md5(array_to_string(
                         ARRAY(SELECT unnest(member_ids) ORDER BY 1), ','
                       )) = md5(${sortedKey})
@@ -971,7 +971,7 @@ synthesisRouter.get('/inbox', async (req, res) => {
                     SELECT id, workspace_id, kind, payload, score, source, status,
                            surfaced_at, dismissed_at, accepted_at, dedupe_key, created_at
                     FROM synthesis_suggestions
-                    WHERE workspace_id = ${workspaceId}::uuid
+                    WHERE workspace_id = ${workspaceId}::uuid AND type = 'pattern'
                       AND status = 'pending'
                       AND kind = ANY(${kindsLit}::text[])
                     ORDER BY score DESC, created_at DESC
@@ -981,7 +981,7 @@ synthesisRouter.get('/inbox', async (req, res) => {
                     SELECT id, workspace_id, kind, payload, score, source, status,
                            surfaced_at, dismissed_at, accepted_at, dedupe_key, created_at
                     FROM synthesis_suggestions
-                    WHERE workspace_id = ${workspaceId}::uuid
+                    WHERE workspace_id = ${workspaceId}::uuid AND type = 'pattern'
                       AND status = 'pending'
                     ORDER BY score DESC, created_at DESC
                     LIMIT ${limit}

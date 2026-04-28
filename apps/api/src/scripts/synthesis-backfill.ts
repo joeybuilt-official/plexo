@@ -114,7 +114,7 @@ async function main(): Promise<void> {
 
         // ── Bookmarks (capture_sources) ─────────────────────────
         const bmRes = await pushd.query<NexalogBookmark>(`
-            SELECT id, workspace_id, title, url, description, created_at
+            SELECT id, workspace_id, COALESCE(og_title, content) AS title, url, og_description AS description, created_at
             FROM nexalog.capture_sources
             ORDER BY created_at ASC
         `)
