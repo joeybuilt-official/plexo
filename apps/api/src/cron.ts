@@ -11,8 +11,10 @@ import { runRSIMonitor } from '@plexo/agent/introspection/rsi-monitor'
 import { emitRsiProposalCreated } from './analytics/events.js'
 import { runWeeklyDigest } from './analytics/digest-worker.js'
 import { deleteByPrefix } from '@plexo/storage'
+import { runSynthesisNightly } from './cron/synthesis-nightly.js'
 
 export { runRSIMonitor }
+export { runSynthesisNightly }
 
 /** Update last_run_at + last_run_status for internal cron jobs so the
  *  dashboard doesn't show them as stale / never-run. */
@@ -215,6 +217,17 @@ const INTERNAL_JOBS: Array<{
         schedule: '0 3 * * 0',   // Sunday 3am UTC
         intervalMs: 7 * 24 * 60 * 60 * 1000,
         handler: runDataRetention,
+    },
+    {
+        // Phase 4 N.5 — synthesis nightly (cluster, label, SCL flag, suggestions,
+        // nexalog stale-archive trigger). Runs across every workspace.
+        name: 'Synthesis nightly',
+        schedule: '0 3 * * *',   // 03:00 UTC daily
+        intervalMs: 24 * 60 * 60 * 1000,
+        handler: async () => {
+            const result = await runSynthesisNightly()
+            logger.info({ event: 'synthesis_nightly_complete', ...result }, 'Synthesis nightly complete')
+        },
     },
 ]
 

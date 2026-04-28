@@ -18,6 +18,8 @@
 import { Router, type Router as RouterType } from 'express'
 import { db, sql } from '@plexo/db'
 import { searchMemory, storeMemory, embed as embedMemory, type MemoryType } from '@plexo/agent/memory/store'
+import { streamingTouchAfterStore } from '@plexo/agent/memory/streaming-touch'
+import { snapshotThemeHistory } from '@plexo/agent/memory/scl'
 import { getPreferences } from '@plexo/agent/memory/preferences'
 import { runSelfImprovementCycle, getImprovementLog } from '@plexo/agent/memory/self-improvement'
 import { proposePromptImprovements, applyPromptPatch } from '@plexo/agent/memory/prompt-improvement'
@@ -196,6 +198,19 @@ memoryRouter.post('/entries', async (req, res) => {
 
         trackEvent('memory.created', 'info', { workspaceId, type: resolvedType, source: 'manual', attachments: uploaded.length })
         audit(req, { workspaceId, userId: req.user?.id, action: 'memory.create', resource: 'memory_entries', resourceId: entryId, metadata: { type: resolvedType } })
+
+        // Phase 4 N.4 — streaming-touch on every pattern write. Best-effort,
+        // non-blocking: failures here don't fail the create. Fire-and-await
+        // so the kNN edges are durable before the 201 returns (the path is
+        // <10ms typical), then absorb any error and log.
+        if (resolvedType === 'pattern') {
+            try {
+                await streamingTouchAfterStore(workspaceId, entryId)
+            } catch (err) {
+                logger.warn({ err, workspaceId, entryId }, 'streaming-touch after storeMemory failed (non-fatal)')
+            }
+        }
+
         res.status(201).json({ id: entryId, attachments: uploaded })
     } catch (err: unknown) {
         logger.error({ err }, 'Memory entry creation failed')
@@ -915,12 +930,17 @@ memoryRouter.post('/cluster', async (req, res) => {
 
                 let themeId: string
                 const memberIdsLiteral = uuidArrayLiteral(c.memberIds)
+                const exemplarIdsLiteral = c.exemplarIds && c.exemplarIds.length > 0
+                    ? uuidArrayLiteral(c.exemplarIds)
+                    : null
                 if (c.matchedPriorId) {
                     themeId = c.matchedPriorId
                     await db.execute(sql`
                         UPDATE memory_themes
                         SET label = ${c.label},
+                            why = ${c.why},
                             member_ids = ${memberIdsLiteral}::uuid[],
+                            exemplar_ids = ${exemplarIdsLiteral}::uuid[],
                             size = ${c.memberIds.length},
                             coherence = ${c.coherence},
                             centroid = ${centroidLiteral}::vector,
@@ -935,11 +955,12 @@ memoryRouter.post('/cluster', async (req, res) => {
                 } else {
                     const inserted = Array.from(await db.execute<{ id: string }>(sql`
                         INSERT INTO memory_themes
-                            (workspace_id, label, member_ids, centroid, size, coherence,
+                            (workspace_id, label, why, member_ids, exemplar_ids, centroid, size, coherence,
                              last_member_at, level, parent_id, stable_id)
                         VALUES
-                            (${workspaceId}::uuid, ${c.label}, ${memberIdsLiteral}::uuid[],
-                             ${centroidLiteral}::vector, ${c.memberIds.length}, ${c.coherence},
+                            (${workspaceId}::uuid, ${c.label}, ${c.why}, ${memberIdsLiteral}::uuid[],
+                             ${exemplarIdsLiteral}::uuid[], ${centroidLiteral}::vector,
+                             ${c.memberIds.length}, ${c.coherence},
                              NOW(), ${level}, ${parentId}::uuid, ${c.stableId})
                         RETURNING id
                     `))
@@ -979,6 +1000,44 @@ memoryRouter.post('/cluster', async (req, res) => {
             RETURNING id
         `))
         const runId = runRows[0]?.id ?? null
+
+        // Phase 3 N.3 — snapshot every persisted theme into memory_theme_history
+        // so the SCL stability gate can compute member-Jaccards across runs.
+        if (runId) {
+            try {
+                // Pull the canonical post-persist state for the snapshot. Doing
+                // this from the DB (not persistedSummary) means stable_id and
+                // member_ids reflect any UPDATE-in-place that just ran.
+                const snapshotRows = Array.from(await db.execute<{
+                    id: string
+                    level: number
+                    stable_id: string | null
+                    member_ids: string[]
+                    size: number
+                    coherence: number
+                }>(sql`
+                    SELECT id, level, stable_id, member_ids, size, coherence
+                    FROM memory_themes
+                    WHERE workspace_id = ${workspaceId}::uuid
+                `))
+                if (snapshotRows.length > 0) {
+                    await snapshotThemeHistory(
+                        workspaceId,
+                        runId,
+                        snapshotRows.map(r => ({
+                            id: r.id,
+                            level: r.level,
+                            stableId: r.stable_id ?? r.id,
+                            memberIds: r.member_ids ?? [],
+                            size: r.size,
+                            coherence: r.coherence,
+                        })),
+                    )
+                }
+            } catch (err) {
+                logger.warn({ err, workspaceId, runId }, 'memory.cluster: theme history snapshot failed (non-fatal)')
+            }
+        }
 
         res.json({
             workspaceId,

@@ -1,5 +1,11 @@
-FROM node:22-alpine AS base
-RUN apk add --no-cache git
+FROM node:22-bookworm-slim AS base
+# Phase 4 N.6 — bookworm-slim base unblocks onnxruntime-node + @xenova/transformers
+# (multilingual-e5-small embedder). Alpine's musl libc can't load the prebuilt
+# .so files; bookworm-slim ships glibc and is the official Node.js team's
+# recommendation for ML/native-dep workloads.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # ── Resolve git commit hash ──────────────────────────────────────────────────
@@ -50,9 +56,20 @@ RUN pnpm install --frozen-lockfile --filter @plexo/api...
 FROM base AS runner
 WORKDIR /app
 
-RUN apk add --no-cache docker-cli && \
-    addgroup --system --gid 1001 plexo && \
-    adduser  --system --uid 1001 --ingroup plexo plexo
+# docker-cli for the deploy webhook path; on bookworm, install from Docker's
+# official apt repo (docker.io in Debian main lags; ce-cli ships current).
+RUN install -m 0755 -d /etc/apt/keyrings \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends curl gnupg \
+ && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" \
+    > /etc/apt/sources.list.d/docker.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends docker-ce-cli \
+ && apt-get purge -y --auto-remove curl gnupg \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 1001 plexo \
+ && useradd  --system --uid 1001 --gid plexo --shell /usr/sbin/nologin plexo
 
 # Workspace manifests (needed for pnpm workspace resolution)
 COPY --from=deps /app/node_modules              ./node_modules
