@@ -232,7 +232,7 @@ export async function generateLinkSuggestions(workspaceId: string): Promise<Link
             // Skip pairs where both labels look like single brand/site names —
             // they produce useless cards ("Connect Facebook ↔ Amazon").
             const isBrandish = (l: string) => !/\s/.test(l.trim()) && l.trim().length <= 20
-            if (isBrandish(a.label) && isBrandish(b.label)) continue
+            if (isBrandish(a.label) || isBrandish(b.label)) continue
             const [minId, maxId] = a.id < b.id ? [a.id, b.id] : [b.id, a.id]
             const [minLabel, maxLabel] = a.id < b.id ? [a.label, b.label] : [b.label, a.label]
             candidates.push({
