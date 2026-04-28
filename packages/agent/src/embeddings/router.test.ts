@@ -1,4 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
+
+// Disable the Xenova short-circuit so the legacy workspace resolution paths
+// under test are actually reachable.
+beforeAll(() => { vi.stubEnv('XENOVA_EMBEDDER', '0') })
+afterAll(() => { vi.unstubAllEnvs() })
 
 // The providers/registry type-only import can still cause vitest to load the
 // module graph, which pulls in @plexo/db. Stub it out for unit-test isolation.
