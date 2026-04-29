@@ -339,7 +339,7 @@ export async function reconcileOrphanedUsers(): Promise<number> {
         const orphans = await db.execute(sql`
             DELETE FROM workspace_members wm
             WHERE NOT EXISTS (
-                SELECT 1 FROM auth.user au WHERE au.id = wm.user_id
+                SELECT 1 FROM auth.user au WHERE au.id::text = wm.user_id
             )
             RETURNING wm.user_id, wm.workspace_id
         `)
