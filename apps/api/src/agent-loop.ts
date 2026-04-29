@@ -3,7 +3,7 @@
 
 import { claimTask, completeTask, blockTask, failTask, requeueForRetry } from '@plexo/queue'
 import { db, eq, and, sql, inArray } from '@plexo/db'
-import { tasks, apiCostTracking, workspaces, sprints, sprintTasks } from '@plexo/db'
+import { tasks, apiCostTracking, workspaces, sprints, sprintTasks, plexoOpsTaskEvents } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import { recordTaskMemory } from '@plexo/agent/memory/store'
@@ -29,6 +29,28 @@ let running = true
 let activeTasks: Map<string, AbortController> = new Map()
 let sessionCount = 0
 let lastActivity: string | null = null
+
+async function recordTaskEvent(params: {
+    workspaceId: string
+    taskId: string
+    eventType: string
+    fromState: string | null
+    toState: string
+    metadata?: Record<string, unknown>
+}): Promise<void> {
+    try {
+        await db.insert(plexoOpsTaskEvents).values({
+            workspaceId: params.workspaceId,
+            taskId: params.taskId,
+            eventType: params.eventType,
+            fromState: params.fromState,
+            toState: params.toState,
+            metadata: params.metadata ?? {},
+        })
+    } catch (err) {
+        logger.debug({ err, taskId: params.taskId }, 'failed to record task event')
+    }
+}
 
 /**
  * Returns the current agent loop status snapshot.
@@ -336,6 +358,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         await failTask(task.id, 'No AI credential configured for workspace')
         await syncSprintTaskBlocked(task, 'No AI credential configured for workspace')
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'claimed', to: 'failed', workspaceId: taskWorkspaceId, reason: 'no_ai_credential' }, 'lifecycle')
+        void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'failed', fromState: 'claimed', toState: 'failed', metadata: { reason: 'no_ai_credential' } })
         emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'No AI credential' })
         trackEvent('task.failed', 'warning', { taskId: task.id, reason: 'no_ai_credential', workspaceId: taskWorkspaceId })
         logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId }, 'No credential — task failed (permanent)')
@@ -648,6 +671,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             .set({ status: 'running', claimedAt: new Date() })
             .where(eq(tasks.id, task.id))
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'claimed', to: 'running', workspaceId: taskWorkspaceId }, 'lifecycle')
+        void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'claimed', fromState: 'claimed', toState: 'running' })
 
         const taskContext = task.context as Record<string, unknown>
         const description = (taskContext.description as string)
@@ -691,6 +715,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         } else {
             emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planning', taskId: task.id })
             logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'planning', workspaceId: taskWorkspaceId }, 'lifecycle')
+            void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'planning', fromState: 'running', toState: 'planning' })
             plannerResult = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
         }
 
@@ -698,6 +723,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         if (plannerResult.type === 'clarification') {
             logger.info({ taskId: task.id, alternatives: plannerResult.alternatives.length }, 'Planner returned clarification — capability gap detected')
             logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'planning', to: 'blocked', workspaceId: taskWorkspaceId, reason: 'clarification_needed' }, 'lifecycle')
+            void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'blocked', fromState: 'planning', toState: 'blocked', metadata: { reason: 'clarification_needed', alternatives: plannerResult.alternatives.length } })
             trackEvent('task.blocked', 'info', { taskId: task.id, reason: 'clarification_needed', alternatives: plannerResult.alternatives.length, workspaceId: taskWorkspaceId })
             await blockTask(task.id, plannerResult.message)
             await syncSprintTaskBlocked(task, plannerResult.message)
@@ -716,6 +742,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         const plan = plannerResult.plan
         logger.info({ taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore }, 'Plan ready')
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'planning', to: 'executing', workspaceId: taskWorkspaceId, steps: plan.steps.length }, 'lifecycle')
+        void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'executing', fromState: 'planning', toState: 'executing', metadata: { steps: plan.steps.length } })
         emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
 
         if (plan.oneWayDoors.length > 0) {
@@ -806,6 +833,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             costUsd: result.totalCostUsd,
         })
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'complete', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, costUsd: result.totalCostUsd }, 'lifecycle')
+        void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'complete', fromState: 'running', toState: 'complete', metadata: { durationMs: Date.now() - taskStartMs, costUsd: result.totalCostUsd } })
 
         // Analytics: if this is the workspace's first completed task, emit onboarding_completed
         try {
@@ -1103,12 +1131,14 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         if (isTransient) {
             const retryResult = await requeueForRetry(task.id, { maxAttempts: 3, backoffBase: 60 })
             logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: retryResult === 'requeued' ? 'queued' : 'failed', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode, retryResult }, 'lifecycle')
+            void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: retryResult === 'requeued' ? 'requeued' : 'failed', fromState: 'running', toState: retryResult === 'requeued' ? 'queued' : 'failed', metadata: { durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode, retryResult } })
             trackEvent('task.retried', 'info', { taskId: task.id, error: message, code: errCode ?? undefined, workspaceId: taskWorkspaceId, retryResult })
             if (retryResult === 'max_attempts') {
                 await syncSprintTaskBlocked(task, `Failed after retries: ${reasonPrefix}${message}`)
             }
         } else {
             logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'blocked', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode }, 'lifecycle')
+            void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'blocked', fromState: 'running', toState: 'blocked', metadata: { durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode } })
             trackEvent('task.failed', 'error', { taskId: task.id, error: message, code: errCode ?? undefined, workspaceId: taskWorkspaceId })
             await blockTask(task.id, reasonPrefix + message)
             await syncSprintTaskBlocked(task, reasonPrefix + message)
@@ -1228,6 +1258,7 @@ async function cleanupStaleTasks(): Promise<void> {
                 const retryResult = await requeueForRetry(row.id, { maxAttempts: 3, backoffBase: 120 })
                 const toState = retryResult === 'requeued' ? 'queued' : 'failed'
                 logger.info({ event: 'task.lifecycle', taskId: row.id, from: row.status, to: toState, workspaceId: row.workspace_id, reason: 'claim_timeout', retryResult }, 'lifecycle')
+                void recordTaskEvent({ workspaceId: row.workspace_id, taskId: row.id, eventType: 'claim_timeout', fromState: row.status, toState, metadata: { reason: 'claim_timeout', retryResult } })
             }
         }
 
@@ -1280,7 +1311,9 @@ async function recoverGhostTasks(): Promise<void> {
             .where(and(inArray(tasks.id, ids), sql`${tasks.status} = 'running'`))
         for (const ghost of untracked) {
             const outcome = await requeueForRetry(ghost.id, { maxAttempts: 3, backoffBase: 120 })
+            const toState = outcome === 'requeued' ? 'queued' : 'failed'
             logger.info({ event: 'task.lifecycle', taskId: ghost.id, outcome, reason: 'ghost_recovery' }, 'lifecycle')
+            void recordTaskEvent({ workspaceId: ghost.workspace_id, taskId: ghost.id, eventType: 'ghost_recovery', fromState: 'running', toState, metadata: { reason: 'ghost_recovery', outcome } })
         }
     } catch (err) {
         logger.warn({ err }, 'Ghost task recovery failed — non-fatal')
