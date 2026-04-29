@@ -47,6 +47,11 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         return
     }
 
+    if (sprint.category === 'code' && process.env.ENABLE_SPRINT_CODING_TASKS !== 'true') {
+        res.status(503).json({ error: { code: 'SPRINT_CODING_DISABLED', message: 'Sprint coding tasks are disabled on this instance. Set ENABLE_SPRINT_CODING_TASKS=true to enable; see docs/operations/sprint-coding-flag.md.' } })
+        return
+    }
+
     let aiSettings: Awaited<ReturnType<typeof loadWorkspaceAISettings>>['aiSettings'] = null
     let hasCredential = false
     try {
@@ -152,6 +157,11 @@ sprintRunnerRouter.post('/:id/retry', async (req, res) => {
 
     if (sprint.status === 'running') {
         res.status(409).json({ error: { code: 'ALREADY_RUNNING', message: 'Sprint is already running' } })
+        return
+    }
+
+    if (sprint.category === 'code' && process.env.ENABLE_SPRINT_CODING_TASKS !== 'true') {
+        res.status(503).json({ error: { code: 'SPRINT_CODING_DISABLED', message: 'Sprint coding tasks are disabled on this instance. Set ENABLE_SPRINT_CODING_TASKS=true to enable; see docs/operations/sprint-coding-flag.md.' } })
         return
     }
 

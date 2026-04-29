@@ -24,6 +24,19 @@ export async function runSprintRetry(sprintId: string, workspaceId: string): Pro
         if (!sprintRow) throw new Error('Sprint not found')
 
         const category = sprintRow.category ?? 'code'
+
+        if (category === 'code' && process.env.ENABLE_SPRINT_CODING_TASKS !== 'true') {
+            await db.update(sprints).set({ status: 'failed' }).where(eq(sprints.id, sprintId))
+            await logSprintEvent({
+                sprintId,
+                level: 'error',
+                event: 'sprint_failed',
+                message: 'Sprint coding tasks are disabled on this instance (ENABLE_SPRINT_CODING_TASKS != true). Refused before any work.',
+                metadata: { reason: 'SPRINT_CODING_DISABLED' },
+            })
+            throw new Error('Sprint coding tasks are disabled (ENABLE_SPRINT_CODING_TASKS != true)')
+        }
+
         await db.update(sprints).set({ status: 'running' }).where(eq(sprints.id, sprintId))
 
         const waveTasks = await db.select().from(sprintTasks)

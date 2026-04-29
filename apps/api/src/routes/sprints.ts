@@ -80,6 +80,10 @@ sprintsRouter.post('/', async (req, res) => {
         res.status(400).json({ error: { code: 'INVALID_CATEGORY', message: `category must be one of: ${[...VALID_CATEGORIES].join(', ')}` } })
         return
     }
+    if (category === 'code' && process.env.ENABLE_SPRINT_CODING_TASKS !== 'true') {
+        res.status(503).json({ error: { code: 'SPRINT_CODING_DISABLED', message: 'Sprint coding tasks are disabled on this instance. Set ENABLE_SPRINT_CODING_TASKS=true to enable; see docs/operations/sprint-coding-flag.md.' } })
+        return
+    }
     // repo is required only for code category
     if (category === 'code' && !repo) {
         res.status(400).json({ error: { code: 'MISSING_REPO', message: 'repo is required for code projects' } })
