@@ -75,7 +75,7 @@ import { initSprintLogger } from '@plexo/agent/sprint/logger'
 
 import { debugRouter } from './routes/debug.js'
 import { aiCompleteRouter } from './routes/ai-complete.js'
-import { aiMediaRouter, aiMediaPublicRouter } from './routes/ai-media.js'
+import { aiMediaRouter } from './routes/ai-media.js'
 import { chatRouter } from './routes/chat.js'
 import { chatAppTransportRouter } from './routes/chat-app-transport.js'
 import { conversationsRouter } from './routes/conversations.js'
@@ -242,7 +242,6 @@ v1.use('/stabilization', jsonDefault, stabilizationRouter) // service-key auth (
 v1.use('/profiles', jsonDefault, profilesRouter) // service-key auth (self-contained — app registration)
 v1.use('/s', jsonDefault, publicShareRouter) // public share links — no auth
 v1.use('/analytics', jsonDefault, analyticsRouter) // public: ingest, config read — no session required
-v1.use('/ai', aiMediaPublicRouter) // GET /ai/media/* — public read of generated media
 
 // ── Authenticated routes ─────────────────────────────────────
 // Everything mounted after this line requires a valid session.
