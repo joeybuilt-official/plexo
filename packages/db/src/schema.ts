@@ -658,8 +658,6 @@ export const plexoOpsTaskEvents = pgTable('plexo_ops_task_events', {
     recordedAt: timestamp('recorded_at', { mode: 'date', withTimezone: true }).defaultNow().notNull(),
 }, (table: any) => [
     index('plexo_ops_task_events_workspace_task_idx').on(table.workspaceId, table.taskId),
-    index('plexo_ops_task_events_event_type_idx').on(table.eventType),
-    index('plexo_ops_task_events_recorded_at_idx').on(table.recordedAt),
 ])
 
 export const projectDocs = pgTable('project_docs', {

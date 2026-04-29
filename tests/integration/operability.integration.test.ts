@@ -267,8 +267,8 @@ describe('Phase C — operability core', () => {
             `)
             const names = new Set(rows.map(r => r.indexname))
             expect(names.has('plexo_ops_task_events_workspace_task_idx')).toBe(true)
-            expect(names.has('plexo_ops_task_events_event_type_idx')).toBe(true)
-            expect(names.has('plexo_ops_task_events_recorded_at_idx')).toBe(true)
+            expect(names.has('plexo_ops_task_events_event_type_idx')).toBe(false)
+            expect(names.has('plexo_ops_task_events_recorded_at_idx')).toBe(false)
         })
     })
 
