@@ -1209,22 +1209,26 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
 /** Cancel stale blocked tasks older than 2 hours so they don't pile up.
  *  Queued tasks get a longer window (7 days) since they may be legitimately waiting.
- *  Executor-gap fix: also requeue tasks stuck in 'claimed' for >5 minutes —
- *  these were claimed by a worker that died before transitioning to 'running',
- *  so ghost recovery (which only looks at 'running') misses them. */
+ *  Claim-timeout fix: requeue any task whose claimed_until has elapsed —
+ *  covers both 'claimed' (worker died before transitioning to 'running') and
+ *  'running' (heartbeat refresh failed) states. The column is written by
+ *  queue.claim() and indexed by tasks_claimed_until_idx. */
 async function cleanupStaleTasks(): Promise<void> {
     try {
-        // 1. Recover stuck-claimed tasks back to queued so they can be re-picked.
-        const recovered = await db.execute<{ id: string }>(sql`
-            UPDATE tasks
-            SET status = 'queued', claimed_at = NULL
-            WHERE status = 'claimed'
-              AND claimed_at IS NOT NULL
-              AND claimed_at < NOW() - INTERVAL '5 minutes'
-            RETURNING id
+        // 1. Find tasks whose claim has expired in either claimed or running state.
+        const expired = await db.execute<{ id: string; workspace_id: string; status: string }>(sql`
+            SELECT id, workspace_id, status FROM tasks
+            WHERE status IN ('claimed', 'running')
+              AND claimed_until IS NOT NULL
+              AND claimed_until < NOW()
+            LIMIT 50
         `)
-        if (recovered.length > 0) {
-            logger.info({ count: recovered.length }, 'Recovered tasks stuck in "claimed" state back to "queued"')
+        if (expired.length > 0) {
+            for (const row of expired) {
+                const retryResult = await requeueForRetry(row.id, { maxAttempts: 3, backoffBase: 120 })
+                const toState = retryResult === 'requeued' ? 'queued' : 'failed'
+                logger.info({ event: 'task.lifecycle', taskId: row.id, from: row.status, to: toState, workspaceId: row.workspace_id, reason: 'claim_timeout', retryResult }, 'lifecycle')
+            }
         }
 
         const result = await db.execute<typeof tasks.$inferSelect>(sql`
@@ -1257,15 +1261,11 @@ async function cleanupStaleTasks(): Promise<void> {
     }
 }
 
-/**
- * Active ghost task recovery — catches running tasks whose slot expired
- * but weren't picked up by claimBatch's passive eviction. Runs every 5 minutes.
- * FUN-037: Uses centralized requeueForRetry() instead of inline SQL.
- */
+// Belt-and-suspenders backstop for cleanupStaleTasks — covers any running task whose claimed_until somehow wasn't set or wasn't picked up by the primary sweep.
 async function recoverGhostTasks(): Promise<void> {
     try {
-        const ghosts = await db.execute<{ id: string }>(sql`
-            SELECT id FROM tasks
+        const ghosts = await db.execute<{ id: string; workspace_id: string }>(sql`
+            SELECT id, workspace_id FROM tasks
             WHERE status = 'running'
               AND claimed_at < NOW() - INTERVAL '3 minutes'
             LIMIT 20

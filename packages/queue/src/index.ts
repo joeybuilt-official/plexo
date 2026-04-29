@@ -4,6 +4,8 @@
 import { db, eq, and, sql, asc, inArray, tasks, type TaskType, type TaskStatus } from '@plexo/db'
 import { ulid } from 'ulid'
 
+const CLAIM_TIMEOUT_SECONDS = parseInt(process.env.CLAIM_TIMEOUT_SECONDS ?? '300', 10)
+
 // ── Types ────────────────────────────────────────────────────
 
 export interface PushParams {
@@ -80,7 +82,9 @@ export async function push(params: PushParams): Promise<string> {
 export async function claim(_agentId: string): Promise<typeof tasks.$inferSelect | null> {
     const result = await db.execute<typeof tasks.$inferSelect>(sql`
     UPDATE tasks
-    SET status = 'claimed', claimed_at = NOW()
+    SET status = 'claimed',
+        claimed_at = NOW(),
+        claimed_until = NOW() + (${CLAIM_TIMEOUT_SECONDS} || ' seconds')::interval
     WHERE id = (
       SELECT id FROM tasks
       WHERE status = 'queued' AND (retry_after IS NULL OR retry_after <= NOW())
