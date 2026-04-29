@@ -132,7 +132,7 @@ export async function cancel(taskId: string): Promise<void> {
     // holding a parallel slot, the claim-timeout sweeper, or a pending retry timer.
     await db.update(tasks)
         .set({ status: 'cancelled', claimedAt: null, claimedUntil: null, retryAfter: null })
-        .where(and(eq(tasks.id, taskId), inArray(tasks.status, ['queued', 'claimed', 'running', 'blocked'] as TaskStatus[])))
+        .where(and(eq(tasks.id, taskId), inArray(tasks.status, ['queued', 'claimed', 'running', 'blocked', 'awaiting_approval'] as TaskStatus[])))
 }
 
 export async function list(filter: ListFilter = {}): Promise<(typeof tasks.$inferSelect)[]> {
