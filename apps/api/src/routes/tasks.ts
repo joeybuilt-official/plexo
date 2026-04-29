@@ -251,7 +251,7 @@ tasksRouter.delete('/:id', async (req, res) => {
         if (!await ensureWorkspaceAccess(req, res, existing.workspaceId)) return
 
         // Only cancel if task is in a cancellable state — don't overwrite complete/failed/cancelled
-        if (!['queued', 'claimed', 'running', 'blocked'].includes(existing.status)) {
+        if (!['queued', 'claimed', 'running', 'blocked', 'awaiting_approval'].includes(existing.status)) {
             res.status(409).json({ error: { code: 'NOT_CANCELLABLE', message: `Task is already ${existing.status}` } })
             return
         }

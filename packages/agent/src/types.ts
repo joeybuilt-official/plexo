@@ -301,6 +301,8 @@ export type ErrorCategory = 'user' | 'system' | 'upstream'
 export type NotificationType =
     | 'task_complete'
     | 'task_blocked'
+    | 'task_awaiting_approval'
+    | 'task_rejected'
     | 'sprint_complete'
     | 'alert_fired'
     | 'connection_error'

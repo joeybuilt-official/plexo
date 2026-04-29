@@ -291,6 +291,7 @@ a2aRouter.get('/:agentId/tasks/:id', async (req, res) => {
             complete: 'completed',
             blocked: 'failed',
             cancelled: 'canceled',
+            awaiting_approval: 'input-required',
         }
 
         res.json({

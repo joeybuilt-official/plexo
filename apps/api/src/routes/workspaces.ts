@@ -205,13 +205,15 @@ workspacesRouter.delete('/:id', async (req, res) => {
 // These are only writable from the dashboard UI or dedicated endpoints (voice, intelligence).
 // If X-Plexo-Source: agent is present, these keys are silently stripped.
 const AGENT_PROTECTED_SETTINGS_KEYS = new Set([
-    'systemPromptExtra',       // operator-only system prompt injection
-    'voice',                   // Deepgram API key + voice config (use /api/voice/settings)
-    'aiProviders',             // legacy provider config
-    'defaultModel',            // model selection
-    'intelligenceSettings',    // inference mode, cost ceilings, routing
-    'readOnlyMode',            // safety mode toggle
-    'safeMode',                // safety mode toggle
+    'systemPromptExtra',                  // operator-only system prompt injection
+    'voice',                              // Deepgram API key + voice config (use /api/voice/settings)
+    'aiProviders',                        // legacy provider config
+    'defaultModel',                       // model selection
+    'intelligenceSettings',               // inference mode, cost ceilings, routing
+    'readOnlyMode',                       // safety mode toggle
+    'safeMode',                           // safety mode toggle
+    'requireApprovalForGeneralTasks',     // CONFIRM gate — agent must not disable its own approval requirement
+    'escalationTimeoutHours',             // CONFIRM gate — agent must not extend its own approval window
 ])
 
 // PATCH /api/workspaces/:id — update name and/or settings (deep-merges settings)

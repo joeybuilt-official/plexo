@@ -195,7 +195,7 @@ adminRouter.get('/tasks', async (req, res) => {
                     completedAt: tasks.completedAt,
                 })
                 .from(tasks)
-                .where(eq(tasks.status, status as 'queued' | 'claimed' | 'running' | 'complete' | 'blocked' | 'cancelled'))
+                .where(eq(tasks.status, status as 'queued' | 'claimed' | 'running' | 'complete' | 'blocked' | 'cancelled' | 'awaiting_approval'))
                 .orderBy(desc(tasks.createdAt))
                 .limit(limit)
             : await query

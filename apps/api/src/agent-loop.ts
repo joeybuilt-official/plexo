@@ -773,6 +773,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             const description = owds.length > 0
                 ? owds.map(d => d.description).join('\n')
                 : plan.goal
+            // Policy-only path uses 'medium' so an operator-set standing approval on 'general_task' can auto-approve. OWD path always uses 'high' which one-way-door.ts:99 locks out from standing approvals.
             const riskLevel: PendingDecision['riskLevel'] = owds.length > 0 ? 'high' : 'medium'
 
             const approval = await requestApproval({
@@ -785,6 +786,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
             if (approval.decision !== 'approved') {
                 await db.update(tasks).set({ status: 'awaiting_approval' }).where(eq(tasks.id, task.id))
+                logger.info({ taskId: task.id, workspaceId: taskWorkspaceId, approvalId: approval.id, doors: owds.length, event: 'task.lifecycle', from: 'planning', to: 'awaiting_approval' }, 'task awaiting approval')
                 void recordTaskEvent({
                     workspaceId: taskWorkspaceId ?? '',
                     taskId: task.id,
@@ -798,7 +800,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                     },
                 })
                 emitToWorkspace(taskWorkspaceId ?? '', {
-                    type: 'task_awaiting_approval' as 'task_blocked',
+                    type: 'task_awaiting_approval',
                     taskId: task.id,
                     approvalId: approval.id,
                     doors: owds.length,
@@ -810,6 +812,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 if (decision === 'approved') {
                     const resolved = await getDecision(approval.id)
                     await db.update(tasks).set({ status: 'running' }).where(eq(tasks.id, task.id))
+                    logger.info({ taskId: task.id, workspaceId: taskWorkspaceId, approvalId: approval.id, decidedBy: resolved?.decidedBy, event: 'task.lifecycle', from: 'awaiting_approval', to: 'running' }, 'approval granted')
                     void recordTaskEvent({
                         workspaceId: taskWorkspaceId ?? '',
                         taskId: task.id,
@@ -819,33 +822,39 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                         metadata: { approvalId: approval.id, decidedBy: resolved?.decidedBy },
                     })
                 } else if (decision === 'rejected') {
+                    const resolved = await getDecision(approval.id)
+                    // Guard: only overwrite while still awaiting_approval (operator may have cancelled mid-wait).
                     await db.update(tasks).set({
                         status: 'failed',
-                        outcomeSummary: 'Approval rejected by operator',
+                        outcomeSummary: 'You rejected this action, so the agent stopped.',
                         claimedAt: null,
                         claimedUntil: null,
-                    }).where(eq(tasks.id, task.id))
+                    }).where(and(eq(tasks.id, task.id), eq(tasks.status, 'awaiting_approval')))
+                    logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId, approvalId: approval.id, decidedBy: resolved?.decidedBy, event: 'task.lifecycle', from: 'awaiting_approval', to: 'failed' }, 'approval rejected')
                     void recordTaskEvent({
                         workspaceId: taskWorkspaceId ?? '',
                         taskId: task.id,
                         eventType: 'approval_rejected',
                         fromState: 'awaiting_approval',
                         toState: 'failed',
-                        metadata: { approvalId: approval.id },
+                        metadata: { approvalId: approval.id, decidedBy: resolved?.decidedBy },
                     })
                     emitToWorkspace(taskWorkspaceId ?? '', {
-                        type: 'task_rejected' as 'task_blocked',
+                        type: 'task_rejected',
                         taskId: task.id,
                         approvalId: approval.id,
                     })
                     return
                 } else {
+                    // Guard: operator may have cancelled the task during the wait.
+                    // Only mark as failed-due-to-timeout if still awaiting_approval.
                     await db.update(tasks).set({
                         status: 'failed',
-                        outcomeSummary: 'Approval timed out',
+                        outcomeSummary: 'No one approved within the time limit, so the agent stopped.',
                         claimedAt: null,
                         claimedUntil: null,
-                    }).where(eq(tasks.id, task.id))
+                    }).where(and(eq(tasks.id, task.id), eq(tasks.status, 'awaiting_approval')))
+                    logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId, approvalId: approval.id, event: 'task.lifecycle', from: 'awaiting_approval', to: 'failed' }, 'approval timed out')
                     void recordTaskEvent({
                         workspaceId: taskWorkspaceId ?? '',
                         taskId: task.id,
@@ -855,7 +864,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                         metadata: { approvalId: approval.id },
                     })
                     emitToWorkspace(taskWorkspaceId ?? '', {
-                        type: 'task_rejected' as 'task_blocked',
+                        type: 'task_rejected',
                         taskId: task.id,
                         approvalId: approval.id,
                         reason: 'timeout',
@@ -864,6 +873,14 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 }
             } else {
                 logger.info({ taskId: task.id, approvalId: approval.id, decidedBy: approval.decidedBy }, 'CONFIRM gate auto-approved via standing approval')
+                void recordTaskEvent({
+                    workspaceId: taskWorkspaceId ?? '',
+                    taskId: task.id,
+                    eventType: 'approval_granted',
+                    fromState: 'planning',
+                    toState: 'running',
+                    metadata: { approvalId: approval.id, decidedBy: approval.decidedBy, viaStandingApproval: true },
+                })
             }
         }
 
