@@ -72,17 +72,6 @@ export async function runSprint(opts: SprintRunOptions): Promise<void> {
     logger.info({ sprintId, category }, 'Sprint run started')
     registerSprintWorkspace(sprintId, workspaceId)
 
-    await db.update(sprints).set({ status: 'running' }).where(eq(sprints.id, sprintId))
-
-    const [sprintRow] = await db
-        .select({ costCeilingUsd: sprints.costCeilingUsd, metadata: sprints.metadata })
-        .from(sprints).where(eq(sprints.id, sprintId)).limit(1)
-
-    const projectCostCeiling = sprintRow?.costCeilingUsd ?? null
-    const metadata = (sprintRow?.metadata as Record<string, unknown>) ?? {}
-    const perTaskCostCeiling = metadata.perTaskCostCeiling ? Number(metadata.perTaskCostCeiling) : null
-    const perTaskTokenBudget = metadata.perTaskTokenBudget ? Number(metadata.perTaskTokenBudget) : null
-
     try {
         if (category === 'code' && process.env.ENABLE_SPRINT_CODING_TASKS !== 'true') {
             await db.update(sprints).set({ status: 'failed' }).where(eq(sprints.id, sprintId))
@@ -95,6 +84,18 @@ export async function runSprint(opts: SprintRunOptions): Promise<void> {
             })
             throw new Error('Sprint coding tasks are disabled (ENABLE_SPRINT_CODING_TASKS != true)')
         }
+
+        await db.update(sprints).set({ status: 'running' }).where(eq(sprints.id, sprintId))
+
+        const [sprintRow] = await db
+            .select({ costCeilingUsd: sprints.costCeilingUsd, metadata: sprints.metadata })
+            .from(sprints).where(eq(sprints.id, sprintId)).limit(1)
+
+        const projectCostCeiling = sprintRow?.costCeilingUsd ?? null
+        const metadata = (sprintRow?.metadata as Record<string, unknown>) ?? {}
+        const perTaskCostCeiling = metadata.perTaskCostCeiling ? Number(metadata.perTaskCostCeiling) : null
+        const perTaskTokenBudget = metadata.perTaskTokenBudget ? Number(metadata.perTaskTokenBudget) : null
+
         if (category === 'code') {
             await runCodeSprint(opts, sprintId, workspaceId, { projectCostCeiling, perTaskCostCeiling, perTaskTokenBudget }, sprintStartMs)
         } else {

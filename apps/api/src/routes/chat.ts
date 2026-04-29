@@ -1358,6 +1358,11 @@ chatRouter.post('/execute-action', async (req, res) => {
             audit(req, { workspaceId, userId: req.user?.id, action: 'task.create', resource: 'tasks', resourceId: taskId, metadata: { source: 'dashboard', via: 'chat' } })
             res.status(202).json({ taskId, status: 'queued' })
         } else if (intent === 'PROJECT') {
+            if (resolvedCategory === 'code' && process.env.ENABLE_SPRINT_CODING_TASKS !== 'true') {
+                res.status(503).json({ error: { code: 'SPRINT_CODING_DISABLED', message: 'Sprint coding tasks are disabled on this instance. Set ENABLE_SPRINT_CODING_TASKS=true to enable; see docs/operations/sprint-coding-flag.md.' } })
+                return
+            }
+
             // Pre-check: verify at least one AI provider is configured before creating the sprint row.
             // This avoids leaving a zombie sprint in 'planning' state when credentials are missing.
             let aiSettings: Awaited<ReturnType<typeof loadWorkspaceAISettings>>['aiSettings'] = null
