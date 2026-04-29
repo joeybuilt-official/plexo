@@ -32,6 +32,16 @@ interface FontoUploadResult {
     blobUrl: string
 }
 
+// Optional taxonomy fields the broker forwards to the asset platform so the
+// stored asset row can be filed against a story-side subject + project.
+// All values are pass-through; the asset platform owns validation.
+interface AssetTaxonomy {
+    classification?: string
+    subjectKind?: string
+    subjectId?: string
+    projectId?: string
+}
+
 // Hand bytes off to the configured asset platform. Workspace UUIDs are
 // shared 1:1 between Plexo and the asset platform, so we forward the
 // caller's workspaceId verbatim.
@@ -39,7 +49,8 @@ async function uploadToAssetPlatform(
     workspaceId: string,
     filename: string,
     contentType: string,
-    bytes: Buffer
+    bytes: Buffer,
+    taxonomy: AssetTaxonomy = {}
 ): Promise<FontoUploadResult> {
     const base = (process.env.FONTO_URL ?? '').replace(/\/$/, '')
     const key = process.env.FONTO_SERVICE_KEY ?? ''
@@ -53,6 +64,10 @@ async function uploadToAssetPlatform(
     form.append('workspaceId', workspaceId)
     form.append('source', 'ai-generated')
     form.append('filename', filename)
+    if (taxonomy.classification) form.append('classification', taxonomy.classification)
+    if (taxonomy.subjectKind) form.append('subjectKind', taxonomy.subjectKind)
+    if (taxonomy.subjectId) form.append('subjectId', taxonomy.subjectId)
+    if (taxonomy.projectId) form.append('projectId', taxonomy.projectId)
 
     const res = await fetch(`${base}/api/v1/server/assets`, {
         method: 'POST',
@@ -134,7 +149,20 @@ function inferExt(contentType: string | null, fallback: string): string {
 // ── Image route ────────────────────────────────────────────────────────────
 
 aiMediaRouter.post('/image', requireServiceKey, async (req, res) => {
-    const { workspaceId, prompt, negativePrompt, width = 1024, height = 1024, style, provider } = req.body as {
+    const {
+        workspaceId,
+        prompt,
+        negativePrompt,
+        width = 1024,
+        height = 1024,
+        style,
+        provider,
+        classification,
+        subjectKind,
+        subjectId,
+        projectId,
+        filename: filenameOverride,
+    } = req.body as {
         workspaceId?: string
         prompt?: string
         negativePrompt?: string
@@ -142,6 +170,11 @@ aiMediaRouter.post('/image', requireServiceKey, async (req, res) => {
         height?: number
         style?: string
         provider?: string
+        classification?: string
+        subjectKind?: string
+        subjectId?: string
+        projectId?: string
+        filename?: string
     }
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
@@ -240,11 +273,24 @@ aiMediaRouter.post('/image', requireServiceKey, async (req, res) => {
         }
 
         const ext = inferExt(contentType, 'png')
-        const filename = `image.${ext}`
-        const { assetId, blobUrl } = await uploadToAssetPlatform(workspaceId, filename, contentType, bytes)
+        const filename = (filenameOverride && filenameOverride.trim()) || `image.${ext}`
+        const { assetId, blobUrl } = await uploadToAssetPlatform(
+            workspaceId,
+            filename,
+            contentType,
+            bytes,
+            { classification, subjectKind, subjectId, projectId },
+        )
 
         logger.info({ workspaceId, provider: resolvedProvider, bytes: bytes.byteLength, assetId }, 'ai/image generated')
-        res.json({ url: blobUrl, storageKey: assetId, width: outWidth, height: outHeight, provider: resolvedProvider })
+        res.json({
+            url: blobUrl,
+            storageKey: assetId,
+            fontoAssetId: assetId,
+            width: outWidth,
+            height: outHeight,
+            provider: resolvedProvider,
+        })
     } catch (err) {
         logger.error({ err, workspaceId }, 'POST /api/v1/ai/image failed')
         const isTimeout = err instanceof Error && (err.name === 'AbortError' || err.message.includes('timeout') || err.message.includes('timed out'))
@@ -256,7 +302,20 @@ aiMediaRouter.post('/image', requireServiceKey, async (req, res) => {
 // ── Video route ────────────────────────────────────────────────────────────
 
 aiMediaRouter.post('/video', requireServiceKey, async (req, res) => {
-    const { workspaceId, prompt, sourceImageUrl, durationMs, width = 1280, height = 720, style } = req.body as {
+    const {
+        workspaceId,
+        prompt,
+        sourceImageUrl,
+        durationMs,
+        width = 1280,
+        height = 720,
+        style,
+        classification,
+        subjectKind,
+        subjectId,
+        projectId,
+        filename: filenameOverride,
+    } = req.body as {
         workspaceId?: string
         prompt?: string
         sourceImageUrl?: string
@@ -265,6 +324,11 @@ aiMediaRouter.post('/video', requireServiceKey, async (req, res) => {
         height?: number
         style?: string
         provider?: string
+        classification?: string
+        subjectKind?: string
+        subjectId?: string
+        projectId?: string
+        filename?: string
     }
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
@@ -327,13 +391,27 @@ aiMediaRouter.post('/video', requireServiceKey, async (req, res) => {
         const bytes = await downloadBytes(videoUrl)
         const contentType = result.video?.content_type ?? 'video/mp4'
         const ext = inferExt(contentType, 'mp4')
-        const filename = `video.${ext}`
-        const { assetId, blobUrl } = await uploadToAssetPlatform(workspaceId, filename, contentType, bytes)
+        const filename = (filenameOverride && filenameOverride.trim()) || `video.${ext}`
+        const { assetId, blobUrl } = await uploadToAssetPlatform(
+            workspaceId,
+            filename,
+            contentType,
+            bytes,
+            { classification, subjectKind, subjectId, projectId },
+        )
 
         const outDurationMs = typeof result.duration === 'number' ? Math.round(result.duration * 1000) : (durationMs ?? 0)
 
         logger.info({ workspaceId, provider: resolvedProvider, bytes: bytes.byteLength, assetId }, 'ai/video generated')
-        res.json({ url: blobUrl, storageKey: assetId, width, height, provider: resolvedProvider, durationMs: outDurationMs })
+        res.json({
+            url: blobUrl,
+            storageKey: assetId,
+            fontoAssetId: assetId,
+            width,
+            height,
+            provider: resolvedProvider,
+            durationMs: outDurationMs,
+        })
     } catch (err) {
         logger.error({ err, workspaceId }, 'POST /api/v1/ai/video failed')
         const isTimeout = err instanceof Error && (err.name === 'AbortError' || err.message.includes('timeout') || err.message.includes('timed out'))
