@@ -6,10 +6,15 @@ import { db, eq, tasks, plexoOpsTaskEvents } from '@plexo/db'
 import { requeueForRetry, cancel as queueCancel } from '@plexo/queue'
 import { logger } from '../../logger.js'
 
+// Service-key holders can act on any task globally — these endpoints are
+// for cluster-level operator triage, not workspace-scoped admin. The
+// `manual_requeue` / `manual_cancel` event row records appId for audit.
 export const adminTasksRouter: RouterType = Router()
 
 const TERMINAL_STATES = new Set(['complete', 'cancelled'])
 const GHOST_THRESHOLD_MS = 3 * 60 * 1000
+const MAX_TASK_ID_LENGTH = 64
+const MAX_REASON_LENGTH = 1024
 
 async function recordEvent(params: {
     workspaceId: string
@@ -39,6 +44,10 @@ function getTaskId(req: Request, res: Response): string | null {
         res.status(400).json({ error: { code: 'INVALID_ID', message: 'task id required' } })
         return null
     }
+    if (id.length > MAX_TASK_ID_LENGTH) {
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'task id too long' } })
+        return null
+    }
     return id
 }
 
@@ -65,6 +74,10 @@ adminTasksRouter.get('/:id', async (req, res) => {
         const claim_expired = task.claimedUntil ? task.claimedUntil.getTime() < now : false
         const ghost_risk = task.status === 'running' && heartbeat_age_ms !== null && heartbeat_age_ms > GHOST_THRESHOLD_MS
 
+        logger.info(
+            { taskId: id, appId: req.serviceContext?.appId, userId: req.serviceContext?.userId, status: task.status },
+            'admin.task.get'
+        )
         res.json({
             task,
             computed: { heartbeat_age_ms, claim_expired, ghost_risk },
@@ -103,6 +116,15 @@ adminTasksRouter.post('/:id/requeue', async (req, res) => {
             return
         }
         if (TERMINAL_STATES.has(task.status)) {
+            logger.warn(
+                {
+                    taskId: id,
+                    appId: req.serviceContext?.appId,
+                    userId: req.serviceContext?.userId,
+                    status: task.status,
+                },
+                'admin.task.invalid_state'
+            )
             res.status(409).json({ error: { code: 'INVALID_STATE', message: `task is in terminal state ${task.status}` } })
             return
         }
@@ -126,6 +148,17 @@ adminTasksRouter.post('/:id/requeue', async (req, res) => {
             },
         })
 
+        logger.info(
+            {
+                taskId: id,
+                appId: req.serviceContext?.appId,
+                userId: req.serviceContext?.userId,
+                prevStatus,
+                result,
+                newStatus: toState,
+            },
+            'admin.task.requeue'
+        )
         res.json({ ok: true, result, task: updated })
     } catch (err) {
         logger.error({ err, taskId: id }, 'POST /admin/tasks/:id/requeue failed')
@@ -137,7 +170,19 @@ adminTasksRouter.post('/:id/cancel', async (req, res) => {
     const id = getTaskId(req, res)
     if (id === null) return
 
-    const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined
+    const rawReason = req.body?.reason
+    let reason: string | undefined
+    if (rawReason !== undefined && rawReason !== null) {
+        if (typeof rawReason !== 'string') {
+            res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'reason too long' } })
+            return
+        }
+        if (rawReason.length > MAX_REASON_LENGTH) {
+            res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'reason too long' } })
+            return
+        }
+        reason = rawReason
+    }
 
     try {
         const task = await loadTask(id)
@@ -146,6 +191,15 @@ adminTasksRouter.post('/:id/cancel', async (req, res) => {
             return
         }
         if (TERMINAL_STATES.has(task.status)) {
+            logger.warn(
+                {
+                    taskId: id,
+                    appId: req.serviceContext?.appId,
+                    userId: req.serviceContext?.userId,
+                    status: task.status,
+                },
+                'admin.task.invalid_state'
+            )
             res.status(409).json({ error: { code: 'INVALID_STATE', message: `task is in terminal state ${task.status}` } })
             return
         }
@@ -167,6 +221,15 @@ adminTasksRouter.post('/:id/cancel', async (req, res) => {
             },
         })
 
+        logger.info(
+            {
+                taskId: id,
+                appId: req.serviceContext?.appId,
+                userId: req.serviceContext?.userId,
+                prevStatus,
+            },
+            'admin.task.cancel'
+        )
         res.json({ ok: true, task: updated })
     } catch (err) {
         logger.error({ err, taskId: id }, 'POST /admin/tasks/:id/cancel failed')
