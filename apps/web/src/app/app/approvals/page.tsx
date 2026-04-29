@@ -87,6 +87,13 @@ function humanizeOperation(op: string, desc?: string): string {
         stop_container: 'Stopping a container',
         file_write: 'Writing to a file',
         shell_exec: 'Running a shell command',
+        general_task: 'Completing a task that needs your sign-off',
+        schema_migration: 'Changing the database structure',
+        public_api_change: 'Changing a public API others depend on',
+        resource_deletion: 'Deleting something permanently',
+        service_restart: 'Restarting a running service',
+        data_write: 'Writing data that can\'t easily be undone',
+        external_publish: 'Publishing to an external service',
     }
     const friendly = map[op]
     if (friendly) return friendly
