@@ -67,6 +67,7 @@ export const taskStatusEnum = pgEnum('task_status', [
     'failed',
     'blocked',
     'cancelled',
+    'awaiting_approval',
 ])
 
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number]
