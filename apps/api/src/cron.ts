@@ -155,7 +155,7 @@ async function runDataRetention(): Promise<void> {
 
     // Delete old work_ledger entries
     const ledgerResult = await db.execute(sql`
-        DELETE FROM work_ledger WHERE created_at < NOW() - INTERVAL '1 day' * ${days}
+        DELETE FROM work_ledger WHERE completed_at < NOW() - INTERVAL '1 day' * ${days}
     `)
 
     logger.info({
@@ -334,12 +334,12 @@ export function scheduleMemoryConsolidation(): void {
 export async function reconcileOrphanedUsers(): Promise<number> {
     logger.info('FUN-040: reconciling orphaned user references')
     try {
-        // Find workspace members whose userId no longer exists in auth.users
+        // Find workspace members whose userId no longer exists in auth.user
         // via the FDW. This query is safe — it only reads the auth table.
         const orphans = await db.execute(sql`
             DELETE FROM workspace_members wm
             WHERE NOT EXISTS (
-                SELECT 1 FROM auth.users au WHERE au.id = wm.user_id
+                SELECT 1 FROM auth.user au WHERE au.id = wm.user_id
             )
             RETURNING wm.user_id, wm.workspace_id
         `)
