@@ -291,6 +291,7 @@ export const tasks = pgTable('tasks', {
     deliverable: jsonb('deliverable'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
     claimedAt: timestamp('claimed_at', { mode: 'date' }),
+    claimedUntil: timestamp('claimed_until', { mode: 'date', withTimezone: true }),
     completedAt: timestamp('completed_at', { mode: 'date' }),
     /** Backoff: task not claimable until this time. Null = immediately available. */
     retryAfter: timestamp('retry_after', { mode: 'date' }),
@@ -643,6 +644,22 @@ export const domainMetrics = pgTable('plexo_ops_domain_metrics', {
 }, (table: any) => [
     uniqueIndex('domain_metrics_ws_domain_period_uq').on(table.workspaceId, table.domainTag, table.periodStart),
     index('domain_metrics_workspace_idx').on(table.workspaceId),
+])
+
+/** plexo_ops_task_events — task lifecycle event log for claim/requeue audit + observability. */
+export const plexoOpsTaskEvents = pgTable('plexo_ops_task_events', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id').notNull(),
+    taskId: text('task_id').notNull(),
+    eventType: text('event_type').notNull(),
+    fromState: text('from_state'),
+    toState: text('to_state').notNull(),
+    metadata: jsonb('metadata').notNull().default({}),
+    recordedAt: timestamp('recorded_at', { mode: 'date', withTimezone: true }).defaultNow().notNull(),
+}, (table: any) => [
+    index('plexo_ops_task_events_workspace_task_idx').on(table.workspaceId, table.taskId),
+    index('plexo_ops_task_events_event_type_idx').on(table.eventType),
+    index('plexo_ops_task_events_recorded_at_idx').on(table.recordedAt),
 ])
 
 export const projectDocs = pgTable('project_docs', {

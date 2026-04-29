@@ -673,6 +673,13 @@
       "when": 1777939203000,
       "tag": "0099_better_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1777939204000,
+      "tag": "0100_plexo_ops_task_events",
+      "breakpoints": true
     }
   ]
 }
