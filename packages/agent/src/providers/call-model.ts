@@ -256,10 +256,10 @@ function stripCodeFence(text: string): string | null {
     // First try: whole string is a single fenced block.
     const trimmed = text.trim()
     const whole = trimmed.match(/^```(?:json|javascript|js)?\s*\n?([\s\S]*?)\n?```$/)
-    if (whole) return whole[1].trim()
+    if (whole?.[1] !== undefined) return whole[1].trim()
     // Second try: first fenced block anywhere in the string (handles preamble/postamble).
     const inner = text.match(/```(?:json|javascript|js)?\s*\n?([\s\S]*?)\n?```/)
-    if (inner) return inner[1].trim()
+    if (inner?.[1] !== undefined) return inner[1].trim()
     // Third try: first balanced JSON object or array. Cheap heuristic — find
     // the first '{' or '[' and the matching last '}' or ']'.
     const firstObj = text.indexOf('{')
