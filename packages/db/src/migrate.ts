@@ -126,14 +126,41 @@ async function runMigrations() {
                 console.log(`[migrate] Ensured schema "${namespace}" exists`)
             }
 
+            // Count expected migrations from the on-disk journal before running.
+            const journalPath = path.join(absoluteMigrationsPath, 'meta', '_journal.json')
+            let expectedCount = 0
+            try {
+                const journal = JSON.parse(readFileSync(journalPath, 'utf-8')) as { entries?: unknown[] }
+                expectedCount = Array.isArray(journal.entries) ? journal.entries.length : 0
+            } catch (err: any) {
+                console.error(`[migrate] ERROR: could not read journal at ${journalPath}: ${err.message}`)
+                process.exit(1)
+            }
+
             // The migrate() call is the one that actually establishes the connection
             await migrate(db, { migrationsFolder })
 
             const elapsed = ((Date.now() - start) / 1000).toFixed(1)
             console.log(`[migrate] Complete in ${elapsed}s`)
 
+            // Verify Drizzle's tracking table reflects the full journal. A partial
+            // run that exits 0 leaves the API booting into 500s on first query.
+            const [{ count: appliedCount }] = await sql<{ count: number }[]>`
+                SELECT COUNT(*)::int AS count FROM drizzle.__drizzle_migrations
+            `
+            console.log(`[migrate] applied ${appliedCount} of ${expectedCount}`, { appliedCount, expectedCount })
+
             await sql.end()
             clearTimeout(timer)
+
+            if (appliedCount < expectedCount) {
+                console.error(
+                    `[migrate] PARTIAL RUN: applied ${appliedCount} of ${expectedCount} migrations. ` +
+                    `Failing loud so the migrate service exits non-zero.`
+                )
+                process.exit(1)
+            }
+
             process.exit(0)
         } catch (err: any) {
             lastError = err
