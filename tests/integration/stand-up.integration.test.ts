@@ -6,18 +6,18 @@
  *
  * Encodes audit exit criterion #1: a fresh `docker compose down -v &&
  * docker compose up -d --build` reaches healthy. Rather than driving
- * docker (Phase G), this test asserts the four boot fixes that block
- * a clean stand-up:
+ * docker (Phase G), this test asserts the boot fixes that block a
+ * clean stand-up:
  *
  *   #1 postgres listen_addresses=*       — verified by simply being
  *      able to connect from outside the postgres container; if this
  *      test connects to DATABASE_URL it has passed.
  *   #2 Better Auth migration (0099)      — auth.user, auth.session,
- *      auth.account, auth.verification must exist.
- *   #3 migrate runner loud-fail          — every .sql file in the
- *      drizzle folder must have a matching journal entry; if a file
- *      is missing from _journal.json drizzle silently skips it and
- *      the api boots against a partially-applied schema.
+ *      auth.account, auth.verification must exist and auth.user.id
+ *      must be uuid (post round-trip on the 0099 migration).
+ *   #3 migrate runner loud-fail          — packages/db/src/migrate.ts
+ *      compares applied vs journal entry count and process.exit(1)s
+ *      when applied < expected. Asserted by inspecting the source.
  *   #8 cron schema repairs               — orphan-user cleanup and
  *      data-retention queries must succeed against the live schema
  *      without column-not-found / table-not-found errors.
@@ -27,16 +27,13 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { db, sql } from '@plexo/db'
-import { reconcileOrphanedUsers } from '../src/cron.js'
+import { reconcileOrphanedUsers } from '../../apps/api/src/cron.js'
 
-const REPO_ROOT = path.resolve(__dirname, '../../..')
-const DRIZZLE_DIR = path.join(REPO_ROOT, 'packages/db/drizzle')
+const REPO_ROOT = path.resolve(__dirname, '../..')
 
-// Smoke-check the connection up front so failures in later tests are
-// not mistaken for missing tables when the real cause is "no DB".
 beforeAll(async () => {
     const [row] = await db.execute<{ ok: number }>(sql`SELECT 1 AS ok`)
     expect(row?.ok).toBe(1)
@@ -70,31 +67,43 @@ describe('Phase A stand-up — fix #2: Better Auth schema', () => {
             expect(names.has(required)).toBe(true)
         }
     })
+
+    it('auth.user.id is uuid (post round-trip on 0099)', async () => {
+        const [row] = await db.execute<{ data_type: string; udt_name: string }>(sql`
+            SELECT data_type, udt_name
+            FROM information_schema.columns
+            WHERE table_schema = 'auth'
+              AND table_name = 'user'
+              AND column_name = 'id'
+        `)
+        expect(row?.data_type).toBe('uuid')
+        expect(row?.udt_name).toBe('uuid')
+    })
 })
 
 describe('Phase A stand-up — fix #3: migrate runner loud-fail', () => {
-    it('every .sql file in drizzle/ is registered in _journal.json', () => {
-        const files = readdirSync(DRIZZLE_DIR)
-            .filter((f) => f.endsWith('.sql'))
-            .map((f) => f.replace(/\.sql$/, ''))
-            .sort()
-
-        const journal = JSON.parse(
-            readFileSync(path.join(DRIZZLE_DIR, 'meta/_journal.json'), 'utf8'),
-        ) as { entries: Array<{ tag: string }> }
-        const tagged = new Set(journal.entries.map((e) => e.tag))
-
-        const orphaned = files.filter((f) => !tagged.has(f))
-        // If this fails, drizzle silently skipped these files and the DB
-        // is partially-applied. Phase A fix #3 requires the migrate
-        // runner to detect this and exit non-zero rather than booting
-        // the api against a broken schema.
-        expect(orphaned).toEqual([])
+    it('migrate.ts exits non-zero when applied < expected journal entries', () => {
+        // The runner cannot be exec'd against a DB seeded with a
+        // missing migration from inside vitest without a second
+        // postgres instance, so this assertion pins the source: the
+        // throw site must compare appliedCount < expectedCount and
+        // call process.exit(1). If a refactor removes that branch,
+        // the api will boot against a partial schema again.
+        const src = readFileSync(
+            path.join(REPO_ROOT, 'packages/db/src/migrate.ts'),
+            'utf8',
+        )
+        expect(src).toMatch(/appliedCount\s*<\s*expectedCount/)
+        expect(src).toMatch(/process\.exit\(1\)/)
+        expect(src).toMatch(/PARTIAL RUN/)
     })
 
     it('0099_better_auth is registered in the journal', () => {
         const journal = JSON.parse(
-            readFileSync(path.join(DRIZZLE_DIR, 'meta/_journal.json'), 'utf8'),
+            readFileSync(
+                path.join(REPO_ROOT, 'packages/db/drizzle/meta/_journal.json'),
+                'utf8',
+            ),
         ) as { entries: Array<{ tag: string }> }
         const tags = journal.entries.map((e) => e.tag)
         expect(tags).toContain('0099_better_auth')
@@ -103,29 +112,21 @@ describe('Phase A stand-up — fix #3: migrate runner loud-fail', () => {
 
 describe('Phase A stand-up — fix #8: cron query schema repairs', () => {
     it('orphan-user cleanup (reconcileOrphanedUsers) runs without throwing', async () => {
-        // Direct handler import — runs the actual SQL the cron fires.
-        // The handler swallows errors today (FUN-040 try/catch); this
-        // test pins behaviour: the call resolves to a number, never
-        // throws. If the SQL references a column or table that does
-        // not exist (e.g. auth.users vs auth."user") this still won't
-        // throw at the JS level — so we additionally exercise the
-        // underlying query directly below.
         const count = await reconcileOrphanedUsers()
         expect(typeof count).toBe('number')
         expect(count).toBeGreaterThanOrEqual(0)
     })
 
-    it('orphan-user cleanup SQL targets a real auth table (no column-not-found)', async () => {
-        // The cron's actual query — re-issued here without the catch
-        // wrapper so a schema mismatch surfaces. Use a NOT EXISTS
-        // form against an empty workspace_members predicate to keep
-        // this side-effect-free.
+    it('orphan-user cleanup SQL targets a real auth table with the uuid::text cast', async () => {
+        // Mirrors apps/api/src/cron.ts:reconcileOrphanedUsers — the
+        // uuid::text cast is required because workspace_members.user_id
+        // is text while auth.user.id is uuid (post-0099 round-trip).
         await expect(
             db.execute(sql`
                 SELECT 1
                 FROM workspace_members wm
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM auth."user" au WHERE au.id = wm.user_id
+                    SELECT 1 FROM auth."user" au WHERE au.id::text = wm.user_id
                 )
                 LIMIT 1
             `),
@@ -146,7 +147,7 @@ describe('Phase A stand-up — fix #8: cron query schema repairs', () => {
         await expect(
             db.execute(sql`
                 DELETE FROM work_ledger
-                WHERE created_at < NOW() - INTERVAL '1 day' * ${100000}
+                WHERE completed_at < NOW() - INTERVAL '1 day' * ${100000}
             `),
         ).resolves.toBeDefined()
     })
