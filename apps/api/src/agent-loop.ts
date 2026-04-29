@@ -20,6 +20,7 @@ import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
 import { getDecryptedBraveKey } from './routes/search.js'
 import { claimBatch, releaseSlot, extendSlot, HEARTBEAT_INTERVAL_MS } from './parallel-executor.js'
 import { logSprintHandoff } from '@plexo/agent/sprint/sprint-ledger'
+import { requestApproval, waitForDecision, getDecision, type PendingDecision } from '@plexo/agent/one-way-door'
 import { getCachedIntelligenceSettings, type IntelligenceSettings } from './lib/intelligence-cache.js'
 
 const POLL_INTERVAL_MS = 2_000
@@ -764,8 +765,106 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'executing', fromState: 'planning', toState: 'executing', metadata: { steps: plan.steps.length } })
         emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
 
-        if (plan.oneWayDoors.length > 0) {
-            logger.warn({ taskId: task.id, doors: plan.oneWayDoors.length }, 'One-way doors detected — auto-approving in Phase 2')
+        const policy = await loadWorkspaceApprovalPolicy(taskWorkspaceId)
+        const mustGate = plan.oneWayDoors.length > 0 || policy.requireApprovalForGeneralTasks
+        if (mustGate) {
+            const owds = plan.oneWayDoors
+            const operation = owds.length > 0 ? owds[0]!.type : 'general_task'
+            const description = owds.length > 0
+                ? owds.map(d => d.description).join('\n')
+                : plan.goal
+            const riskLevel: PendingDecision['riskLevel'] = owds.length > 0 ? 'high' : 'medium'
+
+            const approval = await requestApproval({
+                taskId: task.id,
+                workspaceId: taskWorkspaceId ?? '',
+                operation,
+                description,
+                riskLevel,
+            })
+
+            if (approval.decision !== 'approved') {
+                await db.update(tasks).set({ status: 'awaiting_approval' }).where(eq(tasks.id, task.id))
+                void recordTaskEvent({
+                    workspaceId: taskWorkspaceId ?? '',
+                    taskId: task.id,
+                    eventType: 'awaiting_approval',
+                    fromState: 'planning',
+                    toState: 'awaiting_approval',
+                    metadata: {
+                        approvalId: approval.id,
+                        doors: owds.length,
+                        generalPolicy: policy.requireApprovalForGeneralTasks,
+                    },
+                })
+                emitToWorkspace(taskWorkspaceId ?? '', {
+                    type: 'task_awaiting_approval' as 'task_blocked',
+                    taskId: task.id,
+                    approvalId: approval.id,
+                    doors: owds.length,
+                })
+
+                // Phase D limitation: worker slot held during approval poll; defer slot-release to a later phase (would need re-claim logic).
+                const decision = await waitForDecision(approval.id)
+
+                if (decision === 'approved') {
+                    const resolved = await getDecision(approval.id)
+                    await db.update(tasks).set({ status: 'running' }).where(eq(tasks.id, task.id))
+                    void recordTaskEvent({
+                        workspaceId: taskWorkspaceId ?? '',
+                        taskId: task.id,
+                        eventType: 'approval_granted',
+                        fromState: 'awaiting_approval',
+                        toState: 'running',
+                        metadata: { approvalId: approval.id, decidedBy: resolved?.decidedBy },
+                    })
+                } else if (decision === 'rejected') {
+                    await db.update(tasks).set({
+                        status: 'failed',
+                        outcomeSummary: 'Approval rejected by operator',
+                        claimedAt: null,
+                        claimedUntil: null,
+                    }).where(eq(tasks.id, task.id))
+                    void recordTaskEvent({
+                        workspaceId: taskWorkspaceId ?? '',
+                        taskId: task.id,
+                        eventType: 'approval_rejected',
+                        fromState: 'awaiting_approval',
+                        toState: 'failed',
+                        metadata: { approvalId: approval.id },
+                    })
+                    emitToWorkspace(taskWorkspaceId ?? '', {
+                        type: 'task_rejected' as 'task_blocked',
+                        taskId: task.id,
+                        approvalId: approval.id,
+                    })
+                    return
+                } else {
+                    await db.update(tasks).set({
+                        status: 'failed',
+                        outcomeSummary: 'Approval timed out',
+                        claimedAt: null,
+                        claimedUntil: null,
+                    }).where(eq(tasks.id, task.id))
+                    void recordTaskEvent({
+                        workspaceId: taskWorkspaceId ?? '',
+                        taskId: task.id,
+                        eventType: 'approval_timeout',
+                        fromState: 'awaiting_approval',
+                        toState: 'failed',
+                        metadata: { approvalId: approval.id },
+                    })
+                    emitToWorkspace(taskWorkspaceId ?? '', {
+                        type: 'task_rejected' as 'task_blocked',
+                        taskId: task.id,
+                        approvalId: approval.id,
+                        reason: 'timeout',
+                    })
+                    return
+                }
+            } else {
+                logger.info({ taskId: task.id, approvalId: approval.id, decidedBy: approval.decidedBy }, 'CONFIRM gate auto-approved via standing approval')
+            }
         }
 
         // Pass workspace AI settings so executeTask uses the configured provider fallback chain
