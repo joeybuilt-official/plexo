@@ -38,6 +38,8 @@ export default defineConfig({
             '@plexo/queue': resolve(root, 'packages/queue/src/index.ts'),
             '@plexo/sdk': resolve(root, 'packages/sdk/src/index.ts'),
             '@plexo/storage': resolve(root, 'packages/storage/src/index.ts'),
+            // apps/web internal alias — matches its tsconfig "paths"
+            '@web': resolve(root, 'apps/web/src'),
         },
     },
     test: {

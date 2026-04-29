@@ -58,6 +58,23 @@ AI provider keys are **not** needed to start. You configure them in-app after la
 
 See [configuration.md](configuration.md) for the full environment variable reference.
 
+### Login-first home page
+
+A self-host install ships login-first: visiting `/` redirects anonymous
+visitors to `/login` and authenticated users to `/app`. There's no
+public marketing chrome — the dashboard is the product.
+
+Compliance routes (`/privacy`, `/terms`) stay reachable.
+
+If you want to render a public landing page at `/` for your own brand
+(mirroring the getplexo.com layout), set:
+
+```env
+PLEXO_MARKETING_ENABLED=true
+```
+
+The legacy flag `SKIP_LANDING=true` is still honored as a force-off.
+
 ## 2. Run
 
 ```bash

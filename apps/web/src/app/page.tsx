@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { getAuth } from '@web/lib/auth'
+import { isMarketingEnabled } from '@web/lib/feature-flags'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { ScrollReveal, CopyButton } from '@web/components/landing-client'
 import { LandingThemeToggle } from '@web/components/landing-theme-toggle'
@@ -64,15 +65,19 @@ function StatBlock({ value, label }: { value: string; label: string }) {
 /* ── Landing Page ─────────────────────────────────────────────────────────── */
 
 export default async function LandingPage() {
-    // Self-hosted / ops instances skip the marketing page entirely
-    if (process.env.SKIP_LANDING === 'true') redirect('/login')
-
-    // Redirect logged-in users to the dashboard
+    // Authed users always go to the dashboard, regardless of marketing flag.
+    let hasSession = false
     try {
         const h = await headers()
         const session = await getAuth().api.getSession({ headers: h })
-        if (session?.user) redirect('/app')
-    } catch { /* no session -- show landing page */ }
+        hasSession = !!session?.user
+    } catch { /* no session -- treat as anon */ }
+
+    if (hasSession) redirect('/app')
+
+    // Self-host default: marketing is OFF, send anon visitors to /login.
+    // getplexo.com opts in via PLEXO_MARKETING_ENABLED=true.
+    if (!isMarketingEnabled()) redirect('/login')
 
     return (
         <div className="flex min-h-screen flex-col bg-canvas text-text-primary">
