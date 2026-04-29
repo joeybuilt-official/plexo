@@ -74,6 +74,12 @@ docker compose up -d
 
 The setup wizard walks you through connecting an AI provider.
 
+**Login-first by default.** A self-host install lands users on `/login` —
+no marketing chrome, no getplexo.com landing page. Set
+`PLEXO_MARKETING_ENABLED=true` only if you want to mirror the public
+getplexo.com landing for your own brand at `/`. `/privacy` and `/terms`
+stay reachable either way.
+
 ## Tech Stack
 
 | Layer | Technology |

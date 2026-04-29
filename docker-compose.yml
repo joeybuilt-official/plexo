@@ -260,6 +260,10 @@ services:
       NEXT_PUBLIC_API_URL: ${PUBLIC_URL}/api
       INTERNAL_API_URL: http://api:3001
       PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-}
+      # Self-host default: login-first. getplexo.com sets this to "true"
+      # in its prod env to render the public marketing landing at /.
+      PLEXO_MARKETING_ENABLED: ${PLEXO_MARKETING_ENABLED:-false}
+      SKIP_LANDING: ${SKIP_LANDING:-}
     healthcheck:
       # node-based probe — alpine image has no wget by default. Hits root,
       # accepts any 2xx/3xx (Next.js renders HTML or redirects unauthenticated users).
