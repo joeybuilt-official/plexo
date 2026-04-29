@@ -9,7 +9,7 @@ CREATE SCHEMA IF NOT EXISTS auth;
 --> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS auth."user" (
-    "id"            TEXT        PRIMARY KEY,
+    "id"            UUID        PRIMARY KEY,
     "email"         TEXT        NOT NULL UNIQUE,
     "emailVerified" BOOLEAN     NOT NULL DEFAULT false,
     "name"          TEXT,
@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS auth."user" (
 --> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS auth."session" (
-    "id"        TEXT        PRIMARY KEY,
-    "userId"    TEXT        NOT NULL REFERENCES auth."user"("id") ON DELETE CASCADE,
+    "id"        UUID        PRIMARY KEY,
+    "userId"    UUID        NOT NULL REFERENCES auth."user"("id") ON DELETE CASCADE,
     "expiresAt" TIMESTAMP   NOT NULL,
     "token"     TEXT        NOT NULL UNIQUE,
     "ipAddress" TEXT,
@@ -35,8 +35,8 @@ CREATE INDEX IF NOT EXISTS "session_userId_idx" ON auth."session" ("userId");
 --> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS auth."account" (
-    "id"                     TEXT        PRIMARY KEY,
-    "userId"                 TEXT        NOT NULL REFERENCES auth."user"("id") ON DELETE CASCADE,
+    "id"                     UUID        PRIMARY KEY,
+    "userId"                 UUID        NOT NULL REFERENCES auth."user"("id") ON DELETE CASCADE,
     "accountId"              TEXT        NOT NULL,
     "providerId"             TEXT        NOT NULL,
     "accessToken"            TEXT,
@@ -55,7 +55,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "account_providerId_accountId_idx" ON auth."ac
 --> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS auth."verification" (
-    "id"         TEXT        PRIMARY KEY,
+    "id"         UUID        PRIMARY KEY,
     "identifier" TEXT        NOT NULL,
     "value"      TEXT        NOT NULL,
     "expiresAt"  TIMESTAMP   NOT NULL,
