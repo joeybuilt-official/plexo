@@ -106,7 +106,9 @@ import { toolsRouter } from './routes/tools.js'
 import { requireAuth } from './middleware/auth.js'
 import { requireWorkspaceMember } from './middleware/workspace-access.js'
 import { requireSuperAdmin } from './middleware/super-admin.js'
+import { requireServiceKey } from './middleware/service-key-auth.js'
 import { adminRouter } from './routes/admin.js'
+import { adminTasksRouter } from './routes/admin/tasks.js'
 import ollamaAdminRouter from './routes/ollama-admin.js'
 import { providerInstancesRouter } from './routes/provider-instances.js'
 import { embeddingsRouter } from './routes/embeddings.js'
@@ -309,6 +311,10 @@ v1.use('/admin/training-data', requireSuperAdmin, trainingDataRouter)
 v1.use('/standing-approvals', standingApprovalsRouter)
 v1.use('/user-self', userSelfRouter)
 v1.use('/billing', billingRouter)
+// Admin task triage — service-key auth (mounted before /admin so Express
+// matches the more specific prefix first; auth model differs from the
+// super-admin Command Center router below).
+v1.use('/admin/tasks', requireServiceKey, adminTasksRouter)
 // Admin routes — super-admin only (Command Center)
 v1.use('/admin', requireSuperAdmin, adminRouter)
 v1.use('/admin/ollama', requireSuperAdmin, ollamaAdminRouter)
