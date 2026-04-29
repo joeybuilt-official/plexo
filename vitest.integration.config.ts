@@ -5,19 +5,22 @@ import { resolve } from 'node:path'
 
 export default defineConfig({
     resolve: {
-        alias: {
-            '@plexo/db/auth/config': resolve('./packages/db/src/auth/config.ts'),
-            '@plexo/db': resolve('./packages/db/src/index.ts'),
-            '@plexo/agent': resolve('./packages/agent/src/index.ts'),
-            '@plexo/queue': resolve('./packages/queue/src/index.ts'),
-            '@plexo/sdk': resolve('./packages/sdk/src/index.ts'),
+        // Array form with regex `find` so the bare-package aliases don't
+        // intercept subpath imports (e.g. `@plexo/agent/planner`); subpaths
+        // fall through to Node, which resolves via each package's `exports`.
+        alias: [
+            { find: /^@plexo\/db\/auth\/config$/, replacement: resolve('./packages/db/src/auth/config.ts') },
+            { find: /^@plexo\/db$/, replacement: resolve('./packages/db/src/index.ts') },
+            { find: /^@plexo\/agent$/, replacement: resolve('./packages/agent/src/index.ts') },
+            { find: /^@plexo\/queue$/, replacement: resolve('./packages/queue/src/index.ts') },
+            { find: /^@plexo\/sdk$/, replacement: resolve('./packages/sdk/src/index.ts') },
             // Bare specifiers for integration tests that import directly from
             // apps/api source. The packages aren't hoisted to the repo root,
             // so pin them to the api workspace's node_modules.
-            express: resolve('./apps/api/node_modules/express/index.js'),
-            pg: resolve('./apps/api/node_modules/pg/lib/index.js'),
-            'better-auth': resolve('./apps/api/node_modules/better-auth/dist/index.mjs'),
-        },
+            { find: /^express$/, replacement: resolve('./apps/api/node_modules/express/index.js') },
+            { find: /^pg$/, replacement: resolve('./apps/api/node_modules/pg/lib/index.js') },
+            { find: /^better-auth$/, replacement: resolve('./apps/api/node_modules/better-auth/dist/index.mjs') },
+        ],
     },
     test: {
         globals: true,
