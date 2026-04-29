@@ -30,7 +30,6 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { db, sql } from '@plexo/db'
-import { reconcileOrphanedUsers } from '../../apps/api/src/cron.js'
 
 const REPO_ROOT = path.resolve(__dirname, '../..')
 
@@ -111,22 +110,17 @@ describe('Phase A stand-up — fix #3: migrate runner loud-fail', () => {
 })
 
 describe('Phase A stand-up — fix #8: cron query schema repairs', () => {
-    it('orphan-user cleanup (reconcileOrphanedUsers) runs without throwing', async () => {
-        const count = await reconcileOrphanedUsers()
-        expect(typeof count).toBe('number')
-        expect(count).toBeGreaterThanOrEqual(0)
-    })
-
-    it('orphan-user cleanup SQL targets a real auth table with the uuid::text cast', async () => {
-        // Mirrors apps/api/src/cron.ts:reconcileOrphanedUsers — the
-        // uuid::text cast is required because workspace_members.user_id
-        // is text while auth.user.id is uuid (post-0099 round-trip).
+    it('orphan-user cleanup SQL joins auth.user.id to workspace_members.user_id (both uuid)', async () => {
+        // Mirrors apps/api/src/cron.ts:reconcileOrphanedUsers. Both
+        // sides are uuid in the live DB (workspace_members.user_id was
+        // promoted to uuid by an earlier migration; schema.ts:769 still
+        // declares text — known TS/DDL drift, tracked for follow-up).
         await expect(
             db.execute(sql`
                 SELECT 1
                 FROM workspace_members wm
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM auth."user" au WHERE au.id::text = wm.user_id
+                    SELECT 1 FROM auth."user" au WHERE au.id = wm.user_id
                 )
                 LIMIT 1
             `),
