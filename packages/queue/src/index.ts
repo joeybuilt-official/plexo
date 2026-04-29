@@ -108,29 +108,30 @@ export async function complete(taskId: string, params: CompleteParams): Promise<
             tokensOut: params.tokensOut,
             costUsd: params.costUsd,
             completedAt: new Date(),
+            claimedUntil: null,
         })
         .where(eq(tasks.id, taskId))
 }
 
 export async function block(taskId: string, reason: string): Promise<void> {
     await db.update(tasks)
-        .set({ status: 'blocked', outcomeSummary: reason })
+        .set({ status: 'blocked', outcomeSummary: reason, claimedUntil: null })
         .where(eq(tasks.id, taskId))
 }
 
 /** FUN-013: Mark a task as permanently failed (unrecoverable — no credential, cost ceiling, max attempts). */
 export async function fail(taskId: string, reason: string): Promise<void> {
     await db.update(tasks)
-        .set({ status: 'failed', outcomeSummary: reason })
+        .set({ status: 'failed', outcomeSummary: reason, claimedUntil: null })
         .where(eq(tasks.id, taskId))
 }
 
 export async function cancel(taskId: string): Promise<void> {
-    // Only cancel tasks in cancellable states — don't overwrite complete/failed/cancelled
-    // Queue-bug-fix: clear claimed_at + retry_after so the task doesn't keep
-    // holding a parallel slot or pending retry timer once cancelled.
+    // Only cancel tasks in cancellable states — don't overwrite complete/failed/cancelled.
+    // Clear claimed_at, claimed_until, and retry_after so the task doesn't keep
+    // holding a parallel slot, the claim-timeout sweeper, or a pending retry timer.
     await db.update(tasks)
-        .set({ status: 'cancelled', claimedAt: null, retryAfter: null })
+        .set({ status: 'cancelled', claimedAt: null, claimedUntil: null, retryAfter: null })
         .where(and(eq(tasks.id, taskId), inArray(tasks.status, ['queued', 'claimed', 'running', 'blocked'] as TaskStatus[])))
 }
 
@@ -205,20 +206,24 @@ export async function requeueForRetry(
             .set({
                 status: 'failed' as TaskStatus,
                 outcomeSummary: `Failed after ${nextAttempt} attempts`,
+                claimedAt: null,
+                claimedUntil: null,
             })
             .where(eq(tasks.id, taskId))
         return 'max_attempts'
     }
 
     const backoffSec = backoffBase * Math.pow(2, nextAttempt - 1) // 120s, 240s, 480s
-    // Queue-bug-fix: clear claimed_at so the task is no longer treated as
-    // active. Without this, ghost recovery and parallel-slot eviction can
-    // both still see a stale claimed_at and refuse to release the slot.
+    // Queue-bug-fix: clear claimed_at and claimed_until so the task is no
+    // longer treated as active. Without this, ghost recovery, parallel-slot
+    // eviction, and the claim-timeout sweeper can all still see stale claim
+    // state and refuse to release the slot.
     await db.update(tasks).set({
         status: 'queued' as TaskStatus,
         attemptCount: nextAttempt,
         retryAfter: new Date(Date.now() + backoffSec * 1000),
         claimedAt: null,
+        claimedUntil: null,
     }).where(eq(tasks.id, taskId))
 
     return 'requeued'
