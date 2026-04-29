@@ -207,3 +207,27 @@ export async function deleteByPrefix(prefix: string): Promise<number> {
 }
 
 export { BUCKET, isConfigured }
+
+/**
+ * Stream an S3 object back as { stream, contentType, contentLength }.
+ * Used by the ai-media proxy route to serve generated media without
+ * exposing MinIO publicly. Returns null if storage isn't configured.
+ */
+export interface ObjectStream {
+    stream: NodeJS.ReadableStream
+    contentType: string | undefined
+    contentLength: number | undefined
+}
+
+export async function streamObject(key: string): Promise<ObjectStream | null> {
+    if (!isConfigured) return null
+    const s3 = getClient()
+    const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
+    const body = obj.Body as unknown as NodeJS.ReadableStream | undefined
+    if (!body || typeof body.pipe !== 'function') return null
+    return {
+        stream: body,
+        contentType: obj.ContentType ?? undefined,
+        contentLength: obj.ContentLength ?? undefined,
+    }
+}
