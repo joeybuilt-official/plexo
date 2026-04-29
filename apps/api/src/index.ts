@@ -14,6 +14,7 @@ import { validateEnv } from './env.js'
 validateEnv()
 import { trackError } from './event-tracker.js'
 import { handoffRouter } from './routes/handoff.js'
+import { ssoRouter } from './routes/sso.js'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
 installCCHandlers()
 import express, { type Express } from 'express'
@@ -402,6 +403,11 @@ app.use('/api/v1', v1)
 // by the redirect_uri builder in oauth.ts. Mount directly so Google/Slack/etc.
 // can complete the OAuth flow regardless of API versioning.
 app.use('/api/oauth', authLimiter, jsonDefault, oauthRouter)
+
+// Universal Plexo SSO — Phase 1 (gated by PLEXO_SSO_ENABLED).
+// Mounted unversioned because sibling apps construct stable URLs of the
+// form /api/sso/handoff?app=…&return=… and /api/sso/verify.
+app.use('/api/sso', authLimiter, jsonDefault, ssoRouter)
 
 // A2A spec — agent discovery at /.well-known/agent.json (no API prefix)
 app.use('/.well-known', wellKnownAgentHandler())
