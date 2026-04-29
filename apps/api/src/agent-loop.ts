@@ -52,6 +52,25 @@ async function recordTaskEvent(params: {
     }
 }
 
+interface WorkspaceApprovalPolicy {
+    requireApprovalForGeneralTasks: boolean
+}
+
+async function loadWorkspaceApprovalPolicy(workspaceId: string | undefined | null): Promise<WorkspaceApprovalPolicy> {
+    if (!workspaceId) return { requireApprovalForGeneralTasks: false }
+    try {
+        const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
+            .where(eq(workspaces.id, workspaceId)).limit(1)
+        const s = ws?.settings as Record<string, unknown> | undefined
+        return {
+            requireApprovalForGeneralTasks: s?.requireApprovalForGeneralTasks === true,
+        }
+    } catch (err) {
+        logger.warn({ err, workspaceId }, 'failed to load workspace approval policy; defaulting to off')
+        return { requireApprovalForGeneralTasks: false }
+    }
+}
+
 /**
  * Returns the current agent loop status snapshot.
  * Used by GET /api/v1/agent/status to serve real data.
