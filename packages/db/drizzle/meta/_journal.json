@@ -666,6 +666,13 @@
       "when": 1777939202000,
       "tag": "0094_domain_mastery_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1777939203000,
+      "tag": "0099_better_auth",
+      "breakpoints": true
     }
   ]
 }
