@@ -173,6 +173,12 @@ services:
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
       STORAGE_BUCKET: ${STORAGE_BUCKET:-plexo-assets}
+      # Asset-platform bridge — generated media (ai/image, ai/video) is
+      # streamed to an external asset platform that owns durable storage
+      # and serves the public read URL. Optional: when unset, ai-media
+      # routes will fail; other routes keep working.
+      FONTO_URL: ${FONTO_URL:-}
+      FONTO_SERVICE_KEY: ${FONTO_SERVICE_KEY:-}
       # One-click update: set to "true" and uncomment the volumes block below.
       # Requires the Docker socket to be mounted. See the comment near 'volumes:' below.
       DOCKER_SOCKET_ENABLED: ${DOCKER_SOCKET_ENABLED:-false}
