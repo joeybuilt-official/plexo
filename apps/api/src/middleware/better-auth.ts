@@ -32,8 +32,8 @@ declare global {
 }
 
 import type { Auth } from 'better-auth'
-import { betterAuth } from 'better-auth'
 import { Pool } from 'pg'
+import { createPlexoBetterAuth } from '@plexo/db/auth/config'
 import { logger } from '../logger.js'
 
 let _authInstance: Auth | null = null
@@ -54,11 +54,21 @@ function getAuth(): Auth {
         })
     })
 
-    _authInstance = betterAuth({
-        database: pool,
+    const cookieDomain = process.env.BETTER_AUTH_COOKIE_DOMAIN?.trim()
+    const baseURL = process.env.BETTER_AUTH_URL?.trim()
+    const trustedOrigins = (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+
+    _authInstance = createPlexoBetterAuth({
+        pool,
         secret,
-        emailAndPassword: { enabled: true },
-    }) as Auth
+        baseURL,
+        trustedOrigins,
+        cookieDomain,
+        secureCookies: process.env.NODE_ENV === 'production',
+    })
 
     return _authInstance
 }

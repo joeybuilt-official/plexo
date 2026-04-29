@@ -12,9 +12,9 @@
  * AUTH_SECRET        – HMAC secret for session signing (must match plexo-ops)
  */
 
-import { betterAuth, type Auth } from 'better-auth'
+import { type Auth } from 'better-auth'
 import { Pool } from 'pg'
-import { randomUUID } from 'node:crypto'
+import { createPlexoBetterAuth } from '@plexo/db/auth/config'
 
 // DI-002: Internal API base + service key for the beforeDelete hook.
 // These are server-side only (never shipped to the browser).
@@ -49,85 +49,48 @@ export function getAuth(): Auth {
     const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim()
     const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
 
-    _auth = betterAuth({
-        database: pool,
+    _auth = createPlexoBetterAuth({
+        pool,
         secret: process.env.AUTH_SECRET!,
-        ...(baseURL ? { baseURL } : {}),
-        ...(trustedOrigins.length > 0 ? { trustedOrigins } : {}),
-        ...(googleClientId && googleClientSecret
-            ? {
-                socialProviders: {
-                    google: {
-                        clientId: googleClientId,
-                        clientSecret: googleClientSecret,
-                    },
-                },
+        baseURL,
+        trustedOrigins,
+        cookieDomain,
+        secureCookies: process.env.NODE_ENV === 'production',
+        google:
+            googleClientId && googleClientSecret
+                ? { clientId: googleClientId, clientSecret: googleClientSecret }
+                : undefined,
+        sendResetPassword: async ({ user, url }) => {
+            // Email delivery is wired via the same mailer used by Command Center.
+            // Until a production mailer is configured, log the URL so local
+            // dev can follow the reset link without an SMTP server.
+            console.info('[better-auth] reset password link', { email: user.email, url })
+        },
+        sendVerificationEmail: async ({ user, url }) => {
+            console.info('[better-auth] verification email', { email: user.email, url })
+        },
+        onBeforeUserDelete: async (user) => {
+            if (!SERVICE_KEY) {
+                console.warn('[better-auth] PLEXO_SERVICE_KEY not set — skipping workspace cleanup')
+                return
             }
-            : {}),
-        emailAndPassword: {
-            enabled: true,
-            autoSignIn: true,
-            minPasswordLength: 12,
-            sendResetPassword: async ({ user, url }: { user: { email: string; name?: string }; url: string }) => {
-                // Email delivery is wired via the same mailer used by Command Center.
-                // Until a production mailer is configured, log the URL so local
-                // dev can follow the reset link without an SMTP server.
-                console.info('[better-auth] reset password link', { email: user.email, url })
-            },
-        },
-        emailVerification: {
-            sendOnSignUp: true,
-            autoSignInAfterVerification: true,
-            sendVerificationEmail: async ({ user, url }: { user: { email: string; name?: string }; url: string }) => {
-                console.info('[better-auth] verification email', { email: user.email, url })
-            },
-        },
-        user: {
-            deleteUser: {
-                enabled: true,
-                // DI-002: Server-side safety net — delete all workspaces owned by
-                // this user before the auth record is removed. This fires regardless
-                // of whether deletion was initiated from the UI or via direct API call.
-                beforeDelete: async (user: { id: string }) => {
-                    if (!SERVICE_KEY) {
-                        console.warn('[better-auth] PLEXO_SERVICE_KEY not set — skipping workspace cleanup')
-                        return
-                    }
-                    try {
-                        const res = await fetch(`${INTERNAL_API_URL}/api/v1/auth/account-cleanup`, {
-                            method: 'DELETE',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${SERVICE_KEY}`,
-                                'X-App-Id': 'plexo-web',
-                            },
-                            body: JSON.stringify({ userId: user.id }),
-                        })
-                        if (!res.ok) {
-                            const body = await res.text()
-                            console.error('[better-auth] Workspace cleanup failed:', res.status, body)
-                        }
-                    } catch (err) {
-                        console.error('[better-auth] Workspace cleanup request failed:', err)
-                    }
-                },
-            },
-        },
-        advanced: {
-            database: { generateId: () => randomUUID() },
-            defaultCookieAttributes: {
-                sameSite: 'lax' as const,
-                secure: process.env.NODE_ENV === 'production',
-                ...(cookieDomain ? { domain: cookieDomain } : {}),
-            },
-            ...(cookieDomain
-                ? {
-                    crossSubDomainCookies: {
-                        enabled: true,
-                        domain: cookieDomain,
+            try {
+                const res = await fetch(`${INTERNAL_API_URL}/api/v1/auth/account-cleanup`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SERVICE_KEY}`,
+                        'X-App-Id': 'plexo-web',
                     },
+                    body: JSON.stringify({ userId: user.id }),
+                })
+                if (!res.ok) {
+                    const body = await res.text()
+                    console.error('[better-auth] Workspace cleanup failed:', res.status, body)
                 }
-                : {}),
+            } catch (err) {
+                console.error('[better-auth] Workspace cleanup request failed:', err)
+            }
         },
     })
 
