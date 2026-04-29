@@ -20,6 +20,7 @@ import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
 import { getDecryptedBraveKey } from './routes/search.js'
 import { claimBatch, releaseSlot, extendSlot, HEARTBEAT_INTERVAL_MS } from './parallel-executor.js'
 import { logSprintHandoff } from '@plexo/agent/sprint/sprint-ledger'
+import { getCachedIntelligenceSettings, type IntelligenceSettings } from './lib/intelligence-cache.js'
 
 const POLL_INTERVAL_MS = 2_000
 const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '50')
@@ -344,25 +345,45 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
     // ── Pre-flight: workspace weekly ceiling ──────────────────────────────────
     // Check before claiming CPU/memory so we fail fast if already over budget.
+    // Honors workspace `costCeilingMode`:
+    //   - 'hard_block' (default for legacy api_cost_tracking gate) → fail task
+    //   - 'soft_warn'                                              → log + continue
+    //   - 'off'                                                    → skip entirely (trust provider caps)
     try {
-        const [costRow] = await db
-            .select({ costUsd: apiCostTracking.costUsd, ceilingUsd: apiCostTracking.ceilingUsd })
-            .from(apiCostTracking)
-            .where(and(
-                eq(apiCostTracking.workspaceId, taskWorkspaceId ?? ''),
-                eq(apiCostTracking.weekStart, sql`date_trunc('week', NOW())::date`),
-            ))
-            .limit(1)
+        const iSettings = await getCachedIntelligenceSettings(taskWorkspaceId ?? '', async () => {
+            const [row] = await db
+                .select({ s: workspaces.intelligenceSettings })
+                .from(workspaces)
+                .where(eq(workspaces.id, taskWorkspaceId ?? ''))
+                .limit(1)
+            return (row?.s ?? {}) as IntelligenceSettings
+        })
+        const ceilingMode = iSettings.costCeilingMode ?? 'hard_block'
 
-        if (costRow && costRow.costUsd >= costRow.ceilingUsd) {
-            const costMsg = `Workspace weekly cost ceiling reached: $${costRow.costUsd.toFixed(4)} / $${costRow.ceilingUsd.toFixed(2)}`
-            await failTask(task.id, costMsg)
-            await syncSprintTaskBlocked(task, costMsg)
-            emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING' })
-            trackEvent('task.failed', 'warning', { taskId: task.id, reason: 'cost_ceiling', costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd, workspaceId: taskWorkspaceId })
-            logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd }, 'Workspace ceiling — task failed (permanent)')
-            await releaseSlot(task.id)
-            return
+        if (ceilingMode !== 'off') {
+            const [costRow] = await db
+                .select({ costUsd: apiCostTracking.costUsd, ceilingUsd: apiCostTracking.ceilingUsd })
+                .from(apiCostTracking)
+                .where(and(
+                    eq(apiCostTracking.workspaceId, taskWorkspaceId ?? ''),
+                    eq(apiCostTracking.weekStart, sql`date_trunc('week', NOW())::date`),
+                ))
+                .limit(1)
+
+            if (costRow && costRow.costUsd >= costRow.ceilingUsd) {
+                if (ceilingMode === 'hard_block') {
+                    const costMsg = `Workspace weekly cost ceiling reached: $${costRow.costUsd.toFixed(4)} / $${costRow.ceilingUsd.toFixed(2)}`
+                    await failTask(task.id, costMsg)
+                    await syncSprintTaskBlocked(task, costMsg)
+                    emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING' })
+                    trackEvent('task.failed', 'warning', { taskId: task.id, reason: 'cost_ceiling', costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd, workspaceId: taskWorkspaceId })
+                    logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd }, 'Workspace ceiling — task failed (permanent)')
+                    await releaseSlot(task.id)
+                    return
+                }
+                // soft_warn: log only
+                logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd, mode: ceilingMode }, 'Workspace ceiling exceeded — soft_warn, continuing')
+            }
         }
     } catch (costErr) {
         logger.warn({ costErr }, 'Pre-flight cost check failed non-fatally — continuing')

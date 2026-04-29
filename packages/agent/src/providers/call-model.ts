@@ -243,6 +243,72 @@ function backoffDelayMs(attempt: number): number {
     return attempt === 1 ? 500 : 1500
 }
 
+// ── Fenced-JSON rescue ────────────────────────────────────────────────
+// Some providers (notably ollama_cloud routed through @ai-sdk/openai-compatible
+// without `structuredOutputs` support) return JSON wrapped in markdown code
+// fences. The AI SDK's strict parser rejects that with NoObjectGeneratedError.
+// Before surfacing CALL_MODEL_PARSE we try to recover: walk the error chain
+// for the raw text, strip fences, JSON.parse, validate against the original
+// zod schema. If the rescue succeeds we return the parsed object as if the
+// SDK had succeeded — matching the original caller contract exactly.
+
+function stripCodeFence(text: string): string | null {
+    // First try: whole string is a single fenced block.
+    const trimmed = text.trim()
+    const whole = trimmed.match(/^```(?:json|javascript|js)?\s*\n?([\s\S]*?)\n?```$/)
+    if (whole) return whole[1].trim()
+    // Second try: first fenced block anywhere in the string (handles preamble/postamble).
+    const inner = text.match(/```(?:json|javascript|js)?\s*\n?([\s\S]*?)\n?```/)
+    if (inner) return inner[1].trim()
+    // Third try: first balanced JSON object or array. Cheap heuristic — find
+    // the first '{' or '[' and the matching last '}' or ']'.
+    const firstObj = text.indexOf('{')
+    const lastObj = text.lastIndexOf('}')
+    if (firstObj !== -1 && lastObj > firstObj) return text.slice(firstObj, lastObj + 1).trim()
+    const firstArr = text.indexOf('[')
+    const lastArr = text.lastIndexOf(']')
+    if (firstArr !== -1 && lastArr > firstArr) return text.slice(firstArr, lastArr + 1).trim()
+    return null
+}
+
+function extractRawText(err: unknown, depth = 0): string | null {
+    if (depth > 5 || !err || typeof err !== 'object') return null
+    const e = err as { text?: unknown; message?: unknown; cause?: unknown }
+    if (typeof e.text === 'string' && e.text.length > 0) return e.text
+    if (typeof e.message === 'string') {
+        // AI_JSONParseError serializes the raw text into the message:
+        //   "JSON parsing failed: Text: <raw>\nError message: ..."
+        // The raw text may or may not end in '.', and may itself contain newlines.
+        const m = e.message.match(/Text:\s*([\s\S]*?)\n\s*Error message:/)
+        if (m && m[1]) return m[1]
+    }
+    if (e.cause) return extractRawText(e.cause, depth + 1)
+    return null
+}
+
+function tryRescueFencedJson(
+    err: unknown,
+    schema: ZodType<unknown> | undefined,
+): { object: unknown } | null {
+    if (!isParseError(err)) return null
+    const raw = extractRawText(err)
+    if (!raw) return null
+    const stripped = stripCodeFence(raw)
+    if (!stripped) return null
+    let parsed: unknown
+    try {
+        parsed = JSON.parse(stripped)
+    } catch {
+        return null
+    }
+    if (schema) {
+        const result = schema.safeParse(parsed)
+        if (!result.success) return null
+        return { object: result.data }
+    }
+    return { object: parsed }
+}
+
 // ── Public entry ──────────────────────────────────────────────────────
 
 /**
@@ -330,7 +396,20 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                 const generateObjectUntyped = generateObject as unknown as (
                     args: unknown,
                 ) => Promise<{ object: unknown; usage?: { inputTokens?: number; outputTokens?: number } }>
-                const result = await generateObjectUntyped(genArgs)
+                let result: { object: unknown; usage?: { inputTokens?: number; outputTokens?: number } }
+                try {
+                    result = await generateObjectUntyped(genArgs)
+                } catch (genErr) {
+                    const rescued = tryRescueFencedJson(genErr, opts.schema)
+                    if (!rescued) throw genErr
+                    logger.warn({
+                        event: 'call_model.fence_rescue',
+                        workspaceId: opts.workspaceId,
+                        taskType: opts.taskType,
+                        model: modelId,
+                    }, 'callModel: rescued fenced JSON from generateObject failure')
+                    result = { object: rescued.object }
+                }
 
                 const latencyMs = Date.now() - startedAt
                 const inputTokens = result.usage?.inputTokens ?? 0

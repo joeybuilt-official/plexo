@@ -16,7 +16,7 @@ import { jsonFetcher } from './swr'
 // ── Types ────────────────────────────────────────────────────────────────
 
 export type InferenceMode = 'auto' | 'byok' | 'proxy' | 'override'
-export type CostCeilingMode = 'soft_warn' | 'hard_block'
+export type CostCeilingMode = 'soft_warn' | 'hard_block' | 'off'
 export type CeilingState = 'ok' | 'warn' | 'block'
 
 export type StepBudget = 'conservative' | 'normal' | 'thorough'

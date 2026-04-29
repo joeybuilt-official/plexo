@@ -19,7 +19,7 @@
 export type IntelligenceSettings = {
     inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
     costCeilingUsd?: number
-    costCeilingMode?: 'soft_warn' | 'hard_block'
+    costCeilingMode?: 'soft_warn' | 'hard_block' | 'off'
     scl?: {
         enabled: boolean
         driftThreshold?: number

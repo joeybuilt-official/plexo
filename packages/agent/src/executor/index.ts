@@ -2172,9 +2172,16 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
     const tokensIn = genResult.usage.inputTokens ?? 0
     const tokensOut = genResult.usage.outputTokens ?? 0
 
-    // Cost calculation: use real pricing from router meta when available, else fall back to claude-sonnet-4-5 rates
-    const costPerMIn = resolvedMeta.costPerMIn > 0 ? resolvedMeta.costPerMIn : 3
-    const costPerMOut = resolvedMeta.costPerMOut > 0 ? resolvedMeta.costPerMOut : 15
+    // Cost calculation: use real pricing from router meta. When metadata is
+    // missing (e.g. ollama_cloud or a model not yet in the knowledge table)
+    // we record $0 rather than fabricating Sonnet rates — fabricated prices
+    // tripped the workspace ceiling on free/cheap models. Provider-side caps
+    // are the safety net when in-app pricing is unknown.
+    const costPerMIn = resolvedMeta.costPerMIn > 0 ? resolvedMeta.costPerMIn : 0
+    const costPerMOut = resolvedMeta.costPerMOut > 0 ? resolvedMeta.costPerMOut : 0
+    if (costPerMIn === 0 && costPerMOut === 0 && (tokensIn > 0 || tokensOut > 0)) {
+        logger.warn({ provider: resolvedMeta.provider, modelId: resolvedMeta.id, tokensIn, tokensOut }, 'cost: model has no pricing in router meta, recording $0')
+    }
     const costUsd = (tokensIn / 1_000_000) * costPerMIn + (tokensOut / 1_000_000) * costPerMOut
     totalTokensIn += tokensIn
     totalTokensOut += tokensOut

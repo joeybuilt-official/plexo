@@ -87,7 +87,8 @@ export function CostCeilingSlider({ workspaceId }: { workspaceId: string }) {
         try {
             await patchCostCeiling(workspaceId, { mode: next })
             await mutateSettings()
-            toast.success(`Enforcement set to ${next === 'hard_block' ? 'hard block' : 'soft warn'}`)
+            const label = next === 'hard_block' ? 'hard block' : next === 'off' ? 'off (provider caps)' : 'soft warn'
+            toast.success(`Enforcement set to ${label}`)
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Failed to update enforcement')
         } finally {
@@ -188,7 +189,7 @@ export function CostCeilingSlider({ workspaceId }: { workspaceId: string }) {
             {/* Enforcement mode toggle */}
             <div className="space-y-1.5">
                 <label className="text-xs text-text-muted">Enforcement</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                     <button
                         type="button"
                         disabled={saving}
@@ -216,6 +217,20 @@ export function CostCeilingSlider({ workspaceId }: { workspaceId: string }) {
                     >
                         <div className="font-medium text-text-primary">Hard block</div>
                         <div className="mt-0.5 text-[11px] text-text-muted">Returns 402 once the ceiling is reached.</div>
+                    </button>
+                    <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void commitMode('off')}
+                        aria-pressed={mode === 'off'}
+                        className={`rounded-sm border px-3 py-2 text-left text-xs transition-colors ${
+                            mode === 'off'
+                                ? 'border-azure bg-surface-1 ring-1 ring-azure/40'
+                                : 'border-border bg-surface-1 hover:border-muted'
+                        } disabled:opacity-50`}
+                    >
+                        <div className="font-medium text-text-primary">Off</div>
+                        <div className="mt-0.5 text-[11px] text-text-muted">Trust provider caps. No in-app warn or block.</div>
                     </button>
                 </div>
             </div>

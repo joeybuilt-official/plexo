@@ -116,8 +116,12 @@ export function decideCostCeiling(
     if (!ceilingUsd) {
         return { state: 'ok', usagePct: 0, spend, ceilingUsd: null }
     }
-    const usagePct = spend.pricedUsd / ceilingUsd
     const mode = settings.costCeilingMode ?? 'soft_warn'
+    // 'off' = trust provider-level caps; never warn or block in-app.
+    if (mode === 'off') {
+        return { state: 'ok', usagePct: spend.pricedUsd / ceilingUsd, spend, ceilingUsd }
+    }
+    const usagePct = spend.pricedUsd / ceilingUsd
 
     if (usagePct >= 1) {
         if (mode === 'hard_block') {

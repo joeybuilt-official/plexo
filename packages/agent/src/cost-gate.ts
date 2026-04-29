@@ -23,7 +23,7 @@ const logger = pino({ name: 'cost-gate' })
 export interface AgentIntelligenceSettings {
     inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
     costCeilingUsd?: number
-    costCeilingMode?: 'soft_warn' | 'hard_block'
+    costCeilingMode?: 'soft_warn' | 'hard_block' | 'off'
 }
 
 export interface AgentSpendSnapshot {
@@ -328,6 +328,10 @@ export function decideAgentCost(
     }
     const usagePct = spend.pricedUsd / ceilingUsd
     const mode = settings.costCeilingMode ?? 'soft_warn'
+    // 'off' = trust provider-level caps; never warn or block in the executor mid-run gate.
+    if (mode === 'off') {
+        return { state: 'ok', usagePct, ceilingUsd, spend }
+    }
     if (usagePct >= 1) {
         if (mode === 'hard_block') {
             return { state: 'block', usagePct, ceilingUsd, spend, reason: 'hard_block_100' }
