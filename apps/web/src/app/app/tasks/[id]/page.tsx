@@ -22,7 +22,6 @@ import { TaskError } from '@web/components/task-error'
 import { WorksPanel } from '@web/components/works-panel'
 import { StatusBadge } from '@plexo/ui'
 import { PlexoAwarenessBadge } from '@web/components/plexo-awareness-badge'
-import { SclDisclosure } from './_scl-disclosure'
 import { AdvancedSection } from './_advanced-section'
 import { TaskWorkList } from './_task-work-list'
 import { apiFetch } from '@web/lib/api-server'
@@ -239,17 +238,6 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                     />
                 </div>
             )}
-
-            {/* SCL disclosure — what Plexo knew about this task (Advanced only) */}
-            <AdvancedSection>
-                {(task.status === 'complete' || task.status === 'completed') && (
-                    <SclDisclosure
-                        taskId={task.id}
-                        workspaceId={(task.context?.workspaceId as string) ?? ''}
-                        domainRegion={(task.context?.domainRegion as string) ?? null}
-                    />
-                )}
-            </AdvancedSection>
 
             {/* Assets produced by write_asset */}
             {assets.length > 0 && (

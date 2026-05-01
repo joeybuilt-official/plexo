@@ -12,6 +12,7 @@ import { emitRsiProposalCreated } from './analytics/events.js'
 import { runWeeklyDigest } from './analytics/digest-worker.js'
 import { deleteByPrefix } from '@plexo/storage'
 import { runSynthesisNightly } from './cron/synthesis-nightly.js'
+import { flushRetrievalCounts, decayConfidence } from './cron/confidence-lifecycle.js'
 
 export { runRSIMonitor }
 export { runSynthesisNightly }
@@ -230,6 +231,20 @@ const INTERNAL_JOBS: Array<{
         },
     },
     {
+        // Phase 7 — tier cooldown: hot→active (7d stale), active→cold (90d stale).
+        name: '__internal_flush_retrieval_counts',
+        schedule: '*/5 * * * *',
+        intervalMs: 5 * 60 * 1000,
+        handler: flushRetrievalCounts,
+    },
+    {
+        // Phase 7 — weekly confidence decay ×0.9 for non-anchored entries.
+        name: '__internal_decay_confidence',
+        schedule: '0 3 * * 0',
+        intervalMs: 7 * 24 * 60 * 60 * 1000,
+        handler: decayConfidence,
+    },
+    {
         // Stabilization monitoring agents — Romeo Backlog A.
         // Drives all 10 agents on a 5-minute cadence. Each agent has its
         // own internal threshold; this just ensures they all get woken up.
@@ -312,6 +327,10 @@ async function runOverdueInternalJobs(): Promise<void> {
 }
 
 export function scheduleMemoryConsolidation(): void {
+    if (process.env.SELF_IMPROVEMENT_ENABLED === 'false' || process.env.PLEXO_DISABLE_CRONS === '1') {
+        logger.warn('Memory consolidation / internal cron scheduling disabled via SELF_IMPROVEMENT_ENABLED=false or PLEXO_DISABLE_CRONS=1')
+        return
+    }
     const CHECK_INTERVAL = 10 * 60 * 1000 // check every 10 minutes
 
     // Upsert internal job rows on startup

@@ -12,7 +12,7 @@ import { db, sql } from '@plexo/db'
 import { ulid } from 'ulid'
 import { createHash } from 'node:crypto'
 import pino from 'pino'
-import { cosineSimilarity } from '@plexo/scl-core'
+const cosineSimilarity = (a: number[], b: number[]) => a.reduce((s, v, i) => s + v * b[i]!, 0)
 
 const logger = pino({ name: 'foundry:shadow' })
 

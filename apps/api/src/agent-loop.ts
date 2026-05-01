@@ -656,36 +656,6 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         resumeFromTaskId: (task.context as Record<string, unknown> | null)?.resumeFromTaskId as string | undefined,
     }
 
-    // SCL: expand Golden Record into task context
-    let sclAttractorIds: string[] = []
-    try {
-        if (taskWorkspaceId) {
-            const { expandForTask } = await import('@plexo/agent/scl/task-expansion')
-            const { resolveEmbeddingProvider } = await import('@plexo/agent/scl/embedding-provider')
-            {
-                const embProvider = await resolveEmbeddingProvider(taskWorkspaceId)
-                const taskCtxRaw = (task.context as Record<string, unknown>) ?? {}
-                const desc = String(taskCtxRaw.description ?? taskCtxRaw.message ?? task.type ?? '')
-                const focusLevel = (taskCtxRaw.focusLevel as string) ?? 'L1'
-                const level = (['L0', 'L1', 'L2'].includes(focusLevel) ? focusLevel : 'L1') as 'L0' | 'L1' | 'L2'
-                const expansion = await expandForTask(taskWorkspaceId, desc, embProvider, level)
-                if (expansion) {
-                    ctx.sclContext = {
-                        relevantPatterns: [],
-                        suggestedTools: [],
-                        domainKnowledge: [expansion.contextBlock],
-                        tokenCount: expansion.tokenCount,
-                        sourceRegions: expansion.regionsActivated,
-                    }
-                    sclAttractorIds = expansion.attractorIds
-                    logger.info({ taskId: task.id, regions: expansion.regionsActivated, tokens: expansion.tokenCount, attractors: expansion.attractorsExpanded }, 'SCL Golden Record context expanded')
-                }
-            }
-        }
-    } catch (err) {
-        logger.warn({ err, taskId: task.id }, 'SCL expansion failed — continuing without')
-    }
-
     try {
         await db.update(tasks)
             .set({ status: 'running', claimedAt: new Date() })
@@ -1077,18 +1047,6 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             }
         } catch (reflectErr) {
             logger.warn({ err: reflectErr, taskId: task.id }, 'reflectAndPromote failed — non-fatal')
-        }
-
-        // ── SCL experience loop: update attractor salience from task outcome ──
-        if (sclAttractorIds.length > 0 && taskWorkspaceId) {
-            try {
-                const { updateSalience } = await import('@plexo/agent/scl/task-expansion')
-                const accepted = result.qualityScore >= 0.7
-                void updateSalience(taskWorkspaceId, sclAttractorIds, accepted)
-                    .catch((e: unknown) => logger.warn({ err: e }, 'SCL salience update failed'))
-            } catch (sclImportErr) {
-                logger.debug({ err: sclImportErr }, 'SCL salience import failed (non-fatal)')
-            }
         }
 
         // ── Sprint task sync (CRITICAL) ────────────────────────────────────────

@@ -18,10 +18,6 @@ vi.mock('../providers/registry.js', () => ({
     resolveModelFromEnv: vi.fn(() => 'mock-model'),
 }))
 
-vi.mock('../scl/storage.js', () => ({
-    isSclEnabled: vi.fn(() => Promise.resolve(false)),
-}))
-
 vi.mock('pino', () => ({
     default: () => ({
         warn: vi.fn(),

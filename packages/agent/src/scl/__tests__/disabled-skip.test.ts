@@ -36,7 +36,6 @@ vi.mock('@plexo/db', () => {
             execute: vi.fn(async () => ({ rows: [] })),
         },
         workspaces: { id: 'id', settings: 'settings', intelligenceSettings: 'intelligence_settings' },
-        workspaceMindsets: {},
         eq: vi.fn(),
         sql: Object.assign(
             (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),

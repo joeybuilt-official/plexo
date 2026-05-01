@@ -606,8 +606,8 @@ export async function chatWithAI(
         const msgText = typeof lastUserMsg === 'string' ? lastUserMsg : ''
         if (msgText.length >= 10) {
             try {
-                const { searchMemory } = await import('@plexo/agent/memory/store')
-                const hits = await searchMemory({ workspaceId, query: msgText, limit: 5 })
+                const { queryMemory } = await import('@plexo/agent/memory/query')
+                const hits = await queryMemory({ workspaceId, queryText: msgText, limit: 5, aiSettings })
                 if (hits.length > 0) {
                     const memBlock = hits.map(h => `- ${h.shorthand || h.content.slice(0, 200)}`).join('\n')
                     finalSystem += `\n\n=== RELEVANT MEMORY ===\n${memBlock}\n=== END MEMORY ===`

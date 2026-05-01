@@ -177,6 +177,10 @@ async function initNextRunAt(): Promise<void> {
  * Returns a cleanup function that stops the interval.
  */
 export function startCronDispatch(): () => void {
+    if (process.env.PLEXO_DISABLE_CRONS === '1') {
+        logger.warn('cron-dispatch: disabled via PLEXO_DISABLE_CRONS=1')
+        return () => { /* no-op */ }
+    }
     void initNextRunAt().catch((err) => logger.warn({ err }, 'cron-dispatch: startup init failed (non-fatal)'))
 
     // Stagger first tick by 30s so it doesn't pile on top of agent loop startup

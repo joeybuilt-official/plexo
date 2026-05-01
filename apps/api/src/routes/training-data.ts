@@ -89,15 +89,6 @@ const DATA_SOURCES: DataSource[] = [
         sampleSql: `SELECT id, domain_region, graph_json, created_at FROM scl_concept_graphs ORDER BY created_at DESC LIMIT $1`,
         format: 'knowledge',
     },
-    {
-        id: 'golden_records',
-        label: 'Golden Records',
-        description: 'Workspace semantic lattices — attractors, regions, transformations',
-        table: 'workspace_mindsets',
-        countSql: `SELECT count(*) AS count FROM workspace_mindsets WHERE golden_record IS NOT NULL`,
-        sampleSql: `SELECT id, workspace_id, golden_record_version, task_count, created_at, updated_at FROM workspace_mindsets WHERE golden_record IS NOT NULL ORDER BY updated_at DESC LIMIT $1`,
-        format: 'knowledge',
-    },
 ]
 
 // ── GET /sources ────────────────────────────────────────────────────────

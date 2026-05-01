@@ -70,43 +70,6 @@ interface Observation {
  * into the behavior_rules table as domain_knowledge entries.
  */
 export async function reflectAndPromote(ctx: ReflectCtx): Promise<ReflectResult> {
-    // ── SCL branch (runs first): if scl_enabled, use structured mutation ──
-    // scl_enabled=true is itself an explicit opt-in to learning — it does NOT
-    // require the separate reflection_enabled workspace preference to also be
-    // set. Otherwise the Golden Record stays inert even with SCL enabled.
-    let sclHandled = false
-    let sclResult: ReflectResult | undefined
-    try {
-        const { isSclEnabled } = await import('../scl/storage.js')
-        if (await isSclEnabled(ctx.workspaceId)) {
-            const { reflectAndMutate } = await import('../scl/reflect-scl.js')
-            const { resolveEmbeddingProvider } = await import('../scl/embedding-provider.js')
-            const provider = await resolveEmbeddingProvider(ctx.workspaceId)
-            const result = await reflectAndMutate(ctx, provider)
-            sclResult = {
-                track: 'scl',
-                observationCount: result.mutated ? 1 : 0,
-                sclStats: {
-                    attractorsRefined: result.attractorsRefined,
-                    attractorsCreated: result.attractorsCreated,
-                    ghostsArchived: result.ghostsArchived,
-                    driftWarnings: result.driftWarnings.length,
-                },
-            }
-            logger.info({
-                workspaceId: ctx.workspaceId,
-                taskId: ctx.taskId,
-                mutated: result.mutated,
-                driftWarnings: result.driftWarnings.length,
-                quality: ctx.qualityScore,
-            }, 'SCL reflectAndMutate completed')
-            sclHandled = true
-        }
-    } catch (err) {
-        logger.error({ err, workspaceId: ctx.workspaceId, taskId: ctx.taskId }, 'SCL reflection failed')
-    }
-    if (sclHandled) return sclResult ?? { track: 'scl', observationCount: 0 }
-
     // ── Gate 1: workspace setting ─────────────────────────────────────────
     try {
         const rows = await db.execute<{ value: unknown }>(sql`

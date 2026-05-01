@@ -3,7 +3,7 @@
 
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import useSWR from 'swr'
 import { jsonFetcher } from '@web/lib/swr'
 import {
@@ -15,11 +15,7 @@ import {
     Pencil,
     X,
     Check,
-    AlertTriangle,
     BookOpen,
-    Layers,
-    ChevronDown,
-    ChevronRight,
     Paperclip,
     FileText,
     Image as ImageIcon,
@@ -28,20 +24,12 @@ import {
 import { EmptyState } from '@web/components/ui/empty-state'
 import { toast } from 'sonner'
 import { useWorkspaceId } from '@web/context/workspace'
-import { useViewMode } from '@web/hooks/use-view-mode'
 import { ViewModeToggle } from '@web/components/view-mode-toggle'
 import { PlexoAwarenessBadge } from '@web/components/plexo-awareness-badge'
-import { MindsetObjectViewer } from '@web/components/scl/MindsetObjectViewer'
-import type { MindsetObject } from '@web/components/scl/MindsetObjectViewer'
-import { GoldenRecordDashboard } from '@web/components/scl/GoldenRecordDashboard'
-import { AttractorBrowser } from '@web/components/scl/AttractorBrowser'
-import { PromotionLog } from '@web/components/scl/PromotionLog'
-import { RegionMap } from '@web/components/scl/RegionMap'
-import { SclConfigPanel } from '@web/components/scl/SclConfigPanel'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
-type Tab = 'browse' | 'search' | 'advanced'
+type Tab = 'browse' | 'search'
 
 interface MemoryEntry {
     id: string
@@ -58,17 +46,6 @@ interface SearchResult {
     content: string
     metadata: Record<string, unknown>
     similarity?: number
-}
-
-interface DriftWarning {
-    id: string
-    attractor_id: string
-    attractor_label: string
-    semantic_distance: number
-    threshold: number
-    source: string
-    status: string
-    created_at: string
 }
 
 function timeAgo(iso: string | undefined | null) {
@@ -96,13 +73,7 @@ const TYPE_STYLE: Record<string, string> = {
 
 export default function MemoryPage() {
     const WS_ID = useWorkspaceId()
-    const { isAdvanced } = useViewMode()
     const [tab, setTab] = useState<Tab>('browse')
-
-    // If user switches to Simple while on Advanced tab, fall back to Browse
-    useEffect(() => {
-        if (!isAdvanced && tab === 'advanced') setTab('browse')
-    }, [isAdvanced, tab])
 
     // Browse state — entries come from SWR below, filters drive the cache key.
     const [typeFilter, setTypeFilter] = useState('')
@@ -137,12 +108,6 @@ export default function MemoryPage() {
     const [searchQ, setSearchQ] = useState('')
     const [searching, setSearching] = useState(false)
     const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
-
-    // Advanced state
-    const [mindset, setMindset] = useState<MindsetObject | null>(null)
-    const [driftWarnings, setDriftWarnings] = useState<DriftWarning[]>([])
-    const [advancedOpen, setAdvancedOpen] = useState(true)
-    const [tuningOpen, setTuningOpen] = useState(false)
 
     // ── Browse ────────────────────────────────────────────────────────────────
 
@@ -244,53 +209,6 @@ export default function MemoryPage() {
         setSearching(false)
     }
 
-    // ── Advanced ──────────────────────────────────────────────────────────────
-
-    const loadAdvanced = useCallback(async () => {
-        if (!WS_ID) return
-        try {
-            const [mindsetRes, driftRes] = await Promise.all([
-                fetch(`${API_BASE}/api/v1/scl-admin/mindset/${WS_ID}`),
-                fetch(`${API_BASE}/api/v1/scl/drift?workspaceId=${WS_ID}`),
-            ])
-            if (mindsetRes.ok) {
-                const data = await mindsetRes.json() as {
-                    mindset_object?: MindsetObject | null
-                    goldenRecord?: MindsetObject | null
-                    taskCount?: number
-                    updatedAt?: string
-                }
-                // Prefer Golden Record (new SCL path) over legacy mindset_object
-                const source = data.goldenRecord ?? data.mindset_object
-                if (source) {
-                    // Merge top-level metadata so the UI shows task count and last update
-                    if (data.taskCount && !source.taskCount) source.taskCount = data.taskCount
-                    if (data.updatedAt && !source.updatedAt) source.updatedAt = data.updatedAt as unknown as string
-                    setMindset(source)
-                }
-            }
-            if (driftRes.ok) {
-                const data = await driftRes.json() as { warnings?: DriftWarning[] }
-                setDriftWarnings((data.warnings ?? []).filter((w: DriftWarning) => w.status === 'pending'))
-            }
-        } catch { /* silent */ }
-    }, [WS_ID])
-
-    useEffect(() => {
-        if (tab === 'advanced') void loadAdvanced()
-    }, [tab, loadAdvanced])
-
-    const resolveDrift = async (id: string, decision: 'confirm' | 'reject') => {
-        try {
-            await fetch(`${API_BASE}/api/v1/scl/drift/${id}/resolve`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ decision, workspaceId: WS_ID }),
-            })
-            void loadAdvanced()
-        } catch { /* silent */ }
-    }
-
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
@@ -325,8 +243,7 @@ export default function MemoryPage() {
                 {([
                     { id: 'browse' as Tab, label: 'Browse', icon: BookOpen },
                     { id: 'search' as Tab, label: 'Search', icon: Search },
-                    ...(isAdvanced ? [{ id: 'advanced' as Tab, label: 'Advanced', icon: Layers }] : []),
-                ]).map(t => (
+                ] as const).map(t => (
                     <button
                         key={t.id}
                         onClick={() => setTab(t.id)}
@@ -338,11 +255,6 @@ export default function MemoryPage() {
                     >
                         <t.icon className="h-3.5 w-3.5" />
                         {t.label}
-                        {t.id === 'advanced' && driftWarnings.length > 0 && (
-                            <span className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber/20 text-[11px] text-amber">
-                                {driftWarnings.length}
-                            </span>
-                        )}
                     </button>
                 ))}
                 <div className="ml-auto pb-1">
@@ -600,125 +512,6 @@ export default function MemoryPage() {
                 </div>
             )}
 
-            {/* ── Advanced Tab ─────────────────────────────────────────────── */}
-            {tab === 'advanced' && (
-                <div className="space-y-6">
-                    {/* MindsetObject Viewer — primary view (9.4) */}
-                    <section>
-                        <button
-                            onClick={() => { setAdvancedOpen(!advancedOpen); if (!advancedOpen) void loadAdvanced() }}
-                            className="flex items-center gap-2 text-sm font-medium text-text-primary hover:text-text-secondary transition-colors"
-                        >
-                            {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            SCL Concept Graph
-                        </button>
-                        {advancedOpen && (
-                            <div className="mt-3">
-                                {mindset && mindset.regions && mindset.regions.length > 0 ? (
-                                    <div className="space-y-4">
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                            {[
-                                                { label: 'Concepts', value: mindset.attractors?.length ?? 0 },
-                                                { label: 'Regions', value: mindset.regions?.length ?? 0 },
-                                                { label: 'Tasks analyzed', value: mindset.taskCount ?? 0 },
-                                                { label: 'Last updated', value: mindset.updatedAt ? new Date(mindset.updatedAt).toLocaleDateString() : '—' },
-                                            ].map(s => (
-                                                <div key={s.label} className="rounded-sm border border-border bg-surface-1/40 p-3">
-                                                    <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">{s.label}</p>
-                                                    <p className="mt-1 text-lg font-medium text-text-primary">{s.value}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="rounded-sm border border-border bg-surface-1/40 p-4">
-                                            <MindsetObjectViewer mindset={mindset} />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-text-muted py-4">No concept data yet. Complete a few tasks to build the knowledge graph.</p>
-                                )}
-                            </div>
-                        )}
-                    </section>
-
-                    {/* Golden Record Dashboard */}
-                    <section className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
-                        <GoldenRecordDashboard workspaceId={WS_ID} />
-                    </section>
-
-                    {/* Region Map */}
-                    <section className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
-                        <RegionMap workspaceId={WS_ID} />
-                    </section>
-
-                    {/* Attractor Browser */}
-                    <section className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
-                        <AttractorBrowser workspaceId={WS_ID} />
-                    </section>
-
-                    {/* Promotion Log */}
-                    <section className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
-                        <PromotionLog workspaceId={WS_ID} />
-                    </section>
-
-                    {/* Advanced SCL Tuning — collapsed by default (9.4) */}
-                    <section className="rounded-sm border border-border/60 bg-surface-1/40">
-                        <button
-                            onClick={() => setTuningOpen((o) => !o)}
-                            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-text-primary hover:text-text-secondary transition-colors"
-                        >
-                            <span>Advanced SCL Tuning</span>
-                            {tuningOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </button>
-                        {tuningOpen && (
-                            <div className="border-t border-border/60 p-4">
-                                <SclConfigPanel workspaceId={WS_ID} />
-                            </div>
-                        )}
-                    </section>
-
-                    {/* Drift Warnings */}
-                    {driftWarnings.length > 0 && (
-                        <section className="rounded-sm border border-amber/30 bg-amber/5 p-4 space-y-3">
-                            <div className="flex items-center gap-2">
-                                <AlertTriangle className="h-4 w-4 text-amber" />
-                                <h3 className="text-sm font-medium text-text-primary">
-                                    {driftWarnings.length} drift warning{driftWarnings.length > 1 ? 's' : ''}
-                                </h3>
-                            </div>
-                            <p className="text-xs text-text-muted">
-                                Foundational concepts are being challenged by new information. Confirm to update, or reject to keep the original.
-                            </p>
-                            <div className="space-y-2">
-                                {driftWarnings.map(w => (
-                                    <div key={w.id} className="flex items-center justify-between rounded-sm border border-border bg-canvas p-3">
-                                        <div>
-                                            <p className="text-sm font-medium text-text-primary">{w.attractor_label}</p>
-                                            <p className="text-xs text-text-muted">
-                                                Distance: {w.semantic_distance.toFixed(3)} (threshold: {w.threshold.toFixed(3)}) · from {w.source} · {timeAgo(w.created_at)}
-                                            </p>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => void resolveDrift(w.id, 'reject')}
-                                                className="rounded-sm border border-border px-2.5 py-1.5 text-sm text-text-muted hover:text-text-secondary"
-                                            >
-                                                Reject
-                                            </button>
-                                            <button
-                                                onClick={() => void resolveDrift(w.id, 'confirm')}
-                                                className="rounded-sm bg-azure px-2.5 py-1.5 text-sm font-medium text-text-primary hover:bg-azure/90"
-                                            >
-                                                Confirm
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
-
-                </div>
-            )}
         </div>
     )
 }

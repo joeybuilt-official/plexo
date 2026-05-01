@@ -38,7 +38,6 @@ import type {
     SafetySnapshot,
     BuildInfo,
     EmbeddingProviderSnapshot,
-    GoldenRecordSnapshot,
     InstructionPersistenceSnapshot,
     LearningLoopSnapshot,
 } from './types.js'
@@ -76,8 +75,7 @@ export function toConversationSnapshot(snap: IntrospectionSnapshot): Record<stri
         memory: memoryFiltered,
         generatedAt: snap.generatedAt,
         // Deliberately omitted (diagnostic-only, causes model to parrot internal state):
-        // embeddingProvider, goldenRecord, instructionPersistence, learningLoop,
-        // cost, safety, build
+        // embeddingProvider, instructionPersistence, learningLoop, cost, safety, build
     }
 }
 
@@ -372,7 +370,10 @@ export async function buildIntrospectionSnapshot(
     let memory: MemorySnapshot = {
         totalEntries: 0,
         byType: {},
+        byTier: {},
         embeddingCoveragePercent: 0,
+        avgConfidence: 0,
+        anchoredCount: 0,
         recentPatterns: [],
         pendingImprovements: 0,
     }
@@ -380,19 +381,36 @@ export async function buildIntrospectionSnapshot(
         const [memStats] = await db.execute<{
             total: string
             with_embedding: string
+            avg_confidence: string | null
+            anchored_count: string
         }>(sql`
             SELECT
                 COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE embedding IS NOT NULL) AS with_embedding
+                COUNT(*) FILTER (WHERE embedding IS NOT NULL) AS with_embedding,
+                AVG(confidence) AS avg_confidence,
+                COUNT(*) FILTER (WHERE is_anchored = true) AS anchored_count
             FROM memory_entries
             WHERE workspace_id = ${workspaceId}::uuid
+              AND (invalid_at IS NULL OR invalid_at > NOW())
+              AND superseded_by IS NULL
         `)
 
         const byTypeRows = await db.execute<{ type: string; count: string }>(sql`
             SELECT type, COUNT(*) AS count
             FROM memory_entries
             WHERE workspace_id = ${workspaceId}::uuid
+              AND (invalid_at IS NULL OR invalid_at > NOW())
+              AND superseded_by IS NULL
             GROUP BY type
+        `)
+
+        const byTierRows = await db.execute<{ tier: string; count: string }>(sql`
+            SELECT tier, COUNT(*) AS count
+            FROM memory_entries
+            WHERE workspace_id = ${workspaceId}::uuid
+              AND (invalid_at IS NULL OR invalid_at > NOW())
+              AND superseded_by IS NULL
+            GROUP BY tier
         `)
 
         const [pendingRow] = await db.execute<{ pending: string }>(sql`
@@ -414,11 +432,16 @@ export async function buildIntrospectionSnapshot(
         const withEmbedding = Number(memStats?.with_embedding ?? 0)
         const byType: Record<string, number> = {}
         for (const r of byTypeRows) byType[r.type] = Number(r.count)
+        const byTier: Record<string, number> = {}
+        for (const r of byTierRows) byTier[r.tier] = Number(r.count)
 
         memory = {
             totalEntries: total,
             byType,
+            byTier,
             embeddingCoveragePercent: total > 0 ? Math.round((withEmbedding / total) * 100) : 0,
+            avgConfidence: memStats?.avg_confidence != null ? Math.round(Number(memStats.avg_confidence) * 100) / 100 : 0,
+            anchoredCount: Number(memStats?.anchored_count ?? 0),
             recentPatterns: patternRows.map((r) => r.description),
             pendingImprovements: Number(pendingRow?.pending ?? 0),
         }
@@ -522,58 +545,6 @@ export async function buildIntrospectionSnapshot(
         }
     } catch { /* non-fatal */ }
 
-    // ── Golden Record health ─────────────────────────────────────────────────
-    let goldenRecord: GoldenRecordSnapshot | null = null
-    try {
-        const [grRow] = await db.execute<{
-            attractor_count: string
-            total_mutations: string
-            last_mutated: string | null
-            spirit_count: string
-            mechanics_count: string
-        }>(sql`
-            SELECT
-                jsonb_array_length(COALESCE(golden_record->'attractors', '[]'::jsonb)) AS attractor_count,
-                COALESCE((
-                    SELECT SUM((a->>'mutationCount')::int)
-                    FROM jsonb_array_elements(golden_record->'attractors') AS a
-                ), 0) AS total_mutations,
-                golden_record->>'lastMutatedAt' AS last_mutated,
-                COALESCE((
-                    SELECT COUNT(*)
-                    FROM jsonb_array_elements(golden_record->'attractors') AS a
-                    WHERE a->>'depthClass' = 'spirit'
-                ), 0) AS spirit_count,
-                COALESCE((
-                    SELECT COUNT(*)
-                    FROM jsonb_array_elements(golden_record->'attractors') AS a
-                    WHERE a->>'depthClass' = 'mechanics'
-                ), 0) AS mechanics_count
-            FROM workspace_mindsets
-            WHERE workspace_id = ${workspaceId}::uuid
-              AND golden_record IS NOT NULL
-        `)
-
-        if (grRow) {
-            const [driftRow] = await db.execute<{ pending: string }>(sql`
-                SELECT COUNT(*) AS pending
-                FROM scl_drift_warnings
-                WHERE workspace_id = ${workspaceId}::uuid
-                  AND status = 'pending'
-            `)
-
-            const lastMutatedTs = grRow.last_mutated ? Number(grRow.last_mutated) : null
-            goldenRecord = {
-                attractorCount: Number(grRow.attractor_count),
-                mutationCount: Number(grRow.total_mutations),
-                lastMutatedAt: lastMutatedTs ? new Date(lastMutatedTs).toISOString() : null,
-                spiritAnchorCount: Number(grRow.spirit_count),
-                mechanicsCount: Number(grRow.mechanics_count),
-                driftWarningsPending: Number(driftRow?.pending ?? 0),
-            }
-        }
-    } catch { /* non-fatal */ }
-
     // ── Instruction persistence health ───────────────────────────────────────
     const instructionPersistence: InstructionPersistenceSnapshot = {
         healthy: true,
@@ -601,25 +572,6 @@ export async function buildIntrospectionSnapshot(
         lastSuccessfulMutationAt: null,
     }
     try {
-        // Check when the Golden Record was last actually mutated (not just booted)
-        const [grMutRow] = await db.execute<{ total_mutations: string; last_mutated: string | null }>(sql`
-            SELECT
-                COALESCE((
-                    SELECT SUM((a->>'mutationCount')::int)
-                    FROM jsonb_array_elements(golden_record->'attractors') AS a
-                ), 0) AS total_mutations,
-                golden_record->>'lastMutatedAt' AS last_mutated
-            FROM workspace_mindsets
-            WHERE workspace_id = ${workspaceId}::uuid
-              AND golden_record IS NOT NULL
-        `)
-        if (grMutRow) {
-            const lastTs = grMutRow.last_mutated ? Number(grMutRow.last_mutated) : null
-            const totalMut = Number(grMutRow.total_mutations)
-            learningLoop.conversationMutationsLast24h = totalMut // approximate — we don't track source
-            learningLoop.lastSuccessfulMutationAt = lastTs && totalMut > 0 ? new Date(lastTs).toISOString() : null
-        }
-
         // Task reflections: count work_ledger entries with quality_score in last 24h
         const [reflRow] = await db.execute<{ count: string }>(sql`
             SELECT COUNT(*) AS count
@@ -702,7 +654,6 @@ export async function buildIntrospectionSnapshot(
         builtinTools: [...BUILTIN_TOOLS],
         memory,
         embeddingProvider,
-        goldenRecord,
         instructionPersistence,
         learningLoop,
         domainMastery,

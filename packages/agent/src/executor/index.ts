@@ -735,42 +735,6 @@ Declare a "kind" so the user gets the right renderer:
                 const { push } = await import('@plexo/queue')
                 const { tasks: tasksTable } = await import('@plexo/db')
 
-                // SCL-D: compress handoff context via MindsetObject when available
-                let sclContext: Record<string, unknown> | undefined
-                if (ctx.workspaceId) {
-                    try {
-                        const mindsetRows = await db.execute<{ mindset_object: unknown }>(sql`
-                            SELECT mindset_object FROM workspace_mindsets
-                            WHERE workspace_id = ${ctx.workspaceId}::uuid LIMIT 1
-                        `)
-                        const mindset = mindsetRows[0]?.mindset_object as import('../scl/types.js').MindsetObject | undefined
-                        if (mindset && Array.isArray(mindset.regions) && mindset.regions.length > 0) {
-                            const { expandMindsetObject } = await import('../scl/expander.js')
-                            const { classifyDomainRegion } = await import('../scl/classifier.js')
-                            const taskType = classifyDomainRegion(instructions, 'general')
-                            const expanded = expandMindsetObject(mindset, { taskDescription: instructions, taskType })
-                            sclContext = {
-                                relevantPatterns: expanded.relevantPatterns,
-                                suggestedTools: expanded.suggestedTools,
-                                domainKnowledge: expanded.domainKnowledge,
-                            }
-                            // Log token savings: raw prose estimate vs. compressed expanded context
-                            const rawTokenEstimate = Math.ceil(JSON.stringify({ instructions, ...context }).length / 4) + 2000
-                            await db.execute(sql`
-                                INSERT INTO inference_logs
-                                    (instance_uuid, model, provider, input_tokens, output_tokens, latency_ms,
-                                     domain_region, task_type, success, context_budget_used, workspace_id)
-                                VALUES (${process.env.PLEXO_INSTANCE_ID ?? 'unknown'}, 'scl-expander', 'scl',
-                                        ${rawTokenEstimate}, ${expanded.tokenCount}, 0,
-                                        ${taskType}, 'handoff', true, ${expanded.tokenCount}, ${ctx.workspaceId}::uuid)
-                            `)
-                            logger.info({ rawTokens: rawTokenEstimate, expandedTokens: expanded.tokenCount, savedTokens: rawTokenEstimate - expanded.tokenCount }, 'SCL handoff compression applied')
-                        }
-                    } catch (sclErr) {
-                        logger.warn({ err: sclErr }, 'SCL handoff compression failed — using raw context')
-                    }
-                }
-
                 const childId = await push({
                     workspaceId: ctx.workspaceId,
                     type: 'general',
@@ -779,7 +743,6 @@ Declare a "kind" so the user gets the right renderer:
                         description: instructions,
                         agentId: agentId ?? null,
                         ...context,
-                        ...(sclContext ? { sclContext } : {}),
                     },
                     parentId: ctx.taskId,
                 })

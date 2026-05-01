@@ -52,8 +52,14 @@ export interface MemorySnapshot {
     totalEntries: number
     /** Count per memory type */
     byType: Record<string, number>
+    /** Count per tier: hot, active, cold */
+    byTier: Record<string, number>
     /** Percentage of entries that have embeddings (0–100) */
     embeddingCoveragePercent: number
+    /** Average confidence across all entries (0–1) */
+    avgConfidence: number
+    /** Number of anchored (is_anchored = true) entries */
+    anchoredCount: number
     /** Descriptions of the 3 most recent improvement patterns */
     recentPatterns: string[]
     /** Pending improvement proposals not yet applied */
@@ -95,15 +101,6 @@ export interface EmbeddingProviderSnapshot {
     dimensions: number | null
     status: 'active' | 'not-configured' | 'credential-invalid' | 'fallback-hash'
     message: string | null
-}
-
-export interface GoldenRecordSnapshot {
-    attractorCount: number
-    mutationCount: number
-    lastMutatedAt: string | null
-    spiritAnchorCount: number
-    mechanicsCount: number
-    driftWarningsPending: number
 }
 
 export interface InstructionPersistenceSnapshot {
@@ -157,7 +154,6 @@ export interface IntrospectionSnapshot {
     builtinTools: string[]
     memory: MemorySnapshot
     embeddingProvider: EmbeddingProviderSnapshot
-    goldenRecord: GoldenRecordSnapshot | null
     instructionPersistence: InstructionPersistenceSnapshot
     learningLoop: LearningLoopSnapshot
     /** Domain mastery — per-domain quality trends and learning health. Null when disabled. */

@@ -15,7 +15,6 @@
     "@plexo/db": "workspace:*",
     "@plexo/logger": "workspace:*",
     "@plexo/queue": "workspace:*",
-    "@plexo/scl-core": "workspace:*",
     "@plexo/sdk": "workspace:*",
     "@plexo/storage": "workspace:*",
     "@types/pg": "^8.20.0",

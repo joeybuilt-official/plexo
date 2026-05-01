@@ -53,8 +53,6 @@ import { publicSkillsRouter } from './routes/public-skills.js'
 import { auditRouter } from './routes/audit.js'
 import { extensionAuditRouter } from './routes/extension-audit.js'
 import { escalationRouter } from './routes/escalation.js'
-import { sclAdminRouter } from './routes/scl-admin.js'
-import { sclRouter } from './routes/scl.js'
 import { foundryRouter } from './routes/foundry.js'
 import { trainingDataRouter } from './routes/training-data.js'
 import { standingApprovalsRouter } from './routes/standing-approvals.js'
@@ -298,14 +296,6 @@ v1.use('/hub', hubRouter) // in-app Hub catalog — per-handler workspace check
 v1.use('/audit', requireWorkspaceMember('workspaceId'), auditRouter)
 v1.use('/extension-audit', requireWorkspaceMember('workspaceId'), extensionAuditRouter)
 v1.use('/escalations', requireWorkspaceMember('workspaceId'), escalationRouter)
-// UI-audit Phase 6: the admin router (mindset / inference-logs /
-// scl-graphs / compress / expand) lives on a distinct prefix so it
-// cannot silently shadow the public /scl router. Update both
-// frontend callers (AttractorBrowser, PromotionLog, RegionMap,
-// memory/page.tsx, tasks/[id]/_scl-disclosure.tsx) and keep the
-// public router on /scl unchanged.
-v1.use('/scl-admin', requireSuperAdmin, sclAdminRouter)
-v1.use('/scl', sclRouter)
 v1.use('/foundry', requireSuperAdmin, foundryRouter)
 v1.use('/admin/training-data', requireSuperAdmin, trainingDataRouter)
 v1.use('/standing-approvals', standingApprovalsRouter)
@@ -569,22 +559,30 @@ const server = app.listen(port, '0.0.0.0', async () => {
     })()
 
     // Background Sync
-    void runCronJobs()
-    setInterval(() => { void runCronJobs() }, 24 * 60 * 60 * 1000).unref()
+    if (process.env.PLEXO_DISABLE_CRONS !== '1') {
+        void runCronJobs()
+        setInterval(() => { void runCronJobs() }, 24 * 60 * 60 * 1000).unref()
+    } else {
+        logger.warn('Background runCronJobs disabled via PLEXO_DISABLE_CRONS=1')
+    }
 
     // Schedule automatic memory consolidation (every 6h, first run after 5m)
     scheduleMemoryConsolidation()
 
     // Event-driven consolidation: also consolidate when task count exceeds threshold
-    void import('@plexo/agent/memory/consolidation')
-        .then(({ initConsolidationListener }) => initConsolidationListener())
-        .catch(() => { /* non-fatal — event bus may not be ready */ })
+    if (process.env.PLEXO_DISABLE_CRONS !== '1') {
+        void import('@plexo/agent/memory/consolidation')
+            .then(({ initConsolidationListener }) => initConsolidationListener())
+            .catch(() => { /* non-fatal — event bus may not be ready */ })
+    }
 
     // Schedule RSI monitor every 6h (first run after 7m so it doesn't contend with memory consolidation)
-    setTimeout(() => {
-        void runRSIMonitor()
-        setInterval(() => { void runRSIMonitor() }, 6 * 60 * 60 * 1000).unref()
-    }, 7 * 60 * 1000)
+    if (process.env.PLEXO_DISABLE_CRONS !== '1') {
+        setTimeout(() => {
+            void runRSIMonitor()
+            setInterval(() => { void runRSIMonitor() }, 6 * 60 * 60 * 1000).unref()
+        }, 7 * 60 * 1000)
+    }
 
     // Seed default cron rows per workspace in one batch INSERT (avoids N+1 at startup)
     void db.execute(sql`

@@ -28,7 +28,8 @@ import { withFallback, PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/
 import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } from '@plexo/agent/providers/vision'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { runSprint } from '@plexo/agent/sprint/runner'
-import { storeMemory, rememberInstruction, searchMemory } from '@plexo/agent/memory/store'
+import { storeMemory, rememberInstruction } from '@plexo/agent/memory/store'
+import { queryMemory } from '@plexo/agent/memory/query'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { setPreference } from '@plexo/agent/memory/preferences'
 import {
@@ -613,10 +614,12 @@ chatRouter.post('/message', async (req, res) => {
         let memoryContext: string | null = null
         if (!skipRecallForTrivial && trimmedMsg.length >= 10) {
             try {
-                const hits = await searchMemory({
+                const hits = await queryMemory({
                     workspaceId,
-                    query: trimmedMsg,
+                    userId: req.user?.id,
+                    queryText: trimmedMsg,
                     limit: 5,
+                    aiSettings,
                 })
                 if (hits.length > 0) {
                     memoryContext = '=== RELEVANT MEMORY ===\n' + hits.map(h =>

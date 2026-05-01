@@ -12,6 +12,45 @@ import { createXai } from '@ai-sdk/xai'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createHash } from 'crypto'
 
+// Per-call undici Agent for Anthropic. The process-wide global Pool can
+// accumulate stuck sockets under load (cron loops failing against unreachable
+// endpoints), so each Anthropic call gets a fresh dispatcher to avoid
+// inheriting that corruption.
+//
+// Lazy-imported because undici may be a vendored bind-mount that doesn't
+// resolve at static-import time in test environments.
+type UndiciAgentCtor = new (opts: Record<string, unknown>) => unknown
+let cachedUndiciAgent: UndiciAgentCtor | null = null
+let undiciLoadAttempted = false
+async function loadUndiciAgent(): Promise<UndiciAgentCtor | null> {
+    if (cachedUndiciAgent) return cachedUndiciAgent
+    if (undiciLoadAttempted) return null
+    undiciLoadAttempted = true
+    try {
+        const mod = await import('undici')
+        cachedUndiciAgent = (mod as { Agent: UndiciAgentCtor }).Agent
+        return cachedUndiciAgent
+    } catch {
+        return null
+    }
+}
+
+function buildAnthropicFetch(): typeof globalThis.fetch {
+    return (async (url: any, init: any) => {
+        const Agent = await loadUndiciAgent()
+        if (!Agent) return globalThis.fetch(url, init)
+        const dispatcher = new Agent({
+            connectTimeout: 60_000,
+            headersTimeout: 120_000,
+            bodyTimeout: 120_000,
+            pipelining: 0,
+            keepAliveTimeout: 1,
+            keepAliveMaxTimeout: 1,
+        })
+        return globalThis.fetch(url, { ...(init ?? {}), dispatcher } as any)
+    }) as unknown as typeof globalThis.fetch
+}
+
 /**
  * DeepSeek-latency fix: createDeepSeek() (and other Vercel AI SDK provider
  * factories) each instantiate a fresh fetch client and HTTP agent. Calling
@@ -369,7 +408,7 @@ export function buildModel(
         }
         case 'anthropic': {
             const provider = config.apiKey
-                ? createAnthropic({ apiKey: config.apiKey })
+                ? createAnthropic({ apiKey: config.apiKey, fetch: buildAnthropicFetch() as any })
                 : anthropic
             return provider(modelId)
         }
