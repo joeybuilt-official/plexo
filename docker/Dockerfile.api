@@ -48,7 +48,6 @@ COPY packages/sdk/package.json          packages/sdk/
 COPY packages/logger/package.json       packages/logger/
 COPY packages/storage/package.json      packages/storage/
 COPY packages/ui/package.json           packages/ui/
-COPY packages/scl-core/package.json    packages/scl-core/
 
 # Native build deps so sharp prebuild fetch + onnxruntime-node prebuild
 # fetch can fall through to source compile if needed.
