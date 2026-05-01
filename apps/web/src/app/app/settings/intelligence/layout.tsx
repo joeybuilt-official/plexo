@@ -35,11 +35,7 @@ import {
     ListOrdered,
     Boxes,
     Database,
-    BrainCircuit,
     Sparkles,
-    AlertTriangle,
-    Wand2,
-    Network,
     Server,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -51,12 +47,6 @@ import {
     useChains,
     useModelCatalog,
 } from '@web/lib/intelligence-client'
-import {
-    useSclSettings,
-    useDriftWarnings,
-    useRsiProposals,
-    useAttractors,
-} from '@web/lib/scl-client'
 import { useMemoryNamespaces } from '@web/lib/memory-client'
 import { useDetect } from '@web/lib/intelligence-dashboard-client'
 
@@ -89,7 +79,7 @@ interface NavItem {
     status: string
     badge?: number
     exact?: boolean
-    group: 'providers' | 'routing' | 'memory' | 'scl' | 'advanced'
+    group: 'providers' | 'routing' | 'memory' | 'advanced'
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -123,7 +113,6 @@ const GROUP_LABELS: Record<NavItem['group'], string> = {
     providers: 'Providers',
     routing: 'Routing',
     memory: 'Memory',
-    scl: 'Semantic Concept Lattice',
     advanced: 'Advanced',
 }
 
@@ -171,16 +160,6 @@ export default function IntelligenceLayout({ children }: { children: ReactNode }
 
     // 6. Memory namespace/tier counts
     const { data: namespacesData } = useMemoryNamespaces(workspaceId)
-
-    // 7. SCL settings
-    const { data: sclData } = useSclSettings(workspaceId)
-
-    // 8/9. Drift + RSI pending counts
-    const { data: driftData } = useDriftWarnings(workspaceId, 'pending')
-    const { data: rsiData } = useRsiProposals(workspaceId, 'pending')
-
-    // 10. Attractors
-    const { data: attractorsData } = useAttractors(workspaceId, { limit: 1 })
 
     // ── Derived status strings ──────────────────────────────────────────
 
@@ -258,28 +237,6 @@ export default function IntelligenceLayout({ children }: { children: ReactNode }
         return `${hot} hot · ${active} active · ${cold} cold`
     }, [namespacesData])
 
-    // SCL — always on
-    const sclStatus = useMemo(() => {
-        if (!sclData) return '—'
-        const { driftThreshold, expandDepth } = sclData.settings
-        return `On · drift ${driftThreshold} · depth ${expandDepth}`
-    }, [sclData])
-
-    // Drift + RSI
-    const driftPending = driftData?.warnings?.length ?? 0
-    const rsiPending = rsiData?.proposals?.length ?? 0
-    const driftStatus = driftData ? `${driftPending} pending` : '—'
-    const rsiStatus = rsiData ? `${rsiPending} pending` : '—'
-
-    // Attractors
-    const attractorsStatus = useMemo(() => {
-        if (!attractorsData) return '—'
-        // Mindsets: we don't have a direct count; fall back to total of
-        // distinct mindset objects being 1:1 with attractors in v1.
-        const total = attractorsData.total ?? 0
-        return `${total} attractors · ${total} mindsets`
-    }, [attractorsData])
-
     // Self-hosted
     const selfHostedStatus = useMemo(() => {
         if (!providersData) return '—'
@@ -334,39 +291,6 @@ export default function IntelligenceLayout({ children }: { children: ReactNode }
                 group: 'memory',
             },
         ]
-        items.push(
-            {
-                href: '/app/settings/intelligence/scl',
-                label: 'SCL settings',
-                icon: BrainCircuit,
-                status: sclStatus,
-                group: 'scl',
-                exact: true,
-            },
-            {
-                href: '/app/settings/intelligence/scl/drift',
-                label: 'Drift inbox',
-                icon: AlertTriangle,
-                status: driftStatus,
-                badge: driftPending,
-                group: 'scl',
-            },
-            {
-                href: '/app/settings/intelligence/scl/rsi',
-                label: 'RSI proposals',
-                icon: Wand2,
-                status: rsiStatus,
-                badge: rsiPending,
-                group: 'scl',
-            },
-            {
-                href: '/app/settings/intelligence/scl/attractors',
-                label: 'Attractors',
-                icon: Network,
-                status: attractorsStatus,
-                group: 'scl',
-            },
-        )
         items.push({
             href: '/app/settings/intelligence/self-hosted',
             label: 'Self-hosted servers',
@@ -382,18 +306,12 @@ export default function IntelligenceLayout({ children }: { children: ReactNode }
         modelsStatus,
         embeddingsStatus,
         memoryStatus,
-        sclStatus,
-        driftStatus,
-        driftPending,
-        rsiStatus,
-        rsiPending,
-        attractorsStatus,
         selfHostedStatus,
     ])
 
     // Group rows while preserving order
     const grouped = useMemo(() => {
-        const order: NavItem['group'][] = ['providers', 'routing', 'memory', 'scl', 'advanced']
+        const order: NavItem['group'][] = ['providers', 'routing', 'memory', 'advanced']
         const map = new Map<NavItem['group'], NavItem[]>()
         for (const g of order) map.set(g, [])
         for (const item of nav) map.get(item.group)!.push(item)
@@ -413,7 +331,7 @@ export default function IntelligenceLayout({ children }: { children: ReactNode }
                 <div className="min-w-0">
                     <h1 className="text-2xl font-medium text-text-primary">AI &amp; Memory</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
-                        Providers, routing, memory, and semantic context — all in one place
+                        Providers, routing, and memory — all in one place
                     </p>
                 </div>
             </div>

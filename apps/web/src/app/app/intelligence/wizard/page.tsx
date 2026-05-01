@@ -27,7 +27,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
     Loader2, CheckCircle2, XCircle, HelpCircle, Wand2, Database,
-    BrainCircuit, Network, DollarSign, Sparkles, ArrowRight, ArrowLeft,
+    Network, DollarSign, Sparkles, ArrowRight, ArrowLeft,
     Search, Check, Circle,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
@@ -39,9 +39,7 @@ import {
     patchInferenceMode, patchCostCeiling,
     type InferenceMode,
 } from '@web/lib/intelligence-client'
-import { patchSclSettings } from '@web/lib/scl-client'
-
-type StepKey = 'detect' | 'embeddings' | 'routing' | 'scl' | 'budget' | 'done'
+type StepKey = 'detect' | 'embeddings' | 'routing' | 'budget' | 'done'
 
 interface StepDef {
     key: StepKey
@@ -52,9 +50,8 @@ interface StepDef {
 
 const STEPS: StepDef[] = [
     { key: 'detect',     title: 'Detect',     blurb: 'See what\'s available',    icon: Search },
-    { key: 'embeddings', title: 'Embeddings', blurb: 'Power memory & SCL',       icon: Database },
+    { key: 'embeddings', title: 'Embeddings', blurb: 'Power memory & search',    icon: Database },
     { key: 'routing',    title: 'Routing',    blurb: 'Pick how Plexo picks',     icon: Network },
-    { key: 'scl',        title: 'Memory',     blurb: 'Concept clustering',       icon: BrainCircuit },
     { key: 'budget',     title: 'Budget',     blurb: 'Set your monthly ceiling', icon: DollarSign },
     { key: 'done',       title: 'Finish',     blurb: 'Land on the dashboard',    icon: Sparkles },
 ]
@@ -71,7 +68,6 @@ export default function FirstRunWizardPage() {
 
     const [embeddingsChoice, setEmbeddingsChoice] = useState<string | null>(null)
     const [inferenceMode, setInferenceMode] = useState<InferenceMode>('auto')
-    const [sclEnabled] = useState(true)
     const [budgetUsd, setBudgetUsd] = useState<number>(20)
 
     const { data: detect, isLoading: detectLoading, mutate: refetchDetect } = useDetect(wsId)
@@ -106,8 +102,6 @@ export default function FirstRunWizardPage() {
                 goNext()
             } else if (step === 'routing') {
                 await patchInferenceMode(wsId, inferenceMode); goNext()
-            } else if (step === 'scl') {
-                await patchSclSettings(wsId, { enabled: sclEnabled }); goNext()
             } else if (step === 'budget') {
                 await patchCostCeiling(wsId, { ceilingUsd: budgetUsd, mode: 'soft_warn' }); goNext()
             } else {
@@ -238,7 +232,6 @@ export default function FirstRunWizardPage() {
                                             setEmbeddingsChoice(d.recommendations.embeddingsProvider)
                                         }
                                         setInferenceMode((d.recommendations.inferenceMode as InferenceMode) ?? 'auto')
-                                        // SCL always on — ignore recommendation
                                         setBudgetUsd(d.recommendations.costCeilingUsd ?? 20)
                                     }}
                                     onRefresh={() => refetchDetect()}
@@ -252,7 +245,6 @@ export default function FirstRunWizardPage() {
                                 />
                             )}
                             {step === 'routing' && <RoutingStep mode={inferenceMode} onChange={setInferenceMode} />}
-                            {step === 'scl' && <SclStep enabled={sclEnabled} onChange={() => {}} />}
                             {step === 'budget' && <BudgetStep value={budgetUsd} onChange={setBudgetUsd} />}
                             {step === 'done' && <DoneStep />}
 
@@ -560,38 +552,7 @@ function RoutingStep({ mode, onChange }: { mode: InferenceMode; onChange: (m: In
     )
 }
 
-// ── Step 4 — SCL ────────────────────────────────────────────────────────
-
-function SclStep({ enabled, onChange }: { enabled: boolean; onChange: (b: boolean) => void }) {
-    return (
-        <div>
-            <StepHeader
-                icon={BrainCircuit}
-                title="Semantic Concept Lattice (SCL)"
-                body="SCL clusters your workspace memory into concept attractors so the agent can recall related ideas, not just exact matches. Off is fine for hobbyists; on is recommended for power users."
-            />
-            <div className="grid gap-3 sm:grid-cols-2">
-                <ChoiceTile
-                    icon={Circle}
-                    active={!enabled}
-                    onClick={() => onChange(false)}
-                    title="Off"
-                    badge="Default"
-                    body="Skip SCL. Memory still works — recall is plain vector similarity."
-                />
-                <ChoiceTile
-                    icon={BrainCircuit}
-                    active={enabled}
-                    onClick={() => onChange(true)}
-                    title="On"
-                    body="Enable concept clustering, drift triage, RSI proposals. Adds light background work."
-                />
-            </div>
-        </div>
-    )
-}
-
-// ── Step 5 — budget ─────────────────────────────────────────────────────
+// ── Step 4 — budget ─────────────────────────────────────────────────────
 
 function BudgetStep({ value, onChange }: { value: number; onChange: (n: number) => void }) {
     const presets = [5, 20, 100, 500]

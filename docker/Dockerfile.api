@@ -99,7 +99,6 @@ COPY --from=deps /app/packages/db/node_modules     ./packages/db/node_modules
 COPY --from=deps /app/packages/queue/node_modules  ./packages/queue/node_modules
 COPY --from=deps /app/packages/sdk/node_modules    ./packages/sdk/node_modules
 COPY --from=deps /app/packages/logger/node_modules    ./packages/logger/node_modules
-COPY --from=deps /app/packages/scl-core/node_modules  ./packages/scl-core/node_modules
 COPY --from=deps /app/packages/storage/node_modules    ./packages/storage/node_modules
 
 # Source files
@@ -110,7 +109,6 @@ COPY packages/db     ./packages/db
 COPY packages/queue  ./packages/queue
 COPY packages/sdk    ./packages/sdk
 COPY packages/logger   ./packages/logger
-COPY packages/scl-core ./packages/scl-core
 COPY packages/storage  ./packages/storage
 
 # Bundled reference extensions (Phase 5) — activate() entry points loaded by

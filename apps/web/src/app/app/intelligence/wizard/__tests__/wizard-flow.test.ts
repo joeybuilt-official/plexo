@@ -19,7 +19,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 import { completeWizard } from '../../../../../lib/intelligence-dashboard-client'
 
-const STEP_ORDER = ['detect', 'embeddings', 'routing', 'scl', 'budget', 'done'] as const
+const STEP_ORDER = ['detect', 'embeddings', 'routing', 'budget', 'done'] as const
 type StepKey = typeof STEP_ORDER[number]
 
 function next(step: StepKey): StepKey {
@@ -33,14 +33,14 @@ function prev(step: StepKey): StepKey {
 }
 
 describe('Phase 6 — wizard step ordering', () => {
-    it('walks detect → embeddings → routing → scl → budget → done', () => {
+    it('walks detect → embeddings → routing → budget → done', () => {
         const seen: StepKey[] = []
         let s: StepKey = 'detect'
         for (let i = 0; i < STEP_ORDER.length; i++) {
             seen.push(s)
             s = next(s)
         }
-        expect(seen).toEqual(['detect', 'embeddings', 'routing', 'scl', 'budget', 'done'])
+        expect(seen).toEqual(['detect', 'embeddings', 'routing', 'budget', 'done'])
     })
 
     it('next() saturates at done', () => {
@@ -58,7 +58,7 @@ describe('Phase 6 — wizard step ordering', () => {
             seen.push(s)
             s = prev(s)
         }
-        expect(seen).toEqual(['done', 'budget', 'scl', 'routing', 'embeddings', 'detect'])
+        expect(seen).toEqual(['done', 'budget', 'routing', 'embeddings', 'detect'])
     })
 })
 
