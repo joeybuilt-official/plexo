@@ -20,7 +20,6 @@
  */
 
 import pino from 'pino'
-import { z } from 'zod'
 import { db, sql } from '@plexo/db'
 import {
     isSafetyBypass,
@@ -195,132 +194,12 @@ export async function extractConversationMemory(params: {
         void extractPersonalFacts(workspaceId, userMessage, assistantReply, aiSettings ?? undefined)
             .catch((e: unknown) => logger.debug({ err: e }, 'Personal fact extraction skipped'))
 
-        // SCL: mutate Golden Record from conversation knowledge (fire-and-forget)
-        void mutateFromConversation(workspaceId, userMessage, assistantReply)
-            .catch((e: unknown) => logger.warn({ err: e, workspaceId }, 'SCL mutateFromConversation: fire-and-forget failed'))
+        // Phase 3: extract structured facts fire-and-forget after response is sent
+        void import('./extract-worker.js').then(m => m.extractTurn({ workspaceId, userMessage, assistantReply, sessionId, source }))
+            .catch((e: unknown) => logger.warn({ err: e, workspaceId }, 'extract-worker: fire-and-forget failed'))
     } catch (err) {
         logger.warn({ err, workspaceId }, 'Failed to extract conversation memory')
     }
-}
-
-// ── Conversation → SCL Golden Record Mutation ────────────────────────────────
-
-/**
- * Extract concepts from a conversation turn and mutate the Golden Record.
- * Uses a cheap model for extraction and the embedding provider for vectors.
- * Skips silently if SCL is not enabled or no embedding key available.
- */
-async function mutateFromConversation(
-    workspaceId: string,
-    userMessage: string,
-    assistantReply: string,
-): Promise<void> {
-    logger.info({ workspaceId, inputLen: userMessage.length + assistantReply.length }, 'SCL mutateFromConversation: starting')
-
-    const { isSclEnabled, loadGoldenRecord, saveGoldenRecord, loadSclMutationConfig } = await import('../scl/storage.js')
-    if (!(await isSclEnabled(workspaceId))) {
-        logger.info({ workspaceId }, 'SCL mutateFromConversation: SCL not enabled — skipping')
-        return
-    }
-
-    const record = await loadGoldenRecord(workspaceId)
-    if (!record) {
-        logger.info({ workspaceId }, 'SCL mutateFromConversation: no Golden Record — skipping')
-        return
-    }
-
-    const { mutate } = await import('@plexo/scl-core')
-    const { resolveEmbeddingProvider } = await import('../scl/embedding-provider.js')
-    const embProvider = await resolveEmbeddingProvider(workspaceId)
-
-    // Use workspace-aware model resolution to avoid falling through to Ollama env fallback
-    const { callModel } = await import('../providers/call-model.js')
-    const { resolveModel, resolveModelFromEnv } = await import('../providers/registry.js')
-    const { loadSettingsFromInstances } = await import('../providers/settings-from-instances.js')
-
-    // Resolve model from workspace's configured providers (not env vars)
-    let model: ReturnType<typeof resolveModelFromEnv>
-    let provider = 'env-fallback'
-    try {
-        const settings = await loadSettingsFromInstances(workspaceId)
-        if (settings) {
-            const resolved = await resolveModel('summarization', settings, workspaceId)
-            model = resolved.model
-            provider = resolved.meta.provider
-        } else {
-            model = resolveModelFromEnv()
-        }
-    } catch {
-        model = resolveModelFromEnv()
-    }
-
-    // Extract concepts from conversation — lightweight prompt, max 2 concepts
-    // Uses structured output (Zod schema) so the SDK handles parse + retry,
-    // matching the pattern in reflect-scl.ts. No manual JSON.parse needed.
-    const ConversationConceptSchema = z.object({
-        concepts: z.array(z.object({
-            label: z.string().min(1),
-            type: z.string(),
-        })),
-    })
-
-    let parsed: { concepts: Array<{ label: string; type: string }> }
-    try {
-        const { object } = await callModel({
-            model,
-            provider,
-            system: `You are a JSON-only extraction API. Respond with ONLY valid JSON — no reasoning, no explanation, no text before or after the JSON object.\nExtract 0-2 reusable knowledge concepts from the conversation. Return {"concepts":[]} if nothing is worth extracting.`,
-            messages: [{
-                role: 'user',
-                content: `User: ${userMessage.slice(0, 300)}\nAssistant: ${assistantReply.slice(0, 300)}`,
-            }],
-            maxTokens: 150,
-            schema: ConversationConceptSchema,
-            schemaName: 'ConversationConcepts',
-            schemaDescription: 'Extracted concepts from a conversation turn.',
-        })
-        parsed = object
-    } catch (err) {
-        logger.warn({ err, workspaceId, inputLen: userMessage.length + assistantReply.length }, 'SCL mutateFromConversation: concept extraction failed')
-        return
-    }
-
-    if (!parsed.concepts.length) {
-        logger.info({ workspaceId, inputLen: userMessage.length + assistantReply.length }, 'SCL mutateFromConversation: 0 concepts extracted — nothing worth remembering')
-        return
-    }
-
-    // Embed and mutate
-    const concepts = []
-    for (const c of parsed.concepts.slice(0, 2)) {
-        try {
-            const position = await embProvider.embed(c.label)
-            concepts.push({ label: c.label, type: c.type as any, position })
-        } catch { /* skip failed embeddings */ }
-    }
-
-    if (concepts.length === 0) {
-        logger.info({ workspaceId }, 'SCL mutateFromConversation: all embeddings failed — no concepts to mutate')
-        return
-    }
-
-    // Load workspace SCL config overrides (user-tuned thresholds from UI)
-    const sclConfigOverride = await loadSclMutationConfig(workspaceId)
-
-    const result = mutate(record, {
-        source: 'conversation',
-        concepts,
-        relations: [],
-    }, sclConfigOverride)
-
-    await saveGoldenRecord(workspaceId, record)
-
-    logger.info({
-        workspaceId,
-        conceptsExtracted: concepts.length,
-        created: result.attractorsCreated,
-        refined: result.attractorsRefined,
-    }, 'SCL mutateFromConversation: mutation applied')
 }
 
 /**
