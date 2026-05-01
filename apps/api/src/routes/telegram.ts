@@ -36,7 +36,7 @@ import { db, eq, sql } from '@plexo/db'
 import { channels, sprints } from '@plexo/db'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { ulid } from 'ulid'
-import { chatWithAI, classifyIntent, ChannelChatHistory, hasRecallIntent, recallPriorConversation, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
+import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import {
     recordConversation,
@@ -50,7 +50,6 @@ import { markTaskDelivered } from '../channel-delivery.js'
 import { trackDelivery } from '../delivery-tracker.js'
 import { maybeReact } from '@plexo/agent/channels/reaction-manager'
 import { sanitizeForTelegram } from '../lib/telegram-sanitize.js'
-import { isGreetingOrCheckin } from '@plexo/agent/principles'
 
 export const telegramRouter: RouterType = Router()
 
@@ -877,24 +876,6 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     // mints session IDs as 'telegram:{chatId}:{ulid}'. The prefix must match
     // that format so getOrHydrate recovers DB history correctly on restart.
     const sessionPrefix = `telegram:${chatId}:`
-    let recalledContext: string | null = null
-    const currentHistory = chatHistory.get(historyKey(channelId, chatId))
-    const isYoungSession = !currentHistory || currentHistory.length <= 2
-    // Skip prior-context recall for greetings/check-ins even on a young session.
-    // Injecting task history into a "hello" response causes ghost responses where
-    // the agent mentions unrelated prior work when the user is just saying hi.
-    const isGreeting = isGreetingOrCheckin(text)
-    if (hasRecallIntent(text) || (isYoungSession && !isGreeting)) {
-        try {
-            recalledContext = await recallPriorConversation(workspaceId, text, sessionPrefix)
-            if (recalledContext) {
-                logger.info({ chatId, workspaceId, chars: recalledContext.length, trigger: hasRecallIntent(text) ? 'explicit' : 'young_session' }, 'Telegram: recalled prior conversation context')
-            }
-        } catch (err) {
-            logger.warn({ err, chatId }, 'Telegram: recall search failed — proceeding without')
-        }
-    }
-
     let history: import('../channel-ai.js').ChatMessage[]
     let intent: import('../channel-ai.js').IntentLabel
     let suggestTask = false
@@ -985,9 +966,6 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         // causing the model to answer about the wrong task — the ghost response bug.
         if (recentCompletion && history.length <= 1 && isMessageRelatedToCompletion(recentCompletion.summary, text)) {
             channelContext += `\n\nJust completed: "${recentCompletion.summary}". If the user asks about results, tell them you'll send the content directly.`
-        }
-        if (recalledContext) {
-            channelContext += `\n\n${recalledContext}`
         }
         // SCL context expansion is handled inside chatWithAI (channel-ai.ts) for all
         // channels — do not expand here or the system prompt receives it twice.
@@ -1098,10 +1076,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     // Session IDs are now gap-based (SESSION_TIMEOUT_MS of inactivity), resolved
     // from the conversations table in telegramSessionId().
 
-    // When recall found prior context, append it to the description so the executor has it.
-    const taskDescription = recalledContext
-        ? `${text}\n\n${recalledContext}`
-        : text
+    const taskDescription = text
 
     const from = msg.from.username ?? msg.from.first_name ?? String(msg.from.id)
 

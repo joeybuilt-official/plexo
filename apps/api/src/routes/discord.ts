@@ -28,8 +28,7 @@ import { trackEvent } from '../event-tracker.js'
 import { recordConversation, type ChannelRef } from '../conversation-log.js'
 import { resolveSessionId } from '../lib/session-resolver.js'
 import { emitToWorkspace } from '../sse-emitter.js'
-import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT, hasRecallIntent, recallPriorConversation } from '../channel-ai.js'
-import { isGreetingOrCheckin } from '@plexo/agent/principles'
+import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
 import { sanitizeForDiscord } from '../lib/telegram-sanitize.js'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { trackDelivery } from '../delivery-tracker.js'
@@ -283,22 +282,6 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
             const discordChannelId = interaction.channel_id ?? ''
             const sessionPrefix = `discord:${discordGuildOrDm}:${discordChannelId}:`
 
-            // ── Cross-session memory recall ─────────────────────────────────────────
-            const currentHistory = chatHistory.get(threadId)
-            const isYoungSession = !currentHistory || currentHistory.length <= 2
-            const isGreeting = isGreetingOrCheckin(description)
-            let recalledContext: string | null = null
-            if (hasRecallIntent(description) || (isYoungSession && !isGreeting)) {
-                try {
-                    recalledContext = await recallPriorConversation(workspaceId, description, sessionPrefix)
-                    if (recalledContext) {
-                        logger.info({ workspaceId, chars: recalledContext.length, trigger: hasRecallIntent(description) ? 'explicit' : 'young_session' }, 'Discord: recalled prior conversation context')
-                    }
-                } catch (err) {
-                    logger.warn({ err }, 'Discord: recall search failed — proceeding without')
-                }
-            }
-
             chatHistory.add(threadId, 'user', description, imageUrls.length > 0 ? imageUrls : undefined)
             const history = await chatHistory.getOrHydrate(threadId, workspaceId, sessionPrefix)
 
@@ -361,7 +344,7 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
                 const result = await chatWithAI(
                     workspaceId,
                     history,
-                    buildConversationSystemPrompt('discord', recalledContext ?? undefined),
+                    buildConversationSystemPrompt('discord', undefined),
                     true,
                     undefined,
                     undefined,
@@ -411,7 +394,7 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
                     source: 'discord',
                     priority: 1,
                     context: {
-                        description: recalledContext ? `${description}\n\n${recalledContext}` : description,
+                        description: description,
                         channel: 'discord',
                         guildId: interaction.guild_id,
                         channelId: interaction.channel_id,

@@ -123,8 +123,6 @@ vi.mock('../../conversation-log.js', () => ({
 }))
 
 vi.mock('../../channel-ai.js', () => ({
-    hasRecallIntent: () => false,
-    recallPriorConversation: vi.fn(async () => null),
     buildConversationSystemPrompt: (_channel: string, identity: string) => identity,
     translateErrorForUser: (e: string) => e,
 }))
@@ -200,10 +198,6 @@ vi.mock('@plexo/agent/channels/reaction-manager', () => ({
 
 vi.mock('@plexo/storage', () => ({
     uploadContent: vi.fn(async () => ({ url: 'https://mock/file.png' })),
-}))
-
-vi.mock('@plexo/agent/scl/expand-context', () => ({
-    expandForConversation: vi.fn(async () => null),
 }))
 
 vi.mock('@plexo/agent/memory/conversation-bridge', () => ({

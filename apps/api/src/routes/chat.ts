@@ -39,7 +39,7 @@ import {
     getCrossSessionTurns,
 } from '../conversation-log.js'
 import { resolveSessionId as resolveUniversalSession, embedMessage as embedSessionMessage } from '../lib/session-resolver.js'
-import { hasRecallIntent, recallPriorConversation, buildConversationSystemPrompt, translateErrorForUser } from '../channel-ai.js'
+import { buildConversationSystemPrompt, translateErrorForUser } from '../channel-ai.js'
 import { WEBCHAT_CLASSIFY_SYSTEM } from '@plexo/agent/prompts/build-system-prompt'
 import { getTelegramToken } from './telegram.js'
 import { trackError, trackEvent } from '../event-tracker.js'
@@ -604,27 +604,7 @@ chatRouter.post('/message', async (req, res) => {
 
         // ── Cross-session memory recall (P3: own context continuity) ─────────
         // Two triggers:
-        // 1. Explicit recall intent (pattern match)
-        // 2. Young session (≤2 turns in DB) — proactively inject recent prior context
-        //    because the user may be continuing from a previous conversation.
-        // Skip entirely for trivial messages (short status/greeting checks) —
-        // the fastpath above already returned for most of them, but if the
-        // fastpath fell through (empty reply / error) we still want the
-        // cheap path without 3 DB queries worth of recall.
-        const sessionPrefix = `webchat:${workspaceId}:${sid}:`
-        let recalledContext: string | null = null
-        const isYoungSession = dbTurns.length <= 1
         const skipRecallForTrivial = isTrivialMessage(trimmedMsg)
-        if (!skipRecallForTrivial && (hasRecallIntent(trimmedMsg) || isYoungSession)) {
-            try {
-                recalledContext = await recallPriorConversation(workspaceId, trimmedMsg, sessionPrefix)
-                if (recalledContext) {
-                    logger.info({ workspaceId, sessionId: sid, chars: recalledContext.length, trigger: hasRecallIntent(trimmedMsg) ? 'explicit' : 'young_session' }, 'Webchat: recalled prior conversation context')
-                }
-            } catch (err) {
-                logger.warn({ err, workspaceId }, 'Webchat: recall search failed — proceeding without')
-            }
-        }
 
         // ── Proactive memory recall for conversations ──
         // Search memory_entries via vector similarity so personal facts
@@ -647,32 +627,6 @@ chatRouter.post('/message', async (req, res) => {
             } catch (err) {
                 logger.debug({ err }, 'Webchat: memory search failed — proceeding without')
             }
-        }
-
-        // ── SCL context expansion for conversations ──
-        //
-        // We capture the SCL Golden Record block into a SEPARATE variable
-        // (`sclConversationContext`) so it can be injected into the
-        // CONVERSATION-branch system prompt below WITHOUT being concatenated
-        // onto `recalledContext` — which used to flow into the persisted
-        // task row's `context.description` and surface in the user-visible
-        // task page as raw "=== YOUR LEARNED KNOWLEDGE ===" prelude noise.
-        //
-        // For TASK intent the executor runs its own (better) per-task SCL
-        // expansion via agent-loop.ts → expandForTask, so the conversation
-        // block is irrelevant on that path and must not pollute the row.
-        let sclConversationContext = ''
-        try {
-            const { expandForConversation } = await import('@plexo/agent/scl/expand-context')
-            const sclContext = await expandForConversation(workspaceId, trimmedMsg)
-            if (sclContext) {
-                sclConversationContext = sclContext
-                logger.info({ workspaceId, sclLen: sclContext.length }, 'webchat: SCL context injected into conversation')
-            } else {
-                logger.info({ workspaceId }, 'webchat: SCL expandForConversation returned null')
-            }
-        } catch (sclErr) {
-            logger.warn({ err: sclErr, workspaceId }, 'webchat: SCL context expansion failed')
         }
 
         // ── Self-configuration: detect credentials and auto-install connection ──
@@ -909,7 +863,7 @@ chatRouter.post('/message', async (req, res) => {
 
                 const systemPrompt = `${personaPrefix}${buildConversationSystemPrompt('webchat', `${identityLine}
 
-For service integrations, provide direct links: [Connect Gmail](/connections?highlight=google-workspace), [Connect GitHub](/connections?highlight=github), etc. Format: /connections?highlight={service-id}. Known IDs: github, google-workspace, google-drive, slack, discord, jira, linear, notion, cloudflare, coolify, sentry, posthog, pagerduty, netlify, openai, ovhcloud, datadog.${workspaceSnapshot}${recalledContext ? '\n\n' + recalledContext : ''}${memoryContext ? '\n\n' + memoryContext : ''}${sclConversationContext ? '\n\n' + sclConversationContext : ''}`)}`
+For service integrations, provide direct links: [Connect Gmail](/connections?highlight=google-workspace), [Connect GitHub](/connections?highlight=github), etc. Format: /connections?highlight={service-id}. Known IDs: github, google-workspace, google-drive, slack, discord, jira, linear, notion, cloudflare, coolify, sentry, posthog, pagerduty, netlify, openai, ovhcloud, datadog.${workspaceSnapshot}${memoryContext ? '\n\n' + memoryContext : ''}`)}`
 
                 const streamMessages = [
                     ...history,
@@ -1080,7 +1034,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             messages: streamMessages,
                             tools: chatTools as any,
                             stopWhen: stepCountIs(5),
-                            abortSignal: AbortSignal.timeout(60_000),
+                            abortSignal: AbortSignal.timeout(120_000),
                         })
                         return { text: await stream.text }
                     }
@@ -1202,7 +1156,6 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                     message: cleanDescription,
                     sessionId: sid,
                     channel: 'webchat',
-                    ...(recalledContext ? { recalledContext } : {}),
                     ...(uploadedImageUrls.length > 0 ? { imageUrls: uploadedImageUrls } : {}),
                 },
                 priority: 2,
@@ -1245,9 +1198,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
         }
 
         // Multi-step confirm-prompt: surface ONLY the user's clean message
-        // to the confirm dialog. Recall context flows to the executor via
-        // task.context.recalledContext (set when the user confirms), not
-        // via the user-visible description string.
+        // to the confirm dialog.
         res.json({
             status: 'confirm_action',
             intent,

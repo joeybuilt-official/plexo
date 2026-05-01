@@ -23,8 +23,7 @@ import { trackEvent } from '../event-tracker.js'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { recordConversation, type ChannelRef } from '../conversation-log.js'
 import { resolveSessionId } from '../lib/session-resolver.js'
-import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT, hasRecallIntent, recallPriorConversation } from '../channel-ai.js'
-import { isGreetingOrCheckin } from '@plexo/agent/principles'
+import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { trackDelivery } from '../delivery-tracker.js'
 import { maybeReact } from '@plexo/agent/channels/reaction-manager'
@@ -423,22 +422,6 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
     const slackChannelThreadId = `${teamId}:${event.channel ?? ''}:${event.thread_ts ?? event.ts ?? ''}`
     const sessionPrefix = `slack:${slackChannelThreadId}:`
 
-    // ── Cross-session memory recall ─────────────────────────────────────────
-    const currentHistory = chatHistory.get(threadId)
-    const isYoungSession = !currentHistory || currentHistory.length <= 2
-    const isGreeting = isGreetingOrCheckin(text)
-    let recalledContext: string | null = null
-    if (hasRecallIntent(text) || (isYoungSession && !isGreeting)) {
-        try {
-            recalledContext = await recallPriorConversation(workspaceId, text, sessionPrefix)
-            if (recalledContext) {
-                logger.info({ workspaceId, chars: recalledContext.length, trigger: hasRecallIntent(text) ? 'explicit' : 'young_session' }, 'Slack: recalled prior conversation context')
-            }
-        } catch (err) {
-            logger.warn({ err }, 'Slack: recall search failed — proceeding without')
-        }
-    }
-
     chatHistory.add(threadId, 'user', text, imageUrls.length > 0 ? imageUrls : undefined)
     const history = await chatHistory.getOrHydrate(threadId, workspaceId, sessionPrefix)
 
@@ -472,7 +455,7 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
         const result = await chatWithAI(
             workspaceId,
             history,
-            buildConversationSystemPrompt('slack', recalledContext ?? undefined, { reactionsAvailable: !!(event.channel && event.ts && BOT_TOKEN) }),
+            buildConversationSystemPrompt('slack', undefined, { reactionsAvailable: !!(event.channel && event.ts && BOT_TOKEN) }),
             true,
             undefined,
             event.channel && event.ts && BOT_TOKEN
@@ -527,7 +510,7 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
             type: 'automation',
             source: 'slack',
             context: {
-                description: recalledContext ? `${text}\n\n${recalledContext}` : text,
+                description: text,
                 channel: 'slack',
                 slackChannel: event.channel,
                 slackUser: event.user,

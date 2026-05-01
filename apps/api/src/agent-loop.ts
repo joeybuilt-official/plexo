@@ -667,7 +667,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 const taskCtxRaw = (task.context as Record<string, unknown>) ?? {}
                 const desc = String(taskCtxRaw.description ?? taskCtxRaw.message ?? task.type ?? '')
                 const focusLevel = (taskCtxRaw.focusLevel as string) ?? 'L1'
-                const level = (['L0', 'L1', 'L2'].includes(focusLevel) ? focusLevel : 'L1') as import('@plexo/scl-core').ResolutionLevel
+                const level = (['L0', 'L1', 'L2'].includes(focusLevel) ? focusLevel : 'L1') as 'L0' | 'L1' | 'L2'
                 const expansion = await expandForTask(taskWorkspaceId, desc, embProvider, level)
                 if (expansion) {
                     ctx.sclContext = {
@@ -929,33 +929,6 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 inferenceLogId,
             })
 
-            // Mindset recompression: every 50 tasks per workspace
-            if (taskWorkspaceId) {
-                const [countRow] = await db.execute<{ count: number }>(sql`
-                    SELECT count(*) as count FROM scl_concept_graphs WHERE workspace_id = ${taskWorkspaceId}::uuid
-                `)
-                const graphCount = Number(countRow?.count ?? 0)
-                if (graphCount > 0 && graphCount % 50 === 0) {
-                    const { compressToMindsetObject } = await import('@plexo/agent/scl/compressor')
-                    const graphRows = await db.execute<{ graph_json: unknown }>(sql`
-                        SELECT graph_json FROM scl_concept_graphs
-                        WHERE workspace_id = ${taskWorkspaceId}::uuid AND graph_json IS NOT NULL
-                        ORDER BY created_at DESC LIMIT 200
-                    `)
-                    const graphs = graphRows.map((r: any) => r.graph_json).filter(Boolean)
-                    const mindset = compressToMindsetObject(graphs, taskWorkspaceId)
-                    await db.execute(sql`
-                        INSERT INTO workspace_mindsets (workspace_id, mindset_object, task_count, version)
-                        VALUES (${taskWorkspaceId}::uuid, ${JSON.stringify(mindset)}::jsonb, ${graphCount}, 1)
-                        ON CONFLICT (workspace_id) DO UPDATE SET
-                            mindset_object = EXCLUDED.mindset_object,
-                            task_count = EXCLUDED.task_count,
-                            version = workspace_mindsets.version + 1,
-                            updated_at = NOW()
-                    `)
-                    logger.info({ workspaceId: taskWorkspaceId, graphCount }, 'Workspace mindset recompressed')
-                }
-            }
         } catch (sclErr) {
             logger.warn({ err: sclErr, taskId: task.id }, 'SCL post-task processing failed (non-fatal)')
         }
