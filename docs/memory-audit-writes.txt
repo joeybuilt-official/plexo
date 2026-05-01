@@ -1,0 +1,127 @@
+vitest.config.ts:23:            '@plexo/agent/memory/store': resolve(root, 'packages/agent/src/memory/store.ts'),
+scripts/backfill-embeddings.ts:6: * One-time backfill script: generate embeddings for existing memory_entries
+scripts/backfill-embeddings.ts:86:        FROM memory_entries
+scripts/backfill-embeddings.ts:111:            FROM memory_entries
+scripts/backfill-embeddings.ts:125:                    sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${row.id}::uuid`,
+apps/api/src/redis-client.ts:7: * Pattern matches pkce-store.ts. Connect once, reuse everywhere.
+apps/api/src/scripts/synthesis-backfill.ts:48:            SELECT 1 FROM memory_entries
+tests/e2e/intelligence.test.ts:34:    test('DB: memory_entries has tier column with correct default', async ({ request }) => {
+apps/api/src/routes/memory.ts:98:            FROM memory_entries
+apps/api/src/routes/memory.ts:110:                sql`SELECT count(*)::int as total FROM memory_entries WHERE workspace_id = ${workspaceId}::uuid`
+apps/api/src/routes/memory.ts:193:                    UPDATE memory_entries SET metadata = ${JSON.stringify(meta)}::jsonb
+apps/api/src/routes/memory.ts:200:        audit(req, { workspaceId, userId: req.user?.id, action: 'memory.create', resource: 'memory_entries', resourceId: entryId, metadata: { type: resolvedType } })
+apps/api/src/routes/memory.ts:247:            UPDATE memory_entries SET content = ${content.trim()}
+apps/api/src/routes/memory.ts:255:        audit(req, { workspaceId, userId: req.user?.id, action: 'memory.update', resource: 'memory_entries', resourceId: id })
+apps/api/src/routes/memory.ts:261:            await db.execute(sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`)
+apps/api/src/routes/memory.ts:289:            DELETE FROM memory_entries
+apps/api/src/routes/memory.ts:298:        audit(req, { workspaceId, userId: req.user?.id, action: 'memory.delete', resource: 'memory_entries', resourceId: id })
+apps/api/src/routes/memory.ts:677:            UPDATE memory_entries
+apps/api/src/routes/memory.ts:709:            FROM memory_entries
+apps/api/src/routes/memory.ts:895:        // Persist UMAP coordinates back onto memory_entries.metadata.umap.
+apps/api/src/routes/memory.ts:901:                UPDATE memory_entries
+apps/api/src/routes/memory.ts:1133:                FROM memory_entries
+packages/mcp-server/src/tools/memory.ts:40:            FROM memory_entries
+packages/mcp-server/src/tools/memory.ts:83:            INSERT INTO memory_entries (id, workspace_id, content, type, source, created_at)
+apps/api/src/routes/chat.ts:630:        // Search memory_entries via vector similarity so personal facts
+apps/api/src/routes/chat.ts:1059:                        const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+apps/api/src/routes/chat.ts:1138:                        const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+apps/api/src/routes/metrics.ts:66:        const [row] = await db.execute<{ n: string }>(sql`SELECT COUNT(*)::text AS n FROM memory_entries`)
+apps/api/src/routes/metrics.ts:67:        setGauge('plexo_memory_entries_total', Number((row as { n?: string })?.n ?? 0))
+apps/api/src/routes/metrics.ts:68:    } catch (err) { logger.debug({ err }, 'metrics: memory_entries query failed') }
+apps/api/src/scripts/embed-backfill.ts:7: * Iterates over `memory_entries WHERE workspace_id=$1 AND embedding IS NULL`
+apps/api/src/scripts/embed-backfill.ts:33:        FROM memory_entries
+apps/api/src/scripts/embed-backfill.ts:43:        FROM memory_entries
+apps/api/src/scripts/embed-backfill.ts:54:    await db.execute(sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`)
+apps/api/src/routes/__tests__/chat-quality.test.ts:209:vi.mock('@plexo/agent/memory/conversation-bridge', () => ({
+apps/api/src/federation/event-processor.ts:11: *   memory.push  → @plexo/agent/memory/store storeMemory() — persists to memory_entries
+tests/integration/memory-pipeline.test.ts:32:// Mock the embedding router — intercepts before store.ts loads it
+tests/integration/memory-pipeline.test.ts:137:            sql`SELECT embedding IS NOT NULL AS has_embedding FROM memory_entries WHERE id = ${storedMemoryId}::uuid`,
+apps/api/src/analytics/events.ts:382:        memory_entries_bucket: bucketCount(opts.memoryEntryCount),
+apps/api/src/lib/metrics.ts:199:gauge('plexo_memory_entries_total', 'Total memory entry count')
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:6:// Stub @plexo/db so the helper's UPDATE memory_entries / scl_concept_graphs
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:57:let memoryStore: FakeRow[] = []
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:64:    memoryStore = []
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:70:                ? memoryStore.filter(r => r.created_at > since)
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:71:                : memoryStore
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:95:        memoryStore = [row('a', 1), row('b', 2), row('c', 3)]
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:109:        memoryStore = [
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:124:        memoryStore = [row('good1', 1), row('bad-id', 2), row('good2', 3)]
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:136:        memoryStore = Array.from({ length: 7 }, (_, i) => row(`r${i}`, i + 1))
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:146:        memoryStore = [row('a', 1), row('b', 2), row('c', 3), row('d', 4)]
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:161:        memoryStore = [row('a', 1)]
+apps/api/src/lib/__tests__/embeddings-reembed.test.ts:176:        memoryStore = [row('a', 1)]
+apps/api/src/index.ts:630:            const [memCount] = await db.execute(sql`SELECT COUNT(*) AS count FROM memory_entries`)
+apps/api/src/cron/synthesis-nightly.ts:11: *   1. Backfill embeddings for any memory_entries with NULL embedding
+apps/api/src/cron/synthesis-nightly.ts:68:/** Backfill embeddings for any memory_entries with NULL embedding in this
+apps/api/src/cron/synthesis-nightly.ts:75:        FROM memory_entries
+apps/api/src/cron/synthesis-nightly.ts:92:                UPDATE memory_entries
+apps/api/src/cron/synthesis-nightly.ts:294:            UPDATE memory_entries
+packages/agent/src/memory/namespace.ts:8: * agent wrote into the same workspace-scoped slice of `memory_entries` /
+packages/agent/src/memory/namespace.ts:19: *     from `store.ts`. Use it for cross-agent knowledge that all agents
+packages/agent/src/memory/namespace.ts:27: *  explicit `writeShared` helper in store.ts. */
+packages/agent/src/memory/conversation-bridge.test.ts:4:describe('conversation-bridge: instruction detection', () => {
+packages/agent/src/memory/conversation-bridge.test.ts:42:describe('conversation-bridge: revocation detection', () => {
+packages/agent/src/memory/scl.ts:14: *                       OR ≥2 distinct kinds (memory_entries.type)
+packages/agent/src/memory/scl.ts:211:            // Distinct metadata.app values OR distinct memory_entries.type
+packages/agent/src/memory/scl.ts:222:                    FROM memory_entries
+apps/api/src/lib/embeddings-reembed.ts:7: * Walks `memory_entries` (and optionally `scl_concept_graphs`) for a workspace
+apps/api/src/lib/embeddings-reembed.ts:222:                                UPDATE memory_entries
+apps/api/src/lib/embeddings-reembed.ts:337:            FROM memory_entries
+apps/api/src/lib/embeddings-reembed.ts:345:            FROM memory_entries
+apps/api/src/routes/telegram.ts:1071:            const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+apps/api/src/routes/telegram.ts:1078:        } catch { /* conversation-bridge module not available — non-fatal */ }
+packages/agent/src/behavior/reflect.ts:11: * NOTE (audit): The prompt specified a notes.slice() change in memory/store.ts,
+packages/agent/src/memory/store.ts:288:                    sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
+packages/agent/src/memory/store.ts:301:                sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
+packages/agent/src/memory/store.ts:315:        sql`UPDATE memory_entries SET tier = 'hot' WHERE id = ANY(${ids}::uuid[]) AND tier != 'hot'`,
+packages/agent/src/memory/store.ts:394:      FROM memory_entries
+packages/agent/src/memory/store.ts:613:                    sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
+packages/agent/src/memory/store.ts:624:                sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
+apps/api/src/routes/__tests__/training-data.test.ts:163:        expect(ids).toContain('memory_entries')
+apps/api/src/routes/__tests__/training-data.test.ts:316:                    'memory_entries',
+packages/agent/src/memory/streaming-touch.ts:83:    // 1) kNN-attach. The HNSW index on memory_entries.embedding lets us
+packages/agent/src/memory/streaming-touch.ts:90:            FROM memory_entries
+packages/agent/src/memory/streaming-touch.ts:104:            FROM memory_entries t
+packages/agent/src/memory/streaming-touch.ts:213:        //    counts then check span via memory_entries.created_at.
+packages/agent/src/memory/streaming-touch.ts:233:                    FROM memory_entries
+apps/api/src/routes/training-data.ts:66:        id: 'memory_entries',
+apps/api/src/routes/training-data.ts:69:        table: 'memory_entries',
+apps/api/src/routes/training-data.ts:70:        countSql: `SELECT count(*) AS count FROM memory_entries`,
+apps/api/src/routes/training-data.ts:71:        sampleSql: `SELECT id, workspace_id, type, content, shorthand, tier, namespace, created_at FROM memory_entries ORDER BY created_at DESC LIMIT $1`,
+apps/api/src/routes/training-data.ts:293:        case 'memory_entries': {
+apps/api/src/routes/__tests__/memory-browser.test.ts:54:                if (rendered.includes('UPDATE memory_entries')) return ctl.updateRows
+apps/api/src/routes/__tests__/memory-browser.test.ts:60:                if (rendered.includes('FROM memory_entries')) return ctl.listRows
+packages/mcp-server/src/resources/index.ts:76:            FROM memory_entries
+packages/scl-core/src/embeddings/providers/openai.ts:12: * Matches the model already used by Plexo's memory/store.ts.
+packages/db/src/schema.ts:537:export const memoryEntries = pgTable('memory_entries', {
+packages/db/src/schema.ts:568:    index('memory_entries_workspace_type_idx').on(table.workspaceId, table.type),
+packages/db/src/schema.ts:569:    index('memory_entries_workspace_namespace_idx').on(table.workspaceId, table.namespace),
+packages/db/src/schema.ts:570:    index('memory_entries_workspace_namespace_type_idx').on(table.workspaceId, table.namespace, table.type),
+packages/db/src/schema.ts:1862:// kNN edges between memory_entries — precomputed cosine pairs over the
+packages/agent/src/introspection/index.ts:11: *  - memory_entries (counts by type, embedding coverage)
+packages/agent/src/introspection/index.ts:387:            FROM memory_entries
+packages/agent/src/introspection/index.ts:393:            FROM memory_entries
+packages/agent/src/cost-gate.ts:78:// ── Redis client (lazy singleton, same pattern as memory/store.ts) ───────
+packages/agent/src/introspection/rsi-monitor.ts:69:            SELECT count(*)::int as count FROM memory_entries
+packages/agent/src/introspection/rsi-monitor.ts:76:    } catch { /* memory_entries table may not have correction entries yet */ }
+packages/agent/src/tests/conversation-bridge.fixture.test.ts:6: * conversation-bridge SCL concept extractor. Production call site:
+packages/agent/src/tests/conversation-bridge.fixture.test.ts:7: *     packages/agent/src/memory/conversation-bridge.ts:200-215
+packages/agent/src/tests/conversation-bridge.fixture.test.ts:136:describe('conversation-bridge concept extraction parsing', () => {
+packages/agent/src/embeddings/router.ts:345: * Use this in fire-and-forget paths (storeMemory, conversation-bridge) where
+packages/agent/src/tools/self-knowledge-tools.ts:280:                FROM memory_entries
+packages/agent/src/memory/suggest.ts:89:        // to memory_entries; cheap because member_ids is small (≤ a few hundred).
+packages/agent/src/memory/suggest.ts:95:            FROM memory_entries
+packages/agent/src/memory/suggest.ts:107:            FROM memory_entries
+packages/agent/src/memory/suggest.ts:178:        FROM memory_entries
+packages/agent/src/memory/knn.ts:7: * Reads `memory_entries.embedding` for a workspace and writes the
+packages/agent/src/memory/knn.ts:66:        SELECT id FROM memory_entries
+packages/agent/src/memory/knn.ts:89:            FROM memory_entries
+packages/agent/src/memory/knn.ts:99:            FROM memory_entries t
+packages/agent/src/memory/consolidation.ts:46:            SELECT count(*)::int as count FROM memory_entries
+packages/agent/src/memory/consolidation.ts:74:        FROM memory_entries
+packages/agent/src/memory/consolidation.ts:112:                    INSERT INTO memory_entries (workspace_id, type, content, metadata, created_at)
+packages/agent/src/memory/consolidation.ts:122:                DELETE FROM memory_entries
+packages/agent/src/memory/conversation-bridge.ts:34:const logger = pino({ name: 'conversation-bridge' })
+packages/agent/src/memory/conversation-bridge.ts:138: * Extract memory from a conversation turn and persist as memory_entries.
+packages/agent/src/memory/cluster.ts:26: *      memory_entries.metadata.umap by the route.
+packages/agent/src/memory/cluster.ts:691:        FROM memory_entries

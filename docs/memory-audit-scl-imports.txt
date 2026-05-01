@@ -1,0 +1,277 @@
+apps/web/src/app/(dashboard)/insights/page.tsx:8:import { MindsetObjectViewer } from '@web/components/scl/MindsetObjectViewer'
+apps/web/src/app/(dashboard)/insights/page.tsx:9:import type { MindsetObject } from '@web/components/scl/MindsetObjectViewer'
+apps/web/src/app/(dashboard)/insights/page.tsx:13:function exportMindsetJson(mindset: MindsetObject) {
+apps/web/src/app/(dashboard)/insights/page.tsx:24:    const [mindset, setMindset] = useState<MindsetObject | null>(null)
+apps/web/src/app/(dashboard)/insights/page.tsx:39:                const data = await res.json() as { mindset?: MindsetObject } | MindsetObject
+apps/web/src/app/(dashboard)/insights/page.tsx:40:                const resolved = ('mindset' in data ? data.mindset : data) as MindsetObject | undefined
+apps/web/src/app/(dashboard)/insights/page.tsx:101:                    <MindsetObjectViewer mindset={mindset!} className="h-96" />
+vitest.config.ts:21:            '@plexo/agent/scl/expand-context': resolve(root, 'packages/agent/src/scl/expand-context.ts'),
+vitest.config.ts:22:            '@plexo/scl-core': resolve(root, 'packages/scl-core/src/index.ts'),
+apps/web/src/app/app/tasks/[id]/_scl-disclosure.tsx:8:import { MindsetObjectViewer } from '@web/components/scl/MindsetObjectViewer'
+apps/web/src/app/app/tasks/[id]/_scl-disclosure.tsx:9:import type { MindsetObject } from '@web/components/scl/MindsetObjectViewer'
+apps/web/src/app/app/tasks/[id]/_scl-disclosure.tsx:40:    const [mindset, setMindset] = useState<MindsetObject | null>(null)
+apps/web/src/app/app/tasks/[id]/_scl-disclosure.tsx:162:                    <MindsetObjectViewer
+apps/web/src/app/app/memory/page.tsx:34:import { MindsetObjectViewer } from '@web/components/scl/MindsetObjectViewer'
+apps/web/src/app/app/memory/page.tsx:35:import type { MindsetObject } from '@web/components/scl/MindsetObjectViewer'
+apps/web/src/app/app/memory/page.tsx:36:import { GoldenRecordDashboard } from '@web/components/scl/GoldenRecordDashboard'
+apps/web/src/app/app/memory/page.tsx:142:    const [mindset, setMindset] = useState<MindsetObject | null>(null)
+apps/web/src/app/app/memory/page.tsx:258:                    mindset_object?: MindsetObject | null
+apps/web/src/app/app/memory/page.tsx:259:                    goldenRecord?: MindsetObject | null
+apps/web/src/app/app/memory/page.tsx:606:                    {/* MindsetObject Viewer — primary view (9.4) */}
+apps/web/src/app/app/memory/page.tsx:633:                                            <MindsetObjectViewer mindset={mindset} />
+apps/web/src/app/app/memory/page.tsx:645:                        <GoldenRecordDashboard workspaceId={WS_ID} />
+apps/web/src/components/scl/AttractorBrowser.tsx:29:interface GoldenRecordData {
+apps/web/src/components/scl/AttractorBrowser.tsx:35:    const [data, setData] = useState<GoldenRecordData | null>(null)
+apps/web/src/components/scl/GoldenRecordDashboard.tsx:34:export function GoldenRecordDashboard({ workspaceId }: { workspaceId: string }) {
+apps/api/src/routes/discord.ts:31:import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT, hasRecallIntent, recallPriorConversation } from '../channel-ai.js'
+apps/api/src/routes/discord.ts:293:                    recalledContext = await recallPriorConversation(workspaceId, description, sessionPrefix)
+apps/web/src/components/scl/MindsetObjectViewer.tsx:8:/* ---------- SCL types — supports both GoldenRecord v1.0 and legacy MindsetObject v0.2 ---------- */
+apps/web/src/components/scl/MindsetObjectViewer.tsx:12:    /** GoldenRecord v1.0 field */
+apps/web/src/components/scl/MindsetObjectViewer.tsx:31:    /** GoldenRecord v1.0 field */
+apps/web/src/components/scl/MindsetObjectViewer.tsx:51:    /** GoldenRecord v1.0 field */
+apps/web/src/components/scl/MindsetObjectViewer.tsx:53:    /** GoldenRecord v1.0 field */
+apps/web/src/components/scl/MindsetObjectViewer.tsx:68:export interface MindsetObject {
+apps/web/src/components/scl/MindsetObjectViewer.tsx:144:function buildGraph(m: MindsetObject): { nodes: FNode[]; edges: FEdge[] } {
+apps/web/src/components/scl/MindsetObjectViewer.tsx:261:    mindset: MindsetObject
+apps/web/src/components/scl/MindsetObjectViewer.tsx:473:    mindset: MindsetObject
+apps/web/src/components/scl/MindsetObjectViewer.tsx:602:interface MindsetObjectViewerProps {
+apps/web/src/components/scl/MindsetObjectViewer.tsx:603:    mindset: MindsetObject | null
+apps/web/src/components/scl/MindsetObjectViewer.tsx:608:export function MindsetObjectViewer({ mindset, activatedRegion, className }: MindsetObjectViewerProps) {
+apps/web/src/components/scl/MindsetObjectViewer.tsx:674:export default MindsetObjectViewer
+apps/api/src/routes/training-data.ts:96:        table: 'workspace_mindsets',
+apps/api/src/routes/training-data.ts:97:        countSql: `SELECT count(*) AS count FROM workspace_mindsets WHERE golden_record IS NOT NULL`,
+apps/api/src/routes/training-data.ts:98:        sampleSql: `SELECT id, workspace_id, golden_record_version, task_count, created_at, updated_at FROM workspace_mindsets WHERE golden_record IS NOT NULL ORDER BY updated_at DESC LIMIT $1`,
+apps/api/src/routes/scl-admin.ts:9: * POST /compress            — compress SCL-S graphs into MindsetObject
+apps/api/src/routes/scl-admin.ts:10: * POST /expand              — expand MindsetObject for a task stimulus
+apps/api/src/routes/scl-admin.ts:67:// POST /compress — compress SCL-S graphs into a MindsetObject
+apps/api/src/routes/scl-admin.ts:78:        const { compressToMindsetObject } = await import('@plexo/agent/scl/compressor')
+apps/api/src/routes/scl-admin.ts:111:        const mindset = compressToMindsetObject(graphs, workspaceId || 'admin-test')
+apps/api/src/routes/scl-admin.ts:113:        // Store in workspace_mindsets if workspaceId provided
+apps/api/src/routes/scl-admin.ts:116:                INSERT INTO workspace_mindsets (workspace_id, mindset_object, task_count, version)
+apps/api/src/routes/scl-admin.ts:121:                    version = workspace_mindsets.version + 1,
+apps/api/src/routes/scl-admin.ts:133:// POST /expand — expand a MindsetObject for a task stimulus
+apps/api/src/routes/scl-admin.ts:148:        const { expandMindsetObject } = await import('@plexo/agent/scl/expander')
+apps/api/src/routes/scl-admin.ts:149:        const { compressToMindsetObject } = await import('@plexo/agent/scl/compressor')
+apps/api/src/routes/scl-admin.ts:156:                SELECT mindset_object FROM workspace_mindsets WHERE workspace_id = ${workspaceId}::uuid
+apps/api/src/routes/scl-admin.ts:184:                mindset = compressToMindsetObject(synth, workspaceId || 'expand-test')
+apps/api/src/routes/scl-admin.ts:186:                mindset = compressToMindsetObject(graphs, workspaceId || 'expand-test')
+apps/api/src/routes/scl-admin.ts:190:        const expanded = expandMindsetObject(mindset, {
+apps/api/src/routes/scl-admin.ts:345:            FROM workspace_mindsets
+apps/api/src/routes/slack.ts:26:import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT, hasRecallIntent, recallPriorConversation } from '../channel-ai.js'
+apps/api/src/routes/slack.ts:433:            recalledContext = await recallPriorConversation(workspaceId, text, sessionPrefix)
+apps/api/src/agent-loop.ts:670:                const level = (['L0', 'L1', 'L2'].includes(focusLevel) ? focusLevel : 'L1') as import('@plexo/scl-core').ResolutionLevel
+apps/api/src/agent-loop.ts:939:                    const { compressToMindsetObject } = await import('@plexo/agent/scl/compressor')
+apps/api/src/agent-loop.ts:946:                    const mindset = compressToMindsetObject(graphs, taskWorkspaceId)
+apps/api/src/agent-loop.ts:948:                        INSERT INTO workspace_mindsets (workspace_id, mindset_object, task_count, version)
+apps/api/src/agent-loop.ts:953:                            version = workspace_mindsets.version + 1,
+apps/api/src/routes/telegram.ts:39:import { chatWithAI, classifyIntent, ChannelChatHistory, hasRecallIntent, recallPriorConversation, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
+apps/api/src/routes/telegram.ts:889:            recalledContext = await recallPriorConversation(workspaceId, text, sessionPrefix)
+apps/api/src/routes/chat.ts:42:import { hasRecallIntent, recallPriorConversation, buildConversationSystemPrompt, translateErrorForUser } from '../channel-ai.js'
+apps/api/src/routes/chat.ts:620:                recalledContext = await recallPriorConversation(workspaceId, trimmedMsg, sessionPrefix)
+apps/api/src/routes/chat.ts:666:            const { expandForConversation } = await import('@plexo/agent/scl/expand-context')
+apps/api/src/routes/chat.ts:667:            const sclContext = await expandForConversation(workspaceId, trimmedMsg)
+apps/api/src/routes/chat.ts:672:                logger.info({ workspaceId }, 'webchat: SCL expandForConversation returned null')
+apps/api/src/routes/__tests__/scl-drift-inbox.test.ts:8: * endpoints with all DB + scl-core + storage mocks in place.
+apps/api/src/routes/__tests__/scl-drift-inbox.test.ts:75:    loadGoldenRecord: vi.fn(async () => ({
+apps/api/src/routes/__tests__/scl-drift-inbox.test.ts:86:    saveGoldenRecord: vi.fn(async () => undefined),
+apps/api/src/routes/__tests__/scl-drift-inbox.test.ts:89:vi.mock('@plexo/scl-core', () => ({
+apps/api/src/channel-ai.ts:624:                const { expandForConversation } = await import('@plexo/agent/scl/expand-context')
+apps/api/src/channel-ai.ts:625:                const sclContext = await expandForConversation(workspaceId, msgText)
+apps/api/src/channel-ai.ts:1319:export async function recallPriorConversation(
+apps/api/src/channel-ai.ts:1416:        logger.warn({ err, workspaceId }, 'recallPriorConversation failed — proceeding without recall')
+apps/api/src/routes/__tests__/scl-rsi-inbox.test.ts:71:    loadGoldenRecord: vi.fn(async () => null),
+apps/api/src/routes/__tests__/scl-rsi-inbox.test.ts:72:    saveGoldenRecord: vi.fn(async () => undefined),
+apps/api/src/routes/__tests__/scl-rsi-inbox.test.ts:75:vi.mock('@plexo/scl-core', () => ({
+packages/scl-core/tests/mutate.test.ts:5:import type { GoldenRecord, MutationInput } from '../src/types.js'
+packages/scl-core/tests/mutate.test.ts:12:function makeRecord(): GoldenRecord {
+packages/scl-core/src/mutate.ts:5:    GoldenRecord, MutationInput, MutationResult,
+packages/scl-core/src/mutate.ts:20:function findNearest(record: GoldenRecord, position: number[]): NearestMatch | null {
+packages/scl-core/src/mutate.ts:35:function findRegionForPosition(record: GoldenRecord, position: number[]): string {
+packages/scl-core/src/mutate.ts:67:    record: GoldenRecord,
+packages/scl-core/src/__tests__/boot-mutate.test.ts:8: *   1. boot() — correct GoldenRecord structure (id, version, workspaceId, regions, attractors)
+packages/scl-core/src/__tests__/boot-mutate.test.ts:39:    it('produces a GoldenRecord with correct metadata', () => {
+packages/agent/src/foundry/shadow.ts:15:import { cosineSimilarity } from '@plexo/scl-core'
+tests/e2e/p6-scl-runtime.spec.ts:5: * P6 SCL Runtime E2E — proves MindsetObject compression, expansion,
+tests/e2e/p6-scl-runtime.spec.ts:15:    test.describe('MindsetObject Compression', () => {
+tests/e2e/p6-scl-runtime.spec.ts:16:        test('compress endpoint produces valid MindsetObject with synthetic data', async ({ request }) => {
+tests/e2e/p6-scl-runtime.spec.ts:30:        test('compressed MindsetObject has correct region structure', async ({ request }) => {
+tests/e2e/p6-scl-runtime.spec.ts:45:    test.describe('MindsetObject Expansion', () => {
+packages/agent/src/introspection/types.ts:100:export interface GoldenRecordSnapshot {
+packages/agent/src/introspection/types.ts:160:    goldenRecord: GoldenRecordSnapshot | null
+packages/scl-core/tests/expand.test.ts:4:import type { GoldenRecord } from '../src/types.js'
+packages/scl-core/tests/expand.test.ts:9:function makeRecord(): GoldenRecord {
+packages/scl-core/tests/expand.test.ts:190:    function makeTwoRegionRecord(): GoldenRecord {
+packages/scl-core/tests/expand.test.ts:288:        const record: GoldenRecord = {
+packages/scl-core/tests/expand.test.ts:359:        const record: GoldenRecord = {
+packages/scl-core/tests/expand.test.ts:400:        const record: GoldenRecord = {
+packages/scl-core/tests/expand.test.ts:425:        const record: GoldenRecord = {
+packages/scl-core/tests/expand.test.ts:447:        const record: GoldenRecord = {
+packages/scl-core/tests/expand.test.ts:503:        const record: GoldenRecord = {
+packages/scl-core/tests/expand.test.ts:541:        const record: GoldenRecord = {
+packages/scl-core/tests/expand.test.ts:608:        const record: GoldenRecord = {
+packages/scl-core/src/types.ts:75:export interface GoldenRecord {
+packages/scl-core/tests/boot.test.ts:6:    it('creates a valid GoldenRecord', () => {
+packages/scl-core/src/boot.ts:4:import type { BootConfig, GoldenRecord, ConceptAttractor, DomainRegion } from './types.js'
+packages/scl-core/src/boot.ts:8:export function boot(config: BootConfig): GoldenRecord {
+packages/scl-core/tests/namespace.test.ts:3:import type { GoldenRecord, MutationInput } from '../src/types.js'
+packages/scl-core/tests/namespace.test.ts:11:function makeRecord(): GoldenRecord {
+packages/scl-core/tests/config.test.ts:5: * Unit tests for scl-core SCLConfig resolution.
+packages/scl-core/src/drift.ts:4:import type { GoldenRecord, DriftWarning } from './types.js'
+packages/scl-core/src/drift.ts:15:    record: GoldenRecord,
+packages/scl-core/src/drift.ts:19:): GoldenRecord {
+packages/scl-core/src/drift.ts:26:    const newRecord: GoldenRecord = {
+packages/db/src/schema.ts:1520:export const workspaceMindsets = pgTable('workspace_mindsets', {
+packages/scl-core/tests/integration.test.ts:3:import type { GoldenRecord, MutationInput } from '../src/types.js'
+packages/scl-core/tests/integration.test.ts:11:function makeRecord(): GoldenRecord {
+packages/scl-core/src/split.ts:12:import type { GoldenRecord, DomainRegion } from './types.js'
+packages/scl-core/src/split.ts:37:    record: GoldenRecord,
+packages/scl-core/src/split.ts:40:): GoldenRecord {
+packages/scl-core/src/split.ts:132:    record: GoldenRecord,
+packages/scl-core/src/split.ts:134:): GoldenRecord {
+packages/scl-core/src/archive.ts:4:import type { GoldenRecord, LedgerPointer } from './types.js'
+packages/scl-core/src/archive.ts:8:    record: GoldenRecord,
+packages/scl-core/src/archive.ts:10:): { record: GoldenRecord; pointer: LedgerPointer } {
+packages/scl-core/src/archive.ts:24:    const newRecord: GoldenRecord = {
+packages/scl-core/tests/embedding-guard.test.ts:7:import type { GoldenRecord, MutationInput } from '../src/types.js'
+packages/scl-core/tests/embedding-guard.test.ts:9:function makeRecord(dim: number): GoldenRecord {
+packages/scl-core/src/promote.ts:4:import type { GoldenRecord } from './types.js'
+packages/scl-core/src/promote.ts:16:export function checkPromotions(record: GoldenRecord, config: SCLConfig): number {
+packages/agent/src/scl/cross-app.ts:12:import { expand, mutate } from '@plexo/scl-core'
+packages/agent/src/scl/cross-app.ts:13:import type { MutationInput, ExpansionResult } from '@plexo/scl-core'
+packages/agent/src/scl/cross-app.ts:14:import { loadGoldenRecord, saveGoldenRecord, isSclEnabled } from './storage.js'
+packages/agent/src/scl/cross-app.ts:48:    const record = await loadGoldenRecord(workspaceId)
+packages/agent/src/scl/cross-app.ts:85:    await saveGoldenRecord(workspaceId, record)
+packages/agent/src/scl/cross-app.ts:111:    const record = await loadGoldenRecord(workspaceId)
+packages/agent/src/scl/compressor.ts:5: * SCL-D Compressor: SCL-S Graphs → MindsetObject
+packages/agent/src/scl/compressor.ts:15:import type { MindsetObject, MindsetRegion, ConceptAttractor, TransformationRule } from './types.js'
+packages/agent/src/scl/compressor.ts:20: * Compress a batch of SCL-S graphs into a MindsetObject.
+packages/agent/src/scl/compressor.ts:23:export function compressToMindsetObject(
+packages/agent/src/scl/compressor.ts:26:): MindsetObject {
+packages/agent/src/scl/compressor.ts:149:function emptyMindset(workspaceId: string): MindsetObject {
+packages/agent/src/scl/compressor.ts:165: * Merge new graphs into an existing MindsetObject.
+packages/agent/src/scl/compressor.ts:168:export function mergeMindsetObject(
+packages/agent/src/scl/compressor.ts:169:    existing: MindsetObject,
+packages/agent/src/scl/compressor.ts:171:): MindsetObject {
+packages/agent/src/scl/compressor.ts:173:    return compressToMindsetObject(newGraphs, existing.workspaceId)
+packages/agent/src/scl/reflect-scl.ts:15:import { mutate } from '@plexo/scl-core'
+packages/agent/src/scl/reflect-scl.ts:16:import type { MutationInput, DriftWarning, ConceptType, RelationType } from '@plexo/scl-core'
+packages/agent/src/scl/reflect-scl.ts:20:import { loadGoldenRecord, saveGoldenRecord, loadSclMutationConfig } from './storage.js'
+packages/agent/src/scl/reflect-scl.ts:30:// because the actual enum sets live in `@plexo/scl-core` and the mutate()
+packages/agent/src/scl/reflect-scl.ts:88:    const record = await loadGoldenRecord(ctx.workspaceId)
+packages/agent/src/scl/reflect-scl.ts:197:    await saveGoldenRecord(ctx.workspaceId, record)
+packages/agent/src/scl/expand-context.ts:17:import { expand } from '@plexo/scl-core'
+packages/agent/src/scl/expand-context.ts:18:import { loadGoldenRecord, isSclEnabled } from './storage.js'
+packages/agent/src/scl/expand-context.ts:21:const logger = pino({ name: 'scl:expand-context' })
+packages/agent/src/scl/expand-context.ts:114:            'expandForConversation: real embedding failed/timed out, falling back to hash',
+packages/agent/src/scl/expand-context.ts:129:export async function expandForConversation(
+packages/agent/src/scl/expand-context.ts:134:        logger.info({ workspaceId }, 'expandForConversation: SCL not enabled')
+packages/agent/src/scl/expand-context.ts:138:    const record = await loadGoldenRecord(workspaceId)
+packages/agent/src/scl/expand-context.ts:142:            'expandForConversation: no Golden Record or empty attractors',
+packages/agent/src/scl/expand-context.ts:160:            'expandForConversation: expand returned 0 nodes',
+packages/agent/src/scl/expand-context.ts:191:        'expandForConversation: context injected',
+packages/agent/src/scl/__tests__/cross-app-namespace.test.ts:16:import { boot } from '@plexo/scl-core'
+packages/agent/src/scl/__tests__/cross-app-namespace.test.ts:17:import type { GoldenRecord } from '@plexo/scl-core'
+packages/agent/src/scl/__tests__/cross-app-namespace.test.ts:20:const store: { record: GoldenRecord | null } = { record: null }
+packages/agent/src/scl/__tests__/cross-app-namespace.test.ts:24:    loadGoldenRecord: vi.fn(async () => store.record),
+packages/agent/src/scl/__tests__/cross-app-namespace.test.ts:25:    saveGoldenRecord: vi.fn(async (_ws: string, record: GoldenRecord) => {
+packages/agent/src/scl/__tests__/cross-app-namespace.test.ts:30:// 4-D orthogonal basis vectors (same as scl-core test fixtures)
+packages/agent/src/scl/__tests__/cross-app-namespace.test.ts:35:function makeRecord(): GoldenRecord {
+packages/agent/src/scl/storage.ts:8: * All scl-core functions operate on in-memory GoldenRecord objects.
+packages/agent/src/scl/storage.ts:14:import type { GoldenRecord } from '@plexo/scl-core'
+packages/agent/src/scl/storage.ts:23:export async function loadGoldenRecord(workspaceId: string): Promise<GoldenRecord | null> {
+packages/agent/src/scl/storage.ts:33:        return row.goldenRecord as GoldenRecord
+packages/agent/src/scl/storage.ts:42: * Upserts — creates the workspace_mindsets row if it doesn't exist.
+packages/agent/src/scl/storage.ts:44:export async function saveGoldenRecord(workspaceId: string, record: GoldenRecord): Promise<void> {
+packages/agent/src/scl/storage.ts:47:            INSERT INTO workspace_mindsets (workspace_id, golden_record, golden_record_version, updated_at)
+packages/agent/src/scl/storage.ts:171: * to `SCLConfig` from `@plexo/scl-core` so they can be passed as
+packages/agent/src/scl/storage.ts:176:export async function loadSclMutationConfig(workspaceId: string): Promise<Partial<import('@plexo/scl-core').SCLConfig> | undefined> {
+packages/agent/src/types.ts:518:    /** Expanded MindsetObject context — domain knowledge, patterns, suggested tools */
+packages/agent/src/memory/conversation-bridge.ts:220:    const { isSclEnabled, loadGoldenRecord, saveGoldenRecord, loadSclMutationConfig } = await import('../scl/storage.js')
+packages/agent/src/memory/conversation-bridge.ts:226:    const record = await loadGoldenRecord(workspaceId)
+packages/agent/src/memory/conversation-bridge.ts:232:    const { mutate } = await import('@plexo/scl-core')
+packages/agent/src/memory/conversation-bridge.ts:316:    await saveGoldenRecord(workspaceId, record)
+apps/api/src/routes/scl.ts:35:        const { bootWorkspaceGoldenRecord } = await import('@plexo/agent/scl/boot-workspace')
+apps/api/src/routes/scl.ts:36:        await bootWorkspaceGoldenRecord(workspaceId)
+apps/api/src/routes/scl.ts:38:        const { loadGoldenRecord } = await import('@plexo/agent/scl/storage')
+apps/api/src/routes/scl.ts:39:        const record = await loadGoldenRecord(workspaceId)
+apps/api/src/routes/scl.ts:69:        const { reembedGoldenRecord } = await import('@plexo/agent/scl/boot-workspace')
+apps/api/src/routes/scl.ts:70:        const result = await reembedGoldenRecord(workspaceId)
+apps/api/src/routes/scl.ts:95:        const validLevel = (['L0', 'L1', 'L2'].includes(level) ? level : 'L1') as import('@plexo/scl-core').ResolutionLevel
+apps/api/src/routes/scl.ts:127:        const { isSclEnabled, loadGoldenRecord, saveGoldenRecord } = await import('@plexo/agent/scl/storage')
+apps/api/src/routes/scl.ts:133:        const record = await loadGoldenRecord(workspaceId)
+apps/api/src/routes/scl.ts:139:        const { mutate } = await import('@plexo/scl-core')
+apps/api/src/routes/scl.ts:161:        await saveGoldenRecord(workspaceId, record)
+apps/api/src/routes/scl.ts:205:        const { loadGoldenRecord, isSclEnabled } = await import('@plexo/agent/scl/storage')
+apps/api/src/routes/scl.ts:212:        const record = await loadGoldenRecord(workspaceId)
+apps/api/src/routes/scl.ts:293:            const { loadGoldenRecord, saveGoldenRecord } = await import('@plexo/agent/scl/storage')
+apps/api/src/routes/scl.ts:294:            const { resolveDrift } = await import('@plexo/scl-core')
+apps/api/src/routes/scl.ts:295:            const record = await loadGoldenRecord(workspaceId)
+apps/api/src/routes/scl.ts:309:                await saveGoldenRecord(workspaceId, updated)
+apps/api/src/routes/scl.ts:784:            const { loadGoldenRecord, saveGoldenRecord } = await import('@plexo/agent/scl/storage')
+apps/api/src/routes/scl.ts:785:            const { resolveDrift } = await import('@plexo/scl-core')
+apps/api/src/routes/scl.ts:786:            const record = await loadGoldenRecord(workspaceId)
+apps/api/src/routes/scl.ts:800:                await saveGoldenRecord(workspaceId, updated)
+packages/agent/src/introspection/index.ts:41:    GoldenRecordSnapshot,
+packages/agent/src/introspection/index.ts:526:    let goldenRecord: GoldenRecordSnapshot | null = null
+packages/agent/src/introspection/index.ts:552:            FROM workspace_mindsets
+packages/agent/src/introspection/index.ts:612:            FROM workspace_mindsets
+apps/api/src/routes/__tests__/chat-quality.test.ts:127:    recallPriorConversation: vi.fn(async () => null),
+apps/api/src/routes/__tests__/chat-quality.test.ts:205:vi.mock('@plexo/agent/scl/expand-context', () => ({
+apps/api/src/routes/__tests__/chat-quality.test.ts:206:    expandForConversation: vi.fn(async () => null),
+packages/agent/src/scl/boot-workspace.ts:8: * workspace's spirit anchors, calls boot() from scl-core, and persists
+packages/agent/src/scl/boot-workspace.ts:12:import { boot } from '@plexo/scl-core'
+packages/agent/src/scl/boot-workspace.ts:13:import type { BootConfig, ConceptType } from '@plexo/scl-core'
+packages/agent/src/scl/boot-workspace.ts:14:import { saveGoldenRecord } from './storage.js'
+packages/agent/src/scl/boot-workspace.ts:45: * 3. Calls boot() from scl-core
+packages/agent/src/scl/boot-workspace.ts:46: * 4. Persists the Golden Record to workspace_mindsets
+packages/agent/src/scl/boot-workspace.ts:48:export async function bootWorkspaceGoldenRecord(
+packages/agent/src/scl/boot-workspace.ts:137:    await saveGoldenRecord(workspaceId, record)
+packages/agent/src/scl/boot-workspace.ts:154:export async function reembedGoldenRecord(
+packages/agent/src/scl/boot-workspace.ts:158:    const { loadGoldenRecord } = await import('./storage.js')
+packages/agent/src/scl/boot-workspace.ts:159:    const record = await loadGoldenRecord(workspaceId)
+packages/agent/src/scl/boot-workspace.ts:206:    await saveGoldenRecord(workspaceId, record)
+apps/api/src/routes/__tests__/scl-attractors.test.ts:69:    loadGoldenRecord: vi.fn(async () => null),
+apps/api/src/routes/__tests__/scl-attractors.test.ts:70:    saveGoldenRecord: vi.fn(async () => undefined),
+apps/api/src/routes/__tests__/scl-attractors.test.ts:73:vi.mock('@plexo/scl-core', () => ({
+packages/agent/src/scl/types.ts:5: * SCL type definitions — MindsetObject and supporting structures.
+packages/agent/src/scl/types.ts:7: * MindsetObject is a fixed-size generative structure, not enumerated facts.
+packages/agent/src/scl/types.ts:11:export interface MindsetObject {
+packages/agent/src/scl/expander.ts:5: * SCL-X Expander: MindsetObject + Stimulus → ExpandedContext
+packages/agent/src/scl/expander.ts:7: * Given a MindsetObject and a task stimulus, expand only the relevant
+packages/agent/src/scl/expander.ts:15:import type { MindsetObject, ExpandedContext } from './types.js'
+packages/agent/src/scl/expander.ts:18:const logger = pino({ name: 'scl:expander' })
+packages/agent/src/scl/expander.ts:27: * Expand relevant regions of a MindsetObject for a given task stimulus.
+packages/agent/src/scl/expander.ts:29:export function expandMindsetObject(
+packages/agent/src/scl/expander.ts:30:    mindset: MindsetObject,
+packages/agent/src/scl/index.ts:6:export { compressToMindsetObject, mergeMindsetObject } from './compressor.js'
+packages/agent/src/scl/index.ts:7:export { expandMindsetObject, type ExpansionStimulus } from './expander.js'
+packages/agent/src/scl/index.ts:8:export type { MindsetObject, MindsetRegion, ConceptAttractor, TransformationRule, ExpandedContext } from './types.js'
+tests/e2e/p7-scl-ui.spec.ts:5: * P7 SCL UI E2E — proves MindsetObject viewer renders,
+tests/e2e/p7-scl-ui.spec.ts:21:        test('MindsetObjectViewer component exists', () => {
+tests/e2e/p7-scl-ui.spec.ts:22:            const viewerPath = path.join(REPO_ROOT, 'apps/web/src/components/scl/MindsetObjectViewer.tsx')
+tests/e2e/p7-scl-ui.spec.ts:26:            expect(content).toContain('MindsetObject')
+tests/e2e/p7-scl-ui.spec.ts:47:        test('insights page has MindsetObjectViewer and empty state', () => {
+tests/e2e/p7-scl-ui.spec.ts:52:            expect(insightsPage).toContain('MindsetObjectViewer')
+packages/scl-core/tests/pressure.test.ts:3:import type { GoldenRecord, MutationInput, ConceptType, RelationType } from '../src/types.js'
+packages/scl-core/tests/pressure.test.ts:33:function makeRecord(spiritCount = 6): GoldenRecord {
+packages/scl-core/tests/pressure.test.ts:654:        const restored = JSON.parse(json) as GoldenRecord
+packages/scl-core/src/index.ts:19:    GoldenRecord, ExpandRequest, ExpandedNode, ExpandedEdge, ExpansionResult,
+packages/scl-core/src/expand.ts:5:    GoldenRecord, ExpandRequest, ExpansionResult,
+packages/scl-core/src/expand.ts:18:export function expand(record: GoldenRecord, request: ExpandRequest): ExpansionResult {
+packages/agent/src/scl/embedding-provider.ts:6: * scl-core EmbeddingProvider interface.
+packages/agent/src/scl/embedding-provider.ts:13:import type { EmbeddingProvider } from '@plexo/scl-core'
+packages/agent/src/scl/embedding-provider.ts:26: * Returns an scl-core compatible EmbeddingProvider.
+packages/agent/src/scl/task-expansion.ts:8: * Replaces the old MindsetObject expansion in agent-loop.ts.
+packages/agent/src/scl/task-expansion.ts:12:import { expand, cosineSimilarity } from '@plexo/scl-core'
+packages/agent/src/scl/task-expansion.ts:13:import type { ResolutionLevel, ExpandedNode } from '@plexo/scl-core'
+packages/agent/src/scl/task-expansion.ts:94:import { loadGoldenRecord, saveGoldenRecord, isSclEnabled } from './storage.js'
+packages/agent/src/scl/task-expansion.ts:132:    const record = await loadGoldenRecord(workspaceId)
+packages/agent/src/scl/task-expansion.ts:290:    const record = await loadGoldenRecord(workspaceId)
+packages/agent/src/scl/task-expansion.ts:305:        await saveGoldenRecord(workspaceId, record)
+packages/agent/src/scl/__tests__/mmr-rerank.test.ts:17:import type { ExpandedNode, DepthClass } from '@plexo/scl-core'
+packages/agent/src/executor/index.ts:738:                // SCL-D: compress handoff context via MindsetObject when available
+packages/agent/src/executor/index.ts:743:                            SELECT mindset_object FROM workspace_mindsets
+packages/agent/src/executor/index.ts:746:                        const mindset = mindsetRows[0]?.mindset_object as import('../scl/types.js').MindsetObject | undefined
+packages/agent/src/executor/index.ts:748:                            const { expandMindsetObject } = await import('../scl/expander.js')
+packages/agent/src/executor/index.ts:751:                            const expanded = expandMindsetObject(mindset, { taskDescription: instructions, taskType })
+packages/agent/src/executor/index.ts:763:                                VALUES (${process.env.PLEXO_INSTANCE_ID ?? 'unknown'}, 'scl-expander', 'scl',
