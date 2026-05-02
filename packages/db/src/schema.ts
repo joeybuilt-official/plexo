@@ -564,11 +564,51 @@ export const memoryEntries = pgTable('memory_entries', {
      */
     namespace: text('namespace').notNull().default('default'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+    // Phase 1 Memory Rebuild — new columns
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    factType: text('fact_type'),
+    subject: text('subject'),
+    predicate: text('predicate'),
+    object: text('object'),
+    domain: text('domain'),
+    scopeLevel: text('scope_level'),
+    appId: text('app_id'),
+    sourceText: text('source_text'),
+    source: text('source'),
+    supersededBy: uuid('superseded_by').references((): any => memoryEntries.id, { onDelete: 'set null' }), // eslint-disable-line @typescript-eslint/no-explicit-any -- self-ref
+    validFrom: timestamp('valid_from', { mode: 'date', withTimezone: true }),
+    invalidAt: timestamp('invalid_at', { mode: 'date', withTimezone: true }),
+    retrievalCount: integer('retrieval_count').notNull().default(0),
+    lastRetrievedAt: timestamp('last_retrieved_at', { mode: 'date', withTimezone: true }),
+    confidence: real('confidence').notNull().default(1.0),
+    isAnchored: boolean('is_anchored').notNull().default(false),
 }, (table: any) => [
     index('memory_entries_workspace_type_idx').on(table.workspaceId, table.type),
     index('memory_entries_workspace_namespace_idx').on(table.workspaceId, table.namespace),
     index('memory_entries_workspace_namespace_type_idx').on(table.workspaceId, table.namespace, table.type),
     // FTS index created via migration 0089_audit_p1_schema.sql (Drizzle 0.39 does not support expression indexes inline)
+    index('memory_entries_user_id_idx').on(table.userId),
+    index('memory_entries_scope_level_idx').on(table.scopeLevel),
+    index('memory_entries_fact_type_idx').on(table.factType),
+    index('memory_entries_confidence_idx').on(table.confidence),
+    index('memory_entries_retrieval_count_idx').on(table.retrievalCount),
+    index('memory_entries_superseded_by_idx').on(table.supersededBy),
+])
+
+// Separate embedding store — decouples vector index rebuilds from the main row.
+// Populated in Phase 4. HNSW index created via migration 0102_memory_rebuild_phase1.sql.
+export const memoryEmbeddings = pgTable('memory_embeddings', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    entryId: uuid('entry_id')
+        .notNull()
+        .unique()
+        .references(() => memoryEntries.id, { onDelete: 'cascade' }),
+    // embedding: vector(384) — added via migration SQL (pgvector not natively supported by drizzle-orm)
+    model: text('model').notNull(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).defaultNow().notNull(),
+}, (table: any) => [
+    index('memory_embeddings_entry_id_idx').on(table.entryId),
+    // HNSW index on embedding created via migration SQL
 ])
 
 export const workLedger = pgTable('work_ledger', {
@@ -1517,18 +1557,6 @@ export const inferenceLogs = pgTable('inference_logs', {
     index('inference_logs_model_idx').on(table.model),
 ])
 
-export const workspaceMindsets = pgTable('workspace_mindsets', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }).unique(),
-    mindsetObject: jsonb('mindset_object').notNull().default({}),
-    goldenRecord: jsonb('golden_record'),
-    goldenRecordVersion: text('golden_record_version'),
-    version: integer('version').notNull().default(1),
-    taskCount: integer('task_count').notNull().default(0),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-})
-
 export const sclConceptGraphs = pgTable('scl_concept_graphs', {
     id: uuid('id').defaultRandom().primaryKey(),
     sourceLogId: uuid('source_log_id').references(() => inferenceLogs.id, { onDelete: 'set null' }),
@@ -1542,21 +1570,6 @@ export const sclConceptGraphs = pgTable('scl_concept_graphs', {
     index('idx_scl_concept_graphs_domain').on(table.domainRegion),
     index('idx_scl_concept_graphs_workspace').on(table.workspaceId),
 ])
-
-export const sclDriftWarnings = pgTable('scl_drift_warnings', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
-    attractorId: text('attractor_id').notNull(),
-    attractorLabel: text('attractor_label').notNull(),
-    currentPosition: jsonb('current_position').notNull(),
-    proposedPosition: jsonb('proposed_position').notNull(),
-    semanticDistance: real('semantic_distance').notNull(),
-    threshold: real('threshold').notNull(),
-    source: text('source').notNull(),
-    status: text('status').notNull().default('pending'),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
-})
 
 // ── Model Foundry ────────────────────────────────────────────────────────────
 
