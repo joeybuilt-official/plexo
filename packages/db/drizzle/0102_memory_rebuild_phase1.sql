@@ -1,7 +1,7 @@
 -- Phase 1: Memory Rebuild — extend memory_entries, create memory_embeddings
 --> statement-breakpoint
 ALTER TABLE "memory_entries"
-    ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS "user_id" uuid,
     ADD COLUMN IF NOT EXISTS "fact_type" text,
     ADD COLUMN IF NOT EXISTS "subject" text,
     ADD COLUMN IF NOT EXISTS "predicate" text,
