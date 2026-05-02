@@ -1,0 +1,1196 @@
+apps/web/src/components/works/__tests__/enrichment-patterns.test.ts:59:        expect(found?.entry.href).toBe('/app/settings/channels')
+apps/api/src/sse-emitter.ts:103:    // Always notify internal subscribers (Telegram, Slack adapters) regardless
+apps/api/src/sse-emitter.ts:105:    notifyInternal(event)
+apps/api/src/sse-emitter.ts:133:    notifyInternal(event)
+apps/api/src/sse-emitter.ts:168:function notifyInternal(event: AgentEvent): void {
+apps/api/src/lib/telegram-sanitize.test.ts:5:import { sanitizeForTelegram, sanitizeForSlack, sanitizeForDiscord } from './telegram-sanitize.js'
+apps/api/src/lib/deepgram.ts:14: *   2. apps/api/src/routes/telegram.ts — the Telegram webhook handler,
+apps/api/src/lib/deepgram.ts:70:    source?: string // 'telegram' | 'voice-endpoint' | etc.
+apps/api/src/lib/deepgram.ts:115: * all channels. This was the root cause of the "Deepgram API key is invalid
+apps/api/src/lib/deepgram.ts:304:        channels?: Array<{
+apps/api/src/lib/deepgram.ts:404:        const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? ''
+apps/api/src/lib/deepgram.ts:405:        const wordCount = data.results?.channels?.[0]?.alternatives?.[0]?.words?.length ?? 0
+apps/api/src/lib/deepgram.ts:636: * instance, or env-level GROQ_API_KEY). Used by channel handlers to decide
+apps/api/src/lib/deepgram.ts:652: * Call sites (telegram.ts, voice.ts POST /transcribe) should prefer this over
+apps/api/src/lib/__tests__/deepgram.test.ts:66:        const result = await transcribeAudio(null, audio, 'audio/ogg', { workspaceId: wsId, source: 'telegram' })
+apps/api/src/lib/__tests__/deepgram.test.ts:98:                channels: [{
+apps/api/src/lib/__tests__/deepgram.test.ts:110:            source: 'telegram',
+apps/api/src/lib/__tests__/deepgram.test.ts:171:            results: { channels: [{ alternatives: [{ transcript: '', words: [] }] }] },
+apps/api/src/analytics/sanitize.ts:10: *   - channel credentials and tokens                            → removed
+apps/api/src/analytics/events.ts:19: *   - Task source (chat/dashboard/telegram/sentry/cron/etc.)
+apps/api/src/analytics/events.ts:131: * No user content — only the source channel.
+apps/api/src/analytics/events.ts:173:    source: string      // chat, dashboard, telegram, sentry, cron, etc.
+apps/api/src/analytics/events.ts:297:    source: string        // chat, dashboard, telegram, sentry, cron, etc.
+apps/api/src/analytics/events.ts:371:        telegram: boolean
+apps/api/src/analytics/events.ts:384:        has_telegram: opts.activeIntegrations.telegram,
+apps/api/src/analytics/events.ts:425:    source: string           // chat, telegram, slack, discord
+apps/api/src/analytics/events.ts:528:    source: string           // chat, telegram, slack, discord
+apps/api/src/routes/slack.ts:5: * Slack channel adapter.
+apps/api/src/routes/slack.ts:15: * - Webhook URL: ${PUBLIC_URL}/api/channels/slack/events
+apps/api/src/routes/slack.ts:26:import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
+apps/api/src/routes/slack.ts:29:import { maybeReact } from '@plexo/agent/channels/reaction-manager'
+apps/api/src/routes/slack.ts:30:import { sanitizeForSlack } from '../lib/telegram-sanitize.js'
+apps/api/src/routes/slack.ts:73:async function postMessage(channel: string, text: string, threadTs?: string, trackingCtx?: { workspaceId: string }): Promise<void> {
+apps/api/src/routes/slack.ts:76:        logger.warn({ channel }, 'Slack postMessage called with empty text — skipping')
+apps/api/src/routes/slack.ts:77:        if (trackingCtx) trackDelivery({ workspaceId: trackingCtx.workspaceId, channel: 'slack', chatId: channel, status: 'empty_response', messageLength: 0 })
+apps/api/src/routes/slack.ts:94:                channel,
+apps/api/src/routes/slack.ts:100:        if (trackingCtx) trackDelivery({ workspaceId: trackingCtx.workspaceId, channel: 'slack', chatId: channel, status: ok ? 'sent' : 'failed', messageLength: sanitized.length, latencyMs: Date.now() - start, errorMessage: ok ? null : `HTTP ${res.status}` })
+apps/api/src/routes/slack.ts:103:        if (trackingCtx) trackDelivery({ workspaceId: trackingCtx.workspaceId, channel: 'slack', chatId: channel, status: 'failed', messageLength: sanitized.length, latencyMs: Date.now() - start, errorMessage: (err as Error).message })
+apps/api/src/routes/slack.ts:107:// ── Chat history (shared helper from channel-ai.ts) ────────────────────────
+apps/api/src/routes/slack.ts:121:    channel: string,
+apps/api/src/routes/slack.ts:126:    const channelThreadId = `${teamId}:${channel}:${threadTs}`
+apps/api/src/routes/slack.ts:130:            channel: 'slack',
+apps/api/src/routes/slack.ts:131:            channelThreadId,
+apps/api/src/routes/slack.ts:137:        logger.warn({ err, channelThreadId }, 'slack: session resolver failed, falling back to stable id')
+apps/api/src/routes/slack.ts:139:            sessionId: `slack:${channelThreadId}:${Date.now()}`,
+apps/api/src/routes/slack.ts:154:    channel: string,
+apps/api/src/routes/slack.ts:158:    const r = await slackResolveSession(workspaceId, teamId, channel, threadTs, text)
+apps/api/src/routes/slack.ts:168:    channel?: string
+apps/api/src/routes/slack.ts:169:    channel_type?: string
+apps/api/src/routes/slack.ts:189:// ── POST /api/channels/slack/events ──────────────────────────────────────────
+apps/api/src/routes/slack.ts:215:    // 5. Handle: app_mention (in channels) and message.im (direct messages)
+apps/api/src/routes/slack.ts:216:    const isDirectMessage = event.channel_type === 'im' && event.type === 'message'
+apps/api/src/routes/slack.ts:225:        if (event.channel) {
+apps/api/src/routes/slack.ts:227:                event.channel,
+apps/api/src/routes/slack.ts:251:                if (event.channel) {
+apps/api/src/routes/slack.ts:252:                    await postMessage(event.channel, errorReply, event.ts)
+apps/api/src/routes/slack.ts:254:                const { sessionId } = await slackResolveSession(workspaceId, teamId, event.channel ?? '', event.thread_ts ?? event.ts ?? '', '[audio file]', event.user)
+apps/api/src/routes/slack.ts:255:                const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+apps/api/src/routes/slack.ts:265:                    channelRef,
+apps/api/src/routes/slack.ts:295:                if (event.channel) {
+apps/api/src/routes/slack.ts:296:                    await postMessage(event.channel, emptyReply, event.ts)
+apps/api/src/routes/slack.ts:298:                const { sessionId } = await slackResolveSession(workspaceId, teamId, event.channel ?? '', event.thread_ts ?? event.ts ?? '', '[audio file]', event.user)
+apps/api/src/routes/slack.ts:299:                const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+apps/api/src/routes/slack.ts:309:                    channelRef,
+apps/api/src/routes/slack.ts:314:            logger.info({ workspaceId, channel: event.channel, chars: transcript.length }, 'Slack audio transcribed')
+apps/api/src/routes/slack.ts:321:            logger.error({ err, workspaceId, channel: event.channel }, 'Slack transcription failed')
+apps/api/src/routes/slack.ts:322:            trackEvent('channel.error', 'error', { channel: 'slack', error: 'transcription_failed', workspaceId })
+apps/api/src/routes/slack.ts:332:            if (event.channel) {
+apps/api/src/routes/slack.ts:333:                await postMessage(event.channel, transcribeErrorReply, event.ts)
+apps/api/src/routes/slack.ts:335:            const { sessionId } = await slackResolveSession(workspaceId, teamId, event.channel ?? '', event.thread_ts ?? event.ts ?? '', '[audio file]', event.user)
+apps/api/src/routes/slack.ts:336:            const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+apps/api/src/routes/slack.ts:346:                channelRef,
+apps/api/src/routes/slack.ts:399:        event.channel ?? '',
+apps/api/src/routes/slack.ts:405:        logger.info({ workspaceId, channel: event.channel, sessionId: resolvedSessionId, reason: _sessionReason }, 'slack: new session started')
+apps/api/src/routes/slack.ts:409:    const credMatch = event.channel ? detectCredentialMessage(text) : null
+apps/api/src/routes/slack.ts:410:    if (credMatch && event.channel) {
+apps/api/src/routes/slack.ts:413:            await postMessage(event.channel, reply, event.thread_ts || undefined)
+apps/api/src/routes/slack.ts:416:            await postMessage(event.channel, `Failed to connect to ${credMatch.serviceName}. Check that the URL and token are correct.`, event.thread_ts || undefined)
+apps/api/src/routes/slack.ts:422:    const slackChannelThreadId = `${teamId}:${event.channel ?? ''}:${event.thread_ts ?? event.ts ?? ''}`
+apps/api/src/routes/slack.ts:440:        if (event.channel) await postMessage(event.channel, memReply, event.ts, { workspaceId })
+apps/api/src/routes/slack.ts:441:        const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+apps/api/src/routes/slack.ts:442:        await recordConversation({ workspaceId, sessionId: resolvedSessionId, source: 'slack', message: text, reply: memReply, status: 'complete', intent: 'CONVERSATION', channelRef, messageEmbedding: resolvedEmbedding }).catch((e: Error) => logger.warn({ e }, 'Slack: recordConversation failed (MEMORY)'))
+apps/api/src/routes/slack.ts:447:    if (event.channel && event.ts) {
+apps/api/src/routes/slack.ts:449:            { channel: 'slack', workspaceId, messageText: text, intent, isError: false },
+apps/api/src/routes/slack.ts:450:            { channel: 'slack', slackBotToken: BOT_TOKEN ?? '', slackChannel: event.channel, slackTimestamp: event.ts },
+apps/api/src/routes/slack.ts:458:            buildConversationSystemPrompt('slack', undefined, { reactionsAvailable: !!(event.channel && event.ts && BOT_TOKEN) }),
+apps/api/src/routes/slack.ts:461:            event.channel && event.ts && BOT_TOKEN
+apps/api/src/routes/slack.ts:462:                ? { channel: 'slack', chatId: event.channel, messageId: event.ts, botToken: BOT_TOKEN }
+apps/api/src/routes/slack.ts:476:        if (event.channel) {
+apps/api/src/routes/slack.ts:477:            await postMessage(event.channel, replyText, event.ts, { workspaceId })
+apps/api/src/routes/slack.ts:495:        const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+apps/api/src/routes/slack.ts:505:            channelRef,
+apps/api/src/routes/slack.ts:509:        trackEvent('channel.conversation_turn', 'info', {
+apps/api/src/routes/slack.ts:510:            channel: 'slack',
+apps/api/src/routes/slack.ts:526:                channel: 'slack',
+apps/api/src/routes/slack.ts:527:                chatId: event.channel,
+apps/api/src/routes/slack.ts:528:                slackChannel: event.channel,
+apps/api/src/routes/slack.ts:537:        if (event.channel) {
+apps/api/src/routes/slack.ts:538:            await postMessage(event.channel, slackReply, event.ts, { workspaceId })
+apps/api/src/routes/slack.ts:544:        const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+apps/api/src/routes/slack.ts:554:            channelRef,
+apps/api/src/routes/slack.ts:557:        trackEvent('channel.task_created', 'info', {
+apps/api/src/routes/slack.ts:558:            channel: 'slack', taskId, workspaceId, sessionId,
+apps/api/src/routes/slack.ts:564:            slackChannel: event.channel,
+apps/api/src/routes/slack.ts:568:        logger.error({ err, channel: event.channel }, 'Failed to queue Slack task')
+apps/api/src/routes/slack.ts:569:        trackEvent('channel.error', 'error', { channel: 'slack', error: 'task_queue_failed' })
+apps/api/src/routes/slack.ts:572:        if (event.channel) {
+apps/api/src/routes/slack.ts:573:            await postMessage(event.channel, queueErrorReply, event.ts)
+apps/api/src/routes/slack.ts:576:        const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+apps/api/src/routes/slack.ts:586:            channelRef,
+apps/api/src/routes/slack.ts:591:// ── GET /api/channels/slack/info ─────────────────────────────────────────────
+apps/api/src/routes/__tests__/channel-bridge-coverage.test.ts:5: * Phase 4 — channel adapter coverage gate.
+apps/api/src/routes/__tests__/channel-bridge-coverage.test.ts:7: * Asserts every channel adapter route invokes the conversation-bridge
+apps/api/src/routes/__tests__/channel-bridge-coverage.test.ts:8: * (extractConversationMemory) so turns from any channel land in memory.
+apps/api/src/routes/__tests__/channel-bridge-coverage.test.ts:10: * Catches the regression where a new channel ships without bridge wiring.
+apps/api/src/routes/__tests__/channel-bridge-coverage.test.ts:22:    { name: 'telegram',          file: 'telegram.ts' },
+apps/api/src/routes/__tests__/channel-bridge-coverage.test.ts:32:describe('channel adapter coverage — conversation-bridge invocation', () => {
+apps/web/src/lib/works/plexo-paths.ts:27:    { pattern: /settings\s*[>›/→\-]+\s*channels/i, href: '/app/settings/channels', label: 'Channels' },
+apps/web/src/lib/works/plexo-paths.ts:41:    { pattern: /\b(?:your\s+)?channels?\s*page\b/i, href: '/app/settings/channels', label: 'Channels' },
+apps/web/src/lib/works/plexo-paths.ts:52:    { pattern: /\/app\/settings\/channels\b/i, href: '/app/settings/channels', label: 'Channels' },
+tests/unit/channel-ai-disclaimers.test.ts:2: * Unit tests for stripDisclaimers() in channel-ai.ts.
+tests/unit/channel-ai-disclaimers.test.ts:13:// Mock all heavy dependencies before importing channel-ai
+tests/unit/channel-ai-disclaimers.test.ts:34:const { stripDisclaimers } = await import('../../apps/api/src/channel-ai.js')
+apps/api/src/channel-ai.test.ts:43:// strings containing the markers channel-ai tests grep for, without pulling
+apps/api/src/channel-ai.test.ts:48:        ({ channel, extraConversationContext }: { channel?: string; extraConversationContext?: string } = {}) => {
+apps/api/src/channel-ai.test.ts:49:            const ch = channel ?? 'webchat'
+apps/api/src/channel-ai.test.ts:53:            const tg = ch === 'telegram'
+apps/api/src/channel-ai.test.ts:144:        const { stripDisclaimers } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:149:        const { stripDisclaimers } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:157:        const { stripDisclaimers } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:163:        const { stripDisclaimers } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:170:        const { stripDisclaimers } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:180:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:187:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:194:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:200:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:206:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:212:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:218:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:224:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:229:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:235:        const { translateErrorForUser } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:243:        const { hasRecallIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:249:        const { hasRecallIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:255:        const { hasRecallIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:261:        const { hasRecallIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:267:    it('includes webchat hint for webchat channel', async () => {
+apps/api/src/channel-ai.test.ts:268:        const { buildConversationSystemPrompt } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:274:    it('includes telegram output rules for telegram channel', async () => {
+apps/api/src/channel-ai.test.ts:275:        const { buildConversationSystemPrompt } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:276:        const out = buildConversationSystemPrompt('telegram')
+apps/api/src/channel-ai.test.ts:281:    it('includes channel hint for generic channels', async () => {
+apps/api/src/channel-ai.test.ts:282:        const { buildConversationSystemPrompt } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:289:        const { buildConversationSystemPrompt } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:304:        const { classifyIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:317:        const { classifyIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:336:        const { classifyIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:353:        const { classifyIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:370:        const { classifyIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:385:        const { classifyIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:400:        const { classifyIntent } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:410:        const { ChannelChatHistory } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:421:        const { ChannelChatHistory } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:432:        const { ChannelChatHistory } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:440:        const { ChannelChatHistory } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:463:        const { chatWithAI } = await import('./channel-ai.js')
+apps/api/src/channel-ai.test.ts:473:        const { chatWithAI } = await import('./channel-ai.js')
+apps/api/src/index.ts:34:import { telegramRouter, initTelegramWebhook } from './routes/telegram.js'
+apps/api/src/index.ts:47:import { channelsRouter } from './routes/channels.js'
+apps/api/src/index.ts:236:v1.use('/channels/telegram', webhookLimiter, jsonMedium, telegramRouter) // X-Telegram-Bot-Api-Secret-Token, 2 MB
+apps/api/src/index.ts:237:v1.use('/channels/slack', webhookLimiter, jsonDefault, slackRouter) // X-Slack-Signature
+apps/api/src/index.ts:238:v1.use('/channels/discord', webhookLimiter, jsonDefault, discordRouter) // ed25519 signature
+apps/api/src/index.ts:289:v1.use('/channels', channelsRouter) // per-handler workspace check
+apps/api/src/index.ts:629:            const [telegramRow] = await db.execute(sql`
+apps/api/src/index.ts:630:                SELECT 1 FROM telegram_chats LIMIT 1
+apps/api/src/index.ts:644:                    telegram: !!telegramRow,
+apps/api/src/lib/telegram-sanitize.ts:5: * Outbound message sanitizers for chat channels.
+apps/api/src/lib/telegram-sanitize.ts:14: * This module centralizes the cleanup. Each channel adapter must funnel
+packages/mcp-server/src/tools/system.ts:103:        // Connected channels
+packages/mcp-server/src/tools/system.ts:104:        const [channelCountRow] = await db.execute<{ count: string }>(sql`
+packages/mcp-server/src/tools/system.ts:106:            FROM channels
+packages/mcp-server/src/tools/system.ts:142:            connected_channels_count: parseInt(channelCountRow?.count ?? '0', 10),
+packages/db/split-sessions.ts:33:    channel_ref: { channel?: string; channelId?: string; chatId?: string } | null
+packages/db/split-sessions.ts:44:    // Prefer channel_ref.chatId for external channels — it's the canonical
+packages/db/split-sessions.ts:46:    // ("<src>:<channelId>:<chatId>[:...]") so we don't collapse unrelated chats.
+packages/db/split-sessions.ts:47:    const cr = r.channel_ref
+packages/db/split-sessions.ts:48:    if (cr?.chatId) return `${cr.channelId ?? ''}:${cr.chatId}`
+packages/db/split-sessions.ts:78:        SELECT id, workspace_id, source, session_id, channel_ref, created_at
+apps/api/src/routes/chat-app-transport.ts:11: * endpoint for channel extensions with `channelTransport: 'api'`.
+apps/api/src/routes/chat-app-transport.ts:34:import { buildConversationSystemPrompt } from '../channel-ai.js'
+apps/api/src/routes/chat-app-transport.ts:99:    channelRef: {
+apps/api/src/routes/chat-app-transport.ts:100:        channel: string
+apps/api/src/routes/chat-app-transport.ts:122:    const { workspaceId, channelRef, message, sessionContext } = body
+apps/api/src/routes/chat-app-transport.ts:128:    if (!channelRef?.channel || !channelRef.appId || !channelRef.threadId) {
+apps/api/src/routes/chat-app-transport.ts:129:        res.status(400).json({ error: { code: 'INVALID_CHANNEL_REF', message: 'channelRef requires channel, appId, and threadId' } })
+apps/api/src/routes/chat-app-transport.ts:154:    const sessionAnchor = `${channelRef.channel}:${channelRef.appId}:${channelRef.threadId}`
+apps/api/src/routes/chat-app-transport.ts:191:                    channel: 'api',
+apps/api/src/routes/chat-app-transport.ts:192:                    channelThreadId: sessionAnchor,
+apps/api/src/routes/chat-app-transport.ts:227:            const systemPrompt = buildConversationSystemPrompt(channelRef.channel, extraContext || undefined)
+apps/api/src/routes/chat-app-transport.ts:249:                        channel: channelRef.channel,
+apps/api/src/routes/chat-app-transport.ts:250:                        channelId: channelRef.appId,
+apps/api/src/routes/chat-app-transport.ts:251:                        chatId: channelRef.threadId,
+apps/api/src/routes/chat-app-transport.ts:274:                        source: channelRef.channel,
+apps/api/src/routes/chat-app-transport.ts:279:                        channelRef: convChannelRef,
+apps/api/src/routes/chat-app-transport.ts:290:                        void extractConversationMemory({ workspaceId, userMessage: trimmedMsg, assistantReply: fullText, sessionId, source: channelRef.channel })
+apps/api/src/routes/chat-app-transport.ts:323:                channel: channelRef.channel,
+apps/api/src/routes/chat-app-transport.ts:324:                channelId: channelRef.appId,
+apps/api/src/routes/chat-app-transport.ts:325:                chatId: channelRef.threadId,
+apps/api/src/routes/chat-app-transport.ts:332:                source: channelRef.channel,
+apps/api/src/routes/chat-app-transport.ts:337:                channelRef: convChannelRef,
+apps/api/src/routes/chat-app-transport.ts:348:                void extractConversationMemory({ workspaceId, userMessage: trimmedMsg, assistantReply: replyText, sessionId, source: channelRef.channel })
+apps/api/src/routes/chat-app-transport.ts:352:            logger.info({ workspaceId, conversationId, sessionId, channel: channelRef.channel }, 'app-transport: reply sent')
+apps/api/src/routes/discord.ts:5: * Discord channel adapter — handles incoming interactions and DMs via
+apps/api/src/routes/discord.ts:31:import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
+apps/api/src/routes/discord.ts:32:import { sanitizeForDiscord } from '../lib/telegram-sanitize.js'
+apps/api/src/routes/discord.ts:35:import { maybeReact } from '@plexo/agent/channels/reaction-manager'
+apps/api/src/routes/discord.ts:67:    channel_id?: string
+apps/api/src/routes/discord.ts:131:        if (trackingCtx) trackDelivery({ workspaceId: trackingCtx.workspaceId, channel: 'discord', chatId: trackingCtx.chatId, status: 'empty_response', messageLength: 0 })
+apps/api/src/routes/discord.ts:153:        if (trackingCtx) trackDelivery({ workspaceId: trackingCtx.workspaceId, channel: 'discord', chatId: trackingCtx.chatId, status: res.ok ? 'sent' : 'failed', messageLength: sanitized.length, latencyMs: Date.now() - start, errorMessage: res.ok ? null : `HTTP ${res.status}` })
+apps/api/src/routes/discord.ts:156:        if (trackingCtx) trackDelivery({ workspaceId: trackingCtx.workspaceId, channel: 'discord', chatId: trackingCtx.chatId, status: 'failed', messageLength: sanitized.length, latencyMs: Date.now() - start, errorMessage: (err as Error).message })
+apps/api/src/routes/discord.ts:160:// ── Chat history (shared helper from channel-ai.ts) ────────────────────────
+apps/api/src/routes/discord.ts:165: * Session ID for a Discord channel with a SESSION_TIMEOUT_MINUTES inactivity
+apps/api/src/routes/discord.ts:173:    channelId: string,
+apps/api/src/routes/discord.ts:177:    const channelThreadId = `${guildId || 'dm'}:${channelId}`
+apps/api/src/routes/discord.ts:181:            channel: 'discord',
+apps/api/src/routes/discord.ts:182:            channelThreadId,
+apps/api/src/routes/discord.ts:188:        logger.warn({ err, channelThreadId }, 'discord: session resolver failed, falling back to stable id')
+apps/api/src/routes/discord.ts:189:        return { sessionId: `discord:${channelThreadId}:${Date.now()}`, embedding: null, isNew: true, reason: 'resolver_error' }
+apps/api/src/routes/discord.ts:197:    channelId: string,
+apps/api/src/routes/discord.ts:201:    const channelThreadId = `${guildId || 'dm'}:${channelId}`
+apps/api/src/routes/discord.ts:205:            channel: 'discord',
+apps/api/src/routes/discord.ts:206:            channelThreadId,
+apps/api/src/routes/discord.ts:212:        logger.warn({ err, channelThreadId }, 'discord: session resolver failed, falling back to stable id')
+apps/api/src/routes/discord.ts:213:        return `discord:${channelThreadId}:${Date.now()}`
+apps/api/src/routes/discord.ts:217:// ── POST /api/channels/discord/interactions ───────────────────────────────────
+apps/api/src/routes/discord.ts:280:            const threadId = interaction.channel_id ?? interaction.user?.id ?? 'default'
+apps/api/src/routes/discord.ts:282:            const discordChannelId = interaction.channel_id ?? ''
+apps/api/src/routes/discord.ts:308:                interaction.channel_id ?? '',
+apps/api/src/routes/discord.ts:327:                const channelRef: ChannelRef = { channel: 'discord', channelId: interaction.channel_id ?? '', chatId: user?.id ?? '' }
+apps/api/src/routes/discord.ts:328:                await recordConversation({ workspaceId, sessionId: discordSession.sessionId, source: 'discord', message: description, reply: memReply, status: 'complete', intent: 'CONVERSATION', channelRef }).catch((e: Error) => logger.warn({ e }, 'Discord: recordConversation failed (MEMORY)'))
+apps/api/src/routes/discord.ts:336:                { channel: 'discord', workspaceId, messageText: description, intent, isError: false },
+apps/api/src/routes/discord.ts:337:                { channel: 'discord', discordBotToken: process.env.DISCORD_BOT_TOKEN ?? '', discordChannelId: interaction.channel_id ?? '' },
+apps/api/src/routes/discord.ts:380:                const channelRef: ChannelRef = { channel: 'discord', channelId: interaction.channel_id ?? '', chatId: user?.id ?? '' }
+apps/api/src/routes/discord.ts:390:                    channelRef,
+apps/api/src/routes/discord.ts:394:                trackEvent('channel.conversation_turn', 'info', {
+apps/api/src/routes/discord.ts:395:                    channel: 'discord', workspaceId, sessionId,
+apps/api/src/routes/discord.ts:410:                        channel: 'discord',
+apps/api/src/routes/discord.ts:411:                        chatId: interaction.channel_id,
+apps/api/src/routes/discord.ts:413:                        channelId: interaction.channel_id,
+apps/api/src/routes/discord.ts:426:                const channelRef: ChannelRef = { channel: 'discord', channelId: interaction.channel_id ?? '', chatId: user?.id ?? '' }
+apps/api/src/routes/discord.ts:436:                    channelRef,
+apps/api/src/routes/discord.ts:439:                trackEvent('channel.task_created', 'info', {
+apps/api/src/routes/discord.ts:440:                    channel: 'discord', taskId, workspaceId, sessionId,
+apps/api/src/routes/discord.ts:446:                trackEvent('channel.error', 'error', { channel: 'discord', error: 'task_push_failed' })
+apps/api/src/routes/discord.ts:455:                const channelRef: ChannelRef = { channel: 'discord', channelId: interaction.channel_id ?? '', chatId: user?.id ?? '' }
+apps/api/src/routes/discord.ts:465:                    channelRef,
+apps/api/src/routes/discord.ts:484:// ── GET /api/channels/discord/info ────────────────────────────────────────────
+apps/api/src/routes/training-data.ts:50:        description: 'User messages and agent replies across all channels',
+packages/agent/src/one-way-door.ts:17: * 3. Operator approves/rejects via dashboard or channel reply
+packages/agent/src/one-way-door.ts:172: * Attempt to deliver via secondary channel (Telegram, Slack) when SSE delivery fails.
+packages/agent/src/one-way-door.ts:173: * Uses the eventBus to notify channel adapters. This is a best-effort fallback.
+packages/agent/src/one-way-door.ts:182:        logger.info({ taskId, id: payload.id }, 'OWD: triggered secondary channel delivery')
+packages/agent/src/one-way-door.ts:184:        logger.warn({ err, taskId }, 'OWD: secondary channel delivery failed')
+packages/agent/src/one-way-door.ts:206:            logger.warn({ id, taskId: record.taskId }, 'OWD: SSE delivery not acknowledged — triggering secondary channel')
+packages/agent/src/plugins/synthesizer.ts:58:    'channel:send',
+packages/agent/src/plugins/synthesizer.ts:59:    'ui:notify',
+packages/agent/src/plugins/synthesizer.ts:65:    'channel:send-direct',
+packages/agent/src/plugins/synthesizer.ts:217:        caps.add('channel:send')
+packages/agent/src/plugins/synthesizer.ts:253:Notifications: sdk.channel.send({ text })
+packages/agent/src/prompts/build-system-prompt.ts:8: * across channel-ai.ts, executor/index.ts, capabilities/manifest.ts, and
+packages/agent/src/prompts/build-system-prompt.ts:28:export type Channel = 'web' | 'webchat' | 'telegram' | 'slack' | 'discord' | 'api' | string
+packages/agent/src/prompts/build-system-prompt.ts:34:    channel?: Channel
+packages/agent/src/prompts/build-system-prompt.ts:73:    /** Source channel for this task — when external, the task description is marked as untrusted. */
+packages/agent/src/prompts/build-system-prompt.ts:126:- This applies across ALL channels — web, Telegram, embedded app chat, any surface.
+packages/agent/src/prompts/build-system-prompt.ts:277:const EXTERNAL_CHANNELS = new Set(['telegram', 'slack', 'discord', 'api', 'webhook'])
+packages/agent/src/prompts/build-system-prompt.ts:287:function channelHint(channel: Channel | undefined): string {
+packages/agent/src/prompts/build-system-prompt.ts:288:    if (!channel) return ''
+packages/agent/src/prompts/build-system-prompt.ts:289:    if (channel === 'webchat' || channel === 'web') return 'Channel: Web chat.'
+packages/agent/src/prompts/build-system-prompt.ts:290:    const pretty = String(channel).charAt(0).toUpperCase() + String(channel).slice(1)
+packages/agent/src/prompts/build-system-prompt.ts:294:function telegramBlock(channel: Channel | undefined): string {
+packages/agent/src/prompts/build-system-prompt.ts:295:    return channel === 'telegram' ? TELEGRAM_RULES : ''
+packages/agent/src/prompts/build-system-prompt.ts:301: * Conversation prompt — used by `channel-ai.ts` for all channel adapters.
+packages/agent/src/prompts/build-system-prompt.ts:306:    const channel = ctx.channel ?? 'webchat'
+packages/agent/src/prompts/build-system-prompt.ts:307:    const hint = channelHint(channel)
+packages/agent/src/prompts/build-system-prompt.ts:308:    const tg = telegramBlock(channel)
+packages/agent/src/prompts/build-system-prompt.ts:414: * Classifier prompt — used by `classifyIntent` in channel-ai.ts.
+packages/agent/src/channels/channel-tools.ts:7: * These tools require a live channel context (chat_id, message_id, bot token)
+packages/agent/src/channels/channel-tools.ts:8: * and are only added to the tool set when a message arrives via a channel
+packages/agent/src/channels/channel-tools.ts:26:const logger = pino({ name: 'channel-tools' })
+packages/agent/src/channels/channel-tools.ts:28:export type ChannelKind = 'telegram' | 'slack' | 'discord'
+packages/agent/src/channels/channel-tools.ts:31:    channel: ChannelKind
+packages/agent/src/channels/channel-tools.ts:33:    /** The chat/channel identifier (telegram chat_id, slack channel, discord channel_id) */
+packages/agent/src/channels/channel-tools.ts:35:    /** The user's message identifier (telegram message_id number, slack ts, discord message id string) */
+packages/agent/src/channels/channel-tools.ts:37:    /** Bot token for the channel */
+packages/agent/src/channels/channel-tools.ts:42: * Build the channel-scoped tool set for a given channel context.
+packages/agent/src/channels/channel-tools.ts:45: * or channels where a message id is not available). Callers should spread the
+packages/agent/src/channels/channel-tools.ts:57:    const { channel, chatId, messageId, botToken } = ctx
+packages/agent/src/channels/channel-tools.ts:67:Available channel: ${channel}. Pass a single unicode emoji like 👍 ❤️ 🎉 ✅ 🤔.`,
+packages/agent/src/channels/channel-tools.ts:76:                    switch (channel) {
+packages/agent/src/channels/channel-tools.ts:77:                        case 'telegram': {
+packages/agent/src/channels/channel-tools.ts:80:                                return `Reaction failed: invalid telegram message id "${String(messageId)}"`
+packages/agent/src/channels/channel-tools.ts:84:                                logger.warn({ err: res.error, emoji, chatId, messageId }, 'react_to_message: telegram failed')
+packages/agent/src/channels/channel-tools.ts:106:                            return `Reaction failed: unsupported channel "${String(channel)}"`
+packages/agent/src/channels/channel-tools.ts:110:                    logger.warn({ err, emoji, channel }, 'react_to_message: threw')
+tests/e2e/critical-paths.test.ts:184:  test('GET /api/channels/telegram/info returns configured status', async ({ request }) => {
+tests/e2e/critical-paths.test.ts:185:    const res = await request.get(`${API_URL}/api/v1/channels/telegram/info`)
+tests/e2e/critical-paths.test.ts:191:  test('GET /api/channels/slack/info returns configured status', async ({ request }) => {
+tests/e2e/critical-paths.test.ts:192:    const res = await request.get(`${API_URL}/api/v1/channels/slack/info`)
+tests/e2e/critical-paths.test.ts:240:  test('GET /api/channels/discord/info returns metadata', async ({ request }) => {
+tests/e2e/critical-paths.test.ts:241:    const res = await request.get(`${API_URL}/api/v1/channels/discord/info`)
+tests/e2e/critical-paths.test.ts:248:  test('POST /api/channels/discord/interactions without signature returns 401', async ({ request }) => {
+tests/e2e/critical-paths.test.ts:249:    const res = await request.post(`${API_URL}/api/v1/channels/discord/interactions`, {
+packages/agent/src/tools/self-knowledge-tools.ts:43:- Send and receive messages on channels (Telegram, Slack, Discord, web chat).
+packages/agent/src/tools/self-knowledge-tools.ts:186:    channelCount: number
+packages/agent/src/tools/self-knowledge-tools.ts:197:        channelCount: 0,
+packages/agent/src/tools/self-knowledge-tools.ts:203:        const { workspaces, channels } = await import('@plexo/db')
+packages/agent/src/tools/self-knowledge-tools.ts:269:                .select({ id: channels.id })
+packages/agent/src/tools/self-knowledge-tools.ts:270:                .from(channels)
+packages/agent/src/tools/self-knowledge-tools.ts:271:                .where(eq(channels.workspaceId, workspaceId))
+packages/agent/src/tools/self-knowledge-tools.ts:272:            out.channelCount = chans.length
+packages/agent/src/tools/self-knowledge-tools.ts:331:    'setup_channel',
+packages/agent/src/tools/self-knowledge-tools.ts:332:    'list_channels',
+packages/agent/src/tools/self-knowledge-tools.ts:333:    'remove_channel',
+packages/agent/src/tools/self-knowledge-tools.ts:343:    // Channel-scoped (only bound when invoked via a channel adapter with a
+packages/agent/src/tools/self-knowledge-tools.ts:344:    // message id — telegram/slack today, discord once gateway msgs land).
+packages/agent/src/tools/self-knowledge-tools.ts:445:                'Return a structured summary of this workspace\'s capabilities: connected services, enabled extensions, channel handlers, memory status, and configured LLM providers. Use when the user asks "what can you do" or "describe yourself".',
+packages/agent/src/tools/self-knowledge-tools.ts:491:                lines.push(`Channels configured: ${meta.channelCount}`)
+packages/agent/src/tools/workspace-tools.ts:21:import { workspaces, behaviorRules, installedConnections, channels, extensions, connectionsRegistry } from '@plexo/db'
+packages/agent/src/tools/workspace-tools.ts:61:    { pattern: new RegExp(`${DENY_VERBS_RE}.{0,40}\\b(telegram|slack|discord|channels?|webhooks?)\\b`, 'i'), capability: 'channel routing' },
+packages/agent/src/tools/workspace-tools.ts:118:    // secrets directly — the caller (channel-ai.ts) pre-resolves them. We fall
+packages/agent/src/tools/workspace-tools.ts:318:                    // Read before delete for channel bridge cleanup
+packages/agent/src/tools/workspace-tools.ts:327:                    // Bridge cleanup: remove auto-created channel for communication integrations
+packages/agent/src/tools/workspace-tools.ts:328:                    const CHANNEL_TYPES = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix'] as const
+packages/agent/src/tools/workspace-tools.ts:330:                        await db.delete(channels)
+packages/agent/src/tools/workspace-tools.ts:331:                            .where(and(eq(channels.workspaceId, workspaceId), eq(channels.type, conn.registryId as any)))
+packages/agent/src/tools/workspace-tools.ts:342:        setup_channel: tool({
+packages/agent/src/tools/workspace-tools.ts:343:            description: 'Create a communication channel (Telegram, Slack, Discord) for this workspace. For Telegram: provide the bot token from @BotFather. For Slack: provide the bot token. For Discord: provide the bot token.',
+packages/agent/src/tools/workspace-tools.ts:345:                type: z.enum(['telegram', 'slack', 'discord']).describe('Channel type'),
+packages/agent/src/tools/workspace-tools.ts:346:                name: z.string().describe('Display name for this channel'),
+packages/agent/src/tools/workspace-tools.ts:351:                    const [created] = await db.insert(channels).values({
+packages/agent/src/tools/workspace-tools.ts:353:                        type: type as 'telegram' | 'slack' | 'discord',
+packages/agent/src/tools/workspace-tools.ts:358:                    if (!created) return `Failed to create ${type} channel: insert returned no data.`
+packages/agent/src/tools/workspace-tools.ts:359:                    return `${type} channel "${name}" created successfully (ID: ${created.id}).`
+packages/agent/src/tools/workspace-tools.ts:364:        list_channels: tool({
+packages/agent/src/tools/workspace-tools.ts:365:            description: 'List communication channels configured for this workspace.',
+packages/agent/src/tools/workspace-tools.ts:370:                        id: channels.id,
+packages/agent/src/tools/workspace-tools.ts:371:                        type: channels.type,
+packages/agent/src/tools/workspace-tools.ts:372:                        name: channels.name,
+packages/agent/src/tools/workspace-tools.ts:373:                        enabled: channels.enabled,
+packages/agent/src/tools/workspace-tools.ts:374:                    }).from(channels)
+packages/agent/src/tools/workspace-tools.ts:375:                        .where(eq(channels.workspaceId, workspaceId))
+packages/agent/src/tools/workspace-tools.ts:376:                    if (items.length === 0) return 'No channels configured.'
+packages/agent/src/tools/workspace-tools.ts:378:                } catch (err) { return `Failed to list channels: ${err instanceof Error ? err.message : String(err)}` }
+packages/agent/src/tools/workspace-tools.ts:382:        remove_channel: tool({
+packages/agent/src/tools/workspace-tools.ts:383:            description: 'Remove a communication channel. WARNING: This disconnects the channel. Ask the user to confirm before calling this.',
+packages/agent/src/tools/workspace-tools.ts:385:                channelId: z.string().describe('Channel ID to remove'),
+packages/agent/src/tools/workspace-tools.ts:388:            execute: async ({ channelId, confirmed }): Promise<string> => {
+packages/agent/src/tools/workspace-tools.ts:389:                if (!confirmed) return 'Please confirm with the user before removing a channel.'
+packages/agent/src/tools/workspace-tools.ts:391:                    await db.delete(channels)
+packages/agent/src/tools/workspace-tools.ts:392:                        .where(and(eq(channels.id, channelId), eq(channels.workspaceId, workspaceId)))
+packages/agent/src/tools/workspace-tools.ts:394:                } catch (err) { return `Failed to remove channel: ${err instanceof Error ? err.message : String(err)}` }
+packages/agent/src/tools/workspace-tools.ts:663:            description: 'List, add, or remove workspace behavior rules that guide how the agent operates. You CANNOT add rules that disable core capabilities (image, voice, model routing, channels). You CANNOT add safety_constraint rules — those are platform-only.',
+packages/agent/src/tools/workspace-tools.ts:694:                        if (blocked) return `Rejected: rule would disable core capabilities — ${blocked}. Core capabilities (image, voice, model routing, channels) are protected and cannot be disabled via behavior rules.`
+packages/agent/src/behavior/types.ts:184:        description: 'The agent must NEVER disable, refuse, or degrade core capabilities: image/photo processing, voice/audio input and output, model/provider routing, channel communication (Telegram, Slack, Discord, etc.), or extension/skill execution. These capabilities are infrastructure — not the agent\'s to disable. If a user requests a change to voice, image, or model settings, use the designated tools (configure_voice, etc.) rather than injecting behavior rules or persona overrides.',
+packages/agent/src/tools/self-knowledge-tools.test.ts:18:    const channels = { __table: 'channels' }
+packages/agent/src/tools/self-knowledge-tools.test.ts:42:                        if (table === channels) {
+packages/agent/src/tools/self-knowledge-tools.test.ts:73:        channels,
+packages/agent/src/memory/corrections.ts:43: * This is the primary entry point — called from channel handlers
+packages/agent/src/memory/suggest.ts:148:const GENERIC_TITLES = new Set(['youtube','twitter','x','instagram','tiktok','facebook','linkedin','reddit','github','medium','substack','telegram','t.me'])
+packages/agent/src/memory/store.ts:505:    source?: 'chat' | 'api' | 'telegram'
+apps/web/src/lib/project-categories.ts:240:            'Identify all users who converted from free to paid in Q1 2025, segment by acquisition channel, and compute 30-day LTV by segment…',
+apps/web/src/lib/project-categories.ts:298:                key: 'channels',
+apps/web/src/lib/project-categories.ts:302:                    { value: 'all', label: 'All channels' },
+apps/web/src/lib/project-categories.ts:398:- Each track has a "scope" — the specific channel, format, or asset type it covers
+apps/web/src/lib/swr.ts:87:    channel: string
+packages/agent/src/progress/projector.ts:6: * channel-appropriate output. One engine, pluggable rules per channel.
+packages/agent/src/progress/projector.ts:20:export type ChannelType = 'telegram' | 'slack' | 'discord' | 'web-default' | 'web-glass-cockpit' | 'embedded'
+packages/agent/src/progress/projector.ts:23:    /** Rendered text for this channel */
+packages/agent/src/progress/projector.ts:72:    'telegram': COMPACT_PROJECTION,
+packages/agent/src/progress/projector.ts:83: * Project a ProgressEvent for a specific channel.
+packages/agent/src/progress/projector.ts:84: * Returns null if the event should be suppressed for this channel.
+packages/agent/src/progress/projector.ts:86:export function projectEvent(event: ProgressEvent, channel: ChannelType): ProjectedOutput | null {
+packages/agent/src/progress/projector.ts:87:    const config = CHANNEL_CONFIG[channel] ?? NORMAL_PROJECTION
+packages/agent/src/progress/projector.ts:105:    // Format for channel
+packages/agent/src/progress/projector.ts:118: * Format a compact progress line for messaging channels (Telegram, Slack, Discord).
+packages/agent/src/progress/types.ts:5: * Progress event types — the primitive that every channel consumes.
+packages/agent/src/progress/types.ts:78: * Projection density — controls how much of the event stream a channel sees.
+packages/agent/src/connections/factories/discord.ts:7: * Tools: discord__send_message, discord__list_channels
+packages/agent/src/connections/factories/discord.ts:45:            description: 'Send a message to a Discord channel by channel ID.',
+packages/agent/src/connections/factories/discord.ts:47:                channelId: z.string().describe('Discord channel ID (snowflake)'),
+packages/agent/src/connections/factories/discord.ts:50:            execute: async ({ channelId, content }) => {
+packages/agent/src/connections/factories/discord.ts:52:                    const res = await fetch(`${API_BASE}/channels/${channelId}/messages`, {
+packages/agent/src/connections/factories/discord.ts:59:                    audit('discord__send_message', { channelId, messageId: data.id }, opts)
+packages/agent/src/connections/factories/discord.ts:60:                    return `Sent message ${data.id} to channel ${channelId}`
+packages/agent/src/connections/factories/discord.ts:67:        discord__list_channels: tool({
+packages/agent/src/connections/factories/discord.ts:68:            description: 'List text channels in a Discord guild/server.',
+packages/agent/src/connections/factories/discord.ts:76:                    const res = await fetch(`${API_BASE}/guilds/${id}/channels`, { headers })
+packages/agent/src/connections/factories/discord.ts:78:                    const channels = await res.json() as Array<{ id: string; name: string; type: number }>
+packages/agent/src/connections/factories/discord.ts:80:                    const textChannels = channels.filter((c) => c.type === 0 || c.type === 5 || c.type === 15)
+packages/agent/src/connections/factories/discord.ts:81:                    audit('discord__list_channels', { guildId: id, count: textChannels.length }, opts)
+packages/agent/src/connections/factories/discord.ts:82:                    if (!textChannels.length) return 'No text channels found.'
+packages/agent/src/connections/factories/discord.ts:85:                    return `Discord list_channels failed: ${err instanceof Error ? err.message : String(err)}`
+apps/cli/src/config.ts:19:    defaultChannel?: 'telegram' | 'slack' | 'discord'
+apps/cli/src/commands/config.ts:22:        .description('Set a config value (host, workspace, default-channel)')
+apps/cli/src/commands/config.ts:25:            const validKeys = ['host', 'workspace', 'defaultChannel', 'default-channel']
+apps/cli/src/commands/config.ts:26:            const normalized = key === 'default-channel' ? 'defaultChannel' : key
+apps/cli/src/commands/config.ts:28:                console.error(`Unknown config key: ${key}. Valid: host, workspace, default-channel`)
+packages/agent/src/connections/registry.ts:45:import { TELEGRAM_TOOLS } from './factories/telegram.js'
+packages/agent/src/connections/registry.ts:189:            { name: 'send_message', description: 'Send a message to a channel' },
+packages/agent/src/connections/registry.ts:190:            { name: 'list_channels', description: 'List Slack channels' },
+packages/agent/src/connections/registry.ts:201:            { name: 'list_channels', description: 'List Discord channels' },
+packages/agent/src/connections/registry.ts:205:    telegram: {
+packages/agent/src/connections/registry.ts:206:        id: 'telegram',
+packages/agent/src/connections/registry.ts:209:        toolPrefix: 'telegram',
+packages/agent/src/skills/types.ts:65:        channel?: string
+apps/api/src/agent-loop.ts:358:    // Use workspace-scoped emit so SSE and channel adapters receive it
+apps/api/src/agent-loop.ts:366:    // Start periodic progress updates for channel-originated tasks
+apps/api/src/agent-loop.ts:370:    if (originCtxForProgress.channel) {
+apps/api/src/agent-loop.ts:371:        import('./channel-delivery.js').then(({ startTaskProgressUpdates }) => {
+apps/api/src/agent-loop.ts:720:            // Store clarification payload so UI + channels can surface alternatives
+apps/api/src/agent-loop.ts:1096:            // which would cause channel adapters to silently drop the message. Fall back to error text.
+apps/api/src/agent-loop.ts:1104:        // Persistent channel delivery — delivers results to originating channel (Telegram, etc.)
+apps/api/src/agent-loop.ts:1107:        if (originCtx.channel && originCtx.chatId) {
+apps/api/src/agent-loop.ts:1108:            const { deliverToOriginChannel } = await import('./channel-delivery.js')
+apps/api/src/agent-loop.ts:1112:                context: { ...originCtx, channel: originCtx.channel as string, chatId: originCtx.chatId as string | number, description: originCtx.description as string | undefined },
+apps/api/src/agent-loop.ts:1140:        // Any source (dashboard, telegram, slack, etc.) can create a
+apps/api/src/agent-loop.ts:1204:        // Persistent channel delivery for failures
+apps/api/src/agent-loop.ts:1206:        if (failContext.channel && failContext.chatId) {
+apps/api/src/agent-loop.ts:1207:            const { deliverToOriginChannel } = await import('./channel-delivery.js')
+apps/api/src/agent-loop.ts:1211:                context: { ...failContext, channel: failContext.channel as string, chatId: failContext.chatId as string | number, description: failContext.description as string | undefined },
+packages/queue/src/index.ts:14:    source: 'telegram' | 'slack' | 'discord' | 'scanner' | 'github' | 'cron' | 'dashboard' | 'api' | 'extension' | 'sentry' | 'a2a' | 'webhook'
+packages/sdk/src/index.ts:113:} from './types/channel.js'
+packages/sdk/src/validation/manifest.test.ts:117:describe('validateManifest — channelTransport', () => {
+packages/sdk/src/validation/manifest.test.ts:118:    it('accepts channelTransport "worker" for channel type', () => {
+packages/sdk/src/validation/manifest.test.ts:119:        const m = { ...baseManifest, type: 'channel', channelTransport: 'worker' }
+packages/sdk/src/validation/manifest.test.ts:122:        expect(result.errors.filter(e => e.field === 'channelTransport')).toHaveLength(0)
+packages/sdk/src/validation/manifest.test.ts:125:    it('accepts channelTransport "api" for channel type', () => {
+packages/sdk/src/validation/manifest.test.ts:126:        const m = { ...baseManifest, type: 'channel', channelTransport: 'api' }
+packages/sdk/src/validation/manifest.test.ts:129:        expect(result.errors.filter(e => e.field === 'channelTransport')).toHaveLength(0)
+packages/sdk/src/validation/manifest.test.ts:132:    it('rejects channelTransport on non-channel type', () => {
+packages/sdk/src/validation/manifest.test.ts:133:        const m = { ...baseManifest, type: 'tool', channelTransport: 'api' }
+packages/sdk/src/validation/manifest.test.ts:136:        expect(result.errors.some(e => e.field === 'channelTransport')).toBe(true)
+packages/sdk/src/validation/manifest.test.ts:139:    it('rejects invalid channelTransport value', () => {
+packages/sdk/src/validation/manifest.test.ts:140:        const m = { ...baseManifest, type: 'channel', channelTransport: 'websocket' }
+packages/sdk/src/validation/manifest.test.ts:143:        expect(result.errors.some(e => e.field === 'channelTransport' && e.message.includes('"worker" or "api"'))).toBe(true)
+packages/sdk/src/validation/manifest.test.ts:146:    it('allows channel type without channelTransport (defaults to worker)', () => {
+packages/sdk/src/validation/manifest.test.ts:147:        const m = { ...baseManifest, type: 'channel' }
+apps/api/src/channel-ai.ts:5: * Shared AI helpers for channel adapters (Slack, Discord, Telegram).
+apps/api/src/channel-ai.ts:82: * Core conversation system prompt used by all channel adapters.
+apps/api/src/channel-ai.ts:84: * The channel name is injected so the model knows the communication medium.
+apps/api/src/channel-ai.ts:87: * is defined — channel adapters must not inline their own copy.
+apps/api/src/channel-ai.ts:90:    channel: string,
+apps/api/src/channel-ai.ts:96:    // builder so fragments (identity, channel rules, memory block, capability
+apps/api/src/channel-ai.ts:101:        const note = `You can call react_to_message({emoji: '👍'}) to add an emoji reaction to the user's most recent message on ${channel}. Use this when they ask for a reaction or when a quick acknowledgment is more natural than a text reply. Reactions do not replace your text response — you can do both.`
+apps/api/src/channel-ai.ts:106:        channel,
+apps/api/src/channel-ai.ts:120:    channel: string,
+apps/api/src/channel-ai.ts:130:    return buildConversationSystemPrompt(channel, extraContext, { ...opts, userTimezone })
+apps/api/src/channel-ai.ts:315:                        logger.warn({ query, err }, 'channel-ai: Brave Search failed, falling back to DuckDuckGo')
+apps/api/src/channel-ai.ts:553:    channel: 'telegram' | 'slack' | 'discord'
+apps/api/src/channel-ai.ts:565:    channelContext?: ChannelContext,
+apps/api/src/channel-ai.ts:572:    logger.info({ workspaceId, historyMessages: messages.length }, 'channel-ai: chatWithAI history size')
+apps/api/src/channel-ai.ts:588:            finalSystem += `\n\nYour identity: you are Plexo, running on provider "${providerKey}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.\n\nHere is your state and self-awareness snapshot (tools, agents, skills, memory, integrations, channels, exact model, provider, and workspace):\n${JSON.stringify(conversationSafe)}`
+apps/api/src/channel-ai.ts:614:                    logger.info({ workspaceId, hits: hits.length, query: msgText.slice(0, 60) }, 'channel-ai: injected proactive memory context')
+apps/api/src/channel-ai.ts:617:                logger.debug({ err, workspaceId }, 'channel-ai: proactive memory search failed')
+apps/api/src/channel-ai.ts:641:                    logger.info({ workspaceId, primary: resolvedModelId, fallback: visionAlt.modelId, fallbackProvider: visionAlt.providerKey }, 'channel-ai: routing images to vision fallback')
+apps/api/src/channel-ai.ts:697:        // Unified workspace tools — available from every channel.
+apps/api/src/channel-ai.ts:706:        // Only present when the caller passed a live channel context with a
+apps/api/src/channel-ai.ts:708:        let channelTools: Record<string, unknown> = {}
+apps/api/src/channel-ai.ts:709:        if (channelContext) {
+apps/api/src/channel-ai.ts:711:                const { buildChannelTools } = await import('@plexo/agent/channels/channel-tools')
+apps/api/src/channel-ai.ts:712:                channelTools = buildChannelTools({
+apps/api/src/channel-ai.ts:713:                    channel: channelContext.channel,
+apps/api/src/channel-ai.ts:715:                    chatId: channelContext.chatId,
+apps/api/src/channel-ai.ts:716:                    messageId: channelContext.messageId,
+apps/api/src/channel-ai.ts:717:                    botToken: channelContext.botToken,
+apps/api/src/channel-ai.ts:720:                logger.warn({ err, workspaceId }, 'channel-ai: failed to build channel tools — proceeding without')
+apps/api/src/channel-ai.ts:724:        const conversationalTools = { ...workspaceTools, ...channelTools } as typeof workspaceTools
+apps/api/src/channel-ai.ts:775:                logger.warn({ err: visionErr, workspaceId, fallbackModel: visionFallbackModelId, reason: visionFailureReason }, 'channel-ai: vision fallback failed — degrading to primary without images')
+apps/api/src/channel-ai.ts:822:            logger.warn({ workspaceId }, 'channel-ai: model returned empty text — attempting retry')
+apps/api/src/channel-ai.ts:837:                logger.warn({ err: retryErr, workspaceId }, 'channel-ai: empty-response retry also failed')
+apps/api/src/channel-ai.ts:843:            logger.warn({ workspaceId }, 'channel-ai: empty text persisted after retry — returning graceful fallback')
+apps/api/src/channel-ai.ts:868:            logger.debug({ err: qerr, workspaceId }, 'channel-ai: conversation quality check errored (non-fatal)')
+apps/api/src/channel-ai.ts:956: * System prompt shared by all channel adapters for 3-way intent classification.
+apps/api/src/channel-ai.ts:1135:        emitClassifierDecision({ intent: 'CONVERSATION', confidence: 1.0, source: 'channel', overridden: true, modelFamily: 'none' })
+apps/api/src/channel-ai.ts:1143:        emitClassifierDecision({ intent, confidence: 0.95, source: 'channel', overridden: true, modelFamily: 'rule' })
+apps/api/src/channel-ai.ts:1151:    // request. We return CONVERSATION + isMemoryInstruction so channel
+apps/api/src/channel-ai.ts:1156:        emitClassifierDecision({ intent: 'CONVERSATION', confidence: 1.0, source: 'channel', overridden: true, modelFamily: 'none' })
+apps/api/src/channel-ai.ts:1165:        emitClassifierDecision({ intent, confidence: 0.6, source: 'channel', overridden: true, modelFamily: 'rule-breaker' })
+apps/api/src/channel-ai.ts:1174:        emitClassifierDecision({ intent, confidence: 0.5, source: 'channel', overridden: true, modelFamily: 'rule-no-provider' })
+apps/api/src/channel-ai.ts:1201:            emitClassifierDecision({ intent, confidence: 0.5, source: 'channel', overridden: true, modelFamily: 'rule-parse-fail' })
+apps/api/src/channel-ai.ts:1207:        emitClassifierDecision({ intent, confidence: parsed.confidence, source: 'channel', overridden: preOverride !== intent, modelFamily: 'unknown' })
+apps/api/src/channel-ai.ts:1222:            source: 'channel',
+apps/api/src/channel-ai.ts:1292: * Each channel adapter composes its own key (e.g. `slack:team:channel:ts`,
+apps/api/src/channel-ai.ts:1293: * `discord:guild:channel`, `telegram:channelId:chatId`) but the storage
+apps/api/src/channel-ai.ts:1311:     * (e.g. `telegram:ch:chat:` — note trailing colon). Hydration loads
+packages/agent/src/executor/index.ts:834:            // Pause — notify via SSE will come from the SSE route watching Redis
+packages/agent/src/executor/index.ts:1306:    // When the task was invoked with image attachments (from any channel) and
+packages/agent/src/executor/index.ts:1805:            // channel adapters (Telegram, SMS, webchat) can render a plain-
+packages/sdk/src/validation/manifest.ts:20:const VALID_TYPES: ManifestType[] = ['agent', 'skill', 'channel', 'tool', 'connector']
+packages/sdk/src/validation/manifest.ts:44:    'channel:send',
+packages/sdk/src/validation/manifest.ts:45:    'channel:send-direct',
+packages/sdk/src/validation/manifest.ts:46:    'channel:receive',
+packages/sdk/src/validation/manifest.ts:52:    'ui:notify',
+packages/sdk/src/validation/manifest.ts:131:    'ui:notify',
+packages/sdk/src/validation/manifest.ts:379:    // channelTransport validation — only valid for channel type
+packages/sdk/src/validation/manifest.ts:380:    if (m['channelTransport'] !== undefined) {
+packages/sdk/src/validation/manifest.ts:381:        if (m['type'] !== 'channel') {
+packages/sdk/src/validation/manifest.ts:382:            errors.push({ field: 'channelTransport', message: 'channelTransport is only valid for channel type extensions' })
+packages/sdk/src/validation/manifest.ts:383:        } else if (m['channelTransport'] !== 'worker' && m['channelTransport'] !== 'api') {
+packages/sdk/src/validation/manifest.ts:384:            errors.push({ field: 'channelTransport', message: 'Must be "worker" or "api"' })
+apps/api/src/lib/session-resolver.ts:7: * Universal session break logic for every Plexo channel.
+apps/api/src/lib/session-resolver.ts:19: * The resolver is called from every channel handler BEFORE recording the
+apps/api/src/lib/session-resolver.ts:35:export type SessionChannel = 'telegram' | 'slack' | 'discord' | 'web' | 'dashboard' | 'widget' | 'api'
+apps/api/src/lib/session-resolver.ts:40:     * Source string matching conversations.source (telegram/slack/discord/dashboard/widget).
+apps/api/src/lib/session-resolver.ts:43:    channel: SessionChannel
+apps/api/src/lib/session-resolver.ts:45:     * Stable per-thread/chat identifier. Telegram: chat_id. Slack: channel+thread.
+apps/api/src/lib/session-resolver.ts:46:     * Discord: guild+channel. Web: the caller-supplied sessionId seed (falls back
+apps/api/src/lib/session-resolver.ts:49:    channelThreadId: string
+apps/api/src/lib/session-resolver.ts:220: * Find the most recent turn in this workspace/channel/thread — the anchor
+apps/api/src/lib/session-resolver.ts:225:    channel: SessionChannel,
+apps/api/src/lib/session-resolver.ts:226:    channelThreadId: string,
+apps/api/src/lib/session-resolver.ts:229:    const source = channel === 'web' ? 'dashboard' : channel
+apps/api/src/lib/session-resolver.ts:231:        // Web channel uses strict session_id equality — the client mints a
+apps/api/src/lib/session-resolver.ts:234:        // External channels (telegram/slack/discord) legitimately need fuzzy
+apps/api/src/lib/session-resolver.ts:235:        // matching on channel_ref since their thread IDs are reused.
+apps/api/src/lib/session-resolver.ts:236:        const rows = channel === 'web'
+apps/api/src/lib/session-resolver.ts:242:                  AND (session_id = ${channelThreadId} OR session_id LIKE ${'web:' + channelThreadId + ':%'})
+apps/api/src/lib/session-resolver.ts:252:                        session_id LIKE ${'%' + channelThreadId + '%'}
+apps/api/src/lib/session-resolver.ts:253:                        OR channel_ref->>'chatId' = ${channelThreadId}
+apps/api/src/lib/session-resolver.ts:269:        logger.warn({ err, workspaceId, channel, channelThreadId }, 'session-resolver: last-turn lookup failed')
+apps/api/src/lib/session-resolver.ts:312:function mintSessionId(channel: SessionChannel, channelThreadId: string): string {
+apps/api/src/lib/session-resolver.ts:313:    const c = channel === 'web' ? 'web' : channel
+apps/api/src/lib/session-resolver.ts:314:    return `${c}:${channelThreadId}:${ulid().toLowerCase()}`
+apps/api/src/lib/session-resolver.ts:330:    const { workspaceId, channel, channelThreadId, newMessage } = params
+apps/api/src/lib/session-resolver.ts:334:        const sessionId = mintSessionId(channel, channelThreadId)
+apps/api/src/lib/session-resolver.ts:340:    const last = await findLastTurn(workspaceId, channel, channelThreadId)
+apps/api/src/lib/session-resolver.ts:342:        const sessionId = mintSessionId(channel, channelThreadId)
+apps/api/src/lib/session-resolver.ts:352:        const sessionId = mintSessionId(channel, channelThreadId)
+apps/api/src/lib/session-resolver.ts:366:            const sessionId = mintSessionId(channel, channelThreadId)
+apps/api/src/lib/session-resolver.ts:381:                const sessionId = mintSessionId(channel, channelThreadId)
+apps/api/src/lib/session-resolver.ts:391:    const sessionId = last.sessionId ?? mintSessionId(channel, channelThreadId)
+apps/api/src/analytics/router.ts:135:        // Legacy: both channels mirror the single toggle
+apps/api/src/routes/tasks.ts:34:const VALID_TASK_SOURCES = new Set(['telegram', 'slack', 'discord', 'scanner', 'github', 'cron', 'dashboard', 'api', 'extension', 'sentry'])
+apps/api/src/conversation-log.ts:8: * back to originating channels (Telegram, Slack, etc.).
+apps/api/src/conversation-log.ts:12: *   - apps/api/src/routes/telegram.ts  (Telegram adapter)
+apps/api/src/conversation-log.ts:39:    channel: 'telegram' | 'slack' | 'discord' | string
+apps/api/src/conversation-log.ts:40:    channelId: string
+apps/api/src/conversation-log.ts:54:    channelRef?: ChannelRef | null
+apps/api/src/conversation-log.ts:79:        channelRef: params.channelRef ?? null,
+apps/api/src/conversation-log.ts:141:// ── Look up channelRef for a session ─────────────────────────────────────────
+apps/api/src/conversation-log.ts:148:        .select({ channelRef: conversations.channelRef })
+apps/api/src/conversation-log.ts:150:        .where(sql`workspace_id = ${workspaceId} AND session_id = ${sessionId} AND channel_ref IS NOT NULL`)
+apps/api/src/conversation-log.ts:153:    return (row?.channelRef as ChannelRef | null) ?? null
+apps/api/src/conversation-log.ts:159: * Resolve the current session ID for an external-channel chat, using the
+apps/api/src/conversation-log.ts:163: *  - Find the most recent conversation row for this workspace/source/channelId/chatId.
+apps/api/src/conversation-log.ts:165: *  - Otherwise → mint a new session_id of shape `<source>:<channelId>:<chatId>:<ulid>`.
+apps/api/src/conversation-log.ts:175:    source: 'telegram' | 'slack' | 'discord' | string
+apps/api/src/conversation-log.ts:176:    channelId: string
+apps/api/src/conversation-log.ts:184:    const keyPrefix = `${opts.source}:${opts.channelId}:${opts.chatId}${suffix}`
+apps/api/src/conversation-log.ts:205:        logger.warn({ err, source: opts.source, channelId: opts.channelId, chatId: opts.chatId }, 'resolveChannelSessionId: DB lookup failed — minting fresh id')
+apps/api/src/conversation-log.ts:229:// ── Cross-session history (all channels) ─────────────────────────────────────
+apps/api/src/conversation-log.ts:234:    | { kind: 'channel'; prefix: string }          // telegram/slack/discord prefix LIKE
+apps/api/src/conversation-log.ts:247:    // External channels: source:...:<ulid> — strip ULID suffix to get stable prefix
+apps/api/src/conversation-log.ts:251:        if (prefix.startsWith('telegram:') || prefix.startsWith('slack:') || prefix.startsWith('discord:')) {
+apps/api/src/conversation-log.ts:252:            return { kind: 'channel', prefix }
+apps/api/src/conversation-log.ts:289:// ── Reply back to an originating channel ──────────────────────────────────────
+apps/api/src/conversation-log.ts:291:const TELEGRAM_API = 'https://api.telegram.org/bot'
+apps/api/src/conversation-log.ts:294: * Send a reply back to the channel that originated a conversation.
+apps/api/src/conversation-log.ts:295: * Called from chat.ts when a web message is sent in a session that came from an external channel.
+apps/api/src/conversation-log.ts:299:    channelRef: ChannelRef,
+apps/api/src/conversation-log.ts:301:    channelToken?: string,
+apps/api/src/conversation-log.ts:304:    if (channelRef.channel === 'telegram') {
+apps/api/src/conversation-log.ts:305:        if (!channelToken) {
+apps/api/src/conversation-log.ts:306:            logger.warn({ channelRef }, 'replyToChannel: no token available for Telegram channel')
+apps/api/src/conversation-log.ts:317:                    await fetch(`${TELEGRAM_API}${channelToken}/sendPhoto`, {
+apps/api/src/conversation-log.ts:321:                            chat_id: channelRef.chatId,
+apps/api/src/conversation-log.ts:332:            // Default to sendMessage
+apps/api/src/conversation-log.ts:333:            const msgRes = await fetch(`${TELEGRAM_API}${channelToken}/sendMessage`, {
+apps/api/src/conversation-log.ts:337:                    chat_id: channelRef.chatId,
+apps/api/src/conversation-log.ts:345:                logger.error({ status: msgRes.status, body, channelRef }, 'replyToChannel: Telegram HTTP error')
+apps/api/src/conversation-log.ts:348:                    await fetch(`${TELEGRAM_API}${channelToken}/sendMessage`, {
+apps/api/src/conversation-log.ts:351:                        body: JSON.stringify({ chat_id: channelRef.chatId, text }),
+apps/api/src/conversation-log.ts:357:            logger.error({ err, channelRef }, 'replyToChannel: Telegram sendMessage/sendPhoto failed')
+apps/api/src/conversation-log.ts:361:    if (channelRef.channel === 'slack') {
+apps/api/src/conversation-log.ts:362:        const token = channelToken ?? process.env.SLACK_BOT_TOKEN
+apps/api/src/conversation-log.ts:364:            logger.warn({ channelRef }, 'replyToChannel: no token available for Slack channel')
+apps/api/src/conversation-log.ts:372:                    channel: channelRef.chatId,
+apps/api/src/conversation-log.ts:379:                logger.error({ status: res.status, body, channelRef }, 'replyToChannel: Slack HTTP error')
+apps/api/src/conversation-log.ts:382:            logger.error({ err, channelRef }, 'replyToChannel: Slack postMessage failed')
+apps/api/src/conversation-log.ts:388:    if (channelRef.channel === 'discord') {
+apps/api/src/conversation-log.ts:389:        const token = channelToken ?? process.env.DISCORD_BOT_TOKEN
+apps/api/src/conversation-log.ts:391:            logger.warn({ channelRef }, 'replyToChannel: no token available for Discord channel')
+apps/api/src/conversation-log.ts:395:            const res = await fetch(`https://discord.com/api/v10/channels/${channelRef.chatId}/messages`, {
+apps/api/src/conversation-log.ts:405:                logger.error({ status: res.status, body, channelRef }, 'replyToChannel: Discord HTTP error')
+apps/api/src/conversation-log.ts:408:            logger.error({ err, channelRef }, 'replyToChannel: Discord send failed')
+apps/api/src/credential-setup.ts:5: * Self-configuration: detect credentials in any channel message and auto-install
+apps/api/src/credential-setup.ts:8: * When a user pastes a URL + API token in any channel (Telegram, Slack, Discord,
+apps/api/src/credential-setup.ts:207:        logger.info({ workspaceId, registryId, serviceName }, 'Auto-updated integration credentials from channel')
+apps/api/src/credential-setup.ts:236:    logger.info({ workspaceId, registryId, serviceName, knownService }, 'Auto-installed integration from channel credentials')
+apps/api/src/delivery-tracker.ts:7: * Fire-and-forget recording of every outbound message send to external channels.
+apps/api/src/delivery-tracker.ts:18:    channel: 'telegram' | 'slack' | 'discord' | 'webchat' | 'api' | 'widget'
+apps/api/src/delivery-tracker.ts:36:        channel: record.channel,
+apps/api/src/delivery-tracker.ts:45:        logger.warn({ err, channel: record.channel, status: record.status }, 'Failed to record message delivery')
+apps/api/src/delivery-tracker.ts:51:    channel?: string
+apps/api/src/delivery-tracker.ts:66:    if (params.channel) conditions.push(eq(messageDeliveries.channel, params.channel))
+apps/api/src/routes/channels.ts:7: * GET  /api/channels?workspaceId=     List channels for workspace
+apps/api/src/routes/channels.ts:8: * POST /api/channels                  Create channel
+apps/api/src/routes/channels.ts:9: * PATCH /api/channels/:id             Update (toggle enabled, update config)
+apps/api/src/routes/channels.ts:10: * DELETE /api/channels/:id            Delete channel
+apps/api/src/routes/channels.ts:14:import { channels } from '@plexo/db'
+apps/api/src/routes/channels.ts:16:import { registerTelegramChannel } from './telegram.js'
+apps/api/src/routes/channels.ts:20:export const channelsRouter: RouterType = Router()
+apps/api/src/routes/channels.ts:22:const VALID_CHANNEL_TYPES = new Set<string>(['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix'])
+apps/api/src/routes/channels.ts:24:// ── GET /api/channels ─────────────────────────────────────────────────────────
+apps/api/src/routes/channels.ts:26:channelsRouter.get('/', async (req, res) => {
+apps/api/src/routes/channels.ts:36:            .from(channels)
+apps/api/src/routes/channels.ts:37:            .where(eq(channels.workspaceId, workspaceId))
+apps/api/src/routes/channels.ts:41:        logger.error({ err }, 'GET /api/channels failed')
+apps/api/src/routes/channels.ts:42:        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list channels' } })
+apps/api/src/routes/channels.ts:46:// ── POST /api/channels ────────────────────────────────────────────────────────
+apps/api/src/routes/channels.ts:48:channelsRouter.post('/', async (req, res) => {
+apps/api/src/routes/channels.ts:61:        res.status(400).json({ error: { code: 'INVALID_TYPE', message: `Invalid channel type. Valid types: ${[...VALID_CHANNEL_TYPES].join(', ')}` } })
+apps/api/src/routes/channels.ts:67:        const [created] = await db.insert(channels).values({
+apps/api/src/routes/channels.ts:69:            type: type as 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix',
+apps/api/src/routes/channels.ts:77:        if (type === 'telegram' && created) {
+apps/api/src/routes/channels.ts:89:        logger.error({ err }, 'POST /api/channels failed')
+apps/api/src/routes/channels.ts:90:        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create channel' } })
+apps/api/src/routes/channels.ts:94:// ── PATCH /api/channels/:id ───────────────────────────────────────────────────
+apps/api/src/routes/channels.ts:96:channelsRouter.patch('/:id', async (req, res) => {
+apps/api/src/routes/channels.ts:106:        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required for channel id' } })
+apps/api/src/routes/channels.ts:121:        await db.update(channels)
+apps/api/src/routes/channels.ts:123:            .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+apps/api/src/routes/channels.ts:127:            const [updated] = await db.select().from(channels)
+apps/api/src/routes/channels.ts:128:                .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+apps/api/src/routes/channels.ts:130:            if (updated && updated.type === 'telegram') {
+apps/api/src/routes/channels.ts:143:        logger.error({ err, id }, 'PATCH /api/channels/:id failed')
+apps/api/src/routes/channels.ts:148:// ── DELETE /api/channels/:id ──────────────────────────────────────────────────
+apps/api/src/routes/channels.ts:150:channelsRouter.delete('/:id', async (req, res) => {
+apps/api/src/routes/channels.ts:155:        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required for channel id' } })
+apps/api/src/routes/channels.ts:165:        await db.delete(channels)
+apps/api/src/routes/channels.ts:166:            .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+apps/api/src/routes/channels.ts:170:        logger.error({ err, id }, 'DELETE /api/channels/:id failed')
+apps/api/src/analytics/config.ts:53:/** Legacy getter — returns true if either channel is enabled (for backwards compat) */
+apps/api/src/analytics/config.ts:58:/** Granular getters for the two channels */
+apps/api/src/analytics/config.ts:62:/** Legacy setter — sets both channels (backwards compat) */
+apps/web/src/hooks/use-view-mode.ts:38:function notify() {
+apps/web/src/hooks/use-view-mode.ts:51:        notify()
+apps/web/src/hooks/use-view-mode.ts:58:        notify()
+tests/unit/introspection/rsi.test.ts:42:            { id: '1',  type: 'ops', source: 'telegram', qualityScore: 3.0, completedAt: new Date() },
+tests/unit/introspection/rsi.test.ts:44:            { id: '3',  type: 'coding', source: 'telegram', qualityScore: 2.5, completedAt: new Date() },
+packages/agent/src/tools/capability-guard.test.ts:63:    describe('blocks channel sabotage', () => {
+packages/agent/src/tools/capability-guard.test.ts:66:            'Disable the Slack channel integration',
+apps/api/src/routes/profiles.ts:30:    type: z.enum(['agent', 'skill', 'channel', 'tool', 'connector']),
+apps/cli/src/commands/status.ts:27:    channels: Array<{ type: string; enabled: boolean }>
+apps/cli/src/commands/status.ts:83:                    if (summary.channels?.length > 0) {
+apps/cli/src/commands/status.ts:86:                        summary.channels.forEach(ch =>
+apps/api/src/channel-delivery.ts:5: * Persistent channel delivery — ensures task results reach the originating channel.
+apps/api/src/channel-delivery.ts:7: * This replaces the closure-based delivery in telegram.ts which dies on process restart.
+apps/api/src/channel-delivery.ts:8: * The task's `context` field stores the originating channel info at queue time.
+apps/api/src/channel-delivery.ts:11: * Supports: telegram (more channels added as adapters are built).
+apps/api/src/channel-delivery.ts:16:import { translateErrorForUser } from './channel-ai.js'
+apps/api/src/channel-delivery.ts:18:const TELEGRAM_API = 'https://api.telegram.org/bot'
+apps/api/src/channel-delivery.ts:21:// ── Token registry (populated by channel adapters on init) ───────────────────
+apps/api/src/channel-delivery.ts:26:/** Register a Telegram bot token for a workspace (called by telegram.ts on init) */
+apps/api/src/channel-delivery.ts:37:// When a Telegram in-memory listener (onAgentEvent in telegram.ts) is active,
+apps/api/src/channel-delivery.ts:68:    channel?: string
+apps/api/src/channel-delivery.ts:89: * Called from agent-loop.ts right after task_started. Works for all channels —
+apps/api/src/channel-delivery.ts:90: * the channel type is read from the task's stored context.
+apps/api/src/channel-delivery.ts:93:    if (!context.channel) return () => {}
+apps/api/src/channel-delivery.ts:101:        if (context.channel === 'telegram' && context.chatId) {
+apps/api/src/channel-delivery.ts:112:        } else if (context.channel === 'slack' && context.slackChannel) {
+apps/api/src/channel-delivery.ts:114:        } else if (context.channel === 'discord' && context.channelId) {
+apps/api/src/channel-delivery.ts:115:            await discordSend(context.channelId as string, msg).catch(err => logger.warn({ err, taskId }, 'Discord progress send failed'))
+apps/api/src/channel-delivery.ts:124:async function slackSend(channel: string, text: string, threadTs?: string): Promise<void> {
+apps/api/src/channel-delivery.ts:131:            body: JSON.stringify({ channel, text, thread_ts: threadTs }),
+apps/api/src/channel-delivery.ts:135:        logger.warn({ err, channel }, 'Slack progress send failed')
+apps/api/src/channel-delivery.ts:141:async function discordSend(channelId: string, content: string): Promise<void> {
+apps/api/src/channel-delivery.ts:145:        await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+apps/api/src/channel-delivery.ts:152:        logger.warn({ err, channelId }, 'Discord progress send failed')
+apps/api/src/channel-delivery.ts:157: * Deliver task results to the originating channel.
+apps/api/src/channel-delivery.ts:160: * Reads channel info from the task's stored context — no closures, survives restarts.
+apps/api/src/channel-delivery.ts:165:    if (!context.channel || !context.chatId) return // Not from a channel — skip silently
+apps/api/src/channel-delivery.ts:169:        logger.debug({ taskId, channel: context.channel }, 'Channel delivery skipped — in-memory listener already delivered')
+apps/api/src/channel-delivery.ts:174:        if (context.channel === 'telegram') {
+apps/api/src/channel-delivery.ts:176:        } else if (context.channel === 'slack') {
+apps/api/src/channel-delivery.ts:179:        } else if (context.channel === 'discord') {
+apps/api/src/channel-delivery.ts:183:        logger.warn({ err, taskId, channel: context.channel, chatId: context.chatId }, 'Channel delivery failed — results available in dashboard')
+apps/api/src/channel-delivery.ts:190:    channel: string,
+apps/api/src/channel-delivery.ts:198:        logger.warn({ channel }, 'No SLACK_BOT_TOKEN — cannot deliver task result')
+apps/api/src/channel-delivery.ts:208:            body: JSON.stringify({ channel, text, thread_ts: threadTs }),
+apps/api/src/channel-delivery.ts:212:        logger.warn({ err, channel }, 'Slack final delivery failed')
+apps/api/src/channel-delivery.ts:219:    channelId: string,
+apps/api/src/channel-delivery.ts:226:        logger.warn({ channelId }, 'No DISCORD_BOT_TOKEN — cannot deliver task result')
+apps/api/src/channel-delivery.ts:233:        await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+apps/api/src/channel-delivery.ts:240:        logger.warn({ err, channelId }, 'Discord final delivery failed')
+apps/api/src/channel-delivery.ts:260:            const { channels } = await import('@plexo/db')
+apps/api/src/channel-delivery.ts:261:            const [row] = await db.select({ config: channels.config })
+apps/api/src/channel-delivery.ts:262:                .from(channels)
+apps/api/src/channel-delivery.ts:263:                .where(eq(channels.workspaceId, workspaceId))
+apps/api/src/channel-delivery.ts:317:        await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+apps/api/src/channel-delivery.ts:330:        const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+packages/agent/src/connections/bridge.test.ts:24:            'slack__list_channels',
+packages/agent/src/connections/bridge.test.ts:53:            'discord__list_channels',
+packages/agent/src/connections/bridge.test.ts:81:            'telegram__send_message',
+packages/agent/src/tools/environment-tools.ts:10: * Wired into both conversational (channel-ai) and task (executor) paths
+packages/agent/src/tools/environment-tools.ts:143:            description: 'List the services this Plexo instance has access to — database, cache, LLM providers, embeddings, storage, channels, connectors. Read-only, env-var driven. Safe to call anytime.',
+packages/agent/src/tools/environment-tools.ts:213:                    const channels = ['web', 'api']
+packages/agent/src/tools/environment-tools.ts:214:                    if (process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_WEBHOOK_SECRET) channels.push('telegram')
+packages/agent/src/tools/environment-tools.ts:215:                    if (process.env.SLACK_BOT_TOKEN || process.env.SLACK_SIGNING_SECRET) channels.push('slack')
+packages/agent/src/tools/environment-tools.ts:216:                    if (process.env.DISCORD_BOT_TOKEN) channels.push('discord')
+packages/agent/src/tools/environment-tools.ts:230:                        channels,
+packages/agent/src/tools/environment-tools.ts:320:                        'channels (configure)',
+packages/db/src/schema.ts:33:export const channelTypeEnum = pgEnum('channel_type', [
+packages/db/src/schema.ts:34:    'telegram',
+packages/db/src/schema.ts:76:    'telegram',
+packages/db/src/schema.ts:110:    'channel',
+packages/db/src/schema.ts:245:export const channels = pgTable('channels', {
+packages/db/src/schema.ts:251:    type: channelTypeEnum('type').notNull(),
+packages/db/src/schema.ts:259:    index('channels_workspace_idx').on(table.workspaceId),
+packages/db/src/schema.ts:308: * conversations — chat/channel interaction log.
+packages/db/src/schema.ts:318:    source: text('source').notNull().default('dashboard'), // dashboard | telegram | slack | discord | api | widget
+packages/db/src/schema.ts:326:     * Origin channel reference — stored when the conversation started in an external channel.
+packages/db/src/schema.ts:327:     * Shape: { channel: 'telegram'|'slack'|'discord', channelId: string, chatId: string }
+packages/db/src/schema.ts:328:     * Used to route web-initiated replies back to the originating channel.
+packages/db/src/schema.ts:330:    channelRef: jsonb('channel_ref').$type<{ channel: string; channelId: string; chatId: string } | null>().default(null),
+packages/db/src/schema.ts:1603: * message_deliveries — tracks every outbound message send attempt to external channels.
+packages/db/src/schema.ts:1604: * Fire-and-forget recording from channel adapters. Captures success, failure, empty
+packages/db/src/schema.ts:1612:    channel: text('channel').notNull(), // telegram | slack | discord
+packages/db/src/schema.ts:1625:    index('message_deliveries_channel_idx').on(table.channel),
+apps/api/src/routes/connections.ts:21:import { connectionsRegistry, installedConnections, channels } from '@plexo/db'
+apps/api/src/routes/connections.ts:460:        // Bridge: communication integrations auto-create a channel record so the
+apps/api/src/routes/connections.ts:463:        const CHANNEL_TYPES = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix'] as const
+apps/api/src/routes/connections.ts:466:                const channelConfig = { ...credentials } // plain-text config for webhook handler
+apps/api/src/routes/connections.ts:467:                const [ch] = await db.insert(channels).values({
+apps/api/src/routes/connections.ts:471:                    config: channelConfig,
+apps/api/src/routes/connections.ts:473:                }).onConflictDoNothing().returning({ id: channels.id })
+apps/api/src/routes/connections.ts:476:                    logger.info({ workspaceId, channelType: registryId, channelId: ch.id }, 'Auto-created channel from integration')
+apps/api/src/routes/connections.ts:479:                    if (registryId === 'telegram') {
+apps/api/src/routes/connections.ts:482:                            const { registerTelegramChannel } = await import('./telegram.js')
+apps/api/src/routes/connections.ts:491:                logger.warn({ err: chErr, registryId }, 'Failed to auto-create channel from integration — non-fatal')
+apps/api/src/routes/connections.ts:760:        // Read the integration before deleting so we can clean up the channel bridge
+apps/api/src/routes/connections.ts:769:        // Bridge cleanup: remove the auto-created channel when a communication integration is disconnected
+apps/api/src/routes/connections.ts:770:        const CHANNEL_TYPES = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix'] as const
+apps/api/src/routes/connections.ts:772:            await db.delete(channels)
+apps/api/src/routes/connections.ts:773:                .where(and(eq(channels.workspaceId, workspaceId), eq(channels.type, conn.registryId as any)))
+apps/api/src/routes/connections.ts:774:                .catch((err: unknown) => logger.warn({ err }, 'Failed to clean up bridged channel — non-fatal'))
+packages/agent/src/operations.ts:45:export async function sendMessage(_channelId: string, _message: string): Promise<void> {
+packages/agent/src/operations.ts:46:    throw new NotImplementedError('sendMessage')
+packages/agent/src/principles.ts:17: *   services (repos, channels, providers).
+packages/agent/src/progress/tool-translations.ts:6: * progress descriptions suitable for user-facing channels (Telegram, SMS,
+packages/agent/src/progress/tool-translations.ts:32:    setup_channel: 'Setting up a channel',
+packages/agent/src/progress/tool-translations.ts:33:    list_channels: 'Checking your channels',
+packages/agent/src/progress/tool-translations.ts:34:    remove_channel: 'Removing a channel',
+apps/api/src/routes/message-deliveries.ts:12:// ── GET /api/v1/message-deliveries?workspaceId=&channel=&status=&limit=&offset= ──
+apps/api/src/routes/message-deliveries.ts:15:    const { workspaceId, channel, status, limit = '50', offset = '0' } = req.query as Record<string, string>
+apps/api/src/routes/message-deliveries.ts:23:    const validChannels = ['telegram', 'slack', 'discord']
+apps/api/src/routes/message-deliveries.ts:24:    if (channel && !validChannels.includes(channel)) {
+apps/api/src/routes/message-deliveries.ts:25:        res.status(400).json({ error: { code: 'INVALID_CHANNEL', message: `channel must be one of: ${validChannels.join(', ')}` } })
+apps/api/src/routes/message-deliveries.ts:38:            channel: channel || undefined,
+packages/agent/src/constants.ts:69:        { dimension: 'channel_optimization', weight: 0.20 },
+apps/cli/src/commands/task.ts:166:        .description('Approve a one-way-door step (requires confirmation code from your channel)')
+apps/cli/src/commands/task.ts:167:        .requiredOption('--code <code>', 'Confirmation code sent to your channel')
+packages/agent/src/connections/bridge.ts:290:            description: 'Send a message to a Slack channel or user.',
+packages/agent/src/connections/bridge.ts:292:                channel: z.string().describe('Channel ID or name (e.g. #general)'),
+packages/agent/src/connections/bridge.ts:295:            execute: async ({ channel, text }) => {
+packages/agent/src/connections/bridge.ts:299:                    body: JSON.stringify({ channel, text }),
+packages/agent/src/connections/bridge.ts:306:        slack__list_channels: tool({
+packages/agent/src/connections/bridge.ts:307:            description: 'List public channels in the Slack workspace.',
+packages/agent/src/connections/bridge.ts:311:                const d = await res.json() as { ok: boolean; channels?: Array<{ id: string; name: string; num_members: number }> }
+packages/agent/src/connections/bridge.ts:313:                return d.channels?.map((c) => `#${c.name} (${c.num_members} members)`).join('\n') ?? 'No channels.'
+packages/agent/src/connections/bridge.ts:592:                            channels?: Array<{
+packages/agent/src/connections/bridge.ts:599:                    const alt = data.results?.channels?.[0]?.alternatives?.[0]
+packages/agent/src/connections/bridge.ts:601:                    const detectedLang = data.results?.channels?.[0]?.detected_language
+packages/agent/src/connections/bridge.ts:670:                            channels?: Array<{ alternatives?: Array<{ transcript: string }> }>
+packages/agent/src/connections/bridge.ts:725:                        results?: { channels?: Array<{ detected_language?: string; language_confidence?: number }> }
+packages/agent/src/connections/bridge.ts:727:                    const ch = data.results?.channels?.[0]
+packages/agent/src/types.ts:8:export type TaskSource = 'telegram' | 'scanner' | 'github' | 'cron' | 'dashboard' | 'api'
+packages/agent/src/types.ts:232:    channelId: string
+packages/agent/src/types.ts:247:    channelMessageId?: string
+packages/agent/src/types.ts:271:    channelType: string
+packages/agent/src/types.ts:319:    channels?: string[]
+packages/agent/src/types.ts:527:     * Image URLs attached to the original user message (from any channel:
+packages/agent/src/types.ts:534:    /** Source channel that submitted this task — used to mark external-channel tasks as untrusted input. */
+apps/api/src/routes/chat.ts:43:import { buildConversationSystemPrompt, translateErrorForUser } from '../channel-ai.js'
+apps/api/src/routes/chat.ts:45:import { getTelegramToken } from './telegram.js'
+apps/api/src/routes/chat.ts:336:        // External-channel sessions (telegram:*, slack:*, discord:*) are left
+apps/api/src/routes/chat.ts:353:        } else if (clientSessionId && !/^(telegram|slack|discord):/.test(clientSessionId)) {
+apps/api/src/routes/chat.ts:357:                    channel: 'web',
+apps/api/src/routes/chat.ts:358:                    channelThreadId: clientSessionId,
+apps/api/src/routes/chat.ts:376:        // but history should span them for all channels.
+apps/api/src/routes/chat.ts:379:            (sessionId ?? sid).startsWith('telegram:') || (sessionId ?? sid).startsWith('slack:') || (sessionId ?? sid).startsWith('discord:')
+apps/api/src/routes/chat.ts:574:                        channel: 'webchat',
+apps/api/src/routes/chat.ts:827:            // Detect if this session originated from an external channel (Telegram, etc.)
+apps/api/src/routes/chat.ts:829:            let externalChannelRef: { channel: string; channelId: string; chatId: string } | null = null
+apps/api/src/routes/chat.ts:830:            if (sessionId && (sessionId.startsWith('telegram:') || sessionId.startsWith('slack:') || sessionId.startsWith('discord:'))) {
+apps/api/src/routes/chat.ts:832:                    logger.warn({ err, sessionId, workspaceId }, 'getSessionChannelRef failed — external channel reply disabled')
+apps/api/src/routes/chat.ts:836:            const conversationSource = externalChannelRef ? externalChannelRef.channel : 'dashboard'
+apps/api/src/routes/chat.ts:927:                            // Single retry before giving up — matches the retry logic in channel-ai.ts chatWithAI.
+apps/api/src/routes/chat.ts:957:                            trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'empty_response', messageLength: 0 })
+apps/api/src/routes/chat.ts:975:                        trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'failed', messageLength: 0, errorMessage: classified.message })
+apps/api/src/routes/chat.ts:1000:                        const token = externalChannelRef.channel === 'telegram'
+apps/api/src/routes/chat.ts:1001:                            ? getTelegramToken(externalChannelRef.channelId)
+apps/api/src/routes/chat.ts:1004:                            (err: Error) => logger.warn({ err, channelRef: externalChannelRef }, 'Failed to relay web reply to source channel')
+apps/api/src/routes/chat.ts:1030:                    trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'sent', messageLength: replyText.length })
+apps/api/src/routes/chat.ts:1069:                        trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'empty_response', messageLength: 0 })
+apps/api/src/routes/chat.ts:1079:                        const token = externalChannelRef.channel === 'telegram'
+apps/api/src/routes/chat.ts:1080:                            ? getTelegramToken(externalChannelRef.channelId)
+apps/api/src/routes/chat.ts:1083:                            (err: Error) => logger.warn({ err, channelRef: externalChannelRef }, 'Failed to relay web reply to source channel')
+apps/api/src/routes/chat.ts:1109:                    trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'sent', messageLength: replyText.length })
+apps/api/src/routes/chat.ts:1115:                trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'failed', messageLength: 0, errorMessage: classified.message })
+apps/api/src/routes/chat.ts:1161:                    channel: 'webchat',
+apps/api/src/routes/chat.ts:1213:        trackEvent('channel.error', 'error', { channel: 'webchat', error: 'message_handler_failed' })
+apps/api/src/routes/chat.ts:1247:    // land in the same session rules as other channels.
+apps/api/src/routes/chat.ts:1259:    } else if (clientSessionId && !/^(telegram|slack|discord):/.test(clientSessionId)) {
+apps/api/src/routes/chat.ts:1263:                channel: 'web',
+apps/api/src/routes/chat.ts:1264:                channelThreadId: clientSessionId,
+apps/api/src/routes/chat.ts:1289:                    channel: 'web',
+apps/api/src/routes/chat.ts:1364:                trackEvent('sprint.failed', 'error', { channel: 'webchat', sprintId: sprint.id, workspaceId })
+apps/api/src/routes/chat.ts:1399:        trackEvent('channel.error', 'error', { channel: 'webchat', error: 'execute_action_failed' })
+packages/agent/src/plugins/activation-sdk.ts:200:        channel: {
+packages/agent/src/plugins/activation-sdk.ts:202:                requireCap('channel:send')
+packages/agent/src/plugins/activation-sdk.ts:203:                await bridge('channel.send', { workspaceId, msg: _msg })
+packages/agent/src/plugins/activation-sdk.ts:205:            async sendDirect(_channelId, _msg) {
+packages/agent/src/plugins/activation-sdk.ts:206:                requireCap('channel:send-direct')
+packages/agent/src/plugins/activation-sdk.ts:207:                await bridge('channel.sendDirect', { workspaceId, channelId: _channelId, msg: _msg })
+packages/agent/src/plugins/activation-sdk.ts:265:            async notify(msg, level) {
+packages/agent/src/plugins/activation-sdk.ts:266:                requireCap('ui:notify')
+packages/agent/src/plugins/activation-sdk.ts:267:                await bridge('ui.notify', { workspaceId, msg, level })
+packages/agent/src/plugins/event-bus.ts:71:    publish(channel: string, message: string): Promise<unknown>
+packages/agent/src/plugins/event-bus.ts:72:    subscribe(channel: string, listener: (msg: string) => void): Promise<unknown>
+packages/agent/src/plugins/bridge.ts:177:            // Channel extensions with channelTransport: 'api' use Plexo's chat
+packages/agent/src/plugins/bridge.ts:179:            // in the extension registry for metadata (badge, channelRef routing)
+packages/agent/src/plugins/bridge.ts:181:            if (manifest.type === 'channel' && manifest.channelTransport === 'api') {
+packages/agent/src/plugins/bridge.ts:182:                logger.info({ ext: ext.name }, 'PEX channel uses api transport — skipping worker activation')
+packages/agent/src/plugins/persistent-pool.ts:254:        // ── channel / ui ─────────────────────────────────────────────────
+packages/agent/src/plugins/persistent-pool.ts:255:        case 'channel.send':
+packages/agent/src/plugins/persistent-pool.ts:256:        case 'channel.sendDirect':
+packages/agent/src/plugins/persistent-pool.ts:257:        case 'ui.notify':
+packages/agent/src/plugins/persistent-pool.ts:258:            // Forward as event bus message — channel adapters subscribe
+apps/api/src/routes/conversations.ts:109:                channelRef: row.channel_ref,
+apps/api/src/routes/clarification.ts:8: * and channel adapters can surface alternatives to the user.
+apps/api/src/routes/telegram.ts:5: * Telegram channel adapter.
+apps/api/src/routes/telegram.ts:8: * - Each channel row in DB gets its own webhook URL:
+apps/api/src/routes/telegram.ts:9: *   /api/v1/channels/telegram/webhook/:channelId
+apps/api/src/routes/telegram.ts:10: * - The channelId determines the bot token AND the workspace — no shared
+apps/api/src/routes/telegram.ts:20: *   - source: 'telegram'
+apps/api/src/routes/telegram.ts:21: *   - sessionId: 'telegram:{channelId}:{chatId}'  (stable per chat)
+apps/api/src/routes/telegram.ts:22: *   - channelRef: { channel: 'telegram', channelId, chatId }
+apps/api/src/routes/telegram.ts:36:import { channels, sprints } from '@plexo/db'
+apps/api/src/routes/telegram.ts:39:import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
+apps/api/src/routes/telegram.ts:49:import { markTaskDelivered } from '../channel-delivery.js'
+apps/api/src/routes/telegram.ts:51:import { maybeReact } from '@plexo/agent/channels/reaction-manager'
+apps/api/src/routes/telegram.ts:52:import { sanitizeForTelegram } from '../lib/telegram-sanitize.js'
+apps/api/src/routes/telegram.ts:54:export const telegramRouter: RouterType = Router()
+apps/api/src/routes/telegram.ts:56:// ── Per-channel registry ──────────────────────────────────────────────────────
+apps/api/src/routes/telegram.ts:63:/** channelId → { token, workspaceId } */
+apps/api/src/routes/telegram.ts:64:const _channels = new Map<string, ChannelEntry>()
+apps/api/src/routes/telegram.ts:91:const TELEGRAM_API = 'https://api.telegram.org/bot'
+apps/api/src/routes/telegram.ts:101:async function sendMessage(token: string, chatId: number | string, text: string, tracking?: SendTrackingCtx): Promise<void> {
+apps/api/src/routes/telegram.ts:105:        logger.warn({ chatId }, 'Telegram sendMessage called with empty text — skipping')
+apps/api/src/routes/telegram.ts:109:                channel: 'telegram',
+apps/api/src/routes/telegram.ts:112:                errorMessage: 'sendMessage called with empty text',
+apps/api/src/routes/telegram.ts:126:        logger.warn({ chatId }, 'Telegram sendMessage text became empty after sanitize — skipping')
+apps/api/src/routes/telegram.ts:130:        const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+apps/api/src/routes/telegram.ts:139:            logger.error({ status: res.status, body, chatId }, 'Telegram sendMessage HTTP error')
+apps/api/src/routes/telegram.ts:143:                    channel: 'telegram',
+apps/api/src/routes/telegram.ts:156:                    channel: 'telegram',
+apps/api/src/routes/telegram.ts:166:        logger.error({ err, chatId }, 'Telegram sendMessage network error')
+apps/api/src/routes/telegram.ts:170:                channel: 'telegram',
+apps/api/src/routes/telegram.ts:183:async function sendMessageGetId(token: string, chatId: number | string, text: string): Promise<number | null> {
+apps/api/src/routes/telegram.ts:187:        const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+apps/api/src/routes/telegram.ts:276:    if (!data?.ok) trackEvent('channel.error', 'error', { channel: 'telegram', error: 'webhook_registration_failed' })
+apps/api/src/routes/telegram.ts:283:// ── Chat history (shared helper from channel-ai.ts) ────────────────────────
+apps/api/src/routes/telegram.ts:287:function historyKey(channelId: string, chatId: string): string {
+apps/api/src/routes/telegram.ts:288:    return `${channelId}:${chatId}`
+apps/api/src/routes/telegram.ts:313:function maybeResetHistory(channelId: string, chatId: string, isNewSession: boolean): void {
+apps/api/src/routes/telegram.ts:314:    const key = `${channelId}:${chatId}`
+apps/api/src/routes/telegram.ts:319:function addToHistory(channelId: string, chatId: string, role: 'user' | 'assistant', content: string, imageUrls?: string[]): void {
+apps/api/src/routes/telegram.ts:320:    chatHistory.add(historyKey(channelId, chatId), role, content, imageUrls)
+apps/api/src/routes/telegram.ts:337:function getRecentCompletion(channelId: string, chatId: string): CompletedTaskInfo | null {
+apps/api/src/routes/telegram.ts:338:    const key = `${channelId}:${chatId}`
+apps/api/src/routes/telegram.ts:461:async function handleUpdate(channelId: string, entry: ChannelEntry, update: TelegramUpdate): Promise<void> {
+apps/api/src/routes/telegram.ts:476:        await sendMessage(token, chatId, 'That button has expired. Send a new message instead.', { workspaceId })
+apps/api/src/routes/telegram.ts:488:    const channelRef: ChannelRef = { channel: 'telegram', channelId, chatId }
+apps/api/src/routes/telegram.ts:509:                const imageRes = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`)
+apps/api/src/routes/telegram.ts:523:            await sendMessage(token, chatId, 'Failed to download your image from Telegram. Try sending it again.', { workspaceId })
+apps/api/src/routes/telegram.ts:539:                const imageRes = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`)
+apps/api/src/routes/telegram.ts:552:            await sendMessage(token, chatId, 'Failed to download your image from Telegram. Try sending it again.', { workspaceId })
+apps/api/src/routes/telegram.ts:582:            await sendMessage(token, chatId,
+apps/api/src/routes/telegram.ts:600:            const audioRes = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`, {
+apps/api/src/routes/telegram.ts:619:                source: 'telegram',
+apps/api/src/routes/telegram.ts:628:                    await sendMessage(
+apps/api/src/routes/telegram.ts:635:                    await sendMessage(
+apps/api/src/routes/telegram.ts:642:                    await sendMessage(
+apps/api/src/routes/telegram.ts:659:                await sendMessage(token, chatId, '🎙️ I received your voice message but transcribed it as silence. Please speak clearly or send text.', { workspaceId })
+apps/api/src/routes/telegram.ts:665:            trackEvent('channel.error', 'error', { channel: 'telegram', error: 'voice_transcription_failed', workspaceId })
+apps/api/src/routes/telegram.ts:674:            await sendMessage(token, chatId, `Could not transcribe that voice message — ${detail} Try again or send text instead.`, { workspaceId })
+apps/api/src/routes/telegram.ts:681:        await handleUpdate(channelId, entry, {
+apps/api/src/routes/telegram.ts:694:        await sendMessage(token, chatId, "I can't process that message type yet (stickers, documents, locations, etc.).", { workspaceId })
+apps/api/src/routes/telegram.ts:701:        await sendMessage(token, chatId,
+apps/api/src/routes/telegram.ts:721:            channel: 'telegram',
+apps/api/src/routes/telegram.ts:722:            channelThreadId: chatId,
+apps/api/src/routes/telegram.ts:729:        maybeResetHistory(channelId, chatId, resolved.isNewSession)
+apps/api/src/routes/telegram.ts:731:            logger.info({ workspaceId, chatId, sessionId, reason: resolved.reason }, 'telegram: new session started')
+apps/api/src/routes/telegram.ts:734:        logger.warn({ err, chatId }, 'telegram: session resolver failed, using fallback id')
+apps/api/src/routes/telegram.ts:735:        sessionId = `telegram:${channelId}:${chatId}:${Date.now()}`
+apps/api/src/routes/telegram.ts:765:            _progressMessageId = await sendMessageGetId(token, chatId, `Working on it (${elapsed}s)…`)
+apps/api/src/routes/telegram.ts:796:        await sendMessage(token, chatId,
+apps/api/src/routes/telegram.ts:804:    addToHistory(channelId, chatId, 'user', text, imageUrls.length > 0 ? imageUrls : undefined)
+apps/api/src/routes/telegram.ts:815:            addToHistory(channelId, chatId, 'assistant', reply)
+apps/api/src/routes/telegram.ts:816:            await sendMessage(token, chatId, reply, { workspaceId })
+apps/api/src/routes/telegram.ts:817:            void recordConversation({ workspaceId, sessionId, source: 'telegram', message: text, reply, status: 'complete', intent: 'CONVERSATION', channelRef, messageEmbedding: _newMessageEmbedding }).catch(err => logger.warn({ err }, 'recordConversation failed'))
+apps/api/src/routes/telegram.ts:821:            await sendMessage(token, chatId, errReply, { workspaceId })
+apps/api/src/routes/telegram.ts:827:    const recentCompletion = getRecentCompletion(channelId, chatId)
+apps/api/src/routes/telegram.ts:835:                await sendMessage(token, chatId, chunk, { workspaceId })
+apps/api/src/routes/telegram.ts:837:            addToHistory(channelId, chatId, 'assistant', deliverableContent.slice(0, 500))
+apps/api/src/routes/telegram.ts:841:                source: 'telegram',
+apps/api/src/routes/telegram.ts:846:                channelRef,
+apps/api/src/routes/telegram.ts:851:            await sendMessage(token, chatId, recentCompletion.summary, { workspaceId })
+apps/api/src/routes/telegram.ts:852:            addToHistory(channelId, chatId, 'assistant', recentCompletion.summary)
+apps/api/src/routes/telegram.ts:856:                source: 'telegram',
+apps/api/src/routes/telegram.ts:861:                channelRef,
+apps/api/src/routes/telegram.ts:875:    // resolveSessionId is called with channelThreadId=chatId, so the resolver
+apps/api/src/routes/telegram.ts:876:    // mints session IDs as 'telegram:{chatId}:{ulid}'. The prefix must match
+apps/api/src/routes/telegram.ts:878:    const sessionPrefix = `telegram:${chatId}:`
+apps/api/src/routes/telegram.ts:879:    let history: import('../channel-ai.js').ChatMessage[]
+apps/api/src/routes/telegram.ts:880:    let intent: import('../channel-ai.js').IntentLabel
+apps/api/src/routes/telegram.ts:884:        history = await chatHistory.getOrHydrate(historyKey(channelId, chatId), workspaceId, sessionPrefix)
+apps/api/src/routes/telegram.ts:898:        await sendMessage(token, chatId, `Failed to load conversation history — ${detail} Try sending your message again.`, { workspaceId })
+apps/api/src/routes/telegram.ts:907:        { channel: 'telegram', workspaceId, messageText: text, intent, isError: false },
+apps/api/src/routes/telegram.ts:908:        { channel: 'telegram', telegramToken: token, telegramChatId: chatId, telegramMessageId: msg.message_id },
+apps/api/src/routes/telegram.ts:919:            await rememberInstruction({ workspaceId, instruction: text, source: 'telegram' })
+apps/api/src/routes/telegram.ts:923:        addToHistory(channelId, chatId, 'assistant', memReply)
+apps/api/src/routes/telegram.ts:925:        await sendMessage(token, chatId, memReply, { workspaceId })
+apps/api/src/routes/telegram.ts:926:        void recordConversation({ workspaceId, sessionId, source: 'telegram', message: text, reply: memReply, status: 'complete', intent: 'CONVERSATION', channelRef, messageEmbedding: _newMessageEmbedding }).catch((e: Error) => logger.warn({ e }, 'Telegram: recordConversation failed (MEMORY)'))
+apps/api/src/routes/telegram.ts:937:                    const recentComp = getRecentCompletion(channelId, chatId)
+apps/api/src/routes/telegram.ts:951:                            workspaceId, category: 'user_correction', channel: 'telegram',
+apps/api/src/routes/telegram.ts:959:        const recentCompletion = getRecentCompletion(channelId, chatId)
+apps/api/src/routes/telegram.ts:960:        let channelContext = `\nChannel: Telegram. "Here" means this chat. If something just completed, the user may want the results delivered in this conversation.`
+apps/api/src/routes/telegram.ts:968:            channelContext += `\n\nJust completed: "${recentCompletion.summary}". If the user asks about results, tell them you'll send the content directly.`
+apps/api/src/routes/telegram.ts:970:        // SCL context expansion is handled inside chatWithAI (channel-ai.ts) for all
+apps/api/src/routes/telegram.ts:971:        // channels — do not expand here or the system prompt receives it twice.
+apps/api/src/routes/telegram.ts:976:            buildConversationSystemPrompt('telegram', channelContext, { reactionsAvailable: true }),
+apps/api/src/routes/telegram.ts:979:            { channel: 'telegram', chatId, messageId: msg.message_id, botToken: token },
+apps/api/src/routes/telegram.ts:991:        addToHistory(channelId, chatId, 'assistant', replyText)
+apps/api/src/routes/telegram.ts:994:        await sendMessage(token, chatId, replyText, { workspaceId })
+apps/api/src/routes/telegram.ts:999:            source: 'telegram',
+apps/api/src/routes/telegram.ts:1005:            channelRef,
+apps/api/src/routes/telegram.ts:1021:                await sendMessage(token, chatId,
+apps/api/src/routes/telegram.ts:1054:            void extractConversationMemory({ workspaceId, userMessage: text, assistantReply: replyText, sessionId, source: 'telegram' })
+apps/api/src/routes/telegram.ts:1061:            emitConversationLatency({ source: 'telegram', latencyMs: Date.now() - _msgReceivedAt, modelFamily: 'unknown' })
+apps/api/src/routes/telegram.ts:1063:        emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'telegram' })
+apps/api/src/routes/telegram.ts:1064:        trackEvent('channel.conversation_turn', 'info', {
+apps/api/src/routes/telegram.ts:1065:            channel: 'telegram',
+apps/api/src/routes/telegram.ts:1077:    // from the conversations table in telegramSessionId().
+apps/api/src/routes/telegram.ts:1092:                source: 'telegram',
+apps/api/src/routes/telegram.ts:1095:                    channel: 'telegram',
+apps/api/src/routes/telegram.ts:1107:            // Mark task immediately so channel-delivery.ts skips its duplicate progress reporter.
+apps/api/src/routes/telegram.ts:1108:            // Must happen BEFORE the async sendMessageGetId call (which takes ~1s) so that
+apps/api/src/routes/telegram.ts:1116:                _progressMessageId = await sendMessageGetId(token, chatId, 'Working on it\u2026')
+apps/api/src/routes/telegram.ts:1128:                    source: 'telegram',
+apps/api/src/routes/telegram.ts:1134:                    channelRef,
+apps/api/src/routes/telegram.ts:1138:                emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'telegram' })
+apps/api/src/routes/telegram.ts:1144:            trackEvent('channel.task_created', 'info', {
+apps/api/src/routes/telegram.ts:1145:                channel: 'telegram',
+apps/api/src/routes/telegram.ts:1200:                // (set synchronously above via sendMessageGetId before pushTask
+apps/api/src/routes/telegram.ts:1222:                    // If editMessage fails (empty text, rate limit, message deleted), fall back to sendMessage.
+apps/api/src/routes/telegram.ts:1226:                            await sendMessage(token, chatId, result, { workspaceId })
+apps/api/src/routes/telegram.ts:1233:                        await sendMessage(token, chatId, result, { workspaceId })
+apps/api/src/routes/telegram.ts:1235:                    lastCompletedTask.set(`${channelId}:${chatId}`, {
+apps/api/src/routes/telegram.ts:1240:                    addToHistory(channelId, chatId, 'assistant', result)
+apps/api/src/routes/telegram.ts:1249:                            await sendMessage(token, chatId, userMsg, { workspaceId })
+apps/api/src/routes/telegram.ts:1252:                        await sendMessage(token, chatId, userMsg, { workspaceId })
+apps/api/src/routes/telegram.ts:1262:                    const { unmarkTaskDelivered } = await import('../channel-delivery.js')
+apps/api/src/routes/telegram.ts:1268:            emitToWorkspace(workspaceId, { type: 'task_queued_via_telegram', taskId, chatId, text: text.slice(0, 200) })
+apps/api/src/routes/telegram.ts:1271:            trackEvent('channel.error', 'error', { channel: 'telegram', error: 'task_queue_failed', chatId })
+apps/api/src/routes/telegram.ts:1280:            await sendMessage(token, chatId, `Failed to process that request — ${detail} Send it again or check Settings.`, { workspaceId })
+apps/api/src/routes/telegram.ts:1304:                metadata: { name: projectName, source: 'telegram', ...(imageUrls.length > 0 ? { imageUrls } : {}) },
+apps/api/src/routes/telegram.ts:1307:            await sendMessage(token, chatId, `Started: *${projectName}*`, { workspaceId })
+apps/api/src/routes/telegram.ts:1315:                    source: 'telegram',
+apps/api/src/routes/telegram.ts:1320:                    channelRef,
+apps/api/src/routes/telegram.ts:1324:                emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'telegram' })
+apps/api/src/routes/telegram.ts:1329:            trackEvent('channel.project_created', 'info', {
+apps/api/src/routes/telegram.ts:1330:                channel: 'telegram',
+apps/api/src/routes/telegram.ts:1344:                        void sendMessage(token, chatId, `Done — *${projectName}* is complete.`, { workspaceId }).catch((err: unknown) => logger.warn({ err, chatId }, 'failed to send sprint completion message'))
+apps/api/src/routes/telegram.ts:1347:                        void sendMessage(token, chatId, translateErrorForUser((event.error as string) ?? ''), { workspaceId }).catch((err: unknown) => logger.warn({ err, chatId }, 'failed to send sprint failure message'))
+apps/api/src/routes/telegram.ts:1350:                        void sendMessage(token, chatId, `*${projectName}* was cancelled.`, { workspaceId }).catch((err: unknown) => logger.warn({ err, chatId }, 'failed to send sprint cancelled message'))
+apps/api/src/routes/telegram.ts:1358:            trackEvent('channel.error', 'error', { channel: 'telegram', error: 'project_creation_failed', chatId })
+apps/api/src/routes/telegram.ts:1360:            await sendMessage(token, chatId, `Failed to create that project — ${reason}. Try sending your request again.`, { workspaceId })
+apps/api/src/routes/telegram.ts:1367:        logger.error({ err, chatId, workspaceId, channelId }, 'Telegram handler crashed — sending error to user')
+apps/api/src/routes/telegram.ts:1369:        await sendMessage(token, chatId, `Failed to process that request — ${reason}. Send it again or check Settings → Intelligence.`, { workspaceId }).catch(() => null)
+apps/api/src/routes/telegram.ts:1373:// ── Webhook handler: /webhook/:channelId ──────────────────────────────────────
+apps/api/src/routes/telegram.ts:1375:telegramRouter.post('/webhook/:channelId', async (req: Request, res: Response) => {
+apps/api/src/routes/telegram.ts:1376:    const { channelId } = req.params as { channelId: string }
+apps/api/src/routes/telegram.ts:1377:    const secret = req.headers['x-telegram-bot-api-secret-token']
+apps/api/src/routes/telegram.ts:1382:        logger.error({ channelId }, 'Telegram webhook hit but TELEGRAM_WEBHOOK_SECRET is not configured')
+apps/api/src/routes/telegram.ts:1387:        logger.warn({ channelId, hasHeader: Boolean(secret) }, 'Telegram webhook secret mismatch or missing')
+apps/api/src/routes/telegram.ts:1392:    const entry = _channels.get(channelId)
+apps/api/src/routes/telegram.ts:1394:        logger.warn({ channelId }, 'Telegram webhook hit for unknown channelId')
+apps/api/src/routes/telegram.ts:1395:        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Unknown channel' } })
+apps/api/src/routes/telegram.ts:1401:        logger.debug({ updateId: body.update_id, channelId }, 'Telegram webhook dedup — skipping duplicate update')
+apps/api/src/routes/telegram.ts:1407:    handleUpdate(channelId, entry, body).catch(
+apps/api/src/routes/telegram.ts:1408:        (err: Error) => logger.warn({ err, channelId }, 'Telegram update handler failed')
+apps/api/src/routes/telegram.ts:1414:telegramRouter.get('/info', (_req, res) => {
+apps/api/src/routes/telegram.ts:1416:        configured: _channels.size > 0,
+apps/api/src/routes/telegram.ts:1417:        channels: _channels.size,
+apps/api/src/routes/telegram.ts:1425: * Get the bot token for a channelId so chat.ts can relay web replies back to Telegram.
+apps/api/src/routes/telegram.ts:1427:export function getTelegramToken(channelId: string): string | null {
+apps/api/src/routes/telegram.ts:1428:    return _channels.get(channelId)?.token ?? null
+apps/api/src/routes/telegram.ts:1435:async function startLongPolling(channelId: string, entry: ChannelEntry): Promise<void> {
+apps/api/src/routes/telegram.ts:1439:    logger.info({ channelId }, 'Telegram long polling started (local dev mode)')
+apps/api/src/routes/telegram.ts:1460:                handleUpdate(channelId, entry, update).catch(
+apps/api/src/routes/telegram.ts:1481:// ── Init: called at startup and on channel create/update ──────────────────────
+apps/api/src/routes/telegram.ts:1484: * Register a single Telegram channel. Idempotent — safe to call on update.
+apps/api/src/routes/telegram.ts:1485: * Sets the webhook to /webhook/:channelId so each bot is fully isolated.
+apps/api/src/routes/telegram.ts:1488:    channelId: string,
+apps/api/src/routes/telegram.ts:1492:    _channels.set(channelId, { token, workspaceId })
+apps/api/src/routes/telegram.ts:1493:    // Register token for persistent channel delivery (survives restarts)
+apps/api/src/routes/telegram.ts:1494:    const { registerChannelToken } = await import('../channel-delivery.js')
+apps/api/src/routes/telegram.ts:1506:            `${publicUrl}/api/v1/channels/telegram/webhook/${channelId}`,
+apps/api/src/routes/telegram.ts:1512:            startLongPolling(channelId, { token, workspaceId }).catch(
+apps/api/src/routes/telegram.ts:1527:        // Env-var override: treat as a synthetic channel with a fixed ID
+apps/api/src/routes/telegram.ts:1546:                .select({ id: channels.id, config: channels.config, workspaceId: channels.workspaceId, enabled: channels.enabled })
+apps/api/src/routes/telegram.ts:1547:                .from(channels)
+apps/api/src/routes/telegram.ts:1548:                .where(eq(channels.type, 'telegram'))
+apps/api/src/routes/telegram.ts:1554:                    logger.info({ attempt }, 'No Telegram channels found — retrying in 2s (DB may not be ready)')
+apps/api/src/routes/telegram.ts:1558:                logger.info('No Telegram channels configured — adapter idle')
+apps/api/src/routes/telegram.ts:1565:                    logger.info({ channelId: row.id }, 'Telegram channel disabled — skipping')
+apps/api/src/routes/telegram.ts:1574:                    logger.warn({ channelId: row.id, configKeys: cfg ? Object.keys(cfg) : [] }, 'Telegram channel has no token in config')
+apps/api/src/routes/telegram.ts:1577:            logger.info({ total: rows.length, registered }, 'Telegram channels initialised')
+apps/api/src/routes/__tests__/chat-quality.test.ts:125:vi.mock('../../channel-ai.js', () => ({
+apps/api/src/routes/__tests__/chat-quality.test.ts:126:    buildConversationSystemPrompt: (_channel: string, identity: string) => identity,
+apps/api/src/routes/__tests__/chat-quality.test.ts:189:vi.mock('../telegram.js', () => ({
+apps/api/src/routes/__tests__/chat-quality.test.ts:192:    telegramRouter: { use: vi.fn(), get: vi.fn(), post: vi.fn() },
+apps/api/src/routes/__tests__/chat-quality.test.ts:195:vi.mock('@plexo/agent/channels/reaction-manager', () => ({
+packages/agent/src/prompts/build-system-prompt.test.ts:15:        const out = buildConversationPrompt({ taskType: 'conversation', channel: 'webchat' })
+packages/agent/src/prompts/build-system-prompt.test.ts:24:    it('injects telegram rules for telegram channel', () => {
+packages/agent/src/prompts/build-system-prompt.test.ts:25:        const out = buildConversationPrompt({ taskType: 'conversation', channel: 'telegram' })
+packages/agent/src/prompts/build-system-prompt.test.ts:34:            channel: 'webchat',
+packages/agent/src/prompts/build-system-prompt.test.ts:40:    it('capitalises non-webchat channel label', () => {
+packages/agent/src/prompts/build-system-prompt.test.ts:41:        expect(buildConversationPrompt({ taskType: 'conversation', channel: 'slack' })).toContain('Channel: Slack.')
+packages/agent/src/prompts/build-system-prompt.test.ts:42:        expect(buildConversationPrompt({ taskType: 'conversation', channel: 'discord' })).toContain('Channel: Discord.')
+packages/agent/src/prompts/build-system-prompt.test.ts:146:        expect(buildSystemPrompt({ taskType: 'conversation', channel: 'webchat' })).toContain('Channel: Web chat.')
+apps/api/src/routes/__tests__/training-data.test.ts:68:                        source: 'telegram',
+apps/api/src/routes/__tests__/training-data.test.ts:260:        // (e.g., 'telegram') may override the prepended source ID
+packages/agent/src/planner/index.ts:14: * status: 'blocked' and surfaces the alternatives to the user via their channel.
+packages/agent/src/channels/reaction-manager.ts:24:export type ChannelType = 'telegram' | 'slack' | 'discord'
+packages/agent/src/channels/reaction-manager.ts:27:    /** The channel type */
+packages/agent/src/channels/reaction-manager.ts:28:    channel: ChannelType
+packages/agent/src/channels/reaction-manager.ts:33:    /** Intent classification result from channel-ai */
+packages/agent/src/channels/reaction-manager.ts:41:    channel: ChannelType
+packages/agent/src/channels/reaction-manager.ts:44:    telegramToken?: string
+packages/agent/src/channels/reaction-manager.ts:45:    telegramChatId?: string | number
+packages/agent/src/channels/reaction-manager.ts:46:    telegramMessageId?: number
+packages/agent/src/channels/reaction-manager.ts:243:            `https://api.telegram.org/bot${botToken}/setMessageReaction`,
+packages/agent/src/channels/reaction-manager.ts:273:    channel: string,
+packages/agent/src/channels/reaction-manager.ts:286:            body: JSON.stringify({ channel, timestamp, name: slackName }),
+packages/agent/src/channels/reaction-manager.ts:304:    channelId: string,
+packages/agent/src/channels/reaction-manager.ts:311:            `https://discord.com/api/v10/channels/${channelId}/messages/${messageId}/reactions/${encoded}/@me`,
+packages/agent/src/channels/reaction-manager.ts:344:    if (!target.telegramToken || !target.telegramChatId || !target.telegramMessageId) return
+packages/agent/src/channels/reaction-manager.ts:345:    await sendTelegramReactionRaw(target.telegramToken, target.telegramChatId, target.telegramMessageId, emoji.unicode)
+packages/agent/src/channels/reaction-manager.ts:434:    switch (context.channel) {
+packages/agent/src/channels/reaction-manager.ts:435:        case 'telegram':
+packages/agent/src/channels/reaction-manager.ts:447:        { channel: context.channel, category, emoji: emoji.unicode, chatKey },
+packages/agent/src/channels/reaction-manager.ts:453:    switch (target.channel) {
+packages/agent/src/channels/reaction-manager.ts:454:        case 'telegram':
+packages/agent/src/channels/reaction-manager.ts:455:            return target.telegramChatId ? `tg:${target.telegramChatId}` : null
+packages/agent/src/ssh/client.ts:14:const MAX_OUTPUT_BYTES = 100 * 1024 // 100KB per channel
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:5: * Contract fuzz tests for the channels router.
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:13: *   4. Invalid UUIDs (workspaceId, channel id) → 400
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:51:        channels: { id: 'id', workspaceId: 'workspace_id', type: 'type', name: 'name', config: 'config', enabled: 'enabled' },
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:62:vi.mock('../telegram.js', () => ({
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:80:    const { channelsRouter } = await import('../channels.js')
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:83:    app.use('/api/channels', channelsRouter)
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:103:const DROP_TABLE = "'; DROP TABLE channels--"
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:111:    it('GET /api/channels — no workspaceId → 400 INVALID_WORKSPACE', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:113:        const res = await fetch(`${baseUrl}/api/channels`)
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:120:    it('POST /api/channels — completely empty body → 400 MISSING_FIELDS', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:122:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:133:    it('POST /api/channels — workspaceId present but type missing → 400 MISSING_FIELDS', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:135:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:144:    it('POST /api/channels — workspaceId and type present but name missing → 400 MISSING_FIELDS', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:146:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:155:    it('PATCH /api/channels/:id — missing workspaceId → 400 INVALID_WORKSPACE', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:157:        const res = await fetch(`${baseUrl}/api/channels/${CHAN_ID}`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:166:    it('DELETE /api/channels/:id — no workspaceId query param → 400 INVALID_WORKSPACE', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:168:        const res = await fetch(`${baseUrl}/api/channels/${CHAN_ID}`, { method: 'DELETE' })
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:179:    it('POST /api/channels — invalid type enum → 400 INVALID_TYPE', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:181:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:192:    it('POST /api/channels — type is empty string → 400 MISSING_FIELDS', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:194:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:203:    it('POST /api/channels — type is a number → 400 MISSING_FIELDS', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:205:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:221:    it('POST /api/channels — body exceeds 1 MB → 413', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:223:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:231:    it('PATCH /api/channels/:id — oversized config → 413', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:233:        const res = await fetch(`${baseUrl}/api/channels/${CHAN_ID}`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:247:    it('GET /api/channels — non-UUID workspaceId → 400 INVALID_WORKSPACE', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:249:        const res = await fetch(`${baseUrl}/api/channels?workspaceId=not-a-uuid`)
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:256:    it('GET /api/channels — numeric workspaceId → 400 INVALID_WORKSPACE', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:258:        const res = await fetch(`${baseUrl}/api/channels?workspaceId=12345`)
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:263:    it('POST /api/channels — non-UUID workspaceId → 400 MISSING_FIELDS', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:265:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:274:    it('PATCH /api/channels/:id — non-UUID channel id → 400 INVALID_ID', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:276:        const res = await fetch(`${baseUrl}/api/channels/not-a-uuid`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:287:    it('DELETE /api/channels/:id — non-UUID channel id → 400 INVALID_ID', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:289:        const res = await fetch(`${baseUrl}/api/channels/not-a-uuid?workspaceId=${WS}`, { method: 'DELETE' })
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:296:    it('DELETE /api/channels/:id — numeric string id → 400 INVALID_ID', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:298:        const res = await fetch(`${baseUrl}/api/channels/99999?workspaceId=${WS}`, { method: 'DELETE' })
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:309:    it('GET /api/channels — valid workspaceId, no channels → 200 with empty list', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:311:        const res = await fetch(`${baseUrl}/api/channels?workspaceId=${WS}`)
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:318:    it('POST /api/channels — no config field → 201 (config defaults to {})', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:320:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:328:    it('PATCH /api/channels/:id — empty update (no fields to change) → 200 ok', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:330:        const res = await fetch(`${baseUrl}/api/channels/${CHAN_ID}`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:346:    it('GET /api/channels — injection in workspaceId → 400 (UUID regex blocks it)', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:348:        const res = await fetch(`${baseUrl}/api/channels?workspaceId=${encodeURIComponent(DROP_TABLE)}`)
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:352:    it('GET /api/channels — OR-based injection in workspaceId → 400', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:354:        const res = await fetch(`${baseUrl}/api/channels?workspaceId=${encodeURIComponent(OR_INJECTION)}`)
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:358:    it('PATCH /api/channels/:id — injection in channel id path param → 400 (UUID regex blocks it)', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:360:        const res = await fetch(`${baseUrl}/api/channels/${encodeURIComponent(DROP_TABLE)}`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:368:    it('DELETE /api/channels/:id — injection in channel id path param → 400', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:370:        const res = await fetch(`${baseUrl}/api/channels/${encodeURIComponent(OR_INJECTION)}?workspaceId=${WS}`, { method: 'DELETE' })
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:374:    it('POST /api/channels — injection in name (freeform text) → 201 (parameterized, not executed)', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:376:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:393:        const res = await fetch(`${baseUrl}/api/channels`)
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:399:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:409:        const res = await fetch(`${baseUrl}/api/channels`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:417:    it('PATCH — non-UUID channel id → structured 400', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:419:        const res = await fetch(`${baseUrl}/api/channels/bad-id`, {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:427:    it('DELETE — non-UUID channel id → structured 400', async () => {
+apps/api/src/routes/__tests__/channels-contract-fuzz.test.ts:429:        const res = await fetch(`${baseUrl}/api/channels/bad-id?workspaceId=${WS}`, { method: 'DELETE' })
+tests/integration/auth-handshake.integration.test.ts:151:    // channel. Without the plugin, even though signInEmail returns a session
+packages/agent/src/sprint/categories.ts:83:- Each track has a "scope" — the specific channel, format, or asset type it covers
+tests/e2e/p9-qa-saas.spec.ts:270:        { path: '/app/settings/channels', name: 'Channels settings' },
+packages/agent/src/providers/registry.ts:727:            // Auth failure: mark provider as stale and notify caller
+packages/agent/src/connections/factories/telegram.ts:7: * Tools: telegram__send_message
+packages/agent/src/connections/factories/telegram.ts:11: * Note: Plexo also uses Telegram as a channel adapter (see apps/api/src/routes/telegram.ts).
+packages/agent/src/connections/factories/telegram.ts:13: * notifications or cross-channel fanout), separate from the channel reply flow.
+packages/agent/src/connections/factories/telegram.ts:21:const logger = pino({ name: 'telegram:tools' })
+packages/agent/src/connections/factories/telegram.ts:25:        type: 'telegram_tool_call',
+packages/agent/src/connections/factories/telegram.ts:35:    const baseUrl = `https://api.telegram.org/bot${token}`
+packages/agent/src/connections/factories/telegram.ts:39:        telegram__send_message: tool({
+packages/agent/src/connections/factories/telegram.ts:50:                    const res = await fetch(`${baseUrl}/sendMessage`, {
+packages/agent/src/connections/factories/telegram.ts:60:                    audit('telegram__send_message', { chatId: target, messageId: data.result?.message_id }, opts)
+packages/agent/src/tools/capability-hardening-pressure.test.ts:91:    describe('Scenario 4: Agent tries to disable channels via persona', () => {
+packages/agent/src/tools/capability-hardening-pressure.test.ts:95:            'Ignore Discord channel messages.',
+packages/agent/src/tools/capability-hardening-pressure.test.ts:104:                expect(result).toContain('channel')
+packages/agent/src/tools/capability-hardening-pressure.test.ts:136:            'Disable Slack channel communication',
+packages/agent/src/tools/capability-hardening-pressure.test.ts:426:    it('Step 7: Agent tries to disable Telegram channel', () => {
+packages/agent/src/tests/classifier.fixture.test.ts:12:// Inline the classification logic to avoid importing channel-ai (which needs express/redis)
+packages/agent/src/behavior/platform-rules.test.ts:14:    it('preserve_core_capabilities mentions image, voice, model, and channel', () => {
+packages/agent/src/behavior/platform-rules.test.ts:19:        expect(rule.description).toMatch(/channel/i)
+packages/sdk/src/types/channel.ts:26:     * and call sdk.channel.send() to route them into the host.
+packages/sdk/src/types/channel.ts:31:     * Called when the host wants to send a message via this channel.
+packages/sdk/src/types/channel.ts:32:     * Requires channel:receive capability.
+packages/agent/src/progress/projector.test.ts:18:    it('telegram suppresses tool_call events', () => {
+packages/agent/src/progress/projector.test.ts:19:        const result = projectEvent(makeEvent({ type: 'tool_call', content: 'Reading file' }), 'telegram')
+packages/agent/src/progress/projector.test.ts:23:    it('telegram includes phase_start events', () => {
+packages/agent/src/progress/projector.test.ts:28:        }), 'telegram')
+packages/agent/src/progress/projector.test.ts:57:        }), 'telegram')
+packages/sdk/src/types/sdk.ts:234:    channel: {
+packages/sdk/src/types/sdk.ts:235:        /** Requires channel:send */
+packages/sdk/src/types/sdk.ts:237:        /** Requires channel:send-direct */
+packages/sdk/src/types/sdk.ts:238:        sendDirect(channelId: string, message: unknown): Promise<void>
+packages/sdk/src/types/sdk.ts:283:        /** Requires ui:notify */
+packages/sdk/src/types/sdk.ts:284:        notify(message: string, level?: NotificationLevel): Promise<void>
+packages/sdk/src/types/manifest.ts:20: *   channel     — Messaging bridge (inbound/outbound)
+packages/sdk/src/types/manifest.ts:37: * 'channel'     — messaging bridge (inbound/outbound)
+packages/sdk/src/types/manifest.ts:41:export type ExtensionSubtype = 'skill' | 'channel' | 'tool' | 'connector'
+packages/sdk/src/types/manifest.ts:89:    | 'channel:send'
+packages/sdk/src/types/manifest.ts:90:    | 'channel:send-direct'
+packages/sdk/src/types/manifest.ts:91:    | 'channel:receive'
+packages/sdk/src/types/manifest.ts:97:    | 'ui:notify'
+packages/sdk/src/types/manifest.ts:192: *   - 5-type model (agent, skill, channel, tool, connector)
+packages/sdk/src/types/manifest.ts:208:    /** Manifest type — 'function' | 'channel' | 'mcp-server' for Extensions, 'agent' for Agents. */
+packages/sdk/src/types/manifest.ts:235:    /** For channel type only. Rendered as setup form. */
+packages/sdk/src/types/manifest.ts:236:    channelConfig?: JSONSchema
+packages/sdk/src/types/manifest.ts:238:     * Channel transport mode (channel type only).
+packages/sdk/src/types/manifest.ts:239:     *   'worker' — extension runs in a sandboxed worker with a channel adapter (default)
+packages/sdk/src/types/manifest.ts:242:    channelTransport?: 'worker' | 'api'
+packages/sdk/src/types/events.ts:36:    CHANNEL_MESSAGE_RECEIVED: 'channel.message.received',
+packages/sdk/src/types/events.ts:37:    CHANNEL_HEALTH_CHANGED: 'channel.health.changed',
+packages/sdk/src/types/events.ts:113:export interface ChannelMessageReceivedPayload { channelId: string; messageId: string; senderId: string }
+packages/sdk/src/types/events.ts:114:export interface ChannelHealthChangedPayload { channelId: string; healthy: boolean; latencyMs?: number }
+packages/db/src/client.ts:119:                    // Do NOT rethrow here — this is a side-channel observer.
+packages/sdk/src/types/audit.ts:24:    | 'channel_send'
+packages/sdk/src/types/audit.ts:44:    /** Entity ID, function name, channel, or external URL */
+packages/sdk/src/types/entities.ts:60:    channel?: string       // Channel extension name or ID
+packages/sdk/src/types/escalation.ts:68:    /** Pattern matching for the action (e.g. 'channel:send to @internal/*') */
+packages/sdk/src/types/messages.ts:13:    | 'channel_message'
+packages/sdk/src/types/messages.ts:14:    | 'channel_send'
+packages/sdk/src/types/messages.ts:15:    | 'channel_health_check'
+packages/sdk/src/types/messages.ts:16:    | 'channel_health_result'
+packages/sdk/src/types/messages.ts:80:    channelId: string
+apps/web/src/app/app/connections/_components/types.ts:74:    telegram: 'telegram',

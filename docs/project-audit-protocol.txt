@@ -1,0 +1,82 @@
+apps/web/next.config.ts:13:      { protocol: 'https', hostname: '**' },
+apps/web/next.config.ts:14:      { protocol: 'http', hostname: 'localhost' },
+apps/web/src/lib/works/enrichment-patterns.ts:43:        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+apps/web/src/app/page.tsx:324:                                    { label: 'A2A', title: 'Agent-to-Agent protocol' },
+apps/web/src/app/app/projects/[id]/page.tsx:878:                        <span className="text-text-muted">PLAN.ITERATIONS.</span>
+apps/web/src/app/app/connections/page.tsx:717:                                    The agent will appear as a callable tool in the extension library. Plexo routes tasks to it via the A2A protocol.
+apps/web/src/components/works/renderers/LinkListRenderer.tsx:18:const OPEN_ALL_CONFIRM_THRESHOLD = 5
+apps/web/src/components/works/renderers/LinkListRenderer.tsx:41:        if (links.length > OPEN_ALL_CONFIRM_THRESHOLD && !confirming) {
+apps/web/src/components/stabilization/dashboard.tsx:117:    if (s === 'GREEN' || s === 'PASS' || s === 'COMPLETED') return <span className="text-green-400 font-medium">{s}</span>
+apps/api/src/sso/config.ts:40:    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && isLocalhost)) return null
+apps/api/src/utils/ssrf.ts:14:    if (!['http:', 'https:'].includes(parsed.protocol)) return true
+apps/api/src/lib/session-resolver.ts:362:    const TASK_COMPLETE_FOLLOWUP_MS = 2 * 60 * 1000
+apps/api/src/lib/session-resolver.ts:363:    if (last.taskId && gap > TASK_COMPLETE_FOLLOWUP_MS) {
+apps/api/src/analytics/sanitize.ts:21:export type PipelineStep = 'PLAN' | 'CONFIRM' | 'EXECUTE' | 'VERIFY' | 'REPORT'
+apps/api/src/routes/workspaces.ts:215:    'requireApprovalForGeneralTasks',     // CONFIRM gate — agent must not disable its own approval requirement
+apps/api/src/routes/workspaces.ts:216:    'escalationTimeoutHours',             // CONFIRM gate — agent must not extend its own approval window
+apps/api/src/routes/registry.ts:158:                        code: 'INCOMPLETE_SIGNATURE',
+tests/chaos/llm-fault-proxy.ts:172:    const transport = parsed.protocol === 'https:' ? https : http
+tests/unit/agent-constants.test.ts:6:        it('MAX_PLAN_STEPS is 100', () => {
+tests/unit/agent-constants.test.ts:7:            expect(SAFETY_LIMITS.MAX_PLAN_STEPS).toBe(100)
+packages/mcp-server/src/index.ts:29:import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+packages/mcp-server/src/index.ts:30:import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+packages/mcp-server/src/index.ts:31:import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+apps/api/src/routes/ai-media.ts:113:        if (status.status === 'COMPLETED') {
+apps/api/src/agent-loop.ts:845:                logger.info({ taskId: task.id, approvalId: approval.id, decidedBy: approval.decidedBy }, 'CONFIRM gate auto-approved via standing approval')
+apps/api/src/middleware/csrf.ts:67:                candidate = `${u.protocol}//${u.host}`
+apps/api/src/routes/vision.ts:99:    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+apps/api/src/routes/vision.ts:100:        res.status(400).json({ error: { code: 'INVALID_IMAGE_URL', message: 'imageUrl protocol must be http or https' } })
+packages/agent/src/principles.ts:19: * Principle 3: PROPORTIONAL PLANNING
+packages/agent/src/constants.ts:11:    MAX_PLAN_STEPS: 100,
+packages/agent/src/plugins/sandbox-worker.ts:11: * Bridge protocol (worker → host → worker):
+packages/agent/src/plugins/sandbox-worker.ts:15: * Main protocol:
+packages/agent/src/introspection/rsi-monitor.ts:141:                proposedChange: { action: 'refine_verification_criteria', target: 'soul_protocol' },
+packages/agent/src/introspection/rsi-monitor.ts:184:                    proposedChange: { action: 'cap_clarification_loops', target: 'soul_protocol', threshold: 2 },
+tests/integration/confirm-gate.integration.test.ts:5: * Phase D integration tests — CONFIRM gate (#5).
+tests/integration/confirm-gate.integration.test.ts:178:describe('Phase D — CONFIRM gate', () => {
+packages/agent/src/mcp/client.ts:139:    // MCP protocol: POST to the server's endpoint with tools/list method
+packages/agent/src/mcp/client.ts:213:        const initMsg = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'plexo', version: '1.0.0' } } }) + '\n'
+packages/agent/src/mcp/client.ts:277:        const initMsg = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'plexo', version: '1.0.0' } } }) + '\n'
+packages/agent/src/planner/index.ts:190:            maxSteps: SAFETY_LIMITS.MAX_PLAN_STEPS,
+packages/agent/src/planner/index.ts:207:CRITICAL: If the task involves ANY website, web service, social media platform, SaaS tool, or online form — return a PLAN using browser_* tools. Do NOT return clarification. The browser IS the capability.`
+packages/agent/src/planner/index.ts:271:    if (raw.object.steps.length > SAFETY_LIMITS.MAX_PLAN_STEPS) {
+packages/agent/src/planner/index.ts:273:            `Plan has ${raw.object.steps.length} steps — exceeds safety limit of ${SAFETY_LIMITS.MAX_PLAN_STEPS}`,
+packages/agent/src/planner/index.ts:274:            'PLAN_TOO_LARGE',
+tests/e2e/critical-path.spec.ts:41:                message: { role: 'user', parts: [{ type: 'text', text: 'Say CONFIRMED in exactly one word' }] },
+tests/unit/channel-ai-disclaimers.test.ts:40:    'Please consult a doctor before starting this protocol.',
+tests/unit/channel-ai-disclaimers.test.ts:134:        const input = 'Coffee enemas work by stimulating the liver via the portal vein. I should note that a qualified professional should be consulted before attempting this at home. The protocol uses 2 cups of brewed coffee.'
+tests/unit/channel-ai-disclaimers.test.ts:138:        expect(result).toContain('The protocol uses 2 cups of brewed coffee.')
+apps/api/src/routes/connections.ts:84:        mcpPackage: '@modelcontextprotocol/server-github',
+apps/api/src/routes/connections.ts:88:        mcpPackage: '@modelcontextprotocol/server-gitlab',
+apps/api/src/routes/connections.ts:92:        mcpPackage: '@modelcontextprotocol/server-slack',
+apps/api/src/routes/connections.ts:96:        mcpPackage: '@modelcontextprotocol/server-notion',
+apps/api/src/routes/connections.ts:108:        mcpPackage: '@modelcontextprotocol/server-gdrive',
+apps/api/src/routes/ai-providers.ts:23:    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+apps/api/src/routes/ai-providers.ts:169:/** POST /api/settings/ai-providers/probe — auto-detect provider protocol and models */
+apps/api/src/routes/ai-providers.ts:184:            res.json({ ok: true, protocol: 'openai', models })
+apps/api/src/routes/ai-providers.ts:195:            res.json({ ok: true, protocol: 'ollama', models })
+apps/api/src/routes/ai-providers.ts:208:            res.json({ ok: true, protocol: 'anthropic', models })
+apps/api/src/routes/ai-providers.ts:213:    res.json({ ok: false, protocol: null, models: [], message: 'Could not detect provider protocol. Verify the URL and API key.' })
+packages/db/src/migrate.ts:66:        console.log(`[migrate] URL Check: Valid format. Protocol: ${url.protocol}, Host: ${url.host}, DB: ${url.pathname}`)
+packages/db/src/schema.ts:1405:// External app registrations via the PAX (Plexo Application eXchange) protocol.
+apps/api/src/routes/extensions.ts:83:        if (url.protocol !== 'https:') return false
+packages/agent/src/plugins/event-bus.ts:32:    TASK_COMPLETED: 'plexo.task.completed',
+packages/agent/src/plugins/persistent-pool.ts:11: * Message protocol:
+tests/e2e/p1-a2a.spec.ts:5: * P1 A2A E2E — proves Agent Cards, A2A task protocol, and sub-agent queries work.
+tests/e2e/p1-a2a.spec.ts:39:                    parts: [{ type: 'text', text: 'Say CONFIRMED' }],
+tests/e2e/p1-a2a.spec.ts:43:        // May be 201 (created) or 400 (no workspace) — both are valid protocol responses, not 500
+tests/e2e/p8-launch.spec.ts:32:        test('compatibility section lists protocols', async ({ page }) => {
+packages/agent/src/behavior/reflect.ts:13: * without slicing. Skipped per audit protocol.
+packages/agent/src/sprint/planner.ts:115:    const PLANNER_TIMEOUT_MS = 3 * 60 * 1000 // 3 minutes — fail fast rather than hanging
+packages/agent/src/sprint/planner.ts:119:        const timer = setTimeout(() => ac.abort(new Error('Sprint planner timed out after 3 minutes')), PLANNER_TIMEOUT_MS)
+packages/sdk/src/index.ts:8: * This package exports the protocol types so extensions targeting
+packages/sdk/src/index.ts:62:// §6 — Message protocol
+packages/agent/src/memory/consolidation.ts:160:    eventBus.subscribe(TOPICS.TASK_COMPLETED, async (payload: unknown) => {
+packages/agent/src/memory/consolidation.ts:168:    logger.info('Memory consolidation listener registered on TASK_COMPLETED events')
+packages/agent/src/tools/environment-tools.ts:158:                                type: u.protocol.replace(':', '') || 'postgres',
+packages/agent/src/tools/web-tools.ts:93:        if (!/^https?:$/.test(parsed.protocol)) return 'Only http/https URLs are allowed'
+packages/sdk/src/types/events.ts:32:    TASK_COMPLETED: 'task.completed',
+packages/sdk/src/types/events.ts:64:    AGENT_PLAN_CREATED: 'agent.plan.created',
+packages/sdk/src/types/events.ts:65:    AGENT_STEP_COMPLETED: 'agent.step.completed',
+packages/sdk/src/types/events.ts:70:    A2A_DELEGATION_COMPLETED: 'a2a.delegation.completed',
+packages/agent/src/executor/index.ts:820:    // ── One-Way Door gate (§8.4 approval protocol) ───────────────────────────
