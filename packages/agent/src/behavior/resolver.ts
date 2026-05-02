@@ -135,7 +135,7 @@ export async function resolveBehavior(
     const learningRuleKeys = resolved
         .filter(r => r.effectiveSource === 'reflection' || r.type === 'domain_knowledge')
         .map(r => r.key)
-    const ctxHash = computeContextHash(learningRuleKeys, [])
+    const ctxHash = computeContextHash(learningRuleKeys)
 
     if (opts.snapshot !== false) {
         void snapshotBehavior(

@@ -62,29 +62,27 @@ export async function isDomainMasteryEnabled(workspaceId: string): Promise<boole
 // ── Context Hash ───────────────────────────────────────────────────────────
 
 /**
- * Compute a deterministic hash of the behavior rule keys and SCL attractor IDs
- * included in the system prompt. Used for credit assignment (ADR-003).
+ * Compute a deterministic hash of the behavior rule keys included in the
+ * system prompt. Used for credit assignment (ADR-003).
  *
  * The hash is a truncated SHA-256 hex (16 chars = 64 bits). The full rule key
  * list is returned alongside for invertible credit assignment (Panel 2 rec).
  *
  * @param ruleKeys - Behavior rule keys compiled into the prompt.
- * @param attractorIds - SCL attractor IDs included via expansion.
- * @returns { hash, ruleKeys, attractorIds } or null if no learning content.
+ * @returns { hash, ruleKeys } or null if no learning content.
  */
 export function computeContextHash(
     ruleKeys: string[],
-    attractorIds: string[],
-): { hash: string; ruleKeys: string[]; attractorIds: string[] } | null {
-    if (ruleKeys.length === 0 && attractorIds.length === 0) return null
+): { hash: string; ruleKeys: string[] } | null {
+    if (ruleKeys.length === 0) return null
 
-    const sorted = [...ruleKeys, ...attractorIds].sort()
+    const sorted = [...ruleKeys].sort()
     const hash = createHash('sha256')
         .update(sorted.join('|'))
         .digest('hex')
         .slice(0, 16)
 
-    return { hash, ruleKeys, attractorIds }
+    return { hash, ruleKeys }
 }
 
 // ── Domain Tag Inference ───────────────────────────────────────────────────

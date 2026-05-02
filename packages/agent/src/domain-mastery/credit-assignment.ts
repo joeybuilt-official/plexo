@@ -5,7 +5,7 @@
  * Domain Mastery — Credit Assignment (ADR-003).
  *
  * On task completion, looks up learning_events whose source_ref matches any
- * rule/attractor in the context_hash. Uses lift metric (Panel 5) not raw
+ * rule in the context_hash. Uses lift metric (Panel 5) not raw
  * correlation. Applies confidence decay and rule quarantine.
  *
  * All operations are feature-flagged via credit_assignment_enabled and
