@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { claimTask, completeTask, blockTask, failTask, requeueForRetry } from '@plexo/queue'
+import { claimTask, completeTask, blockTask, requeueForRetry } from '@plexo/queue'
 import { db, eq, and, sql, inArray } from '@plexo/db'
 import { tasks, apiCostTracking, workspaces, sprints, sprintTasks, plexoOpsTaskEvents } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
+import { markTaskFailed } from '@plexo/agent/tasks/terminal-fail'
+import { FailureReason } from '@plexo/agent/tasks/types'
 import { recordTaskMemory } from '@plexo/agent/memory/store'
 import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
@@ -375,7 +377,16 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
     const { credential, aiSettings } = await loadWorkspaceAISettings(taskWorkspaceId ?? '')
     if (!credential) {
-        await failTask(task.id, 'No AI credential configured for workspace')
+        const noCredCtx = (task.context as Record<string, unknown>) ?? {}
+        const noCredDesc = (noCredCtx.description as string) ?? (noCredCtx.message as string) ?? task.type ?? 'task'
+        // No aiSettings passed — escalation falls back to deterministic (can't call LLM with no credential).
+        await markTaskFailed({
+            taskId: task.id,
+            workspaceId: taskWorkspaceId ?? '',
+            failureReason: FailureReason.ToolError,
+            errorText: 'No AI credential configured for workspace',
+            taskDescription: noCredDesc,
+        })
         await syncSprintTaskBlocked(task, 'No AI credential configured for workspace')
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'claimed', to: 'failed', workspaceId: taskWorkspaceId, reason: 'no_ai_credential' }, 'lifecycle')
         void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'failed', fromState: 'claimed', toState: 'failed', metadata: { reason: 'no_ai_credential' } })
@@ -416,7 +427,16 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             if (costRow && costRow.costUsd >= costRow.ceilingUsd) {
                 if (ceilingMode === 'hard_block') {
                     const costMsg = `Workspace weekly cost ceiling reached: $${costRow.costUsd.toFixed(4)} / $${costRow.ceilingUsd.toFixed(2)}`
-                    await failTask(task.id, costMsg)
+                    const costCtx = (task.context as Record<string, unknown>) ?? {}
+                    const costDesc = (costCtx.description as string) ?? (costCtx.message as string) ?? task.type ?? 'task'
+                    await markTaskFailed({
+                        taskId: task.id,
+                        workspaceId: taskWorkspaceId ?? '',
+                        failureReason: FailureReason.CostCeilingExceeded,
+                        errorText: costMsg,
+                        taskDescription: costDesc,
+                        aiSettings: aiSettings ?? undefined,
+                    })
                     await syncSprintTaskBlocked(task, costMsg)
                     emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING' })
                     trackEvent('task.failed', 'warning', { taskId: task.id, reason: 'cost_ceiling', costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd, workspaceId: taskWorkspaceId })
@@ -731,6 +751,14 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
         const plan = plannerResult.plan
         logger.info({ taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore }, 'Plan ready')
+        // Persist the plan so a crash mid-execute doesn't lose the structured
+        // step list. Phase 1 added tasks.plan jsonb for exactly this purpose.
+        // Non-fatal — execution should proceed even if the write fails.
+        try {
+            await db.update(tasks).set({ plan }).where(eq(tasks.id, task.id))
+        } catch (planWriteErr) {
+            logger.warn({ err: planWriteErr, taskId: task.id }, 'Persist tasks.plan failed — non-fatal')
+        }
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'planning', to: 'executing', workspaceId: taskWorkspaceId, steps: plan.steps.length }, 'lifecycle')
         void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'executing', fromState: 'planning', toState: 'executing', metadata: { steps: plan.steps.length } })
         emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
@@ -794,12 +822,15 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 } else if (decision === 'rejected') {
                     const resolved = await getDecision(approval.id)
                     // Guard: only overwrite while still awaiting_approval (operator may have cancelled mid-wait).
-                    await db.update(tasks).set({
-                        status: 'failed',
-                        outcomeSummary: 'You rejected this action, so the agent stopped.',
-                        claimedAt: null,
-                        claimedUntil: null,
-                    }).where(and(eq(tasks.id, task.id), eq(tasks.status, 'awaiting_approval')))
+                    await markTaskFailed({
+                        taskId: task.id,
+                        workspaceId: taskWorkspaceId ?? '',
+                        failureReason: FailureReason.Cancelled,
+                        errorText: 'User rejected the one-way-door approval.',
+                        taskDescription: description,
+                        aiSettings: aiSettings ?? undefined,
+                        requireFromStatus: 'awaiting_approval',
+                    })
                     logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId, approvalId: approval.id, decidedBy: resolved?.decidedBy, event: 'task.lifecycle', from: 'awaiting_approval', to: 'failed' }, 'approval rejected')
                     void recordTaskEvent({
                         workspaceId: taskWorkspaceId ?? '',
@@ -818,12 +849,15 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 } else {
                     // Guard: operator may have cancelled the task during the wait.
                     // Only mark as failed-due-to-timeout if still awaiting_approval.
-                    await db.update(tasks).set({
-                        status: 'failed',
-                        outcomeSummary: 'No one approved within the time limit, so the agent stopped.',
-                        claimedAt: null,
-                        claimedUntil: null,
-                    }).where(and(eq(tasks.id, task.id), eq(tasks.status, 'awaiting_approval')))
+                    await markTaskFailed({
+                        taskId: task.id,
+                        workspaceId: taskWorkspaceId ?? '',
+                        failureReason: FailureReason.ConfirmationExpired,
+                        errorText: 'Approval window elapsed before any operator responded.',
+                        taskDescription: description,
+                        aiSettings: aiSettings ?? undefined,
+                        requireFromStatus: 'awaiting_approval',
+                    })
                     logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId, approvalId: approval.id, event: 'task.lifecycle', from: 'awaiting_approval', to: 'failed' }, 'approval timed out')
                     void recordTaskEvent({
                         workspaceId: taskWorkspaceId ?? '',
@@ -1183,6 +1217,20 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: retryResult === 'requeued' ? 'requeued' : 'failed', fromState: 'running', toState: retryResult === 'requeued' ? 'queued' : 'failed', metadata: { durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode, retryResult } })
             trackEvent('task.retried', 'info', { taskId: task.id, error: message, code: errCode ?? undefined, workspaceId: taskWorkspaceId, retryResult })
             if (retryResult === 'max_attempts') {
+                // requeueForRetry just transitioned status='failed' but did not
+                // populate failed_at / failure_reason / structured outcome. Fill
+                // those in and emit the TASK_FAILED event for downstream listeners.
+                const failCtx = (task.context as Record<string, unknown>) ?? {}
+                const failDesc = (failCtx.description as string) ?? (failCtx.message as string) ?? task.type ?? 'task'
+                await markTaskFailed({
+                    taskId: task.id,
+                    workspaceId: taskWorkspaceId ?? '',
+                    failureReason: FailureReason.MaxAttemptsExceeded,
+                    errorText: reasonPrefix + message,
+                    taskDescription: failDesc,
+                    aiSettings: aiSettings ?? undefined,
+                    attempts: 3,
+                })
                 await syncSprintTaskBlocked(task, `Failed after retries: ${reasonPrefix}${message}`)
             }
         } else {
@@ -1295,8 +1343,8 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 async function cleanupStaleTasks(): Promise<void> {
     try {
         // 1. Find tasks whose claim has expired in either claimed or running state.
-        const expired = await db.execute<{ id: string; workspace_id: string; status: string }>(sql`
-            SELECT id, workspace_id, status FROM tasks
+        const expired = await db.execute<{ id: string; workspace_id: string; status: string; context: Record<string, unknown> | null; type: string | null }>(sql`
+            SELECT id, workspace_id, status, context, type FROM tasks
             WHERE status IN ('claimed', 'running')
               AND claimed_until IS NOT NULL
               AND claimed_until < NOW()
@@ -1308,6 +1356,18 @@ async function cleanupStaleTasks(): Promise<void> {
                 const toState = retryResult === 'requeued' ? 'queued' : 'failed'
                 logger.info({ event: 'task.lifecycle', taskId: row.id, from: row.status, to: toState, workspaceId: row.workspace_id, reason: 'claim_timeout', retryResult }, 'lifecycle')
                 void recordTaskEvent({ workspaceId: row.workspace_id, taskId: row.id, eventType: 'claim_timeout', fromState: row.status, toState, metadata: { reason: 'claim_timeout', retryResult } })
+                if (retryResult === 'max_attempts') {
+                    const ctx = row.context ?? {}
+                    const desc = (ctx.description as string) ?? (ctx.message as string) ?? row.type ?? 'task'
+                    await markTaskFailed({
+                        taskId: row.id,
+                        workspaceId: row.workspace_id,
+                        failureReason: FailureReason.WallClockExceeded,
+                        errorText: 'Task claim expired repeatedly — worker likely hung or crashed before completing.',
+                        taskDescription: desc,
+                        attempts: 3,
+                    })
+                }
             }
         }
 
@@ -1344,8 +1404,8 @@ async function cleanupStaleTasks(): Promise<void> {
 // Belt-and-suspenders backstop for cleanupStaleTasks — covers any running task whose claimed_until somehow wasn't set or wasn't picked up by the primary sweep.
 async function recoverGhostTasks(): Promise<void> {
     try {
-        const ghosts = await db.execute<{ id: string; workspace_id: string }>(sql`
-            SELECT id, workspace_id FROM tasks
+        const ghosts = await db.execute<{ id: string; workspace_id: string; context: Record<string, unknown> | null; type: string | null }>(sql`
+            SELECT id, workspace_id, context, type FROM tasks
             WHERE status = 'running'
               AND claimed_at < NOW() - INTERVAL '3 minutes'
             LIMIT 20
@@ -1363,6 +1423,18 @@ async function recoverGhostTasks(): Promise<void> {
             const toState = outcome === 'requeued' ? 'queued' : 'failed'
             logger.info({ event: 'task.lifecycle', taskId: ghost.id, outcome, reason: 'ghost_recovery' }, 'lifecycle')
             void recordTaskEvent({ workspaceId: ghost.workspace_id, taskId: ghost.id, eventType: 'ghost_recovery', fromState: 'running', toState, metadata: { reason: 'ghost_recovery', outcome } })
+            if (outcome === 'max_attempts') {
+                const ctx = ghost.context ?? {}
+                const desc = (ctx.description as string) ?? (ctx.message as string) ?? ghost.type ?? 'task'
+                await markTaskFailed({
+                    taskId: ghost.id,
+                    workspaceId: ghost.workspace_id,
+                    failureReason: FailureReason.WallClockExceeded,
+                    errorText: 'Task running without heartbeat for too long — worker likely crashed.',
+                    taskDescription: desc,
+                    attempts: 3,
+                })
+            }
         }
     } catch (err) {
         logger.warn({ err }, 'Ghost task recovery failed — non-fatal')
