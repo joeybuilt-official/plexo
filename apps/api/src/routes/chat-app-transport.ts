@@ -280,6 +280,17 @@ chatAppTransportRouter.post('/app-message', requireServiceKeyOrSession, async (r
                         messageEmbedding,
                     }).catch(err => logger.warn({ err }, 'app-transport: recordConversation failed'))
 
+                    // ── Fire-and-forget: conversation memory bridge ──────
+                    try {
+                        const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+                        if (hasInstructionIntent(trimmedMsg)) {
+                            void persistInstruction({ workspaceId, userMessage: trimmedMsg, assistantReply: fullText, sessionId })
+                                .catch((err: unknown) => logger.warn({ err }, 'app-transport: persistInstruction failed'))
+                        }
+                        void extractConversationMemory({ workspaceId, userMessage: trimmedMsg, assistantReply: fullText, sessionId, source: channelRef.channel })
+                            .catch((err: unknown) => logger.warn({ err }, 'app-transport: extractConversationMemory failed'))
+                    } catch { /* conversation-bridge module not available — non-fatal */ }
+
                     // Send final event with metadata
                     res.write(`data: ${JSON.stringify({
                         type: 'done',
@@ -326,6 +337,17 @@ chatAppTransportRouter.post('/app-message', requireServiceKeyOrSession, async (r
                 channelRef: convChannelRef,
                 messageEmbedding,
             })
+
+            // ── Fire-and-forget: conversation memory bridge ──────────────
+            try {
+                const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+                if (hasInstructionIntent(trimmedMsg)) {
+                    void persistInstruction({ workspaceId, userMessage: trimmedMsg, assistantReply: replyText, sessionId })
+                        .catch((err: unknown) => logger.warn({ err }, 'app-transport: persistInstruction failed'))
+                }
+                void extractConversationMemory({ workspaceId, userMessage: trimmedMsg, assistantReply: replyText, sessionId, source: channelRef.channel })
+                    .catch((err: unknown) => logger.warn({ err }, 'app-transport: extractConversationMemory failed'))
+            } catch { /* conversation-bridge module not available — non-fatal */ }
 
             logger.info({ workspaceId, conversationId, sessionId, channel: channelRef.channel }, 'app-transport: reply sent')
 

@@ -480,6 +480,18 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
         // Reaction already sent above (before AI processing)
 
         const sessionId = resolvedSessionId
+
+        // ── Fire-and-forget: conversation memory bridge ──────────────────
+        try {
+            const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+            if (hasInstructionIntent(text)) {
+                void persistInstruction({ workspaceId, userMessage: text, assistantReply: replyText, sessionId })
+                    .catch((err: unknown) => logger.warn({ err }, 'Slack: persistInstruction failed'))
+            }
+            void extractConversationMemory({ workspaceId, userMessage: text, assistantReply: replyText, sessionId, source: 'slack' })
+                .catch((err: unknown) => logger.warn({ err }, 'Slack: extractConversationMemory failed'))
+        } catch { /* conversation-bridge module not available — non-fatal */ }
+
         const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
         await recordConversation({
             workspaceId,

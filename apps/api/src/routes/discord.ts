@@ -365,6 +365,18 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
                 // Reaction already sent above (before AI processing)
 
                 const sessionId = discordSession.sessionId
+
+                // ── Fire-and-forget: conversation memory bridge ──────────
+                try {
+                    const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+                    if (hasInstructionIntent(description)) {
+                        void persistInstruction({ workspaceId, userMessage: description, assistantReply: replyText, sessionId })
+                            .catch((err: unknown) => logger.warn({ err }, 'Discord: persistInstruction failed'))
+                    }
+                    void extractConversationMemory({ workspaceId, userMessage: description, assistantReply: replyText, sessionId, source: 'discord' })
+                        .catch((err: unknown) => logger.warn({ err }, 'Discord: extractConversationMemory failed'))
+                } catch { /* conversation-bridge module not available — non-fatal */ }
+
                 const channelRef: ChannelRef = { channel: 'discord', channelId: interaction.channel_id ?? '', chatId: user?.id ?? '' }
                 await recordConversation({
                     workspaceId,
