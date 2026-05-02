@@ -41,6 +41,8 @@ export interface QueryMemoryParams {
     minConfidence?: number
     /** Forwarded to the embedding call for workspace-aware provider selection. */
     aiSettings?: WorkspaceAISettings
+    /** Retrieval strategy. 'vector' (default), 'keyword' (trigram/ILIKE), 'hybrid' (vector + keyword). */
+    mode?: 'vector' | 'keyword' | 'hybrid'
 }
 
 /**
@@ -56,23 +58,26 @@ export async function queryMemory(params: QueryMemoryParams): Promise<MemorySear
         namespaces = [DEFAULT_NAMESPACE],
         minConfidence = DEFAULT_MIN_CONFIDENCE,
         aiSettings,
+        mode = 'vector',
     } = params
 
     if (!queryText.trim()) return []
 
-    const vector = await embed(queryText, workspaceId, aiSettings).catch((err) => {
-        logger.warn({ err, workspaceId }, 'query: embed failed — returning empty results')
-        return null
-    })
-    if (!vector) return []
-
-    const vecStr = `[${vector.join(',')}]`
     const nsArray = sql`ARRAY[${sql.join(namespaces.map((n) => sql`${n}`), sql`, `)}]::text[]`
     const userClause = userId
         ? sql`AND (user_id = ${userId}::uuid OR user_id IS NULL)`
         : sql``
+    const baseFilters = sql`
+        WHERE workspace_id = ${workspaceId}::uuid
+          AND tier != 'cold'
+          AND superseded_by IS NULL
+          AND (invalid_at IS NULL OR invalid_at > NOW())
+          AND confidence >= ${minConfidence}
+          AND namespace = ANY(${nsArray})
+          ${userClause}
+    `
 
-    const rows = await db.execute<{
+    type ResultRow = {
         id: string
         workspace_id: string
         type: string
@@ -83,24 +88,76 @@ export async function queryMemory(params: QueryMemoryParams): Promise<MemorySear
         namespace: string
         created_at: Date
         similarity: number
-    }>(sql`
-        SELECT
-            id, workspace_id, type, content, shorthand, metadata, tier, namespace, created_at,
-            1 - (embedding <=> ${vecStr}::vector) AS similarity
-        FROM memory_entries
-        WHERE workspace_id = ${workspaceId}::uuid
-          AND embedding IS NOT NULL
-          AND tier != 'cold'
-          AND superseded_by IS NULL
-          AND (invalid_at IS NULL OR invalid_at > NOW())
-          AND confidence >= ${minConfidence}
-          AND namespace = ANY(${nsArray})
-          ${userClause}
-        ORDER BY
-            CASE tier WHEN 'hot' THEN 0 WHEN 'active' THEN 1 ELSE 2 END ASC,
-            embedding <=> ${vecStr}::vector ASC
-        LIMIT ${limit}
-    `)
+    }
+
+    let rows: ResultRow[] = []
+
+    if (mode === 'keyword') {
+        // Trigram / ILIKE keyword search — no embedding required.
+        rows = await db.execute<ResultRow>(sql`
+            SELECT id, workspace_id, type, content, shorthand, metadata, tier, namespace, created_at,
+                   similarity(content, ${queryText}) AS similarity
+            FROM memory_entries
+            ${baseFilters}
+              AND content ILIKE ${'%' + queryText.split(' ').slice(0, 5).join('%') + '%'}
+            ORDER BY
+                CASE tier WHEN 'hot' THEN 0 WHEN 'active' THEN 1 ELSE 2 END ASC,
+                similarity(content, ${queryText}) DESC
+            LIMIT ${limit}
+        `)
+    } else {
+        // vector or hybrid — need an embedding.
+        const vector = await embed(queryText, workspaceId, aiSettings).catch((err) => {
+            logger.warn({ err, workspaceId }, 'query: embed failed — returning empty results')
+            return null
+        })
+        if (!vector) return []
+
+        const vecStr = `[${vector.join(',')}]`
+
+        if (mode === 'hybrid') {
+            rows = await db.execute<ResultRow>(sql`
+                WITH vector_hits AS (
+                    SELECT id, workspace_id, type, content, shorthand, metadata, tier, namespace, created_at,
+                           1 - (embedding <=> ${vecStr}::vector) AS similarity
+                    FROM memory_entries
+                    ${baseFilters}
+                      AND embedding IS NOT NULL
+                    ORDER BY embedding <=> ${vecStr}::vector ASC
+                    LIMIT ${limit}
+                ),
+                keyword_hits AS (
+                    SELECT id, workspace_id, type, content, shorthand, metadata, tier, namespace, created_at,
+                           similarity(content, ${queryText}) AS similarity
+                    FROM memory_entries
+                    ${baseFilters}
+                      AND content ILIKE ${'%' + queryText.split(' ').slice(0, 5).join('%') + '%'}
+                    ORDER BY similarity(content, ${queryText}) DESC
+                    LIMIT ${limit}
+                )
+                SELECT DISTINCT ON (id) * FROM (
+                    SELECT * FROM vector_hits
+                    UNION ALL
+                    SELECT * FROM keyword_hits
+                ) combined
+                ORDER BY id, similarity DESC
+                LIMIT ${limit}
+            `)
+        } else {
+            rows = await db.execute<ResultRow>(sql`
+                SELECT
+                    id, workspace_id, type, content, shorthand, metadata, tier, namespace, created_at,
+                    1 - (embedding <=> ${vecStr}::vector) AS similarity
+                FROM memory_entries
+                ${baseFilters}
+                  AND embedding IS NOT NULL
+                ORDER BY
+                    CASE tier WHEN 'hot' THEN 0 WHEN 'active' THEN 1 ELSE 2 END ASC,
+                    embedding <=> ${vecStr}::vector ASC
+                LIMIT ${limit}
+            `)
+        }
+    }
 
     if (rows.length === 0) return []
 
