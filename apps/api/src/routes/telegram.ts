@@ -1254,7 +1254,16 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                     logger.warn({ taskId, chatId, workspaceId, rawReason }, 'Telegram: task failed — notified user')
                 }
             })
-            setTimeout(() => unsub(), 2 * 60 * 60 * 1000)
+            setTimeout(async () => {
+                // Listener gave up before the task reached a terminal state.
+                // Clear the dedup flag so DB-backed delivery can deliver the
+                // result when (if) the task eventually completes.
+                if (!_taskFinalSent) {
+                    const { unmarkTaskDelivered } = await import('../channel-delivery.js')
+                    unmarkTaskDelivered(taskId)
+                }
+                unsub()
+            }, 2 * 60 * 60 * 1000)
 
             emitToWorkspace(workspaceId, { type: 'task_queued_via_telegram', taskId, chatId, text: text.slice(0, 200) })
         } catch (err) {

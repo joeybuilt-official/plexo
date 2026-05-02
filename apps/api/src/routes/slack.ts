@@ -524,6 +524,7 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
             context: {
                 description: text,
                 channel: 'slack',
+                chatId: event.channel,
                 slackChannel: event.channel,
                 slackUser: event.user,
                 threadTs: event.thread_ts ?? event.ts,

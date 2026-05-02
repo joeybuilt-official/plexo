@@ -42,8 +42,19 @@ const _deliveredTasks = new Set<string>()
 /** Mark a task as having an active in-memory listener. Prevents duplicate delivery. */
 export function markTaskDelivered(taskId: string): void {
     _deliveredTasks.add(taskId)
-    // Auto-expire after 3 hours (matches the onAgentEvent listener timeout)
+    // Auto-expire after 3 hours as a backstop. Channel adapters should call
+    // unmarkTaskDelivered() explicitly when their listener expires without a
+    // terminal event, so DB-backed delivery can take over.
     setTimeout(() => _deliveredTasks.delete(taskId), 3 * 60 * 60 * 1000)
+}
+
+/**
+ * Clear the dedup flag so DB-backed delivery takes over. Call this when an
+ * in-memory listener gives up before the task reaches a terminal state
+ * (e.g., the listener's own timeout fires for a long-running task).
+ */
+export function unmarkTaskDelivered(taskId: string): void {
+    _deliveredTasks.delete(taskId)
 }
 
 /** Check if a task has an active in-memory listener (skip DB-backed delivery + progress). */
@@ -162,10 +173,71 @@ export async function deliverToOriginChannel(payload: DeliveryPayload): Promise<
     try {
         if (context.channel === 'telegram') {
             await deliverToTelegram(workspaceId, context.chatId, taskId, summary, assets, error, outcome)
+        } else if (context.channel === 'slack') {
+            const threadTs = typeof context.threadTs === 'string' ? context.threadTs : undefined
+            await deliverToSlack(String(context.chatId), threadTs, summary, error, outcome)
+        } else if (context.channel === 'discord') {
+            await deliverToDiscord(String(context.chatId), summary, error, outcome)
         }
-        // Future: case 'slack', case 'discord', etc.
     } catch (err) {
         logger.warn({ err, taskId, channel: context.channel, chatId: context.chatId }, 'Channel delivery failed — results available in dashboard')
+    }
+}
+
+// ── Slack final delivery ─────────────────────────────────────────────────────
+
+async function deliverToSlack(
+    channel: string,
+    threadTs: string | undefined,
+    summary: string,
+    error: string | undefined,
+    outcome: 'complete' | 'failed',
+): Promise<void> {
+    const token = process.env.SLACK_BOT_TOKEN
+    if (!token) {
+        logger.warn({ channel }, 'No SLACK_BOT_TOKEN — cannot deliver task result')
+        return
+    }
+    const text = outcome === 'failed'
+        ? translateErrorForUser(error ?? 'Unknown error')
+        : `✅ ${summary}`
+    try {
+        await fetch('https://slack.com/api/chat.postMessage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ channel, text, thread_ts: threadTs }),
+            signal: AbortSignal.timeout(10_000),
+        })
+    } catch (err) {
+        logger.warn({ err, channel }, 'Slack final delivery failed')
+    }
+}
+
+// ── Discord final delivery ───────────────────────────────────────────────────
+
+async function deliverToDiscord(
+    channelId: string,
+    summary: string,
+    error: string | undefined,
+    outcome: 'complete' | 'failed',
+): Promise<void> {
+    const token = process.env.DISCORD_BOT_TOKEN
+    if (!token) {
+        logger.warn({ channelId }, 'No DISCORD_BOT_TOKEN — cannot deliver task result')
+        return
+    }
+    const content = outcome === 'failed'
+        ? translateErrorForUser(error ?? 'Unknown error')
+        : `✅ ${summary}`
+    try {
+        await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bot ${token}` },
+            body: JSON.stringify({ content: content.slice(0, 2000) }),
+            signal: AbortSignal.timeout(10_000),
+        })
+    } catch (err) {
+        logger.warn({ err, channelId }, 'Discord final delivery failed')
     }
 }
 

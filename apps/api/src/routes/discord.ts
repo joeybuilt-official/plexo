@@ -408,6 +408,7 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
                     context: {
                         description: description,
                         channel: 'discord',
+                        chatId: interaction.channel_id,
                         guildId: interaction.guild_id,
                         channelId: interaction.channel_id,
                         userId: user?.id,
