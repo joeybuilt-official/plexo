@@ -1,13 +1,13 @@
 # Project System Progress
 
 Last updated: 2026-05-02
-Current phase: 2 (in progress — types + escalation summary committed; wiring + plan persistence + reflectOnTask remain)
-Last commit: 38d75bb
+Current phase: 2 (in progress — types, escalate, terminal-fail wiring + plan persistence committed; reflectOnTask + per-step lifecycle remain)
+Last commit: 59512ee
 
 ## Phase Status
 - [x] Phase 0 — Audit
 - [x] Phase 1 — Schema
-- [ ] Phase 2 — Execution Engine (partial: types.ts + escalate.ts done; wiring pending)
+- [ ] Phase 2 — Execution Engine (wiring + plan persistence done; reflectOnTask + per-step lifecycle remain)
 - [ ] Phase 3 — Stale Task Monitor
 - [ ] Phase 4 — Channel Notifications
 - [ ] Phase 5 — Task UI
@@ -46,14 +46,33 @@ Phase 2 subset committed (commit `38d75bb`):
 - `packages/agent/src/tasks/escalate.ts` — `generateEscalationSummary(input, aiSettings)` (LLM via `withFallback` + `summarization` task type) with `deterministicEscalation` fallback per FailureReason.
 - New package exports: `@plexo/agent/tasks/types`, `@plexo/agent/tasks/escalate`.
 
-Phase 2 remaining work for next session:
-1. Wire `generateEscalationSummary` into terminal-fail call sites in `apps/api/src/agent-loop.ts` (`cleanupStaleTasks`, `recoverGhostTasks`, `requeueForRetry` max-attempts path, executor failure path) and write `tasks.failed_at` + `tasks.failure_reason`.
-2. Persist planner output to `tasks.plan` after `planTask` returns (in `agent-loop.ts` post-plan).
-3. Add `task.failed` topic to `packages/agent/src/plugins/event-bus.ts` (`TASK_FAILED: 'plexo.task.failed'`) and emit `TaskFailedPayload` from each terminal-fail site.
-4. Implement `packages/agent/src/tasks/reflect.ts` listener on `TASK_COMPLETED` and `TASK_FAILED` — formats synthetic turn text and routes through the existing memory extraction pipeline (Phase 6 deliverable; safe to start once event is emitting).
-5. Per-step lifecycle writes: have the executor flip `task_steps.state` `pending → running → completed | failed` and populate `started_at/completed_at/attempts/error`.
+Phase 2 wiring + plan persistence committed (commit `59512ee`):
+- New `packages/agent/src/tasks/terminal-fail.ts` exporting `markTaskFailed({ taskId, workspaceId, failureReason, errorText, taskDescription, ..., aiSettings?, requireFromStatus? })`. One-stop call: generates escalation (LLM with deterministic fallback), writes `status='failed'`, `failed_at`, `failure_reason`, formatted `outcome_summary`, clears `claimed_at`/`claimed_until`, then emits `TOPICS.TASK_FAILED` with `TaskFailedPayload`. Returns `{ transitioned, summary }` so `requireFromStatus` callers can detect a guard miss.
+- New package export: `@plexo/agent/tasks/terminal-fail`.
+- Wired into 7 terminal-fail sites in `apps/api/src/agent-loop.ts`:
+    1. `no_ai_credential` (line ~378)
+    2. `cost_ceiling_exceeded` (line ~427)
+    3. approval **rejected** (with `requireFromStatus: 'awaiting_approval'`)
+    4. approval **timeout** (`ConfirmationExpired` + same guard)
+    5. executor failure path → transient → `requeueForRetry` returns `'max_attempts'` (line ~1212)
+    6. `cleanupStaleTasks` `requeueForRetry` `'max_attempts'` (line ~1352)
+    7. `recoverGhostTasks` `requeueForRetry` `'max_attempts'` (line ~1407)
+- Plan persistence: `db.update(tasks).set({ plan }).where(eq(tasks.id, task.id))` immediately after planner returns, wrapped in try/catch (non-fatal). Adjacent to existing `task_planned` SSE emission.
+- Removed `failTask` from the `@plexo/queue` import — every old call site now goes through `markTaskFailed` instead.
+- Workspace typecheck: 18/18 pass.
+- Tests: agent 984/984 pass; api 778/788 pass — the 10 failures (`chat-quality.test.ts`, `training-data.test.ts`) are pre-existing on `bf36701` baseline, unrelated to this change.
 
-None of (1)–(5) are blocking each other; they can be done in any order. (1) and (2) are the highest leverage — they make the Phase 1 schema columns actually used.
+Phase 2 remaining work for next session:
+1. **`reflectOnTask` listener** — `packages/agent/src/tasks/reflect.ts` subscribed to `TOPICS.TASK_COMPLETED` and `TOPICS.TASK_FAILED`. The `TASK_FAILED` topic is now emitting (`TaskFailedPayload` with the 4-field summary). `TASK_COMPLETED` is **not yet emitting** anywhere in the codebase even though `memory/consolidation.ts:160` already subscribes to it — that's a pre-existing gap; emitting it from `agent-loop.ts:904` (after `completeTask`) is part of this work. Listener formats synthetic turn text and routes through the existing memory extraction pipeline (this is also Phase 6 work — safe to start now).
+2. **Per-step lifecycle writes** — executor (`packages/agent/src/executor/index.ts`) needs to flip `task_steps.state` `pending → running → completed | failed` and populate `started_at`, `completed_at`, `attempts`, `error`. Today it only writes `outcome` + `isTerminal`. Phase 1 schema added the columns; now make them actually used.
+
+(1) and (2) are independent; either can go first.
+
+Notes for next session:
+- `markTaskFailed` is idempotent on `status='failed'` updates, so calling it twice won't corrupt state — but `TASK_FAILED` will be re-emitted both times. If a future caller might race, it should pass `requireFromStatus` to suppress the duplicate event.
+- `markTaskFailed` does **not** touch `task_steps`. When (2) lands, the executor's catch path should also mark the in-flight step `failed` before bubbling up to the agent-loop's transient-retry/markTaskFailed pipeline.
+- Sweepers (`cleanupStaleTasks` / `recoverGhostTasks`) intentionally pass no `aiSettings` to `markTaskFailed` — they batch-process tasks across workspaces and we don't want to load AI settings for each. Result: sweeper failures use the deterministic escalation summary only. If an LLM-quality narrative for stuck-task escalation matters, refactor to pass workspace-scoped settings.
+- `TASK_FAILED` topic was already declared in `event-bus.ts:33` (`'plexo.task.failed'`) — no edit needed there. Item (3) from the previous handoff is folded into the wiring above.
 
 Audit assumptions still in effect (override if needed):
 - No Inngest. Postgres-queue stack only.
