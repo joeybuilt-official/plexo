@@ -10,10 +10,23 @@
  * Logging is fire-and-forget — never blocks the inference response.
  */
 
-import { db, sql } from '@plexo/db'
+import { db, sql, eq } from '@plexo/db'
+import { workspaces } from '@plexo/db'
 import { scrubPII } from './pii-scrub.js'
-import { hasTrainingConsent } from './storage.js'
 import pino from 'pino'
+
+async function hasTrainingConsent(workspaceId: string): Promise<boolean> {
+    try {
+        const rows = await db.select({ settings: workspaces.settings })
+            .from(workspaces)
+            .where(eq(workspaces.id, workspaceId))
+            .limit(1)
+        const settings = rows[0]?.settings as Record<string, unknown> | null
+        return settings?.training_data_consent === true
+    } catch {
+        return false
+    }
+}
 
 const logger = pino({ name: 'scl:inference-log' })
 

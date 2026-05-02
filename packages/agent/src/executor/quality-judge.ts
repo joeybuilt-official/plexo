@@ -513,27 +513,42 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
                 .filter((k, i, arr) => k && arr.indexOf(k) === i) // de-dupe, preserve order
             const configuredProviders = configuredChain
                 .filter(k => aiSettings.providers[k]?.apiKey || aiSettings.providers[k]?.baseUrl)
-            const crossProviderKey = configuredProviders.find(k => k !== primary)
-            if (crossProviderKey) {
+            const crossProviderKeys = configuredProviders.filter(k => k !== primary)
+            // Try each cross-provider in order; skip any that fail structured output
+            // (e.g. Groq models that don't support json_schema).
+            let resolvedCross = false
+            for (const crossProviderKey of crossProviderKeys) {
                 const crossSettings: WorkspaceAISettings = {
                     ...aiSettings,
                     primaryProvider: crossProviderKey,
                     fallbackChain: [],
                 }
-                singleModel = (await resolveModel('summarization', crossSettings).catch(() =>
+                const crossModel = (await resolveModel('summarization', crossSettings).catch(() =>
                     ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
                 )).model
-                judgeProviderUsed = crossProviderKey
-                logger.info({ primary, judgeProvider: crossProviderKey, chain: configuredProviders }, 'Cross-model judge: using different provider from chain')
-            } else {
-                // Only one provider configured — self-score with warning.
-                selfScoredWarning = true
-                singleModel = (await resolveModel('summarization', aiSettings).catch(() =>
-                    ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
-                )).model
-                judgeProviderUsed = primary
-                logger.warn({ primary, configured: configuredProviders }, 'Cross-model judge unavailable — only one provider configured; self-scoring')
+                try {
+                    const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, crossModel)))
+                    judgeProviderUsed = crossProviderKey
+                    logger.info({ primary, judgeProvider: crossProviderKey, chain: configuredProviders }, 'Cross-model judge: using different provider from chain')
+                    const score = capScore(rawScore)
+                    logger.info({ taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised }, 'Single judge done')
+                    return { score, meta: { mode: 'single' as const, selfScore, judgeCount: 1, dissenters: [], models: [judgeProviderUsed] } }
+                } catch (judgeErr: unknown) {
+                    const msg = judgeErr instanceof Error ? judgeErr.message : String(judgeErr)
+                    if (msg.includes('json_schema') || msg.includes('response format') || msg.includes('structured')) {
+                        logger.warn({ crossProviderKey, err: msg }, 'Cross-model judge: provider lacks structured output support, trying next')
+                        continue
+                    }
+                    throw judgeErr
+                }
             }
+            // All cross-providers exhausted or none available — self-score.
+            selfScoredWarning = true
+            singleModel = (await resolveModel('summarization', aiSettings).catch(() =>
+                ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
+            )).model
+            judgeProviderUsed = primary
+            logger.warn({ primary, configured: configuredProviders }, 'Cross-model judge unavailable — self-scoring')
         } else {
             singleModel = resolveModelFromEnv(MODEL_ROUTING.summarization)
         }
