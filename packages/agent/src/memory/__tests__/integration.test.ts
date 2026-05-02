@@ -160,7 +160,7 @@ beforeEach(async () => {
     mockCallModel.mockReset()
     const { db } = await import('@plexo/db')
     vi.mocked(db.execute).mockImplementation(
-        (sqlObj: unknown) => Promise.resolve(statefulExecute(sqlObj as { values: unknown[] }))
+        ((sqlObj: unknown) => Promise.resolve(statefulExecute(sqlObj as { values: unknown[] }))) as unknown as typeof db.execute
     )
 })
 
@@ -321,10 +321,10 @@ describe('hybrid retrieval probe', () => {
 
         const executeCalls: unknown[] = []
         const { db } = await import('@plexo/db')
-        vi.mocked(db.execute).mockImplementation((sqlObj: unknown) => {
+        vi.mocked(db.execute).mockImplementation(((sqlObj: unknown) => {
             executeCalls.push(sqlObj)
             return Promise.resolve([])
-        })
+        }) as unknown as typeof db.execute)
 
         // Import queryMemory dynamically after mocking is set up
         const { queryMemory } = await import('../query.js')

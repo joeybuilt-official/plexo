@@ -17,7 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // inside the factory object must be declared via vi.hoisted().
 const { mockCallModel, mockInsertValues } = vi.hoisted(() => ({
     mockCallModel: vi.fn(),
-    mockInsertValues: vi.fn(async () => undefined),
+    mockInsertValues: vi.fn(async (_values?: Record<string, unknown>) => undefined),
 }))
 
 // ── Mocks ────────────────────────────────────────────────────────────────────

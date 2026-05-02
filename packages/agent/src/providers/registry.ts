@@ -27,6 +27,7 @@ async function loadUndiciAgent(): Promise<UndiciAgentCtor | null> {
     if (undiciLoadAttempted) return null
     undiciLoadAttempted = true
     try {
+        // @ts-expect-error undici may be a vendored bind-mount that's not resolvable at type-check time
         const mod = await import('undici')
         cachedUndiciAgent = (mod as { Agent: UndiciAgentCtor }).Agent
         return cachedUndiciAgent

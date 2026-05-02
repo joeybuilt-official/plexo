@@ -145,9 +145,10 @@ async function runMigrations() {
 
             // Verify Drizzle's tracking table reflects the full journal. A partial
             // run that exits 0 leaves the API booting into 500s on first query.
-            const [{ count: appliedCount }] = await sql<{ count: number }[]>`
+            const rows = await sql<{ count: number }[]>`
                 SELECT COUNT(*)::int AS count FROM drizzle.__drizzle_migrations
             `
+            const appliedCount = rows[0]?.count ?? 0
             console.log(`[migrate] applied ${appliedCount} of ${expectedCount}`, { appliedCount, expectedCount })
 
             await sql.end()

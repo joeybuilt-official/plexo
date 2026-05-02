@@ -56,6 +56,7 @@ export interface WriteFactResult {
 }
 
 interface ExistingFact {
+    [key: string]: unknown
     id: string
     predicate: string
     object: string
