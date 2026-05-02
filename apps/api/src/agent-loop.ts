@@ -1339,12 +1339,15 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
 }
 
-/** Cancel stale blocked tasks older than 2 hours so they don't pile up.
- *  Queued tasks get a longer window (7 days) since they may be legitimately waiting.
- *  Claim-timeout fix: requeue any task whose claimed_until has elapsed —
- *  covers both 'claimed' (worker died before transitioning to 'running') and
- *  'running' (heartbeat refresh failed) states. The column is written by
- *  queue.claim() and indexed by tasks_claimed_until_idx. */
+/** Stale-task sweeper.
+ *  Three branches:
+ *    1. Claim expired (status in 'claimed'|'running', claimed_until < now): requeue or
+ *       fail via markTaskFailed once retries exhaust. Worker died or lost heartbeat.
+ *    2. Blocked too long: defaults to 2h. Per-task override via tasks.wall_clock_limit_sec.
+ *    3. Queued too long: defaults to 7d. Per-task override via tasks.wall_clock_limit_sec.
+ *  Branches 2 and 3 fail via markTaskFailed (FailureReason.WallClockExceeded) so the
+ *  user gets a structured escalation and the row emits TASK_FAILED for the reflect
+ *  listener — replaces the prior bulk-cancel that silently dropped these tasks. */
 async function cleanupStaleTasks(): Promise<void> {
     try {
         // 1. Find tasks whose claim has expired in either claimed or running state.
@@ -1376,26 +1379,52 @@ async function cleanupStaleTasks(): Promise<void> {
             }
         }
 
-        const result = await db.execute<typeof tasks.$inferSelect>(sql`
-            UPDATE tasks
-            SET status = 'cancelled',
-                outcome_summary = COALESCE(outcome_summary, 'Auto-resolved: stale task cleaned up')
-            WHERE (status = 'blocked' AND created_at < NOW() - INTERVAL '2 hours')
-               OR (status = 'queued' AND created_at < NOW() - INTERVAL '7 days')
-            RETURNING *
+        // 2. & 3. Tasks past their wall-clock budget while still 'blocked' or 'queued'.
+        // Defaults: 2h blocked, 7d queued. Per-task override via tasks.wall_clock_limit_sec
+        // applies the same value to whichever state the task is currently in.
+        const stale = await db.execute<{
+            id: string
+            workspace_id: string
+            status: 'queued' | 'blocked'
+            context: Record<string, unknown> | null
+            type: string | null
+        }>(sql`
+            SELECT id, workspace_id, status, context, type FROM tasks
+            WHERE (
+                status = 'blocked'
+                AND created_at < NOW() - (COALESCE(wall_clock_limit_sec, 7200) * INTERVAL '1 second')
+            ) OR (
+                status = 'queued'
+                AND created_at < NOW() - (COALESCE(wall_clock_limit_sec, 604800) * INTERVAL '1 second')
+            )
+            LIMIT 50
         `)
-        const cancelled = Array.isArray(result) ? result : []
-        if (cancelled.length > 0) {
-            logger.info({ count: cancelled.length }, 'Cleaned up stale blocked/queued tasks')
-            // DI-006: Batch-sync sprint_tasks for cancelled stale tasks
-            const sprintIds = cancelled
-                .map(t => (t.context as Record<string, unknown> | null)?.sprintTaskId as string | undefined)
-                .filter((id): id is string => !!id)
+        if (stale.length > 0) {
+            const sprintIds: string[] = []
+            for (const row of stale) {
+                const ctx = row.context ?? {}
+                const desc = (ctx.description as string) ?? (ctx.message as string) ?? row.type ?? 'task'
+                const errorText = row.status === 'blocked'
+                    ? 'Task remained in blocked state past its wall-clock budget — likely waiting on a clarification or approval that never arrived.'
+                    : 'Task sat in the queue past its wall-clock budget — capacity never freed up to run it.'
+                await markTaskFailed({
+                    taskId: row.id,
+                    workspaceId: row.workspace_id,
+                    failureReason: FailureReason.WallClockExceeded,
+                    errorText,
+                    taskDescription: desc,
+                })
+                logger.info({ event: 'task.lifecycle', taskId: row.id, from: row.status, to: 'failed', workspaceId: row.workspace_id, reason: 'wall_clock_exceeded' }, 'lifecycle')
+                void recordTaskEvent({ workspaceId: row.workspace_id, taskId: row.id, eventType: 'wall_clock_exceeded', fromState: row.status, toState: 'failed', metadata: { reason: 'wall_clock_exceeded', priorStatus: row.status } })
+                const sprintTaskId = ctx.sprintTaskId as string | undefined
+                if (sprintTaskId) sprintIds.push(sprintTaskId)
+            }
+            logger.info({ count: stale.length }, 'Failed stale blocked/queued tasks (wall_clock_exceeded)')
             if (sprintIds.length > 0) {
                 await db.update(sprintTasks)
                     .set({
                         status: 'failed',
-                        handoff: sql`COALESCE(handoff, '{}'::jsonb) || ${JSON.stringify({ outcome: 'Auto-cancelled: stale after 7 days' })}::jsonb`,
+                        handoff: sql`COALESCE(handoff, '{}'::jsonb) || ${JSON.stringify({ outcome: 'wall_clock_exceeded' })}::jsonb`,
                     })
                     .where(inArray(sprintTasks.id, sprintIds))
                 logger.info({ count: sprintIds.length }, 'Sprint tasks status synced in batch')
