@@ -1,0 +1,85 @@
+scripts/simulate-rsi.ts:2:import { runRSIMonitor } from '../packages/agent/src/introspection/rsi-monitor.js'
+scripts/simulate-rsi.ts:21:    await db.delete(require('@plexo/db').rsiProposals).where(require('drizzle-orm').eq(require('@plexo/db').rsiProposals.workspaceId, wsId))
+scripts/simulate-rsi.ts:79:    const allProposals = await db.select().from(require('@plexo/db').rsiProposals).where(require('drizzle-orm').eq(require('@plexo/db').rsiProposals.workspaceId, wsId))
+apps/api/src/agent-loop.ts:10:import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
+apps/api/src/agent-loop.ts:1013:            const reflectResult = await reflectAndPromote({
+apps/api/src/agent-loop.ts:1049:            logger.warn({ err: reflectErr, taskId: task.id }, 'reflectAndPromote failed — non-fatal')
+apps/api/src/channel-ai.test.ts:112:    buildIntrospectionSnapshot: vi.fn(async () => ({})),
+apps/api/src/channel-ai.ts:584:            const { buildIntrospectionSnapshot, toConversationSnapshot } = await import('@plexo/agent/introspection')
+apps/api/src/channel-ai.ts:586:            const snapshot = await buildIntrospectionSnapshot(workspaceId, providerKey, resolvedModel)
+apps/api/src/index.ts:447:    void import('./health-monitor.js').then(m => m.startHealthMonitor()).catch(err => logger.error({ err }, 'Health monitor failed to start'))
+apps/api/src/routes/rsi.ts:5:import { db, rsiProposals, rsiTestResults, eq, and, desc } from '@plexo/db'
+apps/api/src/routes/rsi.ts:23:            .from(rsiProposals)
+apps/api/src/routes/rsi.ts:24:            .where(eq(rsiProposals.workspaceId, workspaceId))
+apps/api/src/routes/rsi.ts:25:            .orderBy(desc(rsiProposals.createdAt))
+apps/api/src/routes/rsi.ts:43:        const [updated] = await db.update(rsiProposals)
+apps/api/src/routes/rsi.ts:45:            .where(and(eq(rsiProposals.id, proposalId), eq(rsiProposals.workspaceId, workspaceId)))
+apps/api/src/routes/rsi.ts:53:        void import('@plexo/agent/introspection/shadow-test')
+apps/api/src/routes/rsi.ts:73:        const [updated] = await db.update(rsiProposals)
+apps/api/src/routes/rsi.ts:75:            .where(and(eq(rsiProposals.id, proposalId), eq(rsiProposals.workspaceId, workspaceId)))
+apps/api/src/routes/rsi.ts:99:        const [proposal] = await db.select({ id: rsiProposals.id })
+apps/api/src/routes/rsi.ts:100:            .from(rsiProposals)
+apps/api/src/routes/rsi.ts:101:            .where(and(eq(rsiProposals.id, proposalId), eq(rsiProposals.workspaceId, workspaceId)))
+apps/api/src/routes/rsi.ts:109:            .from(rsiTestResults)
+apps/api/src/routes/rsi.ts:110:            .where(eq(rsiTestResults.proposalId, proposalId))
+apps/api/src/routes/rsi.ts:111:            .orderBy(desc(rsiTestResults.createdAt))
+apps/api/src/cron.ts:10:import { runRSIMonitor } from '@plexo/agent/introspection/rsi-monitor'
+apps/api/src/routes/chat.ts:736:                const { buildIntrospectionSnapshot, toConversationSnapshot } = await import('@plexo/agent/introspection')
+apps/api/src/routes/chat.ts:737:                const snapshot = await buildIntrospectionSnapshot(workspaceId, resolvedProvider, resolvedModel)
+apps/api/src/routes/introspect.ts:23:import { buildIntrospectionSnapshot } from '@plexo/agent/introspection'
+apps/api/src/routes/introspect.ts:75:        const snapshot = await buildIntrospectionSnapshot(wsId)
+apps/api/src/routes/introspect.ts:85:        logger.error({ err, wsId }, 'introspect: buildIntrospectionSnapshot failed')
+tests/unit/introspection/rsi.test.ts:2:import { runRSIMonitor } from '../../../packages/agent/src/introspection/rsi-monitor.js'
+tests/unit/introspection/rsi.test.ts:3:import { db, workspaces, workLedger, rsiProposals } from '@plexo/db'
+tests/unit/introspection/rsi.test.ts:9:        rsiProposals: { id: 'test-proposal', workspaceId: 'test-workspace', anomalyType: 'quality_degradation', status: 'pending' },
+tests/unit/introspection/rsi.test.ts:77:        expect(db.insert).toHaveBeenCalledWith(rsiProposals)
+packages/db/src/schema.ts:1171:export const rsiProposals = pgTable('rsi_proposals', {
+packages/db/src/schema.ts:1191:export const rsiTestResults = pgTable('rsi_test_results', {
+packages/db/src/schema.ts:1195:        .references(() => rsiProposals.id, { onDelete: 'cascade' }),
+tests/integration/concurrent-introspection.test.ts:3: * Verifies that 10 parallel buildIntrospectionSnapshot() calls against the
+tests/integration/concurrent-introspection.test.ts:7: * Note: buildIntrospectionSnapshot() queries Postgres only (no Redis/Valkey).
+tests/integration/concurrent-introspection.test.ts:14:import { buildIntrospectionSnapshot } from '../../packages/agent/src/introspection/index.js'
+tests/integration/concurrent-introspection.test.ts:45:describe('buildIntrospectionSnapshot — concurrent safety', () => {
+tests/integration/concurrent-introspection.test.ts:48:            buildIntrospectionSnapshot(workspaceId, 'anthropic', 'claude-sonnet-4-6')
+tests/integration/concurrent-introspection.test.ts:62:                buildIntrospectionSnapshot(workspaceId)
+tests/integration/concurrent-introspection.test.ts:94:                buildIntrospectionSnapshot(ghostId)
+tests/integration/concurrent-introspection.test.ts:107:                buildIntrospectionSnapshot(workspaceId, 'openai', 'gpt-4o')
+tests/integration/concurrent-introspection.test.ts:110:                buildIntrospectionSnapshot(workspaceId)
+packages/agent/src/introspection/rsi-monitor.ts:1:import { db, workLedger, rsiProposals, workspaces, sql } from '@plexo/db'
+packages/agent/src/introspection/rsi-monitor.ts:85:        anomalyType: rsiProposals.anomalyType,
+packages/agent/src/introspection/rsi-monitor.ts:86:    }).from(rsiProposals).where(
+packages/agent/src/introspection/rsi-monitor.ts:88:            eq(rsiProposals.workspaceId, workspaceId),
+packages/agent/src/introspection/rsi-monitor.ts:89:            eq(rsiProposals.status, 'pending')
+packages/agent/src/introspection/rsi-monitor.ts:95:    const toInsert: (typeof rsiProposals.$inferInsert)[] = []
+packages/agent/src/introspection/rsi-monitor.ts:109:        await db.insert(rsiProposals).values(toInsert)
+packages/agent/src/introspection/rsi-monitor.test.ts:7:    workLedger: {}, rsiProposals: {}, workspaces: {},
+packages/agent/src/introspection/rsi-monitor.test.ts:16:import { detectAnomalies } from './rsi-monitor.js'
+packages/agent/src/introspection/shadow-test.ts:4:import { db, workLedger, rsiProposals, rsiTestResults } from '@plexo/db'
+packages/agent/src/introspection/shadow-test.ts:24:        .from(rsiProposals)
+packages/agent/src/introspection/shadow-test.ts:25:        .where(and(eq(rsiProposals.id, proposalId), eq(rsiProposals.workspaceId, workspaceId)))
+packages/agent/src/introspection/shadow-test.ts:71:    const rows: Array<typeof rsiTestResults.$inferInsert> = baselineWindow.map(task => {
+packages/agent/src/introspection/shadow-test.ts:116:    await db.insert(rsiTestResults).values(rows)
+packages/agent/src/introspection/index.ts:5: * buildIntrospectionSnapshot — the single source of truth for agent self-awareness.
+packages/agent/src/introspection/index.ts:180:export async function buildIntrospectionSnapshot(
+apps/api/src/routes/__tests__/chat-quality.test.ts:215:    buildIntrospectionSnapshot: vi.fn(async () => ({})),
+packages/agent/src/memory/conversation-bridge.ts:16: * 3. Inferred patterns → reflectAndPromote pipeline only (not handled here)
+packages/agent/src/behavior/reflect.ts:72:export async function reflectAndPromote(ctx: ReflectCtx): Promise<ReflectResult> {
+packages/agent/src/behavior/reflect.test.ts:33:import { reflectAndPromote, type ReflectCtx } from './reflect.js'
+packages/agent/src/behavior/reflect.test.ts:59:describe('reflectAndPromote', () => {
+packages/agent/src/behavior/reflect.test.ts:68:        await reflectAndPromote(baseCtx())
+packages/agent/src/behavior/reflect.test.ts:78:        await reflectAndPromote(baseCtx({ qualityScore: 0.6 }))
+packages/agent/src/behavior/reflect.test.ts:102:        await reflectAndPromote(baseCtx())
+packages/agent/src/behavior/reflect.test.ts:133:        await reflectAndPromote(baseCtx())
+packages/agent/src/behavior/reflect.test.ts:160:        await reflectAndPromote(baseCtx())
+packages/agent/src/behavior/reflect.test.ts:177:        const result = await reflectAndPromote(baseCtx())
+packages/agent/src/introspection/types.ts:7: * This is the authoritative shape returned by buildIntrospectionSnapshot()
+apps/api/src/health-monitor.ts:17:const VALKEY_KEY_STATE = 'health-monitor:state'
+apps/api/src/health-monitor.ts:18:const VALKEY_KEY_TIMELINE = 'health-monitor:timeline'
+apps/api/src/health-monitor.ts:86:    } catch (err) { logger.warn({ err }, 'health-monitor: failed to load state from Redis'); return {} }
+apps/api/src/health-monitor.ts:92:    try { await redis.set(VALKEY_KEY_STATE, JSON.stringify(s)) } catch (err) { logger.warn({ err }, 'health-monitor: failed to save state to Redis') }
+apps/api/src/health-monitor.ts:101:    } catch (err) { logger.warn({ err }, 'health-monitor: failed to append event to Redis') }
+packages/agent/src/executor/index.ts:652:                const { buildIntrospectionSnapshot, toConversationSnapshot } = await import('../introspection/index.js')
+packages/agent/src/executor/index.ts:653:                const snapshot = await buildIntrospectionSnapshot(
+packages/agent/src/executor/index.ts:2349:    void import('../behavior/reflect.js').then(({ reflectAndPromote }) =>
+packages/agent/src/executor/index.ts:2350:        reflectAndPromote({
+packages/agent/src/executor/index.ts:2361:    ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'reflectAndPromote failed'))

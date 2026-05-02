@@ -1,0 +1,195 @@
+progress.md:15:- [x] Phase 6 — Drop workspace_mindsets
+progress.md:24:Phase 5 full deletion target identified. All scl-core importers catalogued:
+progress.md:31:- `apps/api/src/routes/__tests__/scl-attractors.test.ts`
+progress.md:35:- `packages/agent/src/scl/__tests__/mmr-rerank.test.ts` (uses ExpandedNode type from scl-core)
+progress.md:47:- `packages/agent/src/foundry/shadow.ts:15` — replace `cosineSimilarity from @plexo/scl-core` with inline: `(a: number[], b: number[]) => a.reduce((s, v, i) => s + v * b[i]!, 0)`
+progress.md:51:**Then delete:** `packages/scl-core/` directory wholesale
+progress.md:53:**Remove from package.json:** `@plexo/scl-core` dependency in packages/agent and apps/api
+progress.md:55:**Also check:** `apps/api/src/routes/training-data.ts:96-98` — workspace_mindsets rows (3 lines to delete from table config array)
+progress.md:56:`packages/agent/src/introspection/index.ts:552,612` — SELECT workspace_mindsets blocks to remove
+progress.md:64:3. **SCL hot paths are in both chat.ts AND channel-ai.ts** — `expandForConversation` call exists at `apps/api/src/routes/chat.ts:666` AND `apps/api/src/channel-ai.ts:624`. Phase 2 must remove BOTH.
+progress.md:66:4. **recallPriorConversation is in 4 files** — chat.ts (line 620), channel-ai.ts (function def at 1319), discord.ts (line 293), slack.ts (line 433), telegram.ts (line 889). All must be removed.
+apps/web/src/app/page.tsx:357:                                    { title: 'Drift Detection', desc: 'Protected attractor mutations beyond threshold fire DriftWarning for human review.' },
+apps/web/src/app/app/settings/voice/page.tsx:380:                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+apps/web/src/app/app/settings/intelligence/layout.tsx:24: *   /app/settings/intelligence/scl/attractors
+apps/web/src/components/plexo-awareness-badge.tsx:53:            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+apps/embeddings/src/engine.ts:128:    // L2 normalize
+apps/api/src/lib/embeddings-reembed.ts:253:                    // know to refresh attractor centroids on next read. Full
+apps/api/src/lib/embeddings-reembed.ts:254:                    // attractor recomputation is Phase 3b.
+apps/api/src/agent-loop.ts:1034:                    attractorsRefined: reflectResult.sclStats.attractorsRefined,
+apps/api/src/agent-loop.ts:1035:                    attractorsCreated: reflectResult.sclStats.attractorsCreated,
+apps/api/src/agent-loop.ts:1042:                        attractorLabel: 'aggregate',
+apps/api/src/analytics/events.ts:556:    attractorsRefined: number
+apps/api/src/analytics/events.ts:557:    attractorsCreated: number
+apps/api/src/analytics/events.ts:562:        attractors_refined: opts.attractorsRefined,
+apps/api/src/analytics/events.ts:563:        attractors_created: opts.attractorsCreated,
+apps/api/src/analytics/events.ts:570:    attractorLabel: string
+apps/api/src/analytics/events.ts:575:        attractor_label: opts.attractorLabel,
+apps/api/src/routes/training-data.ts:321:        case 'golden_records': {
+apps/api/src/routes/training-data.ts:327:                    { role: 'assistant', content: `Golden Record v${row.golden_record_version ?? '?'} — ${row.task_count ?? 0} tasks processed.` },
+apps/api/src/routes/__tests__/training-data.test.ts:166:        expect(ids).toContain('golden_records')
+apps/api/src/routes/__tests__/training-data.test.ts:319:                    'golden_records',
+tests/integration/workspace-isolation-security.test.ts:44:        const res = await fetchAsA(`/api/v1/workspaces/${WS_B}/scl/attractors`)
+ops/harnesseval/00-AUDIT.md:27:- Webchat per-turn injection: `apps/api/src/routes/chat.ts:605-647` — runs both `recallPriorConversation()` and `searchMemory()` on every non-trivial turn, gated on `hasRecallIntent` OR young session (≤2 turns).
+ops/harnesseval/00-AUDIT.md:29:- Conversation-table recall: `apps/api/src/channel-ai.ts:1319` (`recallPriorConversation`) — keyword ILIKE over `conversations.message` / `conversations.reply`, with a 7-day recency cap unless the query matches `isFirstConversationQuery` (`:1303`).
+ops/harnesseval/00-AUDIT.md:48:- Type: `packages/agent/src/scl/types.ts:11` (`MindsetObject`).
+ops/harnesseval/00-AUDIT.md:49:- Storage: `workspace_mindsets` table; upsert at `packages/agent/src/scl/storage.ts:42`.
+ops/harnesseval/00-AUDIT.md:50:- Expand: `packages/agent/src/scl/expander.ts` (`expandMindsetObject`), called from `apps/api/src/routes/scl-admin.ts:148`.
+ops/harnesseval/00-AUDIT.md:58:**What it actually does:** loads a workspace-level `MindsetObject`, expands it against `(taskDescription, taskType)`, drops the result into the prompt.
+ops/harnesseval/02-MEMORY.md:81:2. **Shared sessionId across the 10 probes** (`phase2-test-m1`) — `isYoungSession` (`channel-ai.ts:618`) only fires when `dbTurns.length <= 1`. After the first probe-pair, the session is no longer "young," so `recallPriorConversation` (the keyword cross-session search) stops triggering. The model is left with only what's in the current session's chat-history window plus the limit-5 `searchMemory` result.
+ops/harnesseval/02-MEMORY.md:101:Even the probes with strong lexical overlap (m2-stack: "microservice" in both, m2-pet: "cat" in both) score ~2-4. Plexo's `recallPriorConversation` is keyword-ILIKE-based; `searchMemory` requires real embeddings. With **embeddings disabled** (`XENOVA_EMBEDDER=0` and the embedder service unreachable on this stack — see `01-HARNESS.md` § Layer B), `searchMemory` falls back to a hash-vector path that has no semantic similarity. The layer is degraded relative to a Plexo deployment with working embeddings.
+packages/agent/src/eval/scl-eval.ts:87: * Promotion correctness: binary — did this attractor correctly get promoted?
+ops/stabilization/escalations/cycle-192.md:20:  "summary": "@plexo/scl-core:test ... exited (1)"
+ops/stabilization/escalations/cycle-192.md:72:## Root cause 2 — `@plexo/scl-core:test` RED: resource-pressure flake
+ops/stabilization/escalations/cycle-192.md:74:`packages/scl-core/tests/pressure.test.ts` runs three pressure
+ops/stabilization/escalations/cycle-192.md:75:scenarios totalling ~36 s under normal load (1k attractors, 5k
+ops/stabilization/escalations/cycle-192.md:76:attractors with L0 expansion under budget, 10k sequential mutations).
+ops/stabilization/escalations/cycle-192.md:87:@plexo/scl-core:test  Test Files  14 passed (14)   Tests  169 passed (169)
+ops/stabilization/escalations/cycle-192.md:108:2. **scl-core flake** — Without the failing test name, a "minimal fix"
+ops/coreaudit/03-DISAGREEMENTS.md:37:**Panel 4 nuance:** The executor-as-conversation tier skips, but the **conversational surface itself** (chat, channel entry) injects SCL through `expandForConversation` at `apps/api/src/channel-ai.ts:625` and `apps/api/src/routes/chat.ts:667`. The fast-path tier (pure model knowledge, no Tool surface) is correctly optimized.
+ops/coreaudit/01-COREJOB.md:27:| 7 | **Memory injection** — SCL context appears in execution prompt | `MindsetObject` expanded; SCL block in prompt | 8 (SCL) | **Expected drift**: skipped when `isConversationalFast=true`; not propagated to delegated children |
+ops/coreaudit/00-AUDIT.md:87:- **Evidence:** `MindsetObject` is loaded from `workspace_mindsets` per task and expanded against `{taskDescription, taskType}`. SCL is injected into the agent execution prompt — but **only when `isConversationalFast` is false** (`:1495`). Conversational fast-path tasks receive zero SCL context.
+ops/coreaudit/03-PANEL-3-multi-agent.md:13:- **State**: `description + context` JSON, plus an optional `sclContext` snapshot computed at `:738-771` from the parent's workspace MindsetObject. Phase 0 SUBSYSTEM 8 already flagged this — children inherit a snapshot, they don't run their own retrieval.
+ops/coreaudit/03-PANEL-3-multi-agent.md:32:- They share `workspace_mindsets`. Both expand the same MindsetObject; neither sees the other's in-flight learning.
+ops/coreaudit/03-PANEL-4-memory.md:5:**Verdict:** Active on both, but with different backends and a partly-dead handoff. The agent loop runs Golden-Record retrieval (`@plexo/scl-core` `expand`) per task. The chat surface runs the same `expand` via `expandForConversation`. The legacy `MindsetObject` only fires inside one delegation Tool, and the snapshot it puts on the child row is never read. The conversational fast-path skip is real and **defensible**. The "delegation children inherit parent snapshot" framing in Phase 0 is **inaccurate** — the actual gap is more subtle and worse: dead writes plus a backend split.
+ops/coreaudit/03-PANEL-4-memory.md:9:When a task is claimed off the queue, `apps/api/src/agent-loop.ts:577-614` builds an `ExecutionContext` from scratch — it does not read `task.context.sclContext`. Then at `agent-loop.ts:618-644` it calls `expandForTask(workspaceId, desc, embProvider, level)` (`packages/agent/src/scl/task-expansion.ts:12`, which imports `expand` from `@plexo/scl-core`). On hit, `ctx.sclContext` is populated with `{relevantPatterns: [], suggestedTools: [], domainKnowledge: [expansion.contextBlock], tokenCount, sourceRegions}` (`agent-loop.ts:630-636`). Note the empty arrays: only `domainKnowledge` and `sourceRegions` actually carry content from the Golden Record path. The executor then renders this into the system prompt at `packages/agent/src/executor/index.ts:1495-1501` and threads it through `buildTaskPrompt` at `:1537`. So yes — SCL serves the agent loop. The Golden-Record `expand` path is the one actually on the runtime path; the `MindsetObject` declared at `packages/agent/src/scl/types.ts:11` is *not* what the per-task dispatch uses.
+ops/coreaudit/03-PANEL-4-memory.md:13:The gate is a single line: `executor/index.ts:1495` — `const sclContextBlock = !isConversationalFast && ctx.sclContext && ctx.sclContext.tokenCount > 0 ? ... : ''`. `isConversationalFast` is `detectConversationalTask(plan)` (`:827`, `:995`): one-step plan, zero Tools required, goal <200 chars, no ops verb. The same gate also skips memory recall (`:1005`), capability manifest (`:1042`), and Tool prompts/contexts (`:1055`). **Defensible.** The conversational tier is for "what time is it" / "say hi" — pure model-knowledge replies with no Tool surface. A workspace-memory block worth hundreds of tokens is wasted there, and the chat surface already injects its own SCL via `apps/api/src/channel-ai.ts:625` and `apps/api/src/routes/chat.ts:667` (both via `expandForConversation`). The chat surface is *not* uncovered. Phase 0's framing ("conversational fast-path receives zero SCL context") is technically true of the executor-as-conversation tier, but the conversational *surface* itself does receive SCL through a different ingress.
+ops/coreaudit/03-PANEL-4-memory.md:17:This is the real bug, and it is **worse than Phase 0 wrote**. Inside the `dispatch_subagent` Tool at `executor/index.ts:738-783`, the parent reads `workspace_mindsets.mindset_object` (`:742-746`), expands the legacy `MindsetObject` against the **child's** `instructions` (`:751`), and writes the result onto the child's row at `:782`: `...(sclContext ? { sclContext } : {})`. Conceptually correct (per-child stimulus, not raw parent passthrough). But: nothing reads `task.context.sclContext`. `agent-loop.ts:577-614` builds the child's `ExecutionContext` without consulting that field, then overwrites `ctx.sclContext` at `:630` from a fresh `expandForTask` (Golden-Record backend, not `MindsetObject`). So the parent's pre-baked snapshot is dead data. The child does run its own retrieval — but through a *different* memory backend than the parent used to compress the handoff. The compression-savings log at `:767` ("SCL handoff compression applied") records a token saving that never reaches the model. Wrong, not defensible. Either the read side has to be wired (`agent-loop.ts:614` should pull `task.context.sclContext` into `ctx.sclContext` when present, before the Golden-Record retrieval), or the dispatch Tool's `MindsetObject` expansion should be deleted as cargo-culted code.
+ops/coreaudit/03-PANEL-4-memory.md:25:A grep showing any consumer reading `task.context.sclContext` (or any equivalent rehydration into `ExecutionContext` for child tasks); or evidence that `expandForTask` and `expandMindsetObject` resolve against the same underlying store so the backend split is cosmetic. I found neither.
+packages/db/src/schema.ts:634:    /** Domain mastery: rule keys + attractor IDs in prompt for invertible credit (Panel 2). */
+packages/db/src/schema.ts:657:    /** Rule key, attractor ID, or proposal ID — informational link back to the learning store. */
+packages/db/src/schema.ts:1566:    mindsetObject: jsonb('mindset_object'),
+packages/agent/src/behavior/types.ts:66:    /** Domain mastery context hash — truncated SHA-256 of rule keys + attractor IDs in prompt.
+ops/coreaudit/05-USER-TESTS.md:148:7. **Memory** in the sidebar (`sidebar.tsx:97`) sounds like it might store her assignments, but the `/app/memory` page is a workspace-mindsets editor (Phase 0 SUBSYSTEM 8) — not a calendar/reminder surface.
+packages/agent/src/scl/index.ts:6:export { compressToMindsetObject, mergeMindsetObject } from './compressor.js'
+packages/agent/src/scl/index.ts:7:export { expandMindsetObject, type ExpansionStimulus } from './expander.js'
+packages/agent/src/scl/index.ts:8:export type { MindsetObject, MindsetRegion, ConceptAttractor, TransformationRule, ExpandedContext } from './types.js'
+packages/agent/src/domain-mastery/credit-assignment.ts:8: * rule/attractor in the context_hash. Uses lift metric (Panel 5) not raw
+packages/agent/src/types.ts:518:    /** Expanded MindsetObject context — domain knowledge, patterns, suggested tools */
+docs/self-host.md:13:| OS | Any Linux distro, macOS, or WSL2 |
+packages/agent/src/scl/types.ts:5: * SCL type definitions — MindsetObject and supporting structures.
+packages/agent/src/scl/types.ts:7: * MindsetObject is a fixed-size generative structure, not enumerated facts.
+packages/agent/src/scl/types.ts:11:export interface MindsetObject {
+packages/agent/src/scl/types.ts:15:    attractors: ConceptAttractor[]
+packages/agent/src/behavior/reflect.ts:55:        attractorsRefined: number
+packages/agent/src/behavior/reflect.ts:56:        attractorsCreated: number
+packages/agent/src/memory/cluster.ts:790:    const priorL0 = await loadPriorThemesWithCentroid(workspaceId, 0)
+packages/agent/src/memory/cluster.ts:791:    const priorL1 = await loadPriorThemesWithCentroid(workspaceId, 1)
+packages/agent/src/memory/cluster.ts:792:    const priorL2 = await loadPriorThemesWithCentroid(workspaceId, 2)
+packages/agent/src/memory/cluster.ts:793:    assignStableIdsByOverlap(perLevel[0]!, priorL0)
+packages/agent/src/memory/cluster.ts:794:    assignStableIdsHungarian(perLevel[1]!, priorL1)
+packages/agent/src/memory/cluster.ts:795:    assignStableIdsByOverlap(perLevel[2]!, priorL2)
+brand-rework/0-AUDIT.md:55:| SCL Settings | `settings/intelligence/scl/page.tsx` + attractors, drift, rsi sub-pages |
+brand-rework/0-AUDIT.md:65:| `scl/MindsetObjectViewer.tsx` | 26KB, SVG concept graph |
+brand-rework/0-AUDIT.md:127:| `#0a0a0a` | MindsetObjectViewer stroke | Not tokenized |
+brand-rework/0-AUDIT.md:211:| SCL concept graph | `scl/MindsetObjectViewer.tsx` | SVG with hover, zoom, click-to-detail, region nodes |
+brand-rework/0-AUDIT.md:243:| SCL concept graph hover/zoom/click | `MindsetObjectViewer.tsx` | Rich data exploration UX |
+brand-rework/0-AUDIT.md:273:12. SVG `fontFamily="sans-serif"` in MindsetObjectViewer -- should reference design token
+packages/agent/src/scl/expander.ts:5: * SCL-X Expander: MindsetObject + Stimulus → ExpandedContext
+packages/agent/src/scl/expander.ts:7: * Given a MindsetObject and a task stimulus, expand only the relevant
+packages/agent/src/scl/expander.ts:15:import type { MindsetObject, ExpandedContext } from './types.js'
+packages/agent/src/scl/expander.ts:27: * Expand relevant regions of a MindsetObject for a given task stimulus.
+packages/agent/src/scl/expander.ts:29:export function expandMindsetObject(
+packages/agent/src/scl/expander.ts:30:    mindset: MindsetObject,
+packages/agent/src/scl/expander.ts:33:    if (mindset.regions.length === 0) {
+packages/agent/src/scl/expander.ts:41:    const matchingRegions = mindset.regions.filter(r =>
+packages/agent/src/scl/expander.ts:48:        const sorted = [...mindset.regions].sort((a, b) => b.taskCount - a.taskCount)
+packages/agent/src/scl/expander.ts:77:    for (const rule of mindset.transformations) {
+packages/agent/src/domain-mastery/index.ts:65: * Compute a deterministic hash of the behavior rule keys and SCL attractor IDs
+packages/agent/src/domain-mastery/index.ts:72: * @param attractorIds - SCL attractor IDs included via expansion.
+packages/agent/src/domain-mastery/index.ts:73: * @returns { hash, ruleKeys, attractorIds } or null if no learning content.
+packages/agent/src/domain-mastery/index.ts:77:    attractorIds: string[],
+packages/agent/src/domain-mastery/index.ts:78:): { hash: string; ruleKeys: string[]; attractorIds: string[] } | null {
+packages/agent/src/domain-mastery/index.ts:79:    if (ruleKeys.length === 0 && attractorIds.length === 0) return null
+packages/agent/src/domain-mastery/index.ts:81:    const sorted = [...ruleKeys, ...attractorIds].sort()
+packages/agent/src/domain-mastery/index.ts:87:    return { hash, ruleKeys, attractorIds }
+brand-rework/1-PERSONALITY.md:115:Plexo's semiotic challenge: it is a platform (generic, substrate) that must feel specific and opinionated. The Delta Frame solves this at the symbol level -- geometric, precise, intentionally incomplete. The danger is the rest of the brand defaulting to "generic dark dashboard." Every surface should encode Plexo's specific concepts: memory is persistent (not ephemeral chat), agents are autonomous (not assistants), cognition has structure (SCL regions, attractors). The concept graph is not a feature -- it is the brand's central metaphor made visible.
+brand-rework/1-PERSONALITY.md:118:Run the clone test: screenshot Plexo, remove the logo, show it to ten engineers. If more than two guess "Datadog" or "Grafana," the density direction went too far into homage. Plexo's differentiator is the semantic layer -- SCL concept graphs, attractor browsers, region maps. No monitoring tool has these. Lean into the surfaces that only Plexo can have. The concept graph should be as recognizable as Figma's canvas or VS Code's sidebar. That is the anti-clone commitment.
+docs/security/extension-security-model.md:69:│ L1  Pre-install review      (user sees and consents before)    │
+docs/security/extension-security-model.md:70:│ L2  Per-invocation approval (escalation contract, Phase 8)     │
+docs/security/extension-security-model.md:71:│ L3  Egress logging & audit  (every call recorded, Phase 7)     │
+docs/security/extension-security-model.md:561:| L1 | `apps/api/src/routes/extensions.ts` | `POST /` — `validateManifest`, `minHostLevel`, **add: signature check, policy check** | Partial — add in Phase 7 |
+docs/security/extension-security-model.md:562:| L1 | `apps/api/src/routes/extensions.ts` | `POST /sideload` — env-flag gate, owner-only, consent checkbox, trust coercion, egress allowlist, no auto-update | Live (this pass) |
+docs/security/extension-security-model.md:563:| L1 | `packages/sdk/src/validation/signature.ts` | `verifySignature(manifest, meta)` — v1 stub, Sigstore-ready | Live (stub) |
+docs/security/extension-security-model.md:564:| L1 | `packages/db/drizzle/0069_add_extension_signatures.sql` | signature / signer_identity columns on extension_registry | Live |
+docs/security/extension-security-model.md:565:| L1 | `apps/web/src/app/app/marketplace/*/install-button.tsx` | Install dialog UI (incl. capabilitiesRationale rendering) | Needs build in Phase 7 |
+docs/security/extension-security-model.md:566:| L2 | `packages/agent/src/plugins/bridge.ts` | `loadPluginTools` — wrap `invokeTool` with escalation pre-check | Phase 8 |
+docs/security/extension-security-model.md:567:| L2 | `packages/agent/src/plugins/persistent-pool.ts` | `dispatchSdkCall('escalate', ...)` — currently throws `NOT_IMPLEMENTED` | Phase 8 |
+docs/security/extension-security-model.md:568:| L3 | `packages/agent/src/audit.ts` | `logAuditEntry` + new egress fields | Extend in Phase 7 |
+docs/security/extension-security-model.md:569:| L3 | `packages/agent/src/plugins/activation-sdk.ts` | New `sdk.http.fetch` wrapper | Phase 7 |
+docs/security/extension-security-model.md:570:| L3 | `packages/agent/src/plugins/sandbox-worker.ts` | Monkey-patch `globalThis.fetch` for capture | Phase 7 |
+docs/plexo-memory-audit.md:32:| `apps/api/src/routes/chat.ts` | 42 | `recallPriorConversation` import | Barrel import from channel-ai |
+docs/plexo-memory-audit.md:33:| `apps/api/src/routes/chat.ts` | 620 | `recallPriorConversation(...)` call | Full call block |
+docs/plexo-memory-audit.md:34:| `apps/api/src/routes/chat.ts` | 666–672 | `expandForConversation` import + call | Hot path — Phase 2 target |
+docs/plexo-memory-audit.md:35:| `apps/api/src/channel-ai.ts` | 624–625 | `expandForConversation` import + call | Channel AI hot path — Phase 2 target |
+docs/plexo-memory-audit.md:36:| `apps/api/src/channel-ai.ts` | 1319–1416 | `recallPriorConversation` function def | Function + error handler block |
+docs/plexo-memory-audit.md:37:| `apps/api/src/routes/discord.ts` | 31, 293 | `recallPriorConversation` import + call | Same pattern as chat.ts |
+docs/plexo-memory-audit.md:38:| `apps/api/src/routes/slack.ts` | 26, 433 | `recallPriorConversation` import + call | Same pattern as chat.ts |
+docs/plexo-memory-audit.md:39:| `apps/api/src/routes/telegram.ts` | 39, 889 | `recallPriorConversation` import + call | Same pattern as chat.ts |
+docs/plexo-memory-audit.md:40:| `apps/api/src/routes/scl-admin.ts` | entire file | MindsetObject/compressToMindsetObject/workspace_mindsets | Admin route — delete whole file + router mount |
+docs/plexo-memory-audit.md:41:| `apps/api/src/routes/scl.ts` | entire file | loadGoldenRecord/saveGoldenRecord/mutate/resolveDrift | SCL management routes — delete whole file + router mount |
+docs/plexo-memory-audit.md:42:| `apps/api/src/agent-loop.ts` | 670 | `ResolutionLevel` from `@plexo/scl-core` | Inline type assertion |
+docs/plexo-memory-audit.md:43:| `apps/api/src/agent-loop.ts` | 939–953 | `compressToMindsetObject` + workspace_mindsets upsert | SCL-D compression block inside agent loop |
+docs/plexo-memory-audit.md:44:| `apps/api/src/routes/training-data.ts` | 96–98 | workspace_mindsets table/count/sample SQL | Delete those 3 lines from the table config array |
+docs/plexo-memory-audit.md:45:| `packages/agent/src/executor/index.ts` | 738–763 | `mindset_object` query + `expandMindsetObject` | SCL-D task context expansion block |
+docs/plexo-memory-audit.md:46:| `vitest.config.ts` | 21–22 | `@plexo/agent/scl/expand-context`, `@plexo/scl-core` aliases | Delete after Phase 5 |
+docs/plexo-memory-audit.md:47:| `apps/api/src/routes/__tests__/scl-drift-inbox.test.ts` | entire file | scl-core mocks | Test for deleted route |
+docs/plexo-memory-audit.md:48:| `apps/api/src/routes/__tests__/scl-rsi-inbox.test.ts` | entire file | scl-core mocks | Test for deleted route |
+docs/plexo-memory-audit.md:49:| `apps/api/src/routes/__tests__/scl-attractors.test.ts` | entire file | scl-core mocks | Test for deleted route |
+docs/plexo-memory-audit.md:50:| `tests/e2e/p6-scl-runtime.spec.ts` | entire file | MindsetObject e2e | Tests for deleted functionality |
+docs/plexo-memory-audit.md:51:| `tests/e2e/p7-scl-ui.spec.ts` | entire file | MindsetObjectViewer e2e | Tests for deleted UI |
+docs/plexo-memory-audit.md:57:| `packages/agent/src/foundry/shadow.ts` | 15 | `cosineSimilarity from @plexo/scl-core` | Inline: `a.reduce((s,v,i) => s + v*b[i], 0)` — 1-line dot product on unit vectors |
+docs/plexo-memory-audit.md:58:| `packages/agent/src/memory/conversation-bridge.ts` | 220–316 | SCL mutation block (loadGoldenRecord, mutate, saveGoldenRecord) | Replace entire function body (Phase 3) — fire-and-forget async extract call |
+docs/plexo-memory-audit.md:65:| `apps/web/src/app/app/memory/page.tsx` | MindsetObjectViewer, GoldenRecordDashboard, MindsetObject type | Gut and replace with Phase 8 MemoryPanel |
+docs/plexo-memory-audit.md:66:| `apps/web/src/app/(dashboard)/insights/page.tsx` | MindsetObjectViewer, MindsetObject type | Remove SCL viewer; keep or adapt page wrapper |
+docs/plexo-memory-audit.md:67:| `apps/web/src/app/app/tasks/[id]/_scl-disclosure.tsx` | MindsetObjectViewer | Delete entire component |
+docs/plexo-memory-audit.md:69:| `apps/web/src/components/scl/GoldenRecordDashboard.tsx` | entire file | DELETE |
+docs/plexo-memory-audit.md:70:| `apps/web/src/components/scl/MindsetObjectViewer.tsx` | entire file | DELETE (after Phase 8 ships) |
+docs/plexo-memory-audit.md:79:| All `packages/scl-core/` internal files | — | Deleted wholesale as a directory in Phase 5 — no surgical editing needed |
+docs/plexo-memory-audit.md:85:| `packages/agent/src/scl/task-expansion.ts` | 12–13 | Uses `expand`, `cosineSimilarity`, `ResolutionLevel` from scl-core for task expansion in agent. If agent task expansion is still needed post-revamp, a replacement must be designed before Phase 5 deletes scl-core. If not needed, delete whole file. |
+docs/plexo-memory-audit.md:88:| `apps/api/src/routes/__tests__/chat-quality.test.ts` | 205–206 | Mocks `expandForConversation` — update mock after Phase 2 removes the call site |
+docs/plexo-memory-audit.md:115:| `apps/api/src/routes/scl-admin.ts:116-121` | workspace_mindsets UPSERT | Deleted with whole file |
+docs/plexo-memory-audit.md:116:| `apps/api/src/agent-loop.ts:948-953` | workspace_mindsets UPSERT | Deleted in Phase 2/5 block removal |
+docs/plexo-memory-audit.md:117:| `packages/agent/src/scl/storage.ts:47-55` | workspace_mindsets UPSERT | Deleted with scl package |
+docs/plexo-memory-audit.md:135:| `packages/agent/src/scl/storage.ts:23-40` | SELECT workspace_mindsets | Deleted with scl package |
+docs/plexo-memory-audit.md:136:| `packages/agent/src/introspection/index.ts:552,612` | SELECT workspace_mindsets | SCL introspection — remove those blocks |
+docs/plexo-memory-audit.md:137:| `apps/api/src/routes/training-data.ts:97-98` | SELECT workspace_mindsets | Remove those rows from table config |
+docs/intelligence-verification.md:52:- [x] 232 tests pass (134 agent + 82 scl-core + 14 mcp + 2 api)
+apps/api/src/routes/__tests__/tasks-raw-steps.test.ts:13: * Follows the same mock-the-router pattern as `scl-attractors.test.ts`:
+ops/coreaudit/06-STABILIZATION.md:47:6. **Memory backend reconciliation.** Panel 4 surfaced that parents use `expandMindsetObject`; children use `expandForTask` (Golden Record). Two backends in one execution path. Picking one and migrating is **M-L** and a behavior change worth thinking about — defer pending operator scope decision.
+packages/agent/src/scl/compressor.ts:5: * SCL-D Compressor: SCL-S Graphs → MindsetObject
+packages/agent/src/scl/compressor.ts:15:import type { MindsetObject, MindsetRegion, ConceptAttractor, TransformationRule } from './types.js'
+packages/agent/src/scl/compressor.ts:20: * Compress a batch of SCL-S graphs into a MindsetObject.
+packages/agent/src/scl/compressor.ts:23:export function compressToMindsetObject(
+packages/agent/src/scl/compressor.ts:26:): MindsetObject {
+packages/agent/src/scl/compressor.ts:42:    const attractors: ConceptAttractor[] = []
+packages/agent/src/scl/compressor.ts:82:        // Create attractors for top tools
+packages/agent/src/scl/compressor.ts:84:            attractors.push({
+packages/agent/src/scl/compressor.ts:94:        // Create attractors for task types
+packages/agent/src/scl/compressor.ts:96:            attractors.push({
+packages/agent/src/scl/compressor.ts:140:        attractors,
+packages/agent/src/scl/compressor.ts:149:function emptyMindset(workspaceId: string): MindsetObject {
+packages/agent/src/scl/compressor.ts:155:        attractors: [],
+packages/agent/src/scl/compressor.ts:165: * Merge new graphs into an existing MindsetObject.
+packages/agent/src/scl/compressor.ts:168:export function mergeMindsetObject(
+packages/agent/src/scl/compressor.ts:169:    existing: MindsetObject,
+packages/agent/src/scl/compressor.ts:171:): MindsetObject {
+packages/agent/src/scl/compressor.ts:173:    return compressToMindsetObject(newGraphs, existing.workspaceId)
+brand-rework/1-PROPOSALS.md:19:  <path d="M10 12 L6 12 L6 36 L10 36" stroke="#7bbfd4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+brand-rework/1-PROPOSALS.md:20:  <path d="M38 12 L42 12 L42 36 L38 36" stroke="#7bbfd4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+brand-rework/1-PROPOSALS.md:31:  <path d="M6 8 L3 8 L3 24 L6 24" stroke="#7bbfd4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+brand-rework/1-PROPOSALS.md:32:  <path d="M26 8 L29 8 L29 24 L26 24" stroke="#7bbfd4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+brand-rework/1-PROPOSALS.md:43:  <path d="M10 12 L6 12 L6 36 L10 36" stroke="#7bbfd4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+brand-rework/1-PROPOSALS.md:44:  <path d="M38 12 L42 12 L42 36 L38 36" stroke="#7bbfd4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+docs/memory.md:19:SCL compresses workspace task history into a fixed-size generative structure called the MindsetObject. Unlike traditional memory that stores individual facts, the MindsetObject represents the workspace's accumulated patterns as a navigable concept space.
+docs/memory.md:25:3. **Compression** -- Domain regions are aggregated into the MindsetObject with concept attractors and transformation rules
+docs/memory.md:26:4. **Expansion** -- At task start, the MindsetObject is expanded into relevant context: suggested tools, domain knowledge, and patterns from similar past work
+docs/memory.md:30:### The MindsetObject
+docs/memory.md:37:  attractors: ConceptAttractor[],
+docs/memory.md:61:### Concept attractors
+docs/memory.md:71:Each attractor has a salience score (how distinctive it is) and a frequency count.
+docs/memory.md:88:2. Finds relevant attractors in that region
+docs/memory.md:96:SCL performs pure structural analysis. The MindsetObject stores aggregate statistics (tool counts, quality scores, region distributions) -- not task content, user messages, or deliverables. No task text is retained in the mindset structure.
+docs/memory.md:100:The dashboard includes an **/insights** page that visualizes the MindsetObject:
+docs/memory.md:103:- Top concept attractors per region
+docs/operations/migration-drift-resolved.md:34:| 0052      | 0052_scl_golden_record.sql             | workspace_mindsets golden_record    | applied              | mark applied     |

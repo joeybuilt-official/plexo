@@ -1,0 +1,16 @@
+apps/api/src/routes/chat.ts:1016:                        const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+apps/api/src/routes/chat.ts:1095:                        const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+packages/agent/src/tests/conversation-bridge.fixture.test.ts:6: * conversation-bridge SCL concept extractor. Production call site:
+packages/agent/src/tests/conversation-bridge.fixture.test.ts:7: *     packages/agent/src/memory/conversation-bridge.ts:200-215
+packages/agent/src/tests/conversation-bridge.fixture.test.ts:136:describe('conversation-bridge concept extraction parsing', () => {
+packages/agent/src/memory/conversation-bridge.test.ts:4:describe('conversation-bridge: instruction detection', () => {
+packages/agent/src/memory/conversation-bridge.test.ts:42:describe('conversation-bridge: revocation detection', () => {
+apps/api/src/routes/__tests__/chat-quality.test.ts:203:vi.mock('@plexo/agent/memory/conversation-bridge', () => ({
+packages/agent/src/memory/conversation-bridge.ts:33:const logger = pino({ name: 'conversation-bridge' })
+packages/agent/src/memory/conversation-bridge.ts:198:        void import('./extract-worker.js').then(m => m.extractTurn({ workspaceId, userMessage, assistantReply, sessionId, source }))
+apps/api/src/routes/telegram.ts:1049:            const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
+apps/api/src/routes/telegram.ts:1056:        } catch { /* conversation-bridge module not available — non-fatal */ }
+packages/agent/src/memory/extract-worker.ts:7: * Fire-and-forget fact extractor called from conversation-bridge after each
+packages/agent/src/memory/extract-worker.ts:11: * Called as: void extractTurn({...}).catch(logger.warn)
+packages/agent/src/memory/extract-worker.ts:38:export async function extractTurn(params: {
+packages/agent/src/embeddings/router.ts:345: * Use this in fire-and-forget paths (storeMemory, conversation-bridge) where
