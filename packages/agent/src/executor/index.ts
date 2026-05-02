@@ -1622,6 +1622,26 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                 ts: stepWallStart,
             })
 
+            // ── Pre-step lifecycle row (Phase 2) ──────────────────────────
+            // Insert a `state='running'` placeholder so the row exists if
+            // we throw mid-step. The end-of-step UPDATE flips it to
+            // `completed` or `failed`. If pre-insert fails, we fall back
+            // to the historical "single insert at end" path (see below).
+            let stepRowId: string | null = null
+            try {
+                const inserted = await db.insert(taskSteps).values({
+                    taskId: ctx.taskId,
+                    stepNumber: stepNum,
+                    state: 'running',
+                    startedAt: new Date(stepWallStart),
+                    attempts: 1,
+                }).returning({ id: taskSteps.id })
+                stepRowId = inserted[0]?.id ?? null
+            } catch (preErr) {
+                const pinoMod = await import('pino')
+                pinoMod.default({ name: 'executor' }).warn({ err: preErr, taskId: ctx.taskId, stepNum }, 'Step pre-insert failed — will fall back to end-of-step insert')
+            }
+
             // Compose the task-level signal with a per-step wall-clock timeout
             // so a hung model (e.g. deepseek-reasoner stuck 90s+ on chain-of-
             // thought) cannot wedge the executor indefinitely. Env-gated
@@ -1677,66 +1697,85 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
             let stepRetries = 0
             let result: GenerateResult
 
-            // eslint-disable-next-line no-constant-condition
-            while (true) {
-                try {
-                    // Re-create the step signal on retry since the previous
-                    // one may already be in aborted state from the timeout.
-                    const currentStepSignal = stepRetries > 0
-                        ? AbortSignal.any([ctx.signal, AbortSignal.timeout(STEP_TIMEOUT_MS)])
-                        : stepSignal
+            try {
+                // eslint-disable-next-line no-constant-condition
+                while (true) {
+                    try {
+                        // Re-create the step signal on retry since the previous
+                        // one may already be in aborted state from the timeout.
+                        const currentStepSignal = stepRetries > 0
+                            ? AbortSignal.any([ctx.signal, AbortSignal.timeout(STEP_TIMEOUT_MS)])
+                            : stepSignal
 
-                    result = await generateText({
-                        model: resolvedModel,
-                        system: systemPrompt,
-                        messages,
-                        tools: stepTools,
-                        maxOutputTokens: resolvedCeiling,
-                        // stopWhen defaults to stepCountIs(1) — one tool call per outer iteration.
-                        // Each iteration is checkpointed to DB so crashes lose at most 1 step.
-                        abortSignal: currentStepSignal,
-                    })
-                    break // success — exit retry loop
-                } catch (stepErr) {
-                    // Only retry abort/timeout errors, not task-level cancellation
-                    const isTimeout = stepErr instanceof Error && (
-                        stepErr.name === 'AbortError'
-                        || stepErr.name === 'TimeoutError'
-                        || stepErr.message.includes('aborted')
-                        || stepErr.message.includes('timeout')
-                    )
-                    // Tool validation errors (Zod schema failures) should not
-                    // block the task — the AI SDK normally handles these
-                    // internally but edge cases can throw. Retry so the model
-                    // gets another chance with different arguments.
-                    const isToolValidation = stepErr instanceof Error && (
-                        stepErr.name === 'AI_InvalidToolInputError'
-                        || stepErr.message.includes('invalid_union')
-                        || stepErr.message.includes('Invalid input for tool')
-                        || stepErr.message.includes('TypeValidationError')
-                    )
-                    // If the task-level signal was aborted (user cancel), don't retry
-                    const isTaskCancelled = ctx.signal.aborted
+                        result = await generateText({
+                            model: resolvedModel,
+                            system: systemPrompt,
+                            messages,
+                            tools: stepTools,
+                            maxOutputTokens: resolvedCeiling,
+                            // stopWhen defaults to stepCountIs(1) — one tool call per outer iteration.
+                            // Each iteration is checkpointed to DB so crashes lose at most 1 step.
+                            abortSignal: currentStepSignal,
+                        })
+                        break // success — exit retry loop
+                    } catch (stepErr) {
+                        // Only retry abort/timeout errors, not task-level cancellation
+                        const isTimeout = stepErr instanceof Error && (
+                            stepErr.name === 'AbortError'
+                            || stepErr.name === 'TimeoutError'
+                            || stepErr.message.includes('aborted')
+                            || stepErr.message.includes('timeout')
+                        )
+                        // Tool validation errors (Zod schema failures) should not
+                        // block the task — the AI SDK normally handles these
+                        // internally but edge cases can throw. Retry so the model
+                        // gets another chance with different arguments.
+                        const isToolValidation = stepErr instanceof Error && (
+                            stepErr.name === 'AI_InvalidToolInputError'
+                            || stepErr.message.includes('invalid_union')
+                            || stepErr.message.includes('Invalid input for tool')
+                            || stepErr.message.includes('TypeValidationError')
+                        )
+                        // If the task-level signal was aborted (user cancel), don't retry
+                        const isTaskCancelled = ctx.signal.aborted
 
-                    if ((isTimeout || isToolValidation) && !isTaskCancelled && stepRetries < MAX_STEP_RETRIES) {
-                        stepRetries++
-                        try {
-                            const pinoMod = await import('pino')
-                            pinoMod.default({ name: 'executor' }).warn({
-                                taskId: ctx.taskId,
-                                workspaceId: ctx.workspaceId,
-                                stepNum,
-                                retryAttempt: stepRetries,
-                                backoffMs: STEP_RETRY_BACKOFF_MS,
-                                provider: resolvedMeta.provider,
-                                modelId: resolvedMeta.id,
-                            }, 'executor.step_timeout — retrying after backoff')
-                        } catch { /* non-fatal logging */ }
-                        await new Promise((r) => setTimeout(r, STEP_RETRY_BACKOFF_MS))
-                        continue // retry the step
+                        if ((isTimeout || isToolValidation) && !isTaskCancelled && stepRetries < MAX_STEP_RETRIES) {
+                            stepRetries++
+                            try {
+                                const pinoMod = await import('pino')
+                                pinoMod.default({ name: 'executor' }).warn({
+                                    taskId: ctx.taskId,
+                                    workspaceId: ctx.workspaceId,
+                                    stepNum,
+                                    retryAttempt: stepRetries,
+                                    backoffMs: STEP_RETRY_BACKOFF_MS,
+                                    provider: resolvedMeta.provider,
+                                    modelId: resolvedMeta.id,
+                                }, 'executor.step_timeout — retrying after backoff')
+                            } catch { /* non-fatal logging */ }
+                            await new Promise((r) => setTimeout(r, STEP_RETRY_BACKOFF_MS))
+                            continue // retry the step
+                        }
+                        throw stepErr // exhausted retries or non-timeout error
                     }
-                    throw stepErr // exhausted retries or non-timeout error
                 }
+            } catch (modelErr) {
+                // Mark the running step row as failed before bubbling up to
+                // executeTask's caller (agent-loop.ts), which will then call
+                // markTaskFailed for the task as a whole.
+                if (stepRowId) {
+                    try {
+                        await db.update(taskSteps)
+                            .set({
+                                state: 'failed',
+                                completedAt: new Date(),
+                                error: modelErr instanceof Error ? modelErr.message : String(modelErr),
+                                attempts: stepRetries + 1,
+                            })
+                            .where(eq(taskSteps.id, stepRowId))
+                    } catch { /* swallow — caller will surface the original error */ }
+                }
+                throw modelErr
             }
 
             // ── Truncation-loop detection ──────────────────────────────
@@ -1851,9 +1890,8 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                     })
                 )
                 const stepWallEnd = Date.now()
-                await db.insert(taskSteps).values({
-                    taskId: ctx.taskId,
-                    stepNumber: stepNum,
+                const stepHadToolCall = stepToolCalls.length > 0
+                const checkpointPayload = {
                     model: `${resolvedMeta.provider}/${resolvedMeta.id}`,
                     tokensIn: inToks,
                     tokensOut: outToks,
@@ -1872,7 +1910,29 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                         } : {}),
                     },
                     isTerminal,
-                })
+                    // Phase 2 lifecycle columns: the step's model iteration
+                    // returned successfully — flip state to 'completed'. The
+                    // catch arm of the model-call try block above handles
+                    // the 'failed' branch separately.
+                    state: 'completed' as const,
+                    completedAt: new Date(stepWallEnd),
+                    attempts: stepRetries + 1,
+                    stepType: (stepHadToolCall ? 'tool_call' : 'llm_generation') as 'tool_call' | 'llm_generation',
+                }
+                if (stepRowId) {
+                    await db.update(taskSteps)
+                        .set(checkpointPayload)
+                        .where(eq(taskSteps.id, stepRowId))
+                } else {
+                    // Pre-insert failed earlier — fall back to a single insert
+                    // with started_at populated from the in-memory wall-clock.
+                    await db.insert(taskSteps).values({
+                        taskId: ctx.taskId,
+                        stepNumber: stepNum,
+                        startedAt: new Date(stepWallStart),
+                        ...checkpointPayload,
+                    })
+                }
                 stepNum++
             } catch (checkpointErr) {
                 // Non-fatal — missing checkpoint means no resume on crash, but task continues

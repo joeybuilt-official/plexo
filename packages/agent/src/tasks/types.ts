@@ -113,3 +113,22 @@ export const TaskFailedPayloadSchema = z.object({
 })
 
 export type TaskFailedPayload = z.infer<typeof TaskFailedPayloadSchema>
+
+/**
+ * Payload shape for the `task.completed` event. The reflectOnTask listener
+ * formats this into a synthetic turn and routes it through the memory
+ * extraction pipeline. The existing memory consolidation listener also
+ * subscribes to this topic for anti-bloat.
+ */
+export const TaskCompletedPayloadSchema = z.object({
+    taskId: z.string(),
+    workspaceId: z.string(),
+    description: z.string(),
+    outcome: z.enum(['success', 'partial']),
+    outcomeSummary: z.string().optional(),
+    qualityScore: z.number().optional(),
+    durationMs: z.number().optional(),
+    toolsUsed: z.array(z.string()).optional(),
+})
+
+export type TaskCompletedPayload = z.infer<typeof TaskCompletedPayloadSchema>

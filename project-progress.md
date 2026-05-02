@@ -1,13 +1,13 @@
 # Project System Progress
 
 Last updated: 2026-05-02
-Current phase: 2 (in progress — types, escalate, terminal-fail wiring + plan persistence committed; reflectOnTask + per-step lifecycle remain)
-Last commit: 59512ee
+Current phase: 2 (Phase 2 deliverables complete — ready to ship-gate and move to Phase 3)
+Last commit: <pending — this commit>
 
 ## Phase Status
 - [x] Phase 0 — Audit
 - [x] Phase 1 — Schema
-- [ ] Phase 2 — Execution Engine (wiring + plan persistence done; reflectOnTask + per-step lifecycle remain)
+- [x] Phase 2 — Execution Engine (types, escalate, terminal-fail wiring, plan persistence, TASK_COMPLETED emission, reflect listener, per-step lifecycle writes)
 - [ ] Phase 3 — Stale Task Monitor
 - [ ] Phase 4 — Channel Notifications
 - [ ] Phase 5 — Task UI
@@ -62,17 +62,31 @@ Phase 2 wiring + plan persistence committed (commit `59512ee`):
 - Workspace typecheck: 18/18 pass.
 - Tests: agent 984/984 pass; api 778/788 pass — the 10 failures (`chat-quality.test.ts`, `training-data.test.ts`) are pre-existing on `bf36701` baseline, unrelated to this change.
 
-Phase 2 remaining work for next session:
-1. **`reflectOnTask` listener** — `packages/agent/src/tasks/reflect.ts` subscribed to `TOPICS.TASK_COMPLETED` and `TOPICS.TASK_FAILED`. The `TASK_FAILED` topic is now emitting (`TaskFailedPayload` with the 4-field summary). `TASK_COMPLETED` is **not yet emitting** anywhere in the codebase even though `memory/consolidation.ts:160` already subscribes to it — that's a pre-existing gap; emitting it from `agent-loop.ts:904` (after `completeTask`) is part of this work. Listener formats synthetic turn text and routes through the existing memory extraction pipeline (this is also Phase 6 work — safe to start now).
-2. **Per-step lifecycle writes** — executor (`packages/agent/src/executor/index.ts`) needs to flip `task_steps.state` `pending → running → completed | failed` and populate `started_at`, `completed_at`, `attempts`, `error`. Today it only writes `outcome` + `isTerminal`. Phase 1 schema added the columns; now make them actually used.
+Phase 2 closing items committed (this session):
 
-(1) and (2) are independent; either can go first.
+- **`TASK_COMPLETED` emission** — `apps/api/src/agent-loop.ts` now publishes `TOPICS.TASK_COMPLETED` with a `TaskCompletedPayload` (description, outcome, qualityScore, durationMs, toolsUsed) right after the `completeTask(...)` + `recordTaskEvent('complete')` block. The previous inline `recordTaskMemory` block was **removed** — task-memory writes now have a single owner (the reflect listener). `memory/consolidation.ts:160` continues to subscribe to the same topic for anti-bloat.
+- **`reflect.ts` listener** — new `packages/agent/src/tasks/reflect.ts` subscribes to both `TOPICS.TASK_COMPLETED` and `TOPICS.TASK_FAILED`, formats synthetic turn text, and routes through `recordTaskMemory` (success/partial outcomes carry `qualityScore` + `durationMs`; failures carry the 4-field escalation summary as notes). `aiSettings` are loaded on-demand via `loadSettingsFromInstances` so shorthand summarization still runs in the listener path. Wired at startup from `apps/api/src/index.ts` next to `initConsolidationListener`. Idempotent via an `_initialized` guard.
+- **Per-step lifecycle writes** — `packages/agent/src/executor/index.ts` now does a two-phase write per outer iteration:
+    1. Pre-step `INSERT` with `state='running'`, `started_at`, `attempts: 1`. Returns the row id; on failure, falls back to the historical end-of-step single-insert path.
+    2. End-of-step `UPDATE` with `state='completed'`, `completed_at`, `attempts = stepRetries + 1`, `step_type` (`tool_call` or `llm_generation` derived from whether the step produced any tool calls), plus the legacy `model/tokens/toolCalls/outcome/stepState/isTerminal` payload.
+    3. The inner `generateText` retry loop is wrapped in a try/catch that flips the running row to `state='failed'` with the captured `error` message before re-throwing — so a transient-retry exhaustion now produces a `failed` step row before the agent-loop's `markTaskFailed` pipeline takes over.
+- New package export: `@plexo/agent/tasks/reflect`.
+- New event-payload type: `TaskCompletedPayload` (added to `packages/agent/src/tasks/types.ts`).
+- Workspace typecheck: 18/18 pass.
+- Tests: agent 984/984 pass; api 778/788 pass — same 10 pre-existing failures (`chat-quality.test.ts`, `training-data.test.ts`) as the prior commit baseline.
 
-Notes for next session:
-- `markTaskFailed` is idempotent on `status='failed'` updates, so calling it twice won't corrupt state — but `TASK_FAILED` will be re-emitted both times. If a future caller might race, it should pass `requireFromStatus` to suppress the duplicate event.
-- `markTaskFailed` does **not** touch `task_steps`. When (2) lands, the executor's catch path should also mark the in-flight step `failed` before bubbling up to the agent-loop's transient-retry/markTaskFailed pipeline.
-- Sweepers (`cleanupStaleTasks` / `recoverGhostTasks`) intentionally pass no `aiSettings` to `markTaskFailed` — they batch-process tasks across workspaces and we don't want to load AI settings for each. Result: sweeper failures use the deterministic escalation summary only. If an LLM-quality narrative for stuck-task escalation matters, refactor to pass workspace-scoped settings.
-- `TASK_FAILED` topic was already declared in `event-bus.ts:33` (`'plexo.task.failed'`) — no edit needed there. Item (3) from the previous handoff is folded into the wiring above.
+Phase 2 ship-gate considerations before moving to Phase 3:
+
+- `pnpm db:migrate` was **not** re-run in this WSL environment (no DATABASE_URL). Phase 1's migration `0104_project_system_phase1.sql` still needs to be applied against the target DB — no new migrations were added in this session.
+- `pnpm build` was **not** run; only typecheck + tests. Run before the gate is officially closed.
+- The reflect listener writes one task-memory row per `TASK_COMPLETED`/`TASK_FAILED` event; consolidation will trim long-tail entries via the existing 50-row threshold.
+
+Notes / known limits:
+
+- The two-phase step write only handles the model-call path's throw via try/catch. Other throws inside the iteration body (truncation `PlexoError` at the truncation-loop bail-out, mid-run `TASK_COST_CEILING` / `COST_CEILING_REACHED` PlexoErrors) leave the running row in `state='running'`. Acceptable for now — `cleanupStaleTasks` and a future Phase 3 sweeper can reap orphaned step rows. Wider try/catch would require re-indenting ~500 lines of iteration body; revisit only if step-row leaks become observable.
+- Step `state='failed'` does **not** fire on detected `invalidToolCalls` (Zod validation failures). Those are a hint-and-retry pattern — the model produced bad arguments but the iteration itself ran successfully. State remains `completed` for those rows; the legacy `outcome` field captures the partial-success nuance.
+- `recordTaskMemory` from the listener loads workspace AI settings via `loadSettingsFromInstances`, which reads the DB. If the listener fires for a workspace whose settings are missing, shorthand summarization is skipped silently and the row still lands.
+- Pre-existing api test failures unchanged — do **not** treat as a regression.
 
 Audit assumptions still in effect (override if needed):
 - No Inngest. Postgres-queue stack only.

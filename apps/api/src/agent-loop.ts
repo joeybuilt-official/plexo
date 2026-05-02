@@ -7,8 +7,8 @@ import { tasks, apiCostTracking, workspaces, sprints, sprintTasks, plexoOpsTaskE
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import { markTaskFailed } from '@plexo/agent/tasks/terminal-fail'
-import { FailureReason } from '@plexo/agent/tasks/types'
-import { recordTaskMemory } from '@plexo/agent/memory/store'
+import { FailureReason, type TaskCompletedPayload } from '@plexo/agent/tasks/types'
+import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import { emitToWorkspace } from './sse-emitter.js'
@@ -1008,26 +1008,31 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         // work_ledger is written by executor/index.ts (richer row with deliverables + wall_clock_ms).
         // Do NOT write here — that was double-counted. agent-loop only owns api_cost_tracking.
 
-        // ── Task memory ────────────────────────────────────────────────────────
-        // Store a semantic memory entry so the Intelligence page has entries to show
-        // and future tasks can retrieve relevant past context.
+        // ── TASK_COMPLETED event ───────────────────────────────────────────────
+        // Single fan-out point: reflect.ts writes the semantic memory entry,
+        // consolidation.ts checks anti-bloat thresholds. Both subscribe to
+        // TOPICS.TASK_COMPLETED so this publish is the only call site.
         try {
-            const taskCtxForMem = task.context as Record<string, unknown> | null | undefined
-            const description = (taskCtxForMem?.description as string)
-                ?? (taskCtxForMem?.message as string)
+            const taskCtxForEvent = task.context as Record<string, unknown> | null | undefined
+            const description = (taskCtxForEvent?.description as string)
+                ?? (taskCtxForEvent?.message as string)
                 ?? task.type
-            await recordTaskMemory({
-                workspaceId: taskWorkspaceId ?? '',
+            const toolsUsedForEvent = [...new Set(
+                (result.steps ?? []).flatMap(s => (s.toolCalls ?? []).map(tc => tc.tool))
+            )]
+            const completedPayload: TaskCompletedPayload = {
                 taskId: task.id,
+                workspaceId: taskWorkspaceId ?? '',
                 description,
                 outcome: result.ok ? 'success' : 'partial',
-                toolsUsed: [],  // executor doesn't currently expose tool list in result
+                outcomeSummary: result.outcomeSummary?.slice(0, 2000),
                 qualityScore: result.qualityScore,
-                notes: result.outcomeSummary?.slice(0, 300),
-                aiSettings: aiSettings ?? undefined,
-            })
-        } catch (memErr) {
-            logger.warn({ err: memErr, taskId: task.id }, 'recordTaskMemory failed — non-fatal')
+                durationMs: Date.now() - taskStartMs,
+                toolsUsed: toolsUsedForEvent,
+            }
+            eventBus.publish(TOPICS.TASK_COMPLETED, completedPayload)
+        } catch (publishErr) {
+            logger.warn({ err: publishErr, taskId: task.id }, 'TASK_COMPLETED publish failed — non-fatal')
         }
 
         // ── Post-task reflection (non-fatal) ──────────────────────────────────
