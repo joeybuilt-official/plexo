@@ -18,6 +18,7 @@
 
 import pino from 'pino'
 import { db, sql } from '@plexo/db'
+import { emitMemoryRetrievalFlush, emitMemoryConfidenceDecay } from '@plexo/agent/analytics/memory-events'
 
 const logger = pino({ name: 'confidence-lifecycle' })
 
@@ -56,6 +57,7 @@ export async function flushRetrievalCounts(): Promise<void> {
         if (cooledCount > 0 || frozenCount > 0) {
             logger.info({ cooledCount, frozenCount }, 'flush-retrieval-counts: tier update complete')
         }
+        emitMemoryRetrievalFlush({ cooledCount, frozenCount })
     } catch (err) {
         logger.error({ err }, 'flush-retrieval-counts: failed')
         throw err
@@ -73,6 +75,7 @@ export async function decayConfidence(): Promise<void> {
         `)
         const decayed = (result as { rowCount?: number }).rowCount ?? 0
         logger.info({ decayed, factor: CONFIDENCE_DECAY_FACTOR, floor: CONFIDENCE_FLOOR }, 'decay-confidence: complete')
+        emitMemoryConfidenceDecay({ decayedCount: decayed, factor: CONFIDENCE_DECAY_FACTOR, floor: CONFIDENCE_FLOOR })
     } catch (err) {
         logger.error({ err }, 'decay-confidence: failed')
         throw err

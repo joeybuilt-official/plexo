@@ -22,6 +22,7 @@ import type { MemoryType, MemoryTier, MemorySearchResult } from './store.js'
 import { embed } from './store.js'
 import { DEFAULT_NAMESPACE } from './namespace.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
+import { emitMemoryRetrieval } from '../analytics/memory-events.js'
 
 const logger = pino({ name: 'memory:query' })
 
@@ -62,6 +63,7 @@ export async function queryMemory(params: QueryMemoryParams): Promise<MemorySear
     } = params
 
     if (!queryText.trim()) return []
+    const _retrievalStart = Date.now()
 
     const nsArray = sql`ARRAY[${sql.join(namespaces.map((n) => sql`${n}`), sql`, `)}]::text[]`
     const userClause = userId
@@ -159,7 +161,10 @@ export async function queryMemory(params: QueryMemoryParams): Promise<MemorySear
         }
     }
 
-    if (rows.length === 0) return []
+    if (rows.length === 0) {
+        emitMemoryRetrieval({ workspaceId, userId, mode, resultCount: 0, latencyMs: Date.now() - _retrievalStart })
+        return []
+    }
 
     // Bump retrieval counters non-blocking — Phase 7 flush job will batch-commit.
     const ids = rows.map((r) => r.id)
@@ -170,6 +175,8 @@ export async function queryMemory(params: QueryMemoryParams): Promise<MemorySear
             tier = CASE WHEN tier = 'active' THEN 'hot' ELSE tier END
         WHERE id = ANY(${ids}::uuid[])
     `).catch(() => { /* non-fatal */ })
+
+    emitMemoryRetrieval({ workspaceId, userId, mode, resultCount: rows.length, latencyMs: Date.now() - _retrievalStart })
 
     return rows.map((r) => ({
         id: r.id,

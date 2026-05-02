@@ -16,6 +16,7 @@ import pino from 'pino'
 import { z } from 'zod'
 import { db, sql } from '@plexo/db'
 import { memoryEntries } from '@plexo/db'
+import { emitMemoryExtraction, emitMemoryEmbedded } from '../analytics/memory-events.js'
 
 const logger = pino({ name: 'extract-worker' })
 
@@ -83,8 +84,12 @@ export async function extractTurn(params: {
             schemaDescription: 'Durable facts extracted from a conversation turn.',
         })
 
-        if (!parsed.facts.length) return
+        if (!parsed.facts.length) {
+            emitMemoryExtraction({ workspaceId, factsExtracted: 0, factsWritten: 0, source, sessionId })
+            return
+        }
 
+        let factsWritten = 0
         for (const fact of parsed.facts.slice(0, 3)) {
             const content = `${fact.subject} ${fact.predicate} ${fact.object}`
             const id = crypto.randomUUID()
@@ -107,19 +112,29 @@ export async function extractTurn(params: {
                 namespace: 'default',
                 tier: 'active',
             })
+            factsWritten++
 
             // Pattern rows must land with embeddings — mirrors the storeMemory
             // pattern/note embedding floor so vector search never sees nulls.
+            const embedStart = Date.now()
             const vector = await embed(content, workspaceId, aiSettings ?? undefined).catch(() => null)
             if (vector) {
                 const vecStr = `[${vector.join(',')}]`
                 await db.execute(
                     sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
                 )
+                emitMemoryEmbedded({ workspaceId, factId: id, dimensions: vector.length, latencyMs: Date.now() - embedStart })
             }
 
             logger.info({ workspaceId, factType: fact.factType, subject: fact.subject }, 'extract-worker: fact persisted')
         }
+        emitMemoryExtraction({
+            workspaceId,
+            factsExtracted: parsed.facts.length,
+            factsWritten,
+            source,
+            sessionId,
+        })
     } catch (err) {
         logger.warn({ err, workspaceId }, 'extract-worker: fact extraction failed (non-fatal)')
     }

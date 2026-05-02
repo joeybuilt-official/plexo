@@ -24,6 +24,7 @@ import {
     defaultNamespaceForAgent,
     sharedNamespaces,
 } from './namespace.js'
+import { emitMemoryCacheHit, emitMemoryCacheMiss } from '../analytics/memory-events.js'
 
 const logger = pino({ name: 'memory' })
 
@@ -346,8 +347,10 @@ export async function searchMemory(params: {
             if (redis) {
                 const cached = await redis.get(searchKey(workspaceId, (query || '') + '|ns:' + nsCacheKey, type))
                 if (cached) {
+                    emitMemoryCacheHit({ workspaceId, cacheKind: 'search' })
                     return JSON.parse(cached) as MemorySearchResult[]
                 }
+                emitMemoryCacheMiss({ workspaceId, cacheKind: 'search' })
             }
         } catch { /* non-fatal */ }
     }

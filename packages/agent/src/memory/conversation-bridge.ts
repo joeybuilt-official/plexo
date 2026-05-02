@@ -26,6 +26,7 @@ import {
     extractRevocationTrigger,
     hasRevocationCondition,
 } from './instruction-detect.js'
+import { emitMemoryUserWrite } from '../analytics/memory-events.js'
 
 // Re-export detection functions for consumers
 export { hasInstructionIntent, hasRevocationCondition } from './instruction-detect.js'
@@ -118,6 +119,7 @@ export async function persistInstruction(params: {
             type: ruleType,
             conditional: hasRevocation,
         }, 'Persisted conversation instruction as behavior rule')
+        emitMemoryUserWrite({ workspaceId, ruleKey, ruleType, conditional: hasRevocation })
     } catch (err) {
         logger.warn({ err, workspaceId }, 'Failed to persist conversation instruction')
     }
