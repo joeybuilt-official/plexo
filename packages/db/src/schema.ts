@@ -87,6 +87,21 @@ export const taskSourceEnum = pgEnum('task_source', [
     'webhook',
 ])
 
+export const taskStepStateEnum = pgEnum('task_step_state', [
+    'pending',
+    'running',
+    'completed',
+    'failed',
+    'skipped',
+])
+
+export const taskStepTypeEnum = pgEnum('task_step_type', [
+    'tool_call',
+    'confirmation',
+    'verification',
+    'llm_generation',
+])
+
 export const sprintStatusEnum = pgEnum('sprint_status', [
     'planning',
     'running',
@@ -290,6 +305,24 @@ export const tasks = pgTable('tasks', {
     attemptCount: integer('attempt_count').default(0).notNull(),
     /** Structured deliverable output — populated by task_complete tool */
     deliverable: jsonb('deliverable'),
+    /**
+     * Persisted planner output. When set, the executor can resume from a crashed
+     * step instead of re-planning. Shape matches packages/agent/src/planner ExecutionPlan.
+     */
+    plan: jsonb('plan'),
+    /**
+     * Per-task wall-clock budget in seconds. Null = use the global default
+     * applied by the stale-task sweeper (currently 2h for blocked, 7d for queued).
+     */
+    wallClockLimitSec: integer('wall_clock_limit_sec'),
+    /** Set when the task transitions to a failed terminal state. */
+    failedAt: timestamp('failed_at', { mode: 'date', withTimezone: true }),
+    /**
+     * Machine-readable failure reason. Distinct from outcomeSummary, which is the
+     * user-facing narrative. Examples: 'wall_clock_exceeded', 'confirmation_expired',
+     * 'max_attempts_exceeded', 'tool_error', 'verification_failed'.
+     */
+    failureReason: text('failure_reason'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
     claimedAt: timestamp('claimed_at', { mode: 'date' }),
     claimedUntil: timestamp('claimed_until', { mode: 'date', withTimezone: true }),
@@ -359,9 +392,28 @@ export const taskSteps = pgTable('task_steps', {
     stepState: jsonb('step_state'),
     /** True when task_complete was called in this step */
     isTerminal: boolean('is_terminal').default(false).notNull(),
+    /**
+     * Lifecycle state of this step. Distinct from `outcome` (free-form text):
+     * `state` is enum-typed for query/filter, `outcome` is human-readable.
+     */
+    state: taskStepStateEnum('state').default('pending').notNull(),
+    /** Categorises what kind of work this step represents. Drives executor dispatch. */
+    stepType: taskStepTypeEnum('step_type'),
+    /**
+     * Frozen specification of what this step should do, derived from the planner output.
+     * Lets the executor resume a step exactly as planned even after a process restart.
+     */
+    stepSpec: jsonb('step_spec'),
+    /** Per-step retry counter. Distinct from tasks.attemptCount (task-level). */
+    attempts: integer('attempts').default(0).notNull(),
+    /** Step-level error string. Populated on failure regardless of `outcome` content. */
+    error: text('error'),
+    startedAt: timestamp('started_at', { mode: 'date', withTimezone: true }),
+    completedAt: timestamp('completed_at', { mode: 'date', withTimezone: true }),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table: any) => [
     index('task_steps_task_idx').on(table.taskId),
+    index('task_steps_task_state_idx').on(table.taskId, table.state),
 ])
 
 export const sprints = pgTable('sprints', {
