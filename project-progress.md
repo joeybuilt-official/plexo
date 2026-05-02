@@ -2,7 +2,7 @@
 
 Last updated: 2026-05-02
 Current phase: 2 (Phase 2 deliverables complete — ready to ship-gate and move to Phase 3)
-Last commit: <pending — this commit>
+Last commit: ccf4403
 
 ## Phase Status
 - [x] Phase 0 — Audit
