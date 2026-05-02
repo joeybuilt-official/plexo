@@ -40,11 +40,6 @@ describe.skipIf(!API_KEY_A || !API_KEY_B)('Workspace Isolation (SEC-P1)', () => 
         expect([401, 403, 404]).toContain(res.status)
     })
 
-    it('SCL endpoint rejects cross-workspace access', async () => {
-        const res = await fetchAsA(`/api/v1/workspaces/${WS_B}/scl/attractors`)
-        expect([401, 403, 404]).toContain(res.status)
-    })
-
     it('introspection endpoint rejects cross-workspace access', async () => {
         const res = await fetchAsA(`/api/v1/workspaces/${WS_B}/introspect`)
         expect([401, 403, 404]).toContain(res.status)

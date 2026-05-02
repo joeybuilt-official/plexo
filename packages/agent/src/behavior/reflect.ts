@@ -46,17 +46,10 @@ export interface ReflectCtx {
 
 /** Result metadata for analytics emission by the call site. */
 export interface ReflectResult {
-    /** Which reflection track ran: 'success', 'failure', 'scl', or 'skipped'. */
-    track: 'success' | 'failure' | 'scl' | 'skipped'
+    /** Which reflection track ran: 'success', 'failure', or 'skipped'. */
+    track: 'success' | 'failure' | 'skipped'
     /** Number of observations/concepts extracted. */
     observationCount: number
-    /** SCL mutation stats (only populated when track='scl'). */
-    sclStats?: {
-        attractorsRefined: number
-        attractorsCreated: number
-        ghostsArchived: number
-        driftWarnings: number
-    }
 }
 
 interface Observation {

@@ -287,7 +287,7 @@ function toChatFormat(
             if (!content) return null
             return {
                 messages: [
-                    { role: 'system', content: 'You are a memory compression engine for Plexo.' },
+                    { role: 'system', content: 'Use the provided memory facts directly — do not summarize or compress them.' },
                     { role: 'user', content: `Compress this memory entry (type: ${row.type ?? 'unknown'}, tier: ${row.tier ?? 'active'}):\n${content}` },
                     { role: 'assistant', content: shorthand ?? content.slice(0, 200) },
                 ],

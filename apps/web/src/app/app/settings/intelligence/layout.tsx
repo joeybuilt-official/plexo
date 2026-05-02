@@ -18,10 +18,6 @@
  *   /app/settings/intelligence/models
  *   /app/settings/intelligence/embeddings
  *   /app/settings/intelligence/memory
- *   /app/settings/intelligence/scl
- *   /app/settings/intelligence/scl/drift
- *   /app/settings/intelligence/scl/rsi
- *   /app/settings/intelligence/scl/attractors
  *   /app/settings/intelligence/self-hosted
  */
 

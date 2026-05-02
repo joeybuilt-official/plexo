@@ -11,7 +11,7 @@ import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import { emitToWorkspace } from './sse-emitter.js'
 import { registerCodeContext, unregisterCodeContext } from './routes/code.js'
-import { emitTaskOutcome, emitReflectionEvent, emitSclMutate, emitSclDriftWarning } from './analytics/events.js'
+import { emitTaskOutcome, emitReflectionEvent } from './analytics/events.js'
 import { trackError, trackEvent } from './event-tracker.js'
 import type { WorkspaceAISettings, ProviderKey, AIProviderConfig } from '@plexo/agent/providers/registry'
 import { logger } from './logger.js'
@@ -868,39 +868,37 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             })
         } catch { /* analytics must never crash the app */ }
 
-        // SCL: log inference + extract structural graph (fire-and-forget)
+        // Log inference metrics (fire-and-forget)
         let inferenceLogId: string | undefined
         try {
-            const { classifyDomainRegion } = await import('@plexo/agent/scl/classifier')
             const taskCtx = (task.context as Record<string, unknown>) ?? {}
-            const taskDesc = String(taskCtx.instructions ?? taskCtx.goal ?? task.type ?? '')
-            const region = classifyDomainRegion(taskDesc, task.type ?? undefined)
+            const text = `${String(taskCtx.instructions ?? taskCtx.goal ?? task.type ?? '')} ${task.type ?? ''}`.toLowerCase()
+            const regionKeywords: Record<string, string[]> = {
+                'code': ['code', 'function', 'bug', 'refactor', 'typescript', 'javascript', 'python', 'api', 'endpoint', 'test', 'build', 'compile', 'deploy', 'git', 'commit', 'pr', 'lint', 'fix'],
+                'writing': ['write', 'draft', 'edit', 'blog', 'article', 'copy', 'email', 'document', 'summary', 'report', 'prose', 'content', 'changelog', 'readme'],
+                'data-analysis': ['data', 'analyze', 'csv', 'spreadsheet', 'chart', 'graph', 'metrics', 'dashboard', 'sql', 'query', 'aggregate', 'statistics', 'trend'],
+                'planning': ['plan', 'roadmap', 'strategy', 'architecture', 'design', 'spec', 'requirements', 'milestone', 'sprint', 'scope', 'estimate', 'breakdown'],
+                'research': ['research', 'investigate', 'find', 'search', 'compare', 'evaluate', 'benchmark', 'alternatives', 'options', 'audit', 'review'],
+                'qa': ['test', 'qa', 'verify', 'validate', 'check', 'assert', 'regression', 'coverage', 'e2e', 'integration', 'unit test'],
+                'conversation': ['chat', 'ask', 'explain', 'help', 'question', 'answer', 'clarify', 'discuss'],
+                'creative': ['design', 'creative', 'brainstorm', 'ideate', 'generate', 'imagine', 'concept', 'prototype', 'mockup', 'ui', 'ux'],
+            }
+            let bestRegion = 'conversation'
+            let bestScore = 0
+            for (const [region, keywords] of Object.entries(regionKeywords)) {
+                const score = keywords.filter(kw => text.includes(kw)).length
+                if (score > bestScore) { bestScore = score; bestRegion = region }
+            }
             const rows = await db.execute<{ id: string }>(sql`
                 INSERT INTO inference_logs (instance_uuid, model, provider, input_tokens, output_tokens, latency_ms, domain_region, task_type, success)
                 VALUES (${process.env.PLEXO_INSTANCE_ID ?? 'unknown'}, ${ctx.activeModel ?? 'unknown'}, ${ctx.activeProvider ?? 'unknown'},
                         ${result.totalTokensIn}, ${result.totalTokensOut}, ${result.totalDurationMs},
-                        ${region}, ${task.type ?? 'unknown'}, ${result.ok})
+                        ${bestRegion}, ${task.type ?? 'unknown'}, ${result.ok})
                 RETURNING id
             `)
             inferenceLogId = rows[0]?.id
-
-            // SCL-S structural extraction
-            const { extractAndStoreSclS } = await import('@plexo/agent/scl/extractor')
-            const toolsUsed = [...new Set(result.steps.flatMap(s => s.toolCalls.map(tc => tc.tool)))]
-            void extractAndStoreSclS({
-                taskId: task.id,
-                workspaceId: taskWorkspaceId ?? '',
-                type: task.type ?? 'unknown',
-                domainRegion: region,
-                toolsUsed,
-                stepCount: result.steps.length,
-                qualityScore: result.qualityScore,
-                completedAt: new Date(),
-                inferenceLogId,
-            })
-
-        } catch (sclErr) {
-            logger.warn({ err: sclErr, taskId: task.id }, 'SCL post-task processing failed (non-fatal)')
+        } catch (logErr) {
+            logger.warn({ err: logErr, taskId: task.id }, 'Inference log write failed (non-fatal)')
         }
 
         await completeTask(task.id, {
@@ -1024,27 +1022,12 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             // ── Wire analytics emitters (domain mastery Phase 1) ──────────
             if (reflectResult.track !== 'skipped') {
                 emitReflectionEvent({
-                    track: reflectResult.track === 'scl' ? 'success' : reflectResult.track,
+                    track: reflectResult.track,
                     observationCount: reflectResult.observationCount,
                     taskType: task.type,
                 })
             }
-            if (reflectResult.track === 'scl' && reflectResult.sclStats) {
-                emitSclMutate({
-                    attractorsRefined: reflectResult.sclStats.attractorsRefined,
-                    attractorsCreated: reflectResult.sclStats.attractorsCreated,
-                    ghostsArchived: reflectResult.sclStats.ghostsArchived,
-                    driftWarnings: reflectResult.sclStats.driftWarnings,
-                })
-                // Emit individual drift warnings
-                if (reflectResult.sclStats.driftWarnings > 0) {
-                    emitSclDriftWarning({
-                        attractorLabel: 'aggregate',
-                        semanticDistance: 0,
-                        threshold: 0,
-                    })
-                }
-            }
+
         } catch (reflectErr) {
             logger.warn({ err: reflectErr, taskId: task.id }, 'reflectAndPromote failed — non-fatal')
         }

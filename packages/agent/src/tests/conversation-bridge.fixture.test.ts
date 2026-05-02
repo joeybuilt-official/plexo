@@ -2,14 +2,9 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Phase 1 of intelligence-hardening: fixture tests for the
- * conversation-bridge SCL concept extractor. Production call site:
- *     packages/agent/src/memory/conversation-bridge.ts:200-215
- *
- *     generateText(...) → strip ```json fences → JSON.parse →
- *     access parsed.concepts (no Zod)
- *
- * Shape: {"concepts":[{"label":"...","type":"entity"|"state"|"action"|"property"|"claim"}]}
+ * Fixture tests for conversation-bridge. Production call site:
+ *     packages/agent/src/memory/conversation-bridge.ts
+ *     → extractTurn() dispatches extract-worker job → atomic facts written to memory_entries
  */
 
 import { describe, it, expect } from 'vitest'

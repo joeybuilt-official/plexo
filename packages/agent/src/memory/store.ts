@@ -163,19 +163,7 @@ export async function embed(text: string, workspaceId: string, aiSettings?: Work
 
 // ── Summarization ────────────────────────────────────────────────────────────
 
-const SHORTHAND_SYSTEM_PROMPT = `You are a memory compression engine.
-Compress agent memories into a dense "shorthand" format to minimize token usage while preserving all critical facts and principles.
-
-Format:
-F: <comma-separated key facts>
-P: <comma-separated behavioral principles or "lessons learned" - actionable>
-S: <extremely concise summary (~5-7 words)>
-
-Rules:
-- Use abbreviations (e.g. mktg, succ, err, impl, ws).
-- No filler words (the, a, is, for).
-- Keep it extremely dense.
-- Principles should be actionable in future tasks.`
+const SHORTHAND_SYSTEM_PROMPT = 'Use the provided memory facts directly — do not summarize or compress them.'
 
 async function summarizeMemory(params: {
     content: string,

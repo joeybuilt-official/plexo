@@ -552,36 +552,4 @@ export function emitSclExpand(opts: {
     }).catch(() => { /* never throws */ })
 }
 
-export function emitSclMutate(opts: {
-    attractorsRefined: number
-    attractorsCreated: number
-    ghostsArchived: number
-    driftWarnings: number
-}): void {
-    void emit('scl_mutate', {
-        attractors_refined: opts.attractorsRefined,
-        attractors_created: opts.attractorsCreated,
-        ghosts_archived: opts.ghostsArchived,
-        drift_warnings: opts.driftWarnings,
-    }).catch(() => { /* never throws */ })
-}
 
-export function emitSclDriftWarning(opts: {
-    attractorLabel: string
-    semanticDistance: number
-    threshold: number
-}): void {
-    void emit('scl_drift_warning', {
-        attractor_label: opts.attractorLabel,
-        semantic_distance: opts.semanticDistance,
-        threshold: opts.threshold,
-    }).catch(() => { /* never throws */ })
-}
-
-export function emitSclBoot(opts: {
-    spiritAnchorCount: number
-}): void {
-    void emit('scl_boot', {
-        spirit_anchor_count: opts.spiritAnchorCount,
-    }).catch(() => { /* never throws */ })
-}

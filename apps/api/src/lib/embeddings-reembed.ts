@@ -248,10 +248,6 @@ export async function runReembedJob(jobId: string, params: ReembedParams): Promi
                     continue
                 }
                 try {
-                    // SCL graphs aren't directly embedded — instead we tag the
-                    // graph blob with the new lineage so downstream resolvers
-                    // know to refresh attractor centroids on next read. Full
-                    // attractor recomputation is Phase 3b.
                     const newGraph = {
                         ...graph,
                         embedding_lineage: {
