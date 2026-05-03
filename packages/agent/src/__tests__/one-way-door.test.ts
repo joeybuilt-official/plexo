@@ -50,7 +50,7 @@ vi.mock('redis', () => ({
 
 vi.mock('../plugins/event-bus.js', () => ({
     eventBus: { emitSystem: vi.fn() },
-    TOPICS: { OWD_PENDING: 'owd:pending' },
+    TOPICS: { OWD_PENDING: 'owd:pending', OWD_RESOLVED: 'owd:resolved' },
 }))
 
 // ── DB mock (for standing approvals check) ─────────────────────────────────
@@ -230,6 +230,31 @@ describe('resolveDecision', () => {
         const fetched = await getDecision(decision.id)
         expect(fetched!.decision).toBe('approved')
         expect(fetched!.decidedBy).toBe('dashboard')
+    })
+
+    it('emits OWD_RESOLVED on resolve so worker-slot release path can wake', async () => {
+        const { eventBus } = await import('../plugins/event-bus.js')
+        const decision = await requestApproval(baseParams())
+        ;(eventBus.emitSystem as ReturnType<typeof vi.fn>).mockClear()
+        await resolveDecision(decision.id, 'approved', 'dashboard')
+        const calls = (eventBus.emitSystem as ReturnType<typeof vi.fn>).mock.calls
+        const resolved = calls.find((c) => c[0] === 'owd:resolved')
+        expect(resolved).toBeDefined()
+        const payload = resolved![1] as PendingDecision
+        expect(payload.id).toBe(decision.id)
+        expect(payload.decision).toBe('approved')
+        expect(payload.decidedBy).toBe('dashboard')
+    })
+
+    it('does NOT emit OWD_RESOLVED when resolve is a no-op (already resolved)', async () => {
+        const { eventBus } = await import('../plugins/event-bus.js')
+        const decision = await requestApproval(baseParams())
+        await resolveDecision(decision.id, 'approved', 'first')
+        ;(eventBus.emitSystem as ReturnType<typeof vi.fn>).mockClear()
+        await resolveDecision(decision.id, 'rejected', 'second')
+        const resolvedCalls = (eventBus.emitSystem as ReturnType<typeof vi.fn>).mock.calls
+            .filter((c) => c[0] === 'owd:resolved')
+        expect(resolvedCalls).toHaveLength(0)
     })
 })
 

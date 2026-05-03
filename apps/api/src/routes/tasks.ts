@@ -349,6 +349,14 @@ tasksRouter.post('/:id/cancel', async (req, res) => {
             return
         }
 
+        // Order matters: queueCancel must run BEFORE resolveDecision so the
+        // OWD_RESOLVED bus listener (registered when OWD_RELEASE_SLOT='planner_only')
+        // finds the row already in 'cancelled' state and skips its
+        // markTaskFailed call. Otherwise the in-process EventEmitter delivers
+        // synchronously and the listener flips status to 'failed' before
+        // queueCancel runs, contradicting the user's cancel intent.
+        await queueCancel(id)
+
         if (existing.status === 'awaiting_approval') {
             const ctx = (existing.context ?? {}) as Record<string, unknown>
             const approvalId = typeof ctx._approvalId === 'string' ? ctx._approvalId : null
@@ -361,8 +369,6 @@ tasksRouter.post('/:id/cancel', async (req, res) => {
                 }
             }
         }
-
-        await queueCancel(id)
         const aborted = cancelActiveTask(id)
         emitToWorkspace(existing.workspaceId, { type: 'task_cancelled', taskId: id })
         trackEvent('task.cancelled', 'warning', { taskId: id, workspaceId: existing.workspaceId, previousStatus: existing.status })

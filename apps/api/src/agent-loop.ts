@@ -5,6 +5,7 @@ import { claimTask, completeTask, blockTask, requeueForRetry } from '@plexo/queu
 import { db, eq, and, sql, inArray } from '@plexo/db'
 import { tasks, apiCostTracking, workspaces, sprints, sprintTasks, plexoOpsTaskEvents } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
+import type { ExecutionPlan } from '@plexo/agent/types'
 import { executeTask } from '@plexo/agent/executor'
 import { markTaskFailed } from '@plexo/agent/tasks/terminal-fail'
 import { FailureReason, type TaskCompletedPayload, type EscalationSummary } from '@plexo/agent/tasks/types'
@@ -28,6 +29,17 @@ import { getCachedIntelligenceSettings, type IntelligenceSettings } from './lib/
 
 const POLL_INTERVAL_MS = 2_000
 const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '50')
+
+// Worker-slot release during awaiting_approval. Default off — long approval waits
+// continue to pin the worker (today's behavior). When set to 'planner_only', the
+// planner-gate path persists `_resumeAt='after_planner_gate'` on tasks.context,
+// returns from the executor (slot/heartbeat/activeTasks released by the existing
+// finally), and the OWD_RESOLVED bus subscriber CAS-resumes via status →
+// 'queued'. The resumed claim re-enters buildTaskContext, sees `_resumeAt`, and
+// jumps straight to executeTask using the persisted `tasks.plan`. The
+// in-executor OWD gate (executor/index.ts) is NOT covered by this — it sits
+// inside live tool/MCP sessions and needs a separate design.
+const OWD_RELEASE_SLOT = process.env.OWD_RELEASE_SLOT === 'planner_only'
 
 let running = true
 let activeTasks: Map<string, AbortController> = new Map()
@@ -689,6 +701,29 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             ?? (taskContext.message as string)
             ?? JSON.stringify(taskContext)
 
+        // Resume entry-point: a task that was paused at the planner-gate (status
+        // 'awaiting_approval' with `_resumeAt='after_planner_gate'` on context)
+        // is re-claimed once the OWD_RESOLVED bus listener CAS-flips it back to
+        // 'queued'. Skip planning + gate; the original run already persisted
+        // tasks.plan. Clear `_resumeAt` so a future approval flow doesn't loop.
+        const resumeAt = taskContext._resumeAt
+        const isResume = resumeAt === 'after_planner_gate' && task.plan !== null && task.plan !== undefined
+
+        let plan: ExecutionPlan
+        if (isResume) {
+            plan = task.plan as ExecutionPlan
+            try {
+                await db.update(tasks)
+                    .set({ context: sql`context - '_resumeAt'` })
+                    .where(eq(tasks.id, task.id))
+            } catch (clearErr) {
+                logger.warn({ err: clearErr, taskId: task.id }, 'clear _resumeAt failed — non-fatal')
+            }
+            logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'awaiting_approval', to: 'running', workspaceId: taskWorkspaceId, steps: plan.steps.length }, 'resumed after planner-gate approval')
+            void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'resumed', fromState: 'awaiting_approval', toState: 'running', metadata: { steps: plan.steps.length } })
+            emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_resumed', taskId: task.id })
+        } else {
+
         // Fast-path: skip the planner LLM call for simple tasks (< 120 chars, no special context).
         // The planner adds 5-15 seconds of latency for a second LLM round-trip that produces
         // a trivial 1-step plan for simple requests. Only run the full planner for complex tasks.
@@ -760,7 +795,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             return
         }
 
-        const plan = plannerResult.plan
+        plan = plannerResult.plan
         logger.info({ taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore }, 'Plan ready')
         // Persist the plan so a crash mid-execute doesn't lose the structured
         // step list. Phase 1 added tasks.plan jsonb for exactly this purpose.
@@ -844,7 +879,28 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                     ).catch(err => logger.warn({ err, taskId: task.id }, 'awaiting_confirmation notification failed'))
                 }
 
-                // Phase D limitation: worker slot held during approval poll; defer slot-release to a later phase (would need re-claim logic).
+                // Worker-slot release. When OWD_RELEASE_SLOT='planner_only', persist
+                // a resume marker on context, return early, and let the OWD_RESOLVED
+                // bus subscriber CAS-resume the task once the operator decides. The
+                // existing finally cleans up slot + heartbeat + activeTasks. Sweeper
+                // backstops the lost-event case (cleanupStaleTasks awaiting_approval
+                // branch).
+                if (OWD_RELEASE_SLOT) {
+                    let resumePersisted = false
+                    try {
+                        await db.update(tasks)
+                            .set({ context: sql`context || ${JSON.stringify({ _resumeAt: 'after_planner_gate' })}::jsonb` })
+                            .where(eq(tasks.id, task.id))
+                        resumePersisted = true
+                    } catch (resumeErr) {
+                        logger.warn({ err: resumeErr, taskId: task.id }, 'persist _resumeAt failed — falling back to blocking wait')
+                    }
+                    if (resumePersisted) {
+                        logger.info({ event: 'task.lifecycle', taskId: task.id, workspaceId: taskWorkspaceId, approvalId: approval.id, releasedSlot: true }, 'released slot during awaiting_approval — bus listener will resume')
+                        return
+                    }
+                }
+
                 const decision = await waitForDecision(approval.id)
 
                 if (decision === 'approved') {
@@ -927,6 +983,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 })
             }
         }
+        } // end of `else { /* not isResume */ }`
 
         // Pass workspace AI settings so executeTask uses the configured provider fallback chain
         const result = await executeTask(ctx, plan, aiSettings ?? undefined)
@@ -1423,7 +1480,7 @@ async function cleanupStaleTasks(): Promise<void> {
         const stale = await db.execute<{
             id: string
             workspace_id: string
-            status: 'queued' | 'blocked'
+            status: 'queued' | 'blocked' | 'awaiting_approval'
             context: Record<string, unknown> | null
             type: string | null
         }>(sql`
@@ -1434,6 +1491,9 @@ async function cleanupStaleTasks(): Promise<void> {
             ) OR (
                 status = 'queued'
                 AND created_at < NOW() - (COALESCE(wall_clock_limit_sec, 604800) * INTERVAL '1 second')
+            ) OR (
+                status = 'awaiting_approval'
+                AND created_at < NOW() - (COALESCE(wall_clock_limit_sec, 90000) * INTERVAL '1 second')
             )
             LIMIT 50
         `)
@@ -1444,11 +1504,16 @@ async function cleanupStaleTasks(): Promise<void> {
                 const desc = (ctx.description as string) ?? (ctx.message as string) ?? row.type ?? 'task'
                 const errorText = row.status === 'blocked'
                     ? 'Task remained in blocked state past its wall-clock budget — likely waiting on a clarification or approval that never arrived.'
+                    : row.status === 'awaiting_approval'
+                    ? 'Approval window elapsed before any operator responded.'
                     : 'Task sat in the queue past its wall-clock budget — capacity never freed up to run it.'
+                const failureReason = row.status === 'awaiting_approval'
+                    ? FailureReason.ConfirmationExpired
+                    : FailureReason.WallClockExceeded
                 await markTaskFailed({
                     taskId: row.id,
                     workspaceId: row.workspace_id,
-                    failureReason: FailureReason.WallClockExceeded,
+                    failureReason,
                     errorText,
                     taskDescription: desc,
                 })
@@ -1513,6 +1578,63 @@ async function recoverGhostTasks(): Promise<void> {
     }
 }
 
+let _owdResolvedListenerInitialized = false
+
+async function initOwdResolvedListener(): Promise<void> {
+    if (_owdResolvedListenerInitialized) return
+    _owdResolvedListenerInitialized = true
+
+    const { eventBus, TOPICS } = await import('@plexo/agent/event-bus')
+
+    eventBus.subscribe(TOPICS.OWD_RESOLVED, async (raw: unknown) => {
+        try {
+            const r = raw as { id?: string; taskId?: string; workspaceId?: string; decision?: 'approved' | 'rejected'; decidedBy?: string }
+            if (!r?.id || !r?.taskId || !r?.workspaceId || (r.decision !== 'approved' && r.decision !== 'rejected')) return
+
+            if (r.decision === 'approved') {
+                // Status-CAS resume: only if still awaiting_approval. Clear claim
+                // accounting so claimBatch picks up cleanly.
+                const result = await db.execute<{ id: string }>(sql`
+                    UPDATE tasks
+                    SET status = 'queued', claimed_at = NULL, claimed_until = NULL, retry_after = NULL
+                    WHERE id = ${r.taskId} AND status = 'awaiting_approval'
+                    RETURNING id
+                `)
+                if (result.length > 0) {
+                    logger.info({ taskId: r.taskId, approvalId: r.id, decidedBy: r.decidedBy, event: 'task.lifecycle', from: 'awaiting_approval', to: 'queued' }, 'OWD_RESOLVED: requeued for resume')
+                    void recordTaskEvent({ workspaceId: r.workspaceId, taskId: r.taskId, eventType: 'approval_granted', fromState: 'awaiting_approval', toState: 'queued', metadata: { approvalId: r.id, decidedBy: r.decidedBy, viaSlotRelease: true } })
+                    emitToWorkspace(r.workspaceId, { type: 'task_approved', taskId: r.taskId, approvalId: r.id })
+                }
+                // No row returned → the task was already cancelled / failed /
+                // resumed by another path. Idempotent no-op.
+            } else {
+                // rejected: terminate. Look up task for description; markTaskFailed
+                // is requireFromStatus-guarded so concurrent cancels don't race.
+                const [row] = await db.select({ context: tasks.context, workspaceId: tasks.workspaceId, type: tasks.type, status: tasks.status })
+                    .from(tasks).where(eq(tasks.id, r.taskId)).limit(1)
+                if (!row || row.status !== 'awaiting_approval') return
+                const taskCtx = (row.context ?? {}) as Record<string, unknown>
+                const desc = (taskCtx.description as string) ?? (taskCtx.message as string) ?? row.type ?? 'task'
+                await markTaskFailed({
+                    taskId: r.taskId,
+                    workspaceId: row.workspaceId ?? r.workspaceId,
+                    failureReason: FailureReason.Cancelled,
+                    errorText: 'User rejected the one-way-door approval.',
+                    taskDescription: desc,
+                    requireFromStatus: 'awaiting_approval',
+                })
+                logger.info({ taskId: r.taskId, approvalId: r.id, decidedBy: r.decidedBy, event: 'task.lifecycle', from: 'awaiting_approval', to: 'failed' }, 'OWD_RESOLVED: rejected — task failed')
+                void recordTaskEvent({ workspaceId: r.workspaceId, taskId: r.taskId, eventType: 'approval_rejected', fromState: 'awaiting_approval', toState: 'failed', metadata: { approvalId: r.id, decidedBy: r.decidedBy, viaSlotRelease: true } })
+                emitToWorkspace(r.workspaceId, { type: 'task_rejected', taskId: r.taskId, approvalId: r.id })
+            }
+        } catch (err) {
+            logger.warn({ err }, 'OWD_RESOLVED listener errored — non-fatal')
+        }
+    })
+
+    logger.info('OWD_RESOLVED listener registered (worker-slot release mode)')
+}
+
 export function startAgentLoop(): void {
     logger.info('Agent queue loop started')
 
@@ -1523,6 +1645,13 @@ export function startAgentLoop(): void {
     // Ghost task recovery — every 5 minutes
     void recoverGhostTasks()
     setInterval(() => { void recoverGhostTasks() }, 5 * 60 * 1000)
+
+    // OWD_RESOLVED bus subscriber — only registered when slot-release is on,
+    // because the legacy waitForDecision poll handles the resume path otherwise
+    // and double-handling would race with the existing inline status writes.
+    if (OWD_RELEASE_SLOT) {
+        void initOwdResolvedListener().catch((err) => logger.warn({ err }, 'OWD_RESOLVED listener init failed — non-fatal'))
+    }
 
     async function poll(): Promise<void> {
         while (running) {

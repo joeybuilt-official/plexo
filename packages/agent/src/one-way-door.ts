@@ -249,6 +249,7 @@ export async function resolveDecision(
 
     await redis.setEx(key(id), 600, JSON.stringify(updated))
     logger.info({ id, decision, decidedBy }, 'OWD resolved')
+    eventBus.emitSystem(TOPICS.OWD_RESOLVED, updated)
     return updated
 }
 
