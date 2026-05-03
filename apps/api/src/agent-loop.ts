@@ -89,6 +89,15 @@ export function emitPlanProposal(params: {
     approvalId: string | null
 }): boolean {
     if (params.plan.steps.length < 3) return false
+    logger.info({
+        event: 'plan_proposed',
+        taskId: params.taskId,
+        workspaceId: params.workspaceId,
+        stepCount: params.plan.steps.length,
+        requiresApproval: params.requiresApproval,
+        approvalId: params.approvalId,
+        confidence: params.plan.confidenceScore,
+    }, 'plan_proposed')
     emitToWorkspace(params.workspaceId, {
         type: 'plan_proposal',
         taskId: params.taskId,
@@ -879,6 +888,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             // Policy-only path uses 'medium' so an operator-set standing approval on 'general_task' can auto-approve. OWD path always uses 'high' which one-way-door.ts:99 locks out from standing approvals.
             const riskLevel: PendingDecision['riskLevel'] = owds.length > 0 ? 'high' : 'medium'
 
+            // F1 MVP: when steps.length < 3 the inline plan card is suppressed by emitPlanProposal's >= 3 gate, but this approvalId still exists; clients fall back to the existing task_awaiting_approval surface.
             pendingApproval = await requestApproval({
                 taskId: task.id,
                 workspaceId: taskWorkspaceId ?? '',
