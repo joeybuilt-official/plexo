@@ -1,8 +1,8 @@
 # Project System Progress
 
 Last updated: 2026-05-03
-Current phase: 7 closed + Phase 7+ follow-ups pass landed
-Last commit: c489718 (Phase 7) → Phase 7+ follow-ups pending commit at end of this session
+Current phase: 7 closed + Phase 7+ follow-ups landed + Phase 7++ panel-driven follow-ups landed (5 commits this session)
+Last commit: a5f021f (Phase 7++ — worker-slot release planner-gate, flag-gated)
 
 ## Phase Status
 - [x] Phase 0 — Audit
@@ -521,3 +521,73 @@ After the journal idx/when guard, also scan `*.sql` files in the migrations fold
 New `emitMemoryInjection({ workspaceId, userId, factsInjected, retrievalFailed })` analytics emitter writes a `memory.plan-injection` row to `plexo_ops_analytics`. Wired into `buildMemoryBlock`: emits on success with `factsInjected = hits.length`, on failure with `factsInjected = 0, retrievalFailed = true`. Distinct from `memory.retrieval` (which fires on every `queryMemory` call regardless of whether the hits were used). Closes Phase 6's "no memory injection metric" follow-up note. Lets analytics correlate "plans informed by memory" with plan quality / outcome over time.
 
 `build-memory-block.test.ts` extended with two new assertions (success-emit + failure-emit), now 7/7 pass. Agent suite **991/991** (was 989; +2 new). Workspace typecheck still 18/18.
+
+---
+
+## Phase 7++ panel-driven follow-ups (this session, 2026-05-03)
+
+Closed the 5 remaining "Still deferred after continuation pass" items via expert panel. 5 commits, all green. Final workspace state: 18/18 typecheck, agent **993/993** (+2 new), api 807/807. One item formally **abandoned** based on panel reframing — see end of section.
+
+**Process: 5-expert panel ran in parallel, returned one recommendation each, surfaced two reframings.** Each expert got full context (file paths, prior progress sections, the deferred-items table) and ≤500-word output. Panel produced ordered phased plan; commits shipped in dependency order.
+
+**Phase 0 — working-tree triage (commit `7d1a545`).** Pre-existing uncommitted state: docker compose env additions, four bridge dist rebuilds, the new fylo-bridge dist (whose extension manifest already pointed at it), plus a dangerous `docker/compose.override.yml` containing host-bound Postgres `5432:5432` + Redis `6379:6379` and a bind-mount to a path that doesn't exist on prod (`./ops/harnesseval/harness/...`). Reverted the override to its empty placeholder; added `ops/harnesseval/{results,harness/node_modules,harness/vendor/node_modules}` to `.gitignore`; committed `docker/compose.yml` (FONTO_URL/FONTO_SERVICE_KEY for `apps/api/src/routes/ai-media.ts:11,55-58`, PLEXO_MARKETING_ENABLED/SKIP_LANDING for `apps/web/src/lib/feature-flags.ts:36-38`) plus the four bridge dists. `ops/harnesseval/` left untouched (in-flight operator initiative).
+
+**Phase 1 — journal entries 0095-0098 (commit `4ad734b`).** Four migration files existed on disk but were never registered in `meta/_journal.json`, so Drizzle silently skipped them on every `db:migrate` — tables `memory_themes`, `synthesis_suggestions`, `memory_knn_edges`, `memory_theme_runs`, `memory_theme_history` and seed rows for `fylo`/`koforje` connections never landed in any environment. Verified all four files are idempotent (`CREATE/ALTER ... IF NOT EXISTS`, `ON CONFLICT DO NOTHING`); registered them with `when` values `1777939202100/200/300/400`, strictly between idx 94 (`1777939202000`) and idx 99 (`1777939203000`) and strictly increasing among themselves — satisfies the journal-order guard added in `46f62e6`. Next `pnpm db:migrate` against any environment that hasn't been hand-patched will apply 0095-0098.
+
+**Phase 2 — blockTask → markTaskFailed migration (commit `338cfe5`).** Closed deferred item *"Migrate non-transient blockTask path fully through markTaskFailed (semantic blocked → failed status change)."* Replaced the `blockTask` + inline-deterministicEscalation + inline-deliverTaskTransition triple at `apps/api/src/agent-loop.ts:1285-1303` with a single `markTaskFailed` call. Path now writes `failed_at` + `failure_reason` + structured `outcome_summary` and publishes `TASK_FAILED` on the bus; the existing `channel-delivery.ts:initTaskFailedListener` (Phase 4) owns delivery uniformly with the transient-max_attempts branch.
+
+Status semantics: non-transient executor failures land in `'failed'` instead of `'blocked'`. UI surfaces (STATE_TABS, TaskError, BlockedActions, unified error panel) already treat `blocked|failed|cancelled` as a single error class — no UI change required. The `'blocked'` status is preserved for the planner-clarification path (`agent-loop.ts:750`), which is a real "needs your input" wait state, not a failure.
+
+Cancel route gates (`apps/api/src/routes/tasks.ts:261, 347`) widened to include `'failed'` so the BlockedActions Dismiss button (DELETE /tasks/:id) keeps working for migrated rows. Sprint-level abort (`sprint-runner.ts:251`) intentionally NOT widened — it explicitly preserves terminal states.
+
+Dead code removed (~50 line reduction): inline `deterministicEscalation` block, inline `deliverTaskTransition` + `isTaskDelivered` guard block, `deterministicEscalation` import. `blockTask` import retained — still used by planner-clarification path.
+
+One-time prod backfill (NOT run from this commit; operator runs when ready):
+```sql
+UPDATE tasks
+SET status = 'failed',
+    failed_at = COALESCE(failed_at, updated_at, created_at),
+    failure_reason = COALESCE(failure_reason, 'tool_error')
+WHERE status = 'blocked'
+  AND (context->>'_clarification') IS NULL
+  AND outcome_summary IS NOT NULL;
+```
+
+**Phase 3 — telegram listener defer (commit `0631511`).** Closed deferred item *"Convert in-memory telegram listener to defer to bus listener for failures."* Bus listener now single owner of failure delivery on telegram/slack/discord. Removed the `task_failed/task_blocked` branch from `routes/telegram.ts:onAgentEvent` (~30 lines). Removed the `isTaskDelivered` guard for failures from `channel-delivery.ts:initTaskFailedListener` (it was the dedup against the parallel in-memory path that no longer exists). Failures now uniformly render the canonical 4-field escalation summary on telegram (previously got `translateErrorForUser` via the in-memory listener winning the dedup race).
+
+Also moved `initTaskFailedListener` + `initReflectListener` startup to **before** `startAgentLoop()` and `await`-ed them. In-process EventEmitter has zero buffer; a `TASK_FAILED` publish with no subscribers is silently dropped, so the listener must be live before the agent loop can fire any task. Hard dependency on Phase 2 — without that migration, the most common failure class (non-transient executor errors) doesn't publish `TASK_FAILED` and removing the in-memory branch would silently drop telegram messages.
+
+**Phase 4 — worker-slot release at planner-gate (commit `a5f021f`).** Closed deferred item *"Worker slot release during awaiting_approval poll (large refactor)."* Default off; opt in with `OWD_RELEASE_SLOT=planner_only`.
+
+Design (per panel Expert 1):
+- Planner-gate path (`agent-loop.ts`) — when flag on and the OWD didn't auto-approve, persist `_resumeAt='after_planner_gate'` on `tasks.context`, return early. Existing `finally` clears the heartbeat, removes from `activeTasks`, releases the Redis parallel slot.
+- `OWD_RESOLVED` bus subscriber (registered only when flag is on) — on `'approved'`: CAS `awaiting_approval → queued` and clear claim accounting; `claimBatch` picks the row back up. On `'rejected'`: `markTaskFailed` with `FailureReason.Cancelled`, `requireFromStatus='awaiting_approval'`. With flag off, the legacy `waitForDecision` poll handles everything — no listener registered, no race.
+- Resume entry-point (`buildTaskContext`) — at the top of the inner try, when `context._resumeAt='after_planner_gate'` AND `task.plan` persists from the original run, skip planning + skip gate, jump straight to `executeTask` using the persisted plan. `_resumeAt` is cleared so a future approval flow can't loop. Falls through to normal planning if `task.plan` is somehow null.
+- Sweeper safety net (`cleanupStaleTasks`) — adds `awaiting_approval` branch with default `wall_clock_limit_sec` of `90000s` (25h, escalationTimeoutHours+1h buffer), so a lost `OWD_RESOLVED` bus event still fails the task with `FailureReason.ConfirmationExpired` instead of pinning a status forever.
+- `OWD_RESOLVED` publish — `packages/agent/src/one-way-door.ts:resolveDecision` now emits `TOPICS.OWD_RESOLVED` on successful state change. Idempotent re-resolve early-returns and does NOT emit. Two new tests (`one-way-door.test.ts`) cover emit-on-resolve and no-emit-on-already-resolved.
+
+Cancel-from-UI race fix (`apps/api/src/routes/tasks.ts` cancel route): the `OWD_RESOLVED` listener fires synchronously in-process during `resolveDecision`. With prior call order (`resolveDecision` → `queueCancel`), the listener would CAS to `'failed'` before the route's `queueCancel` could write `'cancelled'` — contradicting user intent. Now `queueCancel` runs first; the listener finds the row already in `'cancelled'` and skips its `markTaskFailed`.
+
+Rollout:
+- Default `OWD_RELEASE_SLOT` unset → behaves exactly as today.
+- Flip to `OWD_RELEASE_SLOT=planner_only` on a single worker first; observe `awaiting_approval` timing; expand to fleet.
+- Rollback: unset env var. No DB shape changes; `_resumeAt` is jsonb-only.
+
+What is NOT covered (deliberately, per Expert 1 design):
+- **In-executor OWD gate** (`packages/agent/src/executor/index.ts`) — sits inside live tool/MCP sessions; releasing here loses transient state. Separate design needed; not in v1.
+
+**Phase 7++ Panel reframings (decisions that changed scope):**
+- **Schema drift (workspace_members.user_id text vs uuid) — formally ABANDONED.** Expert 2 surfaced `docs/architecture/identity.md:75-87`: `text` is the documented FDW contract (`public.users` projects `pushd.auth.user` via `postgres_fdw`, which can't be FK targets). Becomes urgent only if Plexo de-federates from Joeybuilt SSO. Not drift; not work to do.
+- **"Bus latency under load" not a real concern.** Expert 4 confirmed the bus is in-process Node `EventEmitter` with optional Redis pub/sub fan-out (`packages/agent/src/plugins/event-bus.ts:24,79,140`). API-local listener has zero transport latency. The Phase 3 deferred-item phrasing was over-cautious.
+
+**Ship-gate (Phase 7++ session totals):**
+- `pnpm typecheck` — 18/18 packages pass, every commit.
+- `pnpm --filter @plexo/agent test` — **993/993 pass** (was 991; +2 new resolveDecision emit tests).
+- `pnpm --filter @plexo/api test` — **807/807 pass** (baseline preserved across all 5 commits).
+- `pnpm db:migrate` — N/A (no schema changes; the journal-edit in Phase 1 takes effect on next migrate run).
+- `pnpm build` — not re-run; no new build inputs.
+
+**Still deferred (intentional):**
+- **In-executor OWD gate slot release** — needs separate design (live tool/MCP state can't be reconstructed from step checkpoints alone); Expert 1 explicitly said don't ship in v1.
+- **Audit-stream phases F1, F2, G** — operator-triggered single-line phases under `ops/coreaudit/EXECUTION-PLAN.md`. Not part of any session's scope until operator triggers.
+- **`waitForDecision` 60-second floor without SSE consumer** (Phase D limit) — workaround exists; production has SSE. With `OWD_RELEASE_SLOT=planner_only`, this surface is bypassed entirely.
