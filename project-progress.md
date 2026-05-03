@@ -1,8 +1,8 @@
 # Project System Progress
 
 Last updated: 2026-05-02
-Current phase: 4 closed — ready for Phase 5
-Last commit: 7c0dbf2
+Current phase: 4.5 closed — ready for Phase 5
+Last commit: e5c7c7d (Phase 4 hardening close) → Phase 4.5 commit pending in this session
 
 ## Phase Status
 - [x] Phase 0 — Audit
@@ -10,6 +10,7 @@ Last commit: 7c0dbf2
 - [x] Phase 2 — Execution Engine (types, escalate, terminal-fail wiring, plan persistence, TASK_COMPLETED emission, reflect listener, per-step lifecycle writes)
 - [x] Phase 3 — Stale Task Monitor (per-task wall_clock_limit_sec wired into cleanupStaleTasks; queued/blocked-too-long branches now markTaskFailed with FailureReason.WallClockExceeded — no more silent cancels)
 - [x] Phase 4 — Channel Notifications (state→message formatter + transition delivery in channel-delivery.ts; CONFIRM/CANCEL inbound handlers on telegram/slack/discord; TASK_FAILED listener delivers 4-field escalation summary)
+- [x] Phase 4.5 — Hardening Backlog (Phase 1 migration applied to local target DB, integration coverage on inbound CONFIRM/CANCEL via handleInboundConfirmCancel, telegram in-memory listener now renders the 4-field summary when present, dual-TTL decision codified in cross-referenced header comments)
 - [ ] Phase 5 — Task UI
 - [ ] Phase 6 — Memory Integration
 - [ ] Phase 7 — Wire Existing Tasks
@@ -243,3 +244,51 @@ If the user wants these fixed: one commit per failure cluster keeps the diff leg
 - `test(sso): flip a guaranteed-significant signature byte to harden HMAC tamper test` — Failure 3 (option A).
 
 After these three commits, expected api test result: **788/788 pass** (full green).
+
+---
+
+## Phase 4.5 close (this session)
+
+Cleared all four hardening items the Phase 4 hand-off carried forward.
+
+**4.5.1 — Phase 1 migration applied to the local target DB.** `pnpm --filter @plexo/db db:migrate` runs clean against the running `plexo-postgres-1` container with `DATABASE_URL` constructed from `.env`'s `POSTGRES_PASSWORD`. Verified via `\d tasks` and `\d task_steps`: `plan jsonb`, `wall_clock_limit_sec`, `failed_at`, `failure_reason` columns present on `tasks`; `state`, `step_type`, `step_spec`, `attempts`, `error`, `started_at`, `completed_at` lifecycle columns present on `task_steps`; `task_steps_task_state_idx` index present. The Phase 1 migration was idempotent (`IF NOT EXISTS`/`DO` blocks) so this re-applied cleanly without touching existing data. **No staging/prod migration was run from this session — only the local dev DB.**
+
+**4.5.2 — Confirmation flow integration test added.** New `tests/integration/confirmation-flow.integration.test.ts` (6 tests, all green) exercises `handleInboundConfirmCancel` end-to-end against real Postgres + Redis:
+- CONFIRM reply → OWD record flips to `decision='approved'`.
+- CANCEL reply → OWD record flips to `decision='rejected'`.
+- CONFIRM with a code that doesn't match any pending approval for the chat → `outcome:'expired'`, OWD untouched (`decision='pending'`), task row stays `awaiting_approval`. This is the cross-task safety property — a 6-char typo never accidentally confirms a different task.
+- Two concurrent awaiting_approval tasks for the same chat, CONFIRM with task B's code → resolves B, leaves A pending. Disambiguation guarantee.
+- Non-CONFIRM/CANCEL text → `not_a_command` (handler abstains, route falls through).
+- CONFIRM with no awaiting task for the chat → `no_pending`.
+
+The test does NOT spin up the agent-loop (matches the existing `confirm-gate.integration.test.ts` pattern — driving the loop requires LLM credentials and is brittle). The "task reaches complete/failed and TASK_COMPLETED/TASK_FAILED is published" tail is already covered by `confirm-gate.integration.test.ts` Suites 1+3 (waitForDecision returns approved/rejected/timeout) and Phase 2's `markTaskFailed` unit coverage.
+
+Ran with `DATABASE_URL=…@localhost:5432/plexo REDIS_URL=redis://:…@localhost:6379 pnpm vitest run tests/integration/confirmation-flow.integration.test.ts --config vitest.integration.config.ts` — **6/6 pass**, 352ms.
+
+**4.5.3 — Telegram in-memory listener UX harmony.** The `onAgentEvent` listener in `apps/api/src/routes/telegram.ts` now prefers the 4-field structured summary when one is on the SSE event payload, falling back to `translateErrorForUser` only when absent. Wiring:
+- `apps/api/src/agent-loop.ts` — three SSE emits now carry the structured summary:
+    1. `task_blocked` from no_ai_credential branch (line ~394) — captures `markTaskFailed(...).summary`.
+    2. `task_blocked` from cost_ceiling branch (line ~442) — captures `markTaskFailed(...).summary`.
+    3. `task_failed` from the catch block (line ~1355) — captures the transient `max_attempts` `markTaskFailed(...).summary` into a hoisted `transientFailSummary` so it's accessible from outside the if/else, then attached to the emit. The non-transient `blockTask` branch leaves it `undefined` → telegram falls back to `translateErrorForUser` (intentional — that branch does not call `markTaskFailed`).
+- `apps/api/src/routes/telegram.ts` — `task_failed`/`task_blocked` handler reads `event.summary` first, calls `formatTaskStateMessage({ state: 'failed', summary })` when present, falls back otherwise. Logged `hasSummary` for ops visibility.
+- `apps/api/src/agent-loop.ts` import line — adds `EscalationSummary` to the existing `@plexo/agent/tasks/types` import.
+
+Result: in-memory-handled failures (telegram listener wins the race against the bus listener via `isTaskDelivered` dedup) and bus-handled failures (channel-delivery.ts TASK_FAILED listener) now render the same 4-field message. `AgentEvent` is `{ type: string; [key: string]: unknown }` so adding `summary` required no type changes to `sse-emitter.ts`.
+
+**4.5.4 — Confirmation TTL decision recorded.** Two TTLs exist and they serve different lifetimes — that's the decision, no behavior change. Cross-reference comments added to both files so future readers don't re-conflate them:
+- `packages/agent/src/one-way-door.ts` (default 24h via workspace `escalationTimeoutHours`) — task-level `awaiting_approval`. A long-running task can wait hours for a human operator.
+- `packages/agent/src/escalation/manager.ts` (default 5min via `DEFAULT_TTL_MS`) — per-tool-call gate inside an executor cycle. Must stay short — a paused executor holds open resources.
+
+The audit's "5min" reference and Reyes' UX critique conflated the two. Both header comments now point at the other file.
+
+**Ship-gate (this session):**
+- `pnpm typecheck` — 18/18 packages pass.
+- `pnpm build` — 12/12 packages succeed.
+- `pnpm --filter @plexo/api test` — **807/807 pass** (full green; baseline preserved).
+- `pnpm vitest run tests/integration/confirmation-flow.integration.test.ts --config vitest.integration.config.ts` — **6/6 pass**.
+- `pnpm --filter @plexo/db db:migrate` — clean against local DB; columns + index verified.
+
+Notes / known limits (Phase 4.5):
+- Migration was applied to the local dev container only. Staging/prod runs are still the user's call. Migration `0104_project_system_phase1.sql` is idempotent so a re-run there is safe.
+- The integration test stays at the inbound-confirmation surface; it does not drive the agent-loop. Driving the loop end-to-end (queued → plan → awaiting_approval → CONFIRM → executing → complete) needs LLM credentials and remains a separate exercise.
+- The non-transient `blockTask` path in `agent-loop.ts` (executor catch → not transient) still emits `task_failed` without a summary, so telegram falls back to `translateErrorForUser` for that branch. Resolving that would mean either calling `markTaskFailed` from the blockTask path or generating a `deterministicEscalation` inline before the emit. Out of Phase 4.5 scope; revisit when Phase 5 surfaces task detail and the inconsistency becomes visible.

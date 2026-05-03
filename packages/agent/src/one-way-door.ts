@@ -18,6 +18,14 @@
  * 4. Executor polls waitForDecision() until decision or timeout
  *
  * Storage: Redis, key `owd:{id}`, TTL 1 hour.
+ *
+ * TTL note (Phase 4.5 decision): this surface drives task-level
+ * `awaiting_approval` and defaults to 24h via workspace setting
+ * `escalationTimeoutHours`. A long-running task may legitimately wait hours
+ * for a human operator. Do NOT confuse with the per-tool-call escalation
+ * runtime in `escalation/manager.ts` (default 5min via `DEFAULT_TTL_MS`),
+ * which gates a single tool invocation inside an executor cycle and must
+ * stay short. Both TTLs are correct for their respective lifetimes.
  */
 import { createClient, type RedisClientType } from 'redis'
 import { randomBytes } from 'node:crypto'

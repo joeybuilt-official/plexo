@@ -27,6 +27,14 @@
  *   - Runs every 30s.
  *   - Marks any pending row past `expires_at` as `timeout`.
  *   - Resolves any still-registered in-memory waiter as timeout.
+ *
+ * TTL note (Phase 4.5 decision): this surface gates a single tool invocation
+ * inside an executor cycle and defaults to 5min (`DEFAULT_TTL_MS`). It must
+ * stay short — a paused executor holds open resources. Do NOT confuse with
+ * the task-level one-way-door approval in `../one-way-door.ts` (default 24h
+ * via workspace setting `escalationTimeoutHours`), which drives the
+ * `awaiting_approval` task state and may legitimately wait hours for a
+ * human operator. Both TTLs are correct for their respective lifetimes.
  */
 import pino from 'pino'
 import { db, and, eq, lt } from '@plexo/db'

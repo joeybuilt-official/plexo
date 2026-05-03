@@ -7,7 +7,7 @@ import { tasks, apiCostTracking, workspaces, sprints, sprintTasks, plexoOpsTaskE
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import { markTaskFailed } from '@plexo/agent/tasks/terminal-fail'
-import { FailureReason, type TaskCompletedPayload } from '@plexo/agent/tasks/types'
+import { FailureReason, type TaskCompletedPayload, type EscalationSummary } from '@plexo/agent/tasks/types'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
@@ -381,7 +381,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         const noCredCtx = (task.context as Record<string, unknown>) ?? {}
         const noCredDesc = (noCredCtx.description as string) ?? (noCredCtx.message as string) ?? task.type ?? 'task'
         // No aiSettings passed — escalation falls back to deterministic (can't call LLM with no credential).
-        await markTaskFailed({
+        const noCredFail = await markTaskFailed({
             taskId: task.id,
             workspaceId: taskWorkspaceId ?? '',
             failureReason: FailureReason.ToolError,
@@ -391,7 +391,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         await syncSprintTaskBlocked(task, 'No AI credential configured for workspace')
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'claimed', to: 'failed', workspaceId: taskWorkspaceId, reason: 'no_ai_credential' }, 'lifecycle')
         void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'failed', fromState: 'claimed', toState: 'failed', metadata: { reason: 'no_ai_credential' } })
-        emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'No AI credential' })
+        emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'No AI credential', summary: noCredFail.summary })
         trackEvent('task.failed', 'warning', { taskId: task.id, reason: 'no_ai_credential', workspaceId: taskWorkspaceId })
         logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId }, 'No credential — task failed (permanent)')
         await releaseSlot(task.id)
@@ -430,7 +430,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                     const costMsg = `Workspace weekly cost ceiling reached: $${costRow.costUsd.toFixed(4)} / $${costRow.ceilingUsd.toFixed(2)}`
                     const costCtx = (task.context as Record<string, unknown>) ?? {}
                     const costDesc = (costCtx.description as string) ?? (costCtx.message as string) ?? task.type ?? 'task'
-                    await markTaskFailed({
+                    const costFail = await markTaskFailed({
                         taskId: task.id,
                         workspaceId: taskWorkspaceId ?? '',
                         failureReason: FailureReason.CostCeilingExceeded,
@@ -439,7 +439,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                         aiSettings: aiSettings ?? undefined,
                     })
                     await syncSprintTaskBlocked(task, costMsg)
-                    emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING' })
+                    emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING', summary: costFail.summary })
                     trackEvent('task.failed', 'warning', { taskId: task.id, reason: 'cost_ceiling', costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd, workspaceId: taskWorkspaceId })
                     logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd }, 'Workspace ceiling — task failed (permanent)')
                     await releaseSlot(task.id)
@@ -1256,6 +1256,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             || errCode === 'CALL_MODEL_RATE_LIMIT'
             || errCode === 'CALL_MODEL_OVERLOADED'
 
+        let transientFailSummary: EscalationSummary | undefined
         if (isTransient) {
             const retryResult = await requeueForRetry(task.id, { maxAttempts: 3, backoffBase: 60 })
             logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: retryResult === 'requeued' ? 'queued' : 'failed', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode, retryResult }, 'lifecycle')
@@ -1267,7 +1268,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 // those in and emit the TASK_FAILED event for downstream listeners.
                 const failCtx = (task.context as Record<string, unknown>) ?? {}
                 const failDesc = (failCtx.description as string) ?? (failCtx.message as string) ?? task.type ?? 'task'
-                await markTaskFailed({
+                const transientFail = await markTaskFailed({
                     taskId: task.id,
                     workspaceId: taskWorkspaceId ?? '',
                     failureReason: FailureReason.MaxAttemptsExceeded,
@@ -1276,6 +1277,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                     aiSettings: aiSettings ?? undefined,
                     attempts: 3,
                 })
+                transientFailSummary = transientFail.summary
                 await syncSprintTaskBlocked(task, `Failed after retries: ${reasonPrefix}${message}`)
             }
         } else {
@@ -1352,7 +1354,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             logger.warn({ err: stErr, taskId: task.id }, 'Failed to update sprint_tasks status (fail) — non-fatal')
         }
 
-        emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_failed', taskId: task.id, error: message })
+        emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_failed', taskId: task.id, error: message, summary: transientFailSummary })
         trackEvent('task.failed', 'error', {
             taskId: task.id,
             type: task.type,

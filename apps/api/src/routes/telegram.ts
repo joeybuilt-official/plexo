@@ -47,6 +47,8 @@ import {
 import { resolveSessionId, persistTurnEmbedding } from '../lib/session-resolver.js'
 import { loadVoiceSettings, transcribeWithFallback, synthesizeSpeech, hasAnyTranscriptionProvider } from '../lib/deepgram.js'
 import { markTaskDelivered } from '../channel-delivery.js'
+import { formatTaskStateMessage } from '../channel-state-format.js'
+import type { EscalationSummary } from '@plexo/agent/tasks/types'
 import { trackDelivery } from '../delivery-tracker.js'
 import { maybeReact } from '@plexo/agent/channels/reaction-manager'
 import { sanitizeForTelegram } from '../lib/telegram-sanitize.js'
@@ -1271,8 +1273,16 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                 } else if (event.type === 'task_failed' || event.type === 'task_blocked') {
                     _taskFinalSent = true
                     unsub()
+                    // Phase 4.5.3: prefer the 4-field structured escalation summary when the
+                    // emitter supplied one (markTaskFailed paths). Fall back to the legacy
+                    // single-line `translateErrorForUser` rendering only when no summary is
+                    // available (e.g. the non-transient blockTask path that does not call
+                    // markTaskFailed).
+                    const summary = event.summary as EscalationSummary | undefined
                     const rawReason = (event.error as string | undefined) ?? (event.reason as string | undefined) ?? 'Task failed unexpectedly.'
-                    const userMsg = translateErrorForUser(rawReason)
+                    const userMsg = summary
+                        ? (formatTaskStateMessage({ state: 'failed', summary }) ?? translateErrorForUser(rawReason))
+                        : translateErrorForUser(rawReason)
                     if (_progressMessageId) {
                         const edited = await editMessage(token, chatId, _progressMessageId, userMsg)
                         if (!edited) {
@@ -1281,7 +1291,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                     } else {
                         await sendMessage(token, chatId, userMsg, { workspaceId })
                     }
-                    logger.warn({ taskId, chatId, workspaceId, rawReason }, 'Telegram: task failed — notified user')
+                    logger.warn({ taskId, chatId, workspaceId, rawReason, hasSummary: !!summary }, 'Telegram: task failed — notified user')
                 }
             })
             setTimeout(async () => {
