@@ -7,7 +7,6 @@ import { tasks, apiCostTracking, workspaces, sprints, sprintTasks, plexoOpsTaskE
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import { markTaskFailed } from '@plexo/agent/tasks/terminal-fail'
-import { deterministicEscalation } from '@plexo/agent/tasks/escalate'
 import { FailureReason, type TaskCompletedPayload, type EscalationSummary } from '@plexo/agent/tasks/types'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
@@ -1283,23 +1282,20 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 await syncSprintTaskBlocked(task, `Failed after retries: ${reasonPrefix}${message}`)
             }
         } else {
-            logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'blocked', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode }, 'lifecycle')
-            void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'blocked', fromState: 'running', toState: 'blocked', metadata: { durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode } })
-            trackEvent('task.failed', 'error', { taskId: task.id, error: message, code: errCode ?? undefined, workspaceId: taskWorkspaceId })
-            await blockTask(task.id, reasonPrefix + message)
-            await syncSprintTaskBlocked(task, reasonPrefix + message)
-            // Generate a 4-field summary inline so the SSE emit + telegram in-memory
-            // listener render the structured failure rather than translateErrorForUser.
-            // blockTask path does not call markTaskFailed (and therefore does not
-            // publish TASK_FAILED), so the bus listener cannot fill this in.
-            const blockedFailCtx = (task.context as Record<string, unknown>) ?? {}
-            const blockedFailDesc = (blockedFailCtx.description as string) ?? (blockedFailCtx.message as string) ?? task.type ?? 'task'
-            failSummary = deterministicEscalation({
+            const errCtx = (task.context as Record<string, unknown>) ?? {}
+            const errDesc = (errCtx.description as string) ?? (errCtx.message as string) ?? task.type ?? 'task'
+            const nonTransientFail = await markTaskFailed({
                 taskId: task.id,
-                taskDescription: blockedFailDesc,
+                workspaceId: taskWorkspaceId ?? '',
                 failureReason: FailureReason.ToolError,
                 errorText: reasonPrefix + message,
+                taskDescription: errDesc,
+                aiSettings: aiSettings ?? undefined,
             })
+            failSummary = nonTransientFail.summary
+            logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'failed', workspaceId: taskWorkspaceId, durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode }, 'lifecycle')
+            void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'failed', fromState: 'running', toState: 'failed', metadata: { durationMs: Date.now() - taskStartMs, error: message.slice(0, 200), code: errCode } })
+            await syncSprintTaskBlocked(task, reasonPrefix + message)
         }
         try {
             trackError(new Error(`Task failed: ${reasonPrefix}${message}`), {
@@ -1309,40 +1305,6 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 errorCode: reasonPrefix,
             })
         } catch { /* non-fatal */ }
-
-        // Persistent channel delivery for failures.
-        // Phase 4 + Phase 7+ follow-up: TASK_FAILED bus listener
-        // (channel-delivery.ts) owns delivery for any path that flows through
-        // markTaskFailed (transient max_attempts, sweepers, executor catch,
-        // approval rejected/timeout, no_ai_credential, cost_ceiling). The
-        // non-transient blockTask path does NOT publish TASK_FAILED, so we
-        // deliver inline — but use the canonical deliverTaskTransition with
-        // the 4-field summary so slack/discord/telegram render the same
-        // structured message as the bus listener path.
-        const failContext = (task.context as Record<string, unknown>) ?? {}
-        const skipInlineFailDelivery = isTransient // transient → markTaskFailed (or requeue) → listener handles
-        if (!skipInlineFailDelivery && failContext.channel && failContext.chatId) {
-            const { deliverTaskTransition, isTaskDelivered } = await import('./channel-delivery.js')
-            // Skip if an in-memory channel listener (telegram onAgentEvent) already
-            // delivered this terminal event. Same dedup contract as the bus listener
-            // and the legacy deliverToOriginChannel guard.
-            if (isTaskDelivered(task.id)) {
-                logger.debug({ taskId: task.id }, 'inline blockTask delivery: skipping — in-memory listener already owns delivery')
-            } else {
-                void deliverTaskTransition(
-                    {
-                        taskId: task.id,
-                        workspaceId: taskWorkspaceId ?? '',
-                        context: { ...failContext, channel: failContext.channel as string, chatId: failContext.chatId as string | number, description: failContext.description as string | undefined },
-                    },
-                    {
-                        state: 'failed',
-                        title: failContext.description as string | undefined,
-                        summary: failSummary,
-                    },
-                ).catch(e => logger.warn({ e, taskId: task.id }, 'Channel failure delivery failed'))
-            }
-        }
 
         emitTaskOutcome({
             type: task.type ?? 'unknown',
