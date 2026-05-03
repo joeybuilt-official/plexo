@@ -51,10 +51,18 @@ describe('sso/token — verifyToken', () => {
 
     it('rejects a tampered HMAC', () => {
         const { token } = mintToken(SECRET, { userId: USER_ID, appSlug: 'koforje' })
-        // Flip the last character of the signature segment
+        // Flip the FIRST character of the signature segment, not the last.
+        // The signature is 32 bytes encoded as 43 base64url chars; the final
+        // char only contributes 2 bits to the decoded output, so flipping it
+        // sometimes yields a different b64url string that decodes to the
+        // same 32 bytes (the differing bits land in unused padding). The
+        // first signature char always covers 6 meaningful bits.
         const dot = token.indexOf('.')
-        const flipped = token.slice(0, -1) + (token.endsWith('a') ? 'b' : 'a')
         expect(dot).toBeGreaterThan(0)
+        const sigStart = dot + 1
+        const ch = token[sigStart]
+        const newCh = ch === 'a' ? 'b' : 'a'
+        const flipped = token.slice(0, sigStart) + newCh + token.slice(sigStart + 1)
         const result = verifyToken(SECRET, flipped, 'koforje')
         expect(result.ok).toBe(false)
         if (!result.ok) expect(result.reason).toBe('bad_signature')
