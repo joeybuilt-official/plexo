@@ -11,7 +11,9 @@ import {
 } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { PlexoAwarenessBadge } from '@web/components/plexo-awareness-badge'
-import type { Message, TaskAsset } from './types'
+import type { ChatMessage, Message, TaskAsset } from './types'
+import { isPlanProposalMessage } from './types'
+import { PlanCard } from './plan-card'
 import { AgentThinkingPanel } from './agent-thinking-panel'
 import { KindBadge } from '@web/components/works/KindBadge'
 import { resolveKind } from '@web/components/works/WorkRenderer'
@@ -144,20 +146,38 @@ function AssetCard({ asset, taskId, onOpen }: { asset: TaskAsset; taskId?: strin
 
 // ── MessageBubble ─────────────────────────────────────────────────
 interface MessageBubbleProps {
-    msg: Message
+    msg: ChatMessage
     onExecute: (id: string, intent: 'TASK' | 'PROJECT' | 'CONVERSATION', desc: string) => void
     onCancel: (id: string) => void
     onOpenAsset: (taskId: string, asset: TaskAsset) => void
     userInitial: string
 }
 
-function MessageBubbleBase({
+function MessageBubbleBase(props: MessageBubbleProps) {
+    if (isPlanProposalMessage(props.msg)) {
+        return (
+            <PlanCard
+                taskId={props.msg.taskId}
+                plan={props.msg.plan}
+                requiresApproval={props.msg.requiresApproval}
+                approvalId={props.msg.approvalId}
+            />
+        )
+    }
+    return <ChatBubble {...props} msg={props.msg} />
+}
+
+interface ChatBubbleProps extends Omit<MessageBubbleProps, 'msg'> {
+    msg: Message
+}
+
+function ChatBubble({
     msg,
     onExecute,
     onCancel,
     onOpenAsset,
     userInitial,
-}: MessageBubbleProps) {
+}: ChatBubbleProps) {
     const [copied, setCopied] = useState(false)
 
     // Show phase indicator only after 1.5s to avoid flash on fast responses.

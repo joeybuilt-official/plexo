@@ -3,6 +3,7 @@
 
 import type { PastedImage, PastedDocument } from '@web/lib/attachments'
 import type { ProgressEvent } from './agent-thinking-panel'
+import type { PlanProposalPlan } from './plan-card'
 
 /**
  * WorkKind — canonical taxonomy for how an agent-produced work should render.
@@ -62,8 +63,30 @@ export interface TaskAsset {
  */
 export type Work = TaskAsset
 
+/**
+ * Inline plan-proposal message rendered as a <PlanCard> in the transcript.
+ * Discriminated by `kind === 'plan_proposal'`. Carries no `role`/`content`
+ * because the card is the entire payload.
+ */
+export interface PlanProposalMessage {
+    id: string
+    kind: 'plan_proposal'
+    taskId: string
+    plan: PlanProposalPlan
+    requiresApproval: boolean
+    approvalId: string | null
+    at: number
+}
+
+export type ChatMessage = Message | PlanProposalMessage
+
+export function isPlanProposalMessage(m: ChatMessage): m is PlanProposalMessage {
+    return (m as PlanProposalMessage).kind === 'plan_proposal'
+}
+
 export interface Message {
     id: string
+    kind?: 'message'
     role: 'user' | 'agent'
     content: string
     images?: PastedImage[]

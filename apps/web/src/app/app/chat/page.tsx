@@ -26,7 +26,8 @@ import { type PastedImage, type PastedDocument, kindFromMime } from '@web/lib/at
 import { useSpeechInput } from '@web/hooks/use-speech-input'
 import { VoiceWaveform } from '@web/components/voice-waveform'
 
-import type { Message, TaskAsset } from './_components/types'
+import type { ChatMessage, Message, PlanProposalMessage, TaskAsset } from './_components/types'
+import { isPlanProposalMessage } from './_components/types'
 import { MessageBubble } from './_components/message-bubble'
 import { normalizeEvents, type RawProgressEvent } from './_components/agent-thinking-panel'
 import { Composer } from './_components/composer'
@@ -66,7 +67,7 @@ function ChatContent() {
     const { userName } = useWorkspace()
     const WS_ID = useWorkspaceId()
     const userInitial = userName ? userName.trim().charAt(0).toUpperCase() : ''
-    const [messages, setMessages] = useState<Message[]>([])
+    const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const [pastedImages, setPastedImages] = useState<PastedImage[]>([])
     const [pastedDocs, setPastedDocs] = useState<PastedDocument[]>([])
@@ -133,7 +134,7 @@ function ChatContent() {
     const [activeTab, setActiveTab] = useState<'terminal' | 'tests' | 'diff' | 'preview' | 'browser'>('terminal')
     const [showBottom, setShowBottom] = useState(true)
 
-    const lastRunningTaskId = messages.find((m) => m.status === 'running')?.taskId
+    const lastRunningTaskId = messages.find((m): m is Message => !isPlanProposalMessage(m) && m.status === 'running')?.taskId
     const [openArtifactData, setOpenArtifactData] = useState<{ asset: TaskAsset, taskId: string } | null>(null)
 
     useEffect(() => {
@@ -402,7 +403,7 @@ function ChatContent() {
                     const normalized = normalizeEvents(d.progressEvents)
 
                     setMessages((prev) => prev.map((m) => {
-                        if (m.id !== msgId) return m
+                        if (m.id !== msgId || isPlanProposalMessage(m)) return m
                         const lastStep = m.steps?.[m.steps.length - 1]
                         let nextSteps = m.steps || []
                         if (d.lastAction && lastStep?.label !== d.lastAction) {
@@ -442,6 +443,30 @@ function ChatContent() {
             es.addEventListener('cancelled', (e) => onTerminal(e, 'failed'))
             es.addEventListener('timeout', (e) => onTerminal(e, 'failed'))
 
+            es.addEventListener('plan_proposal', (e) => {
+                try {
+                    const d = JSON.parse(e.data) as {
+                        taskId: string
+                        plan: PlanProposalMessage['plan']
+                        requiresApproval: boolean
+                        approvalId: string | null
+                    }
+                    const card: PlanProposalMessage = {
+                        id: `plan-${d.taskId}-${Date.now()}`,
+                        kind: 'plan_proposal',
+                        taskId: d.taskId,
+                        plan: d.plan,
+                        requiresApproval: d.requiresApproval,
+                        approvalId: d.approvalId,
+                        at: Date.now(),
+                    }
+                    setMessages((prev) => {
+                        if (prev.some((m) => isPlanProposalMessage(m) && m.taskId === d.taskId)) return prev
+                        return [...prev, card]
+                    })
+                } catch { /* ignore malformed plan_proposal */ }
+            })
+
             stuckTimer = setTimeout(async () => {
                 if (closed) return
                 try {
@@ -458,7 +483,7 @@ function ChatContent() {
                     }
                 } catch { /* non-fatal */ }
                 setMessages((prev) => prev.map((m) =>
-                    m.id === msgId && m.status === 'running'
+                    m.id === msgId && !isPlanProposalMessage(m) && m.status === 'running'
                         ? { ...m, content: 'Task may be stuck \u2014 check Tasks page for status.' }
                         : m
                 ))
@@ -587,9 +612,9 @@ function ChatContent() {
                 })
                 const data = await res.json() as { reply?: string; status?: string; model?: string; taskId?: string }
                 setMessages((prev) => prev.map((m) =>
-                    m.id === msgId ? {
+                    m.id === msgId && !isPlanProposalMessage(m) ? {
                         ...m,
-                        status: 'complete',
+                        status: 'complete' as const,
                         content: data.reply ?? 'Here\'s what I know about that:',
                         taskId: data.taskId ?? m.taskId,
                         model: data.model,
@@ -612,7 +637,7 @@ function ChatContent() {
             const data = await res.json() as { taskId?: string; sprintId?: string; status?: string }
             if (data.taskId) {
                 setMessages((prev) => prev.map((m) =>
-                    m.id === msgId ? { ...m, taskId: data.taskId, status: 'running' } : m
+                    m.id === msgId && !isPlanProposalMessage(m) ? { ...m, taskId: data.taskId, status: 'running' as const } : m
                 ))
                 void pollReply(data.taskId, msgId)
             } else if (data.sprintId) {
@@ -990,9 +1015,9 @@ function ChatContent() {
 
             if (data.status === 'complete' && data.reply) {
                 setMessages((prev) => prev.map((m) =>
-                    m.id === pendingId ? {
+                    m.id === pendingId && !isPlanProposalMessage(m) ? {
                         ...m,
-                        status: 'complete',
+                        status: 'complete' as const,
                         content: data.reply!,
                         taskId: data.taskId ?? m.taskId,
                         model: data.model,
