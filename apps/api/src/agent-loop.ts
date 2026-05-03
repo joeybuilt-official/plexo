@@ -46,6 +46,11 @@ let activeTasks: Map<string, AbortController> = new Map()
 let sessionCount = 0
 let lastActivity: string | null = null
 
+// Canonical event_type values written to plexo_ops_task_events:
+//   claimed, planning, plan_proposed, executing, complete, failed, blocked,
+//   requeued, claim_timeout, ghost_recovery, manual_requeue, manual_cancel,
+//   awaiting_approval, approval_granted, approval_rejected, approval_timeout,
+//   resumed.
 async function recordTaskEvent(params: {
     workspaceId: string
     taskId: string
@@ -66,6 +71,53 @@ async function recordTaskEvent(params: {
     } catch (err) {
         logger.debug({ err, taskId: params.taskId }, 'failed to record task event')
     }
+}
+
+/**
+ * Phase F1: emit the plan_proposal SSE event + plan_proposed lifecycle row.
+ * Gated to plans with at least three steps so trivial / fast-path single-step
+ * plans don't render an inline plan card. Returns true when the gate fires
+ * (event emitted), false when skipped.
+ *
+ * Exported for integration tests; production callers go through processTask.
+ */
+export function emitPlanProposal(params: {
+    workspaceId: string
+    taskId: string
+    plan: ExecutionPlan
+    requiresApproval: boolean
+    approvalId: string | null
+}): boolean {
+    if (params.plan.steps.length < 3) return false
+    emitToWorkspace(params.workspaceId, {
+        type: 'plan_proposal',
+        taskId: params.taskId,
+        plan: {
+            goal: params.plan.goal,
+            steps: params.plan.steps,
+            oneWayDoors: params.plan.oneWayDoors ?? [],
+            estimatedDurationMs: params.plan.estimatedDurationMs,
+            confidenceScore: params.plan.confidenceScore,
+            risks: params.plan.risks ?? [],
+        },
+        requiresApproval: params.requiresApproval,
+        approvalId: params.approvalId,
+    })
+    void recordTaskEvent({
+        workspaceId: params.workspaceId,
+        taskId: params.taskId,
+        eventType: 'plan_proposed',
+        fromState: 'planning',
+        toState: 'planning',
+        metadata: {
+            steps: params.plan.steps.length,
+            confidence: params.plan.confidenceScore,
+            requiresApproval: params.requiresApproval,
+            approvalId: params.approvalId,
+            oneWayDoors: (params.plan.oneWayDoors ?? []).length,
+        },
+    })
+    return true
 }
 
 export interface WorkspaceApprovalPolicy {
@@ -811,22 +863,50 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
         const policy = await loadWorkspaceApprovalPolicy(taskWorkspaceId)
         const mustGate = plan.oneWayDoors.length > 0 || policy.requireApprovalForGeneralTasks
+
+        // Phase F1: request approval up-front (when gated) so the inline plan
+        // card carries the real approvalId. Standing approvals resolve to
+        // decision='approved' inside requestApproval and skip the wait branch
+        // below (preserves prior behavior).
+        const owds = plan.oneWayDoors
+        type ApprovalRecord = Awaited<ReturnType<typeof requestApproval>>
+        let pendingApproval: ApprovalRecord | null = null
         if (mustGate) {
-            const owds = plan.oneWayDoors
             const operation = owds.length > 0 ? owds[0]!.type : 'general_task'
-            const description = owds.length > 0
+            const owdDescription = owds.length > 0
                 ? owds.map(d => d.description).join('\n')
                 : plan.goal
             // Policy-only path uses 'medium' so an operator-set standing approval on 'general_task' can auto-approve. OWD path always uses 'high' which one-way-door.ts:99 locks out from standing approvals.
             const riskLevel: PendingDecision['riskLevel'] = owds.length > 0 ? 'high' : 'medium'
 
-            const approval = await requestApproval({
+            pendingApproval = await requestApproval({
                 taskId: task.id,
                 workspaceId: taskWorkspaceId ?? '',
                 operation,
-                description,
+                description: owdDescription,
                 riskLevel,
             })
+        }
+
+        // Phase F1: emit a structured plan_proposal card to the web chat plus
+        // a plan_proposed lifecycle row. Helper handles the steps>=3 gate.
+        emitPlanProposal({
+            workspaceId: taskWorkspaceId ?? '',
+            taskId: task.id,
+            plan,
+            requiresApproval: mustGate,
+            approvalId: pendingApproval?.id ?? null,
+        })
+
+        if (mustGate) {
+            // owds + pendingApproval are bound above. requestApproval was invoked
+            // up-front so the plan_proposal card could carry approvalId. The
+            // non-null assertion below is sound: mustGate=true is the only path
+            // that assigns pendingApproval.
+            const description = owds.length > 0
+                ? owds.map(d => d.description).join('\n')
+                : plan.goal
+            const approval = pendingApproval as ApprovalRecord
 
             if (approval.decision !== 'approved') {
                 await db.update(tasks).set({ status: 'awaiting_approval' }).where(eq(tasks.id, task.id))
