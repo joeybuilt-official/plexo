@@ -147,17 +147,27 @@ Phase 4 close (this session):
 - `pnpm db:migrate` was **not** run (no DATABASE_URL in this WSL env). No new migrations this phase — Phase 4 is logic-only and reuses `tasks.context` JSONB.
 - `pnpm build` was **not** run.
 
-Notes / known limits (Phase 4):
+Notes / known limits (Phase 4) — RESOLVED in this session unless marked otherwise:
 
-- Confirmation TTL is unchanged from prior phases — the OWD record uses workspace settings `escalationTimeoutHours` (default 24h) for `waitForDecision`. The audit's "5min default" referred to the `escalation_requests` table (Phase 8 tool-level), not OWD. Phase 4 surfaces the OWD flow without altering its TTL.
-- The 6-char confirmation code shown to the user is informational — `handleInboundConfirmCancel` does not validate it. Mapping back to the right approval is done via `tasks.context._approvalId` keyed by channel+chatId of the most-recent `awaiting_approval` task. With multiple concurrent awaiting_approval tasks in the same chat, the most recent one wins; pathological multi-pending case is acceptable for Phase 4.
-- The CONFIRM/CANCEL classifier matches loose tokens (`yes`, `y`, `ok`, `no`, `n`). False positives are gated by the `tasks.context @>` lookup — a casual "yes" with no pending awaiting_approval task in this chat returns `'no_pending'` and the route falls through to normal handling. There is still a small risk if the user has a stale awaiting_approval task that they had forgotten about and they say "yes" in a different conversation thread; chats are scoped tightly to chatId so this only fires on same-chat replies.
-- `awaiting_approval` notification is sent only to channels with `supportsConfirmation=true` (telegram/slack/discord). The web channel does not receive a chat-style awaiting_confirmation message — its surface is the existing SSE `task_awaiting_approval` event + `/app/approvals` view.
-- The TASK_FAILED listener does **not** dedup against the in-memory delivery flag (`isTaskDelivered`) — that flag was scoped to channel-delivery's completion path. For failed paths, the dedup model is path-based (only markTaskFailed publishes TASK_FAILED, and the agent-loop catch's inline failed delivery is now scoped to the non-transient blockTask path). If a future code path both `markTaskFailed`s and inline-delivers, two messages could result; revisit if observed.
-- No new tests added. Phase 3's existing claim that Phase 4 brings notification coverage online (and would warrant adding queued/blocked-too-long integration coverage at that point) is still open. Recommended follow-up tests, but deferred:
-  1. Unit test for `formatTaskStateMessage` per-state output.
-  2. Unit/integration test for `handleInboundConfirmCancel` happy path + `no_pending` + `expired`.
-  3. End-to-end: a queued task → planning notification → awaiting_confirmation notification → CONFIRM reply → resume → completed delivery.
+- ~~The 6-char confirmation code shown to the user is informational — `handleInboundConfirmCancel` does not validate it.~~ **RESOLVED.** `extractConfirmationCode` parses the code from the user's reply; `handleInboundConfirmCancel` now pulls up to 5 recent awaiting_approval tasks for the chat and matches by approval id prefix when a code is supplied. With no code, falls back to most-recent. Disambiguates concurrent pending approvals.
+- ~~The CONFIRM/CANCEL classifier matches loose tokens (`yes`, `y`, `ok`, `no`, `n`).~~ **RESOLVED.** Classifier now requires explicit verbs only: `confirm(ed)?` / `approve(d)?` / `cancel(led)?` / `reject(ed)?` / `abort(ed)?`. Loose tokens dropped — the awaiting_confirmation prompt explicitly tells the user to type "CONFIRM" / "CANCEL", so the UX win of accepting "yes/no" was outweighed by the cross-chat false-positive risk.
+- ~~The TASK_FAILED listener does not dedup against the in-memory delivery flag.~~ **RESOLVED.** `initTaskFailedListener` now early-returns when `isTaskDelivered(taskId)` is true. Trade-off documented in code: the in-memory listener (telegram `onAgentEvent`) currently uses `translateErrorForUser` rather than the 4-field summary; sending one slightly less-rich message beats two messages. Future hardening: have the in-memory listener defer to this listener for failures.
+- ~~No new tests added.~~ **RESOLVED.** Added `apps/api/src/__tests__/channel-delivery.test.ts` (19 tests) covering `formatTaskStateMessage` per-state output, `classifyConfirmCancel` verb matrix, `extractConfirmationCode` boundary behaviour, and `channelSupportsConfirmation`. The pure helpers were factored into `apps/api/src/channel-state-format.ts` so the test surface doesn't transitively pull in the agent stack via `channel-ai.ts`. `channel-delivery.ts` re-exports them for unchanged call-site imports. As a side effect, two more vitest aliases were added for `@plexo/agent/providers/vision` and `@plexo/agent/principles` (channel-ai's transitive deps).
+
+Documented as by-design — NOT resolved (different surface, intentional):
+
+- Confirmation TTL on the OWD path remains 24h default (workspace setting `escalationTimeoutHours`); the audit's "5min" reference was about `escalation_requests` (Phase 8 tool-level), a separate surface. Both TTLs are correct for their respective flows.
+- `awaiting_approval` notification is sent only to channels with `supportsConfirmation=true` (telegram/slack/discord). The web channel's confirmation surface is the existing SSE `task_awaiting_approval` event + `/app/approvals` view — no chat-style message there is intentional.
+
+Remaining recommended follow-ups (not blockers):
+- End-to-end integration test: a queued task → planning notification → awaiting_confirmation notification → CONFIRM reply → resume → completed delivery. Needs DATABASE_URL — unblocked when the integration env is set up.
+
+Ship-gate run summary (this session):
+- `pnpm typecheck` — 18/18 packages pass.
+- `pnpm build` — 12/12 packages succeed (first time pnpm build was run since Phase 1).
+- `pnpm --filter @plexo/api test` — **807/807 pass** (was 778/788; full green).
+- `pnpm --filter @plexo/agent test` — 984/984 pass.
+- `pnpm db:migrate` — still not run (no DATABASE_URL in WSL env). No new migrations this phase.
 
 ---
 
