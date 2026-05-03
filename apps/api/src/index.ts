@@ -536,6 +536,17 @@ const server = app.listen(port, '0.0.0.0', async () => {
         }
     })()
 
+    // Subscribe TASK_FAILED listeners BEFORE startAgentLoop so that any task
+    // failing in the first ms after agent-loop boot still gets channel delivery.
+    // In-process EventEmitter has zero buffer — a publish with no subscribers
+    // is silently dropped.
+    await import('./channel-delivery.js')
+        .then(({ initTaskFailedListener }) => initTaskFailedListener())
+        .catch((err) => logger.warn({ err }, 'TASK_FAILED listener init failed — non-fatal'))
+    await import('@plexo/agent/tasks/reflect')
+        .then(({ initReflectListener }) => initReflectListener())
+        .catch((err) => logger.warn({ err }, 'Reflect listener init failed — non-fatal'))
+
     startAgentLoop()
     startCronDispatch()
     startEventProcessor()
@@ -575,17 +586,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
             .then(({ initConsolidationListener }) => initConsolidationListener())
             .catch(() => { /* non-fatal — event bus may not be ready */ })
     }
-
-    // Task reflection listener — writes synthetic task memories on completion/failure.
-    void import('@plexo/agent/tasks/reflect')
-        .then(({ initReflectListener }) => initReflectListener())
-        .catch(() => { /* non-fatal — event bus may not be ready */ })
-
-    // Phase 4: TASK_FAILED channel-delivery listener — sends the 4-field
-    // escalation summary to the originating channel for any markTaskFailed path.
-    void import('./channel-delivery.js')
-        .then(({ initTaskFailedListener }) => initTaskFailedListener())
-        .catch(() => { /* non-fatal — event bus may not be ready */ })
 
     // Schedule RSI monitor every 6h (first run after 7m so it doesn't contend with memory consolidation)
     if (process.env.PLEXO_DISABLE_CRONS !== '1') {

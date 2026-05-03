@@ -47,8 +47,6 @@ import {
 import { resolveSessionId, persistTurnEmbedding } from '../lib/session-resolver.js'
 import { loadVoiceSettings, transcribeWithFallback, synthesizeSpeech, hasAnyTranscriptionProvider } from '../lib/deepgram.js'
 import { markTaskDelivered } from '../channel-delivery.js'
-import { formatTaskStateMessage } from '../channel-state-format.js'
-import type { EscalationSummary } from '@plexo/agent/tasks/types'
 import { trackDelivery } from '../delivery-tracker.js'
 import { maybeReact } from '@plexo/agent/channels/reaction-manager'
 import { sanitizeForTelegram } from '../lib/telegram-sanitize.js'
@@ -1270,29 +1268,13 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                         completedAt: Date.now(),
                     })
                     addToHistory(channelId, chatId, 'assistant', result)
-                } else if (event.type === 'task_failed' || event.type === 'task_blocked') {
-                    _taskFinalSent = true
-                    unsub()
-                    // Phase 4.5.3: prefer the 4-field structured escalation summary when the
-                    // emitter supplied one (markTaskFailed paths). Fall back to the legacy
-                    // single-line `translateErrorForUser` rendering only when no summary is
-                    // available (e.g. the non-transient blockTask path that does not call
-                    // markTaskFailed).
-                    const summary = event.summary as EscalationSummary | undefined
-                    const rawReason = (event.error as string | undefined) ?? (event.reason as string | undefined) ?? 'Task failed unexpectedly.'
-                    const userMsg = summary
-                        ? (formatTaskStateMessage({ state: 'failed', summary }) ?? translateErrorForUser(rawReason))
-                        : translateErrorForUser(rawReason)
-                    if (_progressMessageId) {
-                        const edited = await editMessage(token, chatId, _progressMessageId, userMsg)
-                        if (!edited) {
-                            await sendMessage(token, chatId, userMsg, { workspaceId })
-                        }
-                    } else {
-                        await sendMessage(token, chatId, userMsg, { workspaceId })
-                    }
-                    logger.warn({ taskId, chatId, workspaceId, rawReason, hasSummary: !!summary }, 'Telegram: task failed — notified user')
                 }
+                // task_failed / task_blocked terminal events are owned by the
+                // TASK_FAILED bus listener (channel-delivery.ts:initTaskFailedListener).
+                // It renders the canonical 4-field escalation summary and dedups via
+                // its own ownership check. Keeping a parallel in-memory failure path
+                // here would either double-send or force a dedup gate that drops the
+                // richer summary in favor of translateErrorForUser. Bus path wins.
             })
             setTimeout(async () => {
                 // Listener gave up before the task reached a terminal state.

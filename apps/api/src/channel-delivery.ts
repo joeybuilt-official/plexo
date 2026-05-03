@@ -464,18 +464,12 @@ export async function initTaskFailedListener(): Promise<void> {
             const payload = raw as TaskFailedPayload
             if (!payload?.taskId || !payload.workspaceId) return
 
-            // Skip when an in-memory channel listener (telegram onAgentEvent,
-            // etc.) has already taken ownership of this task's terminal
-            // notifications. The in-memory path currently uses
-            // `translateErrorForUser` rather than the 4-field summary —
-            // accepting that legacy framing here is the right trade because
-            // sending two failure messages is worse UX than one slightly
-            // less-informative one. Future hardening: have the in-memory
-            // listener defer richer failures to this listener.
-            if (isTaskDelivered(payload.taskId)) {
-                logger.debug({ taskId: payload.taskId }, 'TASK_FAILED listener: skipping — in-memory listener already owns delivery')
-                return
-            }
+            // No isTaskDelivered guard for failures: the bus listener is now
+            // the single owner of failure delivery on telegram/slack/discord
+            // (the parallel in-memory failure branch in routes/telegram.ts was
+            // removed). markTaskDelivered/isTaskDelivered remain in use for
+            // the SUCCESS path's de-dup between telegram's onAgentEvent and
+            // any DB-backed re-delivery — failures never participate.
 
             // Look up the task to find the originating channelRef. The event
             // payload deliberately doesn't carry it (it's a memory/audit
