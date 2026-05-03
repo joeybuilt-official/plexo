@@ -89,6 +89,7 @@ export async function markTaskFailed(input: MarkTaskFailedInput): Promise<MarkTa
         : eq(tasks.id, input.taskId)
 
     let transitioned = false
+    let parentTaskId: string | null = null
     try {
         const updated = await db.update(tasks)
             .set({
@@ -100,8 +101,9 @@ export async function markTaskFailed(input: MarkTaskFailedInput): Promise<MarkTa
                 claimedUntil: null,
             })
             .where(whereClause)
-            .returning({ id: tasks.id })
+            .returning({ id: tasks.id, parentId: tasks.parentId })
         transitioned = updated.length > 0
+        parentTaskId = updated[0]?.parentId ?? null
     } catch (err) {
         logger.error(
             { err, taskId: input.taskId, failureReason: input.failureReason },
@@ -122,6 +124,7 @@ export async function markTaskFailed(input: MarkTaskFailedInput): Promise<MarkTa
         workspaceId: input.workspaceId,
         failureReason: input.failureReason,
         summary,
+        parentTaskId,
     }
     try {
         eventBus.publish(TOPICS.TASK_FAILED, payload)

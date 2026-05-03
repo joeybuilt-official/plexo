@@ -110,6 +110,12 @@ export const TaskFailedPayloadSchema = z.object({
     workspaceId: z.string(),
     failureReason: FailureReasonSchema,
     summary: EscalationSummarySchema.nullable(),
+    /**
+     * Phase 7.2 — A2A child task attribution. Present iff this task was
+     * spawned from another task (tasks.parent_id NOT NULL). Lets a parent
+     * workflow filter TASK_FAILED events to "events from my children".
+     */
+    parentTaskId: z.string().nullable().optional(),
 })
 
 export type TaskFailedPayload = z.infer<typeof TaskFailedPayloadSchema>
@@ -129,6 +135,12 @@ export const TaskCompletedPayloadSchema = z.object({
     qualityScore: z.number().optional(),
     durationMs: z.number().optional(),
     toolsUsed: z.array(z.string()).optional(),
+    /**
+     * Phase 7.2 — A2A child task attribution. Present iff this task was
+     * spawned from another task (tasks.parent_id NOT NULL). Lets a parent
+     * workflow filter TASK_COMPLETED events to "events from my children".
+     */
+    parentTaskId: z.string().nullable().optional(),
 })
 
 export type TaskCompletedPayload = z.infer<typeof TaskCompletedPayloadSchema>

@@ -11,7 +11,7 @@
  */
 import { z } from 'zod'
 import { db, sql } from '@plexo/db'
-import { ulid } from 'ulid'
+import { push as queuePush, cancel as queueCancel } from '@plexo/queue'
 import type { McpContext } from '../types.js'
 import { scopeDenied, internalError } from '../errors.js'
 import { requireScope } from '../auth.js'
@@ -21,7 +21,7 @@ import { logger } from '../logger.js'
 
 export const listTasksInputSchema = z.object({
     limit: z.number().int().min(1).max(50).optional().default(20),
-    status: z.enum(['queued', 'claimed', 'running', 'completed', 'failed', 'cancelled']).optional(),
+    status: z.enum(['queued', 'claimed', 'running', 'blocked', 'awaiting_approval', 'complete', 'failed', 'cancelled']).optional(),
 }).strict()
 
 export async function plexoListTasks(
@@ -71,7 +71,9 @@ export async function plexoListTasks(
 
 // ── plexo_create_task ─────────────────────────────────────────────────────────
 
-const VALID_TYPES = ['general', 'research', 'coding', 'automation', 'analysis', 'writing'] as const
+// Phase 7 — restricted to TaskType values that exist on the DB enum.
+// 'analysis' was previously accepted here but rejected at INSERT time; dropped.
+const VALID_TYPES = ['general', 'research', 'coding', 'automation', 'writing'] as const
 
 export const createTaskInputSchema = z.object({
     type: z.enum(VALID_TYPES).optional().default('general'),
@@ -86,22 +88,13 @@ export async function plexoCreateTask(
     if (!requireScope(ctx, 'tasks:write')) return scopeDenied('tasks:write')
 
     try {
-        const id = ulid()
-
-        await db.execute(sql`
-            INSERT INTO tasks (id, workspace_id, type, status, source, request, project_id, created_at, updated_at)
-            VALUES (
-                ${id},
-                ${ctx.workspace_id},
-                ${input.type},
-                'queued',
-                'mcp',
-                ${input.request},
-                ${input.project_id ?? null},
-                NOW(),
-                NOW()
-            )
-        `)
+        const id = await queuePush({
+            workspaceId: ctx.workspace_id,
+            type: input.type,
+            source: 'api',
+            context: { description: input.request },
+            projectId: input.project_id,
+        })
 
         logger.info({ event: 'mcp_tool_call', tool_name: 'plexo_create_task', token_id: ctx.token_id, workspace_id: ctx.workspace_id, task_id: id }, 'plexo_create_task called')
 
@@ -189,17 +182,26 @@ export async function plexoCancelTask(
     if (!requireScope(ctx, 'tasks:write')) return scopeDenied('tasks:write')
 
     try {
-        const result = await db.execute(sql`
-            UPDATE tasks
-            SET status = 'cancelled', updated_at = NOW()
-            WHERE id = ${input.task_id}
-              AND workspace_id = ${ctx.workspace_id}
-              AND status IN ('queued', 'claimed', 'running', 'pending')
-            RETURNING id
+        // Workspace-isolation check first — queueCancel() doesn't enforce scope,
+        // so we look up the row to confirm it belongs to the caller's workspace.
+        const [row] = await db.execute<{ id: string; workspace_id: string; status: string }>(sql`
+            SELECT id, workspace_id, status FROM tasks WHERE id = ${input.task_id} LIMIT 1
         `)
+        if (!row) {
+            return { error: 'Task not found', code: 'NOT_FOUND', correlation_id: crypto.randomUUID() }
+        }
+        if (row.workspace_id !== ctx.workspace_id) {
+            return scopeDenied('tasks:write')
+        }
 
-        if (!result.length) {
-            return { error: 'Task not found or already in terminal state', code: 'NOT_CANCELABLE', correlation_id: crypto.randomUUID() }
+        await queueCancel(input.task_id)
+
+        // Verify the cancel landed — queueCancel is a no-op for terminal-state rows.
+        const [after] = await db.execute<{ status: string }>(sql`
+            SELECT status FROM tasks WHERE id = ${input.task_id} LIMIT 1
+        `)
+        if (after?.status !== 'cancelled') {
+            return { error: 'Task already in terminal state', code: 'NOT_CANCELABLE', correlation_id: crypto.randomUUID() }
         }
 
         logger.info({ event: 'mcp_tool_call', tool_name: 'plexo_cancel_task', token_id: ctx.token_id, task_id: input.task_id }, 'plexo_cancel_task called')

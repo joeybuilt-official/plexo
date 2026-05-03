@@ -1069,6 +1069,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 qualityScore: result.qualityScore,
                 durationMs: Date.now() - taskStartMs,
                 toolsUsed: toolsUsedForEvent,
+                parentTaskId: task.parentId ?? null,
             }
             eventBus.publish(TOPICS.TASK_COMPLETED, completedPayload)
         } catch (publishErr) {

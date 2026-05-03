@@ -35,7 +35,8 @@ vi.mock('../logger.js', () => ({
 
 // ── Queue mock ────────────────────────────────────────────────────────────────
 vi.mock('@plexo/queue', () => ({
-    addTask: vi.fn().mockResolvedValue({ id: 'task-id-123' }),
+    push: vi.fn().mockResolvedValue('task-id-123'),
+    cancel: vi.fn().mockResolvedValue(undefined),
 }))
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -72,15 +73,18 @@ describe('plexo_list_tasks', () => {
 })
 
 describe('plexo_create_task', () => {
-    it('enqueues a task and returns its id', async () => {
-        const { db } = await import('@plexo/db')
-        vi.mocked(db.execute).mockResolvedValueOnce(Object.assign([], { columns: [], count: 0, command: '', statement: '', state: '' }) as any)
-
+    it('enqueues a task via queue.push and returns its id', async () => {
+        const { push } = await import('@plexo/queue')
         const { plexoCreateTask } = await import('./tasks.js')
         const result = await plexoCreateTask({ request: 'do something', type: 'general' }, mockCtx) as any
-        // Returns { id, type, status, request, created_at, message }
-        expect(result.id).toBeDefined()
+        expect(result.id).toBe('task-id-123')
         expect(result.status).toBe('queued')
+        expect(push).toHaveBeenCalledWith(expect.objectContaining({
+            workspaceId: 'ws-0001',
+            type: 'general',
+            source: 'api',
+            context: { description: 'do something' },
+        }))
     })
 })
 
@@ -99,7 +103,7 @@ describe('plexo_get_task', () => {
 })
 
 describe('plexo_cancel_task', () => {
-    it('returns error code NOT_CANCELABLE when task does not exist or is terminal', async () => {
+    it('returns NOT_FOUND when the task does not exist', async () => {
         const { db } = await import('@plexo/db')
         vi.mocked(db.execute).mockResolvedValueOnce(Object.assign([], { columns: [], count: 0, command: '', statement: '', state: '' }) as any)
 
@@ -108,7 +112,38 @@ describe('plexo_cancel_task', () => {
             { task_id: '00000000-0000-0000-0000-000000000002' },
             mockCtx,
         ) as any
+        expect(result.code).toBe('NOT_FOUND')
+    })
+
+    it('returns NOT_CANCELABLE when the task is already in a terminal state', async () => {
+        const { db } = await import('@plexo/db')
+        // 1st call: workspace check returns the row (matches caller's workspace).
+        vi.mocked(db.execute).mockResolvedValueOnce([
+            { id: 't-terminal', workspace_id: 'ws-0001', status: 'complete' },
+        ] as any)
+        // 2nd call: post-cancel verification — queueCancel was a no-op so status is unchanged.
+        vi.mocked(db.execute).mockResolvedValueOnce([{ status: 'complete' }] as any)
+
+        const { plexoCancelTask } = await import('./tasks.js')
+        const result = await plexoCancelTask({ task_id: 't-terminal' }, mockCtx) as any
         expect(result.code).toBe('NOT_CANCELABLE')
+    })
+
+    it('returns ok=true when queue.cancel transitions the task to cancelled', async () => {
+        const { db } = await import('@plexo/db')
+        // 1st call: workspace check.
+        vi.mocked(db.execute).mockResolvedValueOnce([
+            { id: 't-live', workspace_id: 'ws-0001', status: 'queued' },
+        ] as any)
+        // 2nd call: post-cancel verification.
+        vi.mocked(db.execute).mockResolvedValueOnce([{ status: 'cancelled' }] as any)
+
+        const { cancel } = await import('@plexo/queue')
+        const { plexoCancelTask } = await import('./tasks.js')
+        const result = await plexoCancelTask({ task_id: 't-live' }, mockCtx) as any
+        expect(result.ok).toBe(true)
+        expect(result.status).toBe('cancelled')
+        expect(cancel).toHaveBeenCalledWith('t-live')
     })
 })
 

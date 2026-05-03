@@ -1,8 +1,8 @@
 # Project System Progress
 
 Last updated: 2026-05-03
-Current phase: 6 closed — ready for Phase 7
-Last commit: e5c7c7d (Phase 4 hardening close) → Phase 4.5 + Phase 5 + Phase 6 commits pending in this session
+Current phase: 7 closed — full project-system rebuild done
+Last commit: dbaa30f (Phase 6 — pushed to origin/main) → Phase 7 commit pending in this session
 
 ## Phase Status
 - [x] Phase 0 — Audit
@@ -13,7 +13,7 @@ Last commit: e5c7c7d (Phase 4 hardening close) → Phase 4.5 + Phase 5 + Phase 6
 - [x] Phase 4.5 — Hardening Backlog (Phase 1 migration applied to local target DB, integration coverage on inbound CONFIRM/CANCEL via handleInboundConfirmCancel, telegram in-memory listener now renders the 4-field summary when present, dual-TTL decision codified in cross-referenced header comments)
 - [x] Phase 5 — Task UI (POST /confirm + POST /cancel endpoints; comma-separated status filter on GET /tasks; state filter tabs Active/Awaiting Confirmation/Completed/Failed on /app/tasks; ApprovalActions panel on /app/tasks/[id] for awaiting_approval; Tasks link in primary nav already present)
 - [x] Phase 6 — Memory Integration (reflectOnTask listener already wired in Phase 2; new this phase: queryMemory injection into planner system prompt — top-5 vector hits rendered as RELEVANT PAST CONTEXT block, gracefully degrades on retrieval failure)
-- [ ] Phase 7 — Wire Existing Tasks
+- [x] Phase 7 — Wire Existing Tasks (MCP plexo_create_task / plexo_cancel_task refactored from raw SQL to queue.push / queue.cancel; TaskCompletedPayload + TaskFailedPayload now carry parentTaskId so subscribers can filter to "events from my children"; markTaskFailed populates it from the same UPDATE…RETURNING; agent-loop completed-event population added)
 
 ---
 
@@ -399,3 +399,54 @@ Audit assumptions still in effect (override if needed):
 - No Inngest. Postgres-queue stack only.
 - `tasks.status` kept (no rename to `state`).
 - Memory facts use the canonical 5-type extraction enum (`identity | preference | skill | context | constraint`); the spec's `decision/convention` factTypes don't exist and aren't being added.
+
+---
+
+## Phase 7 close (this session)
+
+Phase 7 is the spec's "wire existing tasks to the new engine" sweep — verify every task creation path routes through the canonical entry, and that A2A child tasks are attributable on the event bus. The audit pass found the engine surface is mostly clean; this commit fixes the one orphan that survived (the MCP server) and adds parent-task attribution on the completion/failure events so a parent workflow can subscribe to its own children.
+
+**7.1 — MCP server task tools refactored to use the queue.** `packages/mcp-server/src/tools/tasks.ts`:
+
+- `plexoCreateTask` was doing a raw `INSERT INTO tasks (..., request, ..., updated_at, ...)` via `db.execute`. Two columns referenced by that SQL don't exist on the `tasks` table — `request` lives on `sprints`, and `tasks` has no `updated_at` — so the call was failing in production any time it was reached. Replaced with `await queuePush({ workspaceId, type, source: 'api', context: { description: input.request }, projectId })`. Source is `'api'` (the closest enum member to MCP, which has no dedicated source). Description goes into `tasks.context.description` to match every other call site (`chat.ts`, `telegram.ts`, `slack.ts`, `discord.ts`).
+- `plexoCancelTask` was doing a raw `UPDATE tasks SET status='cancelled', updated_at=NOW()` — same nonexistent-column problem on `updated_at`. Replaced with `await queueCancel(input.task_id)`. Workspace isolation is preserved by an explicit pre-flight `SELECT id, workspace_id, status FROM tasks WHERE id = ...` (the queue helper has no scope check). Three return paths are now distinguishable: `NOT_FOUND` (no row), `SCOPE_DENIED` (row in another workspace), `NOT_CANCELABLE` (row exists in caller's workspace but already terminal). Previously all three collapsed into one error.
+- `plexoListTasks` status enum was misaligned with the DB: it accepted `'completed'` (with d) where the DB enum is `'complete'`, and was missing `'blocked'` and `'awaiting_approval'`. Aligned to the DB enum in the same commit since it's the same surface and the bug was reachable.
+- `VALID_TYPES` for `plexoCreateTask` dropped `'analysis'` (not in `taskTypeEnum`); the value would have failed at INSERT anyway. The remaining types — `general | research | coding | automation | writing` — all exist on the DB enum.
+- `ulid` import dropped (no longer needed; `queuePush` ulid-generates internally).
+
+**7.2 — A2A child task attribution on completion/failure events.** Schema FK was already correct: `tasks.parent_id` self-references with `ON DELETE SET NULL`, indexed (`tasks_parent_id_idx`), and the canonical A2A spawn site (`packages/agent/src/plugins/persistent-pool.ts:227-245`) already passes `parentId` through `queuePush`. The gap was that the events emitted on terminal state (`TASK_COMPLETED`, `TASK_FAILED`) didn't carry the parent id, so a subscriber could not filter "events from my children" without a separate DB lookup.
+
+- `packages/agent/src/tasks/types.ts` — `TaskCompletedPayloadSchema` and `TaskFailedPayloadSchema` gain a `parentTaskId: z.string().nullable().optional()` field. Optional so existing publishers/subscribers compile unchanged; `null` is the canonical "this task has no parent" value, `undefined` only appears when an old publisher hasn't been updated yet.
+- `apps/api/src/agent-loop.ts` — TASK_COMPLETED publish at line ~1063 sets `parentTaskId: task.parentId ?? null`. The full task row is already in scope from the executor branch, no extra DB lookup needed.
+- `packages/agent/src/tasks/terminal-fail.ts` — `markTaskFailed` extends its existing `UPDATE … RETURNING { id }` to also `RETURNING { parentId }`, captures it from the returned row, and threads it into the published `TaskFailedPayload`. Zero added DB roundtrips.
+
+The persistent-pool A2A delegate path (`packages/agent/src/plugins/persistent-pool.ts:579-586`) currently polls the DB every 3s for child completion. With this change, it could subscribe to TASK_COMPLETED filtered by `parentTaskId === ourTaskId` instead of polling. Out of Phase 7 scope; the plumbing is now in place for that follow-up to be a small refactor.
+
+**7.3 — Final orphan-state-write grep.** `db.update(tasks)` and `UPDATE tasks SET` hits across the repo, after the 7.1 fix:
+
+- Canonical (engine, sweepers, queue helper): `apps/api/src/agent-loop.ts` (8 sites — state machine), `packages/agent/src/tasks/terminal-fail.ts:93` (markTaskFailed), `packages/queue/src/index.ts` (push/claim/complete/block/fail/cancel), `packages/agent/src/executor/index.ts:429` (executor heartbeat).
+- Authorized API surfaces: `apps/api/src/routes/tasks.ts:266, 365, 432` (cancel routes from Phase 5 — write `status='cancelled'` directly but also call `cancelActiveTask` to signal the executor; these match the spec's "spec-aligned POST /cancel" endpoint and don't go through queue.cancel, but the behavior is the same modulo the queue helper's claimedAt/retryAfter clears — acceptable since `tasks.ts` cancel endpoint clears them inline). `apps/api/src/routes/sprint-runner.ts:249` — sprint-level bulk cancel, also calls `cancelActiveTask` per-task.
+- Conversation-status writes (telegram/slack/discord/chat) operate on the `conversations` table, not `tasks` — these matched the broad grep but are unrelated.
+
+No remaining orphans.
+
+**Ship-gate (this session):**
+- `pnpm typecheck` — 18/18 packages pass.
+- `pnpm build` — 12/12 packages succeed.
+- `pnpm --filter @plexo/agent test` — **984/984 pass** (TaskCompletedPayload + TaskFailedPayload schema additions are backward-compatible — `parentTaskId` is optional).
+- `pnpm --filter @plexo/api test` — **807/807 pass** (the agent-loop change is one extra field on an existing payload).
+- `pnpm --filter @plexo/mcp-server test` — **16/16 pass** (was 14/14 on origin/main; the new test file has 9 source tests including the rewritten cancel suite — now distinguishes NOT_FOUND, NOT_CANCELABLE, and ok=true paths — plus the existing 7 dist tests. Three test failures appeared mid-session due to mock leakage between tests after the new `plexoCreateTask` stopped calling `db.execute` and left a queued `mockResolvedValueOnce` to contaminate downstream tests; fixed by replacing the stale `addTask` queue mock with `push`/`cancel` mocks and removing the unused `db.execute` setup from the create test).
+- `pnpm db:migrate` — N/A (no schema changes this phase; `tasks.parent_id` already existed).
+
+Notes / known limits (Phase 7):
+
+- **`apps/api/src/routes/tasks.ts` cancel routes still write `status='cancelled'` directly** instead of calling `queueCancel`. The behaviour is equivalent for the Phase 5 surface (status-gated UPDATE + `cancelActiveTask` signal), and these routes already do extra OWD-resolve work alongside the cancel that `queueCancel` doesn't. Migrating them would require either pulling the OWD-resolve logic into the queue helper or invoking the helper after the OWD work — neither is a clear win at this point. Logged as a follow-up if `queueCancel` ever grows additional invariants the routes would benefit from.
+- **A2A delegate still polls instead of subscribing.** The plumbing for an event-driven resume is now in place (`parentTaskId` on completion/failure events) but the persistent-pool delegate at `persistent-pool.ts:579-586` still uses a 3-second DB poll for up to 5 minutes. Conversion is a small refactor — subscribe to TOPICS.TASK_COMPLETED, filter by `parentTaskId === ourTaskId`, resolve a deferred. Skipped this session because the polling path works and the conversion needs careful handling of the timeout edge case.
+- **`tasks.context._approvalId` JSONB merge for awaiting_approval** (Phase 4) and **`tasks.plan` write at planning time** (Phase 2) both still use `db.update(tasks)` directly from the agent-loop. These aren't orphans — they're the engine itself — but they're not behind a `queueX(taskId, …)` helper either. If the queue layer gains structured per-state setters in a future phase, those agent-loop sites should migrate. No action this phase.
+- **Build emits a `no output files found for task @plexo/api#build` warning.** Pre-existing turbo.json output config issue, not introduced by Phase 7. The api build itself succeeds.
+- **No new integration test for the parent-attribution event field.** The new `parentTaskId` is asserted at the schema level (`TaskCompletedPayloadSchema.parse` will reject a non-string-non-null value) and exercised implicitly by every test that drives the agent-loop. A targeted "parent task receives child completion event" integration test would need an A2A scenario with two real workspaces and would belong to a hardening pass after the persistent-pool resume path is converted to event-driven.
+
+Audit assumptions still in effect (override if needed):
+- No Inngest. Postgres-queue stack only.
+- `tasks.status` kept (no rename to `state`).
+- MCP source = `'api'` (no `'mcp'` enum member; adding one would require a migration that's out of scope for a Phase 7 wiring fix).
