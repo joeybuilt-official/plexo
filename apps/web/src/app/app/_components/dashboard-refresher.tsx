@@ -61,6 +61,7 @@ export function DashboardRefresher() {
                 'task_queued_via_slack',
                 'task_awaiting_approval',
                 'task_rejected',
+                'owd_approved',
                 'sprint_updated',
             ])
             es.onmessage = (e) => {

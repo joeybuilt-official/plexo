@@ -127,11 +127,45 @@ async function runMigrations() {
             }
 
             // Count expected migrations from the on-disk journal before running.
+            // Also validate that journal entries are ordered consistently by `idx`
+            // and `when` — Drizzle's migrator sorts by `when` (epoch ms), so a new
+            // entry hand-edited with a `when` smaller than an existing later entry
+            // would be silently skipped. Fail loud here instead.
             const journalPath = path.join(absoluteMigrationsPath, 'meta', '_journal.json')
             let expectedCount = 0
             try {
-                const journal = JSON.parse(readFileSync(journalPath, 'utf-8')) as { entries?: unknown[] }
-                expectedCount = Array.isArray(journal.entries) ? journal.entries.length : 0
+                const journal = JSON.parse(readFileSync(journalPath, 'utf-8')) as { entries?: Array<{ idx: number; when: number; tag: string }> }
+                const entries = Array.isArray(journal.entries) ? journal.entries : []
+                expectedCount = entries.length
+                for (let i = 1; i < entries.length; i++) {
+                    const prev = entries[i - 1]!
+                    const curr = entries[i]!
+                    if (curr.idx <= prev.idx) {
+                        console.error(`[migrate] JOURNAL ERROR: idx out of order at ${curr.tag} (idx=${curr.idx}, prev idx=${prev.idx}). Aborting.`)
+                        process.exit(1)
+                    }
+                    if (curr.when <= prev.when) {
+                        console.error(`[migrate] JOURNAL ERROR: \`when\` out of order at ${curr.tag} (when=${curr.when}, prev when=${prev.when}). Drizzle sorts by \`when\` and would silently skip this. Bump \`when\` past ${prev.when}.`)
+                        process.exit(1)
+                    }
+                }
+
+                // Disk-vs-journal: warn loud when SQL files exist on disk that the
+                // journal doesn't reference. Drizzle's migrator skips them silently,
+                // so they NEVER apply to any DB. Phase A audit flagged 0095-0098
+                // (synthesis_alpha, themes_*, joeybuilt_apps_auto_connect) as
+                // existing on disk but not journaled. We warn (not fail) because
+                // the operator may have intentionally orphaned an in-flight
+                // migration; failing here would block every subsequent migrate.
+                const journaledTags = new Set(entries.map((e) => e.tag))
+                const orphaned = files
+                    .map((f) => f.replace(/\.sql$/, ''))
+                    .filter((tag) => !journaledTags.has(tag))
+                if (orphaned.length > 0) {
+                    console.warn(`[migrate] WARNING: ${orphaned.length} SQL file(s) on disk are NOT in _journal.json — Drizzle will skip these silently:`)
+                    for (const tag of orphaned) console.warn(`  - ${tag}.sql`)
+                    console.warn('[migrate] If these are real migrations, generate via drizzle-kit so they get journaled. If they were intentionally orphaned (in-flight), ignore this warning.')
+                }
             } catch (err: any) {
                 console.error(`[migrate] ERROR: could not read journal at ${journalPath}: ${err.message}`)
                 process.exit(1)

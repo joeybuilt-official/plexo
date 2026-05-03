@@ -1,8 +1,8 @@
 # Project System Progress
 
 Last updated: 2026-05-03
-Current phase: 7 closed — full project-system rebuild done
-Last commit: dbaa30f (Phase 6 — pushed to origin/main) → Phase 7 commit pending in this session
+Current phase: 7 closed + Phase 7+ follow-ups pass landed
+Last commit: c489718 (Phase 7) → Phase 7+ follow-ups pending commit at end of this session
 
 ## Phase Status
 - [x] Phase 0 — Audit
@@ -14,6 +14,7 @@ Last commit: dbaa30f (Phase 6 — pushed to origin/main) → Phase 7 commit pend
 - [x] Phase 5 — Task UI (POST /confirm + POST /cancel endpoints; comma-separated status filter on GET /tasks; state filter tabs Active/Awaiting Confirmation/Completed/Failed on /app/tasks; ApprovalActions panel on /app/tasks/[id] for awaiting_approval; Tasks link in primary nav already present)
 - [x] Phase 6 — Memory Integration (reflectOnTask listener already wired in Phase 2; new this phase: queryMemory injection into planner system prompt — top-5 vector hits rendered as RELEVANT PAST CONTEXT block, gracefully degrades on retrieval failure)
 - [x] Phase 7 — Wire Existing Tasks (MCP plexo_create_task / plexo_cancel_task refactored from raw SQL to queue.push / queue.cancel; TaskCompletedPayload + TaskFailedPayload now carry parentTaskId so subscribers can filter to "events from my children"; markTaskFailed populates it from the same UPDATE…RETURNING; agent-loop completed-event population added)
+- [x] Phase 7+ Follow-ups (this session, 2026-05-03) — A2A delegate event-driven resume, tasks.ts cancel route migration, blockTask path summary, owd_approved SSE refresh, loadWorkspaceApprovalPolicy export, migrate.ts journal-order guard, buildMemoryBlock unit test (5/5 pass)
 
 ---
 
@@ -450,3 +451,73 @@ Audit assumptions still in effect (override if needed):
 - No Inngest. Postgres-queue stack only.
 - `tasks.status` kept (no rename to `state`).
 - MCP source = `'api'` (no `'mcp'` enum member; adding one would require a migration that's out of scope for a Phase 7 wiring fix).
+
+---
+
+## Phase 7+ Follow-ups close (this session, 2026-05-03)
+
+Follow-ups pass against the "Notes / known limits" lists from Phases 4.5–7. Seven items, all green on 18/18 typecheck, agent **989/989** (was 984; +5 new), api **807/807** (unchanged baseline). Pre-commit; will commit at end of session.
+
+**1. A2A delegate event-driven resume — `packages/agent/src/plugins/persistent-pool.ts:551-617`.**
+Replaced 3-second DB poll with `eventBus.subscribe(TOPICS.TASK_COMPLETED|TASK_FAILED)` filtered by `payload.taskId === childTaskId`. On match, re-reads the row for canonical `outcomeSummary` + `deliverable`. Kept a 30-second safety poll as backstop for terminal transitions that don't publish events today (`blockTask` non-transient path historically; `queue.cancel` has no publish). Race protection: an initial `checkRow()` runs immediately after subscribing in case the child reached terminal state in the push→subscribe window. 5-minute timeout preserved. Single-resolver settle pattern with cleanup of all subscriptions, interval, and timer.
+
+**2. Migrate `tasks.ts` cancel routes to `queueCancel` — `apps/api/src/routes/tasks.ts:7,267,365,432`.**
+Three sites replaced `db.update(tasks).set({ status: 'cancelled' })` with `queueCancel(id)` from `@plexo/queue`. The queue helper additionally clears `claimedAt`, `claimedUntil`, `retryAfter` (route writes were leaving these populated, mildly leaking slot accounting). Workspace gate (`ensureWorkspaceAccess`), OWD `resolveDecision('rejected')` side-work, `cancelActiveTask` signal, audit, and SSE emit all preserved at their original sites. Retry route's "cancel the original" call (line 432) also routed through `queueCancel` — the helper's status filter naturally no-ops on already-failed/cancelled rows, which is exactly the desired behavior.
+
+**3. Non-transient `blockTask` path emits 4-field summary on SSE — `apps/api/src/agent-loop.ts:9-11,1284-1303`.**
+`deterministicEscalation` imported. The non-transient executor catch branch now generates a 4-field summary inline (FailureReason.ToolError, falling back to `task.type`/description for `taskDescription`) and sets `transientFailSummary` so the existing `task_failed` SSE emit at line ~1370 carries `summary`. Telegram in-memory listener and channel-delivery TASK_FAILED listener now render structurally for this path too — closes the Phase 4.5 known-limit. Note: this path still does NOT call `markTaskFailed` (so no `failed_at` / `failure_reason` DB write yet, no TASK_FAILED bus publish), only the SSE emit. Migrating to `markTaskFailed` is a larger scope change — variable name `transientFailSummary` is now slightly misleading but kept to avoid renaming churn; future cleanup.
+
+**4. SSE refresh on `owd_approved` for detail page — `apps/web/src/app/app/_components/dashboard-refresher.tsx:62-66`.**
+Added `'owd_approved'` to `REFRESH_EVENTS`. The DashboardRefresher mounts globally per dashboard layout, so the detail page (`/app/tasks/[id]`) now refreshes when the OWD is approved by another user / chat channel. Closes Phase 5's "no SSE refresh on owd_approved" limit.
+
+**5. Export `loadWorkspaceApprovalPolicy` — `apps/api/src/agent-loop.ts:60-77`.**
+`WorkspaceApprovalPolicy` interface and `loadWorkspaceApprovalPolicy` async function now exported. Phase D's confirm-gate integration test had to skip the direct unit-test of this helper because it was module-private; the next pass can flip the `it.skip` and call it directly.
+
+**6. `migrate.ts` journal-order guard — `packages/db/src/migrate.ts:129-159`.**
+Pre-flight scan now asserts `_journal.json` entries are strictly increasing on both `idx` and `when`. Drizzle's migrator sorts by `when` (epoch ms), so a hand-edited entry with a `when` smaller than its `idx`-predecessor would be silently skipped. Now fails loud with the exact tag and the prev `when` value to bump past. Phase D had a documented workaround for this; now codified as a guard.
+
+**7. `buildMemoryBlock` unit test — `packages/agent/src/planner/__tests__/build-memory-block.test.ts` + export at `packages/agent/src/planner/index.ts:172`.**
+Function exported. New 5-test file covers: empty-result returns `undefined`; rendered block opens with the canonical `RELEVANT PAST CONTEXT` header and lists shorthand-or-content per hit; 240-char cap with ellipsis; retrieval failure (rejected promise) returns `undefined` and logs warn (verified via stderr); workspaceId/userId/queryText/limit propagate to `queryMemory`. Mocks `queryMemory` via `vi.hoisted` + `vi.mock('../../memory/query.js', ...)`. Closes Phase 6's "no targeted unit test for `buildMemoryBlock`" note.
+
+**Ship-gate (this session):**
+- `pnpm typecheck` — 18/18 packages pass.
+- `pnpm --filter @plexo/agent test` — **989/989 pass** (+5 from new buildMemoryBlock test).
+- `pnpm --filter @plexo/api test` — **807/807 pass** (baseline preserved).
+- `pnpm build` — not re-run; no new build inputs.
+- `pnpm db:migrate` — N/A (no schema changes; `migrate.ts` change is the runner itself, takes effect next migrate run).
+
+**Remaining Phase 7+ items NOT addressed this session (deferred):**
+- Worker slot release during `awaiting_approval` poll — needs re-claim semantics for separate worker to resume on `'approved'`. Larger refactor than a follow-up pass.
+- `waitForDecision` 60-second floor without SSE consumer (Phase D limit) — workaround exists; production has SSE.
+- `apps/api/src/routes/tasks.ts` cancel routes still do their own audit + cancelActiveTask + emit — `queueCancel` doesn't emit SSE itself. Acceptable separation of concerns.
+- Migrating non-transient `blockTask` path fully through `markTaskFailed` (so it publishes `TASK_FAILED` and writes `failed_at`/`failure_reason`). Scoped item; current SSE-only summary is the user-facing fix.
+- Convert in-memory telegram listener to defer to bus listener for failures (Phase 4 trade-off note) — a deeper plumbing refactor.
+
+**Audit-stream phases F1, F2, G are still open — operator-triggered single-line phases under `ops/coreaudit/EXECUTION-PLAN.md`. Not part of this session's scope.**
+
+### Continuation pass (same session, post-/context check)
+
+Three more items closed after the initial 7. Workspace typecheck still 18/18; api 807/807.
+
+**8. Harmonize blockTask path delivery via `deliverTaskTransition` — `apps/api/src/agent-loop.ts:1313-1345`.**
+The non-transient path was using legacy `deliverToOriginChannel({ outcome: 'failed' })` which renders via `translateErrorForUser`. Replaced with the canonical `deliverTaskTransition({ state: 'failed', summary: failSummary })` so slack/discord/telegram all render the 4-field structured message — matching the TASK_FAILED bus listener path. Round-trip caught a real risk: `deliverTaskTransition` is NOT gated by `isTaskDelivered` (only `deliverToOriginChannel` was), so without a guard, telegram-origin tasks would receive both the in-memory listener message AND the inline message. Fixed with explicit `if (isTaskDelivered(task.id))` skip + debug log. Confirmed: only `apps/api/src/routes/telegram.ts:1142` calls `markTaskDelivered` upfront-on-queue; slack/discord/web routes don't, so the inline path correctly fires for them while telegram is correctly deferred to the in-memory listener.
+
+**9. Rename `transientFailSummary` → `failSummary` — `apps/api/src/agent-loop.ts` (5 sites).**
+Variable was set on both transient and non-transient branches after item 3 above; old name was misleading. Pure rename, no semantic change.
+
+**10. `migrate.ts` disk-vs-journal warn — `packages/db/src/migrate.ts:153-167`.**
+After the journal idx/when guard, also scan `*.sql` files in the migrations folder and warn-loud (not fail) for any tag NOT present in `_journal.json`. Catches the Phase A audit's flagged class of bug: 0095-0098 SQL files exist on disk but were never registered in the journal, so Drizzle silently skips them on every migrate. Warn (not error) because the operator may have intentionally orphaned an in-flight migration; failing would block every subsequent run. Listed orphans by tag in the warning. Phase A's 0095-0098 will surface on the next `pnpm db:migrate` so the operator can decide retroactive-journal vs. drop-from-disk.
+
+**Still deferred after continuation pass:**
+- Worker slot release during `awaiting_approval` poll (large refactor — re-claim semantics).
+- `waitForDecision` 60-second floor without SSE consumer (workaround exists; prod has SSE).
+- Migrate non-transient `blockTask` path fully through `markTaskFailed` (semantic blocked → failed status change — needs operator decision).
+- Convert in-memory telegram listener to defer to bus listener for failures (refactor; current dual-path with dedup gate is correct).
+- Phase A schema drift (`workspace_members.user_id` text/uuid; `users.id` text vs uuid in schema) — flagged as one-way-door candidates.
+
+### Continuation pass round 2 (same session)
+
+**11. Memory injection metric — `packages/agent/src/analytics/memory-events.ts:121-145` + `packages/agent/src/planner/index.ts:23,189,196`.**
+New `emitMemoryInjection({ workspaceId, userId, factsInjected, retrievalFailed })` analytics emitter writes a `memory.plan-injection` row to `plexo_ops_analytics`. Wired into `buildMemoryBlock`: emits on success with `factsInjected = hits.length`, on failure with `factsInjected = 0, retrievalFailed = true`. Distinct from `memory.retrieval` (which fires on every `queryMemory` call regardless of whether the hits were used). Closes Phase 6's "no memory injection metric" follow-up note. Lets analytics correlate "plans informed by memory" with plan quality / outcome over time.
+
+`build-memory-block.test.ts` extended with two new assertions (success-emit + failure-emit), now 7/7 pass. Agent suite **991/991** (was 989; +2 new). Workspace typecheck still 18/18.

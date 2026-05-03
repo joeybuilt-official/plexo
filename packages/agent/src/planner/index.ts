@@ -20,6 +20,7 @@ import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
 import { queryMemory } from '../memory/query.js'
+import { emitMemoryInjection } from '../analytics/memory-events.js'
 import type { ExecutionPlan, ExecutionContext, PlanStep, OneWayDoor, PlannerResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { buildExecutionWaves } from '../utils/topo-sort.js'
@@ -169,7 +170,7 @@ const MEMORY_FACT_CHAR_CAP = 240
  * as a "RELEVANT PAST CONTEXT" block. Returns undefined on empty results
  * or any retrieval failure so planning never blocks on memory.
  */
-async function buildMemoryBlock(
+export async function buildMemoryBlock(
     workspaceId: string,
     userId: string,
     queryText: string,
@@ -183,6 +184,7 @@ async function buildMemoryBlock(
             limit: MEMORY_FACT_LIMIT,
             aiSettings,
         })
+        emitMemoryInjection({ workspaceId, userId, factsInjected: hits.length, retrievalFailed: false })
         if (hits.length === 0) return undefined
         const lines = hits.map((h) => {
             const text = (h.shorthand?.trim() || h.content.trim()).replace(/\s+/g, ' ')
@@ -191,6 +193,7 @@ async function buildMemoryBlock(
         return `RELEVANT PAST CONTEXT (from prior tasks and learned facts — use to avoid known failures and reuse established patterns; ignore if not applicable):\n${lines.join('\n')}`
     } catch (err) {
         logger.warn({ err, workspaceId }, 'planner: queryMemory failed — proceeding without memory context')
+        emitMemoryInjection({ workspaceId, userId, factsInjected: 0, retrievalFailed: true })
         return undefined
     }
 }

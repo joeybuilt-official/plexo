@@ -28,7 +28,7 @@ import pino from 'pino'
 import { storeMemory, searchMemory } from '../memory/store.js'
 import { db, eq, and, sql, isNull, ilike } from '@plexo/db'
 import { installedConnections, connectionsRegistry, tasks, extensionContexts, extensionPrompts, entityEntries, entityLinks } from '@plexo/db'
-import { eventBus } from './event-bus.js'
+import { eventBus, TOPICS } from './event-bus.js'
 
 const logger = pino({ name: 'pex-persistent-pool' })
 
@@ -569,27 +569,74 @@ async function dispatchSdkCall(pluginName: string, method: string, args: Record<
                 },
             })
 
-            // Poll for completion (max 5 minutes)
-            const POLL_INTERVAL_MS = 3_000
+            // Event-driven resume on TASK_COMPLETED / TASK_FAILED filtered by taskId.
+            // Safety poll (30s) backstops terminal transitions that don't emit
+            // (e.g., the non-transient blockTask path that does not call markTaskFailed,
+            // and queue.cancel which has no event publish today).
             const TIMEOUT_MS = 300_000
-            const pollStart = Date.now()
-            while (Date.now() - pollStart < TIMEOUT_MS) {
-                await new Promise<void>(r => setTimeout(r, POLL_INTERVAL_MS))
-                const [row] = await db.select({
-                    status: tasks.status,
-                    outcomeSummary: tasks.outcomeSummary,
-                    deliverable: tasks.deliverable,
-                }).from(tasks).where(eq(tasks.id, childTaskId)).limit(1)
+            const SAFETY_POLL_MS = 30_000
 
-                if (!row) throw new Error('Child task row not found')
-                if (row.status === 'complete' || (row.status as string) === 'completed') {
-                    return { taskId: childTaskId, status: 'completed', result: row.outcomeSummary, deliverable: row.deliverable }
+            type Outcome =
+                | { kind: 'completed'; outcomeSummary: string | null; deliverable: unknown }
+                | { kind: 'failed'; reason: string }
+                | { kind: 'timeout' }
+
+            const outcome = await new Promise<Outcome>((resolveOutcome) => {
+                const unsubs: Array<() => void> = []
+                let settled = false
+                const settle = (o: Outcome) => {
+                    if (settled) return
+                    settled = true
+                    for (const u of unsubs) {
+                        try { u() } catch { /* noop */ }
+                    }
+                    resolveOutcome(o)
                 }
-                if (row.status === 'blocked' || row.status === 'failed' || (row.status as string) === 'cancelled') {
-                    throw new Error(`Child task ${row.status}: ${row.outcomeSummary ?? 'no details'}`)
+
+                const checkRow = async (): Promise<void> => {
+                    if (settled) return
+                    const [row] = await db.select({
+                        status: tasks.status,
+                        outcomeSummary: tasks.outcomeSummary,
+                        deliverable: tasks.deliverable,
+                    }).from(tasks).where(eq(tasks.id, childTaskId)).limit(1)
+                    if (!row) {
+                        settle({ kind: 'failed', reason: 'Child task row not found' })
+                        return
+                    }
+                    const status = row.status as string
+                    if (status === 'complete' || status === 'completed') {
+                        settle({ kind: 'completed', outcomeSummary: row.outcomeSummary, deliverable: row.deliverable })
+                        return
+                    }
+                    if (status === 'failed' || status === 'blocked' || status === 'cancelled') {
+                        settle({ kind: 'failed', reason: `Child task ${status}: ${row.outcomeSummary ?? 'no details'}` })
+                        return
+                    }
                 }
-            }
-            throw new Error('A2A delegate: child task timed out after 5 minutes')
+
+                const onTerminalEvent = (payload: unknown) => {
+                    const p = payload as { taskId?: string }
+                    if (p?.taskId !== childTaskId) return
+                    void checkRow()
+                }
+
+                unsubs.push(eventBus.subscribe(TOPICS.TASK_COMPLETED, onTerminalEvent))
+                unsubs.push(eventBus.subscribe(TOPICS.TASK_FAILED, onTerminalEvent))
+
+                const poll = setInterval(() => { void checkRow() }, SAFETY_POLL_MS)
+                unsubs.push(() => clearInterval(poll))
+
+                const timer = setTimeout(() => settle({ kind: 'timeout' }), TIMEOUT_MS)
+                unsubs.push(() => clearTimeout(timer))
+
+                // Race protection: child may have reached terminal state between push and subscribe.
+                void checkRow()
+            })
+
+            if (outcome.kind === 'timeout') throw new Error('A2A delegate: child task timed out after 5 minutes')
+            if (outcome.kind === 'failed') throw new Error(outcome.reason)
+            return { taskId: childTaskId, status: 'completed', result: outcome.outcomeSummary, deliverable: outcome.deliverable }
         }
 
         default:

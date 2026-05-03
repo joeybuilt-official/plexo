@@ -4,7 +4,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { db, desc, eq, and, sql } from '@plexo/db'
 import { tasks, taskSteps, artifacts, artifactVersions, inferKind, type WorkKind } from '@plexo/db'
-import { push, list } from '@plexo/queue'
+import { push, list, cancel as queueCancel } from '@plexo/queue'
 import { getResumeStep } from '@plexo/agent/executor/step-builder'
 import { resolveDecision } from '@plexo/agent/one-way-door'
 import { logger } from '../logger.js'
@@ -263,7 +263,7 @@ tasksRouter.delete('/:id', async (req, res) => {
             return
         }
 
-        await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, id))
+        await queueCancel(id)
 
         // Signal the executor immediately if this task is currently running
         const aborted = cancelActiveTask(id)
@@ -362,7 +362,7 @@ tasksRouter.post('/:id/cancel', async (req, res) => {
             }
         }
 
-        await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, id))
+        await queueCancel(id)
         const aborted = cancelActiveTask(id)
         emitToWorkspace(existing.workspaceId, { type: 'task_cancelled', taskId: id })
         trackEvent('task.cancelled', 'warning', { taskId: id, workspaceId: existing.workspaceId, previousStatus: existing.status })
@@ -428,8 +428,9 @@ tasksRouter.post('/:id/retry', async (req, res) => {
             projectId: task.projectId ?? undefined,
         })
 
-        // Cancel the blocked/failed original
-        await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, id))
+        // Cancel the blocked original (failed/cancelled are no-ops since queueCancel
+        // only transitions cancellable states — exactly what we want here).
+        await queueCancel(id)
 
         trackEvent('task.retry', 'info', {
             originalId: id,

@@ -119,6 +119,32 @@ export function emitMemoryConfidenceDecay(opts: {
     })
 }
 
+/**
+ * Phase 6 follow-up — plan-time memory injection.
+ *
+ * Emits when `buildMemoryBlock` injects facts into the planner system prompt.
+ * Fires both on success (factsInjected > 0) and on the empty/error paths
+ * (factsInjected = 0, retrievalFailed = true|false) so downstream analytics
+ * can correlate "plans informed by memory" with plan quality / outcome.
+ *
+ * Distinct from `memory.retrieval`, which fires on every queryMemory call.
+ * This event is planner-specific and tells you whether a plan actually got
+ * past-context injected.
+ */
+export function emitMemoryInjection(opts: {
+    workspaceId: string
+    userId?: string
+    factsInjected: number
+    retrievalFailed: boolean
+}): void {
+    void emit('memory.plan-injection', {
+        workspace_id: opts.workspaceId,
+        user_id: opts.userId ?? null,
+        facts_injected: opts.factsInjected,
+        retrieval_failed: opts.retrievalFailed,
+    })
+}
+
 export function emitMemoryUserWrite(opts: {
     workspaceId: string
     ruleKey: string
