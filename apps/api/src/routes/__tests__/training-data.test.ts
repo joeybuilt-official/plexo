@@ -126,15 +126,15 @@ afterAll(() => {
 })
 
 describe('GET /sources', () => {
-    it('returns all 7 data sources with counts', async () => {
+    it('returns all 6 data sources with counts', async () => {
         dbShouldFail = false
         const res = await fetch(`${base}/sources`)
         expect(res.status).toBe(200)
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const body = (await res.json()) as any
-        expect(body.sources).toHaveLength(7)
-        expect(body.totalExamples).toBe(42 * 7) // 42 per source
+        expect(body.sources).toHaveLength(6)
+        expect(body.totalExamples).toBe(42 * 6) // 42 per source
 
         // Check structure
         const first = body.sources[0]
@@ -163,7 +163,6 @@ describe('GET /sources', () => {
         expect(ids).toContain('memory_entries')
         expect(ids).toContain('behavior_snapshots')
         expect(ids).toContain('scl_concept_graphs')
-        expect(ids).toContain('golden_records')
     })
 
     it('handles DB errors gracefully', async () => {
