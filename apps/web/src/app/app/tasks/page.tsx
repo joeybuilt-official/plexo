@@ -23,7 +23,7 @@ import { StatusBadge, cn } from '@plexo/ui'
 interface Task {
     id: string
     type: string
-    status: 'pending' | 'running' | 'complete' | 'failed' | 'cancelled' | 'queued' | 'claimed' | 'blocked'
+    status: 'pending' | 'running' | 'complete' | 'failed' | 'cancelled' | 'queued' | 'claimed' | 'blocked' | 'awaiting_approval'
     source: string
     project: string | null
     projectId: string | null
@@ -44,8 +44,18 @@ interface Sprint {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const TASK_STATUSES = ['pending', 'queued', 'claimed', 'running', 'complete', 'failed', 'blocked', 'cancelled'] as const
+const TASK_STATUSES = ['pending', 'queued', 'claimed', 'running', 'awaiting_approval', 'complete', 'failed', 'blocked', 'cancelled'] as const
 const TASK_TYPES = ['coding', 'deployment', 'research', 'ops', 'opportunity', 'monitoring', 'report', 'online', 'automation'] as const
+
+// Phase 5 — high-level state grouping for the tab strip. Each tab maps to the
+// raw `tasks.status` values it covers; the API accepts comma-separated values.
+const STATE_TABS = [
+    { key: 'all', label: 'All', statuses: '' },
+    { key: 'active', label: 'Active', statuses: 'queued,claimed,running,blocked' },
+    { key: 'awaiting', label: 'Awaiting Confirmation', statuses: 'awaiting_approval' },
+    { key: 'completed', label: 'Completed', statuses: 'complete' },
+    { key: 'failed', label: 'Failed', statuses: 'failed,cancelled' },
+] as const
 
 // Module-level constant → stable reference for useListFilter initialiser
 const FILTER_KEYS = ['status', 'type', 'project'] as const
@@ -261,7 +271,17 @@ export default function TasksPage() {
 
     // ── Filter state (shared standard) ────────────────────────────────────────
     const lf = useListFilter(FILTER_KEYS, 'newest')
-    const { search, filterValues, hasFilters, clearAll } = lf
+    const { search, filterValues, hasFilters, clearAll, setFilter } = lf
+
+    // Resolve which state tab is currently active based on the status filter
+    // value. Falls back to 'all' when the filter is unset OR matches a custom
+    // single-status (set via the per-status dropdown). This keeps the tab strip
+    // and the dropdown coherent without making them strictly exclusive.
+    const activeStateTab = useMemo(() => {
+        const v = filterValues.status ?? ''
+        const match = STATE_TABS.find((t) => t.statuses === v)
+        return match?.key ?? (v === '' ? 'all' : null)
+    }, [filterValues.status])
 
     // ── Phase 8: SWR-backed data fetching ────────────────────────────────────
     // Server-side filters are baked into the cache key so each filter combo
@@ -436,6 +456,30 @@ export default function TasksPage() {
                 </div>
             </div>
 
+            {/* State filter tabs — coarse grouping; the dropdown below still
+                allows fine-grained per-status filtering. */}
+            <div role="tablist" aria-label="Task state" className="flex flex-wrap items-center gap-1 border-b border-border">
+                {STATE_TABS.map((tab) => {
+                    const selected = activeStateTab === tab.key
+                    return (
+                        <button
+                            key={tab.key}
+                            role="tab"
+                            aria-selected={selected}
+                            onClick={() => setFilter('status', tab.statuses === '' ? null : tab.statuses)}
+                            className={cn(
+                                'relative px-3 py-2 text-sm font-medium transition-colors -mb-px border-b-2',
+                                selected
+                                    ? 'border-azure text-text-primary'
+                                    : 'border-transparent text-text-muted hover:text-text-secondary',
+                            )}
+                        >
+                            {tab.label}
+                        </button>
+                    )
+                })}
+            </div>
+
             {/* Search + filter + sort toolbar */}
             <ListToolbar
                 hook={lf}
@@ -497,7 +541,7 @@ export default function TasksPage() {
                     {displayed.map((task) => {
                         const sprint = task.projectId ? sprintMap[task.projectId] : null
                         const projectLabel = sprint ? sprintLabel(sprint) : task.project ?? null
-                        const isCancellable = ['running', 'queued', 'claimed', 'pending'].includes(task.status)
+                        const isCancellable = ['running', 'queued', 'claimed', 'pending', 'awaiting_approval', 'blocked'].includes(task.status)
                         
                         return (
                             <div key={task.id} className="relative group/row">

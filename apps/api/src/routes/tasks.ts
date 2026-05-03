@@ -6,6 +6,7 @@ import { db, desc, eq, and, sql } from '@plexo/db'
 import { tasks, taskSteps, artifacts, artifactVersions, inferKind, type WorkKind } from '@plexo/db'
 import { push, list } from '@plexo/queue'
 import { getResumeStep } from '@plexo/agent/executor/step-builder'
+import { resolveDecision } from '@plexo/agent/one-way-door'
 import { logger } from '../logger.js'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { cancelActiveTask } from '../agent-loop.js'
@@ -64,10 +65,16 @@ tasksRouter.get('/', async (req, res) => {
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
+    // Comma-separated `status` (e.g. ?status=queued,running) maps a single UI
+    // tab to multiple statuses. Single value falls through as a plain string.
+    const statusFilter: string | string[] | undefined = status
+        ? (status.includes(',') ? status.split(',').map(s => s.trim()).filter(Boolean) : status)
+        : undefined
+
     try {
         const items = await list({
             workspaceId,
-            status: status ?? undefined,
+            status: statusFilter,
             type: type ?? undefined,
             projectId: projectId ?? undefined,
             parentId: parentId ?? undefined,
@@ -268,6 +275,101 @@ tasksRouter.delete('/:id', async (req, res) => {
         res.json({ ok: true, aborted })
     } catch (err) {
         logger.error({ err }, 'DELETE /api/tasks/:id failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel task' } })
+    }
+})
+
+// ── POST /api/tasks/:id/confirm ──────────────────────────────────────────────
+// Phase 5 — task UI surface for the OWD/awaiting_approval pipeline.
+// Reads `tasks.context._approvalId` (set by the agent loop when the task
+// transitions to awaiting_approval) and resolves it via the same one-way-door
+// resolveDecision that powers chat-channel CONFIRM/CANCEL.
+
+tasksRouter.post('/:id/confirm', async (req, res) => {
+    const { id } = req.params
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid task id' } })
+        return
+    }
+    try {
+        const [task] = await db.select({ workspaceId: tasks.workspaceId, status: tasks.status, context: tasks.context })
+            .from(tasks).where(eq(tasks.id, id)).limit(1)
+        if (!task) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
+            return
+        }
+        if (!await ensureWorkspaceAccess(req, res, task.workspaceId)) return
+        if (task.status !== 'awaiting_approval') {
+            res.status(409).json({ error: { code: 'NOT_AWAITING', message: `Task is ${task.status}, not awaiting confirmation` } })
+            return
+        }
+        const ctx = (task.context ?? {}) as Record<string, unknown>
+        const approvalId = typeof ctx._approvalId === 'string' ? ctx._approvalId : null
+        if (!approvalId) {
+            res.status(409).json({ error: { code: 'NO_APPROVAL', message: 'Task has no pending approval id' } })
+            return
+        }
+        const decidedBy = (req.body as { user?: string } | undefined)?.user ?? req.user?.email ?? 'dashboard'
+        const updated = await resolveDecision(approvalId, 'approved', decidedBy)
+        if (!updated) {
+            res.status(409).json({ error: { code: 'ALREADY_RESOLVED', message: 'Approval expired or already resolved' } })
+            return
+        }
+        emitToWorkspace(task.workspaceId, { type: 'owd_approved', id: updated.id, taskId: id, operation: updated.operation })
+        trackEvent('task.confirmed', 'info', { taskId: id, approvalId: updated.id, decidedBy, workspaceId: task.workspaceId })
+        audit(req, { workspaceId: task.workspaceId, userId: req.user?.id, action: 'task.confirm', resource: 'tasks', resourceId: id, metadata: { approvalId: updated.id } })
+        res.json({ ok: true, approval: updated })
+    } catch (err) {
+        logger.error({ err, id }, 'POST /api/tasks/:id/confirm failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to confirm task' } })
+    }
+})
+
+// ── POST /api/tasks/:id/cancel ───────────────────────────────────────────────
+// Phase 5 — POST alias of DELETE /api/tasks/:id matching the project-system
+// spec. When the task is awaiting_approval, also rejects the underlying OWD
+// so a paused executor unblocks immediately rather than timing out.
+
+tasksRouter.post('/:id/cancel', async (req, res) => {
+    const { id } = req.params
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid task id' } })
+        return
+    }
+    try {
+        const [existing] = await db.select({ workspaceId: tasks.workspaceId, status: tasks.status, context: tasks.context })
+            .from(tasks).where(eq(tasks.id, id)).limit(1)
+        if (!existing) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
+            return
+        }
+        if (!await ensureWorkspaceAccess(req, res, existing.workspaceId)) return
+        if (!['queued', 'claimed', 'running', 'blocked', 'awaiting_approval'].includes(existing.status)) {
+            res.status(409).json({ error: { code: 'NOT_CANCELLABLE', message: `Task is already ${existing.status}` } })
+            return
+        }
+
+        if (existing.status === 'awaiting_approval') {
+            const ctx = (existing.context ?? {}) as Record<string, unknown>
+            const approvalId = typeof ctx._approvalId === 'string' ? ctx._approvalId : null
+            if (approvalId) {
+                try {
+                    const decidedBy = (req.body as { user?: string } | undefined)?.user ?? req.user?.email ?? 'dashboard'
+                    await resolveDecision(approvalId, 'rejected', decidedBy)
+                } catch (owdErr) {
+                    logger.warn({ err: owdErr, taskId: id }, 'resolveDecision(rejected) failed during task cancel — proceeding')
+                }
+            }
+        }
+
+        await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, id))
+        const aborted = cancelActiveTask(id)
+        emitToWorkspace(existing.workspaceId, { type: 'task_cancelled', taskId: id })
+        trackEvent('task.cancelled', 'warning', { taskId: id, workspaceId: existing.workspaceId, previousStatus: existing.status })
+        audit(req, { workspaceId: existing.workspaceId, userId: req.user?.id, action: 'task.cancel', resource: 'tasks', resourceId: id })
+        res.json({ ok: true, aborted })
+    } catch (err) {
+        logger.error({ err, id }, 'POST /api/tasks/:id/cancel failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel task' } })
     }
 })

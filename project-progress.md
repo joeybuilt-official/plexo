@@ -1,8 +1,8 @@
 # Project System Progress
 
-Last updated: 2026-05-02
-Current phase: 4.5 closed — ready for Phase 5
-Last commit: e5c7c7d (Phase 4 hardening close) → Phase 4.5 commit pending in this session
+Last updated: 2026-05-03
+Current phase: 5 closed — ready for Phase 6
+Last commit: e5c7c7d (Phase 4 hardening close) → Phase 4.5 + Phase 5 commits pending in this session
 
 ## Phase Status
 - [x] Phase 0 — Audit
@@ -11,9 +11,69 @@ Last commit: e5c7c7d (Phase 4 hardening close) → Phase 4.5 commit pending in t
 - [x] Phase 3 — Stale Task Monitor (per-task wall_clock_limit_sec wired into cleanupStaleTasks; queued/blocked-too-long branches now markTaskFailed with FailureReason.WallClockExceeded — no more silent cancels)
 - [x] Phase 4 — Channel Notifications (state→message formatter + transition delivery in channel-delivery.ts; CONFIRM/CANCEL inbound handlers on telegram/slack/discord; TASK_FAILED listener delivers 4-field escalation summary)
 - [x] Phase 4.5 — Hardening Backlog (Phase 1 migration applied to local target DB, integration coverage on inbound CONFIRM/CANCEL via handleInboundConfirmCancel, telegram in-memory listener now renders the 4-field summary when present, dual-TTL decision codified in cross-referenced header comments)
-- [ ] Phase 5 — Task UI
+- [x] Phase 5 — Task UI (POST /confirm + POST /cancel endpoints; comma-separated status filter on GET /tasks; state filter tabs Active/Awaiting Confirmation/Completed/Failed on /app/tasks; ApprovalActions panel on /app/tasks/[id] for awaiting_approval; Tasks link in primary nav already present)
 - [ ] Phase 6 — Memory Integration
 - [ ] Phase 7 — Wire Existing Tasks
+
+---
+
+## Phase 5 close (this session)
+
+The Plexo web app already had a `/app/tasks` list page (status dropdown filter + cancel-via-DELETE) and a server-rendered `/app/tasks/[id]` detail page (StatusBadge + outcome summary + steps + child A2A tasks + assets, plus an existing `BlockedActions` panel for blocked/failed/cancelled). Tasks already had an entry in the primary sidebar nav (`apps/web/src/components/layout/sidebar.tsx:92` under the "Work" group). Phase 5's actual delta against the spec was four targeted gaps; all closed this session.
+
+**5.1 — API: explicit POST endpoints for the awaiting_approval lifecycle.** `apps/api/src/routes/tasks.ts` gains:
+
+- **`POST /api/v1/tasks/:id/confirm`** — workspace-gated; requires `tasks.status='awaiting_approval'`; reads `tasks.context._approvalId` (set by the agent loop in Phase 4 when the task enters `awaiting_approval`); calls `resolveDecision(approvalId, 'approved', decidedBy)` from `@plexo/agent/one-way-door`. Emits `owd_approved` SSE, tracks `task.confirmed`, writes `task.confirm` audit entry. Returns 409 with `NOT_AWAITING` / `NO_APPROVAL` / `ALREADY_RESOLVED` for the three edge cases (wrong status, no approval id on context, OWD already expired/resolved).
+- **`POST /api/v1/tasks/:id/cancel`** — POST alias of the existing `DELETE /api/v1/tasks/:id` matching the spec's verb. Reuses the same status-gate (`queued|claimed|running|blocked|awaiting_approval`), then if status was `awaiting_approval` ALSO calls `resolveDecision(approvalId, 'rejected', decidedBy)` so a paused executor unblocks immediately rather than waiting for the OWD TTL. The OWD reject is best-effort (logged, non-fatal) — the task cancel proceeds regardless. Then sets `status='cancelled'`, signals `cancelActiveTask`, emits `task_cancelled`, tracks + audits.
+- **`GET /api/v1/tasks` accepts comma-separated status** (e.g. `?status=queued,running,blocked`). The route splits on `,`, falls back to single-string when no comma is present. The underlying `@plexo/queue.list({ status })` already accepts `string | string[]` via `inArray`. This is what the new state tabs (5.2) use to map a single tab to multiple raw statuses.
+- **Vitest alias** for `@plexo/agent/one-way-door` added to `vitest.config.ts` (subpath alias must come before the bare-package `@plexo/agent` alias) — without it, every test that imports `apps/api/src/routes/tasks.ts` fails at module-resolve time. Same pattern as the Phase 4 fix for `@plexo/agent/memory/query`.
+
+**5.2 — UI: state filter tabs on `/app/tasks/page.tsx`.** New `STATE_TABS` constant maps four labels + an All tab to status sets:
+
+```
+All                    → (clear filter)
+Active                 → queued,claimed,running,blocked
+Awaiting Confirmation  → awaiting_approval
+Completed              → complete
+Failed                 → failed,cancelled
+```
+
+Selecting a tab calls `lf.setFilter('status', value)` so the existing SWR cache key + URL-state machinery handles the rest. The existing per-status dropdown in the toolbar is preserved — the tabs and the dropdown both write to the same `filterValues.status` slot; if the user picks a single status from the dropdown, no tab is highlighted (`activeStateTab` returns `null`); if they pick a tab, the dropdown reads the comma-joined value and shows nothing selected. Acceptable for an MVP — the tabs cover the 90% case, the dropdown covers the long tail.
+
+Also extended:
+- `Task.status` union now includes `'awaiting_approval'`.
+- `TASK_STATUSES` constant now includes `'awaiting_approval'` (between `running` and `complete`) so the per-status dropdown shows it.
+- `isCancellable` row predicate now includes `awaiting_approval` and `blocked` so the inline stop-icon shows up for both.
+
+**5.3 — UI: `ApprovalActions` panel on `/app/tasks/[id]/page.tsx`.** New client component `apps/web/src/app/app/tasks/[id]/_approval-actions.tsx` — renders only when `task.status === 'awaiting_approval'`. Two buttons (Cancel / Confirm) that POST to `/api/v1/tasks/:id/{cancel,confirm}` and `router.refresh()` on success. Surfaces:
+- The first 6 chars of the OWD approval id as `Code: XXXXXX` so the user can cross-check against the chat-channel notification (Phase 4's `confirmationCode` is the same 6-char prefix).
+- The task's `outcomeSummary` as the description body (the Phase 4 awaiting_confirmation message lands there); falls back to a generic "agent has reached a step that needs your approval" line.
+- Inline error display + per-action loading spinners + a brief success state before the refresh swaps it out.
+
+The detail page extracts `_approvalId` from `task.context` (same JSONB key the agent-loop persists at line ~803) inside an IIFE in the JSX so the client component receives the already-derived 6-char code, not the full id.
+
+**5.4 — Escalation summary on failed tasks.** Already present pre-Phase-5 — `apps/web/src/app/app/tasks/[id]/page.tsx:215+` renders the unified error/resolution panel for `blocked|failed|cancelled` statuses, which delegates to `<TaskError>` (4-field structured summary parsing) + `<BlockedActions>` (retry/dismiss + root-cause resolution map). No change required this phase. The 4-field summary written by `markTaskFailed` (Phase 2) and surfaced by Phase 4's `TASK_FAILED` listener is the same string this panel now reads.
+
+**5.5 — Tasks link in primary nav.** Already present — `apps/web/src/components/layout/sidebar.tsx:92` (`{ label: 'Tasks', href: '/app/tasks', icon: CheckSquare }`) under the "Work" group. The same file already wires a blocked-task badge that pulls `byStatus.blocked` from `/api/v1/tasks/stats/summary`. No change required.
+
+**Ship-gate (this session):**
+- `pnpm typecheck` — 18/18 packages pass.
+- `pnpm --filter @plexo/api test` — **807/807 pass** (full green; baseline preserved). One transient module-resolution failure on `tasks-raw-steps.test.ts` was caused by the new `@plexo/agent/one-way-door` import, fixed by the vitest alias above.
+- `pnpm build` — not run this session (logic-only changes; previous Phase 4.5 build was 12/12).
+- `pnpm --filter @plexo/web test` — not run; `@plexo/web` has no vitest suite (the page changes are exercised end-to-end via existing playwright + manual QA).
+- `pnpm db:migrate` — not run; no new migrations this phase. Phase 5 is purely API + UI on top of the existing schema.
+
+Notes / known limits (Phase 5):
+
+- **No automated UI test coverage for the new tabs / approval panel.** The `/app/tasks` page already lacks vitest coverage (it's a Next.js client component and the project's web tests are playwright-based). Adding playwright coverage for the awaiting_approval flow needs a working agent loop + LLM credential, same blocker as the Phase 4.5 hand-off note about end-to-end integration testing.
+- **The state tabs and the per-status dropdown can disagree.** If the user picks `Active` (sets status to `queued,claimed,running,blocked`) and then picks a single status from the dropdown, the dropdown wins (overwrites the same filter slot) but neither UI shows the previous tab as selected. Acceptable — the tabs are a coarse shortcut, the dropdown is the precise control. If this becomes confusing, the next iteration would split the filter into two dimensions (`scope` for tabs + `status` for the dropdown, intersected server-side).
+- **No SSE refresh on `owd_approved`.** The detail page is server-rendered; `router.refresh()` after the POST works for the user who clicked the button. A second user with the page open won't see the state flip until the next poll/refresh. The list page (SWR-polled every 4s when there's an active task) does pick this up. Same pattern as the existing approvals page; Phase 4 emits the SSE but the detail-page subscription would be a separate ergonomic upgrade.
+- **`POST /:id/cancel` and `DELETE /:id` are now both wired.** The new `BlockedActions` "Dismiss" path still uses `DELETE` for backward compat with that component's existing UX; no reason to switch it. The `_cancel-button.tsx` header button also still uses `DELETE`. New code should prefer `POST /cancel` because it's spec-aligned and handles the `awaiting_approval` reject step; the `DELETE` path is fine for non-awaiting-approval cancels but would leave an OWD record in pending state until the TTL expires.
+
+Audit assumptions still in effect (override if needed):
+- No Inngest. Postgres-queue stack only.
+- `tasks.status` kept (no rename to `state`).
+- Confirmation TTL still 5min default for tool-level, 24h default for task-level OWD (decision codified in Phase 4.5).
 
 ## Handoff Notes
 

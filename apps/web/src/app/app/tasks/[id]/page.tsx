@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { CancelButton } from './_cancel-button'
+import { ApprovalActions } from './_approval-actions'
 import { BlockedActions } from './_blocked-actions'
 import { StepRow } from './_step-row'
 import { RawStepsPanel } from './_raw-steps-panel'
@@ -182,6 +183,20 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                     <CancelButton taskId={task.id} />
                 )}
             </div>
+
+            {/* Awaiting-approval action panel — Phase 5 task UI surface */}
+            {task.status === 'awaiting_approval' && (() => {
+                const ctx = (task.context ?? {}) as Record<string, unknown>
+                const approvalId = typeof ctx._approvalId === 'string' ? ctx._approvalId : null
+                const code = approvalId ? approvalId.slice(0, 6) : null
+                return (
+                    <ApprovalActions
+                        taskId={task.id}
+                        confirmationCode={code}
+                        description={task.outcomeSummary}
+                    />
+                )
+            })()}
 
             {/* What was asked */}
             {message && (
