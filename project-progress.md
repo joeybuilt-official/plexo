@@ -1,8 +1,8 @@
 # Project System Progress
 
 Last updated: 2026-05-03
-Current phase: 5 closed — ready for Phase 6
-Last commit: e5c7c7d (Phase 4 hardening close) → Phase 4.5 + Phase 5 commits pending in this session
+Current phase: 6 closed — ready for Phase 7
+Last commit: e5c7c7d (Phase 4 hardening close) → Phase 4.5 + Phase 5 + Phase 6 commits pending in this session
 
 ## Phase Status
 - [x] Phase 0 — Audit
@@ -12,7 +12,7 @@ Last commit: e5c7c7d (Phase 4 hardening close) → Phase 4.5 + Phase 5 commits p
 - [x] Phase 4 — Channel Notifications (state→message formatter + transition delivery in channel-delivery.ts; CONFIRM/CANCEL inbound handlers on telegram/slack/discord; TASK_FAILED listener delivers 4-field escalation summary)
 - [x] Phase 4.5 — Hardening Backlog (Phase 1 migration applied to local target DB, integration coverage on inbound CONFIRM/CANCEL via handleInboundConfirmCancel, telegram in-memory listener now renders the 4-field summary when present, dual-TTL decision codified in cross-referenced header comments)
 - [x] Phase 5 — Task UI (POST /confirm + POST /cancel endpoints; comma-separated status filter on GET /tasks; state filter tabs Active/Awaiting Confirmation/Completed/Failed on /app/tasks; ApprovalActions panel on /app/tasks/[id] for awaiting_approval; Tasks link in primary nav already present)
-- [ ] Phase 6 — Memory Integration
+- [x] Phase 6 — Memory Integration (reflectOnTask listener already wired in Phase 2; new this phase: queryMemory injection into planner system prompt — top-5 vector hits rendered as RELEVANT PAST CONTEXT block, gracefully degrades on retrieval failure)
 - [ ] Phase 7 — Wire Existing Tasks
 
 ---
@@ -352,3 +352,50 @@ Notes / known limits (Phase 4.5):
 - Migration was applied to the local dev container only. Staging/prod runs are still the user's call. Migration `0104_project_system_phase1.sql` is idempotent so a re-run there is safe.
 - The integration test stays at the inbound-confirmation surface; it does not drive the agent-loop. Driving the loop end-to-end (queued → plan → awaiting_approval → CONFIRM → executing → complete) needs LLM credentials and remains a separate exercise.
 - The non-transient `blockTask` path in `agent-loop.ts` (executor catch → not transient) still emits `task_failed` without a summary, so telegram falls back to `translateErrorForUser` for that branch. Resolving that would mean either calling `markTaskFailed` from the blockTask path or generating a `deterministicEscalation` inline before the emit. Out of Phase 4.5 scope; revisit when Phase 5 surfaces task detail and the inconsistency becomes visible.
+
+---
+
+## Phase 6 close (this session)
+
+Phase 6 split into two halves; the listener half was already shipped in Phase 2, so the only new code lands in the planner.
+
+**6.1 — reflectOnTask via TASK_COMPLETED/TASK_FAILED (already done in Phase 2).** `packages/agent/src/tasks/reflect.ts` subscribes to both topics on startup (wired from `apps/api/src/index.ts:580`), formats synthetic turn text per outcome, and routes through `recordTaskMemory` → `storeMemory` (writes a `type='task'` row with shorthand + embedding). No code change required this phase.
+
+The Phase 6 spec text mentioned `factType='decision'/'convention'` and `source='system'` — that wording predates this codebase's actual fact schema. The canonical extraction enum (`extractTurn` worker) is `identity | preference | skill | context | constraint`, and task outcomes land as their own `MemoryType='task'` row with structured metadata (`taskId`, `outcome`, `qualityScore`, `durationMs`, `notes`). That row is exactly what `queryMemory` retrieves in 6.2 below, so the spec's intent ("Plexo can answer 'have I done this before, what worked, what failed?'") is satisfied — only the literal column names differ.
+
+**6.2 — Memory-informed planning (new this session).** `packages/agent/src/planner/index.ts`:
+
+- New `buildMemoryBlock(workspaceId, userId, queryText, aiSettings)` helper. Calls `queryMemory({ workspaceId, userId, queryText: taskDescription, limit: 5, aiSettings })` (vector mode, default min confidence 0.5, default namespace). Renders the top-N hits as `- {shorthand or content}` lines (each capped at 240 chars with ellipsis to bound prompt growth). Returns a single string block titled `RELEVANT PAST CONTEXT (from prior tasks and learned facts — use to avoid known failures and reuse established patterns; ignore if not applicable)`. Returns `undefined` on empty results OR any retrieval failure (logs `warn`, never throws), so planning never blocks on memory.
+- `buildPlannerSystem` extended with optional `memoryBlock` arg — injected after the existing `CONTEXT` block, before the `RULES` section. When `memoryBlock` is `undefined` the prompt is byte-identical to before (no extra blank line).
+- `planTask` calls `await buildMemoryBlock(...)` immediately after `manifestToPromptBlock` and before `buildPlannerSystem`, then passes the result through. Single new `await` on the planner critical path; bounded by `queryMemory`'s embedding call (~150-300ms typical) and one Postgres vector query.
+- `pino` logger added at module scope for the warn line.
+
+Per-fact char cap: 240 chars (5 facts × 240 ≈ 1.2KB max added to the system prompt, well under any model context budget). Fact selection: vector similarity against the raw task description, no extra reranking. The `queryMemory` LRU+tier sort (`hot → active → cold`) already biases toward recently-retrieved memories.
+
+What gets retrieved: any `memory_entries` row in the workspace with `confidence >= 0.5` and not superseded/invalidated. That includes:
+- Task-outcome rows written by the reflect listener (Phase 2 → now retrievable here).
+- User-instruction patterns from `rememberInstruction`.
+- Conversation-extracted facts from `extractTurn`.
+- Anything else `storeMemory` has landed.
+
+The planner LLM now sees prior task outcomes and learned facts inline, can reference them in its plan/clarification, and can avoid re-attempting paths the system already failed at. The compounding-quality loop the spec describes is closed.
+
+**Ship-gate (this session):**
+- `pnpm typecheck` — 18/18 packages pass.
+- `pnpm --filter @plexo/agent test` — **984/984 pass**.
+- `pnpm --filter @plexo/api test` — **807/807 pass** (baseline preserved; the planner change is upstream of every API path that triggers planning, so the api suite implicitly exercises the new injection point in any test that drives `planTask`).
+- `pnpm build` — not re-run this session (logic-only change inside `packages/agent`; previous Phase 4.5 build was 12/12 and the new file imports are within-package).
+- `pnpm db:migrate` — N/A (no schema changes this phase).
+
+Notes / known limits (Phase 6):
+
+- **No targeted unit test for `buildMemoryBlock`.** The helper is private to the planner module; a test would need to mock `queryMemory` or stand up a vector-enabled Postgres. The graceful-degradation path (catch → return undefined) keeps any retrieval bug from breaking planning, so the cost of skipping the test is bounded. Add coverage when the next planner refactor touches this surface.
+- **No userId-less code path.** `planTask` always passes `ctx.userId` (required field on `ExecutionContext`), so `queryMemory`'s `userId IS NULL OR =` clause kicks in. Workspace-scoped facts (user_id IS NULL) and the calling user's facts are both returned. Other workspace users' personal facts are excluded — correct privacy behavior.
+- **No reranking by recency or task similarity.** Pure vector cosine + tier sort. If the same task class fires repeatedly and the planner injects 5 stale outcomes for it, prompt-bloat could grow until the consolidation pass trims them. The `tier='hot'` bias from `queryMemory` already partly addresses this. Revisit if observed prompt waste warrants a dedicated reranker.
+- **Embedding cost on every plan.** `queryMemory` re-embeds the task description on every call. For a typical workspace with cached embeddings on the entries side, this is one provider round-trip per plan. Acceptable; revisit if planning latency becomes a complaint.
+- **No memory injection metric.** `emitMemoryRetrieval` already fires from `queryMemory` so the analytics surface captures hit count + latency. No planner-specific metric added — recommend wiring one (e.g. `plan_memory_facts_used: number`) into the next quality-judge pass so we can correlate "plans informed by memory" with "plans that succeeded".
+
+Audit assumptions still in effect (override if needed):
+- No Inngest. Postgres-queue stack only.
+- `tasks.status` kept (no rename to `state`).
+- Memory facts use the canonical 5-type extraction enum (`identity | preference | skill | context | constraint`); the spec's `decision/convention` factTypes don't exist and aren't being added.

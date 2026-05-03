@@ -13,14 +13,18 @@
  * returns a ClarificationRequest instead of a plan — the queue treats this as
  * status: 'blocked' and surfaces the alternatives to the user via their channel.
  */
+import pino from 'pino'
 import { z } from 'zod'
 import { withFallback } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
+import { queryMemory } from '../memory/query.js'
 import type { ExecutionPlan, ExecutionContext, PlanStep, OneWayDoor, PlannerResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { buildExecutionWaves } from '../utils/topo-sort.js'
+
+const logger = pino({ name: 'planner' })
 
 // ── Schemas ────────────────────────────────────────────────────────────────────
 
@@ -99,6 +103,7 @@ function buildPlannerSystem(
     capabilityBlock: string,
     workspaceName?: string,
     sprintGoal?: string,
+    memoryBlock?: string,
 ): string {
     const contextBlock = [
         workspaceName ? `Workspace: ${workspaceName}` : null,
@@ -109,7 +114,7 @@ function buildPlannerSystem(
 
 ${capabilityBlock}
 
-${contextBlock ? `CONTEXT:\n${contextBlock}\n` : ''}
+${contextBlock ? `CONTEXT:\n${contextBlock}\n` : ''}${memoryBlock ? `${memoryBlock}\n` : ''}
 RULES:
 - FIRST QUESTION — "Can the model do this in one step from its own knowledge?" If the task is a well-known coding pattern the executor model trivially knows (snake game, todo list, tic-tac-toe, calculator, static landing page, a standard algorithm, a simple script, an email draft, a short copy piece), the correct plan is ONE step: call write_asset with the finished output. DO NOT insert a research phase, a web_search step, a verification step, or a "refine" step for tasks the model can produce from memory. Extra steps on self-contained tasks waste 30+ seconds and cause context bloat. Use research phases ONLY when the task references a specific real-world entity, current event, proprietary API, or live data the model does not have in its training. A plan with more steps is NOT a better plan — match step count to actual complexity.
 - If the task strictly requires digital media capabilities NOT listed in the manifest above (e.g. video_generation, image_generation, audio_generation, voice_synthesis), you MUST return type: "clarification" — never attempt to deliver digital modalities you cannot produce.
@@ -155,6 +160,41 @@ function defaultSettings(): WorkspaceAISettings {
     }
 }
 
+const MEMORY_FACT_LIMIT = 5
+const MEMORY_FACT_CHAR_CAP = 240
+
+/**
+ * Phase 6 — memory-informed planning. Pull up to 5 high-confidence memory
+ * entries (vector similarity against the task description) and render them
+ * as a "RELEVANT PAST CONTEXT" block. Returns undefined on empty results
+ * or any retrieval failure so planning never blocks on memory.
+ */
+async function buildMemoryBlock(
+    workspaceId: string,
+    userId: string,
+    queryText: string,
+    aiSettings: WorkspaceAISettings,
+): Promise<string | undefined> {
+    try {
+        const hits = await queryMemory({
+            workspaceId,
+            userId,
+            queryText,
+            limit: MEMORY_FACT_LIMIT,
+            aiSettings,
+        })
+        if (hits.length === 0) return undefined
+        const lines = hits.map((h) => {
+            const text = (h.shorthand?.trim() || h.content.trim()).replace(/\s+/g, ' ')
+            return `- ${text.length > MEMORY_FACT_CHAR_CAP ? text.slice(0, MEMORY_FACT_CHAR_CAP - 1) + '…' : text}`
+        })
+        return `RELEVANT PAST CONTEXT (from prior tasks and learned facts — use to avoid known failures and reuse established patterns; ignore if not applicable):\n${lines.join('\n')}`
+    } catch (err) {
+        logger.warn({ err, workspaceId }, 'planner: queryMemory failed — proceeding without memory context')
+        return undefined
+    }
+}
+
 // ── Planner ────────────────────────────────────────────────────────────────────
 
 export async function planTask(
@@ -181,7 +221,8 @@ export async function planTask(
     }))
 
     const capabilityBlock = manifestToPromptBlock(manifest)
-    const systemPrompt = buildPlannerSystem(capabilityBlock, ctx.workspaceName, ctx.sprintGoal)
+    const memoryBlock = await buildMemoryBlock(ctx.workspaceId, ctx.userId, taskDescription, settings)
+    const systemPrompt = buildPlannerSystem(capabilityBlock, ctx.workspaceName, ctx.sprintGoal, memoryBlock)
 
     const userPrompt = JSON.stringify({
         task: taskDescription,
