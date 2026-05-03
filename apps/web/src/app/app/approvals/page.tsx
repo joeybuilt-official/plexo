@@ -101,17 +101,22 @@ function humanizeOperation(op: string, desc?: string): string {
     return op.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-/** Explain WHY an operation was flagged */
+/** Explain WHY an operation was flagged, in plain English an on-call engineer would scan in 2 seconds. */
 function flagReason(item: { triggerType?: string; riskLevel: string; operation: string }): string {
-    if (item.triggerType === 'IRREVERSIBLE_ACTION') return 'This action cannot be undone once executed.'
+    const critical = item.riskLevel === 'critical'
+    if (item.triggerType === 'IRREVERSIBLE_ACTION') {
+        return critical
+            ? 'Permanent change to a critical system — there is no undo.'
+            : 'This action cannot be undone once it runs.'
+    }
     if (item.triggerType === 'HIGH_VALUE_ACTION') return 'This action has significant impact or cost.'
-    if (item.triggerType === 'NOVEL_PATTERN') return 'The agent hasn\'t done this type of action before.'
-    if (item.triggerType === 'CONFIDENCE_BELOW') return 'The agent isn\'t confident this is the right action.'
-    if (item.triggerType === 'CROSS_BOUNDARY') return 'This action crosses a system boundary (e.g., external API).'
-    if (item.triggerType === 'CAPABILITY_EXPANSION') return 'This action requires capabilities the agent doesn\'t normally use.'
-    if (item.riskLevel === 'critical') return 'Critical risk — this could cause data loss or downtime.'
+    if (item.triggerType === 'NOVEL_PATTERN') return 'The agent has not done this kind of action before.'
+    if (item.triggerType === 'CONFIDENCE_BELOW') return 'The agent is not sure this is the right action.'
+    if (item.triggerType === 'CROSS_BOUNDARY') return 'This action reaches outside your system (e.g., an external API).'
+    if (item.triggerType === 'CAPABILITY_EXPANSION') return 'This action needs powers the agent does not normally use.'
+    if (critical) return 'Critical risk — this could cause data loss or downtime.'
     if (item.riskLevel === 'high') return 'High risk — this affects production systems.'
-    return 'This action requires your approval before the agent proceeds.'
+    return 'This action needs your approval before the agent continues.'
 }
 
 function timeAgo(iso: string): string {
@@ -502,15 +507,17 @@ export default function ApprovalsPage() {
                                                 <p className="text-sm font-medium text-text-primary">
                                                     {flagReason(item)}
                                                 </p>
-                                                <p className="text-xs text-text-muted mt-1">
-                                                    This task requires approval for {(item.description?.match(/\d+ irreversible/)?.[0]) || 'an irreversible'} operation{(item.description?.match(/\d+ irreversible/)?.[0]?.startsWith('1') ? '' : 's')}.
-                                                </p>
+                                                {(item.riskLevel === 'critical' || (item.riskLevel === 'high' && item.triggerType === 'IRREVERSIBLE_ACTION')) && (
+                                                    <p className="text-xs text-red mt-1">
+                                                        Once you approve, this can&rsquo;t be undone.
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
                                         {/* What the agent wants to do */}
                                         <div>
-                                            <p className="text-[11px] uppercase tracking-wide text-text-muted mb-1">What the agent wants to do</p>
+                                            <p className="text-[11px] uppercase tracking-wide text-text-muted mb-1">What will happen if you approve</p>
                                             <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">{item.description}</p>
                                         </div>
 
