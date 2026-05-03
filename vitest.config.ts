@@ -18,6 +18,7 @@ export default defineConfig({
             '@plexo/agent/providers/call-model': resolve(root, 'packages/agent/src/providers/call-model.ts'),
             '@plexo/agent/scl/pii-scrub': resolve(root, 'packages/agent/src/scl/pii-scrub.ts'),
             '@plexo/agent/memory/store': resolve(root, 'packages/agent/src/memory/store.ts'),
+            '@plexo/agent/memory/query': resolve(root, 'packages/agent/src/memory/query.ts'),
             '@plexo/agent/memory/preferences': resolve(root, 'packages/agent/src/memory/preferences.ts'),
             '@plexo/agent/memory/self-improvement': resolve(root, 'packages/agent/src/memory/self-improvement.ts'),
             '@plexo/agent/memory/prompt-improvement': resolve(root, 'packages/agent/src/memory/prompt-improvement.ts'),
