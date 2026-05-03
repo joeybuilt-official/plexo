@@ -469,6 +469,33 @@ function assetUntagTool() {
         },
     };
 }
+// Phase 5 synthesis promotion subscriber. When Plexo's synthesis loop
+// decides an asset cluster should become a Fonto project, it publishes
+// `ext.synthesis-promote.fonto.projects.create` on the PEX event-bus.
+async function handlePromotionToProject(payload) {
+    if (!payload || typeof payload !== 'object')
+        return;
+    const p = payload;
+    const inner = (p.payload && typeof p.payload === 'object') ? p.payload : {};
+    const name = typeof inner.name === 'string' ? inner.name : null;
+    const assetIds = Array.isArray(inner.assetIds) ? inner.assetIds : [];
+    const userId = _cachedUserId;
+    if (!userId || !name)
+        return;
+    try {
+        await fontoPost({
+            entity: 'collection',
+            userId,
+            name,
+            assetIds,
+            source: 'plexo.synthesis',
+            sourceId: p.suggestionId,
+        });
+    }
+    catch {
+        // Non-fatal; suggestion is already promoted upstream.
+    }
+}
 export async function activate(sdk) {
     try {
         _cachedUserId = await sdk.storage.get('fonto_user_id');
@@ -501,4 +528,13 @@ export async function activate(sdk) {
     sdk.registerTool(tagCreateTool());
     sdk.registerTool(tagUpdateTool());
     sdk.registerTool(tagDeleteTool());
+    // Phase 5 — synthesis cross-app promotion subscriber
+    try {
+        sdk.events.subscribe('ext.synthesis-promote.fonto.projects.create', (payload) => {
+            void handlePromotionToProject(payload);
+        });
+    }
+    catch {
+        // events:subscribe may not be granted; promotion is opt-in.
+    }
 }

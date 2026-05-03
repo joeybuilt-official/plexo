@@ -75,4 +75,7 @@ images/internal/
 tests/.auth/
 forensics-data/
 ops/stabilization/results/
+ops/harnesseval/results/
+ops/harnesseval/harness/node_modules/
+ops/harnesseval/harness/vendor/node_modules/
 README.md.bak

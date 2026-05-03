@@ -194,11 +194,12 @@ function noteDeleteTool() {
 function bookmarkListTool() {
     return {
         name: 'nexalog.bookmark.list',
-        description: "List saved URL bookmarks in the user's Nexalog workspace.",
+        description: "List saved URLs in the user's Nexalog workspace. Use kind='url' for stable bookmarks (default), kind='url_clipping' for clippings, or omit to list all.",
         parameters: {
             type: 'object',
             properties: {
                 userId: { type: 'string', description: 'Nexalog user ID (auto-resolved from connection).' },
+                kind: { type: 'string', description: "Filter by kind: 'url' (stable bookmarks, default), 'url_clipping' (ephemeral clippings), or omit for all URL saves." },
                 limit: { type: 'number', description: 'Max results (1-100, default 30).' },
             },
             required: [],
@@ -207,13 +208,15 @@ function bookmarkListTool() {
         handler: async (params, _ctx) => {
             const p = params;
             const userId = resolveUserId(p);
-            const qp = new URLSearchParams({ entity: 'capture_source', userId, kind: 'url' });
+            const qp = new URLSearchParams({ entity: 'capture_source', userId });
+            qp.set('kind', p.kind ?? 'url');
             if (p.limit)
                 qp.set('limit', String(p.limit));
             const data = await nexalogGet(qp);
             if (!data.sources?.length)
-                return 'No bookmarks saved.';
-            return [`${data.total} bookmarks:`, ...data.sources.map((s) => {
+                return p.kind === 'url_clipping' ? 'No clippings saved.' : 'No bookmarks saved.';
+            const label = p.kind === 'url_clipping' ? 'clippings' : 'bookmarks';
+            return [`${data.total} ${label}:`, ...data.sources.map((s) => {
                     const parts = [`- ${s.id} | ${s.ogTitle || s.url || '(no url)'}`];
                     if (s.ogImage)
                         parts.push(`  thumbnail: ${s.ogImage}`);
@@ -224,10 +227,42 @@ function bookmarkListTool() {
         },
     };
 }
+function saveUrlTool() {
+    return {
+        name: 'nexalog.save_url',
+        description: [
+            "Save a URL to the user's Nexalog workspace. Requires an explicit type:",
+            "  • type='bookmark' — stable, canonical reference you'll return to (docs, repos, tools, wikis, specs). The URL is the asset.",
+            "  • type='clipping' — ephemeral content that may disappear (YouTube videos, news articles, blog posts, social posts, newsletters). Include an excerpt of what you saw.",
+            "Always use this tool instead of nexalog.bookmark.add.",
+        ].join('\n'),
+        parameters: {
+            type: 'object',
+            properties: {
+                userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
+                url: { type: 'string', description: 'The URL to save.' },
+                type: { type: 'string', description: "Required. 'bookmark' for stable references, 'clipping' for ephemeral content." },
+                title: { type: 'string', description: 'Display title (optional).' },
+                excerpt: { type: 'string', description: "What you saw — a quote, summary, or key takeaway. Recommended for clippings; omit for bookmarks." },
+            },
+            required: ['url', 'type'],
+        },
+        hints: { estimatedMs: 1500, timeoutMs: TIMEOUT_MS, hasSideEffects: true, idempotent: false },
+        handler: async (params, _ctx) => {
+            const p = params;
+            const userId = resolveUserId(p);
+            const kind = p.type === 'clipping' ? 'url_clipping' : 'url';
+            const content = p.excerpt ?? p.title ?? '';
+            const data = await nexalogPost({ entity: 'capture_source', action: 'create', userId, kind, url: p.url, content });
+            const label = kind === 'url_clipping' ? 'Clipping' : 'Bookmark';
+            return `${label} saved: ${p.url} (ID: ${data.source.id})`;
+        },
+    };
+}
 function bookmarkAddTool() {
     return {
         name: 'nexalog.bookmark.add',
-        description: "Save a URL as a bookmark in the user's Nexalog workspace. Use this for web pages, links, and URLs — NOT note.create.",
+        description: "Deprecated — use nexalog.save_url instead. Saves a URL as a stable bookmark (kind=url). Does not support clippings.",
         parameters: {
             type: 'object',
             properties: {
@@ -321,12 +356,13 @@ function bookmarkDeleteTool() {
 function bookmarkSearchTool() {
     return {
         name: 'nexalog.bookmark.search',
-        description: 'Search saved bookmarks by title, URL, or description.',
+        description: "Search saved URLs by title, URL, or description. Use kind='url_clipping' to search only clippings, or omit to search stable bookmarks.",
         parameters: {
             type: 'object',
             properties: {
                 userId: { type: 'string', description: 'Nexalog user ID (auto-resolved).' },
                 q: { type: 'string', description: 'Search query (matches title, URL, OG description).' },
+                kind: { type: 'string', description: "Filter by kind: 'url' (stable bookmarks, default) or 'url_clipping' (clippings)." },
                 limit: { type: 'number', description: 'Max results (1-50, default 20).' },
             },
             required: ['q'],
@@ -335,12 +371,12 @@ function bookmarkSearchTool() {
         handler: async (params, _ctx) => {
             const p = params;
             const userId = resolveUserId(p);
-            const qp = new URLSearchParams({ entity: 'capture_source_search', userId, q: p.q, kind: 'url' });
+            const qp = new URLSearchParams({ entity: 'capture_source_search', userId, q: p.q, kind: p.kind ?? 'url' });
             if (p.limit)
                 qp.set('limit', String(p.limit));
             const data = await nexalogGet(qp);
             if (!data.sources?.length)
-                return `No bookmarks match "${p.q}".`;
+                return `No matches for "${p.q}".`;
             return [`${data.total} matches for "${p.q}":`, ...data.sources.map((s) => `- ${s.id} | ${s.ogTitle || s.url || '(no url)'}`)].join('\n');
         },
     };
@@ -888,6 +924,7 @@ export async function activate(sdk) {
     sdk.registerTool(noteCreateTool());
     sdk.registerTool(noteUpdateTool());
     sdk.registerTool(noteDeleteTool());
+    sdk.registerTool(saveUrlTool());
     sdk.registerTool(bookmarkListTool());
     sdk.registerTool(bookmarkGetTool());
     sdk.registerTool(bookmarkAddTool());

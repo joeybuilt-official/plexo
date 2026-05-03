@@ -587,6 +587,37 @@ function tasksUpdateTool() {
         },
     };
 }
+// ── Synthesis Phase 5 — promotion event subscription ────────────────────────
+// When Plexo's synthesis loop decides a suggestion should become a Levio
+// task (note → imperative language), it publishes
+// `ext.synthesis-promote.levio.tasks.create` on the PEX event-bus. We
+// subscribe here and POST to Levio's data API. Auto-resolved userId
+// (extension activation pattern, commit 516dab8) means no manual setup.
+async function handlePromotionToTask(payload) {
+    if (!payload || typeof payload !== 'object')
+        return;
+    const p = payload;
+    const inner = (p.payload && typeof p.payload === 'object') ? p.payload : {};
+    const title = typeof inner.title === 'string' ? inner.title : null;
+    const userId = _cachedUserId;
+    if (!userId || !title)
+        return;
+    try {
+        await levioPost({
+            entity: 'task',
+            userId,
+            title,
+            priority: typeof inner.priority === 'string' ? inner.priority : 'medium',
+            dueDate: typeof inner.dueDate === 'string' ? inner.dueDate : undefined,
+            source: 'plexo.synthesis',
+            sourceId: p.suggestionId,
+        });
+    }
+    catch {
+        // Promotion failures are non-fatal; the suggestion is already
+        // marked promoted upstream so we don't loop. Caller logs.
+    }
+}
 // ── Activation ──────────────────────────────────────────────────────────────
 export async function activate(sdk) {
     // Resolve levio_user_id from extension settings so tools auto-authenticate
@@ -608,4 +639,14 @@ export async function activate(sdk) {
     sdk.registerTool(tasksListTool());
     sdk.registerTool(tasksCreateTool());
     sdk.registerTool(tasksUpdateTool());
+    // Phase 5 — synthesis cross-app promotion subscriber
+    try {
+        sdk.events.subscribe('ext.synthesis-promote.levio.tasks.create', (payload) => {
+            void handlePromotionToTask(payload);
+        });
+    }
+    catch {
+        // events:subscribe may not be granted in some workspace configs —
+        // promotion is opt-in, so degrade gracefully.
+    }
 }
