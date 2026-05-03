@@ -21,8 +21,9 @@ import {
     getAnalyticsConfig,
 } from './config.js'
 import { db, eq, sql } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import { workspaces, appProfiles } from '@plexo/db'
 import pino from 'pino'
+import { timingSafeEqual as cryptoTimingSafeEqual } from 'node:crypto'
 
 const logger = pino({ name: 'analytics-router' })
 export const analyticsRouter: RouterType = Router()
@@ -210,10 +211,70 @@ function sanitizeProperties(props: Record<string, unknown>): Record<string, unkn
     return clean
 }
 
-// POST /api/v1/analytics/ingest — anonymous analytics event
+// ── Per-app ingest helpers ──────────────────────────────────────────────────
+// Resolves the app identity for an inbound /error or /ingest request.
+//   - No Bearer token  → app='plexo' (preserves existing anonymous public callers).
+//   - Bearer present   → must be PLEXO_SERVICE_KEY AND X-App-Id must match a
+//                        registered Pex App Profile (apps/api/src/routes/profiles.ts).
+// We validate inline rather than mounting requireServiceKey at the route level
+// because the existing /ingest path is *intentionally* public for Plexo's own
+// anonymous telemetry; only non-plexo apps need to authenticate.
+
+const APP_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
+const profileCache = new Map<string, number>()  // appId → expiry ms
+const PROFILE_CACHE_TTL_MS = 60_000
+
+function timingSafeStrEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) return false
+    return cryptoTimingSafeEqual(Buffer.from(a, 'utf-8'), Buffer.from(b, 'utf-8'))
+}
+
+async function isRegisteredApp(appId: string): Promise<boolean> {
+    const cached = profileCache.get(appId)
+    if (cached && cached > Date.now()) return true
+    const [row] = await db.select({ appId: appProfiles.appId })
+        .from(appProfiles).where(eq(appProfiles.appId, appId)).limit(1)
+    if (!row) return false
+    profileCache.set(appId, Date.now() + PROFILE_CACHE_TTL_MS)
+    return true
+}
+
+type AppAuth = { ok: true; appId: string } | { ok: false; status: number; error: string }
+
+async function resolveAppForIngest(req: import('express').Request): Promise<AppAuth> {
+    const authHeader = req.headers.authorization
+    if (!authHeader) return { ok: true, appId: 'plexo' }
+
+    if (!authHeader.startsWith('Bearer ')) {
+        return { ok: false, status: 401, error: 'Malformed Authorization header' }
+    }
+    const token = authHeader.slice(7)
+    const serviceKey = process.env.PLEXO_SERVICE_KEY
+    if (!serviceKey || !timingSafeStrEqual(token, serviceKey)) {
+        return { ok: false, status: 401, error: 'Invalid service key' }
+    }
+
+    const appId = req.headers['x-app-id'] as string | undefined
+    if (!appId || !APP_ID_RE.test(appId)) {
+        return { ok: false, status: 400, error: 'Missing or invalid X-App-Id header' }
+    }
+    if (appId === 'plexo') return { ok: true, appId }  // first-party shortcut
+    if (!(await isRegisteredApp(appId))) {
+        return { ok: false, status: 403, error: `App profile not registered: ${appId}` }
+    }
+    return { ok: true, appId }
+}
+
+// POST /api/v1/analytics/ingest — telemetry event (plexo or registered app)
 analyticsRouter.post('/ingest', async (req, res) => {
     if (process.env.PLEXO_ANALYTICS_ENABLED === 'false') {
         res.status(204).end()
+        return
+    }
+
+    const auth = await resolveAppForIngest(req)
+    if (!auth.ok) {
+        res.status(auth.status).json({ error: auth.error })
         return
     }
 
@@ -223,27 +284,51 @@ analyticsRouter.post('/ingest', async (req, res) => {
         instance_uuid?: string
     }
 
-    if (!event_name || !ALLOWED_EVENT_NAMES.has(event_name)) {
-        res.status(400).json({ error: 'Invalid or disallowed event_name' })
+    if (!event_name || typeof event_name !== 'string') {
+        res.status(400).json({ error: 'event_name required' })
         return
     }
 
-    const sanitized = sanitizeProperties(properties)
+    // Per-app event-name namespacing:
+    //   app='plexo' → must be in ALLOWED_EVENT_NAMES; properties allowlisted.
+    //   app=<other> → event_name MUST start with `<appId>.` (prevents apps from
+    //                 forging plexo_* events); properties pass through (apps
+    //                 own their own schema per ADR-04 amendment).
+    let storedProps: Record<string, unknown>
+    if (auth.appId === 'plexo') {
+        if (!ALLOWED_EVENT_NAMES.has(event_name)) {
+            res.status(400).json({ error: 'Invalid or disallowed event_name' })
+            return
+        }
+        storedProps = sanitizeProperties(properties)
+    } else {
+        if (!event_name.startsWith(`${auth.appId}.`)) {
+            res.status(400).json({ error: `event_name must be namespaced as '${auth.appId}.<name>'` })
+            return
+        }
+        storedProps = properties && typeof properties === 'object' ? properties : {}
+    }
 
     try {
         await db.execute(sql`
             INSERT INTO plexo_ops_analytics (app, event_name, properties, instance_uuid)
-            VALUES ('plexo', ${event_name}, ${JSON.stringify(sanitized)}::jsonb, ${instance_uuid ?? null})
+            VALUES (${auth.appId}, ${event_name}, ${JSON.stringify(storedProps)}::jsonb, ${instance_uuid ?? null})
         `)
         res.status(201).json({ ok: true })
     } catch (err) {
-        logger.error({ err }, 'analytics ingest failed')
+        logger.error({ err, app: auth.appId }, 'analytics ingest failed')
         res.status(500).json({ error: 'Ingest failed' })
     }
 })
 
-// POST /api/v1/analytics/error — structured error capture
+// POST /api/v1/analytics/error — structured error capture (plexo or registered app)
 analyticsRouter.post('/error', async (req, res) => {
+    const auth = await resolveAppForIngest(req)
+    if (!auth.ok) {
+        res.status(auth.status).json({ error: auth.error })
+        return
+    }
+
     const { fingerprint, message, stack_trace, context, deploy_id } = req.body as {
         fingerprint?: string
         message?: string
@@ -257,11 +342,15 @@ analyticsRouter.post('/error', async (req, res) => {
         return
     }
 
+    // The unique index on plexo_ops_errors.fingerprint (migration 0048) is global,
+    // so we namespace non-plexo fingerprints to prevent cross-app upsert collisions.
+    // 'plexo' callers keep their existing fingerprint shape (backward compatible).
+    const storedFingerprint = auth.appId === 'plexo' ? fingerprint : `${auth.appId}:${fingerprint}`
+
     try {
-        // Upsert: increment count if same fingerprint, else insert
         await db.execute(sql`
             INSERT INTO plexo_ops_errors (app, fingerprint, message, stack_trace, context, deploy_id)
-            VALUES ('plexo', ${fingerprint}, ${message}, ${stack_trace ?? null}, ${JSON.stringify(context ?? {})}::jsonb, ${deploy_id ?? null})
+            VALUES (${auth.appId}, ${storedFingerprint}, ${message}, ${stack_trace ?? null}, ${JSON.stringify(context ?? {})}::jsonb, ${deploy_id ?? null})
             ON CONFLICT (fingerprint) DO UPDATE SET
                 last_seen_at = NOW(),
                 occurrence_count = plexo_ops_errors.occurrence_count + 1,
@@ -270,7 +359,7 @@ analyticsRouter.post('/error', async (req, res) => {
         `)
         res.status(201).json({ ok: true })
     } catch (err) {
-        logger.error({ err }, 'error ingest failed')
+        logger.error({ err, app: auth.appId }, 'error ingest failed')
         res.status(500).json({ error: 'Ingest failed' })
     }
 })
