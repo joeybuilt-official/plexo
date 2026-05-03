@@ -2,11 +2,11 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, desc, eq, and, sql } from '@plexo/db'
-import { tasks, taskSteps, artifacts, artifactVersions, inferKind, type WorkKind } from '@plexo/db'
+import { db, desc, asc, eq, and, sql } from '@plexo/db'
+import { tasks, taskSteps, plexoOpsTaskEvents, artifacts, artifactVersions, inferKind, type WorkKind } from '@plexo/db'
 import { push, list, cancel as queueCancel } from '@plexo/queue'
 import { getResumeStep } from '@plexo/agent/executor/step-builder'
-import { resolveDecision } from '@plexo/agent/one-way-door'
+import { resolveDecision, getDecision, type PendingDecision } from '@plexo/agent/one-way-door'
 import { logger } from '../logger.js'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { cancelActiveTask } from '../agent-loop.js'
@@ -186,7 +186,54 @@ tasksRouter.get('/:id', async (req, res) => {
             .where(eq(taskSteps.taskId, id))
             .orderBy(taskSteps.stepNumber)
             .limit(500)
-        res.json({ task, steps })
+
+        // Lifecycle timeline (Phase F2). Filtered by both taskId AND
+        // workspaceId — defense in depth so a guessable task id can't
+        // surface another workspace's events.
+        const eventRows = await db.select({
+            id: plexoOpsTaskEvents.id,
+            eventType: plexoOpsTaskEvents.eventType,
+            fromState: plexoOpsTaskEvents.fromState,
+            toState: plexoOpsTaskEvents.toState,
+            metadata: plexoOpsTaskEvents.metadata,
+            recordedAt: plexoOpsTaskEvents.recordedAt,
+        }).from(plexoOpsTaskEvents)
+            .where(and(
+                eq(plexoOpsTaskEvents.taskId, id),
+                eq(plexoOpsTaskEvents.workspaceId, task.workspaceId),
+            ))
+            .orderBy(asc(plexoOpsTaskEvents.recordedAt))
+            .limit(200)
+        const events = eventRows.map(r => ({
+            id: r.id,
+            eventType: r.eventType,
+            fromState: r.fromState,
+            toState: r.toState,
+            metadata: r.metadata,
+            recordedAt: r.recordedAt.toISOString(),
+        }))
+
+        // Approval enrichment — populated only when the task is awaiting
+        // approval AND the OWD id is recorded in context. If Redis no
+        // longer holds the record (TTL expired, restart, etc.) we surface
+        // null rather than 500'ing.
+        let approval: PendingDecision | null = null
+        if (task.status === 'awaiting_approval'
+            && task.context && typeof task.context === 'object'
+            && '_approvalId' in task.context
+        ) {
+            const approvalId = (task.context as Record<string, unknown>)._approvalId
+            if (typeof approvalId === 'string' && approvalId.length > 0) {
+                try {
+                    approval = await getDecision(approvalId)
+                } catch (err) {
+                    logger.warn({ err, taskId: id, approvalId }, 'getDecision failed; returning approval=null')
+                    approval = null
+                }
+            }
+        }
+
+        res.json({ task, steps, events, approval })
     } catch (err) {
         logger.error({ err }, 'GET /api/tasks/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch task' } })
