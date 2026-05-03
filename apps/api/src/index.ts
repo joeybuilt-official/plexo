@@ -581,6 +581,12 @@ const server = app.listen(port, '0.0.0.0', async () => {
         .then(({ initReflectListener }) => initReflectListener())
         .catch(() => { /* non-fatal — event bus may not be ready */ })
 
+    // Phase 4: TASK_FAILED channel-delivery listener — sends the 4-field
+    // escalation summary to the originating channel for any markTaskFailed path.
+    void import('./channel-delivery.js')
+        .then(({ initTaskFailedListener }) => initTaskFailedListener())
+        .catch(() => { /* non-fatal — event bus may not be ready */ })
+
     // Schedule RSI monitor every 6h (first run after 7m so it doesn't contend with memory consolidation)
     if (process.env.PLEXO_DISABLE_CRONS !== '1') {
         setTimeout(() => {

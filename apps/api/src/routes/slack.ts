@@ -405,6 +405,33 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
         logger.info({ workspaceId, channel: event.channel, sessionId: resolvedSessionId, reason: _sessionReason }, 'slack: new session started')
     }
 
+    // ── Phase 4: CONFIRM / CANCEL routing for awaiting_confirmation tasks ────
+    {
+        const { classifyConfirmCancel, handleInboundConfirmCancel } = await import('../channel-delivery.js')
+        if (event.channel && classifyConfirmCancel(text)) {
+            const result = await handleInboundConfirmCancel({
+                workspaceId,
+                channel: 'slack',
+                chatId: event.channel,
+                text,
+                decidedBy: `slack:${event.user ?? 'unknown'}`,
+            })
+            if (result.outcome === 'approved') {
+                await postMessage(event.channel, '✅ Confirmed — resuming the task.', event.thread_ts || undefined, { workspaceId })
+                return
+            }
+            if (result.outcome === 'cancelled') {
+                await postMessage(event.channel, '🚫 Cancelled.', event.thread_ts || undefined, { workspaceId })
+                return
+            }
+            if (result.outcome === 'expired') {
+                await postMessage(event.channel, '⌛ That confirmation already timed out or was resolved elsewhere.', event.thread_ts || undefined, { workspaceId })
+                return
+            }
+            // 'no_pending' falls through to normal handling.
+        }
+    }
+
     // ── Self-configuration: detect credentials and auto-install connection ──
     const credMatch = event.channel ? detectCredentialMessage(text) : null
     if (credMatch && event.channel) {

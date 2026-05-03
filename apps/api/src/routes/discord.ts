@@ -285,6 +285,33 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
             chatHistory.add(threadId, 'user', description, imageUrls.length > 0 ? imageUrls : undefined)
             const history = await chatHistory.getOrHydrate(threadId, workspaceId, sessionPrefix)
 
+            // ── Phase 4: CONFIRM / CANCEL routing for awaiting_confirmation tasks ────
+            {
+                const { classifyConfirmCancel, handleInboundConfirmCancel } = await import('../channel-delivery.js')
+                if (interaction.channel_id && classifyConfirmCancel(description)) {
+                    const result = await handleInboundConfirmCancel({
+                        workspaceId,
+                        channel: 'discord',
+                        chatId: interaction.channel_id,
+                        text: description,
+                        decidedBy: `discord:${user?.id ?? 'unknown'}`,
+                    })
+                    if (result.outcome === 'approved') {
+                        await sendFollowUp(interaction.application_id, interaction.token, '✅ Confirmed — resuming the task.', { workspaceId, chatId: user?.id ?? '' })
+                        return
+                    }
+                    if (result.outcome === 'cancelled') {
+                        await sendFollowUp(interaction.application_id, interaction.token, '🚫 Cancelled.', { workspaceId, chatId: user?.id ?? '' })
+                        return
+                    }
+                    if (result.outcome === 'expired') {
+                        await sendFollowUp(interaction.application_id, interaction.token, '⌛ That confirmation already timed out or was resolved elsewhere.', { workspaceId, chatId: user?.id ?? '' })
+                        return
+                    }
+                    // 'no_pending' falls through to normal handling.
+                }
+            }
+
             // ── Self-configuration: detect credentials and auto-install connection ──
             const credMatch = detectCredentialMessage(description)
             if (credMatch) {

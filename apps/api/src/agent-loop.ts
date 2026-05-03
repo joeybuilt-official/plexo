@@ -12,6 +12,7 @@ import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import { emitToWorkspace } from './sse-emitter.js'
+import { channelSupportsConfirmation } from './channel-delivery.js'
 import { registerCodeContext, unregisterCodeContext } from './routes/code.js'
 import { emitTaskOutcome, emitReflectionEvent } from './analytics/events.js'
 import { trackError, trackEvent } from './event-tracker.js'
@@ -726,6 +727,16 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planning', taskId: task.id })
             logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'running', to: 'planning', workspaceId: taskWorkspaceId }, 'lifecycle')
             void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'planning', fromState: 'running', toState: 'planning' })
+            // Phase 4: leading-edge channel notification for the planning transition.
+            // Skipped silently when the task didn't originate from a channel (web/api).
+            const planNotifyCtx = (task.context as Record<string, unknown> | null) ?? {}
+            if (planNotifyCtx.channel && planNotifyCtx.chatId) {
+                const { deliverTaskTransition } = await import('./channel-delivery.js')
+                void deliverTaskTransition(
+                    { taskId: task.id, workspaceId: taskWorkspaceId ?? '', context: planNotifyCtx as { channel?: string; chatId?: string | number; description?: string } },
+                    { state: 'planning', title: description },
+                ).catch(err => logger.warn({ err, taskId: task.id }, 'planning notification failed'))
+            }
             plannerResult = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
         }
 
@@ -784,6 +795,16 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
             if (approval.decision !== 'approved') {
                 await db.update(tasks).set({ status: 'awaiting_approval' }).where(eq(tasks.id, task.id))
+                // Phase 4: persist the OWD approval id on tasks.context so inbound
+                // CONFIRM/CANCEL handlers (telegram/slack/discord) can map the user's
+                // reply back to the right approval without scanning Redis.
+                try {
+                    await db.update(tasks)
+                        .set({ context: sql`context || ${JSON.stringify({ _approvalId: approval.id })}::jsonb` })
+                        .where(eq(tasks.id, task.id))
+                } catch (ctxWriteErr) {
+                    logger.warn({ err: ctxWriteErr, taskId: task.id }, 'persist tasks.context._approvalId failed — non-fatal')
+                }
                 logger.info({ taskId: task.id, workspaceId: taskWorkspaceId, approvalId: approval.id, doors: owds.length, event: 'task.lifecycle', from: 'planning', to: 'awaiting_approval' }, 'task awaiting approval')
                 void recordTaskEvent({
                     workspaceId: taskWorkspaceId ?? '',
@@ -803,6 +824,25 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                     approvalId: approval.id,
                     doors: owds.length,
                 })
+
+                // Phase 4: leading-edge channel notification for the confirmation prompt.
+                // Sent only to channels with supportsConfirmation=true (telegram/slack/discord).
+                // The 6-char code is the first 6 hex chars of the OWD approval id, used
+                // both for display and as a sanity-check token in the user's reply.
+                const confirmCtx = (task.context as Record<string, unknown> | null) ?? {}
+                if (channelSupportsConfirmation(confirmCtx.channel as string | undefined) && confirmCtx.chatId) {
+                    const { deliverTaskTransition } = await import('./channel-delivery.js')
+                    const confirmTitle = (confirmCtx.description as string | undefined) ?? description
+                    void deliverTaskTransition(
+                        { taskId: task.id, workspaceId: taskWorkspaceId ?? '', context: confirmCtx as { channel?: string; chatId?: string | number; description?: string } },
+                        {
+                            state: 'awaiting_confirmation',
+                            title: confirmTitle,
+                            stepCount: owds.length,
+                            confirmationCode: approval.id.slice(0, 6),
+                        },
+                    ).catch(err => logger.warn({ err, taskId: task.id }, 'awaiting_confirmation notification failed'))
+                }
 
                 // Phase D limitation: worker slot held during approval poll; defer slot-release to a later phase (would need re-claim logic).
                 const decision = await waitForDecision(approval.id)
@@ -1255,8 +1295,14 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         } catch { /* non-fatal */ }
 
         // Persistent channel delivery for failures
+        // Phase 4: TASK_FAILED listener in channel-delivery.ts now owns delivery
+        // for any path that flows through markTaskFailed (transient max_attempts,
+        // sweepers, executor catch, approval rejected/timeout, no_ai_credential,
+        // cost_ceiling). Only the non-transient blockTask path here does NOT
+        // publish TASK_FAILED, so we still deliver inline for that branch only.
         const failContext = (task.context as Record<string, unknown>) ?? {}
-        if (failContext.channel && failContext.chatId) {
+        const skipInlineFailDelivery = isTransient // transient → markTaskFailed (or requeue) → listener handles
+        if (!skipInlineFailDelivery && failContext.channel && failContext.chatId) {
             const { deliverToOriginChannel } = await import('./channel-delivery.js')
             void deliverToOriginChannel({
                 taskId: task.id,

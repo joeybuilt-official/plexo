@@ -14,9 +14,18 @@
 import { logger } from './logger.js'
 import { startProgressReporter } from './task-progress.js'
 import { translateErrorForUser } from './channel-ai.js'
+import type { EscalationSummary, TaskFailedPayload } from '@plexo/agent/tasks/types'
 
 const TELEGRAM_API = 'https://api.telegram.org/bot'
 const TG_MAX_LEN = 4096
+
+// ── Channels that support inbound CONFIRM/CANCEL replies ─────────────────────
+// Web does not — its confirmation surface is the SSE-driven /app/approvals view.
+const CONFIRMATION_CHANNELS = new Set(['telegram', 'slack', 'discord'])
+
+export function channelSupportsConfirmation(channel: string | undefined): boolean {
+    return !!channel && CONFIRMATION_CHANNELS.has(channel)
+}
 
 // ── Token registry (populated by channel adapters on init) ───────────────────
 
@@ -349,5 +358,298 @@ async function tgEdit(token: string, chatId: string | number, messageId: number,
             signal: AbortSignal.timeout(10_000),
         })
     } catch { /* edit failures are non-fatal */ }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 4 — task state-transition notifications
+//
+// One message per major state transition (planning, awaiting_confirmation,
+// completed, failed, cancelled). Per-step messages are only sent when the
+// task or workspace opts into verbose mode. Wired from agent-loop.ts at each
+// recordTaskEvent site, and from a TASK_FAILED listener for any path that
+// reaches markTaskFailed (sweepers, executor catch, approval rejected, etc.).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TaskTransitionState =
+    | 'planning'
+    | 'awaiting_confirmation'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'step_complete'
+
+export interface TaskTransitionInput {
+    state: TaskTransitionState
+    /** User-facing task title or description (truncated for display). */
+    title?: string
+    /** For awaiting_confirmation: number of one-way-door steps the user is being asked to approve. */
+    stepCount?: number
+    /**
+     * Short code shown to the user with CONFIRM/CANCEL prompts. Caller derives
+     * this from the OWD approval id (typically the first 6 hex chars of the
+     * 24-char id). Inbound CONFIRM/CANCEL handlers map back via the originating
+     * task's `context._approvalId`, so the code is informational — not used
+     * for lookup.
+     */
+    confirmationCode?: string
+    /** For failed: 4-field escalation summary (Krishnamurthy). */
+    summary?: EscalationSummary
+    /** For completed: short single-line outcome the user sees. */
+    completedSummary?: string
+    /** For cancelled: optional reason string. */
+    cancelReason?: string
+    /** Set true to emit step_complete messages. Off by default. */
+    verbose?: boolean
+}
+
+const TITLE_MAX = 100
+
+function clipTitle(title: string | undefined): string {
+    const t = (title ?? '').trim()
+    if (!t) return 'your task'
+    return t.length > TITLE_MAX ? t.slice(0, TITLE_MAX - 1) + '…' : t
+}
+
+/**
+ * Format a state transition into a single channel-agnostic message.
+ * Returns null when the transition should be silent (e.g. step_complete in
+ * non-verbose mode).
+ */
+export function formatTaskStateMessage(input: TaskTransitionInput): string | null {
+    switch (input.state) {
+        case 'planning':
+            return `📝 Working on a plan for: *${clipTitle(input.title)}*`
+        case 'awaiting_confirmation': {
+            const n = input.stepCount && input.stepCount > 0 ? input.stepCount : 1
+            const noun = n === 1 ? 'irreversible step' : `${n} irreversible steps`
+            const code = input.confirmationCode
+            const replyLine = code
+                ? `Reply *CONFIRM ${code}* to proceed or *CANCEL ${code}* to abort.`
+                : `Reply *CONFIRM* to proceed or *CANCEL* to abort.`
+            return `⏸️ *${clipTitle(input.title)}* is ready, but it would do ${noun}.\n${replyLine}`
+        }
+        case 'completed':
+            return `✅ ${input.completedSummary?.trim() || 'Task complete.'}`
+        case 'failed': {
+            const s = input.summary
+            if (!s) return `❌ Task failed.`
+            const recoverable = s.recoverable
+                ? `_(recoverable — you can resume from where it stopped)_`
+                : `_(not recoverable — restart needed)_`
+            return [
+                `❌ *${s.what}*`,
+                ``,
+                `*Why:* ${s.why}`,
+                `*Next:* ${s.action}`,
+                recoverable,
+            ].join('\n')
+        }
+        case 'cancelled':
+            return input.cancelReason
+                ? `🚫 Task cancelled: ${input.cancelReason}`
+                : `🚫 Task cancelled.`
+        case 'step_complete':
+            return input.verbose ? `Step complete.` : null
+        default:
+            return null
+    }
+}
+
+interface TaskTransitionTarget {
+    taskId: string
+    workspaceId: string
+    /** Originating channel context — typically `task.context` from the DB row. */
+    context: TaskContext
+}
+
+/**
+ * Deliver a single state-transition message to the originating channel.
+ *
+ * Skips silently when:
+ *   - the task has no channelRef (web/api task)
+ *   - the formatter returns null (e.g. step_complete with verbose=false)
+ *   - the channel has no token configured
+ *
+ * Failures are swallowed and logged at warn level — channel delivery must
+ * never block task progress or terminal-state writes.
+ */
+export async function deliverTaskTransition(
+    target: TaskTransitionTarget,
+    input: TaskTransitionInput,
+): Promise<void> {
+    const { taskId, workspaceId, context } = target
+    if (!context.channel || !context.chatId) return
+
+    const text = formatTaskStateMessage(input)
+    if (!text) return
+
+    try {
+        if (context.channel === 'telegram') {
+            const token = workspaceTokens.get(workspaceId)
+            if (!token) {
+                logger.debug({ taskId, workspaceId }, 'deliverTaskTransition: no telegram token, skipping')
+                return
+            }
+            await tgSend(token, context.chatId, text.slice(0, TG_MAX_LEN))
+            return
+        }
+        if (context.channel === 'slack') {
+            const threadTs = typeof context.threadTs === 'string' ? context.threadTs : undefined
+            await slackSend(String(context.chatId), text, threadTs)
+            return
+        }
+        if (context.channel === 'discord') {
+            await discordSend(String(context.chatId), text.slice(0, 2000))
+            return
+        }
+    } catch (err) {
+        logger.warn({ err, taskId, channel: context.channel, state: input.state }, 'Task transition delivery failed')
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TASK_FAILED listener
+//
+// Subscribes to the agent event bus and delivers the 4-field escalation
+// summary to the originating channel for any task that goes through
+// `markTaskFailed`. Sibling to `reflect.ts` (memory) and
+// `consolidation.ts` (anti-bloat) which subscribe to the same topic.
+// Idempotent — a re-import during HMR or tests does not double-subscribe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+let _taskFailedListenerInitialized = false
+
+export async function initTaskFailedListener(): Promise<void> {
+    if (_taskFailedListenerInitialized) return
+    _taskFailedListenerInitialized = true
+
+    const { eventBus, TOPICS } = await import('@plexo/agent/event-bus')
+
+    eventBus.subscribe(TOPICS.TASK_FAILED, async (raw: unknown) => {
+        try {
+            const payload = raw as TaskFailedPayload
+            if (!payload?.taskId || !payload.workspaceId) return
+
+            // Look up the task to find the originating channelRef. The event
+            // payload deliberately doesn't carry it (it's a memory/audit
+            // signal); channel context lives on `tasks.context`.
+            const { db, eq } = await import('@plexo/db')
+            const { tasks } = await import('@plexo/db')
+            const [row] = await db.select({ context: tasks.context })
+                .from(tasks)
+                .where(eq(tasks.id, payload.taskId))
+                .limit(1)
+            const ctx = (row?.context as TaskContext | null) ?? {}
+            if (!ctx.channel || !ctx.chatId) return
+
+            await deliverTaskTransition(
+                { taskId: payload.taskId, workspaceId: payload.workspaceId, context: ctx },
+                {
+                    state: 'failed',
+                    title: ctx.description,
+                    summary: payload.summary ?? undefined,
+                },
+            )
+        } catch (err) {
+            logger.warn({ err }, 'TASK_FAILED channel delivery listener errored — non-fatal')
+        }
+    })
+
+    logger.info('TASK_FAILED channel-delivery listener registered')
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inbound CONFIRM / CANCEL handler
+//
+// Channels with supportsConfirmation=true (telegram/slack/discord) call this
+// when a user replies to an awaiting_confirmation prompt. We look up the
+// most-recent task in `awaiting_approval` for the workspace whose
+// originating channelRef matches the inbound chat, read its
+// `context._approvalId` (set in agent-loop when transitioning), and resolve
+// the OWD record via the existing approval pipeline.
+//
+// Returns:
+//   - 'approved' / 'cancelled' / 'expired' on a valid CONFIRM/CANCEL reply
+//   - 'no_pending' when nothing was awaiting confirmation for this chat
+//   - 'not_a_command' when the text isn't CONFIRM or CANCEL
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ConfirmCancelOutcome =
+    | 'approved'
+    | 'cancelled'
+    | 'expired'
+    | 'no_pending'
+    | 'not_a_command'
+
+const CONFIRM_RE = /^\s*(confirm|approve|yes|y|ok)\b/i
+const CANCEL_RE = /^\s*(cancel|reject|abort|no|n|stop)\b/i
+
+export function classifyConfirmCancel(text: string): 'confirm' | 'cancel' | null {
+    if (CONFIRM_RE.test(text)) return 'confirm'
+    if (CANCEL_RE.test(text)) return 'cancel'
+    return null
+}
+
+export async function handleInboundConfirmCancel(params: {
+    workspaceId: string
+    channel: 'telegram' | 'slack' | 'discord'
+    chatId: string | number
+    text: string
+    decidedBy: string
+}): Promise<{ outcome: ConfirmCancelOutcome; taskId?: string; approvalId?: string }> {
+    const verdict = classifyConfirmCancel(params.text)
+    if (!verdict) return { outcome: 'not_a_command' }
+
+    try {
+        const { db, eq, and, sql, desc } = await import('@plexo/db')
+        const { tasks } = await import('@plexo/db')
+        // Match the most recent awaiting_approval task whose channelRef points
+        // at this chat. JSONB containment via `context @> {...}` keeps the index
+        // path for json predicates.
+        const filter = JSON.stringify({ channel: params.channel, chatId: String(params.chatId) })
+        const numericFilter = JSON.stringify({ channel: params.channel, chatId: Number(params.chatId) })
+        const rows = await db.select({ id: tasks.id, context: tasks.context })
+            .from(tasks)
+            .where(and(
+                eq(tasks.workspaceId, params.workspaceId),
+                eq(tasks.status, 'awaiting_approval'),
+                sql`(${tasks.context} @> ${filter}::jsonb OR ${tasks.context} @> ${numericFilter}::jsonb)`,
+            ))
+            .orderBy(desc(tasks.createdAt))
+            .limit(1)
+
+        const row = rows[0]
+        if (!row) return { outcome: 'no_pending' }
+
+        const ctx = (row.context as Record<string, unknown> | null) ?? {}
+        const approvalId = ctx._approvalId as string | undefined
+        if (!approvalId) {
+            logger.warn({ taskId: row.id }, 'awaiting_approval task has no _approvalId in context — cannot resolve confirmation reply')
+            return { outcome: 'no_pending', taskId: row.id }
+        }
+
+        const { resolveDecision, getDecision } = await import('@plexo/agent/one-way-door')
+        // Pre-check so an already-resolved or expired record gets a clear outcome
+        // rather than falling through resolveDecision's null return.
+        const existing = await getDecision(approvalId)
+        if (!existing || existing.decision !== 'pending') {
+            return { outcome: 'expired', taskId: row.id, approvalId }
+        }
+
+        const decided = await resolveDecision(
+            approvalId,
+            verdict === 'confirm' ? 'approved' : 'rejected',
+            params.decidedBy,
+        )
+        if (!decided) return { outcome: 'expired', taskId: row.id, approvalId }
+        return {
+            outcome: verdict === 'confirm' ? 'approved' : 'cancelled',
+            taskId: row.id,
+            approvalId,
+        }
+    } catch (err) {
+        logger.warn({ err, channel: params.channel, chatId: params.chatId }, 'handleInboundConfirmCancel failed')
+        return { outcome: 'no_pending' }
+    }
 }
 

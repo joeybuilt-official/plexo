@@ -712,6 +712,36 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         return
     }
 
+    // ── Phase 4: CONFIRM / CANCEL routing for awaiting_confirmation tasks ────
+    // Only short-circuits when the workspace actually has an awaiting_approval
+    // task whose channelRef matches this chat. A casual "yes" with no pending
+    // approval falls through to normal classification/dispatch below.
+    {
+        const { classifyConfirmCancel, handleInboundConfirmCancel } = await import('../channel-delivery.js')
+        if (classifyConfirmCancel(text)) {
+            const result = await handleInboundConfirmCancel({
+                workspaceId,
+                channel: 'telegram',
+                chatId,
+                text,
+                decidedBy: `telegram:${msg.from.id}`,
+            })
+            if (result.outcome === 'approved') {
+                await sendMessage(token, chatId, '✅ Confirmed — resuming the task.', { workspaceId })
+                return
+            }
+            if (result.outcome === 'cancelled') {
+                await sendMessage(token, chatId, '🚫 Cancelled.', { workspaceId })
+                return
+            }
+            if (result.outcome === 'expired') {
+                await sendMessage(token, chatId, '⌛ That confirmation already timed out or was resolved elsewhere.', { workspaceId })
+                return
+            }
+            // 'no_pending' falls through to normal handling.
+        }
+    }
+
     // ── Universal session resolution ──────────────────────────────────────────
     // Decide which session this turn belongs to using the shared resolver.
     // Breaks on time gap / explicit phrase / task completion / topic change.
