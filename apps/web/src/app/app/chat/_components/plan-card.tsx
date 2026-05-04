@@ -42,23 +42,34 @@ export interface PlanProposalPlan {
     risks: string[]
 }
 
+export type PlanCardMode = 'chat' | 'detail-readonly'
+
 export interface PlanCardProps {
     taskId: string
     plan: PlanProposalPlan
     requiresApproval: boolean
     approvalId: string | null
+    /**
+     * 'chat' (default) — full interactive proposal card with Proceed/Reject and the
+     * "auto-execute" footer note. Used in the chat stream.
+     * 'detail-readonly' — render the same plan summary (goal/steps/OWDs/risks) but
+     * hide all action affordances and the auto-note. Used by the work-detail page
+     * for tasks where the plan is already accepted, in-progress, or completed.
+     */
+    mode?: PlanCardMode
 }
 
 type Decision = 'approve' | 'reject'
 type DecisionStatus = 'idle' | 'pending' | 'approved' | 'rejected'
 
-export function PlanCard({ taskId, plan, requiresApproval, approvalId }: PlanCardProps) {
+export function PlanCard({ taskId, plan, requiresApproval, approvalId, mode = 'chat' }: PlanCardProps) {
     const [status, setStatus] = useState<DecisionStatus>('idle')
     const [errorMsg, setErrorMsg] = useState<string | null>(null)
     const proceedRef = useRef<HTMLButtonElement | null>(null)
 
+    const readonly = mode === 'detail-readonly'
     const headingId = `plan-card-${taskId}`
-    const showActions = requiresApproval && approvalId !== null
+    const showActions = !readonly && requiresApproval && approvalId !== null
     const pending = status === 'pending'
 
     useEffect(() => {
@@ -228,7 +239,7 @@ export function PlanCard({ taskId, plan, requiresApproval, approvalId }: PlanCar
                 </div>
             )}
 
-            {!requiresApproval && (
+            {!readonly && !requiresApproval && (
                 <p className="text-[12px] italic text-text-muted">{PLAN_AUTO_NOTE}</p>
             )}
 

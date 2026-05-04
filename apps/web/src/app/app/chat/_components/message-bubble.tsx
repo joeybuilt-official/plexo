@@ -7,7 +7,7 @@ import { useState, useEffect, memo } from 'react'
 import Link from 'next/link'
 import {
     User, CheckCircle2, XCircle, Loader2, Copy, Check, FileText, Circle,
-    ChevronDown,
+    ChevronDown, ArrowUpRight,
 } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { PlexoAwarenessBadge } from '@web/components/plexo-awareness-badge'
@@ -305,6 +305,16 @@ function ChatBubble({
                                     {msg.fixLabel ?? 'Fix this'} →
                                 </Link>
                             )}
+                            {msg.role === 'agent' && msg.taskId && (
+                                <Link
+                                    href={`/app/tasks/${msg.taskId}`}
+                                    aria-label="Open work detail page"
+                                    className="inline-flex items-center gap-1 self-start rounded-md border border-red-800/40 bg-red-900/20 px-2.5 py-1 text-xs font-medium text-red-300/90 hover:bg-red-900/40 hover:text-red-200 transition-colors"
+                                >
+                                    Open work detail
+                                    <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+                                </Link>
+                            )}
                             {msg.technicalDetail && (
                                 <details className="group/td mt-0.5">
                                     <summary className="text-[11px] text-red/50 cursor-pointer hover:text-red/70 list-none flex items-center gap-1">
@@ -351,6 +361,16 @@ function ChatBubble({
                                     className="inline-flex items-center gap-1 self-start rounded-md bg-surface-2/60 border border-border/50 px-2.5 py-1 text-xs font-medium text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors"
                                 >
                                     {msg.fixLabel ?? 'View'} →
+                                </Link>
+                            )}
+                            {msg.role === 'agent' && msg.status === 'complete' && msg.taskId && (
+                                <Link
+                                    href={`/app/tasks/${msg.taskId}`}
+                                    aria-label="Open work detail page"
+                                    className="inline-flex items-center gap-1 self-start rounded-md border border-azure/30 bg-azure-dim/40 px-2.5 py-1 text-xs font-medium text-azure hover:bg-azure-dim hover:text-azure transition-colors"
+                                >
+                                    Open work detail
+                                    <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
                                 </Link>
                             )}
                             {msg.assets && msg.assets.length > 0 && (

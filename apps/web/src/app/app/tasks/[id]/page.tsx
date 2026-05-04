@@ -18,6 +18,9 @@ import { ApprovalActions } from './_approval-actions'
 import { BlockedActions } from './_blocked-actions'
 import { StepRow } from './_step-row'
 import { RawStepsPanel } from './_raw-steps-panel'
+import { LifecycleTimeline, type LifecycleEvent } from './_lifecycle-timeline'
+import { VerifySection } from './_verify-section'
+import { InlineApproval, type InlineApprovalRecord } from './_inline-approval'
 import { CopyId } from '@web/components/copy-id'
 import { TaskError } from '@web/components/task-error'
 import { WorksPanel } from '@web/components/works-panel'
@@ -25,6 +28,7 @@ import { StatusBadge } from '@plexo/ui'
 import { PlexoAwarenessBadge } from '@web/components/plexo-awareness-badge'
 import { AdvancedSection } from './_advanced-section'
 import { TaskWorkList } from './_task-work-list'
+import { PlanCard, type PlanProposalPlan } from '@web/app/app/chat/_components/plan-card'
 import { apiFetch } from '@web/lib/api-server'
 import type { TaskAsset } from '@web/app/app/chat/_components/types'
 
@@ -71,12 +75,26 @@ interface Task {
     createdAt: string
     completedAt: string | null
     deliverable: TaskDeliverable | null
+    plan: PlanProposalPlan | null
 }
 
-async function fetchTask(id: string) {
+interface TaskDetailResponse {
+    task: Task
+    steps: TaskStep[]
+    events: LifecycleEvent[]
+    approval: InlineApprovalRecord | null
+}
+
+async function fetchTask(id: string): Promise<TaskDetailResponse | null> {
     const res = await apiFetch(`/api/v1/tasks/${id}`, { cache: 'no-store' })
     if (!res.ok) return null
-    return res.json() as Promise<{ task: Task; steps: TaskStep[] }>
+    const data = await res.json() as Partial<TaskDetailResponse> & { task: Task; steps: TaskStep[] }
+    return {
+        task: data.task,
+        steps: data.steps ?? [],
+        events: data.events ?? [],
+        approval: data.approval ?? null,
+    }
 }
 
 interface ChildTask {
@@ -135,7 +153,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     const [data, assets] = await Promise.all([fetchTask(id), fetchAssets(id)])
     if (!data) notFound()
 
-    const { task, steps } = data
+    const { task, steps, events, approval } = data
     const children = await fetchChildren(id, task.workspaceId)
     const durationMs = task.completedAt
         ? new Date(task.completedAt).getTime() - new Date(task.createdAt).getTime()
@@ -200,10 +218,26 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
             {/* What was asked */}
             {message && (
-                <div className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
-                    <p className="mb-1.5 text-[11px] font-medium text-text-muted uppercase tracking-wider">Request</p>
+                <section role="region" aria-labelledby="request-heading" className="rounded-sm border border-border/60 bg-surface-1/40 p-4">
+                    <h2 id="request-heading" className="mb-1.5 text-[11px] font-medium text-text-muted uppercase tracking-wider">Request</h2>
                     <p className="text-sm text-text-primary leading-relaxed">{message}</p>
-                </div>
+                </section>
+            )}
+
+            {/* Inline approval surface — when an OWD is pending and the user lands here mid-flight */}
+            {approval && approval.id && (
+                <InlineApproval approval={approval} />
+            )}
+
+            {/* Plan — read-only rendering of the persisted ExecutionPlan */}
+            {task.plan && Array.isArray(task.plan.steps) && task.plan.steps.length > 0 && (
+                <PlanCard
+                    taskId={task.id}
+                    plan={task.plan}
+                    requiresApproval={false}
+                    approvalId={null}
+                    mode="detail-readonly"
+                />
             )}
 
             {/* Unified error + resolution actions for blocked/failed/cancelled */}
@@ -243,6 +277,17 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 <div data-testid="work-output">
                     <WorksPanel deliverable={task.deliverable} />
                 </div>
+            )}
+
+            {/*
+              Verify / Provenance — load-bearing addition for Phase F2.
+              Surface verify metadata when present, OR render the placeholder so
+              the absence of verification is visible (silent-hallucination
+              failure mode made loud). Only render when there's a deliverable to
+              verify against — running/blocked tasks have no answer to check.
+            */}
+            {task.deliverable && (
+                <VerifySection deliverable={task.deliverable} />
             )}
 
             {/* Plexo awareness badge — visible on completed tasks */}
@@ -294,6 +339,9 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                     </div>
                 </details>
             )}
+
+            {/* Lifecycle Timeline — chronological event stream from plexo_ops_task_events */}
+            <LifecycleTimeline events={events} />
 
             {/* Stats row */}
             <div className="flex flex-wrap gap-3 text-[12px] text-text-muted">
