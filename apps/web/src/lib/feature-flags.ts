@@ -37,3 +37,42 @@ export function isMarketingEnabled(): boolean {
     if (envBool(process.env.SKIP_LANDING)) return false
     return envBool(process.env.PLEXO_MARKETING_ENABLED)
 }
+
+// ── Deployment mode ──────────────────────────────────────────────────────────
+
+export type DeploymentMode = 'cloud' | 'selfhosted' | 'embedded'
+
+/**
+ * Resolve the active deployment mode from env. Drives the C2 audience-split:
+ * BYOK surfaces (selfhosted, embedded, Cloud-advanced) see model-compat
+ * warnings; managed-default Cloud users never do.
+ *
+ * Reads `NEXT_PUBLIC_PLEXO_DEPLOYMENT_MODE` so it works on both server and
+ * client. Falls back to `PLEXO_DEPLOYMENT_MODE` for server-only callers.
+ * Defaults to `selfhosted` (the safest assumption — show BYOK UX).
+ */
+export function getDeploymentMode(): DeploymentMode {
+    const raw = (
+        process.env.NEXT_PUBLIC_PLEXO_DEPLOYMENT_MODE
+        ?? process.env.PLEXO_DEPLOYMENT_MODE
+        ?? ''
+    ).trim().toLowerCase()
+    if (raw === 'cloud') return 'cloud'
+    if (raw === 'embedded') return 'embedded'
+    return 'selfhosted'
+}
+
+/**
+ * BYOK UX is shown when the active path is BYOK. That's always true on
+ * selfhosted + embedded; on Cloud it's true only when the workspace has at
+ * least one user-configured (non-managed) provider — that's the "Cloud
+ * advanced" path. The caller passes `hasUserProvider` so this stays a pure
+ * function we can test cheaply.
+ */
+export function shouldShowBYOKModelCompat(
+    mode: DeploymentMode,
+    hasUserProvider: boolean,
+): boolean {
+    if (mode === 'selfhosted' || mode === 'embedded') return true
+    return hasUserProvider
+}

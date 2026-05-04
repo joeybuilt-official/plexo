@@ -23,13 +23,15 @@ import {
     Zap, ExternalLink, Cloud, Brain, Sparkles,
     MessageSquare, Globe, Wind, ArrowLeftRight, Users,
     Flame, Search, Bot, BookOpen, Cpu, Trash2,
-    CheckCircle2, AlertCircle, Circle, Link2,
+    CheckCircle2, AlertCircle, Circle, Link2, AlertTriangle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
 import type { FilterDimension } from '@web/components/list-toolbar'
 import { ProviderChain, type ChainCardData, type ChainHealth } from '../provider-chain'
+import { ModelCompatBadge, type ModelCompatStatus } from '@web/components/model-compat-badge'
+import { getDeploymentMode, shouldShowBYOKModelCompat } from '@web/lib/feature-flags'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,6 +59,8 @@ interface ProviderInstance {
     createdAt: string
     updatedAt: string
     lastDiscoveredAt: string | null
+    modelCompatStatus?: ModelCompatStatus
+    modelCompatValidatedAt?: string | null
 }
 
 // ── Error extraction helper ─────────────────────────────────────────────────
@@ -415,6 +419,9 @@ export default function ProvidersPage() {
     // Model change saving
     const [savingModel, setSavingModel] = useState(false)
 
+    // Per-instance model-compat re-validation state (instanceId → in-flight)
+    const [revalidating, setRevalidating] = useState<Record<string, boolean>>({})
+
     // Test state — per instance
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<{ message: string; ok: boolean; errorCode?: string } | null>(null)
@@ -633,6 +640,35 @@ export default function ProvidersPage() {
             await loadProviders()
         } catch { /* non-fatal */ }
         finally { setSavingModel(false) }
+    }
+
+    /**
+     * Re-trigger the backend pre-flight model-compat check for an existing
+     * instance. The backend runs the synthetic generateObject probe on every
+     * PATCH, so a no-op PATCH (re-sending the current selectedModel) is
+     * sufficient to refresh `modelCompatStatus` + `modelCompatValidatedAt`.
+     */
+    async function handleRevalidateCompat(instance: ProviderInstance) {
+        setRevalidating(prev => ({ ...prev, [instance.id]: true }))
+        try {
+            const body: Record<string, string | null> = {}
+            // Re-PATCH the current selectedModel (or first available chat
+            // model) to force the compat probe to re-run.
+            const model = instance.selectedModel
+                ?? instance.capabilities?.chatModels?.[0]
+                ?? null
+            if (model) body.selectedModel = model
+            await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/providers/${instance.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            })
+            await loadProviders()
+        } catch {
+            toast('Failed to re-test model compatibility.')
+        } finally {
+            setRevalidating(prev => ({ ...prev, [instance.id]: false }))
+        }
     }
 
     async function handleTest(instance: ProviderInstance) {
@@ -1001,6 +1037,20 @@ export default function ProvidersPage() {
                     </div>
                 )}
 
+                {/* Model-compat status — BYOK path only. Hidden on managed-default
+                    Cloud (gated upstream by getDeploymentMode + hasUserProvider). */}
+                {isConnected && selectedInstance && !selectedInstance.managed
+                    && shouldShowBYOKModelCompat(getDeploymentMode(), userProviders.length > 0)
+                    && (
+                    <ModelCompatBadge
+                        status={selectedInstance.modelCompatStatus}
+                        validatedAt={selectedInstance.modelCompatValidatedAt}
+                        onRevalidate={() => void handleRevalidateCompat(selectedInstance)}
+                        revalidating={revalidating[selectedInstance.id] === true}
+                        hideWhenNative
+                    />
+                )}
+
                 {isConnected && selectedInstance && (
                     <>
                         {(() => {
@@ -1307,6 +1357,11 @@ export default function ProvidersPage() {
         const Icon = c.icon
         const health: HealthStatus | null = instance ? getProviderHealth(instance) : null
         const selected = c.type === selectedType
+        // Surface "failed" compat status as a tiny inline pill on the catalog
+        // list — only the loudest signal here; native/repair stay in detail.
+        // Gated by the C2 audience-split: BYOK paths only.
+        const compatFailed = instance?.modelCompatStatus === 'failed'
+            && shouldShowBYOKModelCompat(getDeploymentMode(), userProviders.length > 0)
         return (
             <button
                 key={c.type}
@@ -1332,6 +1387,13 @@ export default function ProvidersPage() {
                             <span className="flex items-center justify-center h-5 w-5 rounded-full bg-azure/15 text-[10px] font-medium text-azure">
                                 {chainPos}
                             </span>
+                        )}
+                        {compatFailed && (
+                            <AlertTriangle
+                                className="h-3.5 w-3.5 text-red"
+                                aria-label="Model incompatible — structured output failed"
+                                role="img"
+                            />
                         )}
                         {instance ? (
                             health === 'healthy' ? <CheckCircle2 className="h-3.5 w-3.5 text-azure" aria-label="Healthy" role="img" />

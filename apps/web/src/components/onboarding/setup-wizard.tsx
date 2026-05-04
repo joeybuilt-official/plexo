@@ -30,6 +30,8 @@ import {
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { useFocusTrap } from '@web/hooks/use-focus-trap'
+import { ModelCompatBadge, type ModelCompatStatus } from '@web/components/model-compat-badge'
+import { getDeploymentMode, shouldShowBYOKModelCompat } from '@web/lib/feature-flags'
 
 // ── Provider catalog ─────────────────────────────────────────────────────────
 
@@ -189,6 +191,16 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
     const [customBaseUrl, setCustomBaseUrl] = useState('')
     const trapRef = useFocusTrap<HTMLDivElement>(true)
 
+    // Model-compat post-save state (Phase I Stage 2 — C2 audience-split).
+    // We surface the backend's pre-flight structured-output check inline
+    // before the user advances to step 2. BYOK path only.
+    const [savedInstance, setSavedInstance] = useState<{
+        id: string
+        modelCompatStatus: ModelCompatStatus
+        modelCompatValidatedAt: string | null
+    } | null>(null)
+    const [revalidating, setRevalidating] = useState(false)
+
     // Auto-detect provider from key
     const detected = useMemo(() => detectProvider(credential), [credential])
     const detectedMeta = detected ? PROVIDERS.find((p) => p.key === detected) : null
@@ -307,17 +319,41 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                 newBody.apiKey = cred
             }
             // Await the second save — legacy endpoint above is authoritative,
-            // so if this fails we log but don't block the wizard.
+            // so if this fails we log but don't block the wizard. We DO want
+            // its response when it succeeds, since the new endpoint is the
+            // one that records `modelCompatStatus`.
             try {
-                await fetch(`${API_BASE}/api/v1/workspaces/${workspaceId}/providers`, {
+                const newRes = await fetch(`${API_BASE}/api/v1/workspaces/${workspaceId}/providers`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(newBody),
                 })
+                if (newRes.ok) {
+                    const data = await newRes.json().catch(() => ({})) as {
+                        provider?: {
+                            id?: string
+                            modelCompatStatus?: ModelCompatStatus
+                            modelCompatValidatedAt?: string | null
+                        }
+                    }
+                    if (data.provider?.id) {
+                        setSavedInstance({
+                            id: data.provider.id,
+                            modelCompatStatus: data.provider.modelCompatStatus ?? null,
+                            modelCompatValidatedAt: data.provider.modelCompatValidatedAt ?? null,
+                        })
+                        // Stay on step 1 — user reviews compat status, then
+                        // clicks Continue. BYOK path always lands here; the
+                        // wizard itself doesn't run on managed-default Cloud.
+                        return
+                    }
+                }
             } catch (e) {
                 console.warn('[setup-wizard] provider_instances save failed:', e)
             }
 
+            // Fallback: legacy save succeeded but new endpoint did not return
+            // a usable instance. Skip compat surfacing and advance.
             setStep(2)
         } catch {
             setError('Network error — could not save provider.')
@@ -325,6 +361,42 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
             setSaving(false)
         }
     }
+
+    /**
+     * Re-trigger the backend pre-flight model-compat check on the just-saved
+     * instance. PATCH with the current selectedModel (or none) re-runs the
+     * synthetic generateObject probe and updates `modelCompatStatus`.
+     */
+    const handleRevalidate = useCallback(async () => {
+        if (!savedInstance) return
+        setRevalidating(true)
+        try {
+            const res = await fetch(
+                `${API_BASE}/api/v1/workspaces/${workspaceId}/providers/${savedInstance.id}`,
+                {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({}),
+                },
+            )
+            if (res.ok) {
+                const data = await res.json().catch(() => ({})) as {
+                    provider?: {
+                        modelCompatStatus?: ModelCompatStatus
+                        modelCompatValidatedAt?: string | null
+                    }
+                }
+                if (data.provider) {
+                    setSavedInstance({
+                        ...savedInstance,
+                        modelCompatStatus: data.provider.modelCompatStatus ?? null,
+                        modelCompatValidatedAt: data.provider.modelCompatValidatedAt ?? null,
+                    })
+                }
+            }
+        } catch { /* non-fatal — leave existing state in place */ }
+        finally { setRevalidating(false) }
+    }, [savedInstance, workspaceId])
 
     // ── Update workspace name ────────────────────────────────────────────────
 
@@ -418,7 +490,38 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
 
                 <div className="px-7 pb-7 pt-4">
                     {/* ── Step 1: Connect a provider ── */}
-                    {step === 1 && (
+                    {step === 1 && savedInstance && shouldShowBYOKModelCompat(getDeploymentMode(), true) && (
+                        <div className="flex flex-col gap-5">
+                            <div>
+                                <h2 className="text-lg font-semibold text-text-primary">Provider connected</h2>
+                                <p className="mt-1 text-sm text-text-secondary">
+                                    We checked whether this model can produce the structured output Plexo agents rely on.
+                                </p>
+                            </div>
+
+                            <ModelCompatBadge
+                                status={savedInstance.modelCompatStatus}
+                                validatedAt={savedInstance.modelCompatValidatedAt}
+                                onRevalidate={handleRevalidate}
+                                revalidating={revalidating}
+                            />
+
+                            <button
+                                onClick={() => setStep(2)}
+                                className="w-full rounded bg-azure py-3 text-sm font-semibold text-white hover:bg-azure/90 transition-colors"
+                            >
+                                Continue
+                            </button>
+                        </div>
+                    )}
+                    {step === 1 && (savedInstance && !shouldShowBYOKModelCompat(getDeploymentMode(), true)) && (
+                        // Managed-default cloud users shouldn't normally see this
+                        // wizard at all; if they somehow do, just advance silently
+                        // per C2 (Sam-side: never expose compat to managed users).
+                        // We trigger the advance via an effect-style render.
+                        (() => { setTimeout(() => setStep(2), 0); return null })()
+                    )}
+                    {step === 1 && !savedInstance && (
                         <div className="flex flex-col gap-5">
                             <div>
                                 <h2 className="text-lg font-semibold text-text-primary">Connect an AI model</h2>
