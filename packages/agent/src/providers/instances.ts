@@ -25,6 +25,8 @@ export interface ProviderInstanceInput {
     managed?: boolean
 }
 
+export type ModelCompatStatus = 'native' | 'repair' | 'failed' | null
+
 export interface ProviderInstanceRow {
     id: string
     workspaceId: string
@@ -40,6 +42,8 @@ export interface ProviderInstanceRow {
     createdAt: Date
     updatedAt: Date
     lastDiscoveredAt: Date | null
+    modelCompatStatus: ModelCompatStatus
+    modelCompatValidatedAt: Date | null
 }
 
 /**
@@ -111,6 +115,8 @@ export async function updateProvider(instanceId: string, updates: Partial<{
     encryptedKey: string | null
     selectedModel: string | null
     enabled: boolean
+    modelCompatStatus: ModelCompatStatus
+    modelCompatValidatedAt: Date | null
 }>): Promise<ProviderInstanceRow | null> {
     const [row] = await db.update(providerInstances)
         .set({ ...updates, updatedAt: new Date() })

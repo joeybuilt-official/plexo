@@ -743,6 +743,13 @@
       "when": 1778119200000,
       "tag": "0105_workspaces_updated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1778205600000,
+      "tag": "0106_provider_model_compat",
+      "breakpoints": true
     }
   ]
 }

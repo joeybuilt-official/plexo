@@ -1186,6 +1186,10 @@ export const providerInstances = pgTable('provider_instances', {
     createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).defaultNow().notNull(),
     lastDiscoveredAt: timestamp('last_discovered_at', { mode: 'date', withTimezone: true }),
+    /** Phase I — pre-flight model-compat validation outcome: 'native' | 'repair' | 'failed' | null. */
+    modelCompatStatus: text('model_compat_status'),
+    /** Phase I — last time the synthetic generateObject test was run for this instance. */
+    modelCompatValidatedAt: timestamp('model_compat_validated_at', { mode: 'date', withTimezone: true }),
 }, (table: any) => [
     index('idx_provider_instances_workspace').on(table.workspaceId, table.preferenceOrder),
     index('idx_provider_instances_type').on(table.workspaceId, table.providerType),

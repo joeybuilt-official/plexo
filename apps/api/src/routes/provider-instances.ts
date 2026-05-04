@@ -392,16 +392,74 @@ router.post('/reorder', async (req: any, res: any) => {
     }
 })
 
-// PATCH /api/v1/workspaces/:id/providers/:instanceId — update a provider instance
+// PATCH /api/v1/workspaces/:id/providers/:instanceId — update a provider instance.
+//
+// When the request changes `selectedModel`, runs a synthetic generateObject
+// pre-flight test against the new model and records the outcome in
+// `model_compat_status` + `model_compat_validated_at`. The validation runs
+// AFTER the row update commits and is best-effort — a temporarily-down
+// provider never blocks the user from changing their settings. The validation
+// outcome is returned in `body.compat` so the frontend can surface the
+// repair-mode warning immediately (per C2 BYOK-visibility decision).
 router.patch('/:instanceId', async (req: any, res: any) => {
     const instanceId = req.params.instanceId as string
+    const workspaceId = req.params.id as string
     const updates = req.body as { nickname?: string; selectedModel?: string; enabled?: boolean }
 
     try {
-        const { updateProvider } = await import('@plexo/agent/providers/instances')
+        const { updateProvider, getProvider } = await import('@plexo/agent/providers/instances')
+
+        // Snapshot the prior selected model so we only re-validate on a real
+        // model change (not e.g. a nickname-only edit).
+        const before = await getProvider(instanceId)
         const updated = await updateProvider(instanceId, updates)
         if (!updated) return res.status(404).json({ error: 'Provider not found' })
-        return res.json({ ok: true, provider: { ...updated, encryptedKey: updated.encryptedKey ? '__configured__' : null } })
+
+        const modelChanged = updates.selectedModel !== undefined
+            && updates.selectedModel !== before?.selectedModel
+            && !!updates.selectedModel
+
+        let compat: { status: string | null; latencyMs: number; model: string; message: string } | undefined
+        if (modelChanged) {
+            try {
+                const { validateProviderInstanceCompat } = await import('@plexo/agent/providers/validate-compat')
+                // Decrypt the stored key so the agent layer can run a real
+                // synthetic call. Crypto is workspace-scoped and lives here
+                // in the API; the agent layer accepts the plaintext key.
+                let apiKey: string | undefined
+                if (updated.encryptedKey) {
+                    try {
+                        const { decrypt } = await import('../crypto.js')
+                        apiKey = decrypt(updated.encryptedKey, workspaceId)
+                    } catch (decErr) {
+                        logger.warn({ err: decErr, instanceId }, 'PATCH compat: key decrypt failed; will record failure')
+                    }
+                }
+                const result = await validateProviderInstanceCompat(instanceId, { apiKey })
+                compat = {
+                    status: result.status,
+                    latencyMs: result.latencyMs,
+                    model: result.model,
+                    message: result.message,
+                }
+            } catch (compatErr) {
+                // Hard guarantee: a synthetic-test exception NEVER blocks the
+                // PATCH itself. We log + omit `compat` from the response so
+                // the frontend just renders without the badge.
+                logger.warn({ err: compatErr, instanceId }, 'PATCH compat: validation threw')
+            }
+        }
+
+        // Re-read so the response reflects the persisted compat columns
+        // (validation runs a separate UPDATE).
+        const final = compat ? await getProvider(instanceId) : updated
+        const provider = final ?? updated
+
+        return res.json({
+            ok: true,
+            provider: { ...provider, encryptedKey: provider.encryptedKey ? '__configured__' : null },
+            ...(compat ? { compat } : {}),
+        })
     } catch (err) {
         logger.error({ err, instanceId }, 'Failed to update provider')
         return res.status(500).json({ error: 'Update failed' })

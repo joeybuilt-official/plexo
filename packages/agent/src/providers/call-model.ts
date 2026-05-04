@@ -153,6 +153,13 @@ export interface CallModelObjectResult<T> extends CallModelResultBase {
     object: T
     /** Always '' in schema mode — the SDK returns an object directly. */
     text: string
+    /**
+     * True when native `generateObject` failed and the result was produced
+     * by the in-wrapper repair path (`generateText` + JSON-extract +
+     * zod-validate, or fenced-JSON rescue). Used by the pre-flight
+     * model-compat validator to record `compat_native` vs `compat_via_repair`.
+     */
+    repairUsed: boolean
 }
 
 export type CallModelErrorCode =
@@ -472,6 +479,7 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                             model: modelId,
                         }, 'callModel: rescued fenced JSON from generateObject failure')
                         result = { object: rescued.object }
+                        repairUsed = true
                     } else if (isSchemaCapabilityError(genErr)) {
                         // C5 repair retry: generateText + repair against the
                         // same model. This is "attempt 2 of N=2" per the
@@ -603,6 +611,7 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                     latencyMs,
                     model: modelId,
                     attempts,
+                    repairUsed,
                 }
                 return objectResult
             }
