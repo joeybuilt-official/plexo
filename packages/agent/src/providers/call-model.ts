@@ -114,6 +114,19 @@ export interface CallModelOpts<T = unknown> {
      * Optional schema description forwarded to `generateObject`.
      */
     schemaDescription?: string
+    /**
+     * C5 — model-compatibility fall-through chain. When supplied AND a
+     * schema-capability error survives the in-wrapper repair retry
+     * (`generateText` + JSON-extract + zod-validate), the wrapper falls
+     * through to the next entry as a fresh repair attempt. Each model is
+     * tried with N=2 (native generateObject → generateText repair) before
+     * advancing. Default empty: throw the parse error after repair fails.
+     *
+     * Note: cross-provider fallback for callers that go through
+     * `withFallback` is handled at THAT layer — this option is for direct
+     * `callModel({ schema })` callers that want their own per-call chain.
+     */
+    fallbackChain?: AnyLanguageModel[]
 }
 
 interface CallModelResultBase {
@@ -309,6 +322,40 @@ function tryRescueFencedJson(
     return { object: parsed }
 }
 
+// ── Schema-capability detection (C5) ──────────────────────────────────
+// Some providers (e.g. most Groq models, ollama_cloud routed through
+// @ai-sdk/openai-compatible without `structuredOutputs`) reject json_schema
+// mode outright OR return non-JSON when asked for it. The signature is
+// either a NoObjectGeneratedError / TypeValidationError / JSONParseError
+// (parse failure after the fact) OR a provider error mentioning the
+// json_schema / response_format / structured-output capability. Mirrors
+// the detection sprint/planner.ts:129-149 used before this wrapper subsumed it.
+function isSchemaCapabilityError(err: unknown): boolean {
+    if (isParseError(err)) return true
+    const msg = err instanceof Error
+        ? err.message
+        : typeof err === 'object' && err && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+            ? (err as { message: string }).message
+            : String(err ?? '')
+    if (!msg) return false
+    return /json_schema|response.?format|structured.?output/i.test(msg)
+}
+
+// Render a zod schema as a hint for the model in repair mode. We don't
+// have full zod-to-JSON-Schema here (the SDK does it natively, but we're
+// off the schema-mode path now), so we lean on the description if the
+// caller supplied one and otherwise instruct "match the schema strictly".
+function buildRepairInstruction(opts: { schemaDescription?: string }): string {
+    const schemaHint = opts.schemaDescription
+        ? `Schema:\n${opts.schemaDescription}\n\n`
+        : ''
+    return (
+        `\n\nRespond with ONLY a JSON object — no markdown fences, no commentary, ` +
+        `no preamble. The response must be valid JSON that matches the requested ` +
+        `structure exactly.\n\n${schemaHint}`
+    )
+}
+
 // ── Public entry ──────────────────────────────────────────────────────
 
 /**
@@ -379,10 +426,19 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                 : String(opts.model)
 
             if (schemaMode) {
-                // generateObject path — SDK handles parse + validate +
-                // inner retry (maxRetries: 2). Validation failures come
-                // up as NoObjectGeneratedError / TypeValidationError
-                // which classifyError maps to CALL_MODEL_PARSE.
+                // C5 — generateObject + repair + fall-through.
+                // Attempt 1: native `generateObject` (SDK structured-output mode).
+                //   On success → return.
+                //   On schema-capability error (NoObjectGeneratedError /
+                //     TypeValidationError / JSONParseError, or provider-side
+                //     "json_schema not supported" message) → repair via
+                //     `generateText` against the same model, then JSON-extract
+                //     (subsumes the fence-rescue heuristic) and zod-validate.
+                //   On any non-schema error → bubble up to outer catch
+                //     (transient retry / abort / timeout / 4xx classification).
+                // If repair also fails AND `opts.fallbackChain` is non-empty,
+                // shift the next entry in and recurse with attempts=1 against
+                // the new model. If the chain is empty, throw the parse error.
                 genArgs.schema = opts.schema
                 if (opts.schemaName !== undefined) genArgs.schemaName = opts.schemaName
                 if (opts.schemaDescription !== undefined) genArgs.schemaDescription = opts.schemaDescription
@@ -396,19 +452,128 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                 const generateObjectUntyped = generateObject as unknown as (
                     args: unknown,
                 ) => Promise<{ object: unknown; usage?: { inputTokens?: number; outputTokens?: number } }>
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK's generateText overload set is wide
+                const generateTextUntyped = generateText as unknown as (args: any) => Promise<{ text: string; usage?: { inputTokens?: number; outputTokens?: number } }>
+
                 let result: { object: unknown; usage?: { inputTokens?: number; outputTokens?: number } }
+                let repairUsed = false
                 try {
                     result = await generateObjectUntyped(genArgs)
                 } catch (genErr) {
+                    // Cheap recovery first: in-place fence rescue from the
+                    // raw text on the error object (no extra round-trip).
                     const rescued = tryRescueFencedJson(genErr, opts.schema)
-                    if (!rescued) throw genErr
-                    logger.warn({
-                        event: 'call_model.fence_rescue',
-                        workspaceId: opts.workspaceId,
-                        taskType: opts.taskType,
-                        model: modelId,
-                    }, 'callModel: rescued fenced JSON from generateObject failure')
-                    result = { object: rescued.object }
+                    if (rescued) {
+                        logger.warn({
+                            event: 'call_model.fence_rescue',
+                            workspaceId: opts.workspaceId,
+                            taskType: opts.taskType,
+                            model: modelId,
+                        }, 'callModel: rescued fenced JSON from generateObject failure')
+                        result = { object: rescued.object }
+                    } else if (isSchemaCapabilityError(genErr)) {
+                        // C5 repair retry: generateText + repair against the
+                        // same model. This is "attempt 2 of N=2" per the
+                        // post-audit panel decision. If THIS also fails, we
+                        // fall through to opts.fallbackChain (or throw).
+                        logger.warn({
+                            event: 'call_model.repair_attempt',
+                            workspaceId: opts.workspaceId,
+                            taskType: opts.taskType,
+                            model: modelId,
+                        }, 'callModel: schema-capability error — repairing via generateText')
+
+                        const repairArgs: Record<string, unknown> = {
+                            model: opts.model,
+                            abortSignal: composedSignal,
+                        }
+                        if (opts.system !== undefined) repairArgs.system = opts.system
+                        if (opts.messages !== undefined) repairArgs.messages = opts.messages
+                        const repairInstr = buildRepairInstruction({ schemaDescription: opts.schemaDescription })
+                        if (opts.prompt !== undefined) {
+                            repairArgs.prompt = opts.prompt + repairInstr
+                        } else if (opts.messages === undefined) {
+                            repairArgs.prompt = repairInstr.trim()
+                        }
+                        if (opts.maxTokens !== undefined) {
+                            repairArgs.maxTokens = opts.maxTokens
+                            repairArgs.maxOutputTokens = opts.maxTokens
+                        }
+
+                        let repairResult: { text: string; usage?: { inputTokens?: number; outputTokens?: number } }
+                        try {
+                            repairResult = await generateTextUntyped(repairArgs)
+                        } catch (repairErr) {
+                            // Repair-mode call itself errored (auth, network,
+                            // 5xx, etc). Treat the same as a terminal repair
+                            // failure: try the fallback chain or rethrow the
+                            // ORIGINAL error so the caller's classifier sees
+                            // the schema-mode failure, not the repair noise.
+                            logger.warn({
+                                event: 'call_model.repair_failed',
+                                workspaceId: opts.workspaceId,
+                                taskType: opts.taskType,
+                                model: modelId,
+                                repairErr: repairErr instanceof Error ? repairErr.message.slice(0, 200) : String(repairErr),
+                            }, 'callModel: repair generateText errored')
+                            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- arr length checked
+                            if (opts.fallbackChain && opts.fallbackChain.length > 0) {
+                                const [next, ...rest] = opts.fallbackChain
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- recursing through the schema-mode overload; ts can't narrow on opts.schema being defined here
+                                return callModel({ ...opts, model: next, fallbackChain: rest } as any) as Promise<CallModelObjectResult<unknown>>
+                            }
+                            throw new CallModelError(
+                                `Schema-mode call failed and same-model repair errored: ${genErr instanceof Error ? genErr.message : String(genErr)}`,
+                                'CALL_MODEL_PARSE',
+                                genErr,
+                            )
+                        }
+
+                        // Extract JSON from the repair text (reuse the same
+                        // fence-stripping heuristic that powers the rescue).
+                        const repairText = (repairResult && typeof repairResult.text === 'string')
+                            ? repairResult.text
+                            : ''
+                        const stripped = stripCodeFence(repairText)
+                        let parsed: unknown = null
+                        if (stripped) {
+                            try { parsed = JSON.parse(stripped) } catch { parsed = null }
+                        }
+                        const validated = parsed !== null && opts.schema
+                            ? opts.schema.safeParse(parsed)
+                            : (parsed !== null ? { success: true as const, data: parsed } : { success: false as const })
+
+                        if (!validated.success) {
+                            logger.warn({
+                                event: 'call_model.repair_validation_failed',
+                                workspaceId: opts.workspaceId,
+                                taskType: opts.taskType,
+                                model: modelId,
+                            }, 'callModel: repair output failed JSON-parse or zod-validation')
+                            if (opts.fallbackChain && opts.fallbackChain.length > 0) {
+                                const [next, ...rest] = opts.fallbackChain
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- recursing through the schema-mode overload; ts can't narrow on opts.schema being defined here
+                                return callModel({ ...opts, model: next, fallbackChain: rest } as any) as Promise<CallModelObjectResult<unknown>>
+                            }
+                            throw new CallModelError(
+                                `Schema-mode call failed and same-model repair output did not validate against schema: ${genErr instanceof Error ? genErr.message : String(genErr)}`,
+                                'CALL_MODEL_PARSE',
+                                genErr,
+                            )
+                        }
+
+                        repairUsed = true
+                        result = {
+                            object: validated.data,
+                            usage: repairResult.usage,
+                        }
+                    } else {
+                        // Non-schema error (transient / abort / 4xx / 5xx) —
+                        // bubble up to the outer catch so the existing retry
+                        // and classifyError logic decide what to do.
+                        throw genErr
+                    }
                 }
 
                 const latencyMs = Date.now() - startedAt
@@ -418,6 +583,7 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                 logger.debug({
                     event: 'call_model.success',
                     mode: 'object',
+                    repairUsed,
                     workspaceId: opts.workspaceId,
                     taskType: opts.taskType,
                     model: modelId,
@@ -474,6 +640,10 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
             lastErr = err
             // Cost-gate threw — re-raise unchanged so agent-loop catches the typed error.
             if (err instanceof CostCeilingExceededError) throw err
+            // Already-typed CallModelError (e.g. C5 schema-repair terminal
+            // failure threw it directly with the right code) — pass through
+            // unchanged. The outer classifier doesn't get a second crack.
+            if (err instanceof CallModelError) throw err
 
             // Check whether the wall-clock timeout fired (as opposed to the
             // caller's signal). If only the composed signal is aborted and the

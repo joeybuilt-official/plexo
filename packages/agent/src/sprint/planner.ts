@@ -5,12 +5,12 @@
  * Sprint planner — given a repo + request, produces a list of SprintTask
  * records that can be executed in parallel with dependency ordering.
  */
-import { generateObject, generateText } from 'ai'
 import { z } from 'zod'
 import pino from 'pino'
 import { db, eq } from '@plexo/db'
 import { sprints, sprintTasks } from '@plexo/db'
 import { resolveModelFromEnv, withFallback, AnyLanguageModel } from '../providers/registry.js'
+import { callModel } from '../providers/call-model.js'
 import { MODEL_ROUTING } from '../constants.js'
 import { categoryPlannerPrompt } from './categories.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
@@ -114,43 +114,21 @@ export async function planSprint(params: {
 
     const PLANNER_TIMEOUT_MS = 3 * 60 * 1000 // 3 minutes — fail fast rather than hanging
     const doPlan = async (model: AnyLanguageModel) => {
-        let parsed: SprintPlan | null = null
-        const ac = new AbortController()
-        const timer = setTimeout(() => ac.abort(new Error('Sprint planner timed out after 3 minutes')), PLANNER_TIMEOUT_MS)
-        try {
-            const result = await generateObject({
-                model,
-                schema: SprintPlanSchema,
-                system: systemPrompt,
-                prompt: userMessage + capabilityNote,
-                abortSignal: ac.signal,
-            })
-            parsed = result.object
-        } catch (structuredErr) {
-            // Some providers (e.g. most Groq models) don't support json_schema
-            // structured output. Fall back to generateText with an explicit JSON
-            // instruction and manual parse.
-            const errMsg = (structuredErr as Error).message ?? ''
-            if (errMsg.includes('json_schema') || errMsg.includes('response format') || errMsg.includes('structured output')) {
-                logger.warn({ sprintId, errMsg }, 'Model does not support json_schema — retrying with generateText + manual JSON parse')
-                const jsonInstruction = `\n\nRespond with ONLY a JSON object matching this exact schema — no markdown, no commentary:\n{"tasks": [{"id": string, "description": string, "scope": string[], "acceptance": string, "branch": string, "priority": number, "depends_on": string[]}], "parallelism_note": string}`
-                const textResult = await generateText({
-                    model,
-                    system: systemPrompt,
-                    prompt: userMessage + capabilityNote + jsonInstruction,
-                    abortSignal: ac.signal,
-                })
-                // Strip markdown fences if present
-                const raw = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-                const jsonObj = JSON.parse(raw)
-                parsed = SprintPlanSchema.parse(jsonObj)
-            } else {
-                throw structuredErr
-            }
-        } finally {
-            clearTimeout(timer)
-        }
-        return parsed!
+        // Phase I Stage 2: route through the callModel wrapper so we get
+        // C5 generateObject-with-repair behavior (native generateObject →
+        // generateText+JSON-extract+zod-validate retry on schema-capability
+        // errors) for free. Cross-provider fall-through stays at the
+        // withFallback layer (one level up) — wrapper-level fallbackChain
+        // is empty here.
+        const result = await callModel({
+            model,
+            schema: SprintPlanSchema,
+            system: systemPrompt,
+            prompt: userMessage + capabilityNote,
+            stepTimeoutMs: PLANNER_TIMEOUT_MS,
+            taskType: 'planning',
+        })
+        return result.object as SprintPlan
     }
 
     let rawPlan: SprintPlan

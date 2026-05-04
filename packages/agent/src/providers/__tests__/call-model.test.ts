@@ -313,7 +313,17 @@ describe('callModel — schema mode (Phase 4)', () => {
         // Simulate the SDK surfacing a parse failure after its internal
         // retry loop has already exhausted. callModel must not re-retry
         // at the outer layer (generateObject already retried twice).
+        // Phase I Stage 2: the wrapper now ALSO attempts a same-model
+        // repair via generateText (C5). For this test we provide a
+        // generateText response that doesn't parse as valid JSON, so the
+        // repair fails too — the terminal error must still surface as
+        // CALL_MODEL_PARSE and generateObject must still have been
+        // called only once.
         generateObjectMock.mockRejectedValueOnce(new FakeNoObjectGeneratedError('could not parse object from model output'))
+        generateTextMock.mockResolvedValueOnce({
+            text: 'sorry, I cannot produce JSON',
+            usage: { inputTokens: 1, outputTokens: 1 },
+        })
 
         let caught: unknown
         try {
@@ -352,5 +362,160 @@ describe('callModel — schema mode (Phase 4)', () => {
         // Neither SDK entry point was called — failed in arg-validation.
         expect(generateTextMock).not.toHaveBeenCalled()
         expect(generateObjectMock).not.toHaveBeenCalled()
+    })
+})
+
+// ── Phase I Stage 2 — generateObjectWithRepair (C5) ───────────────────
+
+describe('callModel — schema repair + fall-through (C5)', () => {
+    const RepairSchema = z.object({
+        score: z.number(),
+        reason: z.string(),
+    })
+
+    it('happy path: model returns valid JSON via generateObject — no repair triggered', async () => {
+        generateObjectMock.mockResolvedValueOnce({
+            object: { score: 0.7, reason: 'fine' },
+            usage: { inputTokens: 5, outputTokens: 3 },
+        })
+
+        const result = await callModel({
+            model: 'stub-model',
+            prompt: 'judge',
+            schema: RepairSchema,
+        })
+
+        expect(result.object).toEqual({ score: 0.7, reason: 'fine' })
+        expect(generateTextMock).not.toHaveBeenCalled()
+        expect(generateObjectMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('schema-capability error on first attempt → repair via generateText succeeds', async () => {
+        // First attempt: provider rejects json_schema mode.
+        generateObjectMock.mockRejectedValueOnce(
+            Object.assign(new Error('Model does not support response_format json_schema'), {}),
+        )
+        // Repair attempt: generateText returns clean JSON.
+        generateTextMock.mockResolvedValueOnce({
+            text: '{"score": 0.42, "reason": "repaired"}',
+            usage: { inputTokens: 8, outputTokens: 4 },
+        })
+
+        const result = await callModel({
+            model: 'stub-model',
+            prompt: 'judge this',
+            schema: RepairSchema,
+        })
+
+        expect(result.object).toEqual({ score: 0.42, reason: 'repaired' })
+        expect(result.text).toBe('') // schema-mode contract: text is always empty
+        expect(generateObjectMock).toHaveBeenCalledTimes(1)
+        expect(generateTextMock).toHaveBeenCalledTimes(1)
+
+        // Repair prompt must include the JSON-only instruction appended to the original prompt
+        const repairArg = generateTextMock.mock.calls[0]![0]
+        expect(repairArg.prompt).toMatch(/judge this/)
+        expect(repairArg.prompt).toMatch(/Respond with ONLY a JSON object/)
+        expect(repairArg.model).toBe('stub-model') // SAME model — C5 retry-same-model
+    })
+
+    it('repair handles fenced JSON in generateText output', async () => {
+        generateObjectMock.mockRejectedValueOnce(new FakeNoObjectGeneratedError('parse failure'))
+        generateTextMock.mockResolvedValueOnce({
+            text: '```json\n{"score": 0.9, "reason": "fenced ok"}\n```',
+            usage: { inputTokens: 6, outputTokens: 4 },
+        })
+
+        const result = await callModel({
+            model: 'stub-model',
+            prompt: 'p',
+            schema: RepairSchema,
+        })
+        expect(result.object).toEqual({ score: 0.9, reason: 'fenced ok' })
+    })
+
+    it('two consecutive schema-capability errors with NO fallbackChain → throws CALL_MODEL_PARSE', async () => {
+        // First attempt: schema-capability error from generateObject.
+        generateObjectMock.mockRejectedValueOnce(
+            Object.assign(new Error('json_schema not supported by this provider'), {}),
+        )
+        // Repair attempt: generateText returns garbage that doesn't parse as JSON.
+        generateTextMock.mockResolvedValueOnce({
+            text: 'I cannot produce JSON. Sorry.',
+            usage: { inputTokens: 4, outputTokens: 6 },
+        })
+
+        let caught: unknown
+        try {
+            await callModel({
+                model: 'stub-model',
+                prompt: 'judge',
+                schema: RepairSchema,
+            })
+            throw new Error('should have thrown')
+        } catch (e) { caught = e }
+
+        expect(caught).toBeInstanceOf(CallModelError)
+        expect((caught as InstanceType<typeof CallModelError>).code).toBe('CALL_MODEL_PARSE')
+        expect(generateObjectMock).toHaveBeenCalledTimes(1)
+        expect(generateTextMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('two consecutive schema-capability errors WITH fallbackChain → falls through to next model and succeeds', async () => {
+        // Model A: native fails, repair fails (text doesn't parse as JSON).
+        generateObjectMock.mockRejectedValueOnce(
+            Object.assign(new Error('Model A: json_schema not supported'), {}),
+        )
+        generateTextMock.mockResolvedValueOnce({
+            text: 'Model A apologizes; will not produce JSON.',
+            usage: { inputTokens: 1, outputTokens: 2 },
+        })
+        // Model B: native generateObject succeeds.
+        generateObjectMock.mockResolvedValueOnce({
+            object: { score: 1.0, reason: 'model-B' },
+            usage: { inputTokens: 7, outputTokens: 4 },
+        })
+
+        const result = await callModel({
+            model: 'model-A',
+            prompt: 'judge',
+            schema: RepairSchema,
+            fallbackChain: ['model-B'],
+        })
+
+        expect(result.object).toEqual({ score: 1.0, reason: 'model-B' })
+        // Model A: 1 generateObject + 1 generateText repair = 2 calls
+        // Model B: 1 generateObject = 1 call
+        expect(generateObjectMock).toHaveBeenCalledTimes(2)
+        expect(generateTextMock).toHaveBeenCalledTimes(1)
+
+        // The second generateObject call must have been issued against model B
+        const secondGenObj = generateObjectMock.mock.calls[1]![0]
+        expect(secondGenObj.model).toBe('model-B')
+    })
+
+    it('non-schema error (network 5xx) propagates immediately — no repair attempted', async () => {
+        // Schema-mode generateObject hits a 503; isSchemaCapabilityError is
+        // false, so the wrapper does NOT enter repair path. The outer retry
+        // loop kicks in (transient retry on 5xx), then on the second 5xx it
+        // throws CALL_MODEL_5XX. generateText must NEVER have been called.
+        const err503 = Object.assign(new Error('upstream unavailable'), { status: 503 })
+        generateObjectMock.mockRejectedValueOnce(err503).mockRejectedValueOnce(err503)
+
+        let caught: unknown
+        try {
+            await callModel({
+                model: 'stub-model',
+                prompt: 'p',
+                schema: RepairSchema,
+            })
+            throw new Error('should have thrown')
+        } catch (e) { caught = e }
+
+        expect(caught).toBeInstanceOf(CallModelError)
+        expect((caught as InstanceType<typeof CallModelError>).code).toBe('CALL_MODEL_5XX')
+        expect(generateTextMock).not.toHaveBeenCalled()
+        // Outer transient-retry loop hit generateObject twice
+        expect(generateObjectMock).toHaveBeenCalledTimes(2)
     })
 })
