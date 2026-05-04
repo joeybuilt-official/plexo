@@ -337,6 +337,13 @@ function tryRescueFencedJson(
 // (parse failure after the fact) OR a provider error mentioning the
 // json_schema / response_format / structured-output capability. Mirrors
 // the detection sprint/planner.ts:129-149 used before this wrapper subsumed it.
+//
+// We treat parse failures as repair-eligible because the model already
+// produced text — re-running with an explicit "JSON only" directive often
+// recovers transient bad-JSON cases at the same cost as one extra call.
+// The trade is a 2× call-count amplification on legitimately broken parses;
+// acceptable because the alternative (raise immediately) still pays for
+// the failed first attempt without giving the model a chance to recover.
 function isSchemaCapabilityError(err: unknown): boolean {
     if (isParseError(err)) return true
     const msg = err instanceof Error
@@ -497,11 +504,20 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                             abortSignal: composedSignal,
                         }
                         if (opts.system !== undefined) repairArgs.system = opts.system
-                        if (opts.messages !== undefined) repairArgs.messages = opts.messages
                         const repairInstr = buildRepairInstruction({ schemaDescription: opts.schemaDescription })
                         if (opts.prompt !== undefined) {
                             repairArgs.prompt = opts.prompt + repairInstr
-                        } else if (opts.messages === undefined) {
+                        } else if (opts.messages !== undefined) {
+                            // Append the repair directive as a synthetic trailing
+                            // user message so the model gets the JSON-only signal
+                            // even when the caller used messages-mode. Without
+                            // this the repair attempt would re-run identical
+                            // input and reproduce the same failure.
+                            repairArgs.messages = [
+                                ...opts.messages,
+                                { role: 'user', content: repairInstr.trim() },
+                            ]
+                        } else {
                             repairArgs.prompt = repairInstr.trim()
                         }
                         if (opts.maxTokens !== undefined) {
@@ -525,9 +541,16 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                                 model: modelId,
                                 repairErr: repairErr instanceof Error ? repairErr.message.slice(0, 200) : String(repairErr),
                             }, 'callModel: repair generateText errored')
-                            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- arr length checked
                             if (opts.fallbackChain && opts.fallbackChain.length > 0) {
                                 const [next, ...rest] = opts.fallbackChain
+                                logger.info({
+                                    event: 'call_model.fallback_chain_advance',
+                                    workspaceId: opts.workspaceId,
+                                    taskType: opts.taskType,
+                                    fromModel: modelId,
+                                    reason: 'repair_errored',
+                                    remainingChainLength: rest.length,
+                                }, 'callModel: advancing to next fallback model after repair-call error')
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- recursing through the schema-mode overload; ts can't narrow on opts.schema being defined here
                                 return callModel({ ...opts, model: next, fallbackChain: rest } as any) as Promise<CallModelObjectResult<unknown>>
                             }
@@ -561,6 +584,14 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                             }, 'callModel: repair output failed JSON-parse or zod-validation')
                             if (opts.fallbackChain && opts.fallbackChain.length > 0) {
                                 const [next, ...rest] = opts.fallbackChain
+                                logger.info({
+                                    event: 'call_model.fallback_chain_advance',
+                                    workspaceId: opts.workspaceId,
+                                    taskType: opts.taskType,
+                                    fromModel: modelId,
+                                    reason: 'repair_validation_failed',
+                                    remainingChainLength: rest.length,
+                                }, 'callModel: advancing to next fallback model after repair output failed validation')
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- recursing through the schema-mode overload; ts can't narrow on opts.schema being defined here
                                 return callModel({ ...opts, model: next, fallbackChain: rest } as any) as Promise<CallModelObjectResult<unknown>>
                             }
