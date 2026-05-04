@@ -202,8 +202,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                 )}
             </div>
 
-            {/* Awaiting-approval action panel — Phase 5 task UI surface */}
-            {task.status === 'awaiting_approval' && (() => {
+            {/* Legacy approval surface — only when the new InlineApproval can't render (no enriched approval record) */}
+            {task.status === 'awaiting_approval' && !approval && (() => {
                 const ctx = (task.context ?? {}) as Record<string, unknown>
                 const approvalId = typeof ctx._approvalId === 'string' ? ctx._approvalId : null
                 const code = approvalId ? approvalId.slice(0, 6) : null
