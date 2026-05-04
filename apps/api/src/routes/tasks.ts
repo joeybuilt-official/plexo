@@ -182,7 +182,7 @@ tasksRouter.get('/:id', async (req, res) => {
             return
         }
         if (!await ensureWorkspaceAccess(req, res, task.workspaceId)) return
-        const steps = await db.select().from(taskSteps)
+        const stepsQuery = db.select().from(taskSteps)
             .where(eq(taskSteps.taskId, id))
             .orderBy(taskSteps.stepNumber)
             .limit(500)
@@ -190,7 +190,7 @@ tasksRouter.get('/:id', async (req, res) => {
         // Lifecycle timeline (Phase F2). Filtered by both taskId AND
         // workspaceId — defense in depth so a guessable task id can't
         // surface another workspace's events.
-        const eventRows = await db.select({
+        const eventsQuery = db.select({
             id: plexoOpsTaskEvents.id,
             eventType: plexoOpsTaskEvents.eventType,
             fromState: plexoOpsTaskEvents.fromState,
@@ -203,7 +203,10 @@ tasksRouter.get('/:id', async (req, res) => {
                 eq(plexoOpsTaskEvents.workspaceId, task.workspaceId),
             ))
             .orderBy(asc(plexoOpsTaskEvents.recordedAt))
+            // hard cap; UI must paginate if exceeded
             .limit(200)
+
+        const [steps, eventRows] = await Promise.all([stepsQuery, eventsQuery])
         const events = eventRows.map(r => ({
             id: r.id,
             eventType: r.eventType,
