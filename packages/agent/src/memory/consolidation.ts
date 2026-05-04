@@ -75,7 +75,7 @@ async function consolidateWorkspaceMemories(workspaceId: string): Promise<{ cons
         WHERE workspace_id = ${workspaceId}::uuid
           AND type = 'task'
           AND (metadata->>'consolidated')::boolean IS NOT TRUE
-          AND created_at < ${cutoff}
+          AND created_at < ${cutoff.toISOString()}::timestamp
         ORDER BY created_at ASC
         LIMIT 200
     `)
@@ -115,7 +115,7 @@ async function consolidateWorkspaceMemories(workspaceId: string): Promise<{ cons
                         'task',
                         ${summaryContent},
                         ${JSON.stringify({ consolidated: true, sourceCount: memories.length, weekOf: weekKey })}::jsonb,
-                        ${memories[0]!.createdAt}
+                        ${(memories[0]!.createdAt instanceof Date ? memories[0]!.createdAt : new Date(memories[0]!.createdAt as string)).toISOString()}::timestamp
                     )
                     RETURNING id
                 )

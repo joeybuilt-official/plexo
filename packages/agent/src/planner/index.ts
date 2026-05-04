@@ -170,6 +170,8 @@ const MEMORY_FACT_CHAR_CAP = 240
  * as a "RELEVANT PAST CONTEXT" block. Returns undefined on empty results
  * or any retrieval failure so planning never blocks on memory.
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function buildMemoryBlock(
     workspaceId: string,
     userId: string,
@@ -177,9 +179,10 @@ export async function buildMemoryBlock(
     aiSettings: WorkspaceAISettings,
 ): Promise<string | undefined> {
     try {
+        const scopedUserId = UUID_RE.test(userId) ? userId : undefined
         const hits = await queryMemory({
             workspaceId,
-            userId,
+            userId: scopedUserId,
             queryText,
             limit: MEMORY_FACT_LIMIT,
             aiSettings,

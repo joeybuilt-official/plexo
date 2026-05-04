@@ -24,6 +24,20 @@ import { searchMemory } from '../memory/store.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
 import { ToolWorker } from './tool-worker.js'
 
+function stripNullBytes<T>(value: T): T {
+    if (value == null) return value
+    if (typeof value === 'string') return value.replace(/\u0000/g, '') as T
+    if (Array.isArray(value)) return value.map((v) => stripNullBytes(v)) as T
+    if (typeof value === 'object') {
+        const out: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+            out[k] = stripNullBytes(v)
+        }
+        return out as T
+    }
+    return value
+}
+
 import pino from 'pino'
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
@@ -1895,9 +1909,9 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                     model: `${resolvedMeta.provider}/${resolvedMeta.id}`,
                     tokensIn: inToks,
                     tokensOut: outToks,
-                    toolCalls: stepToolCalls,
+                    toolCalls: stripNullBytes(stepToolCalls),
                     outcome: isTerminal ? 'complete' : 'running',
-                    stepState: {
+                    stepState: stripNullBytes({
                         responseMessages: result.response?.messages,
                         // Wall-clock step timing — used by the chat SSE
                         // projector to render per-step durations in the UI.
@@ -1908,7 +1922,7 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                             routingFallback: true,
                             routingFallbackReason: routingFallbackReason,
                         } : {}),
-                    },
+                    }),
                     isTerminal,
                     // Phase 2 lifecycle columns: the step's model iteration
                     // returned successfully — flip state to 'completed'. The
