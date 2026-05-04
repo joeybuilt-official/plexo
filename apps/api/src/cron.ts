@@ -5,6 +5,7 @@ import { syncModelKnowledge } from '@plexo/agent/providers/knowledge'
 import { runSelfImprovementCycle } from '@plexo/agent/memory/self-improvement'
 import { db, sql, eq, and, inArray } from '@plexo/db'
 import { cronJobs, artifactVersions, artifacts, workspaceMembers } from '@plexo/db'
+import { mirrorAuthUserToPublic } from '@plexo/db/auth/config'
 import { logger } from './logger.js'
 import { loadWorkspaceAISettings } from './agent-loop.js'
 import { runRSIMonitor } from '@plexo/agent/introspection/rsi-monitor'
@@ -346,12 +347,16 @@ export function scheduleMemoryConsolidation(): void {
 
 /**
  * FUN-040: Reconcile orphaned user references.
- * The FDW auth table may have rows deleted (user account removed) while
- * workspace_members still references that userId. This job detects and
- * removes orphan memberships.
+ * Two passes:
+ *  1. DELETE workspace_members whose user_id no longer exists in auth.user.
+ *  2. INSERT (Phase H+1) missing public.users rows for auth.user accounts
+ *     that signed up but never created a workspace — closes the cold-path
+ *     gap left by Phase H (Better Auth post-create hook + workspace POST
+ *     backstop only cover the hot path).
  */
 export async function reconcileOrphanedUsers(): Promise<number> {
     logger.info('FUN-040: reconciling orphaned user references')
+    let count = 0
     try {
         // Find workspace members whose userId no longer exists in auth.user
         // via the FDW. This query is safe — it only reads the auth table.
@@ -362,18 +367,54 @@ export async function reconcileOrphanedUsers(): Promise<number> {
             )
             RETURNING wm.user_id, wm.workspace_id
         `)
-        const count = (orphans as { rowCount?: number }).rowCount ?? 0
+        count = (orphans as { rowCount?: number }).rowCount ?? 0
         if (count > 0) {
             logger.warn({ count }, 'FUN-040: removed orphaned workspace memberships')
         } else {
             logger.info('FUN-040: no orphaned user references found')
         }
-        return count
     } catch (err) {
         // Non-fatal — FDW may not be configured in all deployments
         logger.warn({ err }, 'FUN-040: orphan reconciliation failed (FDW may not be available)')
-        return 0
     }
+
+    // Phase H+1: backfill missing public.users from auth.user. Closes the
+    // residual gap where signup → idle (no workspace ever created) leaves
+    // public.users empty if the post-commit databaseHooks callback crashed.
+    try {
+        const missing = await db.execute<{
+            id: string
+            name: string
+            email: string
+            emailVerified: boolean
+            createdAt: Date
+            updatedAt: Date
+            image: string | null
+        }>(sql`
+            SELECT au.id, au.name, au.email, au."emailVerified",
+                   au."createdAt", au."updatedAt", au.image
+            FROM auth.user au
+            WHERE NOT EXISTS (
+                SELECT 1 FROM public.users u WHERE u.id = au.id::uuid
+            )
+        `)
+        let backfilled = 0
+        for (const u of missing) {
+            try {
+                await mirrorAuthUserToPublic(u, db)
+                backfilled++
+            } catch (err) {
+                logger.warn({ err, userId: u.id }, 'FUN-040: failed to backfill orphan auth.user')
+            }
+        }
+        if (backfilled > 0) {
+            logger.info({ backfilled }, 'FUN-040: backfilled missing public.users rows')
+        }
+    } catch (err) {
+        logger.warn({ err }, 'FUN-040: backfill query failed (FDW may not be available)')
+    }
+
+    return count
 }
 
 /**
