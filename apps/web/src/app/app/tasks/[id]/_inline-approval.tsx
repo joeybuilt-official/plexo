@@ -3,7 +3,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, XCircle, Loader2, ShieldAlert } from 'lucide-react'
 
@@ -27,6 +27,11 @@ export function InlineApproval({ approval }: { approval: InlineApprovalRecord })
     const [busy, setBusy] = useState<'approve' | 'reject' | null>(null)
     const [done, setDone] = useState<'approve' | 'reject' | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const proceedRef = useRef<HTMLButtonElement>(null)
+
+    useEffect(() => {
+        proceedRef.current?.focus()
+    }, [])
 
     const headingId = `inline-approval-${approval.id}`
     const code = approval.id.slice(0, 6)
@@ -73,6 +78,7 @@ export function InlineApproval({ approval }: { approval: InlineApprovalRecord })
         <section
             role="region"
             aria-labelledby={headingId}
+            aria-busy={busy !== null || undefined}
             className="rounded-sm border border-amber-900/40 bg-amber-dim/10 overflow-hidden"
         >
             <div className="flex items-start gap-3 border-b border-amber-900/30 px-4 py-3.5">
@@ -111,6 +117,7 @@ export function InlineApproval({ approval }: { approval: InlineApprovalRecord })
                     Reject
                 </button>
                 <button
+                    ref={proceedRef}
                     type="button"
                     onClick={() => void decide('approve')}
                     disabled={busy !== null}

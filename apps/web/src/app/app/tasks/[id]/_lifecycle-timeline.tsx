@@ -21,6 +21,7 @@ import {
     formatRelativeTime,
     humanizeEventType,
     humanizeStateTransition,
+    humanizeTaskStatus,
 } from '@web/lib/lifecycle-copy'
 
 export interface LifecycleEvent {
@@ -121,6 +122,9 @@ export function LifecycleTimeline({ events }: { events: LifecycleEvent[] }) {
                     const color = colorFor(e.eventType)
                     const copy = humanizeEventType(e.eventType)
                     const transition = humanizeStateTransition(e.fromState, e.toState)
+                    const hasBothStates = e.fromState !== null && e.toState !== null && e.fromState !== e.toState
+                    const fromHumanized = e.fromState ? humanizeTaskStatus(e.fromState) : null
+                    const toHumanized = e.toState ? humanizeTaskStatus(e.toState) : null
                     const detail = formatMetadataLine(e.eventType, e.metadata)
                     return (
                         <li
@@ -136,7 +140,14 @@ export function LifecycleTimeline({ events }: { events: LifecycleEvent[] }) {
                                         {copy.label}
                                         {transition && (
                                             <span className="ml-2 text-[11px] font-mono text-text-muted">
-                                                {transition}
+                                                {hasBothStates && fromHumanized && toHumanized ? (
+                                                    <>
+                                                        <span aria-hidden="true">{transition}</span>
+                                                        <span className="sr-only"> from {fromHumanized} to {toHumanized}</span>
+                                                    </>
+                                                ) : (
+                                                    transition
+                                                )}
                                             </span>
                                         )}
                                     </span>
