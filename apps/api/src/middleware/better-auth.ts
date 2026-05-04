@@ -38,7 +38,7 @@ import { logger } from '../logger.js'
 
 let _authInstance: Auth | null = null
 
-function getAuth(): Auth {
+export function getAuth(): Auth {
     if (_authInstance) return _authInstance
 
     const url = process.env.AUTH_DATABASE_URL

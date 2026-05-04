@@ -4,9 +4,11 @@
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, desc, and, inArray, sql } from '@plexo/db'
 import { workspaces, workspaceMembers, tasks, conversations, memoryEntries, behaviorRules } from '@plexo/db'
+import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/db/auth/config'
 import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
+import { getAuth } from '../middleware/better-auth.js'
 import { cancelActiveTask } from '../agent-loop.js'
 import { deleteByPrefix } from '@plexo/storage'
 import { logger } from '../logger.js'
@@ -107,8 +109,48 @@ workspacesRouter.post('/', async (req, res) => {
         res.status(400).json({ error: { code: 'INVALID_OWNER', message: 'Valid UUID required for ownerId' } })
         return
     }
+
+    // Backstop for Phase H Stage 2: Better Auth's post-commit `user.create.after`
+    // hook may have failed (or not run yet) so public.users could be missing the
+    // owner row, which would break the workspaces.owner_id FK. Re-fetch the
+    // authoritative auth user payload via getSession and mirror it inside the
+    // same tx as the workspace insert. ON CONFLICT DO NOTHING makes this a
+    // no-op when the hook already mirrored. See
+    // ops/coreaudit/post-audit/adr/0001-post-audit-strategy.md.
+    let ownerMirror: AuthUserPayload | null = null
+    if (!req.user?.isSuperAdmin || ownerId === req.user?.id) {
+        try {
+            const incomingHeaders = new Headers()
+            if (req.headers.authorization) incomingHeaders.set('authorization', req.headers.authorization)
+            if (req.headers.cookie) incomingHeaders.set('cookie', req.headers.cookie)
+            const session = await getAuth().api.getSession({ headers: incomingHeaders })
+            const u = session?.user
+            if (u && u.id === ownerId) {
+                ownerMirror = {
+                    id: u.id,
+                    name: u.name,
+                    email: u.email,
+                    emailVerified: u.emailVerified,
+                    createdAt: u.createdAt,
+                    updatedAt: u.updatedAt,
+                    image: (u as { image?: string | null }).image ?? null,
+                }
+            }
+        } catch (err) {
+            logger.warn({ err, ownerId }, '[workspaces.create] failed to fetch auth session for owner mirror; relying on prior hook mirror')
+        }
+    }
+
     try {
         const created = await db.transaction(async (tx) => {
+            // Backstop for the Better Auth post-commit hook (see ADR 0001).
+            // ON CONFLICT no-ops if the hook already mirrored. Skipped when a
+            // super-admin acts on behalf of a user whose auth payload we can't
+            // load via getSession.
+            if (ownerMirror) {
+                await mirrorAuthUserToPublic(ownerMirror, tx)
+            }
+
             const [ws] = await tx.insert(workspaces)
                 .values({
                     name: name.trim(),

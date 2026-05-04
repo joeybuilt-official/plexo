@@ -79,3 +79,4 @@ ops/harnesseval/results/
 ops/harnesseval/harness/node_modules/
 ops/harnesseval/harness/vendor/node_modules/
 README.md.bak
+.serena/

@@ -137,6 +137,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL}
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
       SESSION_SECRET: ${SESSION_SECRET}
+      ENABLE_SPRINT_CODING_TASKS: ${ENABLE_SPRINT_CODING_TASKS:-false}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       # Better Auth — shared identity layer (replaces Supabase)
       AUTH_PROVIDER: better-auth

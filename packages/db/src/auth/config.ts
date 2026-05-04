@@ -4,6 +4,10 @@
 import { betterAuth, type Auth } from 'better-auth'
 import type { Pool } from 'pg'
 import { randomUUID } from 'node:crypto'
+import { db } from '../client'
+import { mirrorAuthUserToPublic, type AuthUserPayload } from './mirror'
+
+export { mirrorAuthUserToPublic, type AuthUserPayload } from './mirror'
 
 export interface PlexoAuthOptions {
     pool: Pool
@@ -88,6 +92,34 @@ export function createPlexoBetterAuth(opts: PlexoAuthOptions): Auth {
                 },
             }
             : {}),
+        // Better Auth v1.5.6 routes `databaseHooks.user.create.after` through
+        // `queueAfterTransactionHook` — it runs AFTER the auth."user" INSERT
+        // commits, so a failure here cannot roll the auth row back. The
+        // workspace POST handler (apps/api/src/routes/workspaces.ts) runs the
+        // same mirror inside its own transaction as a backstop. See
+        // ops/coreaudit/post-audit/adr/0001-post-audit-strategy.md — recheck
+        // this timing on any Better Auth v2 upgrade.
+        databaseHooks: {
+            user: {
+                create: {
+                    after: async (user: AuthUserPayload): Promise<void> => {
+                        try {
+                            await mirrorAuthUserToPublic(user, db)
+                        } catch (err) {
+                            // eslint-disable-next-line no-console
+                            console.error(JSON.stringify({
+                                level: 'error',
+                                ns: 'auth.mirror',
+                                msg: 'failed to mirror auth user into public.users; workspace POST backstop will retry on first workspace create',
+                                userId: user.id,
+                                email: user.email,
+                                err: err instanceof Error ? err.message : String(err),
+                            }))
+                        }
+                    },
+                },
+            },
+        },
         advanced: {
             database: { generateId: () => randomUUID() },
             defaultCookieAttributes: {

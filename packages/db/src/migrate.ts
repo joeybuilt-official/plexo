@@ -127,10 +127,18 @@ async function runMigrations() {
             }
 
             // Count expected migrations from the on-disk journal before running.
-            // Also validate that journal entries are ordered consistently by `idx`
-            // and `when` — Drizzle's migrator sorts by `when` (epoch ms), so a new
-            // entry hand-edited with a `when` smaller than an existing later entry
-            // would be silently skipped. Fail loud here instead.
+            // Validate journal invariants. Drizzle iterates journal entries in array
+            // order (not sorted by `when`); `when` is persisted as `created_at` in
+            // `__drizzle_migrations`, and incremental runs use `MAX(created_at)` as
+            // a skip threshold. The invariants we enforce:
+            //   1. `idx` is monotonic in array order (so the apply order is stable).
+            //   2. The LAST entry's `when` exceeds the max of all priors — so a new
+            //      hand-edited migration applies on the next incremental run against
+            //      a DB that has already applied through the prior maximum.
+            // We deliberately do NOT enforce pairwise `when` monotonicity: the
+            // existing journal has historical out-of-order pairs (e.g., idx 36→37,
+            // 86→88, 91→92, 101→102) that are benign because Drizzle iterates in
+            // array order, not `when` order.
             const journalPath = path.join(absoluteMigrationsPath, 'meta', '_journal.json')
             let expectedCount = 0
             try {
@@ -144,8 +152,12 @@ async function runMigrations() {
                         console.error(`[migrate] JOURNAL ERROR: idx out of order at ${curr.tag} (idx=${curr.idx}, prev idx=${prev.idx}). Aborting.`)
                         process.exit(1)
                     }
-                    if (curr.when <= prev.when) {
-                        console.error(`[migrate] JOURNAL ERROR: \`when\` out of order at ${curr.tag} (when=${curr.when}, prev when=${prev.when}). Drizzle sorts by \`when\` and would silently skip this. Bump \`when\` past ${prev.when}.`)
+                }
+                if (entries.length >= 2) {
+                    const last = entries[entries.length - 1]!
+                    const priorMaxWhen = entries.slice(0, -1).reduce((m, e) => Math.max(m, e.when), 0)
+                    if (last.when <= priorMaxWhen) {
+                        console.error(`[migrate] JOURNAL ERROR: last entry ${last.tag} has when=${last.when} but MAX(prior when)=${priorMaxWhen}. Drizzle uses MAX(created_at) from __drizzle_migrations as the per-DB skip threshold; a new entry's when must exceed all prior. Bump past ${priorMaxWhen}.`)
                         process.exit(1)
                     }
                 }
