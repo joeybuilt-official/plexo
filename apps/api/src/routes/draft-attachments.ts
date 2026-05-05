@@ -52,7 +52,9 @@ interface ParsedPart {
 
 /** Minimal RFC 7578 multipart/form-data parser for a single-file upload.
  *  Only supports the parts we need: text fields and one file part with
- *  `Content-Disposition: form-data; name="file"; filename="…"`. */
+ *  `Content-Disposition: form-data; name="file"; filename="…"`.
+ *  Line endings: assumes CRLF per RFC 7578 §4.1; LF-only bodies (non-
+ *  standard clients) will fail to parse — all major browsers send CRLF. */
 function parseMultipart(body: Buffer, boundary: string): ParsedPart[] {
     const dashBoundary = Buffer.from(`--${boundary}`)
     const crlf = Buffer.from('\r\n')

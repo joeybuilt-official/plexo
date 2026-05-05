@@ -97,7 +97,7 @@ setOutboundAttachmentsHandler({
         emitAttachmentSent(
             { workspaceId: p.workspaceId },
             {
-                conversationId: p.conversationId,
+                conversationIds: p.conversationIds,
                 recipientEmail: p.recipientEmail,
                 channelType: p.channelType,
                 count: p.count,

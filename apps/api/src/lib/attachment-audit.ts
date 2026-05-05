@@ -81,7 +81,7 @@ export interface OutboundAuditDeps {
 }
 
 export interface AttachmentSentPayload {
-    conversationId: string
+    conversationIds: string[]
     recipientEmail: string
     channelType: string
     count: number
@@ -104,9 +104,9 @@ export async function emitAttachmentSent(
         workspaceId: deps.workspaceId,
         action: 'attachment.sent',
         resource: 'conversations.attachments',
-        resourceId: payload.conversationId,
+        resourceId: payload.conversationIds[0] ?? 'attachment-only',
         metadata: {
-            conversationId: payload.conversationId,
+            conversationIds: payload.conversationIds,
             recipientEmail: payload.recipientEmail,
             channelType: payload.channelType,
             count: payload.count,

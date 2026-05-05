@@ -46,6 +46,7 @@ export interface ResolvedAttachment {
     bytes: Buffer
     sizeBytes: number
     contentHash?: string
+    sourceConversationId?: string
     source: 'forward' | 'upload'
 }
 
@@ -99,26 +100,38 @@ function decodedLengthMatches(rawBase64: string, decoded: Buffer): boolean {
     return decoded.length === expectedBytes
 }
 
-async function lookupConversationByContentHash(
-    contentHash: string,
-): Promise<ConversationAttachmentRow | null> {
+async function lookupConversationsByContentHashes(
+    contentHashes: string[],
+): Promise<Map<string, ConversationAttachmentRow>> {
+    const out = new Map<string, ConversationAttachmentRow>()
+    if (contentHashes.length === 0) return out
+    const dedup = Array.from(new Set(contentHashes))
+    const conditions = dedup.map(
+        (h) => sql`attachments @> jsonb_build_array(jsonb_build_object('contentHash', ${h}::text))`,
+    )
     const rows = await db.execute<ConversationAttachmentRow>(sql`
         SELECT id, workspace_id, attachments
         FROM conversations
-        WHERE attachments @> jsonb_build_array(jsonb_build_object('contentHash', ${contentHash}::text))
-        LIMIT 1
+        WHERE ${sql.join(conditions, sql` OR `)}
     `)
     const list = Array.isArray(rows)
         ? rows
         : ((rows as unknown as { rows?: ConversationAttachmentRow[] }).rows ?? [])
-    return list[0] ?? null
+    for (const row of list) {
+        for (const att of row.attachments) {
+            if (att.contentHash && dedup.includes(att.contentHash) && !out.has(att.contentHash)) {
+                out.set(att.contentHash, row)
+            }
+        }
+    }
+    return out
 }
 
 async function resolveForward(
     input: ForwardAttachment,
     ctx: ResolveContext,
+    row: ConversationAttachmentRow | null,
 ): Promise<{ ok: true; value: ResolvedAttachment } | { ok: false; reason: string }> {
-    const row = await lookupConversationByContentHash(input.contentHash)
     if (!row) {
         await ctx.auditEmit('attachment.outbound_blocked', {
             contentHash: input.contentHash,
@@ -227,6 +240,7 @@ async function resolveForward(
             bytes,
             sizeBytes: bytes.length,
             contentHash: input.contentHash,
+            sourceConversationId: row.id,
             source: 'forward',
         },
     }
@@ -323,6 +337,11 @@ export async function resolveOutboundAttachments(
         return { ok: false, error: 'count_exceeded' }
     }
 
+    const forwardHashes = inputs
+        .filter(isForwardInput)
+        .map((i) => i.contentHash)
+    const rowsByHash = await lookupConversationsByContentHashes(forwardHashes)
+
     const resolved: ResolvedAttachment[] = []
     const rejected: Array<{ index: number; reason: string }> = []
     let runningTotalBytes = 0
@@ -332,7 +351,7 @@ export async function resolveOutboundAttachments(
         let outcome: { ok: true; value: ResolvedAttachment } | { ok: false; reason: string }
 
         if (isForwardInput(input)) {
-            outcome = await resolveForward(input, ctx)
+            outcome = await resolveForward(input, ctx, rowsByHash.get(input.contentHash) ?? null)
         } else if (isUploadInput(input)) {
             outcome = await resolveUpload(input, ctx)
         } else {

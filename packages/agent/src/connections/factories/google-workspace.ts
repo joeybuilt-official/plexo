@@ -250,13 +250,20 @@ export const GOOGLE_WORKSPACE_TOOLS = (
                     if (!res.ok) return `Gmail error ${res.status}: ${(await res.text()).slice(0, 200)}`
                     const data = await res.json() as { id: string }
 
-                    // TODO(post-N+2): plumb conversationId through ToolFactory opts so
-                    // attachment.sent audits are linked to the originating conversation.
-                    // Today the factory layer is workspace-cached and lacks per-call ctx.
+                    // attachment.sent audit links to the originating conversation(s)
+                    // for forward-mode attachments via sourceConversationId surfaced
+                    // by the resolver. Upload-mode contributes no conversationId.
                     try {
+                        const sourceConversationIds = Array.from(
+                            new Set(
+                                resolved.resolved
+                                    .map((r) => r.sourceConversationId)
+                                    .filter((id): id is string => typeof id === 'string'),
+                            ),
+                        )
                         await handler.emitSent({
                             workspaceId: opts.workspaceId,
-                            conversationId: '',
+                            conversationIds: sourceConversationIds,
                             recipientEmail: to,
                             channelType: 'gmail',
                             count: resolved.resolved.length,

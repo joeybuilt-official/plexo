@@ -23,6 +23,7 @@ export interface OutboundResolvedAttachment {
     bytes: Buffer
     sizeBytes: number
     contentHash?: string
+    sourceConversationId?: string
     source: 'forward' | 'upload'
 }
 
@@ -45,7 +46,7 @@ export interface OutboundAttachmentsHandler {
     ): Promise<OutboundResolveResult>
     emitSent(payload: {
         workspaceId: string
-        conversationId: string
+        conversationIds: string[]
         recipientEmail: string
         channelType: string
         count: number

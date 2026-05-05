@@ -32,17 +32,32 @@ const state = {
 vi.mock('@plexo/db', () => {
     const sqlTag = (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })
     sqlTag.raw = (s: string) => ({ raw: s })
+    sqlTag.join = (parts: unknown[], sep: unknown) => ({ join: parts, sep })
+
+    function collectValues(node: unknown, out: unknown[]): void {
+        if (node === null || node === undefined) return
+        if (typeof node === 'string' || typeof node === 'number') { out.push(node); return }
+        if (Array.isArray(node)) { for (const x of node) collectValues(x, out); return }
+        if (typeof node === 'object') {
+            const o = node as Record<string, unknown>
+            if ('values' in o) collectValues(o.values, out)
+            if ('join' in o) collectValues(o.join, out)
+        }
+    }
 
     const execute = vi.fn(async (q: { strings: TemplateStringsArray; values: unknown[] }) => {
         const flat = q.strings.join('?')
-        if (/FROM conversations/i.test(flat) && /attachments @>/i.test(flat)) {
-            const contentHash = q.values[0] as string
+        if (/FROM conversations/i.test(flat)) {
+            const collected: unknown[] = []
+            collectValues(q.values, collected)
+            const wantedHashes = new Set(collected.filter((v): v is string => typeof v === 'string'))
+            const out: FakeConversationRow[] = []
             for (const c of state.convs) {
-                if (c.attachments.some((a) => a.contentHash === contentHash)) {
-                    return [c]
+                if (c.attachments.some((a) => a.contentHash !== undefined && wantedHashes.has(a.contentHash))) {
+                    out.push(c)
                 }
             }
-            return []
+            return out
         }
         return []
     })
@@ -128,6 +143,7 @@ describe('forward-mode', () => {
         expect(result.resolved).toHaveLength(1)
         expect(result.resolved![0]!.bytes.equals(PDF_BYTES)).toBe(true)
         expect(result.resolved![0]!.source).toBe('forward')
+        expect(result.resolved![0]!.sourceConversationId).toBe('conv-1')
     })
 
     it('infected: rejects + audit emits attachment.outbound_blocked reason=infected', async () => {
@@ -198,6 +214,57 @@ describe('forward-mode', () => {
         const result = await resolveOutboundAttachments([{ contentHash: 'h-missing' }], ctx)
         expect(result.ok).toBe(false)
         expect(result.error).toBe('not_found')
+    })
+
+    it('batched: two contentHashes resolve in a single conversations query', async () => {
+        state.convs.push({
+            id: 'conv-A',
+            workspace_id: 'ws-1',
+            attachments: [{
+                url: 's3://bucket/key/hA.pdf',
+                type: 'application/pdf',
+                filename: 'a.pdf',
+                sizeBytes: PDF_BYTES.length,
+                contentHash: 'hA',
+                scanStatus: 'clean',
+            }],
+        })
+        state.convs.push({
+            id: 'conv-B',
+            workspace_id: 'ws-1',
+            attachments: [{
+                url: 's3://bucket/key/hB.png',
+                type: 'image/png',
+                filename: 'b.png',
+                sizeBytes: PNG_BYTES.length,
+                contentHash: 'hB',
+                scanStatus: 'clean',
+            }],
+        })
+        state.storage.set('key/hA.pdf', PDF_BYTES)
+        state.storage.set('key/hB.png', PNG_BYTES)
+
+        const { db } = await import('@plexo/db')
+        const execMock = db.execute as unknown as { mock: { calls: unknown[][] } }
+        const before = execMock.mock.calls.length
+
+        const ctx = makeCtx()
+        const result = await resolveOutboundAttachments(
+            [{ contentHash: 'hA' }, { contentHash: 'hB' }],
+            ctx,
+        )
+        expect(result.ok).toBe(true)
+        expect(result.resolved).toHaveLength(2)
+        expect(result.resolved![0]!.sourceConversationId).toBe('conv-A')
+        expect(result.resolved![1]!.sourceConversationId).toBe('conv-B')
+
+        const conversationsCalls = execMock.mock.calls
+            .slice(before)
+            .filter((args) => {
+                const q = args[0] as { strings?: TemplateStringsArray }
+                return q?.strings && /FROM conversations/i.test(q.strings.join('?'))
+            })
+        expect(conversationsCalls).toHaveLength(1)
     })
 })
 
