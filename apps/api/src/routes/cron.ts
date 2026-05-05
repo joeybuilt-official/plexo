@@ -22,6 +22,7 @@ import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { isReminderSupportedChannelType, resolveRecipient } from '../lib/reminder-channel-registry.js'
+import { decryptSensitiveConfigKeys } from '../lib/channel-config-crypto.js'
 
 export const cronRouter: RouterType = Router()
 
@@ -454,7 +455,10 @@ cronRouter.post('/', async (req, res) => {
             res.status(400).json({ error: { code: 'REMINDER_CHANNEL_TYPE_NOT_SUPPORTED', message: 'Selected channel type is not supported for reminders. Supported types: gmail, twilio, telegram, slack, discord.' } })
             return
         }
-        const chatId = resolveRecipient(channel)
+        const chatId = resolveRecipient({
+            type: channel.type,
+            config: decryptSensitiveConfigKeys(channel.type, channel.config as Record<string, unknown>, workspaceId),
+        })
         if (!chatId) {
             res.status(400).json({ error: { code: 'REMINDER_CHANNEL_NOT_CONFIGURED', message: 'Selected channel is missing a delivery address (e.g. emailAddress for Gmail).' } })
             return
@@ -563,7 +567,10 @@ cronRouter.patch('/:id', async (req, res) => {
             res.status(400).json({ error: { code: 'REMINDER_CHANNEL_TYPE_NOT_SUPPORTED', message: 'Selected channel type is not supported for reminders. Supported types: gmail, twilio, telegram, slack, discord.' } })
             return
         }
-        const chatId = resolveRecipient(channel)
+        const chatId = resolveRecipient({
+            type: channel.type,
+            config: decryptSensitiveConfigKeys(channel.type, channel.config as Record<string, unknown>, workspaceId),
+        })
         if (!chatId) {
             res.status(400).json({ error: { code: 'REMINDER_CHANNEL_NOT_CONFIGURED', message: 'Selected channel is missing a delivery address (e.g. emailAddress for Gmail).' } })
             return

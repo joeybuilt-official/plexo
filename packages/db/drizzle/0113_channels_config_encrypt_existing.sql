@@ -1,0 +1,13 @@
+-- Phase O / ADR 0010 — channel-config encryption-at-rest.
+--
+-- This migration is intentionally a no-op at the SQL level. The data migration
+-- runs from a TS script invoked from `migrate.sh` AFTER drizzle:
+--   pnpm --filter @plexo/db tsx scripts/encrypt-channel-configs.ts
+--
+-- The script encrypts sensitive keys (per per-channel-type allow-list in
+-- apps/api/src/lib/channel-config-crypto.ts) on existing channel rows.
+-- It is idempotent + reentrant: rows that are already encrypted (`enc:` prefix)
+-- are no-ops on re-run. Plaintext is the migration's resume marker.
+--
+-- This SELECT is a journal-anchor; the script does the real work.
+SELECT 1;
