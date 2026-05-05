@@ -284,8 +284,8 @@ describe('POST /api/cron', () => {
         expect((res.body as { error: { code: string } }).error.code).toBe('CHANNEL_NOT_FOUND')
     })
 
-    it('400 when taskType=reminder targets a non-gmail channel type', async () => {
-        setChannelLookup([{ id: CHANNEL_A_IN_WS_A, type: 'telegram', config: { chatId: 12345 }, enabled: true }])
+    it('400 when taskType=reminder targets a channel type not in the registry (whatsapp/signal/matrix dead-UI)', async () => {
+        setChannelLookup([{ id: CHANNEL_A_IN_WS_A, type: 'whatsapp', config: {}, enabled: true }])
         const handle = findRoute('post', '/')
         const req = { body: { workspaceId: WS_A, name: 'r', scheduleAt: futureIso(60_000), taskType: 'reminder', taskContext: { channelId: CHANNEL_A_IN_WS_A, message: 'hi' } } }
         const res = makeRes()

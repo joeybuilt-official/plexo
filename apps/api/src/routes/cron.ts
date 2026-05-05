@@ -71,7 +71,7 @@ export type ReminderValidationError =
  * Validate the *shape* of taskContext for a reminder. Channel-existence is
  * verified separately against the DB (workspace-scoped) — this is shape-only.
  */
-function validateReminderContext(ctx: unknown): ReminderValidationError | null {
+export function validateReminderContext(ctx: unknown): ReminderValidationError | null {
     if (!ctx || typeof ctx !== 'object') {
         return { code: 'MISSING_TASK_CONTEXT', message: 'taskContext required for reminder' }
     }
@@ -451,7 +451,7 @@ cronRouter.post('/', async (req, res) => {
             return
         }
         if (!isReminderSupportedChannelType(channel.type)) {
-            res.status(400).json({ error: { code: 'REMINDER_CHANNEL_TYPE_NOT_SUPPORTED', message: 'L4 v1 only supports Gmail reminders. More channel types coming soon — see /app/settings/channels for status.' } })
+            res.status(400).json({ error: { code: 'REMINDER_CHANNEL_TYPE_NOT_SUPPORTED', message: 'Selected channel type is not supported for reminders. Supported types: gmail, twilio, telegram, slack, discord.' } })
             return
         }
         const chatId = resolveRecipient(channel)
@@ -560,7 +560,7 @@ cronRouter.patch('/:id', async (req, res) => {
             return
         }
         if (!isReminderSupportedChannelType(channel.type)) {
-            res.status(400).json({ error: { code: 'REMINDER_CHANNEL_TYPE_NOT_SUPPORTED', message: 'L4 v1 only supports Gmail reminders. More channel types coming soon — see /app/settings/channels for status.' } })
+            res.status(400).json({ error: { code: 'REMINDER_CHANNEL_TYPE_NOT_SUPPORTED', message: 'Selected channel type is not supported for reminders. Supported types: gmail, twilio, telegram, slack, discord.' } })
             return
         }
         const chatId = resolveRecipient(channel)
@@ -579,7 +579,14 @@ cronRouter.patch('/:id', async (req, res) => {
     }
 
     const update: Record<string, unknown> = {}
-    if (enabled !== undefined) update.enabled = enabled
+    if (enabled !== undefined) {
+        update.enabled = enabled
+        // L4.5 reminder revival: re-enabling a job clears the failure counter
+        // so the dispatcher's "3 consecutive failures → auto-disable" guard
+        // does not trip on the first failure post-revival. Operator decided
+        // to retry — give them a fresh budget.
+        if (enabled === true) update.consecutiveFailures = 0
+    }
     if (name !== undefined) update.name = name
     if (taskType !== undefined) update.taskType = taskType
     if (resolvedTaskContext !== undefined) update.taskContext = resolvedTaskContext

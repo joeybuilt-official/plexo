@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
   output: "standalone",
   devIndicators: false,
   transpilePackages: ["@plexo/ui", "@plexo/logger", "@plexo/db"],
+  // L4.5 — strip data-testid attributes from production builds. Tests use them
+  // freely in dev / e2e, but they should not ship to operators (slight bundle
+  // bloat + an information signal about test surfaces).
+  compiler: {
+    reactRemoveProperties: process.env.NODE_ENV === 'production'
+      ? { properties: ['^data-testid$'] }
+      : false,
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
