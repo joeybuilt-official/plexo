@@ -193,6 +193,14 @@ async function triggerSecondaryChannel(taskId: string, payload: PendingDecision)
     }
 }
 
+/**
+ * Periodic heartbeat interval for the `still_awaiting_approval` log emitted by
+ * waitForDecision while a task is parked at the CONFIRM gate. 15 minutes is the
+ * sweet spot between operator-visible cadence and log volume — a 24h wait
+ * produces ~96 lines, low enough to not drown out adjacent events.
+ */
+const STILL_AWAITING_LOG_INTERVAL_MS = 15 * 60 * 1000
+
 export async function waitForDecision(
     id: string,
     timeoutMs?: number,
@@ -203,7 +211,8 @@ export async function waitForDecision(
         ? await resolveEscalationTimeoutMs(record0.workspaceId)
         : undefined
     const effectiveTimeout = timeoutMs ?? wsTimeout ?? (DEFAULT_ESCALATION_TIMEOUT_HOURS * 60 * 60 * 1000)
-    const deadline = Date.now() + effectiveTimeout
+    const startedAt = Date.now()
+    const deadline = startedAt + effectiveTimeout
     const POLL_MS = 3000
 
     // First check if SSE delivery was acknowledged
@@ -216,19 +225,41 @@ export async function waitForDecision(
         }
     }
 
-    while (Date.now() < deadline) {
-        const current = await getDecision(id)
-        if (!current) return 'timeout'
-        if (current.decision === 'approved') return 'approved'
-        if (current.decision === 'rejected') return 'rejected'
-        await new Promise((r) => setTimeout(r, POLL_MS))
-    }
+    // Phase K (Item 15c): heartbeat while the operator hasn't decided. Cleared
+    // in the finally below so resume / abort / timeout paths all stop emitting.
+    const heartbeat = setInterval(() => {
+        logger.info(
+            {
+                id,
+                taskId: record?.taskId,
+                workspaceId: record?.workspaceId,
+                operation: record?.operation,
+                waitingSinceMs: Date.now() - startedAt,
+                event: 'still_awaiting_approval',
+            },
+            'OWD: still awaiting approval',
+        )
+    }, STILL_AWAITING_LOG_INTERVAL_MS)
+    // Don't let the heartbeat keep the Node process alive past shutdown.
+    if (typeof heartbeat.unref === 'function') heartbeat.unref()
 
-    // Escalation timed out — cancel the OWD record
-    if (record) {
-        logger.info({ id, taskId: record.taskId }, 'OWD: escalation timed out after deadline')
+    try {
+        while (Date.now() < deadline) {
+            const current = await getDecision(id)
+            if (!current) return 'timeout'
+            if (current.decision === 'approved') return 'approved'
+            if (current.decision === 'rejected') return 'rejected'
+            await new Promise((r) => setTimeout(r, POLL_MS))
+        }
+
+        // Escalation timed out — cancel the OWD record
+        if (record) {
+            logger.info({ id, taskId: record.taskId }, 'OWD: escalation timed out after deadline')
+        }
+        return 'timeout'
+    } finally {
+        clearInterval(heartbeat)
     }
-    return 'timeout'
 }
 
 export async function resolveDecision(

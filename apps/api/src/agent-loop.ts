@@ -26,6 +26,7 @@ import { claimBatch, releaseSlot, extendSlot, HEARTBEAT_INTERVAL_MS } from './pa
 import { logSprintHandoff } from '@plexo/agent/sprint/sprint-ledger'
 import { requestApproval, waitForDecision, getDecision, type PendingDecision } from '@plexo/agent/one-way-door'
 import { getCachedIntelligenceSettings, type IntelligenceSettings } from './lib/intelligence-cache.js'
+import { incrementCounter } from './lib/metrics.js'
 
 const POLL_INTERVAL_MS = 2_000
 const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '50')
@@ -885,7 +886,38 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             const owdDescription = owds.length > 0
                 ? owds.map(d => d.description).join('\n')
                 : plan.goal
-            // Policy-only path uses 'medium' so an operator-set standing approval on 'general_task' can auto-approve. OWD path always uses 'high' which one-way-door.ts:99 locks out from standing approvals.
+            // ── Policy-only-gate footgun (Phase D held; Phase K Item 15b) ─────
+            //
+            // The CONFIRM gate has two trigger paths:
+            //   1. OWD path — planner classified at least one irreversible action.
+            //      operation = owds[0].type, riskLevel = 'high'. one-way-door.ts
+            //      SEC-016 locks 'high'/'critical' out of standing approvals so a
+            //      standing rule cannot ever silently auto-approve a real OWD.
+            //   2. Policy-only path — no OWDs but the workspace has
+            //      requireApprovalForGeneralTasks=true. operation = 'general_task',
+            //      riskLevel = 'medium'.
+            //
+            // The footgun: an operator who creates a standing approval for the
+            // pattern 'general_task' implicitly disables the policy-only gate
+            // for ALL future tasks in that workspace. This is INTENDED for
+            // operators who want a "policy on, but trust me" mode, but it's
+            // easy to forget the standing rule was ever set, especially
+            // wildcard ones added during onboarding.
+            //
+            // The OWD path is protected by SEC-016 (riskLevel='high' bypasses
+            // the standing-approval check entirely). The policy-only path is
+            // NOT protected — 'medium' is in scope for standing approvals by
+            // design, since the gate's whole purpose is operator-discretionary.
+            //
+            // Decision (Phase K Item 15b, 2026-05-03): document + monitor, do
+            // NOT pre-emptively escalate to 'high'. Pre-launch we have no
+            // field data showing operators hit this footgun in practice; any
+            // escalation now is premature optimization. Instead we instrument
+            // the bypass with `plexo_policy_only_gate_standing_approval_passes_total`
+            // (registered in apps/api/src/lib/metrics.ts) so we can see if the
+            // pattern fires in production. If the counter is non-zero 30 days
+            // post-launch, revisit and likely escalate the policy-only path
+            // to 'high' so SEC-016 protects it the same way it protects OWDs.
             const riskLevel: PendingDecision['riskLevel'] = owds.length > 0 ? 'high' : 'medium'
 
             // F1 MVP: when steps.length < 3 the inline plan card is suppressed by emitPlanProposal's >= 3 gate, but this approvalId still exists; clients fall back to the existing task_awaiting_approval surface.
@@ -896,6 +928,19 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 description: owdDescription,
                 riskLevel,
             })
+
+            // Phase K (Item 15b): track the policy-only-gate footgun. If we
+            // entered this branch with no OWDs (so the gate is policy-driven,
+            // not OWD-driven) AND requestApproval returned an already-approved
+            // record stamped by a standing approval, then a standing rule just
+            // bypassed the policy gate. Increment the counter so prod can see
+            // how often this fires.
+            if (owds.length === 0
+                && pendingApproval.decision === 'approved'
+                && typeof pendingApproval.decidedBy === 'string'
+                && pendingApproval.decidedBy.startsWith('standing-approval:')) {
+                incrementCounter('plexo_policy_only_gate_standing_approval_passes_total', { workspace_id: taskWorkspaceId ?? '' })
+            }
         }
 
         // Phase F1: emit a structured plan_proposal card to the web chat plus

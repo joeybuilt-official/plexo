@@ -218,6 +218,13 @@ counter('plexo_credential_access_total', 'Credential decrypt operations by works
 counter('plexo_scl_mutation_total', 'SCL mutation operations by result type')
 counter('plexo_embedding_dimension_mismatch_total', 'Embedding dimension mismatch rejections')
 
+// Phase K (Item 15b): instruments the policy-only-gate footgun where a
+// workspace standing approval on `general_task` silently bypasses the
+// requireApprovalForGeneralTasks policy gate. Non-zero in production = signal
+// to escalate the policy-only path to riskLevel='high' so SEC-016's
+// standing-approval lockout protects it the same way it protects OWDs.
+counter('plexo_policy_only_gate_standing_approval_passes_total', 'Policy-only CONFIRM gates auto-approved by a workspace standing approval (footgun signal)')
+
 // ── Request timing middleware ──────────────────────────────────
 
 /**

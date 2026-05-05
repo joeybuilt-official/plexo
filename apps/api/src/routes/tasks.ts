@@ -206,7 +206,29 @@ tasksRouter.get('/:id', async (req, res) => {
             // hard cap; UI must paginate if exceeded
             .limit(200)
 
-        const [steps, eventRows] = await Promise.all([stepsQuery, eventsQuery])
+        // Phase K (Item 21): collapse the awaiting-approval Redis lookup into the
+        // same Promise.all as steps/events so all three round-trips run in
+        // parallel. Non-awaiting tasks pass `null` and skip the Redis hop.
+        const ctxApprovalId = (task.status === 'awaiting_approval'
+            && task.context && typeof task.context === 'object'
+            && '_approvalId' in task.context
+            && typeof (task.context as Record<string, unknown>)._approvalId === 'string'
+            && ((task.context as Record<string, unknown>)._approvalId as string).length > 0)
+            ? (task.context as Record<string, unknown>)._approvalId as string
+            : null
+
+        const decisionPromise: Promise<PendingDecision | null> = ctxApprovalId
+            ? getDecision(ctxApprovalId).catch((err) => {
+                logger.warn({ err, taskId: id, approvalId: ctxApprovalId }, 'getDecision failed; returning approval=null')
+                return null
+            })
+            : Promise.resolve(null)
+
+        const [steps, eventRows, approval] = await Promise.all([
+            stepsQuery,
+            eventsQuery,
+            decisionPromise,
+        ])
         const events = eventRows.map(r => ({
             id: r.id,
             eventType: r.eventType,
@@ -215,26 +237,6 @@ tasksRouter.get('/:id', async (req, res) => {
             metadata: r.metadata,
             recordedAt: r.recordedAt.toISOString(),
         }))
-
-        // Approval enrichment — populated only when the task is awaiting
-        // approval AND the OWD id is recorded in context. If Redis no
-        // longer holds the record (TTL expired, restart, etc.) we surface
-        // null rather than 500'ing.
-        let approval: PendingDecision | null = null
-        if (task.status === 'awaiting_approval'
-            && task.context && typeof task.context === 'object'
-            && '_approvalId' in task.context
-        ) {
-            const approvalId = (task.context as Record<string, unknown>)._approvalId
-            if (typeof approvalId === 'string' && approvalId.length > 0) {
-                try {
-                    approval = await getDecision(approvalId)
-                } catch (err) {
-                    logger.warn({ err, taskId: id, approvalId }, 'getDecision failed; returning approval=null')
-                    approval = null
-                }
-            }
-        }
 
         res.json({ task, steps, events, approval })
     } catch (err) {
