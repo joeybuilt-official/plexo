@@ -52,7 +52,7 @@ export interface RecordConversationParams {
     intent?: string | null
     taskId?: string | null
     channelRef?: ChannelRef | null
-    attachments?: { url: string; type: string; alt?: string }[] | null
+    attachments?: { url: string; type: string; alt?: string; filename?: string; sizeBytes?: number; contentHash?: string; scanStatus?: 'unscanned' | 'clean' | 'infected' | 'error' }[] | null
     /**
      * Embedding of `message` — stored on the row and folded into the running
      * session topic embedding so future turns can compare. Optional; callers
@@ -299,7 +299,7 @@ export async function replyToChannel(
     channelRef: ChannelRef,
     text: string,
     channelToken?: string,
-    attachments?: { url: string; type: string; alt?: string }[] | null,
+    attachments?: { url: string; type: string; alt?: string; filename?: string; sizeBytes?: number; contentHash?: string; scanStatus?: 'unscanned' | 'clean' | 'infected' | 'error' }[] | null,
 ): Promise<void> {
     if (channelRef.channel === 'telegram') {
         if (!channelToken) {
