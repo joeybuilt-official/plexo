@@ -206,6 +206,11 @@ export function createActivationSDK(
                 requireCap('channel:send-direct')
                 await bridge('channel.sendDirect', { workspaceId, channelId: _channelId, msg: _msg })
             },
+            async dispatch(params) {
+                requireCap('channel:dispatch')
+                return bridge('channel.dispatch', { workspaceId, params }) as
+                    Promise<Awaited<ReturnType<PlexoSDK['channel']['dispatch']>>>
+            },
         },
 
         tasks: {
