@@ -15,6 +15,7 @@ import { deleteByPrefix } from '@plexo/storage'
 import { runSynthesisNightly } from './cron/synthesis-nightly.js'
 import { flushRetrievalCounts, decayConfidence } from './cron/confidence-lifecycle.js'
 import { pollAllGmailChannels } from './lib/gmail-poll.js'
+import { runAttachmentScanTick } from './lib/attachment-scan-worker.js'
 
 export { runRSIMonitor }
 export { runSynthesisNightly }
@@ -339,6 +340,11 @@ async function runOverdueInternalJobs(): Promise<void> {
     }
 }
 
+/**
+ * Historical name; this is the de facto startCrons() entry point.
+ * Registers all internal crons: memory consolidation, overdue jobs,
+ * Gmail polling, attachment scan worker.
+ */
 export function scheduleMemoryConsolidation(): void {
     if (process.env.SELF_IMPROVEMENT_ENABLED === 'false' || process.env.PLEXO_DISABLE_CRONS === '1') {
         logger.warn('Memory consolidation / internal cron scheduling disabled via SELF_IMPROVEMENT_ENABLED=false or PLEXO_DISABLE_CRONS=1')
@@ -376,6 +382,11 @@ export function scheduleMemoryConsolidation(): void {
         void tick()
         setInterval(() => { void tick() }, GMAIL_POLL_INTERVAL)
     }, 90 * 1000)
+
+    // Phase N+1 (ADR 0012) — clamd attachment scan worker.
+    const ATTACHMENT_SCAN_INTERVAL = 5000
+    setInterval(() => { void runAttachmentScanTick() }, ATTACHMENT_SCAN_INTERVAL)
+    logger.info({ intervalMs: ATTACHMENT_SCAN_INTERVAL }, 'attachment-scan-worker registered')
 }
 
 /**

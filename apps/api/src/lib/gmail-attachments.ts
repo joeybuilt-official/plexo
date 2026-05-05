@@ -13,7 +13,7 @@
  * persisting the returned metadata array on the resulting conversations row.
  */
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { logger } from '../logger.js'
 import { incrementCounter } from './metrics.js'
 import {
@@ -73,6 +73,15 @@ export interface AttachmentDeps {
         mimeType: string
         bytes: Buffer
     }): Promise<{ url: string }>
+    /** Phase N+1 (ADR 0012 §D3) — enqueue for malware scan. Idempotent on contentHash. */
+    enqueueScan?(row: {
+        workspaceId: string
+        conversationId: string
+        contentHash: string
+        storageUrl: string
+        mimeType: string
+        sizeBytes: number
+    }): Promise<void>
 }
 
 /** Decode Gmail's base64url body data into a Buffer. */
@@ -89,6 +98,11 @@ export async function extractAndStoreAttachments(args: {
     accessToken: string
     workspaceId: string
     channelId: string
+    /** Optional: the conversation row this extraction is bound to. If absent,
+     *  a placeholder UUID is recorded; fan-out at scan-completion uses JSONB
+     *  containment over `conversations.attachments[*].contentHash` (ADR 0012
+     *  §pre-mortem #3) so the queue's conversation_id is informational. */
+    conversationId?: string
     deps: AttachmentDeps
     onAuditEvent?: (event: 'fetched' | 'rejected', payload: Record<string, unknown>) => void
 }): Promise<AttachmentMeta[]> {
@@ -162,6 +176,23 @@ export async function extractAndStoreAttachments(args: {
         }
         out.push(meta)
         incrementCounter('plexo_gmail_attachment_fetched_total', { mime_prefix: (part.mimeType ?? '').split('/')[0] || 'unknown' })
+        // ADR 0012 §D3 — enqueue for async clamd scan. UNIQUE(content_hash)
+        // dedupes globally; failure here is non-fatal (file still surfaces with
+        // 'unscanned' badge per Phase N safe state).
+        if (args.deps.enqueueScan) {
+            try {
+                await args.deps.enqueueScan({
+                    workspaceId: args.workspaceId,
+                    conversationId: args.conversationId ?? randomUUID(),
+                    contentHash,
+                    storageUrl: upload.url,
+                    mimeType: part.mimeType!,
+                    sizeBytes: bytes.byteLength,
+                })
+            } catch (err) {
+                logger.warn({ err, contentHash, channelId: args.channelId }, 'gmail-attachments: enqueueScan failed (non-fatal)')
+            }
+        }
         args.onAuditEvent?.('fetched', {
             messageId: args.msg.id,
             filename: part.filename,

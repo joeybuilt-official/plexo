@@ -45,3 +45,19 @@ export function audit(req: Request | null, entry: AuditEntry): void {
         logger.error({ err, action: entry.action }, 'Audit write failed')
     })
 }
+
+/** Non-req variant for background workers / cron jobs that have no Hono/Express
+ *  request context. Same fire-and-forget guarantee as `audit()`. */
+export function recordAuditEventDirect(entry: AuditEntry): void {
+    void db.insert(auditLog).values({
+        workspaceId: entry.workspaceId,
+        userId: entry.userId ?? null,
+        action: entry.action,
+        resource: entry.resource,
+        resourceId: entry.resourceId ?? null,
+        metadata: entry.metadata ?? {},
+        ip: null,
+    }).catch((err: unknown) => {
+        logger.error({ err, action: entry.action }, 'Audit write failed')
+    })
+}

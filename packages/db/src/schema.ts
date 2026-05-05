@@ -13,6 +13,7 @@ import {
     timestamp,
     boolean,
     integer,
+    bigint,
     real,
     jsonb,
     pgEnum,
@@ -394,6 +395,8 @@ export const conversations = pgTable('conversations', {
         sizeBytes?: number
         contentHash?: string
         scanStatus?: 'unscanned' | 'clean' | 'infected' | 'error'
+        // Populated only when scanStatus === 'infected' (ADR 0012 §D5).
+        signature?: string
     }[]>().default([]).notNull(),
     /**
      * Running topic embedding for the session this turn belongs to.
@@ -597,6 +600,27 @@ export const dashboardCards = pgTable('dashboard_cards', {
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table: any) => [
     index('dashboard_cards_user_idx').on(table.userId, table.workspaceId),
+])
+
+export const attachmentScanQueue = pgTable('attachment_scan_queue', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id').notNull(),
+    contentHash: text('content_hash').notNull(),
+    storageUrl: text('storage_url').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    enqueuedAt: timestamp('enqueued_at', { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    lastError: text('last_error'),
+    result: text('result'),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t: any) => [
+    uniqueIndex('attachment_scan_queue_content_hash_unique').on(t.contentHash),
+    index('idx_attachment_scan_queue_pending').on(t.enqueuedAt).where(sql`${t.completedAt} IS NULL`),
+    index('idx_attachment_scan_queue_next_attempt').on(t.nextAttemptAt).where(sql`${t.completedAt} IS NULL`),
 ])
 
 export const cronJobs = pgTable('cron_jobs', {

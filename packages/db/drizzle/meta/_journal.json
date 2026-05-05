@@ -799,6 +799,20 @@
       "when": 1778983200000,
       "tag": "0113_channels_config_encrypt_existing",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1779069600000,
+      "tag": "0114_attachment_scan_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1779156000000,
+      "tag": "0115_attachment_scan_queue_backoff",
+      "breakpoints": true
     }
   ]
 }

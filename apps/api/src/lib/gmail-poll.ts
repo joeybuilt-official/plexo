@@ -21,7 +21,7 @@
  */
 
 import { db, and, eq, sql } from '@plexo/db'
-import { channels, installedConnections } from '@plexo/db'
+import { channels, installedConnections, attachmentScanQueue } from '@plexo/db'
 import { push as pushTask } from '@plexo/queue'
 import { decrypt, encrypt } from '../crypto.js'
 import { logger } from '../logger.js'
@@ -614,7 +614,21 @@ async function pollOneChannel(channel: ChannelRow, deps: PollDeps): Promise<void
                     accessToken: creds.access_token!,
                     workspaceId: channel.workspaceId,
                     channelId: channel.id,
-                    deps: { fetchAttachment: deps.fetchAttachment!, uploadAttachment: deps.uploadAttachment! },
+                    deps: {
+                        fetchAttachment: deps.fetchAttachment!,
+                        uploadAttachment: deps.uploadAttachment!,
+                        // ADR 0012 §D3 — enqueue for clamd scan.
+                        enqueueScan: async (row) => {
+                            await db.insert(attachmentScanQueue).values({
+                                workspaceId: row.workspaceId,
+                                conversationId: row.conversationId,
+                                contentHash: row.contentHash,
+                                storageUrl: row.storageUrl,
+                                mimeType: row.mimeType,
+                                sizeBytes: row.sizeBytes,
+                            }).onConflictDoNothing({ target: attachmentScanQueue.contentHash })
+                        },
+                    },
                 })
             } catch (err) {
                 logger.warn({ err, messageId, channelId: channel.id }, 'gmail-poll: attachment extraction failed; proceeding with text-only')

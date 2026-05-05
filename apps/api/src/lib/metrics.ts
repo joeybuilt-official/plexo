@@ -258,6 +258,15 @@ counter('plexo_gmail_attachment_fetched_total', 'Gmail attachment fetched + stor
 counter('plexo_gmail_attachment_rejected_total', 'Gmail attachment rejected before fetch, labeled by reason')
 counter('plexo_gmail_attachment_fetch_failed_total', 'Gmail attachment fetch returned 4xx/5xx or empty bytes')
 
+// Phase N+1 (ADR 0012) — clamd attachment-scan observability.
+counter('plexo_clamd_scan_total', 'clamd INSTREAM scan results, labeled by result (clean|infected|error)')
+histogram(
+    'plexo_clamd_scan_duration_ms',
+    'clamd INSTREAM scan duration in milliseconds',
+    [10, 50, 100, 500, 1000, 5000],
+)
+gauge('plexo_clamd_scan_queue_depth', 'Pending rows in attachment_scan_queue (refreshed each tick)')
+
 // ── Request timing middleware ──────────────────────────────────
 
 /**

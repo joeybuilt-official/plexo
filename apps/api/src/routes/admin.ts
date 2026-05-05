@@ -8,8 +8,9 @@
 
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, desc, sql, count } from '@plexo/db'
-import { workspaces, tasks, users, conversations, installedConnections, memoryEntries, auditLog, workspaceMembers, DEFAULT_INTELLIGENCE_SETTINGS, DEFAULT_WORKSPACE_SETTINGS } from '@plexo/db'
+import { workspaces, tasks, users, conversations, installedConnections, memoryEntries, auditLog, workspaceMembers, attachmentScanQueue, DEFAULT_INTELLIGENCE_SETTINGS, DEFAULT_WORKSPACE_SETTINGS } from '@plexo/db'
 import { logger } from '../logger.js'
+import { recordAuditEventDirect } from '../audit.js'
 
 export const adminRouter: RouterType = Router()
 
@@ -307,6 +308,41 @@ adminRouter.get('/audit', async (req, res) => {
     } catch (err) {
         logger.error({ err }, 'Admin: failed to list audit log')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list audit log' } })
+    }
+})
+
+// ── POST /admin/attachments/:contentHash/rescan — ADR 0012 §D9 ─────────
+// Re-enqueue a previously-scanned attachment (e.g. after a signature DB
+// update catches a previously-clean file). Mounted behind requireSuperAdmin.
+adminRouter.post('/attachments/:contentHash/rescan', async (req, res) => {
+    const contentHash = req.params.contentHash
+    if (!contentHash || !/^[a-f0-9]{64}$/.test(contentHash)) {
+        res.status(400).json({ error: { code: 'INVALID_HASH', message: 'contentHash must be a 64-char hex sha-256' } })
+        return
+    }
+    try {
+        const result = await db
+            .update(attachmentScanQueue)
+            .set({ completedAt: null, startedAt: null, consecutiveFailures: 0, lastError: null, result: null, nextAttemptAt: new Date() })
+            .where(eq(attachmentScanQueue.contentHash, contentHash))
+            .returning({ id: attachmentScanQueue.id, workspaceId: attachmentScanQueue.workspaceId })
+        if (result.length === 0) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'No queued attachment for that contentHash' } })
+            return
+        }
+        const queueRow = result[0]!
+        recordAuditEventDirect({
+            workspaceId: queueRow.workspaceId,
+            userId: req.user?.id,
+            action: 'attachment.rescan_requested',
+            resource: 'conversations.attachments',
+            resourceId: contentHash,
+            metadata: { adminUserId: req.user?.id ?? null, contentHash },
+        })
+        res.json({ ok: true, rescanned: result.length })
+    } catch (err) {
+        logger.error({ err, contentHash }, 'Admin: rescan failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Rescan failed' } })
     }
 })
 

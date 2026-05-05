@@ -14,8 +14,9 @@
  */
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadBucketCommand, CreateBucketCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, promises as fsPromises } from 'node:fs'
+import path, { join } from 'node:path'
+import { Readable } from 'node:stream'
 import { lookup as mimeLookup } from 'mime-types'
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -170,6 +171,45 @@ export async function uploadToKey(params: {
 
     const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 })
     return { key, url, bytes: content.byteLength }
+}
+
+/**
+ * Fetch raw bytes by storage key. Mirror of uploadToKey — returns a Buffer
+ * regardless of whether the underlying store is S3/MinIO or filesystem
+ * fallback. Throws on not-found; caller decides retry behavior.
+ */
+export async function getByKey(key: string): Promise<Buffer> {
+    if (!isConfigured) {
+        const baseDir = path.resolve('/tmp/plexo-assets')
+        const resolved = path.resolve(baseDir, key)
+        if (!resolved.startsWith(baseDir + path.sep) && resolved !== baseDir) {
+            throw new Error(`storage.getByKey: path traversal blocked for key=${key}`)
+        }
+        return fsPromises.readFile(resolved)
+    }
+
+    await ensureBucket()
+
+    const s3 = getClient()
+    const out = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
+    const body = out.Body
+    if (!body) throw new Error(`getByKey: empty body for key ${key}`)
+
+    // Body is a Node stream in node runtime — collect into a Buffer.
+    if (body instanceof Readable) {
+        const chunks: Buffer[] = []
+        for await (const chunk of body) {
+            chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : Buffer.from(chunk))
+        }
+        return Buffer.concat(chunks)
+    }
+    // Fallback for environments where Body is a web ReadableStream / Blob-ish
+    const anyBody = body as unknown as { transformToByteArray?: () => Promise<Uint8Array> }
+    if (typeof anyBody.transformToByteArray === 'function') {
+        const arr = await anyBody.transformToByteArray()
+        return Buffer.from(arr)
+    }
+    throw new Error('getByKey: unsupported S3 Body type')
 }
 
 /**

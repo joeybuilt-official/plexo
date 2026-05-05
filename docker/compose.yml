@@ -129,6 +129,8 @@ services:
       embeddings:
         condition: service_healthy
         required: false
+      clamd:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: "3001"
@@ -137,6 +139,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL}
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
       SESSION_SECRET: ${SESSION_SECRET}
+      ENABLE_SPRINT_CODING_TASKS: ${ENABLE_SPRINT_CODING_TASKS:-false}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       # Better Auth — shared identity layer (replaces Supabase)
       AUTH_PROVIDER: better-auth
@@ -236,6 +239,27 @@ services:
       start_period: 60s
     mem_limit: 512m
     memswap_limit: 768m
+
+  # ── Malware Scanner (clamd sidecar, ADR 0012) ──────────────
+  # Streams attachment bytes over INSTREAM (TCP 3310) and returns
+  # OK / FOUND. Signature DB (~1.2 GB resident) refreshed by the
+  # bundled freshclam daemon. plexo-api scan worker is the only
+  # client; port stays internal.
+  clamd:
+    # TODO: pin by digest after first prod deploy verifies image
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    logging: *default-logging
+    expose:
+      - "3310"
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    mem_limit: 1500m
+    memswap_limit: 1800m
 
   # ── Web Dashboard ────────────────────────────────────────
 
