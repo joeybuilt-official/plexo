@@ -94,9 +94,10 @@ function buildUserPrompt(input: EscalateInput): string {
  * leave them with a bare "task failed" if the LLM is down.
  */
 export function deterministicEscalation(input: EscalateInput): EscalationSummary {
-    const what = input.failingStepDescription
+    const rawWhat = input.failingStepDescription
         ? `The task was working on: ${input.failingStepDescription}.`
         : `The task "${input.taskDescription}" was running.`
+    const what = rawWhat.length > 400 ? `${rawWhat.slice(0, 397)}...` : rawWhat
 
     let why: string
     let action: string
