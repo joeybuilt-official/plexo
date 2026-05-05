@@ -43,6 +43,19 @@ const logger = pino({ name: 'one-way-door' })
 // Conservative: any verb that produces externally-visible side effects.
 // Stage 3 review extended this set after auditing the connection registry —
 // pagerduty trigger, github PR/push/merge, calendar invites, drafts, etc.
+//
+// L5b Stage 3 security review (2026-05-04) extended again after auditing
+// packages/agent/src/connections/factories/*.ts and finding registered tools
+// that bypass the planner-time elevation pass: ssh__exec (arbitrary remote
+// command execution), ssh__upload, notion__create_page/__update_page,
+// jira__create_issue/__update_issue, linear__create_issue/__update_issue,
+// airtable__create_record/__update_record, gws__delete_event,
+// gws__create_file, gdrive__create_file, levio__create_task/__update_task.
+// The added fragments below cover these via the broader generic verbs
+// (__create_, __update_, __delete_, __exec, __upload) that connection tools
+// adopt by convention. Read-only verbs (__list_, __search, __get_, __query_,
+// __read_) are intentionally NOT included — they don't produce externally-
+// visible side effects.
 const OUTBOUND_VERB_FRAGMENTS: readonly string[] = [
     '__send_',
     '__reply_',
@@ -59,6 +72,11 @@ const OUTBOUND_VERB_FRAGMENTS: readonly string[] = [
     '__open_pr',
     '__merge_pr',
     '__push_file',
+    '__create_',
+    '__update_',
+    '__delete_',
+    '__exec',
+    '__upload',
 ] as const
 
 export function isOutboundChannelTool(toolName: string): boolean {

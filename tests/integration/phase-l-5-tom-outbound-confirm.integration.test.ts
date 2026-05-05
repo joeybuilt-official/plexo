@@ -24,7 +24,7 @@
  * pool, real DB writes via the workspaces router, no SQL workarounds.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import express, { type Request, type Response, type NextFunction } from 'express'
 import type { AddressInfo } from 'node:net'
 import { Pool } from 'pg'
@@ -122,6 +122,44 @@ afterAll(async () => {
         await cleanup.end()
     }
     if (webPool) await webPool.end()
+})
+
+// ── L5b: executor-side mid-stream guard (ADR 0006 §D5) ───────────────────
+// Pins the contract that the wrap helper produced by L5b is importable from
+// the agent package and refuses to invoke an uncovered outbound tool. Full
+// executor-driven integration (real LLM emitting an uncovered tool call mid-
+// task) would require the executor-side LLM stub that Phase K explicitly
+// scoped out (plan.md:106 — "Executor generateText is OUT OF SCOPE — separate
+// stub needed for full task execution"). When that stub lands, extend this
+// file with a case that exercises the wrap inside executeTask end-to-end.
+
+describe('Phase L5b — executor-side approval guard refuses uncovered outbound calls', () => {
+    it('throws when the LLM-emitted tool call has no covering OWD in plan.oneWayDoors[]', async () => {
+        const requestApprovalMock = vi.fn().mockResolvedValue({ id: 'owd-l5b-int-1', decision: 'pending' })
+        const waitForDecisionMock = vi.fn().mockResolvedValue('rejected')
+        vi.doMock('@plexo/agent/one-way-door', async () => {
+            const actual = await vi.importActual<typeof import('@plexo/agent/one-way-door')>('@plexo/agent/one-way-door')
+            return { ...actual, requestApproval: requestApprovalMock, waitForDecision: waitForDecisionMock }
+        })
+
+        const { wrapOutboundToolsWithApprovalGuard } = await import(
+            '../../packages/agent/src/connections/approval-guard.js'
+        )
+        const send = vi.fn(async () => 'must-not-fire')
+        const wrapped = wrapOutboundToolsWithApprovalGuard(
+            { gmail__send_email: { description: 'Send email', inputSchema: {}, execute: send } as unknown as Parameters<typeof wrapOutboundToolsWithApprovalGuard>[0][string] },
+            { plan: { oneWayDoors: [] }, taskId: 'task-l5b-int', workspaceId: 'ws-l5b-int' },
+        )
+
+        const exec = (wrapped.gmail__send_email as unknown as { execute: (input: unknown) => Promise<string> }).execute
+        await expect(exec({ to: 'tom@example.com' })).rejects.toThrow(/decision=rejected/)
+        expect(send).not.toHaveBeenCalled()
+        expect(requestApprovalMock).toHaveBeenCalledWith(
+            expect.objectContaining({ operation: 'gmail__send_email', riskLevel: 'high' }),
+        )
+
+        vi.doUnmock('@plexo/agent/one-way-door')
+    })
 })
 
 describe('Phase L5 — Tom outbound CONFIRM (fix-A: new-workspace policy default)', () => {

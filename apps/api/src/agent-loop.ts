@@ -749,6 +749,9 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         emitStepEvent: (event) => emitToWorkspace(taskWorkspaceId ?? '', event as unknown as import('./sse-emitter.js').AgentEvent),
         // FUN-014: checkpoint resume from a prior task's steps
         resumeFromTaskId: (task.context as Record<string, unknown> | null)?.resumeFromTaskId as string | undefined,
+        // L5b (ADR 0006 §D5): metric callback for executor-side approval guard.
+        // Layering: agent package owns the wrap helper; API layer owns metrics.
+        onOutboundUncovered: ({ tool, provider }) => incrementCounter('plexo_outbound_tool_call_uncovered_total', { tool, provider }),
     }
 
     try {

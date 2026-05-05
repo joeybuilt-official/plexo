@@ -540,6 +540,14 @@ export interface ExecutionContext {
      * against the original task's steps instead of starting from scratch.
      */
     resumeFromTaskId?: string
+    /**
+     * L5b (ADR 0006 §D5): callback fired when the executor-side outbound
+     * approval guard intercepts a tool call that the planner-time elevation
+     * pass did not cover. The agent layer cannot reach into apps/api metrics
+     * without a layering violation, so the API layer wires this to
+     * `incrementCounter('plexo_outbound_tool_call_uncovered_total', ...)`.
+     */
+    onOutboundUncovered?: (params: { tool: string; provider: string }) => void
 }
 
 export interface StepResult {

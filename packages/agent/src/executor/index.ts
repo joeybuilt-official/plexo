@@ -1188,10 +1188,24 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     // Phase X — cache the hot loaders per workspace for TOOL_SET_TTL_MS.
     // Extensions / connections routes call invalidateToolSet() on mutation
     // so the cache busts immediately when the user adds/removes tools.
-    const connectionTools = await getCachedToolSet(
+    const connectionToolsRaw = await getCachedToolSet(
         `connections:${ctx.workspaceId}`,
         () => loadConnectionTools(ctx.workspaceId),
     )
+    // L5b (ADR 0006 §D5): wrap each outbound connection tool with an
+    // executor-side approval guard. Plan.oneWayDoors[] coverage is checked
+    // at execute-time so a mid-task replan that adds covering OWDs is
+    // respected on subsequent tool calls. Tools NOT matching the outbound
+    // predicate pass through unchanged. Counter is incremented through the
+    // ctx.onOutboundUncovered callback wired by agent-loop (layering: agent
+    // package never imports apps/api metrics).
+    const { wrapOutboundToolsWithApprovalGuard } = await import('../connections/approval-guard.js')
+    const connectionTools = wrapOutboundToolsWithApprovalGuard(connectionToolsRaw, {
+        plan,
+        taskId: ctx.taskId,
+        workspaceId: ctx.workspaceId,
+        onUncovered: ctx.onOutboundUncovered,
+    })
     const pluginTools = await getCachedToolSet(
         `plugins:${ctx.workspaceId}`,
         () => loadPluginTools(ctx.workspaceId),

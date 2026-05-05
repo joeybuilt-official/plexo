@@ -230,6 +230,13 @@ counter('plexo_policy_only_gate_standing_approval_passes_total', 'Policy-only CO
 // elevation pass added to plan.oneWayDoors. Labels: tool, provider.
 counter('plexo_owd_elevation_outbound_total', 'Outbound channel tool calls auto-elevated to OWD by the deterministic elevation pass')
 
+// L5b (ADR 0006 §D5): executor-side mid-stream guard. Increment = an outbound
+// connection-tool call the LLM emitted at execute-time that plan.oneWayDoors[]
+// did NOT cover. Non-zero means either a planner missed `toolsRequired` for an
+// outbound step (covered by the wrapper synthesizing a fresh approval) or a
+// prompt-injected planner deliberately omitted the tool to bypass the gate.
+counter('plexo_outbound_tool_call_uncovered_total', 'Outbound connection-tool calls intercepted by the executor-side approval guard with no covering OWD in plan.oneWayDoors')
+
 // ── Request timing middleware ──────────────────────────────────
 
 /**

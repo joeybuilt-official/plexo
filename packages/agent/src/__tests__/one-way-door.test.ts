@@ -317,7 +317,38 @@ describe('isOutboundChannelTool', () => {
         expect(isOutboundChannelTool('read_file')).toBe(false)
         expect(isOutboundChannelTool('shell')).toBe(false)
         expect(isOutboundChannelTool('gmail__list_emails')).toBe(false)
-        expect(isOutboundChannelTool('github__create_pull_request')).toBe(false)
+        // L5b Stage 3: read-only verbs across providers stay false
+        expect(isOutboundChannelTool('notion__search')).toBe(false)
+        expect(isOutboundChannelTool('jira__list_issues')).toBe(false)
+        expect(isOutboundChannelTool('linear__list_issues')).toBe(false)
+        expect(isOutboundChannelTool('airtable__list_records')).toBe(false)
+        expect(isOutboundChannelTool('gws__read_email')).toBe(false)
+        expect(isOutboundChannelTool('gdrive__get_file')).toBe(false)
+        expect(isOutboundChannelTool('ssh__list_dir')).toBe(false)
+    })
+
+    // L5b Stage 3 security review: predicate extended to cover side-effecting
+    // tools the L5 set missed — ssh__exec / ssh__upload, notion / jira / linear /
+    // airtable creates and updates, gws/gdrive create_file, gws delete_event,
+    // levio create/update_task, github create_pull_request etc.
+    it('matches L5b extended outbound verbs (Stage 3)', () => {
+        expect(isOutboundChannelTool('ssh__exec')).toBe(true)
+        expect(isOutboundChannelTool('ssh__upload')).toBe(true)
+        expect(isOutboundChannelTool('notion__create_page')).toBe(true)
+        expect(isOutboundChannelTool('notion__update_page')).toBe(true)
+        expect(isOutboundChannelTool('jira__create_issue')).toBe(true)
+        expect(isOutboundChannelTool('jira__update_issue')).toBe(true)
+        expect(isOutboundChannelTool('linear__create_issue')).toBe(true)
+        expect(isOutboundChannelTool('linear__update_issue')).toBe(true)
+        expect(isOutboundChannelTool('airtable__create_record')).toBe(true)
+        expect(isOutboundChannelTool('airtable__update_record')).toBe(true)
+        expect(isOutboundChannelTool('gws__delete_event')).toBe(true)
+        expect(isOutboundChannelTool('gws__create_file')).toBe(true)
+        expect(isOutboundChannelTool('gdrive__create_file')).toBe(true)
+        expect(isOutboundChannelTool('levio__create_task')).toBe(true)
+        expect(isOutboundChannelTool('levio__update_task')).toBe(true)
+        // GitHub PR creation — was a false negative under the original L5 set.
+        expect(isOutboundChannelTool('github__create_pull_request')).toBe(true)
     })
 
     it('matches db__send_query (documented false positive — see ADR 0006 L5.5 #3)', () => {
@@ -419,10 +450,12 @@ describe('elevateOutboundOneWayDoors', () => {
     })
 
     it('does nothing when no outbound tools are present', () => {
+        // L5b Stage 3: github__create_pull_request now matches the predicate;
+        // use genuinely read-only tools across providers instead.
         const plan = makePlan({
             steps: [
                 { toolsRequired: ['read_file', 'shell'] },
-                { toolsRequired: ['github__create_pull_request'] },
+                { toolsRequired: ['gmail__list_emails', 'gws__read_email'] },
             ],
         })
         const result = elevateOutboundOneWayDoors(plan)
