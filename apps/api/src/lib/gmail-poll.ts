@@ -137,7 +137,22 @@ export interface PollDeps {
         from: string
         subject: string
         bodyText: string
+        attachments?: import('./gmail-attachments.js').AttachmentMeta[]
     }): Promise<void>
+    /** Phase N — fetch a single attachment's bytes via Gmail API. */
+    fetchAttachment?(accessToken: string, messageId: string, attachmentId: string): Promise<{
+        status: number
+        bytes?: Buffer
+        error?: string
+    }>
+    /** Phase N — upload attachment bytes to object storage and return the canonical URL. */
+    uploadAttachment?(args: {
+        workspaceId: string
+        contentHash: string
+        filename: string
+        mimeType: string
+        bytes: Buffer
+    }): Promise<{ url: string }>
 }
 
 /** Safety belt: cap history pagination to avoid runaway loops on malformed
@@ -295,6 +310,29 @@ const defaultDeps: PollDeps = {
         return { status: res.status, data: await res.json() as GmailMessage }
     },
 
+    async fetchAttachment(accessToken, messageId, attachmentId) {
+        const url = `${GMAIL_BASE}/users/me/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`
+        const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(30_000),
+        })
+        if (!res.ok) {
+            return { status: res.status, error: (await res.text()).slice(0, 300) }
+        }
+        const data = await res.json() as { data?: string; size?: number }
+        if (!data.data) return { status: res.status, error: 'no data field' }
+        const { decodeBase64url } = await import('./gmail-attachments.js')
+        return { status: res.status, bytes: decodeBase64url(data.data) }
+    },
+
+    async uploadAttachment({ workspaceId, contentHash, filename, mimeType, bytes }) {
+        const { uploadToKey } = await import('@plexo/storage')
+        const safeFilename = filename.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 200)
+        const key = `attachments/${workspaceId}/${contentHash}-${safeFilename}`
+        const result = await uploadToKey({ key, content: bytes, contentType: mimeType })
+        return { url: result.url }
+    },
+
     async refreshAccessToken(refreshToken) {
         const clientId = process.env.GOOGLE_CLIENT_ID
         const clientSecret = process.env.GOOGLE_CLIENT_SECRET
@@ -349,7 +387,7 @@ const defaultDeps: PollDeps = {
         `)
     },
 
-    async persistInbound({ workspaceId, channelId, threadId, messageId, from, subject, bodyText }) {
+    async persistInbound({ workspaceId, channelId, threadId, messageId, from, subject, bodyText, attachments }) {
         const channelRef: ChannelRef = { channel: 'gmail', channelId, chatId: from }
         let taskId: string | null = null
         try {
@@ -385,6 +423,7 @@ const defaultDeps: PollDeps = {
             intent: 'TASK',
             taskId,
             channelRef,
+            attachments: attachments && attachments.length > 0 ? attachments : null,
         }).catch((err: Error) => logger.warn({ err }, 'gmail-poll: recordConversation failed'))
     },
 }
@@ -564,7 +603,26 @@ async function pollOneChannel(channel: ChannelRow, deps: PollDeps): Promise<void
         const bodyText = extractBodyText(msg)
         const threadId = msg.threadId ?? messageId
 
-        if (!bodyText.trim()) continue
+        // Phase N (ADR 0009) — extract + store attachments before persisting the
+        // conversation row so the metadata travels with the row's first write.
+        let attachments: import('./gmail-attachments.js').AttachmentMeta[] = []
+        if (deps.fetchAttachment && deps.uploadAttachment) {
+            try {
+                const { extractAndStoreAttachments } = await import('./gmail-attachments.js')
+                attachments = await extractAndStoreAttachments({
+                    msg: { id: messageId, payload: msg.payload as import('./gmail-attachments.js').GmailMessagePart },
+                    accessToken: creds.access_token!,
+                    workspaceId: channel.workspaceId,
+                    channelId: channel.id,
+                    deps: { fetchAttachment: deps.fetchAttachment!, uploadAttachment: deps.uploadAttachment! },
+                })
+            } catch (err) {
+                logger.warn({ err, messageId, channelId: channel.id }, 'gmail-poll: attachment extraction failed; proceeding with text-only')
+            }
+        }
+
+        // Allow attachment-only messages through (e.g., a forwarded photo).
+        if (!bodyText.trim() && attachments.length === 0) continue
 
         await deps.persistInbound({
             workspaceId: channel.workspaceId,
@@ -573,7 +631,8 @@ async function pollOneChannel(channel: ChannelRow, deps: PollDeps): Promise<void
             messageId,
             from,
             subject,
-            bodyText,
+            bodyText: bodyText.trim() || `(attachment-only message: ${attachments.length} file(s))`,
+            attachments,
         })
     }
 

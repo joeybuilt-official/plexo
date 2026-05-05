@@ -382,7 +382,19 @@ export const conversations = pgTable('conversations', {
      * Used to route web-initiated replies back to the originating channel.
      */
     channelRef: jsonb('channel_ref').$type<{ channel: string; channelId: string; chatId: string } | null>().default(null),
-    attachments: jsonb('attachments').$type<{ url: string; type: string; alt?: string }[]>().default([]).notNull(),
+    /** Attachment metadata array. Shape extended in Phase N (ADR 0009) to add
+     *  filename / sizeBytes / contentHash / scanStatus while remaining
+     *  backward-compatible with Telegram's existing writes (Telegram only sets
+     *  url/type/alt today). All new fields are optional. */
+    attachments: jsonb('attachments').$type<{
+        url: string
+        type: string
+        alt?: string
+        filename?: string
+        sizeBytes?: number
+        contentHash?: string
+        scanStatus?: 'unscanned' | 'clean' | 'infected' | 'error'
+    }[]>().default([]).notNull(),
     /**
      * Running topic embedding for the session this turn belongs to.
      * Populated by the session resolver; used to decide continuity of future turns.
