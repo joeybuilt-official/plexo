@@ -56,12 +56,12 @@ export function RegisterForm({ isFirstRun = false }: { isFirstRun?: boolean }) {
                         <PlexoMark className="h-10 w-10 text-text-primary" />
                     </div>
                     <h1 className="text-lg font-medium tracking-tight text-text-primary">
-                        {isFirstRun ? 'Setup your admin account' : 'Create your Joeybuilt account'}
+                        {isFirstRun ? 'Setup your admin account' : 'Create your Plexo account'}
                     </h1>
                     <p className="mt-1.5 text-sm text-text-muted">
                         {isFirstRun
                             ? 'This is the first-run setup for this instance.'
-                            : 'One account — all Joeybuilt apps.'}
+                            : 'Run autonomous AI agents on your own terms.'}
                     </p>
                 </div>
 

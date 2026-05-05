@@ -11,7 +11,7 @@
 
 import { db, eq, sql } from '@plexo/db'
 import { workspaces } from '@plexo/db'
-import { addProvider, seedManagedProvider } from './instances.js'
+import { addProvider } from './instances.js'
 import pino from 'pino'
 
 const logger = pino({ name: 'provider:migrate' })
@@ -19,7 +19,6 @@ const logger = pino({ name: 'provider:migrate' })
 export interface MigrationResult {
     workspaceId: string
     migratedProviders: string[]
-    managedSeeded: boolean
     errors: string[]
 }
 
@@ -28,7 +27,7 @@ export interface MigrationResult {
  * Idempotent — skips if non-managed instances already exist.
  */
 export async function migrateWorkspaceProviders(workspaceId: string): Promise<MigrationResult> {
-    const result: MigrationResult = { workspaceId, migratedProviders: [], managedSeeded: false, errors: [] }
+    const result: MigrationResult = { workspaceId, migratedProviders: [], errors: [] }
 
     try {
         // Check if already migrated (has non-managed instances)
@@ -37,9 +36,6 @@ export async function migrateWorkspaceProviders(workspaceId: string): Promise<Mi
             WHERE workspace_id = ${workspaceId}::uuid AND managed = false
         `)
         if (Number(countRow?.count ?? 0) > 0) {
-            // Already migrated — just ensure managed exists
-            await seedManagedProvider(workspaceId)
-            result.managedSeeded = true
             return result
         }
 
@@ -104,10 +100,6 @@ export async function migrateWorkspaceProviders(workspaceId: string): Promise<Mi
                 logger.warn({ err, workspaceId, provider: key }, 'Failed to migrate provider')
             }
         }
-
-        // Seed managed provider last
-        await seedManagedProvider(workspaceId)
-        result.managedSeeded = true
 
         logger.info({
             workspaceId,

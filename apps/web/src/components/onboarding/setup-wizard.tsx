@@ -36,12 +36,13 @@ import { getDeploymentMode, shouldShowBYOKModelCompat } from '@web/lib/feature-f
 // ── Provider catalog ─────────────────────────────────────────────────────────
 
 const PROVIDERS = [
-    { key: 'anthropic',   name: 'Anthropic',    placeholder: 'sk-ant-api03-…',            link: 'https://console.anthropic.com/keys' },
-    { key: 'openai',      name: 'OpenAI',       placeholder: 'sk-proj-…',                 link: 'https://platform.openai.com/api-keys' },
-    { key: 'deepseek',    name: 'DeepSeek',     placeholder: 'sk-…',                      link: 'https://platform.deepseek.com/api_keys' },
-    { key: 'groq',        name: 'Groq',         placeholder: 'gsk_…',                     link: 'https://console.groq.com/keys' },
-    { key: 'cerebras',    name: 'Cerebras',     placeholder: 'csk-…',                     link: 'https://cloud.cerebras.ai' },
-    { key: 'openrouter',  name: 'OpenRouter',   placeholder: 'sk-or-v1-…',                link: 'https://openrouter.ai/keys' },
+    { key: 'anthropic',   name: 'Anthropic',    placeholder: 'sk-ant-api03-…',            link: 'https://console.anthropic.com/keys',         requiresUrl: false, keyOptional: false },
+    { key: 'openai',      name: 'OpenAI',       placeholder: 'sk-proj-…',                 link: 'https://platform.openai.com/api-keys',       requiresUrl: false, keyOptional: false },
+    { key: 'deepseek',    name: 'DeepSeek',     placeholder: 'sk-…',                      link: 'https://platform.deepseek.com/api_keys',     requiresUrl: false, keyOptional: false },
+    { key: 'groq',        name: 'Groq',         placeholder: 'gsk_…',                     link: 'https://console.groq.com/keys',              requiresUrl: false, keyOptional: false },
+    { key: 'cerebras',    name: 'Cerebras',     placeholder: 'csk-…',                     link: 'https://cloud.cerebras.ai',                  requiresUrl: false, keyOptional: false },
+    { key: 'openrouter',  name: 'OpenRouter',   placeholder: 'sk-or-v1-…',                link: 'https://openrouter.ai/keys',                 requiresUrl: false, keyOptional: false },
+    { key: 'ollama',      name: 'Ollama',       placeholder: '(usually leave blank)',     link: 'https://ollama.com/download',                requiresUrl: true,  keyOptional: true  },
 ] as const
 
 type ProviderKey = typeof PROVIDERS[number]['key']
@@ -50,6 +51,8 @@ const API_BASE = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_
 
 // ── Auto-detect provider from key prefix ─────────────────────────────────────
 
+// Ollama intentionally NOT autodetected here — its keys are typically blank or
+// arbitrary; users select Ollama explicitly via the dedicated affordance.
 function detectProvider(key: string): ProviderKey | null {
     const trimmed = key.trim()
     if (!trimmed) return null
@@ -95,7 +98,7 @@ function useHasProvider(workspaceId: string): { loading: boolean; hasProvider: b
 
             // New provider_instances — any enabled instance counts
             if (newRes.status === 'fulfilled' && newRes.value) {
-                const items = (newRes.value as { items?: Array<{ enabled?: boolean }> }).items
+                const items = (newRes.value as { providers?: Array<{ enabled?: boolean }> }).providers
                 if (items && items.some(p => p.enabled !== false)) {
                     setHasProvider(true)
                     setLoading(false)
@@ -189,6 +192,8 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
     const [showCustom, setShowCustom] = useState(false)
     const [customName, setCustomName] = useState('')
     const [customBaseUrl, setCustomBaseUrl] = useState('')
+    const [showOllama, setShowOllama] = useState(false)
+    const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
     const trapRef = useFocusTrap<HTMLDivElement>(true)
 
     // Model-compat post-save state (Phase I Stage 2 — C2 audience-split).
@@ -205,8 +210,8 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
     const detected = useMemo(() => detectProvider(credential), [credential])
     const detectedMeta = detected ? PROVIDERS.find((p) => p.key === detected) : null
 
-    // Effective provider: custom overrides auto-detect
-    const effectiveProvider: ProviderKey | null = showCustom ? null : detected
+    // Effective provider: ollama / custom override auto-detect
+    const effectiveProvider: ProviderKey | null = showOllama ? 'ollama' : (showCustom ? null : detected)
 
     // ── Live validation ──────────────────────────────────────────────────────
 
@@ -255,21 +260,71 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
     useEffect(() => {
         setValidated(false)
         setError(null)
+        if (showOllama) return
         if (!credential.trim()) return
         // Don't auto-validate if no provider detected and not custom mode
         if (!showCustom && !detected) return
         const t = setTimeout(() => { void validateKey() }, 800)
         return () => clearTimeout(t)
-    }, [credential, validateKey, showCustom, detected])
+    }, [credential, validateKey, showCustom, detected, showOllama])
 
     // ── Save provider ────────────────────────────────────────────────────────
 
     async function saveProvider() {
         const cred = credential.trim()
-        if (!cred && !showCustom) return
+        if (showOllama) {
+            if (!ollamaUrl.trim()) return
+        } else if (!cred && !showCustom) {
+            return
+        }
 
         setSaving(true)
         setError(null)
+
+        // Ollama: post directly to the new provider_instances endpoint with the
+        // BYOK Ollama shape. Legacy ai-providers blob doesn't model Ollama, so
+        // skip the double-write.
+        if (showOllama) {
+            try {
+                const body: Record<string, unknown> = {
+                    nickname: 'Ollama',
+                    providerType: 'ollama',
+                    endpointUrl: ollamaUrl.trim(),
+                }
+                if (cred) body.apiKey = cred
+                const res = await fetch(`${API_BASE}/api/v1/workspaces/${workspaceId}/providers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                })
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({})) as { error?: string; message?: string }
+                    setError(data.error || data.message || 'Could not reach that Ollama server. Check the URL and try again.')
+                    return
+                }
+                const data = await res.json().catch(() => ({})) as {
+                    provider?: {
+                        id?: string
+                        modelCompatStatus?: ModelCompatStatus
+                        modelCompatValidatedAt?: string | null
+                    }
+                }
+                if (data.provider?.id) {
+                    setSavedInstance({
+                        id: data.provider.id,
+                        modelCompatStatus: data.provider.modelCompatStatus ?? null,
+                        modelCompatValidatedAt: data.provider.modelCompatValidatedAt ?? null,
+                    })
+                    return
+                }
+                setStep(2)
+            } catch {
+                setError('Network error — could not save provider.')
+            } finally {
+                setSaving(false)
+            }
+            return
+        }
 
         const providerKey = showCustom
             ? `custom_${(customName.trim() || 'custom').toLowerCase().replace(/[^a-z0-9]/g, '_')}`
@@ -442,9 +497,11 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
 
     // ── Can proceed? ─────────────────────────────────────────────────────────
 
-    const canSave = showCustom
-        ? credential.trim().length > 0 && customBaseUrl.trim().length > 0
-        : credential.trim().length > 0 && (detected !== null)
+    const canSave = showOllama
+        ? ollamaUrl.trim().length > 0
+        : showCustom
+            ? credential.trim().length > 0 && customBaseUrl.trim().length > 0
+            : credential.trim().length > 0 && (detected !== null)
 
     // ── Render ────────────────────────────────────────────────────────────────
 
@@ -526,123 +583,195 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                             <div>
                                 <h2 className="text-lg font-semibold text-text-primary">Connect an AI model</h2>
                                 <p className="mt-1 text-sm text-text-secondary">
-                                    Plexo needs an AI model to think. Paste an API key from any LLM provider (OpenAI, Anthropic, DeepSeek, Groq, etc.) and Plexo will detect which one it is.
+                                    Plexo runs your tasks, schedules, and channels — it needs a model to think with.
+                                    Connect any provider you already use (OpenAI, Anthropic, DeepSeek, Groq…), or
+                                    point Plexo at your own Ollama server.
                                 </p>
                                 <p className="mt-1.5 text-xs text-text-muted leading-relaxed">
-                                    An API key is like a password that lets Plexo talk to an AI service. You&apos;ll need to create a free account at one of these providers to get one.
+                                    Pick whatever you have. There&apos;s no &quot;right&quot; choice — you can change it
+                                    later, add more providers, or set fallbacks in Settings.
                                 </p>
                             </div>
 
-                            {/* Single key input with auto-detection */}
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-medium text-text-secondary">
-                                    {showCustom ? 'API Key' : 'Paste your API key'}
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type={showCustom ? 'text' : 'password'}
-                                        value={credential}
-                                        onChange={(e) => setCredential(e.target.value)}
-                                        placeholder={showCustom ? 'API key for your endpoint' : 'sk-ant-…, sk-proj-…, gsk_…, sk-or-…'}
-                                        className="w-full rounded border border-border bg-canvas px-3 py-3 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
-                                        autoComplete="new-password"
-                                        autoFocus
-                                    />
-                                    {validating && (
-                                        <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-text-muted" />
-                                    )}
-                                    {validated && !validating && (
-                                        <Check className="absolute right-3 top-3.5 h-4 w-4 text-emerald-400" />
-                                    )}
-                                </div>
-
-                                {/* Detected provider indicator */}
-                                {!showCustom && detected && detectedMeta && credential.trim() && (
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                        <Check className="h-3.5 w-3.5 text-emerald-400" />
-                                        <span className="text-xs text-emerald-400 font-medium">
-                                            Detected: {detectedMeta.name}
-                                        </span>
-                                        {detectedMeta.link && (
-                                            <a
-                                                href={detectedMeta.link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="ml-auto flex items-center gap-1 text-[11px] text-azure"
-                                            >
-                                                Get a key <ExternalLink className="h-3 w-3" />
-                                            </a>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Unrecognized key warning */}
-                                {!showCustom && credential.trim().length > 3 && !detected && (
-                                    <div className="flex items-center gap-1.5 mt-1 text-xs text-text-muted">
-                                        Could not detect provider. Use &quot;Other / Custom endpoint&quot; below.
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Free API key suggestions */}
-                            <div className="rounded border border-border/40 bg-canvas/50 px-3 py-2.5">
-                                <p className="text-[11px] font-medium text-text-secondary mb-1.5">Need a free API key?</p>
-                                <div className="flex flex-col gap-1">
-                                    <a href="https://cloud.cerebras.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-azure hover:text-azure/80 transition-colors">
-                                        Cerebras — fastest inference, free tier <ExternalLink className="h-2.5 w-2.5" />
-                                    </a>
-                                    <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-azure hover:text-azure/80 transition-colors">
-                                        Groq — ultra-fast Llama &amp; Mixtral <ExternalLink className="h-2.5 w-2.5" />
-                                    </a>
-                                    <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-azure hover:text-azure/80 transition-colors">
-                                        DeepSeek — reasoning models, very low cost <ExternalLink className="h-2.5 w-2.5" />
-                                    </a>
-                                </div>
-                            </div>
-
-                            {/* Custom / Other endpoint toggle */}
-                            <div>
+                            {/* Mode selector: paste a key  |  use Ollama */}
+                            <div className="flex gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => { setShowCustom(!showCustom); setValidated(false); setError(null) }}
-                                    className="flex items-center gap-1.5 text-xs text-azure hover:text-azure/80 transition-colors"
+                                    aria-pressed={!showOllama}
+                                    onClick={() => { setShowOllama(false); setError(null) }}
+                                    className={`flex-1 rounded border px-3 py-2 text-xs font-medium transition-colors ${
+                                        !showOllama
+                                            ? 'border-azure bg-azure/10 text-azure'
+                                            : 'border-border bg-canvas text-text-secondary hover:border-border'
+                                    }`}
                                 >
-                                    <ChevronDown className={`h-3 w-3 transition-transform ${showCustom ? 'rotate-180' : ''}`} />
-                                    Other / Custom endpoint
+                                    Paste an API key
                                 </button>
+                                <button
+                                    type="button"
+                                    aria-pressed={showOllama}
+                                    onClick={() => { setShowOllama(true); setShowCustom(false); setError(null); setValidated(false) }}
+                                    className={`flex-1 rounded border px-3 py-2 text-xs font-medium transition-colors ${
+                                        showOllama
+                                            ? 'border-azure bg-azure/10 text-azure'
+                                            : 'border-border bg-canvas text-text-secondary hover:border-border'
+                                    }`}
+                                >
+                                    I&apos;m using Ollama
+                                </button>
+                            </div>
 
-                                {showCustom && (
-                                    <div className="mt-3 flex flex-col gap-3 rounded border border-border bg-canvas/50 p-4">
-                                        <div className="flex flex-col gap-1.5">
-                                            <label className="text-xs font-medium text-text-secondary">
-                                                Provider name
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={customName}
-                                                onChange={(e) => setCustomName(e.target.value)}
-                                                placeholder="e.g. Ollama, LM Studio, Together AI"
-                                                className="rounded border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
-                                            />
-                                        </div>
-                                        <div className="flex flex-col gap-1.5">
-                                            <label className="text-xs font-medium text-text-secondary">
-                                                Base URL
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={customBaseUrl}
-                                                onChange={(e) => setCustomBaseUrl(e.target.value)}
-                                                placeholder="http://localhost:11434/v1"
-                                                className="rounded border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
-                                            />
-                                        </div>
+                            {/* Ollama path: URL required, key optional */}
+                            {showOllama && (
+                                <div className="flex flex-col gap-3 rounded border border-border bg-canvas/50 p-4">
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-xs font-medium text-text-secondary">
+                                            Ollama server URL
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={ollamaUrl}
+                                            onChange={(e) => setOllamaUrl(e.target.value)}
+                                            placeholder="http://localhost:11434"
+                                            className="rounded border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                                            autoFocus
+                                        />
                                         <p className="text-[11px] text-text-muted">
-                                            For local providers like Ollama, the API key can be any non-empty string (e.g. &quot;ollama&quot;).
+                                            Local Ollama is usually <code className="font-mono">http://localhost:11434</code>.
+                                            For a self-hosted remote server, use that hostname.
                                         </p>
                                     </div>
-                                )}
-                            </div>
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-xs font-medium text-text-secondary">
+                                            API key <span className="text-text-muted font-normal">(optional)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={credential}
+                                            onChange={(e) => setCredential(e.target.value)}
+                                            placeholder="leave blank for local Ollama"
+                                            className="rounded border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                                            autoComplete="off"
+                                        />
+                                        <p className="text-[11px] text-text-muted">
+                                            Most local Ollama installs don&apos;t use auth. Add a key only if your
+                                            server is fronted by a reverse proxy that requires one.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* API-key path */}
+                            {!showOllama && (
+                                <>
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-xs font-medium text-text-secondary">
+                                            {showCustom ? 'API Key' : 'Paste your API key'}
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={showCustom ? 'text' : 'password'}
+                                                value={credential}
+                                                onChange={(e) => setCredential(e.target.value)}
+                                                placeholder={showCustom ? 'API key for your endpoint' : 'sk-ant-…, sk-proj-…, gsk_…, sk-or-…'}
+                                                className="w-full rounded border border-border bg-canvas px-3 py-3 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                                                autoComplete="new-password"
+                                                autoFocus
+                                            />
+                                            {validating && (
+                                                <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-text-muted" />
+                                            )}
+                                            {validated && !validating && (
+                                                <Check className="absolute right-3 top-3.5 h-4 w-4 text-emerald-400" />
+                                            )}
+                                        </div>
+
+                                        {!showCustom && detected && detectedMeta && credential.trim() && (
+                                            <div className="flex items-center gap-1.5 mt-1">
+                                                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                                <span className="text-xs text-emerald-400 font-medium">
+                                                    Detected: {detectedMeta.name}
+                                                </span>
+                                                {detectedMeta.link && (
+                                                    <a
+                                                        href={detectedMeta.link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="ml-auto flex items-center gap-1 text-[11px] text-azure"
+                                                    >
+                                                        Get a key <ExternalLink className="h-3 w-3" />
+                                                    </a>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {!showCustom && credential.trim().length > 3 && !detected && (
+                                            <div className="flex items-center gap-1.5 mt-1 text-xs text-text-muted">
+                                                Could not detect provider. Use &quot;Other / Custom endpoint&quot; below.
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Free-tier suggestions — framed as good defaults, not requirements */}
+                                    <div className="rounded border border-border/40 bg-canvas/50 px-3 py-2.5">
+                                        <p className="text-[11px] font-medium text-text-secondary mb-1.5">Don&apos;t have a key yet? These have free tiers:</p>
+                                        <div className="flex flex-col gap-1">
+                                            <a href="https://cloud.cerebras.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-azure hover:text-azure/80 transition-colors">
+                                                Cerebras — fastest inference, free tier <ExternalLink className="h-2.5 w-2.5" />
+                                            </a>
+                                            <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-azure hover:text-azure/80 transition-colors">
+                                                Groq — ultra-fast Llama &amp; Mixtral <ExternalLink className="h-2.5 w-2.5" />
+                                            </a>
+                                            <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-azure hover:text-azure/80 transition-colors">
+                                                DeepSeek — reasoning models, very low cost <ExternalLink className="h-2.5 w-2.5" />
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setShowCustom(!showCustom); setValidated(false); setError(null) }}
+                                            className="flex items-center gap-1.5 text-xs text-azure hover:text-azure/80 transition-colors"
+                                        >
+                                            <ChevronDown className={`h-3 w-3 transition-transform ${showCustom ? 'rotate-180' : ''}`} />
+                                            Other / Custom endpoint
+                                        </button>
+
+                                        {showCustom && (
+                                            <div className="mt-3 flex flex-col gap-3 rounded border border-border bg-canvas/50 p-4">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-xs font-medium text-text-secondary">
+                                                        Provider name
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={customName}
+                                                        onChange={(e) => setCustomName(e.target.value)}
+                                                        placeholder="e.g. LM Studio, Together AI"
+                                                        className="rounded border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-xs font-medium text-text-secondary">
+                                                        Base URL
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={customBaseUrl}
+                                                        onChange={(e) => setCustomBaseUrl(e.target.value)}
+                                                        placeholder="https://api.example.com/v1"
+                                                        className="rounded border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                                                    />
+                                                </div>
+                                                <p className="text-[11px] text-text-muted">
+                                                    Any OpenAI-compatible endpoint. For Ollama, use the dedicated &quot;I&apos;m using Ollama&quot; option above.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
 
                             {error && (
                                 <div className="flex items-center gap-2 text-xs text-red">
@@ -657,6 +786,22 @@ function SetupWizardOverlay({ workspaceId, workspaceName, onComplete, onDismiss 
                             >
                                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                                 {saving ? 'Saving...' : 'Save & continue'}
+                            </button>
+
+                            {/* Skip-for-now affordance — fixes the dismissed-wizard dead end.
+                                Routes user to Settings → Intelligence so they have a clear
+                                place to add a provider later. */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    try {
+                                        localStorage.setItem(`plexo_wizard_dismissed_${workspaceId}`, 'true')
+                                    } catch { /* non-fatal */ }
+                                    window.location.href = '/app/settings/intelligence/providers'
+                                }}
+                                className="text-center text-xs text-text-muted hover:text-text-secondary transition-colors"
+                            >
+                                Skip for now — I&apos;ll add a provider in Settings
                             </button>
                         </div>
                     )}

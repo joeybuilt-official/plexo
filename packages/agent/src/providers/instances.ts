@@ -168,69 +168,7 @@ export async function reorderProviders(workspaceId: string, orderedIds: string[]
  * Seed the managed Ollama provider for a workspace.
  * Idempotent — skips if already exists.
  */
-export async function seedManagedProvider(workspaceId: string): Promise<ProviderInstanceRow | null> {
-    // Check if managed Ollama already exists
-    const [existing] = await db.select()
-        .from(providerInstances)
-        .where(and(
-            eq(providerInstances.workspaceId, workspaceId),
-            eq(providerInstances.managed, true),
-            eq(providerInstances.providerType, 'ollama'),
-        ))
-        .limit(1)
 
-    if (existing) return existing as ProviderInstanceRow
-
-    // Get next preference order (managed goes last)
-    const [maxRow] = await db.execute<{ max_order: string }>(sql`
-        SELECT COALESCE(MAX(preference_order), -1) AS max_order
-        FROM provider_instances
-        WHERE workspace_id = ${workspaceId}::uuid
-    `)
-    const nextOrder = Number(maxRow?.max_order ?? -1) + 1
-
-    // Discover capabilities from managed Ollama
-    let caps: ProviderCapabilities = {
-        supportsChat: false,
-        supportsEmbeddings: false,
-        chatModels: [],
-        embeddingModels: [],
-        discoveryError: 'Managed Ollama not yet initialized',
-    }
-
-    try {
-        const { getManagedOllama } = await import('../ollama/managed.js')
-        const managed = await getManagedOllama()
-        if (managed?.capabilities) {
-            caps = {
-                supportsChat: managed.capabilities.supportsChat,
-                supportsEmbeddings: managed.capabilities.supportsEmbeddings,
-                chatModels: managed.capabilities.chatModels,
-                embeddingModels: managed.capabilities.embeddingModels,
-                discoveryError: null,
-            }
-        }
-    } catch { /* non-fatal — caps will update on next discovery cycle */ }
-
-    // Managed rows represent the bundled Ollama sidecar, NOT the bundled
-    // embeddings server. The REAL Plexo-bundled thing is the plexo-embeddings
-    // container at apps/embeddings/, surfaced in the UI under
-    // "Bundled services → Local embeddings server".
-    const [row] = await db.insert(providerInstances).values({
-        workspaceId,
-        nickname: 'Managed Ollama (sidecar)',
-        providerType: 'ollama',
-        endpointUrl: null, // resolved at runtime via OLLAMA_INTERNAL_URL
-        encryptedKey: null,
-        managed: true,
-        capabilities: caps,
-        preferenceOrder: nextOrder,
-        lastDiscoveredAt: caps.discoveryError ? null : new Date(),
-    }).returning()
-
-    logger.info({ workspaceId, id: row?.id }, 'Seeded managed Ollama provider instance')
-    return (row as ProviderInstanceRow) ?? null
-}
 
 // Re-export for consumers
 export { refreshInstanceCapabilities, refreshWorkspaceCapabilities } from './discovery.js'

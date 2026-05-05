@@ -20,7 +20,7 @@ router.get('/', async (req: any, res: any) => {
     if (!workspaceId) return res.status(400).json({ error: 'workspace ID required' })
 
     try {
-        const { listProviders, seedManagedProvider } = await import('@plexo/agent/providers/instances')
+        const { listProviders } = await import('@plexo/agent/providers/instances')
         const { needsMigration, migrateWorkspaceProviders } = await import('@plexo/agent/providers/migrate-to-instances')
 
         // Auto-migrate from vault/arbiter on first access (idempotent)
@@ -28,9 +28,6 @@ router.get('/', async (req: any, res: any) => {
             const result = await migrateWorkspaceProviders(workspaceId)
             logger.info({ workspaceId, migrated: result.migratedProviders, errors: result.errors.length }, 'intelligence.migration.completed')
         }
-
-        // Ensure managed provider exists (idempotent)
-        await seedManagedProvider(workspaceId)
 
         const providers = await listProviders(workspaceId)
 
@@ -115,6 +112,11 @@ router.post('/', async (req: any, res: any) => {
             const normalized = endpointUrl.replace(/\/+$/, '').toLowerCase()
             if (existing.some(p => p.endpointUrl?.replace(/\/+$/, '').toLowerCase() === normalized)) {
                 return res.status(409).json({ error: 'A provider with this server address is already added.' })
+            }
+            const { isSSRFSafeUrl } = await import('../lib/ssrf-guard.js')
+            const safety = isSSRFSafeUrl(endpointUrl)
+            if (!safety.ok) {
+                return res.status(400).json({ error: safety.reason })
             }
         }
 
@@ -244,6 +246,11 @@ router.post('/test', async (req: any, res: any) => {
     try {
         // Ollama: test via /api/tags
         if (providerType === 'ollama' && endpointUrl) {
+            const { isSSRFSafeUrl } = await import('../lib/ssrf-guard.js')
+            const safety = isSSRFSafeUrl(endpointUrl)
+            if (!safety.ok) {
+                return res.json({ ok: false, error: safety.reason, errorCode: 'forbidden_url' })
+            }
             const { OllamaAdapter } = await import('@plexo/agent/ollama/adapter')
             const adapter = new OllamaAdapter({ id: 'test', endpoint: endpointUrl })
             const healthy = await adapter.isHealthy()

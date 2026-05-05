@@ -43,7 +43,6 @@ vi.mock('@plexo/agent/providers/instances', () => ({
     reorderProviders: vi.fn(),
     refreshInstanceCapabilities: vi.fn(),
     refreshWorkspaceCapabilities: vi.fn(),
-    seedManagedProvider: vi.fn(),
 }))
 
 vi.mock('@plexo/agent/providers/migrate-to-instances', () => ({

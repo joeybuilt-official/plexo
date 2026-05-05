@@ -113,7 +113,8 @@ export default async function LandingPage() {
                         </h1>
 
                         <p className="mt-5 text-lg text-text-secondary max-w-lg">
-                            Self-hosted agent platform. BYOK model routing, persistent memory, multi-channel access. AGPL-3.0.
+                            Plexo is the agent harness — tasks, schedules, channels, and one-way-door safety.
+                            Connect Claude, GPT, or your own Ollama. Self-hosted. AGPL-3.0.
                         </p>
 
                         {/* CTAs */}
