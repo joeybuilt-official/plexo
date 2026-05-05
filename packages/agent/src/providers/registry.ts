@@ -683,6 +683,78 @@ function markKeyStale(workspaceId: string, providerKey: string): void {
 /** Clear a provider's stale-key status (e.g. after user updates the key). */
 export function clearStaleKey(workspaceId: string, providerKey: string): void {
     staleKeyCache.delete(`${workspaceId}:${providerKey}`)
+    clearProviderBreakerForProvider(providerKey)
+}
+
+// Incident: cron paths call withFallback() without workspaceId, bypassing the
+// wsId-scoped staleKeyCache and hammering invalid keys (>500 auth fails / 30 min).
+interface BreakerEntry {
+    consecutiveAuthFailures: number
+    firstFailureAt: number
+    trippedUntil: number
+}
+const providerBreaker = new Map<string, BreakerEntry>()
+const BREAKER_FAIL_THRESHOLD = 3
+const BREAKER_FAIL_WINDOW_MS = 5 * 60 * 1000
+const BREAKER_COOLDOWN_MS = 15 * 60 * 1000
+
+function breakerKey(providerKey: string, apiKey: string | undefined): string {
+    const h = apiKey ? createHash('sha256').update(apiKey).digest('hex').slice(0, 8) : 'no-key'
+    return `${providerKey}:${h}`
+}
+
+function isBreakerTripped(providerKey: string, apiKey: string | undefined): boolean {
+    const e = providerBreaker.get(breakerKey(providerKey, apiKey))
+    if (!e || e.trippedUntil === 0) return false
+    if (Date.now() >= e.trippedUntil) {
+        providerBreaker.delete(breakerKey(providerKey, apiKey))
+        return false
+    }
+    return true
+}
+
+function recordBreakerAuthFailure(providerKey: string, apiKey: string | undefined, errMsg: string): boolean {
+    const k = breakerKey(providerKey, apiKey)
+    const now = Date.now()
+    const prev = providerBreaker.get(k)
+    const e: BreakerEntry = !prev || now - prev.firstFailureAt > BREAKER_FAIL_WINDOW_MS
+        ? { consecutiveAuthFailures: 1, firstFailureAt: now, trippedUntil: 0 }
+        : { ...prev, consecutiveAuthFailures: prev.consecutiveAuthFailures + 1 }
+    if (e.consecutiveAuthFailures >= BREAKER_FAIL_THRESHOLD && e.trippedUntil === 0) {
+        e.trippedUntil = now + BREAKER_COOLDOWN_MS
+        providerBreaker.set(k, e)
+        console.info(JSON.stringify({
+            event: 'provider.circuit_open',
+            provider: providerKey,
+            keyHash: k.split(':')[1],
+            consecutiveAuthFailures: e.consecutiveAuthFailures,
+            cooldownMs: BREAKER_COOLDOWN_MS,
+            lastError: errMsg.slice(0, 200),
+        }))
+        return true
+    }
+    providerBreaker.set(k, e)
+    return false
+}
+
+function recordBreakerSuccess(providerKey: string, apiKey: string | undefined): void {
+    providerBreaker.delete(breakerKey(providerKey, apiKey))
+}
+
+function clearProviderBreakerForProvider(providerKey: string): void {
+    for (const k of providerBreaker.keys()) {
+        if (k.startsWith(`${providerKey}:`)) providerBreaker.delete(k)
+    }
+}
+
+/** Clear all circuit-breaker state for a provider (e.g. after key rotation). */
+export function clearProviderBreaker(providerKey: string): void {
+    clearProviderBreakerForProvider(providerKey)
+}
+
+/** Test-only: reset all breaker state. */
+export function _resetProviderBreakerForTest(): void {
+    providerBreaker.clear()
 }
 
 export interface FallbackOptions {
@@ -718,15 +790,23 @@ export async function withFallback<T>(
         // Skip providers with known-stale keys (auto-expires after TTL)
         if (wsId && isKeyStale(wsId, providerKey)) continue
 
+        if (isBreakerTripped(providerKey, config.apiKey)) {
+            lastError = new Error(`provider ${providerKey} circuit-open — rotate API key`)
+            continue
+        }
+
         try {
             const model = buildModel(providerKey, config, taskType, settings)
-            return await fn(model)
+            const result = await fn(model)
+            recordBreakerSuccess(providerKey, config.apiKey)
+            return result
         } catch (err) {
             lastError = err
 
             // Auth failure: mark provider as stale and notify caller
             if (err instanceof Error && isAuthError(err)) {
                 if (wsId) markKeyStale(wsId, providerKey)
+                recordBreakerAuthFailure(providerKey, config.apiKey, err.message)
                 opts?.onAuthFailure?.(providerKey, err.message)
             }
 
