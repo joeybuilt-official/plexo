@@ -407,3 +407,132 @@ describe('wrapOutboundToolsWithApprovalGuard — coverage edge cases', () => {
         expect(onUncovered).toHaveBeenCalledWith({ tool: 'bare__send_message', provider: 'bare' })
     })
 })
+
+// ── L5.5 #8 — per-task denial budget ─────────────────────────────────────────
+
+describe('wrapOutboundToolsWithApprovalGuard — per-task denial budget (L5.5 #8)', () => {
+    it('after 3 consecutive denials of the same tool, switches to instant-deny without re-prompting', async () => {
+        const send = vi.fn(async () => 'sent')
+        const onDenialLoop = vi.fn()
+        const tools: ToolSet = { 'gmail__send_email': fakeTool(send) as unknown as ToolSet[string] }
+        mockRequestApproval.mockResolvedValue({ id: 'owd-1', decision: 'pending' })
+        mockWaitForDecision.mockResolvedValue('rejected')
+
+        const wrapped = wrapOutboundToolsWithApprovalGuard(tools, {
+            plan: basePlan(),
+            taskId: 'task-loop-1',
+            workspaceId: 'ws-1',
+            onDenialLoop,
+        })
+
+        const exec = (wrapped['gmail__send_email'] as unknown as { execute: () => Promise<string> }).execute
+
+        // First 3 attempts each prompt the operator (call requestApproval) and reject.
+        await expect(exec()).rejects.toThrow(/denied by approval guard/)
+        await expect(exec()).rejects.toThrow(/denied by approval guard/)
+        await expect(exec()).rejects.toThrow(/denied by approval guard/)
+        expect(mockRequestApproval).toHaveBeenCalledTimes(3)
+        expect(mockWaitForDecision).toHaveBeenCalledTimes(3)
+
+        // 4th attempt short-circuits — operator is NOT re-prompted.
+        await expect(exec()).rejects.toThrow(/denial-loop budget exhausted/)
+        expect(mockRequestApproval).toHaveBeenCalledTimes(3) // no new call
+        expect(mockWaitForDecision).toHaveBeenCalledTimes(3)
+    })
+
+    it('fires onDenialLoop exactly once at the threshold (not on each subsequent short-circuit)', async () => {
+        const send = vi.fn(async () => 'sent')
+        const onDenialLoop = vi.fn()
+        const tools: ToolSet = { 'gmail__send_email': fakeTool(send) as unknown as ToolSet[string] }
+        mockRequestApproval.mockResolvedValue({ id: 'owd-1', decision: 'pending' })
+        mockWaitForDecision.mockResolvedValue('rejected')
+
+        const wrapped = wrapOutboundToolsWithApprovalGuard(tools, {
+            plan: basePlan(),
+            taskId: 'task-loop-2',
+            workspaceId: 'ws-1',
+            onDenialLoop,
+        })
+
+        const exec = (wrapped['gmail__send_email'] as unknown as { execute: () => Promise<string> }).execute
+
+        for (let i = 0; i < 5; i++) {
+            await expect(exec()).rejects.toThrow()
+        }
+        expect(onDenialLoop).toHaveBeenCalledTimes(1)
+        expect(onDenialLoop).toHaveBeenCalledWith({ tool: 'gmail__send_email', provider: 'gmail', count: 3 })
+    })
+
+    it('approval after a denial resets the per-tool counter (operator changed mind on attempt N+1)', async () => {
+        const send = vi.fn(async () => 'sent')
+        const tools: ToolSet = { 'gmail__send_email': fakeTool(send) as unknown as ToolSet[string] }
+        mockRequestApproval.mockResolvedValue({ id: 'owd-1', decision: 'pending' })
+
+        const wrapped = wrapOutboundToolsWithApprovalGuard(tools, {
+            plan: basePlan(),
+            taskId: 'task-loop-3',
+            workspaceId: 'ws-1',
+        })
+
+        const exec = (wrapped['gmail__send_email'] as unknown as { execute: () => Promise<string> }).execute
+
+        // 1 reject, 1 approve, 3 more rejects — should NOT trigger short-circuit
+        // because the approve resets the counter.
+        mockWaitForDecision.mockResolvedValueOnce('rejected')
+        await expect(exec()).rejects.toThrow(/denied by approval guard/)
+        mockWaitForDecision.mockResolvedValueOnce('approved')
+        await exec()
+        mockWaitForDecision.mockResolvedValueOnce('rejected')
+        mockWaitForDecision.mockResolvedValueOnce('rejected')
+        mockWaitForDecision.mockResolvedValueOnce('rejected')
+        await expect(exec()).rejects.toThrow(/denied by approval guard/)
+        await expect(exec()).rejects.toThrow(/denied by approval guard/)
+        await expect(exec()).rejects.toThrow(/denied by approval guard/)
+        expect(mockRequestApproval).toHaveBeenCalledTimes(5)
+    })
+
+    it('different tools maintain independent denial counters', async () => {
+        const sendA = vi.fn(async () => 'a')
+        const sendB = vi.fn(async () => 'b')
+        const tools: ToolSet = {
+            'gmail__send_email': fakeTool(sendA) as unknown as ToolSet[string],
+            'twilio__send_sms': fakeTool(sendB) as unknown as ToolSet[string],
+        }
+        mockRequestApproval.mockResolvedValue({ id: 'owd-1', decision: 'pending' })
+        mockWaitForDecision.mockResolvedValue('rejected')
+
+        const wrapped = wrapOutboundToolsWithApprovalGuard(tools, {
+            plan: basePlan(),
+            taskId: 'task-loop-4',
+            workspaceId: 'ws-1',
+        })
+
+        const execA = (wrapped['gmail__send_email'] as unknown as { execute: () => Promise<string> }).execute
+        const execB = (wrapped['twilio__send_sms'] as unknown as { execute: () => Promise<string> }).execute
+
+        // Drive gmail to budget-exhausted; twilio should still prompt fresh.
+        for (let i = 0; i < 3; i++) await expect(execA()).rejects.toThrow()
+        const requestCallsAfterGmailExhausted = mockRequestApproval.mock.calls.length
+        await expect(execB()).rejects.toThrow(/denied by approval guard/)
+        expect(mockRequestApproval).toHaveBeenCalledTimes(requestCallsAfterGmailExhausted + 1)
+    })
+
+    it('honors a custom denialBudget override', async () => {
+        const send = vi.fn(async () => 'sent')
+        const tools: ToolSet = { 'gmail__send_email': fakeTool(send) as unknown as ToolSet[string] }
+        mockRequestApproval.mockResolvedValue({ id: 'owd-1', decision: 'pending' })
+        mockWaitForDecision.mockResolvedValue('rejected')
+
+        const wrapped = wrapOutboundToolsWithApprovalGuard(tools, {
+            plan: basePlan(),
+            taskId: 'task-loop-5',
+            workspaceId: 'ws-1',
+            denialBudget: 1,
+        })
+
+        const exec = (wrapped['gmail__send_email'] as unknown as { execute: () => Promise<string> }).execute
+        await expect(exec()).rejects.toThrow(/denied by approval guard/)
+        await expect(exec()).rejects.toThrow(/denial-loop budget exhausted/)
+        expect(mockRequestApproval).toHaveBeenCalledTimes(1)
+    })
+})

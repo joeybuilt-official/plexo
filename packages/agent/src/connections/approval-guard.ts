@@ -64,7 +64,25 @@ export interface ApprovalGuardContext {
      * Optional so unit tests can omit it; production always wires it.
      */
     onUncovered?: (params: { tool: string; provider: string }) => void
+    /**
+     * L5.5 #8 — per-task budget on uncovered re-prompts. The AI SDK surfaces
+     * a thrown error from a wrapped `execute` as a `tool-error` content block,
+     * which the model can re-emit indefinitely. Every re-emit triggers a
+     * fresh approval cycle, fatiguing the operator. After
+     * `denialBudget` consecutive denials of the SAME tool within this task,
+     * subsequent calls deny instantly without prompting (still throw, the
+     * model still loops, but the operator is not woken up again).
+     *
+     * Default: 3. The wrap maintains a closure-local Map<toolName, count>
+     * fresh per task (one wrap per executor task).
+     */
+    denialBudget?: number
+    /** Reports up when the per-tool denial budget is first exhausted, so the
+     *  API layer can emit a `plexo_outbound_denial_loop_total` counter. */
+    onDenialLoop?: (params: { tool: string; provider: string; count: number }) => void
 }
+
+const DEFAULT_DENIAL_BUDGET = 3
 
 /**
  * Coverage rule (Stage 3 tightened): a plan OWD covers a tool call IFF
@@ -109,6 +127,11 @@ export function wrapOutboundToolsWithApprovalGuard(
     ctx: ApprovalGuardContext,
 ): ToolSet {
     const wrapped: ToolSet = {}
+    const budget = Math.max(1, ctx.denialBudget ?? DEFAULT_DENIAL_BUDGET)
+    /** Per-task denial counter. Closure-local — one map per task because
+     *  `wrapOutboundToolsWithApprovalGuard` is invoked once per executor task
+     *  in `executor/index.ts`. */
+    const denialCount = new Map<string, number>()
     for (const [name, tool] of Object.entries(tools)) {
         if (!isOutboundChannelTool(name)) {
             wrapped[name] = tool
@@ -132,6 +155,17 @@ export function wrapOutboundToolsWithApprovalGuard(
                 // Uncovered outbound call: telemetry + fresh approval cycle.
                 ctx.onUncovered?.({ tool: name, provider: providerOf(name) })
 
+                // L5.5 #8 — short-circuit instant deny once the operator has
+                // already denied this tool `budget` times in this task. The
+                // model can still loop on tool-error, but the operator is
+                // not re-prompted.
+                const priorDenials = denialCount.get(name) ?? 0
+                if (priorDenials >= budget) {
+                    throw new Error(
+                        `Outbound tool call denied (denial-loop budget exhausted): ${name} (denied ${priorDenials} times in this task)`,
+                    )
+                }
+
                 const description = `Outbound channel call: ${name} — planner did not pre-approve this tool. Approve to allow this single invocation.`
                 const record = await requestApproval({
                     taskId: ctx.taskId,
@@ -150,11 +184,18 @@ export function wrapOutboundToolsWithApprovalGuard(
                 // that, but keep the early-return shape for forward-compat
                 // if the policy ever loosens.
                 if (record.decision === 'approved') {
+                    denialCount.delete(name)
                     return originalExecute.call(original, ...args)
                 }
                 const decision = await waitForDecision(record.id)
                 if (decision === 'approved') {
+                    denialCount.delete(name)
                     return originalExecute.call(original, ...args)
+                }
+                const newCount = priorDenials + 1
+                denialCount.set(name, newCount)
+                if (newCount === budget) {
+                    ctx.onDenialLoop?.({ tool: name, provider: providerOf(name), count: newCount })
                 }
                 throw new Error(
                     `Outbound tool call denied by approval guard: ${name} (decision=${decision})`,

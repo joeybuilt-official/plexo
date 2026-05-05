@@ -548,6 +548,12 @@ export interface ExecutionContext {
      * `incrementCounter('plexo_outbound_tool_call_uncovered_total', ...)`.
      */
     onOutboundUncovered?: (params: { tool: string; provider: string }) => void
+    /**
+     * L5.5 #8: fires once per (task, tool) pair when the per-task denial
+     * budget exhausts. Wired by API layer to
+     * `incrementCounter('plexo_outbound_denial_loop_total', ...)`.
+     */
+    onOutboundDenialLoop?: (params: { tool: string; provider: string; count: number }) => void
 }
 
 export interface StepResult {

@@ -752,6 +752,8 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         // L5b (ADR 0006 §D5): metric callback for executor-side approval guard.
         // Layering: agent package owns the wrap helper; API layer owns metrics.
         onOutboundUncovered: ({ tool, provider }) => incrementCounter('plexo_outbound_tool_call_uncovered_total', { tool, provider }),
+        // L5.5 #8 — fires once per (task, tool) when denial budget exhausts.
+        onOutboundDenialLoop: ({ tool, provider }) => incrementCounter('plexo_outbound_denial_loop_total', { tool, provider }),
     }
 
     try {

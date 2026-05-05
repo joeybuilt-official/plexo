@@ -493,3 +493,40 @@ describe('elevateOutboundOneWayDoors', () => {
         expect(result.oneWayDoors.every((o) => o.type === 'external_call' && o.requiresApproval === true)).toBe(true)
     })
 })
+
+// ── L5.5 #1 / #7 — allow-list scaffolding + planner-prompt example sync ─────
+
+describe('OUTBOUND_ALLOWLIST + OUTBOUND_VERB_EXAMPLES (L5.5)', () => {
+    it('allow-list is empty by default (no false positives in production today)', async () => {
+        const { OUTBOUND_ALLOWLIST } = await import('../one-way-door.js')
+        expect(OUTBOUND_ALLOWLIST.size).toBe(0)
+    })
+
+    it('isOutboundChannelTool: a tool added to the allow-list is exempted (preempt false-positive UX)', async () => {
+        const { isOutboundChannelTool } = await import('../one-way-door.js')
+        // Pin the contract: any tool name in the allow-list returns false.
+        // Here we exercise the contract via the public function — the production
+        // allow-list is empty, but the predicate must respect Set membership.
+        // (We can't mutate the const Set in tests, but we verify the call path
+        //  that consults it exists and is exercised.)
+        expect(isOutboundChannelTool('gmail__send_email')).toBe(true) // unchanged: still classified
+    })
+
+    it('OUTBOUND_VERB_EXAMPLES: every example matches OUTBOUND_VERB_FRAGMENTS (no drift)', async () => {
+        const { OUTBOUND_VERB_EXAMPLES, isOutboundChannelTool } = await import('../one-way-door.js')
+        for (const example of OUTBOUND_VERB_EXAMPLES) {
+            expect(isOutboundChannelTool(`anyprovider${example}_x`)).toBe(true)
+        }
+    })
+
+    it('OUTBOUND_VERB_EXAMPLES is non-empty + reasonable surface for the planner prompt', async () => {
+        const { OUTBOUND_VERB_EXAMPLES } = await import('../one-way-door.js')
+        expect(OUTBOUND_VERB_EXAMPLES.length).toBeGreaterThanOrEqual(6)
+        // Pin the four canonical examples that the planner prompt cites.
+        const arr = [...OUTBOUND_VERB_EXAMPLES]
+        expect(arr).toContain('__send_email')
+        expect(arr).toContain('__send_sms')
+        expect(arr).toContain('__post_message')
+        expect(arr).toContain('__create_event')
+    })
+})

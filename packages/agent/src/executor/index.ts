@@ -1205,6 +1205,7 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         taskId: ctx.taskId,
         workspaceId: ctx.workspaceId,
         onUncovered: ctx.onOutboundUncovered,
+        onDenialLoop: ctx.onOutboundDenialLoop,
     })
     const pluginTools = await getCachedToolSet(
         `plugins:${ctx.workspaceId}`,

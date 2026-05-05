@@ -237,6 +237,14 @@ counter('plexo_owd_elevation_outbound_total', 'Outbound channel tool calls auto-
 // prompt-injected planner deliberately omitted the tool to bypass the gate.
 counter('plexo_outbound_tool_call_uncovered_total', 'Outbound connection-tool calls intercepted by the executor-side approval guard with no covering OWD in plan.oneWayDoors')
 
+// L5.5 #8 — fires once per (task, tool) pair when the per-task denial budget
+// is first exhausted. Operator-fatigue signal: the model kept trying the same
+// uncovered tool, the operator denied it `budget` times (default 3), and the
+// guard switched to instant-deny so the operator is no longer woken on each
+// re-emit. Non-zero on a healthy workspace usually means a buggy planner that
+// keeps re-emitting an outbound call against operator wishes.
+counter('plexo_outbound_denial_loop_total', 'Outbound tool calls switched to instant-deny after exhausting the per-task denial budget (L5.5 #8)')
+
 // ── Request timing middleware ──────────────────────────────────
 
 /**

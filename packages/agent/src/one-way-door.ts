@@ -56,6 +56,26 @@ const logger = pino({ name: 'one-way-door' })
 // adopt by convention. Read-only verbs (__list_, __search, __get_, __query_,
 // __read_) are intentionally NOT included — they don't produce externally-
 // visible side effects.
+/** L5.5 #1 — explicit deny-list for false positives. Tools matching the
+ *  predicate fragments below but listed here will NOT be classified as
+ *  outbound. Empty today (no false positives observed in production); reserved
+ *  for connection tools whose name matches a verb fragment but whose effect
+ *  is purely local (e.g. a hypothetical `local_only__create_record_in_memory`).
+ *  Adding to this list MUST be paired with a unit test pinning the rationale. */
+export const OUTBOUND_ALLOWLIST: ReadonlySet<string> = new Set<string>([])
+
+/** L5.5 #7 — single source of truth for outbound-tool examples surfaced in
+ *  the planner prompt. Drift between planner-prompt examples and
+ *  `OUTBOUND_VERB_FRAGMENTS` is the historical cause of L5 + L5b critical
+ *  findings — the registry grew without the predicate, and the predicate grew
+ *  without the planner-side hint. Importing these from the same module keeps
+ *  the surfaces in lockstep. */
+export const OUTBOUND_VERB_EXAMPLES: readonly string[] = [
+    '__send_email', '__send_sms', '__post_message', '__create_event',
+    '__create_draft', '__open_pr', '__merge_pr', '__push_file',
+    '__notify_', '__publish_', '__exec', '__upload',
+] as const
+
 const OUTBOUND_VERB_FRAGMENTS: readonly string[] = [
     '__send_',
     '__reply_',
@@ -81,6 +101,7 @@ const OUTBOUND_VERB_FRAGMENTS: readonly string[] = [
 
 export function isOutboundChannelTool(toolName: string): boolean {
     if (!toolName) return false
+    if (OUTBOUND_ALLOWLIST.has(toolName)) return false
     return OUTBOUND_VERB_FRAGMENTS.some((frag) => toolName.includes(frag))
 }
 

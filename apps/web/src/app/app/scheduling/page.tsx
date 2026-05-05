@@ -109,7 +109,13 @@ function relativeFuture(iso: string): string {
 
 function formatAbsolute(iso: string): string {
     try {
-        return new Date(iso).toLocaleString()
+        // L4.5 — surface the timezone abbreviation alongside the local time so
+        // an operator with a server in another zone can disambiguate at-a-glance.
+        return new Date(iso).toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit',
+            timeZoneName: 'short',
+        })
     } catch {
         return iso
     }
