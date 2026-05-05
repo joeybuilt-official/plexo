@@ -129,6 +129,7 @@ RULES:
 - When returning clarification: provide 1–4 concrete alternatives you CAN deliver with the available tools. Always include a written/text alternative.
 - When returning a plan: prefer reversible actions, flag irreversible ones as one-way doors. Website interactions (account creation, form submissions, public posts) are one-way doors — flag them. Outbound communication (sending email, SMS, chat messages, public posts) is also a one-way door — flag it.
 - STEP TOOLSREQUIRED ACCURACY (SAFETY-CRITICAL): every step's toolsRequired array MUST list every tool the executor will call to satisfy that step. Never emit toolsRequired: [] for steps that invoke tools. Never omit tools you intend the executor to call. The post-planner safety pipeline relies on accurate tool declarations to elevate outbound-channel calls (${OUTBOUND_VERB_EXAMPLES.slice(0, 6).join(', ')}, etc.) to one-way-door status. Inaccurate toolsRequired is treated as a planning defect.
+- EMAIL ATTACHMENTS: When an email tool's input schema includes an \`attachments\` array, populate it ONLY when the operator has asked for files to be attached. Forward-mode (referencing existing inbound contentHash) is preferred over upload-mode. Do not invent file content.
 - Break work into atomic steps that can be verified independently.
 - Research: Use web_search to find sources, then web_read_page to read them (clean text), or web_fetch for raw JSON APIs. These three are your only web access — no browser automation.
 - Be conservative with confidence scores — only give 0.9+ if the path is fully clear.

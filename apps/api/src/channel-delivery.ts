@@ -281,6 +281,26 @@ async function deliverToTwilio(
 
 // ── Gmail outbound (reply in-thread) ─────────────────────────────────────────
 
+interface OutboundAttachment {
+    filename: string
+    mimeType: string
+    bytes: Buffer
+}
+
+function readAttachments(context: TaskContext): OutboundAttachment[] | undefined {
+    const raw = (context as { attachments?: unknown }).attachments
+    if (!Array.isArray(raw)) return undefined
+    const out: OutboundAttachment[] = []
+    for (const a of raw) {
+        if (!a || typeof a !== 'object') continue
+        const r = a as { filename?: unknown; mimeType?: unknown; bytes?: unknown }
+        if (typeof r.filename !== 'string' || typeof r.mimeType !== 'string') continue
+        if (!Buffer.isBuffer(r.bytes)) continue
+        out.push({ filename: r.filename, mimeType: r.mimeType, bytes: r.bytes })
+    }
+    return out.length > 0 ? out : undefined
+}
+
 async function gmailSendProgress(context: TaskContext, text: string): Promise<void> {
     const channelId = typeof context.channelId === 'string' ? context.channelId : null
     const to = typeof context.from === 'string' ? context.from : (typeof context.chatId === 'string' ? context.chatId : null)
@@ -288,9 +308,10 @@ async function gmailSendProgress(context: TaskContext, text: string): Promise<vo
     const subject = buildGmailSubject(context)
     const threadId = typeof context.threadId === 'string' ? context.threadId : undefined
     const inReplyTo = typeof context.messageId === 'string' ? context.messageId : undefined
+    const attachments = readAttachments(context)
     try {
         const { gmailSend } = await import('@plexo/agent/channels/gmail-send')
-        const result = await gmailSend({ channelId, to, subject, body: text, threadId, inReplyTo })
+        const result = await gmailSend({ channelId, to, subject, body: text, threadId, inReplyTo, attachments })
         if (!result.ok) logger.warn({ channelId, status: result.status, error: result.error }, 'Gmail progress send failed')
     } catch (err) {
         logger.warn({ err, channelId }, 'Gmail progress send threw')
@@ -322,8 +343,9 @@ export async function deliverToGmail(
     const subject = buildGmailSubject(context)
     const threadId = typeof context.threadId === 'string' ? context.threadId : undefined
     const inReplyTo = typeof context.messageId === 'string' ? context.messageId : undefined
+    const attachments = readAttachments(context)
     const { gmailSend } = await import('@plexo/agent/channels/gmail-send')
-    const result = await gmailSend({ channelId, to, subject, body, threadId, inReplyTo })
+    const result = await gmailSend({ channelId, to, subject, body, threadId, inReplyTo, attachments })
     if (!result.ok) {
         // Surface the failure so deliverToOriginChannel's outer catch can log
         // it loudly — silent swallow would leave a thread without the reply.

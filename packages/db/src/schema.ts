@@ -397,6 +397,10 @@ export const conversations = pgTable('conversations', {
         scanStatus?: 'unscanned' | 'clean' | 'infected' | 'error'
         // Populated only when scanStatus === 'infected' (ADR 0012 §D5).
         signature?: string
+        // Phase N+2 (ADR 0013 §D9). True when the attachment was uploaded by
+        // an operator into the `drafts/` MinIO prefix for outbound use, vs.
+        // an inbound channel-extracted attachment. Backward-compatible.
+        draft?: boolean
     }[]>().default([]).notNull(),
     /**
      * Running topic embedding for the session this turn belongs to.

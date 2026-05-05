@@ -85,6 +85,7 @@
     "./channels/channel-tools": "./src/channels/channel-tools.ts",
     "./channels/twilio-send": "./src/channels/twilio-send.ts",
     "./channels/gmail-send": "./src/channels/gmail-send.ts",
+    "./channels/outbound-attachments-port": "./src/channels/outbound-attachments-port.ts",
     "./tool-set-cache": "./src/tool-set-cache.ts",
     "./memory/cluster": "./src/memory/cluster.ts",
     "./memory/suggest": "./src/memory/suggest.ts",

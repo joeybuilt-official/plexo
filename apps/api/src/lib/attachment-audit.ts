@@ -67,3 +67,69 @@ export function emitAttachmentScanned(payload: AttachmentScannedPayload): void {
         },
     })
 }
+
+/**
+ * ADR 0013 §D8 — outbound emitters.
+ *
+ * Both helpers take a `deps` arg for symmetry with future test injection;
+ * today only `workspaceId` is read off it. Calls are fire-and-forget via
+ * `recordAuditEventDirect`, so the awaited `Promise<void>` is settled as
+ * soon as the call is enqueued.
+ */
+export interface OutboundAuditDeps {
+    workspaceId: string
+}
+
+export interface AttachmentSentPayload {
+    conversationId: string
+    recipientEmail: string
+    channelType: string
+    count: number
+    totalBytes: number
+    contentHashes: string[]
+}
+
+export interface AttachmentOutboundBlockedPayload {
+    contentHash?: string
+    reason: string
+    filename?: string
+    sizeBytes?: number
+}
+
+export async function emitAttachmentSent(
+    deps: OutboundAuditDeps,
+    payload: AttachmentSentPayload,
+): Promise<void> {
+    recordAuditEventDirect({
+        workspaceId: deps.workspaceId,
+        action: 'attachment.sent',
+        resource: 'conversations.attachments',
+        resourceId: payload.conversationId,
+        metadata: {
+            conversationId: payload.conversationId,
+            recipientEmail: payload.recipientEmail,
+            channelType: payload.channelType,
+            count: payload.count,
+            totalBytes: payload.totalBytes,
+            contentHashes: payload.contentHashes,
+        },
+    })
+}
+
+export async function emitAttachmentOutboundBlocked(
+    deps: OutboundAuditDeps,
+    payload: AttachmentOutboundBlockedPayload,
+): Promise<void> {
+    recordAuditEventDirect({
+        workspaceId: deps.workspaceId,
+        action: 'attachment.outbound_blocked',
+        resource: 'conversations.attachments',
+        resourceId: payload.contentHash,
+        metadata: {
+            contentHash: payload.contentHash ?? null,
+            reason: payload.reason,
+            filename: payload.filename ?? null,
+            sizeBytes: payload.sizeBytes ?? null,
+        },
+    })
+}

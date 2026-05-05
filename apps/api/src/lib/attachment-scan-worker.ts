@@ -23,6 +23,7 @@ import { incrementCounter, observeHistogram, setGauge } from './metrics.js'
 import { getByKey } from '@plexo/storage'
 import type { ClamdConfig, ClamdScanResult } from './clamd-client.js'
 import { instreamScan } from './clamd-client.js'
+import { parseStorageKey as parseStorageKeyShared } from './storage-key.js'
 
 const CLAIM_LIMIT = 4
 const STUCK_AFTER_MS = Number(process.env.CLAMD_STUCK_RECOVERY_MS ?? 300_000)
@@ -58,26 +59,12 @@ type ClaimedRow = {
 }
 
 /**
- * Resolve a stored URL (from attachment_scan_queue.storage_url) to a key
- * that getByKey understands.
- *   s3://bucket/key/path     → "key/path"
- *   file:///abs/path         → "/abs/path" (caller's getByKey filesystem
- *                              fallback joins under /tmp/plexo-assets, which
- *                              is the same root uploadAttachment uses).
- *   bare key (no scheme)     → returned verbatim.
+ * Back-compat wrapper around the shared `parseStorageKey` helper in
+ * `./storage-key.ts`. Returns the bare key string the way the worker's
+ * fetcher expects it.
  */
 export function parseStorageKey(storageUrl: string): string {
-    if (storageUrl.startsWith('s3://')) {
-        const without = storageUrl.slice('s3://'.length)
-        const slashIdx = without.indexOf('/')
-        return slashIdx === -1 ? '' : without.slice(slashIdx + 1)
-    }
-    if (storageUrl.startsWith('file://')) {
-        const parsed = storageUrl.slice('file://'.length)
-        if (parsed.includes('..') || parsed.includes('\0')) throw new Error('parseStorageKey: invalid path')
-        return parsed
-    }
-    return storageUrl
+    return parseStorageKeyShared(storageUrl).key
 }
 
 function getClamdConfig(): ClamdConfig {

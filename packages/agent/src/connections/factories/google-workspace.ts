@@ -14,6 +14,11 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import type { ConnectionCredentials, ToolSet } from '../bridge.js'
+import { buildMime } from '../../channels/multipart-builder.js'
+import {
+    getOutboundAttachmentsHandler,
+    type OutboundAttachmentInput,
+} from '../../channels/outbound-attachments-port.js'
 import pino from 'pino'
 
 const logger = pino({ name: 'gws:tools' })
@@ -149,15 +154,94 @@ export const GOOGLE_WORKSPACE_TOOLS = (
         }),
 
         gws__send_email: tool({
-            description: 'Send an email via Gmail on behalf of the connected account.',
+            description:
+                "Sends an email via the operator's connected Gmail account. To attach files, populate `attachments`: either reference an existing file by its content-hash (forward-mode — use the contentHash field shown in `conversations.attachments[i].contentHash`), or upload bytes inline as `{filename, mimeType, bytesBase64}` (upload-mode). Limits: 10 files max, 25 MiB total. Infected attachments cannot be forwarded.",
             inputSchema: z.object({
                 to: z.string().describe('Recipient email address'),
                 subject: z.string().describe('Email subject'),
                 body: z.string().describe('Plain text email body'),
+                attachments: z
+                    .array(
+                        z.union([
+                            z.object({
+                                contentHash: z
+                                    .string()
+                                    .regex(/^[a-f0-9]{64}$/, '64-char hex sha256'),
+                            }),
+                            z.object({
+                                filename: z.string().min(1).max(255),
+                                mimeType: z.string().min(1).max(127),
+                                bytesBase64: z
+                                    .string()
+                                    .max(
+                                        Math.ceil((25 * 1024 * 1024 * 4) / 3) + 1024,
+                                        'bytesBase64 exceeds 25 MiB raw cap',
+                                    ),
+                            }),
+                        ]),
+                    )
+                    .max(10)
+                    .optional()
+                    .describe(
+                        'Optional file attachments. Forward-mode: {contentHash} from inbound conversation. Upload-mode: {filename, mimeType, bytesBase64}. Max 10 / 25 MiB total.',
+                    ),
             }),
-            execute: async ({ to, subject, body }) => {
+            execute: async ({ to, subject, body, attachments }) => {
                 try {
-                    const raw = base64url(buildRfc2822(to, subject, body))
+                    const hasAttachments = Array.isArray(attachments) && attachments.length > 0
+                    if (!hasAttachments) {
+                        const raw = base64url(buildRfc2822(to, subject, body))
+                        const res = await fetch(`${GMAIL_BASE}/users/me/messages/send`, {
+                            method: 'POST',
+                            headers: jsonHeaders,
+                            body: JSON.stringify({ raw }),
+                        })
+                        if (!res.ok) return `Gmail error ${res.status}: ${(await res.text()).slice(0, 200)}`
+                        const data = await res.json() as { id: string }
+                        log('gws__send_email', { to, subject }, opts)
+                        return `Email sent. Message ID: ${data.id}`
+                    }
+
+                    const handler = getOutboundAttachmentsHandler()
+                    if (!handler) {
+                        log('gws__send_email outbound-attachments-handler-missing', { workspaceId: opts.workspaceId }, opts)
+                        return 'Gmail send_email failed: outbound attachments not available in this runtime'
+                    }
+
+                    const resolved = await handler.resolve(attachments as OutboundAttachmentInput[], {
+                        workspaceId: opts.workspaceId,
+                    })
+                    if (!resolved.ok || !resolved.resolved) {
+                        return `Gmail send_email rejected: ${resolved.error ?? 'attachment resolution failed'}`
+                    }
+
+                    let fromEmail = (creds.email as string | undefined) ?? ''
+                    if (!fromEmail) {
+                        try {
+                            const profileRes = await fetch(
+                                `${GMAIL_BASE}/users/me/profile`,
+                                { headers: getHeaders },
+                            )
+                            if (profileRes.ok) {
+                                const profile = (await profileRes.json()) as { emailAddress?: string }
+                                fromEmail = profile.emailAddress ?? ''
+                            }
+                        } catch { /* fall through; build with empty From */ }
+                    }
+
+                    const built = buildMime({
+                        from: fromEmail,
+                        to,
+                        subject,
+                        bodyText: body,
+                        attachments: resolved.resolved.map((r) => ({
+                            filename: r.filename,
+                            mimeType: r.mimeType,
+                            bytes: r.bytes,
+                        })),
+                    })
+
+                    const raw = base64url(built.raw)
                     const res = await fetch(`${GMAIL_BASE}/users/me/messages/send`, {
                         method: 'POST',
                         headers: jsonHeaders,
@@ -165,8 +249,35 @@ export const GOOGLE_WORKSPACE_TOOLS = (
                     })
                     if (!res.ok) return `Gmail error ${res.status}: ${(await res.text()).slice(0, 200)}`
                     const data = await res.json() as { id: string }
-                    log('gws__send_email', { to, subject }, opts)
-                    return `Email sent. Message ID: ${data.id}`
+
+                    // TODO(post-N+2): plumb conversationId through ToolFactory opts so
+                    // attachment.sent audits are linked to the originating conversation.
+                    // Today the factory layer is workspace-cached and lacks per-call ctx.
+                    try {
+                        await handler.emitSent({
+                            workspaceId: opts.workspaceId,
+                            conversationId: '',
+                            recipientEmail: to,
+                            channelType: 'gmail',
+                            count: resolved.resolved.length,
+                            totalBytes: resolved.resolved.reduce((acc, r) => acc + r.sizeBytes, 0),
+                            contentHashes: resolved.resolved
+                                .map((r) => r.contentHash)
+                                .filter((h): h is string => typeof h === 'string'),
+                        })
+                    } catch (err) {
+                        logger.warn(
+                            { err: err instanceof Error ? err.message : String(err) },
+                            'gws__send_email: emitSent failed (non-fatal)',
+                        )
+                    }
+
+                    log(
+                        'gws__send_email',
+                        { to, subject, attachmentCount: resolved.resolved.length },
+                        opts,
+                    )
+                    return `Email sent with ${resolved.resolved.length} attachment(s). Message ID: ${data.id}`
                 } catch (err) {
                     return `Gmail send_email failed: ${err instanceof Error ? err.message : String(err)}`
                 }

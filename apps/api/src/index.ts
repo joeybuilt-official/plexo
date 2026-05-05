@@ -72,6 +72,40 @@ import { terminateAll } from '@plexo/agent/persistent-pool'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
 import { initSprintLogger } from '@plexo/agent/sprint/logger'
+import { setOutboundAttachmentsHandler } from '@plexo/agent/channels/outbound-attachments-port'
+import { resolveOutboundAttachments } from './lib/outbound-attachment-resolver.js'
+import { emitAttachmentSent, emitAttachmentOutboundBlocked } from './lib/attachment-audit.js'
+
+setOutboundAttachmentsHandler({
+    resolve: (inputs, ctx) =>
+        resolveOutboundAttachments(inputs, {
+            workspaceId: ctx.workspaceId,
+            operatorUserId: ctx.operatorUserId,
+            auditEmit: async (_event, payload) => {
+                await emitAttachmentOutboundBlocked(
+                    { workspaceId: ctx.workspaceId },
+                    {
+                        contentHash: payload.contentHash as string | undefined,
+                        reason: String(payload.reason ?? 'unknown'),
+                        filename: payload.filename as string | undefined,
+                        sizeBytes: payload.sizeBytes as number | undefined,
+                    },
+                )
+            },
+        }),
+    emitSent: (p) =>
+        emitAttachmentSent(
+            { workspaceId: p.workspaceId },
+            {
+                conversationId: p.conversationId,
+                recipientEmail: p.recipientEmail,
+                channelType: p.channelType,
+                count: p.count,
+                totalBytes: p.totalBytes,
+                contentHashes: p.contentHashes,
+            },
+        ),
+})
 
 
 import { debugRouter } from './routes/debug.js'
@@ -80,6 +114,7 @@ import { aiMediaRouter } from './routes/ai-media.js'
 import { chatRouter } from './routes/chat.js'
 import { chatAppTransportRouter } from './routes/chat-app-transport.js'
 import { conversationsRouter } from './routes/conversations.js'
+import { draftAttachmentsRouter } from './routes/draft-attachments.js'
 import { messageDeliveriesRouter } from './routes/message-deliveries.js'
 import { behaviorRouter } from './routes/behavior.js'
 import { promptsRouter } from './routes/prompts.js'
@@ -284,6 +319,11 @@ v1.use('/memory', requireWorkspaceMember('workspaceId'), memoryRouter)
 v1.use('/synthesis', synthesisRouter) // service-key auth handled inside the router
 v1.use('/themes', themesRouter) // service-key auth handled inside the router (Phase 1: /forest)
 v1.use('/connections', connectionsRouter) // some endpoints have no workspaceId (registry); per-handler checks
+// ADR 0013 §D9 — draft attachments. Mounted BEFORE conversationsRouter so
+// the more specific /:conversationId/draft-attachments path matches first.
+// express.raw() is registered inside the router so the default jsonDefault
+// parser (1 MB limit) doesn't consume the multipart body.
+v1.use('/conversations/:conversationId/draft-attachments', draftAttachmentsRouter)
 v1.use('/conversations', conversationsRouter) // per-handler workspace check
 v1.use('/workspaces', workspacesRouter) // list + /:id checked per-handler
 v1.use('/workspaces/:workspaceId/api-keys', requireWorkspaceMember('workspaceId'), apiKeysRouter)

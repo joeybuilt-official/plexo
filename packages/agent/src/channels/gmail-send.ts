@@ -17,11 +17,19 @@
  */
 
 import pino from 'pino'
+import { buildMime, type BuildMimeAttachment } from './multipart-builder.js'
 
 const logger = pino({ name: 'gmail-send' })
 
 const GMAIL_SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+
+/**
+ * Per ADR 0013 §D5: 25 MiB pre-encoding cap on outbound payloads.
+ * Gmail's documented `raw` limit is 35 MB after base64; 25 MiB binary
+ * gives ~33 MB after base64 with header headroom.
+ */
+const MAX_OUTBOUND_RAW_BYTES = 25 * 1024 * 1024
 
 export interface GmailSendParams {
     /** channels.id — used to look up the dual-purpose installed_connection. */
@@ -33,6 +41,8 @@ export interface GmailSendParams {
     threadId?: string
     /** RFC 5322 Message-ID of the message we're replying to. */
     inReplyTo?: string
+    /** Optional outbound attachments per ADR 0013. Bytes already resolved by caller. */
+    attachments?: BuildMimeAttachment[]
 }
 
 export interface GmailSendResult {
@@ -61,35 +71,6 @@ function base64url(input: string): string {
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=+$/, '')
-}
-
-function buildRfc2822({
-    from,
-    to,
-    subject,
-    body,
-    inReplyTo,
-}: {
-    from: string
-    to: string
-    subject: string
-    body: string
-    inReplyTo?: string
-}): string {
-    const headers = [
-        `From: ${from}`,
-        `To: ${to}`,
-        `Subject: ${subject}`,
-        'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=utf-8',
-    ]
-    if (inReplyTo) {
-        // Gmail expects angle-bracketed Message-IDs; preserve any caller-supplied brackets.
-        const mid = inReplyTo.startsWith('<') ? inReplyTo : `<${inReplyTo}>`
-        headers.push(`In-Reply-To: ${mid}`)
-        headers.push(`References: ${mid}`)
-    }
-    return [...headers, '', body].join('\r\n')
 }
 
 /**
@@ -249,16 +230,36 @@ async function postSend(
 }
 
 export async function gmailSend(params: GmailSendParams): Promise<GmailSendResult> {
-    const { channelId, to, subject, body, threadId, inReplyTo } = params
+    const { channelId, to, subject, body, threadId, inReplyTo, attachments } = params
     if (!channelId) return { ok: false, error: 'Missing channelId' }
     if (!to) return { ok: false, error: 'Missing recipient' }
     if (!body || !body.trim()) return { ok: false, error: 'Empty message body' }
 
+    // Pre-flight 25 MiB cap (ADR 0013 §D5): sum body + attachment bytes BEFORE
+    // base64 encoding. Gmail's 35 MB raw limit is post-base64; this gives the
+    // ~33% inflation headroom plus header overhead room.
+    const bodyBytes = Buffer.byteLength(body, 'utf8')
+    const attachBytes = (attachments ?? []).reduce((s, a) => s + a.bytes.length, 0)
+    if (bodyBytes + attachBytes > MAX_OUTBOUND_RAW_BYTES) {
+        return {
+            ok: false,
+            status: 413,
+            error: 'PAYLOAD_TOO_LARGE: total > 25 MiB pre-encoding',
+        }
+    }
+
     const delivery = await loadGmailDelivery(channelId)
     if (!delivery) return { ok: false, error: 'Gmail channel/connection unavailable' }
 
-    const rfc = buildRfc2822({ from: delivery.fromEmail, to, subject, body, inReplyTo })
-    const raw = base64url(rfc)
+    const mime = buildMime({
+        from: delivery.fromEmail,
+        to,
+        subject,
+        bodyText: body,
+        inReplyTo,
+        attachments,
+    })
+    const raw = base64url(mime.raw)
 
     let accessToken = delivery.accessToken
     let res: Response
