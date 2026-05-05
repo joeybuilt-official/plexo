@@ -123,6 +123,7 @@
     "drizzle-orm": "^0.39.3",
     "graphology": "^0.26.0",
     "graphology-communities-louvain": "^2.0.2",
+    "isolated-vm": "^5.0.1",
     "ollama-ai-provider": "^1.2.0",
     "pino": "^9",
     "umap-js": "^1.4.0",
