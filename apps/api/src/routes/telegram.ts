@@ -1589,8 +1589,9 @@ export async function initTelegramWebhook(): Promise<void> {
                     logger.info({ channelId: row.id }, 'Telegram channel disabled — skipping')
                     continue
                 }
-                const cfg = row.config as { token?: string; bot_token?: string } | null
-                const token = cfg?.token ?? cfg?.bot_token ?? null
+                const { decryptSensitiveConfigKeys } = await import('../lib/channel-config-crypto.js')
+                const cfg = decryptSensitiveConfigKeys('telegram', (row.config ?? {}) as Record<string, unknown>, row.workspaceId) as { token?: string; bot_token?: string }
+                const token = cfg.token ?? cfg.bot_token ?? null
                 if (token) {
                     await registerTelegramChannel(row.id, token, row.workspaceId)
                     registered++

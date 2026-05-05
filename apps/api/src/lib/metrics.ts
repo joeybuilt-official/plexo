@@ -245,6 +245,19 @@ counter('plexo_outbound_tool_call_uncovered_total', 'Outbound connection-tool ca
 // keeps re-emitting an outbound call against operator wishes.
 counter('plexo_outbound_denial_loop_total', 'Outbound tool calls switched to instant-deny after exhausting the per-task denial budget (L5.5 #8)')
 
+// Phase O (ADR 0010) — channel-config encryption-at-rest observability.
+// `legacy_read_total` counts every read of a sensitive config field that
+// wasn't `enc:`-prefixed (i.e. legacy plaintext that survived the migration).
+// Target: zero within 7 days post-deploy. Non-zero indicates a write site
+// that's still inserting plaintext, OR a row the migration missed.
+counter('plexo_channel_config_legacy_read_total', 'Sensitive channel-config field read with legacy plaintext (no enc: prefix)')
+counter('plexo_channel_config_decrypt_failed_total', 'Sensitive channel-config field decrypt threw (corrupted ciphertext or wrong key)')
+
+// Phase N (ADR 0009) — Gmail attachments observability.
+counter('plexo_gmail_attachment_fetched_total', 'Gmail attachment fetched + stored, labeled by MIME prefix')
+counter('plexo_gmail_attachment_rejected_total', 'Gmail attachment rejected before fetch, labeled by reason')
+counter('plexo_gmail_attachment_fetch_failed_total', 'Gmail attachment fetch returned 4xx/5xx or empty bytes')
+
 // ── Request timing middleware ──────────────────────────────────
 
 /**

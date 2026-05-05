@@ -18,6 +18,7 @@ import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { fetchGmailProfile } from '../lib/gmail-client.js'
 import { filterChannelConfigForPatch } from '../lib/channel-config-allowlist.js'
+import { encryptSensitiveConfigKeys } from '../lib/channel-config-crypto.js'
 
 export const channelsRouter: RouterType = Router()
 
@@ -125,11 +126,15 @@ channelsRouter.post('/', async (req, res) => {
     }
 
     try {
+        // Phase O — encrypt sensitive keys (per-channel-type) before persisting.
+        // Plaintext effectiveConfig stays in scope for Telegram/Gmail post-insert
+        // hooks below; only the DB row carries ciphertext.
+        const configToPersist = encryptSensitiveConfigKeys(type as string, effectiveConfig, workspaceId)
         const [created] = await db.insert(channels).values({
             workspaceId,
             type: type as 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix' | 'twilio' | 'gmail',
             name,
-            config: effectiveConfig,
+            config: configToPersist,
             enabled: true,
         }).returning()
         logger.info({ workspaceId, type, name }, 'Channel created')
@@ -153,8 +158,15 @@ channelsRouter.post('/', async (req, res) => {
                 try {
                     const profile = await fetchGmailProfile(cfg.installedConnectionId, workspaceId)
                     if (profile?.historyId) {
+                        // Gmail's sensitive-key set is empty so encrypt is a no-op,
+                        // but use the helper for consistency.
+                        const baselined = encryptSensitiveConfigKeys(
+                            'gmail',
+                            { ...effectiveConfig, lastHistoryId: profile.historyId },
+                            workspaceId,
+                        )
                         await db.update(channels)
-                            .set({ config: { ...effectiveConfig, lastHistoryId: profile.historyId } })
+                            .set({ config: baselined })
                             .where(eq(channels.id, created.id))
                         logger.info({ channelId: created.id, historyId: profile.historyId }, 'Gmail channel baselined')
                     }
@@ -215,7 +227,11 @@ channelsRouter.patch('/:id', async (req, res) => {
                 })
                 return
             }
-            const merged = { ...(existing.config ?? {}), ...filterResult.filtered }
+            // Phase O — encrypt the incoming patch before merging into the
+            // already-encrypted existing config. Existing ciphertext stays as-is;
+            // new sensitive values get encrypted on the way in.
+            const filteredAndEncrypted = encryptSensitiveConfigKeys(existing.type, filterResult.filtered, workspaceId)
+            const merged = { ...(existing.config ?? {}), ...filteredAndEncrypted }
             update.config = merged
         }
 
@@ -229,7 +245,8 @@ channelsRouter.patch('/:id', async (req, res) => {
                 .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
                 .limit(1)
             if (updated && updated.type === 'telegram') {
-                const cfg = (updated.config ?? {}) as { token?: string; bot_token?: string }
+                const { decryptSensitiveConfigKeys } = await import('../lib/channel-config-crypto.js')
+                const cfg = decryptSensitiveConfigKeys('telegram', (updated.config ?? {}) as Record<string, unknown>, workspaceId) as { token?: string; bot_token?: string }
                 const token = cfg.token ?? cfg.bot_token ?? null
                 if (token) {
                     void registerTelegramChannel(updated.id, token, workspaceId).catch(

@@ -187,12 +187,13 @@ async function loadTwilioConfig(channelId: string): Promise<{ accountSid: string
     try {
         const { db, eq } = await import('@plexo/db')
         const { channels } = await import('@plexo/db')
-        const [row] = await db.select({ config: channels.config, type: channels.type, enabled: channels.enabled })
+        const [row] = await db.select({ workspaceId: channels.workspaceId, config: channels.config, type: channels.type, enabled: channels.enabled })
             .from(channels)
             .where(eq(channels.id, channelId))
             .limit(1)
         if (!row || row.type !== 'twilio' || !row.enabled) return null
-        const cfg = (row.config ?? {}) as TwilioConfigShape
+        const { decryptSensitiveConfigKeys } = await import('./lib/channel-config-crypto.js')
+        const cfg = decryptSensitiveConfigKeys('twilio', (row.config ?? {}) as Record<string, unknown>, row.workspaceId) as TwilioConfigShape
         if (!cfg.accountSid || !cfg.authToken || !cfg.fromNumber) return null
         return { accountSid: cfg.accountSid, authToken: cfg.authToken, fromNumber: cfg.fromNumber }
     } catch (err) {

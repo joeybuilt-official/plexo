@@ -35,7 +35,15 @@ fi
 echo "[migrate] Found tsx at: $TSX_PATH"
 echo "[migrate] Executing migration target: src/migrate.ts"
 
-# Use the absolute path to ensure node finds it correctly from the /app/packages/db directory
-exec node --max-old-space-size=200 \
-  "$TSX_PATH" src/migrate.ts
+# Drizzle migrations
+node --max-old-space-size=200 "$TSX_PATH" src/migrate.ts
+
+# Phase O / ADR 0010 — encrypt sensitive channel.config keys on existing rows.
+# Idempotent + reentrant; no-op once all rows are encrypted.
+echo "[migrate] Running post-migration data script: encrypt-channel-configs.ts"
+node --max-old-space-size=200 "$TSX_PATH" scripts/encrypt-channel-configs.ts || {
+  echo "[migrate] WARN: encrypt-channel-configs.ts failed; continuing (next migrate run will retry)" >&2
+}
+
+echo "[migrate] Done"
 

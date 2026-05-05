@@ -146,7 +146,8 @@ twilioRouter.post('/events/:channelId', async (req: Request, res: Response) => {
         return
     }
 
-    const cfg = (channelRow.config ?? {}) as TwilioChannelConfig
+    const { decryptSensitiveConfigKeys } = await import('../lib/channel-config-crypto.js')
+    const cfg = decryptSensitiveConfigKeys('twilio', (channelRow.config ?? {}) as Record<string, unknown>, channelRow.workspaceId) as TwilioChannelConfig
     if (!cfg.authToken) {
         logger.error({ channelId }, 'Twilio: channel.config.authToken missing')
         res.status(500).json({ error: { code: 'CHANNEL_MISCONFIGURED', message: 'authToken not set' } })

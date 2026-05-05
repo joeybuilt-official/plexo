@@ -792,6 +792,13 @@
       "when": 1778724000000,
       "tag": "0112_task_type_reminder",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1778983200000,
+      "tag": "0113_channels_config_encrypt_existing",
+      "breakpoints": true
     }
   ]
 }
