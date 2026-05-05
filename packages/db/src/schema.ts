@@ -199,7 +199,7 @@ export const rsiRiskEnum = pgEnum('rsi_risk', [
 //
 // See docs/architecture/identity.md and scripts/setup-fdw.sql.
 export const users = pgTable('users', {
-    id: text('id').primaryKey(),           // Better Auth user id (text; current values happen to be UUIDs)
+    id: uuid('id').primaryKey(),           // Better Auth user id; FDW maps to auth.user.id (uuid). Phase J reconciled text→uuid (07-DEFERRED #10)
     name: text('name').notNull(),
     email: text('email').unique().notNull(),
     emailVerified: boolean('emailVerified').notNull(),
@@ -218,7 +218,7 @@ export const workspaces = pgTable('workspaces', {
     id: uuid('id').defaultRandom().primaryKey(),
     name: text('name').notNull(),
     // owner_id → users.id (foreign table, no FK possible at DB level)
-    ownerId: text('owner_id').notNull(),
+    ownerId: uuid('owner_id').notNull(),
     settings: jsonb('settings').default('{}').notNull(),
     /**
      * Phase 0 of the intelligence overhaul (slot 0076). Workspace-level
@@ -237,6 +237,9 @@ export const workspaces = pgTable('workspaces', {
      */
     intelligenceSettings: jsonb('intelligence_settings').default('{}').notNull(),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+    // Phase J reconciliation (07-DEFERRED #2): migration 0105 adds this column;
+    // declaration here so the ORM `select` projects it.
+    updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).defaultNow().notNull(),
 })
 
 export const workspaceKeyShares = pgTable('workspace_key_shares', {
@@ -249,7 +252,7 @@ export const workspaceKeyShares = pgTable('workspace_key_shares', {
         .references(() => workspaces.id, { onDelete: 'cascade' }),
     providerKey: text('provider_key').notNull(),  // 'openai' | 'anthropic' | etc.
     // granted_by → users.id (foreign table)
-    grantedBy: text('granted_by').notNull(),
+    grantedBy: uuid('granted_by').notNull(),
     grantedAt: timestamp('granted_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table: any) => [
     index('key_shares_source_idx').on(table.sourceWsId),
@@ -557,7 +560,7 @@ export const dashboardCards = pgTable('dashboard_cards', {
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),
     // user_id → users.id (foreign table; cascade enforced at app level)
-    userId: text('user_id').notNull(),
+    userId: uuid('user_id').notNull(),
     cardType: text('card_type').notNull(),
     position: jsonb('position').notNull(), // { x, y, w, h }
     config: jsonb('config').default('{}').notNull(),
@@ -874,11 +877,11 @@ export const workspaceMembers = pgTable('workspace_members', {
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),
     // user_id → users.id (foreign table; cascade enforced at app level)
-    userId: text('user_id').notNull(),
+    userId: uuid('user_id').notNull(),
     role: memberRoleEnum('role').default('member').notNull(),
     // invited_by_user_id → users.id (foreign table)
-    invitedByUserId: text('invited_by_user_id'),
-    joinedAt: timestamp('joined_at', { mode: 'date' }).defaultNow().notNull(),
+    invitedByUserId: uuid('invited_by_user_id'),
+    joinedAt: timestamp('joined_at', { mode: 'date', withTimezone: true }).defaultNow().notNull(),
 }, (table: any) => [
     uniqueIndex('workspace_members_workspace_user_idx').on(table.workspaceId, table.userId),
     index('workspace_members_workspace_idx').on(table.workspaceId),
@@ -894,11 +897,11 @@ export const workspaceInvites = pgTable('workspace_invites', {
     invitedEmail: text('invited_email'),
     role: memberRoleEnum('role').default('member').notNull(),
     // invited_by_user_id → users.id (foreign table)
-    invitedByUserId: text('invited_by_user_id').notNull(),
+    invitedByUserId: uuid('invited_by_user_id').notNull(),
     expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
     usedAt: timestamp('used_at', { mode: 'date' }),
     // used_by_user_id → users.id (foreign table)
-    usedByUserId: text('used_by_user_id'),
+    usedByUserId: uuid('used_by_user_id'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table: any) => [
     uniqueIndex('workspace_invites_token_idx').on(table.token),
@@ -974,7 +977,7 @@ export const auditLog = pgTable('audit_log', {
     workspaceId: uuid('workspace_id')
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),
-    userId: text('user_id'),  // → users.id (foreign table). null for system events.
+    userId: uuid('user_id'),  // → users.id (foreign table). null for system events.
     action: text('action').notNull(),                    // e.g. 'member.add', 'plugin.install', 'task.create'
     resource: text('resource').notNull(),                // table name or resource type
     resourceId: text('resource_id'),                     // optional target entity ID
@@ -1266,7 +1269,7 @@ export const rsiTestResults = pgTable('rsi_test_results', {
 export const sessionLogs = pgTable('session_logs', {
     id: uuid('id').primaryKey().defaultRandom(),
     sessionId: uuid('session_id').notNull(),
-    userId: text('user_id'),  // → users.id (foreign table)
+    userId: uuid('user_id'),  // → users.id (foreign table)
     personaId: varchar('persona_id', { length: 64 }),
     eventType: varchar('event_type', { length: 64 }).notNull(),
     route: varchar('route', { length: 512 }),
@@ -1572,7 +1575,7 @@ export const nodeEvents = pgTable('node_events', {
 
 export const userAppAuthorizations = pgTable('user_app_authorizations', {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(),  // → users.id (foreign table); cascade enforced at app level
+    userId: uuid('user_id').notNull(),  // → users.id (foreign table); cascade enforced at app level
     appId: text('app_id').notNull(),
     workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
     scopes: text('scopes').array().notNull().default(sql`'{}'`),
