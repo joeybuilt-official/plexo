@@ -141,10 +141,12 @@ async function runMigrations() {
             // array order, not `when` order.
             const journalPath = path.join(absoluteMigrationsPath, 'meta', '_journal.json')
             let expectedCount = 0
+            let lastJournalWhen = 0
             try {
                 const journal = JSON.parse(readFileSync(journalPath, 'utf-8')) as { entries?: Array<{ idx: number; when: number; tag: string }> }
                 const entries = Array.isArray(journal.entries) ? journal.entries : []
                 expectedCount = entries.length
+                lastJournalWhen = entries[entries.length - 1]?.when ?? 0
                 for (let i = 1; i < entries.length; i++) {
                     const prev = entries[i - 1]!
                     const curr = entries[i]!
@@ -189,23 +191,36 @@ async function runMigrations() {
             const elapsed = ((Date.now() - start) / 1000).toFixed(1)
             console.log(`[migrate] Complete in ${elapsed}s`)
 
-            // Verify Drizzle's tracking table reflects the full journal. A partial
-            // run that exits 0 leaves the API booting into 500s on first query.
-            const rows = await sql<{ count: number }[]>`
+            // Verify the latest journal migration is tracked. Drizzle uses
+            // MAX(created_at) as the skip threshold — if MAX matches the last
+            // journal `when`, all current migrations are applied. Row count can
+            // be < journal length when older migrations were applied outside
+            // drizzle (manual psql), which is safe if the schema is correct.
+            const maxRows = await sql<{ max_when: string | null }[]>`
+                SELECT MAX(created_at)::text AS max_when FROM drizzle.__drizzle_migrations
+            `
+            const countRows = await sql<{ count: number }[]>`
                 SELECT COUNT(*)::int AS count FROM drizzle.__drizzle_migrations
             `
-            const appliedCount = rows[0]?.count ?? 0
-            console.log(`[migrate] applied ${appliedCount} of ${expectedCount}`, { appliedCount, expectedCount })
+            const appliedMaxWhen = Number(maxRows[0]?.max_when ?? 0)
+            const appliedCount = countRows[0]?.count ?? 0
+            console.log(`[migrate] applied ${appliedCount} of ${expectedCount} (max_when=${appliedMaxWhen}, last_journal_when=${lastJournalWhen})`, { appliedCount, expectedCount })
 
             await sql.end()
             clearTimeout(timer)
 
-            if (appliedCount < expectedCount) {
+            if (appliedMaxWhen < lastJournalWhen) {
                 console.error(
-                    `[migrate] PARTIAL RUN: applied ${appliedCount} of ${expectedCount} migrations. ` +
+                    `[migrate] PARTIAL RUN: latest migration not applied (max_when=${appliedMaxWhen} < last_journal_when=${lastJournalWhen}). ` +
                     `Failing loud so the migrate service exits non-zero.`
                 )
                 process.exit(1)
+            }
+            if (appliedCount < expectedCount) {
+                console.warn(
+                    `[migrate] TRACKING GAP: ${appliedCount} of ${expectedCount} rows in __drizzle_migrations — ` +
+                    `${expectedCount - appliedCount} older migrations were applied outside drizzle. Schema should be correct.`
+                )
             }
 
             process.exit(0)

@@ -16,7 +16,7 @@
 import pino from 'pino'
 import { generateText } from 'ai'
 import { db, eq, ne, and, desc, sql, inArray } from '@plexo/db'
-import { memoryEntries } from '@plexo/db'
+import { memoryEntries, workspaces } from '@plexo/db'
 import { withFallback, type WorkspaceAISettings } from '../providers/registry.js'
 import {
     DEFAULT_NAMESPACE,
@@ -234,6 +234,12 @@ export async function storeMemory(params: {
     if (namespace === SHARED_NAMESPACE) {
         logger.warn({ workspaceId, type }, 'storeMemory received shared namespace — coerced to default; use writeShared() instead')
         namespace = DEFAULT_NAMESPACE
+    }
+
+    const wsRows = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
+    if (wsRows.length === 0) {
+        logger.warn({ workspaceId, type }, 'storeMemory: workspace not found — skipping write')
+        return ''
     }
 
     const id = crypto.randomUUID()
