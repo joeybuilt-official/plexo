@@ -864,14 +864,6 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
         plan = plannerResult.plan
         logger.info({ taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore }, 'Plan ready')
-        // Persist the plan so a crash mid-execute doesn't lose the structured
-        // step list. Phase 1 added tasks.plan jsonb for exactly this purpose.
-        // Non-fatal — execution should proceed even if the write fails.
-        try {
-            await db.update(tasks).set({ plan }).where(eq(tasks.id, task.id))
-        } catch (planWriteErr) {
-            logger.warn({ err: planWriteErr, taskId: task.id }, 'Persist tasks.plan failed — non-fatal')
-        }
         logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'planning', to: 'executing', workspaceId: taskWorkspaceId, steps: plan.steps.length }, 'lifecycle')
         void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'executing', fromState: 'planning', toState: 'executing', metadata: { steps: plan.steps.length } })
         emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
@@ -883,13 +875,24 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         // classifier verdict so Tom's persona is protected even if the
         // planner missed the irreversibility flag.
         const elevation = elevateOutboundOneWayDoors(plan)
-        if (elevation.addedCount > 0) {
-            plan.oneWayDoors = elevation.oneWayDoors as typeof plan.oneWayDoors
+        if (elevation.addedTools.length > 0) {
+            plan.oneWayDoors = elevation.oneWayDoors
             for (const tool of elevation.addedTools) {
                 const provider = tool.split('__')[0] ?? ''
                 incrementCounter('plexo_owd_elevation_outbound_total', { tool, provider })
             }
-            logger.info({ taskId: task.id, addedCount: elevation.addedCount, addedTools: elevation.addedTools }, 'OWD elevated for outbound channel tools')
+            logger.info({ taskId: task.id, addedCount: elevation.addedTools.length, addedTools: elevation.addedTools }, 'OWD elevated for outbound channel tools')
+        }
+
+        // L5.5 #2 (resume-path hygiene): persist plan AFTER elevation so a
+        // crash-resume reads the elevated OWDs from tasks.plan instead of the
+        // un-elevated planner output. L5b's executor-side guard is the load-
+        // bearing security layer; this just avoids spurious operator re-prompts
+        // on resumed tasks. Non-fatal — execution proceeds even if the write fails.
+        try {
+            await db.update(tasks).set({ plan }).where(eq(tasks.id, task.id))
+        } catch (planWriteErr) {
+            logger.warn({ err: planWriteErr, taskId: task.id }, 'Persist tasks.plan failed — non-fatal')
         }
 
         const mustGate = plan.oneWayDoors.length > 0 || policy.requireApprovalForGeneralTasks

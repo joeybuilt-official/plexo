@@ -18,7 +18,7 @@
  *     `__send_`, `__reply_`, or `__post_`.
  *   - `elevateOutboundOneWayDoors(plan)` is pure — it does NOT mutate the
  *     input plan. It returns
- *       { addedCount: number, addedTools: string[], oneWayDoors: OWD[] }
+ *       { addedTools: string[], oneWayDoors: OWD[] }
  *     where `oneWayDoors` is the merged list (existing + synthesized).
  *     Synthesized OWD shape:
  *       { description: string (contains the offending tool name),
@@ -97,7 +97,7 @@ describe('elevateOutboundOneWayDoors — Test 2: outbound elevation when policy 
 
         const result = elevateOutboundOneWayDoors(plan)
 
-        expect(result.addedCount).toBe(1)
+        expect(result.addedTools.length).toBe(1)
         expect(result.addedTools).toEqual(['gmail__send_email'])
         expect(result.oneWayDoors).toHaveLength(1)
         const elevated = result.oneWayDoors[0]!
@@ -123,7 +123,7 @@ describe('elevateOutboundOneWayDoors — Test 2: outbound elevation when policy 
         const result = elevateOutboundOneWayDoors(plan)
 
         // Two distinct outbound tools → two synthesized OWDs.
-        expect(result.addedCount).toBe(2)
+        expect(result.addedTools.length).toBe(2)
         expect(result.addedTools).toEqual(
             expect.arrayContaining(['gmail__send_email', 'slack__post_message']),
         )
@@ -150,7 +150,7 @@ describe('elevateOutboundOneWayDoors — Test 2: outbound elevation when policy 
 })
 
 describe('elevateOutboundOneWayDoors — Test 3: non-outbound tools do NOT elevate', () => {
-    it('returns addedCount=0 for read_file', () => {
+    it('returns addedTools=[] for read_file', () => {
         const plan = basePlan({
             steps: [{
                 stepNumber: 1,
@@ -163,7 +163,7 @@ describe('elevateOutboundOneWayDoors — Test 3: non-outbound tools do NOT eleva
         })
 
         const result = elevateOutboundOneWayDoors(plan)
-        expect(result.addedCount).toBe(0)
+        expect(result.addedTools.length).toBe(0)
         expect(result.addedTools).toHaveLength(0)
         expect(result.oneWayDoors).toHaveLength(0)
     })
@@ -181,7 +181,7 @@ describe('elevateOutboundOneWayDoors — Test 3: non-outbound tools do NOT eleva
         })
 
         const result = elevateOutboundOneWayDoors(plan)
-        expect(result.addedCount).toBe(0)
+        expect(result.addedTools.length).toBe(0)
         expect(result.oneWayDoors).toHaveLength(0)
     })
 })
@@ -211,7 +211,7 @@ describe('elevateOutboundOneWayDoors — Test 4: dedupe', () => {
 
         const result = elevateOutboundOneWayDoors(plan)
         // No new OWD was synthesized — the existing one already covers the tool.
-        expect(result.addedCount).toBe(0)
+        expect(result.addedTools.length).toBe(0)
         expect(result.addedTools).toHaveLength(0)
         // The merged list is just the existing entry, length 1.
         expect(result.oneWayDoors).toHaveLength(1)
@@ -240,7 +240,7 @@ describe('elevateOutboundOneWayDoors — Test 4: dedupe', () => {
 
         const result = elevateOutboundOneWayDoors(plan)
         // Two steps reference the same tool → only one OWD synthesized.
-        expect(result.addedCount).toBe(1)
+        expect(result.addedTools.length).toBe(1)
         expect(result.addedTools).toEqual(['gmail__send_email'])
     })
 })

@@ -31,6 +31,7 @@ import { createClient, type RedisClientType } from 'redis'
 import { randomBytes } from 'node:crypto'
 import pino from 'pino'
 import { eventBus, TOPICS } from './plugins/event-bus.js'
+import type { OneWayDoor } from './types.js'
 
 const logger = pino({ name: 'one-way-door' })
 
@@ -105,28 +106,32 @@ export function isOutboundChannelTool(toolName: string): boolean {
     return OUTBOUND_VERB_FRAGMENTS.some((frag) => toolName.includes(frag))
 }
 
-interface ElevationOWD {
-    description: string
-    type: string
-    reversibility: string
-    requiresApproval: boolean
-}
-
 interface ElevationPlan {
     steps: Array<{ toolsRequired?: string[] }>
-    oneWayDoors: ElevationOWD[]
+    oneWayDoors: OneWayDoor[]
 }
 
 interface ElevationResult {
-    addedCount: number
     addedTools: string[]
-    oneWayDoors: ElevationOWD[]
+    oneWayDoors: OneWayDoor[]
+}
+
+/** Word-boundary tool-name match: matches `tool` only when surrounded by
+ *  characters that aren't part of a connection-tool identifier. Avoids
+ *  substring-includes false positives where `gmail__send` would match
+ *  inside a description that mentions `gmail__send_email_v2`. */
+const TOOL_NAME_BOUNDARY = /[^a-zA-Z0-9_]|^|$/.source
+
+function descriptionReferencesTool(description: string, tool: string): boolean {
+    const escaped = tool.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re = new RegExp(`(?:${TOOL_NAME_BOUNDARY})${escaped}(?:${TOOL_NAME_BOUNDARY})`)
+    return re.test(description)
 }
 
 export function elevateOutboundOneWayDoors(plan: ElevationPlan): ElevationResult {
     const existing = plan.oneWayDoors ?? []
     const seenTools = new Set<string>()
-    const added: ElevationOWD[] = []
+    const added: OneWayDoor[] = []
     const addedTools: string[] = []
 
     for (const step of plan.steps ?? []) {
@@ -135,7 +140,9 @@ export function elevateOutboundOneWayDoors(plan: ElevationPlan): ElevationResult
             if (seenTools.has(tool)) continue
             seenTools.add(tool)
             // Dedupe: skip if planner already classified this exact tool
-            if (existing.some((o) => typeof o.description === 'string' && o.description.includes(tool))) continue
+            // (word-boundary match — substring-includes was prone to false
+            //  positives on tool name prefixes).
+            if (existing.some((o) => typeof o.description === 'string' && descriptionReferencesTool(o.description, tool))) continue
             added.push({
                 description: `Outbound channel call: ${tool} (auto-elevated for safety per ADR 0006)`,
                 type: 'external_call',
@@ -147,7 +154,6 @@ export function elevateOutboundOneWayDoors(plan: ElevationPlan): ElevationResult
     }
 
     return {
-        addedCount: added.length,
         addedTools,
         oneWayDoors: added.length > 0 ? [...existing, ...added] : existing,
     }

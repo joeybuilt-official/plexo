@@ -390,7 +390,9 @@ describe('elevateOutboundOneWayDoors', () => {
     } = {}) {
         return {
             steps: overrides.steps ?? [],
-            oneWayDoors: overrides.oneWayDoors ?? [],
+            // Cast: test fixtures use a relaxed `type: string` for input convenience; the
+            // function signature accepts the wider OneWayDoor union (post-L5.5 #3 unify).
+            oneWayDoors: (overrides.oneWayDoors ?? []) as Parameters<typeof elevateOutboundOneWayDoors>[0]['oneWayDoors'],
         }
     }
 
@@ -400,7 +402,7 @@ describe('elevateOutboundOneWayDoors', () => {
             oneWayDoors: [],
         })
         const result = elevateOutboundOneWayDoors(plan)
-        expect(result.addedCount).toBe(1)
+        expect(result.addedTools.length).toBe(1)
         expect(result.addedTools).toEqual(['gmail__send_email'])
         expect(result.oneWayDoors).toHaveLength(1)
         const synth = result.oneWayDoors[0]!
@@ -421,7 +423,7 @@ describe('elevateOutboundOneWayDoors', () => {
             }],
         })
         const result = elevateOutboundOneWayDoors(plan)
-        expect(result.addedCount).toBe(0)
+        expect(result.addedTools.length).toBe(0)
         expect(result.addedTools).toHaveLength(0)
         expect(result.oneWayDoors).toHaveLength(1)
         // Original entry should be preserved
@@ -444,7 +446,7 @@ describe('elevateOutboundOneWayDoors', () => {
         const result = elevateOutboundOneWayDoors(plan)
         // gmail tool elevated once (deduped against itself across steps)
         // twilio tool already covered by existing OWD
-        expect(result.addedCount).toBe(1)
+        expect(result.addedTools.length).toBe(1)
         expect(result.addedTools).toEqual(['gmail__send_email'])
         expect(result.oneWayDoors).toHaveLength(2)
     })
@@ -459,21 +461,21 @@ describe('elevateOutboundOneWayDoors', () => {
             ],
         })
         const result = elevateOutboundOneWayDoors(plan)
-        expect(result.addedCount).toBe(0)
+        expect(result.addedTools.length).toBe(0)
         expect(result.addedTools).toEqual([])
         expect(result.oneWayDoors).toEqual([])
     })
 
     it('handles empty plans / steps without throwing', () => {
         const result = elevateOutboundOneWayDoors({ steps: [], oneWayDoors: [] })
-        expect(result.addedCount).toBe(0)
+        expect(result.addedTools.length).toBe(0)
         expect(result.oneWayDoors).toEqual([])
     })
 
     it('handles steps with missing toolsRequired arrays', () => {
         const plan = makePlan({ steps: [{}, { toolsRequired: ['gmail__send_email'] }] })
         const result = elevateOutboundOneWayDoors(plan)
-        expect(result.addedCount).toBe(1)
+        expect(result.addedTools.length).toBe(1)
         expect(result.addedTools).toEqual(['gmail__send_email'])
     })
 
@@ -487,7 +489,7 @@ describe('elevateOutboundOneWayDoors', () => {
             ],
         })
         const result = elevateOutboundOneWayDoors(plan)
-        expect(result.addedCount).toBe(3)
+        expect(result.addedTools.length).toBe(3)
         expect(result.addedTools.sort()).toEqual(['gmail__send_email', 'slack__post_message', 'twilio__send_sms'])
         expect(result.oneWayDoors).toHaveLength(3)
         expect(result.oneWayDoors.every((o) => o.type === 'external_call' && o.requiresApproval === true)).toBe(true)
@@ -528,5 +530,64 @@ describe('OUTBOUND_ALLOWLIST + OUTBOUND_VERB_EXAMPLES (L5.5)', () => {
         expect(arr).toContain('__send_sms')
         expect(arr).toContain('__post_message')
         expect(arr).toContain('__create_event')
+    })
+})
+
+// ── L5.5 #5 — word-boundary dedupe in elevateOutboundOneWayDoors ─────────────
+
+describe('elevateOutboundOneWayDoors — word-boundary dedupe (L5.5 #5)', () => {
+    it('dedupes when planner OWD description names the EXACT tool', async () => {
+        const { elevateOutboundOneWayDoors } = await import('../one-way-door.js')
+        const plan = {
+            steps: [{ toolsRequired: ['gmail__send_email'] }],
+            oneWayDoors: [{
+                description: 'External: gmail__send_email — operator-approved at plan-time.',
+                type: 'external_call' as const,
+                reversibility: 'irreversible',
+                requiresApproval: true as const,
+            }],
+        }
+        const result = elevateOutboundOneWayDoors(plan)
+        expect(result.addedTools).toEqual([])
+    })
+
+    it('does NOT dedupe when planner OWD names a DIFFERENT tool that happens to be a prefix', async () => {
+        const { elevateOutboundOneWayDoors } = await import('../one-way-door.js')
+        // gmail__send_email_v2 mentions gmail__send_email as a substring; the
+        // tighter word-boundary dedupe must NOT treat that as covering for
+        // gmail__send_email tool emissions.
+        const plan = {
+            steps: [{ toolsRequired: ['gmail__send_email'] }],
+            oneWayDoors: [{
+                description: 'External: gmail__send_email_v2 — operator-approved.',
+                type: 'external_call' as const,
+                reversibility: 'irreversible',
+                requiresApproval: true as const,
+            }],
+        }
+        const result = elevateOutboundOneWayDoors(plan)
+        expect(result.addedTools).toEqual(['gmail__send_email'])
+    })
+
+    it('matches when tool name appears at start, middle, or end of description', async () => {
+        const { elevateOutboundOneWayDoors } = await import('../one-way-door.js')
+        const cases = [
+            'gmail__send_email is dangerous',
+            'about to call gmail__send_email now',
+            'will fire gmail__send_email',
+        ]
+        for (const desc of cases) {
+            const plan = {
+                steps: [{ toolsRequired: ['gmail__send_email'] }],
+                oneWayDoors: [{
+                    description: desc,
+                    type: 'external_call' as const,
+                    reversibility: 'irreversible',
+                    requiresApproval: true as const,
+                }],
+            }
+            const result = elevateOutboundOneWayDoors(plan)
+            expect(result.addedTools).toEqual([])
+        }
     })
 })

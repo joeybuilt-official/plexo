@@ -141,6 +141,7 @@ export interface OneWayDoor {
     | 'service_restart'
     | 'data_write'
     | 'external_publish'
+    | 'external_call'
     reversibility: string
     requiresApproval: true
 }
