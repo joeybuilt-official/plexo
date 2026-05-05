@@ -187,9 +187,13 @@ async function handleInvoke(msg: InvokeMsg): Promise<void> {
     }
 
     try {
+        const requestId = randomUUID()
         const result = await toolDef.handler(msg.args, {
             workspaceId: msg.workspaceId,
-            requestId: randomUUID(),
+            requestId,
+            tenantId: 'default',
+            userId: 'system',
+            traceId: requestId,
         })
         reply({ type: 'result', callId: msg.callId, result })
     } catch (err) {
@@ -246,7 +250,14 @@ if (parentPort) {
         } else {
             const toolDef = tools.find((t) => t.name === input.toolName)
             if (toolDef) {
-                const result = await toolDef.handler(input.args, { workspaceId: input.workspaceId ?? 'sandbox', requestId: randomUUID() })
+                const ephRequestId = randomUUID()
+                const result = await toolDef.handler(input.args, {
+                    workspaceId: input.workspaceId ?? 'sandbox',
+                    requestId: ephRequestId,
+                    tenantId: 'default',
+                    userId: 'system',
+                    traceId: ephRequestId,
+                })
                 port?.postMessage({ ok: true, result })
             } else {
                 port?.postMessage({ ok: false, error: `Tool "${input.toolName}" not found` })

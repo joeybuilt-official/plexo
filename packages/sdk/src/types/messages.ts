@@ -97,6 +97,11 @@ export interface InvokeContext {
     workspaceId: string
     taskId?: string
     requestId: string
+    tenantId: string
+    userId: string
+    accountId?: string
+    sessionId?: string
+    traceId: string
 }
 
 export interface WorkerContext {

@@ -96,6 +96,16 @@ export interface InvokeContext {
     workspaceId: string
     taskId?: string
     requestId: string
+    /** Better Auth tenant identifier (multi-tenant scoping). */
+    tenantId: string
+    /** Authenticated user the invocation is acting on behalf of. */
+    userId: string
+    /** ADR-09 — per-tool OAuth account override (optional). */
+    accountId?: string
+    /** Conversation continuity identifier across multi-turn flows (optional). */
+    sessionId?: string
+    /** ADR-04 — links to run_id for cross-system tracing. */
+    traceId: string
 }
 
 export interface ToolSummary {
