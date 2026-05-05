@@ -32,7 +32,7 @@ import { logger } from '../logger.js'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type SessionChannel = 'telegram' | 'slack' | 'discord' | 'web' | 'dashboard' | 'widget' | 'api'
+export type SessionChannel = 'telegram' | 'slack' | 'discord' | 'web' | 'dashboard' | 'widget' | 'api' | 'twilio'
 
 export interface ResolveSessionParams {
     workspaceId: string

@@ -33,6 +33,7 @@ import { sprintsRouter } from './routes/sprints.js'
 import { dashboardRouter } from './routes/dashboard.js'
 import { telegramRouter, initTelegramWebhook } from './routes/telegram.js'
 import { slackRouter } from './routes/slack.js'
+import { twilioRouter } from './routes/twilio.js'
 import { discordRouter } from './routes/discord.js'
 import { owdRouter } from './routes/approvals.js'
 import { sprintRunnerRouter } from './routes/sprint-runner.js'
@@ -236,6 +237,7 @@ v1.use('/webhooks', webhookLimiter, jsonSmall, webhooksRouter) // per-workspace 
 v1.use('/channels/telegram', webhookLimiter, jsonMedium, telegramRouter) // X-Telegram-Bot-Api-Secret-Token, 2 MB
 v1.use('/channels/slack', webhookLimiter, jsonDefault, slackRouter) // X-Slack-Signature
 v1.use('/channels/discord', webhookLimiter, jsonDefault, discordRouter) // ed25519 signature
+v1.use('/channels/twilio', webhookLimiter, twilioRouter) // X-Twilio-Signature; body parsed by app-wide urlencoded middleware
 v1.use('/a2a', jsonDefault, a2aRouter) // A2A spec — GET discovery is public, POST tasks has per-handler Bearer auth
 v1.use('/registry', jsonDefault, registryRouter) // public tool discovery (POST/DELETE check inside)
 v1.use('/skills', jsonDefault, publicSkillsRouter) // public skill validation (no auth, no DB)

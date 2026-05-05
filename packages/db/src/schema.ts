@@ -39,6 +39,7 @@ export const channelTypeEnum = pgEnum('channel_type', [
     'matrix',
     'irc',
     'webchat',
+    'twilio',
 ])
 
 export const taskTypeEnum = pgEnum('task_type', [
@@ -85,6 +86,7 @@ export const taskSourceEnum = pgEnum('task_source', [
     'sentry',
     'a2a',
     'webhook',
+    'twilio',
 ])
 
 export const taskStepStateEnum = pgEnum('task_step_state', [

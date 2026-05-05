@@ -11,6 +11,7 @@ import {
     MessageSquare,
     Send,
     Hash,
+    Phone,
     Webhook,
     RefreshCw,
     Plus,
@@ -56,7 +57,7 @@ interface InstalledSummary {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ChannelType = 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix'
+type ChannelType = 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix' | 'twilio'
 
 interface Channel {
     id: string
@@ -78,9 +79,10 @@ const CHANNEL_META: Record<ChannelType, { label: string; icon: React.ElementType
     whatsapp: { label: 'WhatsApp', icon: MessageSquare, color: 'text-green-400', docFields: ['phone_number_id', 'access_token', 'verify_token'] },
     signal: { label: 'Signal', icon: Send, color: 'text-azure', docFields: ['phone_number'] },
     matrix: { label: 'Matrix', icon: Hash, color: 'text-purple-400', docFields: ['homeserver', 'access_token', 'user_id'] },
+    twilio: { label: 'SMS (Twilio)', icon: Phone, color: 'text-rose-400', docFields: ['account_sid', 'auth_token', 'phone_number'] },
 }
 
-const AVAILABLE_TYPES: ChannelType[] = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix']
+const AVAILABLE_TYPES: ChannelType[] = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix', 'twilio']
 
 // ── Add channel modal state ───────────────────────────────────────────────────
 
@@ -237,6 +239,131 @@ function TelegramWizard({
                 ))}
             </div>
             {STEPS[step]?.content}
+        </div>
+    )
+}
+
+function getPublicUrl(): string {
+    if (typeof window !== 'undefined') return window.location.origin
+    return ''
+}
+
+function validateTwilioFields(fields: Record<string, string>): {
+    accountSid: string | null
+    authToken: string | null
+    phoneNumber: string | null
+    valid: boolean
+} {
+    const sid = (fields.account_sid ?? '').trim()
+    const token = (fields.auth_token ?? '').trim()
+    const phone = (fields.phone_number ?? '').trim()
+    const accountSid = sid.length === 0
+        ? null
+        : !/^AC[a-zA-Z0-9]{32}$/.test(sid)
+            ? 'Account SID must start with AC and be 34 characters total.'
+            : null
+    const authToken = token.length === 0 ? null : null
+    const phoneNumber = phone.length === 0
+        ? null
+        : !/^\+\d{10,15}$/.test(phone)
+            ? 'Phone number must be in E.164 format (e.g. +15551234567).'
+            : null
+    const valid = sid.length > 0 && token.length > 0 && phone.length > 0
+        && accountSid === null && phoneNumber === null
+    return { accountSid, authToken, phoneNumber, valid }
+}
+
+function TwilioForm({
+    fields,
+    onChange,
+}: {
+    fields: Record<string, string>
+    onChange: (k: string, v: string) => void
+}) {
+    const v = validateTwilioFields(fields)
+    return (
+        <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-text-secondary">Twilio Account SID</label>
+                <input
+                    type="text"
+                    value={fields.account_sid ?? ''}
+                    onChange={(e) => onChange('account_sid', e.target.value)}
+                    placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                    autoComplete="off"
+                    spellCheck={false}
+                />
+                {v.accountSid
+                    ? <p className="text-xs text-red">{v.accountSid}</p>
+                    : <p className="text-xs text-text-muted">Find in your Twilio console under Account Info.</p>
+                }
+            </div>
+            <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-text-secondary">Twilio Auth Token</label>
+                <input
+                    type="password"
+                    value={fields.auth_token ?? ''}
+                    onChange={(e) => onChange('auth_token', e.target.value)}
+                    placeholder="••••••••••••••••••••••••••••••••"
+                    className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                    autoComplete="new-password"
+                />
+                <p className="text-xs text-text-muted">Stored encrypted; rotate any time.</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-text-secondary">Twilio Phone Number</label>
+                <input
+                    type="text"
+                    value={fields.phone_number ?? ''}
+                    onChange={(e) => onChange('phone_number', e.target.value)}
+                    placeholder="+15551234567"
+                    className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary placeholder:text-text-muted focus:border-azure focus-ring font-mono"
+                    autoComplete="off"
+                    spellCheck={false}
+                />
+                {v.phoneNumber
+                    ? <p className="text-xs text-red">{v.phoneNumber}</p>
+                    : <p className="text-xs text-text-muted">E.164 format. The number Twilio will send from and that users will text.</p>
+                }
+            </div>
+        </div>
+    )
+}
+
+function TwilioWebhookSection({ channelId }: { channelId: string }) {
+    const [copied, setCopied] = useState(false)
+    const url = `${getPublicUrl()}/api/v1/channels/twilio/events/${channelId}`
+    async function copy() {
+        try {
+            await navigator.clipboard.writeText(url)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        } catch {
+            // ignore
+        }
+    }
+    return (
+        <div className="rounded-sm border border-azure/20 bg-azure/10 p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+                <Webhook className="h-4 w-4 text-azure" />
+                <h3 className="text-sm font-medium text-azure">Webhook URL — paste this into your Twilio console</h3>
+            </div>
+            <div className="relative group">
+                <pre className="rounded-sm bg-canvas border border-border p-3 text-[11px] font-mono text-text-secondary overflow-x-auto whitespace-pre-wrap break-all">{url}</pre>
+                <button
+                    onClick={() => void copy()}
+                    className="absolute top-2 right-2 rounded p-1 bg-surface-2 text-text-muted hover:text-text-primary transition-colors sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+                    title={copied ? 'Copied' : 'Copy'}
+                    aria-label="Copy webhook URL"
+                >
+                    <Copy className="h-3.5 w-3.5" />
+                </button>
+            </div>
+            {copied && <p className="text-[11px] text-azure">Copied to clipboard.</p>}
+            <p className="text-[11px] text-azure/80 leading-relaxed">
+                In your Twilio console: Phone Numbers → Active → click your number → Messaging → A Message Comes In → Webhook → paste URL → HTTP POST → Save.
+            </p>
         </div>
     )
 }
@@ -595,9 +722,14 @@ export default function ChannelsPage() {
                 />
             </div>
 
-            {/* Config fields — wizard for Telegram, generic for others */}
+            {/* Config fields — wizard for Telegram, dedicated form for Twilio, generic for others */}
             {addState.type === 'telegram' ? (
                 <TelegramWizard
+                    fields={addState.fields}
+                    onChange={(k, v) => setAddState((s) => ({ ...s, fields: { ...s.fields, [k]: v } }))}
+                />
+            ) : addState.type === 'twilio' ? (
+                <TwilioForm
                     fields={addState.fields}
                     onChange={(k, v) => setAddState((s) => ({ ...s, fields: { ...s.fields, [k]: v } }))}
                 />
@@ -626,7 +758,7 @@ export default function ChannelsPage() {
             <div className="flex flex-col sm:flex-row gap-2">
                 <button
                     onClick={() => void handleAdd()}
-                    disabled={saving || !addState.name.trim()}
+                    disabled={saving || !addState.name.trim() || (addState.type === 'twilio' && !validateTwilioFields(addState.fields).valid)}
                     className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                 >
                     {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
@@ -833,6 +965,9 @@ export default function ChannelsPage() {
                         )}
                     </>
                 )}
+
+                {/* Twilio webhook URL */}
+                {selected.type === 'twilio' && <TwilioWebhookSection channelId={selected.id} />}
 
                 {/* Connection cross-reference */}
                 {(() => {

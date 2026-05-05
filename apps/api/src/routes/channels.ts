@@ -19,7 +19,7 @@ import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 
 export const channelsRouter: RouterType = Router()
 
-const VALID_CHANNEL_TYPES = new Set<string>(['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix'])
+const VALID_CHANNEL_TYPES = new Set<string>(['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix', 'twilio'])
 
 // ── GET /api/channels ─────────────────────────────────────────────────────────
 
@@ -66,7 +66,7 @@ channelsRouter.post('/', async (req, res) => {
     try {
         const [created] = await db.insert(channels).values({
             workspaceId,
-            type: type as 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix',
+            type: type as 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix' | 'twilio',
             name,
             config,
             enabled: true,

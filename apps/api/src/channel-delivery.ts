@@ -135,6 +135,8 @@ export function startTaskProgressUpdates(taskId: string, workspaceId: string, co
             await slackSend(context.slackChannel as string, msg, context.threadTs as string | undefined).catch(err => logger.warn({ err, taskId }, 'Slack progress send failed'))
         } else if (context.channel === 'discord' && context.channelId) {
             await discordSend(context.channelId as string, msg).catch(err => logger.warn({ err, taskId }, 'Discord progress send failed'))
+        } else if (context.channel === 'twilio' && context.channelId && context.from) {
+            await twilioSend(context.channelId as string, context.from as string, msg).catch(err => logger.warn({ err, taskId }, 'Twilio progress send failed'))
         }
     }
 
@@ -175,6 +177,49 @@ async function discordSend(channelId: string, content: string): Promise<void> {
     }
 }
 
+// ── Twilio outbound (SMS) ────────────────────────────────────────────────────
+
+interface TwilioConfigShape { accountSid?: string; authToken?: string; fromNumber?: string }
+
+async function loadTwilioConfig(channelId: string): Promise<{ accountSid: string; authToken: string; fromNumber: string } | null> {
+    try {
+        const { db, eq } = await import('@plexo/db')
+        const { channels } = await import('@plexo/db')
+        const [row] = await db.select({ config: channels.config, type: channels.type, enabled: channels.enabled })
+            .from(channels)
+            .where(eq(channels.id, channelId))
+            .limit(1)
+        if (!row || row.type !== 'twilio' || !row.enabled) return null
+        const cfg = (row.config ?? {}) as TwilioConfigShape
+        if (!cfg.accountSid || !cfg.authToken || !cfg.fromNumber) return null
+        return { accountSid: cfg.accountSid, authToken: cfg.authToken, fromNumber: cfg.fromNumber }
+    } catch (err) {
+        logger.warn({ err, channelId }, 'Twilio: loadTwilioConfig failed')
+        return null
+    }
+}
+
+async function twilioSend(channelId: string, to: string, body: string): Promise<void> {
+    const cfg = await loadTwilioConfig(channelId)
+    if (!cfg) {
+        logger.warn({ channelId }, 'Twilio: missing/disabled channel config — cannot deliver')
+        return
+    }
+    try {
+        const { sendTwilioSms } = await import('@plexo/agent/channels/twilio-send')
+        const result = await sendTwilioSms({
+            accountSid: cfg.accountSid,
+            authToken: cfg.authToken,
+            from: cfg.fromNumber,
+            to,
+            body,
+        })
+        if (!result.ok) logger.warn({ channelId, to, error: result.error, status: result.status }, 'Twilio send failed')
+    } catch (err) {
+        logger.warn({ err, channelId, to }, 'Twilio send threw')
+    }
+}
+
 /**
  * Deliver task results to the originating channel.
  *
@@ -200,10 +245,30 @@ export async function deliverToOriginChannel(payload: DeliveryPayload): Promise<
             await deliverToSlack(String(context.chatId), threadTs, summary, error, outcome)
         } else if (context.channel === 'discord') {
             await deliverToDiscord(String(context.chatId), summary, error, outcome)
+        } else if (context.channel === 'twilio') {
+            await deliverToTwilio(context, summary, error, outcome)
         }
     } catch (err) {
         logger.warn({ err, taskId, channel: context.channel, chatId: context.chatId }, 'Channel delivery failed — results available in dashboard')
     }
+}
+
+async function deliverToTwilio(
+    context: TaskContext,
+    summary: string,
+    error: string | undefined,
+    outcome: 'complete' | 'failed',
+): Promise<void> {
+    const channelId = typeof context.channelId === 'string' ? context.channelId : null
+    const to = typeof context.from === 'string' ? context.from : (typeof context.chatId === 'string' ? context.chatId : null)
+    if (!channelId || !to) {
+        logger.warn({ channelId, to }, 'Twilio: missing channelId or recipient — cannot deliver')
+        return
+    }
+    const text = outcome === 'failed'
+        ? translateErrorForUser(error ?? 'Unknown error')
+        : summary
+    await twilioSend(channelId, to, text.slice(0, 1600))
 }
 
 // ── Slack final delivery ─────────────────────────────────────────────────────
@@ -434,6 +499,12 @@ export async function deliverTaskTransition(
         }
         if (context.channel === 'discord') {
             await discordSend(String(context.chatId), text.slice(0, 2000))
+            return
+        }
+        if (context.channel === 'twilio') {
+            const channelId = typeof context.channelId === 'string' ? context.channelId : null
+            const to = typeof context.from === 'string' ? context.from : String(context.chatId)
+            if (channelId && to) await twilioSend(channelId, to, text.slice(0, 1600))
             return
         }
     } catch (err) {

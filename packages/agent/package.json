@@ -82,6 +82,7 @@
     "./foundry": "./src/foundry/index.ts",
     "./channels/reaction-manager": "./src/channels/reaction-manager.ts",
     "./channels/channel-tools": "./src/channels/channel-tools.ts",
+    "./channels/twilio-send": "./src/channels/twilio-send.ts",
     "./tool-set-cache": "./src/tool-set-cache.ts",
     "./memory/cluster": "./src/memory/cluster.ts",
     "./memory/suggest": "./src/memory/suggest.ts",
