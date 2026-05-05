@@ -246,6 +246,24 @@ export interface PlexoSDK {
         send(message: { text: string; priority?: 'normal' | 'high' | 'urgent'; attachments?: unknown[] }): Promise<void>
         /** Requires channel:send-direct */
         sendDirect(channelId: string, message: unknown): Promise<void>
+        /**
+         * §9 — Multi-channel dispatch with idempotency (ADR-15) and per-tool scope override.
+         * Requires channel:dispatch.
+         * `channel` is one of: 'telegram' | 'email' | 'push' | 'sms'.
+         * `idempotencyKey` MUST be unique per logical send; same key returns the prior result.
+         * `scopeOverrides` narrows OAuth scopes for this dispatch (ADR-09).
+         */
+        dispatch(params: {
+            channel: string
+            recipientUserId: string
+            message: {
+                text: string
+                attachments?: unknown[]
+                metadata?: Record<string, unknown>
+            }
+            idempotencyKey: string
+            scopeOverrides?: string[]
+        }): Promise<{ messageId?: string; deliveryStatus?: string }>
     }
 
     // -----------------------------------------------------------------
