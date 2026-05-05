@@ -14,6 +14,7 @@ import { runWeeklyDigest } from './analytics/digest-worker.js'
 import { deleteByPrefix } from '@plexo/storage'
 import { runSynthesisNightly } from './cron/synthesis-nightly.js'
 import { flushRetrievalCounts, decayConfidence } from './cron/confidence-lifecycle.js'
+import { pollAllGmailChannels } from './lib/gmail-poll.js'
 
 export { runRSIMonitor }
 export { runSynthesisNightly }
@@ -263,6 +264,17 @@ const INTERNAL_JOBS: Array<{
             }
         },
     },
+    {
+        // L3 Stage 2 — Gmail-as-channel inbound poller.
+        // No-op stub: actual polling runs in the dedicated setInterval below in
+        // scheduleMemoryConsolidation() (the in-process overdue-checker fires
+        // only every 10 min, too coarse for inbound mail). The dashboard sees
+        // last_run_at via markInternalJobRun in the setInterval handler.
+        name: 'gmail-poll',
+        schedule: '*/1 * * * *',
+        intervalMs: 60 * 1000,
+        handler: async () => { /* see dedicated setInterval below */ },
+    },
 ]
 
 /**
@@ -343,6 +355,27 @@ export function scheduleMemoryConsolidation(): void {
         void runOverdueInternalJobs()
         setInterval(() => { void runOverdueInternalJobs() }, CHECK_INTERVAL)
     }, 2 * 60 * 1000)
+
+    // L3 Stage 2 — dedicated 1-minute Gmail poll loop. The shared
+    // INTERNAL_JOBS overdue-check fires only every 10 min, which is too
+    // coarse for inbound mail. Per-cycle jitter (0-30s) is applied inside
+    // the handler to spread load across instances.
+    const GMAIL_POLL_INTERVAL = 60 * 1000
+    setTimeout(() => {
+        const tick = async (): Promise<void> => {
+            try {
+                const jitter = Math.floor(Math.random() * 30_000)
+                await new Promise((r) => setTimeout(r, jitter))
+                await pollAllGmailChannels()
+                await markInternalJobRun('gmail-poll', 'success')
+            } catch (err) {
+                await markInternalJobRun('gmail-poll', 'failure')
+                logger.error({ err }, 'gmail-poll tick failed')
+            }
+        }
+        void tick()
+        setInterval(() => { void tick() }, GMAIL_POLL_INTERVAL)
+    }, 90 * 1000)
 }
 
 /**

@@ -342,6 +342,11 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
         // by the connected account email so a workspace can connect multiple
         // Google accounts (e.g. personal + work). The `label` column backs
         // the unique index (workspace_id, registry_id, label).
+        // CONTRACT: For Google providers, label === connectedEmail. The
+        // frontend channels UI relies on `label.includes('@')` to extract the
+        // email for the Gmail-connection dropdown — see
+        // apps/web/src/app/app/settings/channels/page.tsx (gmailEmailFromConnection).
+        // Do NOT change this without updating the frontend.
         const connectionLabel = connectedEmail ?? 'default'
         const existing = await db.select({ id: installedConnections.id })
             .from(installedConnections)

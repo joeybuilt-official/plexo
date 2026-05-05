@@ -12,6 +12,7 @@ import {
     Send,
     Hash,
     Phone,
+    Mail,
     Webhook,
     RefreshCw,
     Plus,
@@ -46,18 +47,20 @@ const CHANNEL_TO_REGISTRY: Record<string, string> = {
     telegram: 'telegram',
     slack: 'slack',
     discord: 'discord',
+    gmail: 'gmail',
 }
 
 interface InstalledSummary {
     id: string
     registryId: string
     name: string
+    label?: string
     status: string
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ChannelType = 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix' | 'twilio'
+type ChannelType = 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix' | 'twilio' | 'gmail'
 
 interface Channel {
     id: string
@@ -72,7 +75,7 @@ interface Channel {
 
 // ── Channel type display config ────────────────────────────────────────────────
 
-const CHANNEL_META: Record<ChannelType, { label: string; icon: React.ElementType; color: string; docFields: string[] }> = {
+const CHANNEL_META: Record<ChannelType, { label: string; icon: React.ElementType; color: string; docFields: string[]; description?: string }> = {
     telegram: { label: 'Telegram', icon: Send, color: 'text-sky-400', docFields: ['bot_token', 'webhook_secret'] },
     slack: { label: 'Slack', icon: Hash, color: 'text-azure', docFields: ['bot_token', 'signing_secret', 'app_token'] },
     discord: { label: 'Discord', icon: MessageSquare, color: 'text-azure', docFields: ['application_id', 'public_key', 'bot_token'] },
@@ -80,9 +83,10 @@ const CHANNEL_META: Record<ChannelType, { label: string; icon: React.ElementType
     signal: { label: 'Signal', icon: Send, color: 'text-azure', docFields: ['phone_number'] },
     matrix: { label: 'Matrix', icon: Hash, color: 'text-purple-400', docFields: ['homeserver', 'access_token', 'user_id'] },
     twilio: { label: 'SMS (Twilio)', icon: Phone, color: 'text-rose-400', docFields: ['account_sid', 'auth_token', 'phone_number'] },
+    gmail: { label: 'Gmail', icon: Mail, color: 'text-red-400', docFields: [], description: 'Receive tasks from incoming Gmail messages' },
 }
 
-const AVAILABLE_TYPES: ChannelType[] = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix', 'twilio']
+const AVAILABLE_TYPES: ChannelType[] = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix', 'twilio', 'gmail']
 
 // ── Add channel modal state ───────────────────────────────────────────────────
 
@@ -246,6 +250,132 @@ function TelegramWizard({
 function getPublicUrl(): string {
     if (typeof window !== 'undefined') return window.location.origin
     return ''
+}
+
+// ── Gmail Form ───────────────────────────────────────────────────────────────
+
+export function gmailEmailFromConnection(c: { label?: string; name?: string } | undefined): string {
+    if (!c) return ''
+    // Prefer label (matches Gmail OAuth profile email when set), else fall back to name
+    const candidate = (c.label && c.label !== 'default' ? c.label : c.name) ?? ''
+    return candidate.includes('@') ? candidate : ''
+}
+
+export function buildGmailChannelConfig(
+    installedConnectionId: string | null,
+    connection: { label?: string; name?: string } | undefined,
+): { installedConnectionId: string; emailAddress: string } | null {
+    if (!installedConnectionId) return null
+    return {
+        installedConnectionId,
+        emailAddress: gmailEmailFromConnection(connection),
+    }
+}
+
+export function buildGmailOauthStartUrl(workspaceId: string, apiBase = API_BASE): string {
+    return `${apiBase}/api/v1/oauth/gmail/start?workspaceId=${encodeURIComponent(workspaceId)}`
+}
+
+function startGmailOauth(opts: {
+    workspaceId: string
+    onInstalled: () => void
+    onError: (msg: string) => void
+}): void {
+    const url = buildGmailOauthStartUrl(opts.workspaceId)
+    const popup = window.open(url, 'plexo_gmail_oauth', 'width=600,height=700,left=200,top=100')
+    if (!popup) {
+        opts.onError('Popup blocked — please allow popups for this site, or open Integrations to install Gmail.')
+        return
+    }
+    const handleMessage = (ev: MessageEvent) => {
+        if (ev.data?.type !== 'oauth_callback') return
+        window.removeEventListener('message', handleMessage)
+        if (ev.data.ok) {
+            opts.onInstalled()
+        } else if (ev.data.error === 'setup_required') {
+            opts.onError(`Gmail OAuth not configured: set ${String(ev.data.envVar ?? 'GMAIL_CLIENT_ID')} in the API environment.`)
+        } else {
+            opts.onError(`OAuth failed: ${String(ev.data.error ?? 'unknown')}`)
+        }
+    }
+    window.addEventListener('message', handleMessage)
+    const pollClosed = setInterval(() => {
+        if (popup.closed) {
+            clearInterval(pollClosed)
+            window.removeEventListener('message', handleMessage)
+        }
+    }, 500)
+}
+
+function GmailForm({
+    connections,
+    selectedConnectionId,
+    onSelectConnection,
+    onInstallNew,
+}: {
+    connections: { id: string; label: string; name: string }[]
+    selectedConnectionId: string | null
+    onSelectConnection: (id: string) => void
+    onInstallNew: () => void
+}) {
+    const installButton = (
+        <button
+            type="button"
+            onClick={onInstallNew}
+            aria-label="Install new Gmail connection via OAuth"
+            className="flex items-center justify-center gap-1.5 rounded-sm border border-azure/40 bg-azure/10 px-4 py-2 text-sm font-medium text-azure hover:bg-azure/20 transition-colors min-h-[44px]"
+        >
+            <Plus className="h-4 w-4" />
+            Install new Gmail connection
+        </button>
+    )
+
+    if (connections.length === 0) {
+        return (
+            <div className="flex flex-col gap-3">
+                <p className="text-sm text-text-secondary">
+                    No Gmail connections yet. Install one to receive tasks from incoming messages:
+                </p>
+                {installButton}
+                <p className="text-[11px] text-text-muted">
+                    Plexo polls Gmail using the linked OAuth credentials — no webhook URL required.
+                </p>
+            </div>
+        )
+    }
+
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+                <label htmlFor="gmail-connection-select" className="text-sm font-medium text-text-secondary">
+                    Link existing Gmail connection
+                </label>
+                <select
+                    id="gmail-connection-select"
+                    aria-label="Gmail connection"
+                    value={selectedConnectionId ?? ''}
+                    onChange={(e) => onSelectConnection(e.target.value)}
+                    className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-text-primary focus:border-azure focus-ring"
+                >
+                    <option value="" disabled>Select a Gmail account…</option>
+                    {connections.map((c) => {
+                        const email = gmailEmailFromConnection(c)
+                        return (
+                            <option key={c.id} value={c.id}>
+                                {c.label}{email ? ` (${email})` : ''}
+                            </option>
+                        )
+                    })}
+                </select>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-[11px] uppercase tracking-wide text-text-muted">or</span>
+                <span className="h-px flex-1 bg-border" />
+            </div>
+            {installButton}
+        </div>
+    )
 }
 
 function validateTwilioFields(fields: Record<string, string>): {
@@ -424,6 +554,24 @@ export default function ChannelsPage() {
 
     useEffect(() => { void fetchChannels() }, [fetchChannels])
 
+    // OAuth return handler — when a Gmail install completes via redirect, the
+    // landing URL carries ?install=gmail. Surface a banner and refresh.
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('install') !== 'gmail') return
+        setAdding(true)
+        setAddState((s) => ({ ...s, type: 'gmail' }))
+        setMessage({ ok: true, text: 'Gmail installed — pick the connection above to create your channel.' })
+        void fetchChannels()
+        // Clean the query param so a refresh doesn't re-trigger the banner
+        params.delete('install')
+        const next = params.toString()
+        const url = window.location.pathname + (next ? `?${next}` : '')
+        window.history.replaceState({}, '', url)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     // Reset add form when type changes
     useEffect(() => {
         setAddState((s) => ({ ...s, name: s.name, fields: {} }))
@@ -523,6 +671,18 @@ export default function ChannelsPage() {
         setSaving(true)
         setMessage(null)
         try {
+            let config: Record<string, unknown> = addState.fields
+            if (addState.type === 'gmail') {
+                const id = addState.fields.installedConnectionId ?? null
+                const conn = id ? installedConnections.find((c) => c.id === id) : undefined
+                const built = buildGmailChannelConfig(id, conn)
+                if (!built) {
+                    setSaving(false)
+                    setMessage({ ok: false, text: 'Pick a Gmail connection first.' })
+                    return
+                }
+                config = built
+            }
             const res = await fetch(`${API_BASE}/api/v1/channels`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -530,7 +690,7 @@ export default function ChannelsPage() {
                     workspaceId: WS_ID,
                     type: addState.type,
                     name: addState.name,
-                    config: addState.fields,
+                    config,
                 }),
             })
             if (res.ok) {
@@ -696,7 +856,10 @@ export default function ChannelsPage() {
                         return (
                             <button
                                 key={t}
+                                type="button"
                                 onClick={() => setAddState((s) => ({ ...s, type: t }))}
+                                aria-pressed={addState.type === t}
+                                aria-label={`Channel type: ${m.label}`}
                                 className={`flex flex-col items-center justify-center gap-1.5 rounded-sm border p-2.5 transition-all min-h-[44px] ${addState.type === t
                                     ? 'border-azure/50 bg-surface-2'
                                     : 'border-border hover:border-border'
@@ -722,7 +885,7 @@ export default function ChannelsPage() {
                 />
             </div>
 
-            {/* Config fields — wizard for Telegram, dedicated form for Twilio, generic for others */}
+            {/* Config fields — wizard for Telegram, dedicated forms for Twilio/Gmail, generic for others */}
             {addState.type === 'telegram' ? (
                 <TelegramWizard
                     fields={addState.fields}
@@ -732,6 +895,25 @@ export default function ChannelsPage() {
                 <TwilioForm
                     fields={addState.fields}
                     onChange={(k, v) => setAddState((s) => ({ ...s, fields: { ...s.fields, [k]: v } }))}
+                />
+            ) : addState.type === 'gmail' ? (
+                <GmailForm
+                    connections={installedConnections
+                        .filter((c) => c.registryId === 'gmail')
+                        .map((c) => ({ id: c.id, label: c.label ?? 'default', name: c.name }))}
+                    selectedConnectionId={addState.fields.installedConnectionId ?? null}
+                    onSelectConnection={(id) => setAddState((s) => ({ ...s, fields: { ...s.fields, installedConnectionId: id } }))}
+                    onInstallNew={() => {
+                        if (!WS_ID) return
+                        startGmailOauth({
+                            workspaceId: WS_ID,
+                            onInstalled: () => {
+                                setMessage({ ok: true, text: 'Gmail installed — pick the connection above to create your channel.' })
+                                void fetchChannels()
+                            },
+                            onError: (msg) => setMessage({ ok: false, text: msg }),
+                        })
+                    }}
                 />
             ) : (
                 CHANNEL_META[addState.type].docFields.map((field) => (
@@ -758,7 +940,7 @@ export default function ChannelsPage() {
             <div className="flex flex-col sm:flex-row gap-2">
                 <button
                     onClick={() => void handleAdd()}
-                    disabled={saving || !addState.name.trim() || (addState.type === 'twilio' && !validateTwilioFields(addState.fields).valid)}
+                    disabled={saving || !addState.name.trim() || (addState.type === 'twilio' && !validateTwilioFields(addState.fields).valid) || (addState.type === 'gmail' && !addState.fields.installedConnectionId)}
                     className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-4 py-2 text-sm font-medium text-text-primary hover:bg-azure/90 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                 >
                     {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
@@ -806,6 +988,7 @@ export default function ChannelsPage() {
                     <button
                         onClick={() => void handleToggle(selected)}
                         disabled={toggling === selected.id}
+                        aria-pressed={selected.enabled}
                         title={selected.enabled ? 'Disable' : 'Enable'}
                         className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0"
                     >
@@ -817,13 +1000,15 @@ export default function ChannelsPage() {
                         }
                         {selected.enabled ? 'Enabled' : 'Disabled'}
                     </button>
-                    <button
-                        onClick={() => editing ? cancelEditing() : startEditing(selected)}
-                        className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0"
-                    >
-                        {editing ? <X className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
-                        {editing ? 'Cancel' : 'Edit'}
-                    </button>
+                    {selected.type !== 'gmail' && (
+                        <button
+                            onClick={() => editing ? cancelEditing() : startEditing(selected)}
+                            className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0"
+                        >
+                            {editing ? <X className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+                            {editing ? 'Cancel' : 'Edit'}
+                        </button>
+                    )}
                     <button
                         onClick={() => void handleDelete(selected.id)}
                         disabled={deleting === selected.id}
@@ -862,6 +1047,37 @@ export default function ChannelsPage() {
                         </p>
                     </div>
                 </div>
+
+                {/* Gmail-specific summary (linked email + last poll) */}
+                {selected.type === 'gmail' && (() => {
+                    const cfg = selected.config as { installedConnectionId?: string; emailAddress?: string; lastPolledAt?: string }
+                    const linkedConn = cfg.installedConnectionId
+                        ? installedConnections.find((i) => i.id === cfg.installedConnectionId)
+                        : undefined
+                    return (
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-4 flex flex-col gap-3">
+                            <h3 className="text-xs font-medium uppercase tracking-wider text-text-muted">Gmail account</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[11px] uppercase tracking-wide text-text-muted">Email address</span>
+                                    <span className="font-mono text-text-primary break-all">{cfg.emailAddress || '—'}</span>
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[11px] uppercase tracking-wide text-text-muted">Connection</span>
+                                    <span className="text-text-secondary">{linkedConn ? (linkedConn.label ?? linkedConn.name) : '—'}</span>
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[11px] uppercase tracking-wide text-text-muted">Last poll</span>
+                                    <span className="text-text-secondary flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        {cfg.lastPolledAt ? timeAgo(cfg.lastPolledAt) : '—'}
+                                    </span>
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-text-muted">Gmail uses polling — no webhook configuration required.</p>
+                        </div>
+                    )
+                })()}
 
                 {/* Edit form or read-only config */}
                 {editing ? (
@@ -949,8 +1165,8 @@ export default function ChannelsPage() {
                     </div>
                 ) : (
                     <>
-                        {/* Config keys (masked) */}
-                        {Object.keys(selected.config).length > 0 && (
+                        {/* Config keys (masked) — suppressed for gmail (its Gmail account card above covers it) */}
+                        {selected.type !== 'gmail' && Object.keys(selected.config).length > 0 && (
                             <div className="rounded-sm border border-border bg-surface-1/40 p-4">
                                 <h3 className="text-xs font-medium uppercase tracking-wider text-text-muted mb-3">Configuration</h3>
                                 <div className="flex flex-col gap-2">

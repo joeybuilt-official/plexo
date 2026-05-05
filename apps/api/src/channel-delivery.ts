@@ -137,6 +137,8 @@ export function startTaskProgressUpdates(taskId: string, workspaceId: string, co
             await discordSend(context.channelId as string, msg).catch(err => logger.warn({ err, taskId }, 'Discord progress send failed'))
         } else if (context.channel === 'twilio' && context.channelId && context.from) {
             await twilioSend(context.channelId as string, context.from as string, msg).catch(err => logger.warn({ err, taskId }, 'Twilio progress send failed'))
+        } else if (context.channel === 'gmail' && context.channelId && context.from) {
+            await gmailSendProgress(context, msg).catch(err => logger.warn({ err, taskId }, 'Gmail progress send failed'))
         }
     }
 
@@ -237,6 +239,9 @@ export async function deliverToOriginChannel(payload: DeliveryPayload): Promise<
         return
     }
 
+    // ADR 0003 §pre-mortem Cause 2: refactor-to-switch threshold is 6-7 channels.
+    // Channel count = 5 (telegram, slack, discord, twilio, gmail). Still under;
+    // revisit this if/when a 6th channel lands.
     try {
         if (context.channel === 'telegram') {
             await deliverToTelegram(workspaceId, context.chatId, taskId, summary, assets, error, outcome)
@@ -247,6 +252,8 @@ export async function deliverToOriginChannel(payload: DeliveryPayload): Promise<
             await deliverToDiscord(String(context.chatId), summary, error, outcome)
         } else if (context.channel === 'twilio') {
             await deliverToTwilio(context, summary, error, outcome)
+        } else if (context.channel === 'gmail') {
+            await deliverToGmail(context, summary, error, outcome)
         }
     } catch (err) {
         logger.warn({ err, taskId, channel: context.channel, chatId: context.chatId }, 'Channel delivery failed — results available in dashboard')
@@ -269,6 +276,58 @@ async function deliverToTwilio(
         ? translateErrorForUser(error ?? 'Unknown error')
         : summary
     await twilioSend(channelId, to, text.slice(0, 1600))
+}
+
+// ── Gmail outbound (reply in-thread) ─────────────────────────────────────────
+
+async function gmailSendProgress(context: TaskContext, text: string): Promise<void> {
+    const channelId = typeof context.channelId === 'string' ? context.channelId : null
+    const to = typeof context.from === 'string' ? context.from : (typeof context.chatId === 'string' ? context.chatId : null)
+    if (!channelId || !to) return
+    const subject = buildGmailSubject(context)
+    const threadId = typeof context.threadId === 'string' ? context.threadId : undefined
+    const inReplyTo = typeof context.messageId === 'string' ? context.messageId : undefined
+    try {
+        const { gmailSend } = await import('@plexo/agent/channels/gmail-send')
+        const result = await gmailSend({ channelId, to, subject, body: text, threadId, inReplyTo })
+        if (!result.ok) logger.warn({ channelId, status: result.status, error: result.error }, 'Gmail progress send failed')
+    } catch (err) {
+        logger.warn({ err, channelId }, 'Gmail progress send threw')
+    }
+}
+
+function buildGmailSubject(context: TaskContext): string {
+    const original = typeof context.subject === 'string' ? context.subject : ''
+    if (original) {
+        return /^re:/i.test(original) ? original : `Re: ${original}`
+    }
+    return 'Re: Plexo task complete'
+}
+
+export async function deliverToGmail(
+    context: TaskContext,
+    summary: string,
+    error: string | undefined,
+    outcome: 'complete' | 'failed',
+): Promise<void> {
+    const channelId = typeof context.channelId === 'string' ? context.channelId : null
+    const to = typeof context.from === 'string' ? context.from : (typeof context.chatId === 'string' ? context.chatId : null)
+    if (!channelId || !to) {
+        throw new Error(`Gmail: missing channelId or recipient (channelId=${channelId}, to=${to})`)
+    }
+    const body = outcome === 'failed'
+        ? translateErrorForUser(error ?? 'Unknown error')
+        : summary
+    const subject = buildGmailSubject(context)
+    const threadId = typeof context.threadId === 'string' ? context.threadId : undefined
+    const inReplyTo = typeof context.messageId === 'string' ? context.messageId : undefined
+    const { gmailSend } = await import('@plexo/agent/channels/gmail-send')
+    const result = await gmailSend({ channelId, to, subject, body, threadId, inReplyTo })
+    if (!result.ok) {
+        // Surface the failure so deliverToOriginChannel's outer catch can log
+        // it loudly — silent swallow would leave a thread without the reply.
+        throw new Error(`Gmail delivery failed: ${result.error ?? `HTTP ${result.status ?? '?'}`}`)
+    }
 }
 
 // ── Slack final delivery ─────────────────────────────────────────────────────
@@ -505,6 +564,12 @@ export async function deliverTaskTransition(
             const channelId = typeof context.channelId === 'string' ? context.channelId : null
             const to = typeof context.from === 'string' ? context.from : String(context.chatId)
             if (channelId && to) await twilioSend(channelId, to, text.slice(0, 1600))
+            return
+        }
+        if (context.channel === 'gmail') {
+            const channelId = typeof context.channelId === 'string' ? context.channelId : null
+            const to = typeof context.from === 'string' ? context.from : String(context.chatId)
+            if (channelId && to) await gmailSendProgress(context, text)
             return
         }
     } catch (err) {

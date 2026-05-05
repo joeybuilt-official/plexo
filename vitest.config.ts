@@ -32,6 +32,8 @@ export default defineConfig({
             '@plexo/agent/memory/promote': resolve(root, 'packages/agent/src/memory/promote.ts'),
             '@plexo/agent/types': resolve(root, 'packages/agent/src/types.ts'),
             '@plexo/agent/embeddings/router': resolve(root, 'packages/agent/src/embeddings/router.ts'),
+            '@plexo/agent/channels/gmail-send': resolve(root, 'packages/agent/src/channels/gmail-send.ts'),
+            '@plexo/agent/connections/crypto-util': resolve(root, 'packages/agent/src/connections/crypto-util.ts'),
             '@plexo/agent/embeddings/adapters': resolve(root, 'packages/agent/src/embeddings/adapters.ts'),
             '@plexo/db/work-kind': resolve(root, 'packages/db/src/work-kind.ts'),
             '@plexo/db': resolve(root, 'packages/db/src/index.ts'),

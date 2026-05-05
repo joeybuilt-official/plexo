@@ -40,6 +40,7 @@ export const channelTypeEnum = pgEnum('channel_type', [
     'irc',
     'webchat',
     'twilio',
+    'gmail',
 ])
 
 export const taskTypeEnum = pgEnum('task_type', [
@@ -87,6 +88,7 @@ export const taskSourceEnum = pgEnum('task_source', [
     'a2a',
     'webhook',
     'twilio',
+    'gmail',
 ])
 
 export const taskStepStateEnum = pgEnum('task_step_state', [
@@ -274,6 +276,8 @@ export const channels = pgTable('channels', {
     enabled: boolean('enabled').default(true).notNull(),
     lastMessageAt: timestamp('last_message_at', { mode: 'date' }),
     errorCount: integer('error_count').default(0).notNull(),
+    lastError: text('last_error'),
+    lastErrorAt: timestamp('last_error_at', { withTimezone: true, mode: 'date' }),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table: any) => [
     index('channels_workspace_idx').on(table.workspaceId),
