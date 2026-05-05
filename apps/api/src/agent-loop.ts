@@ -1646,7 +1646,7 @@ async function cleanupStaleTasks(): Promise<void> {
                 AND created_at < NOW() - (COALESCE(wall_clock_limit_sec, 604800) * INTERVAL '1 second')
             ) OR (
                 status = 'awaiting_approval'
-                AND created_at < NOW() - (COALESCE(wall_clock_limit_sec, 90000) * INTERVAL '1 second')
+                AND created_at < NOW() - (COALESCE(wall_clock_limit_sec, 86400) * INTERVAL '1 second')
             )
             LIMIT 50
         `)
@@ -1688,6 +1688,45 @@ async function cleanupStaleTasks(): Promise<void> {
         }
     } catch (err) {
         logger.warn({ err }, 'Stale task cleanup failed — non-fatal')
+    }
+}
+
+// Mark long-failed tasks as archive-ready so the downstream archive job
+// (nexalog stale-archive endpoint, scanner, ops tooling) has an explicit
+// signal to act on. The task row itself is left intact — failure_reason and
+// outcome_summary remain queryable, which is what the breaker scanner needs.
+//
+// Tasks failed downstream of a disabled provider (no_ai_credential) emit the
+// event with reason='provider_disabled'; the consumer can choose to defer
+// archive until the credential is rotated.
+async function markFailedTasksArchiveReady(): Promise<void> {
+    try {
+        const candidates = await db.execute<{ id: string; workspace_id: string; failure_reason: string | null }>(sql`
+            SELECT t.id, t.workspace_id, t.failure_reason FROM tasks t
+            WHERE t.status = 'failed'
+              AND t.failed_at IS NOT NULL
+              AND t.failed_at < NOW() - INTERVAL '2 hours'
+              AND NOT EXISTS (
+                  SELECT 1 FROM plexo_ops_task_events e
+                  WHERE e.task_id = t.id AND e.event_type = 'archive_ready'
+              )
+            LIMIT 200
+        `)
+        if (candidates.length === 0) return
+        for (const row of candidates) {
+            const reason = row.failure_reason === 'no_ai_credential' ? 'provider_disabled' : 'wall_clock_archive'
+            void recordTaskEvent({
+                workspaceId: row.workspace_id,
+                taskId: row.id,
+                eventType: 'archive_ready',
+                fromState: 'failed',
+                toState: 'failed',
+                metadata: { reason, failureReason: row.failure_reason },
+            })
+        }
+        logger.info({ count: candidates.length }, 'Marked failed tasks as archive_ready')
+    } catch (err) {
+        logger.warn({ err }, 'archive_ready sweep failed — non-fatal')
     }
 }
 
@@ -1794,6 +1833,10 @@ export function startAgentLoop(): void {
     // Clean up stale blocked tasks at startup + every 30 minutes
     void cleanupStaleTasks()
     setInterval(() => { void cleanupStaleTasks() }, 30 * 60 * 1000)
+
+    // Mark long-failed tasks archive_ready — every 30 minutes
+    void markFailedTasksArchiveReady()
+    setInterval(() => { void markFailedTasksArchiveReady() }, 30 * 60 * 1000)
 
     // Ghost task recovery — every 5 minutes
     void recoverGhostTasks()
