@@ -225,6 +225,11 @@ counter('plexo_embedding_dimension_mismatch_total', 'Embedding dimension mismatc
 // standing-approval lockout protects it the same way it protects OWDs.
 counter('plexo_policy_only_gate_standing_approval_passes_total', 'Policy-only CONFIRM gates auto-approved by a workspace standing approval (footgun signal)')
 
+// L5 (ADR 0006 §D2/§D3/§D4): outbound channel tool calls auto-elevated to OWD
+// regardless of planner verdict. Each increment = one tool that the
+// elevation pass added to plan.oneWayDoors. Labels: tool, provider.
+counter('plexo_owd_elevation_outbound_total', 'Outbound channel tool calls auto-elevated to OWD by the deterministic elevation pass')
+
 // ── Request timing middleware ──────────────────────────────────
 
 /**

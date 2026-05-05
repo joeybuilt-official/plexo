@@ -11,6 +11,8 @@ import {
     extensions,
     extensionRegistry,
     appProfiles,
+    DEFAULT_INTELLIGENCE_SETTINGS,
+    DEFAULT_WORKSPACE_SETTINGS,
 } from '@plexo/db'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
@@ -97,9 +99,9 @@ authRouter.post('/workspace/ensure', requireServiceKey, async (req, res) => {
         const [ws] = await db.insert(workspaces).values({
             name: displayName,
             ownerId: userId,
-            settings: {},
+            settings: DEFAULT_WORKSPACE_SETTINGS,
             // Phase 6 — flag for first-run wizard.
-            intelligenceSettings: { firstRunPending: true },
+            intelligenceSettings: DEFAULT_INTELLIGENCE_SETTINGS,
         }).returning({ workspaceId: workspaces.id, name: workspaces.name })
 
         if (!ws) {
@@ -170,8 +172,8 @@ authRouter.post('/profiles/auto-attach-user', requireServiceKey, async (req, res
             const [ws] = await db.insert(workspaces).values({
                 name: displayName,
                 ownerId: userId,
-                settings: {},
-                intelligenceSettings: { firstRunPending: true },
+                settings: DEFAULT_WORKSPACE_SETTINGS,
+                intelligenceSettings: DEFAULT_INTELLIGENCE_SETTINGS,
             }).returning({ id: workspaces.id })
             if (!ws) {
                 res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Workspace create failed' } })
@@ -332,9 +334,9 @@ authRouter.post('/workspace', optionalAuth, async (req, res) => {
         const [ws] = await db.insert(workspaces).values({
             name: name.trim(),
             ownerId: resolvedOwnerId,
-            settings: {},
+            settings: DEFAULT_WORKSPACE_SETTINGS,
             // Phase 6 — flag for first-run wizard.
-            intelligenceSettings: { firstRunPending: true },
+            intelligenceSettings: DEFAULT_INTELLIGENCE_SETTINGS,
         }).returning({ workspaceId: workspaces.id })
 
         if (!ws) {

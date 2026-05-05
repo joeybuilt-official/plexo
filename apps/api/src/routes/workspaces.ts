@@ -3,7 +3,7 @@
 
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, desc, and, inArray, sql } from '@plexo/db'
-import { workspaces, workspaceMembers, tasks, conversations, memoryEntries, behaviorRules } from '@plexo/db'
+import { workspaces, workspaceMembers, tasks, conversations, memoryEntries, behaviorRules, DEFAULT_INTELLIGENCE_SETTINGS, DEFAULT_WORKSPACE_SETTINGS } from '@plexo/db'
 import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/db/auth/config'
 import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
@@ -155,10 +155,10 @@ workspacesRouter.post('/', async (req, res) => {
                 .values({
                     name: name.trim(),
                     ownerId,
-                    settings: {},
+                    settings: DEFAULT_WORKSPACE_SETTINGS,
                     // Phase 6 — flag for first-run wizard. The dashboard
                     // banner reads this and walks the user through setup.
-                    intelligenceSettings: { firstRunPending: true },
+                    intelligenceSettings: DEFAULT_INTELLIGENCE_SETTINGS,
                 })
                 .returning({ id: workspaces.id, name: workspaces.name })
 

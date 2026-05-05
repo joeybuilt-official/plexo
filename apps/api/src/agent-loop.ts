@@ -24,7 +24,7 @@ import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
 import { getDecryptedBraveKey } from './routes/search.js'
 import { claimBatch, releaseSlot, extendSlot, HEARTBEAT_INTERVAL_MS } from './parallel-executor.js'
 import { logSprintHandoff } from '@plexo/agent/sprint/sprint-ledger'
-import { requestApproval, waitForDecision, getDecision, type PendingDecision } from '@plexo/agent/one-way-door'
+import { requestApproval, waitForDecision, getDecision, elevateOutboundOneWayDoors, type PendingDecision } from '@plexo/agent/one-way-door'
 import { getCachedIntelligenceSettings, type IntelligenceSettings } from './lib/intelligence-cache.js'
 import { incrementCounter } from './lib/metrics.js'
 
@@ -872,6 +872,21 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
 
         const policy = await loadWorkspaceApprovalPolicy(taskWorkspaceId)
+
+        // L5 (ADR 0006 §D2/§D3): deterministic OWD elevation for outbound
+        // channel tool calls. Augments plan.oneWayDoors regardless of LLM
+        // classifier verdict so Tom's persona is protected even if the
+        // planner missed the irreversibility flag.
+        const elevation = elevateOutboundOneWayDoors(plan)
+        if (elevation.addedCount > 0) {
+            plan.oneWayDoors = elevation.oneWayDoors as typeof plan.oneWayDoors
+            for (const tool of elevation.addedTools) {
+                const provider = tool.split('__')[0] ?? ''
+                incrementCounter('plexo_owd_elevation_outbound_total', { tool, provider })
+            }
+            logger.info({ taskId: task.id, addedCount: elevation.addedCount, addedTools: elevation.addedTools }, 'OWD elevated for outbound channel tools')
+        }
+
         const mustGate = plan.oneWayDoors.length > 0 || policy.requireApprovalForGeneralTasks
 
         // Phase F1: request approval up-front (when gated) so the inline plan

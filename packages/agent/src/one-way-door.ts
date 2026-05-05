@@ -34,6 +34,86 @@ import { eventBus, TOPICS } from './plugins/event-bus.js'
 
 const logger = pino({ name: 'one-way-door' })
 
+// ── Outbound-channel OWD elevation (ADR 0006 §D2/§D3) ──────────────────────
+// Deterministic safety net: regardless of LLM classifier verdict, any step
+// that calls an outbound communication tool gets an OWD entry synthesized so
+// the CONFIRM gate fires. Pure, side-effect-free; safe to import anywhere.
+
+// matches connection-tool naming pattern <provider>__<action>; see ADR 0006 §D2
+// Conservative: any verb that produces externally-visible side effects.
+// Stage 3 review extended this set after auditing the connection registry —
+// pagerduty trigger, github PR/push/merge, calendar invites, drafts, etc.
+const OUTBOUND_VERB_FRAGMENTS: readonly string[] = [
+    '__send_',
+    '__reply_',
+    '__post_',
+    '__create_draft',
+    '__create_event',
+    '__update_event',
+    '__trigger_',
+    '__publish_',
+    '__notify_',
+    '__dispatch_',
+    '__deliver_',
+    '__forward_',
+    '__open_pr',
+    '__merge_pr',
+    '__push_file',
+] as const
+
+export function isOutboundChannelTool(toolName: string): boolean {
+    if (!toolName) return false
+    return OUTBOUND_VERB_FRAGMENTS.some((frag) => toolName.includes(frag))
+}
+
+interface ElevationOWD {
+    description: string
+    type: string
+    reversibility: string
+    requiresApproval: boolean
+}
+
+interface ElevationPlan {
+    steps: Array<{ toolsRequired?: string[] }>
+    oneWayDoors: ElevationOWD[]
+}
+
+interface ElevationResult {
+    addedCount: number
+    addedTools: string[]
+    oneWayDoors: ElevationOWD[]
+}
+
+export function elevateOutboundOneWayDoors(plan: ElevationPlan): ElevationResult {
+    const existing = plan.oneWayDoors ?? []
+    const seenTools = new Set<string>()
+    const added: ElevationOWD[] = []
+    const addedTools: string[] = []
+
+    for (const step of plan.steps ?? []) {
+        for (const tool of step.toolsRequired ?? []) {
+            if (!isOutboundChannelTool(tool)) continue
+            if (seenTools.has(tool)) continue
+            seenTools.add(tool)
+            // Dedupe: skip if planner already classified this exact tool
+            if (existing.some((o) => typeof o.description === 'string' && o.description.includes(tool))) continue
+            added.push({
+                description: `Outbound channel call: ${tool} (auto-elevated for safety per ADR 0006)`,
+                type: 'external_call',
+                reversibility: 'irreversible — outbound communication leaves the system',
+                requiresApproval: true,
+            })
+            addedTools.push(tool)
+        }
+    }
+
+    return {
+        addedCount: added.length,
+        addedTools,
+        oneWayDoors: added.length > 0 ? [...existing, ...added] : existing,
+    }
+}
+
 const DEFAULT_ESCALATION_TIMEOUT_HOURS = 24
 /** TTL must exceed the max escalation timeout (default 24h) so the Redis
  *  key never expires while waitForDecision is still polling. Add 1h buffer. */

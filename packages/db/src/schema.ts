@@ -247,6 +247,17 @@ export const workspaces = pgTable('workspaces', {
     updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).defaultNow().notNull(),
 })
 
+// applied at workspace creation; existing rows untouched
+export const DEFAULT_INTELLIGENCE_SETTINGS = {
+    firstRunPending: true,
+} as const
+
+// applied to workspaces.settings at creation; loadWorkspaceApprovalPolicy
+// reads from this column (not intelligenceSettings) — see ADR 0006 §D1
+export const DEFAULT_WORKSPACE_SETTINGS = {
+    requireApprovalForGeneralTasks: true,
+} as const
+
 export const workspaceKeyShares = pgTable('workspace_key_shares', {
     id: text('id').primaryKey(),  // ulid
     sourceWsId: uuid('source_ws_id')

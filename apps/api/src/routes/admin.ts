@@ -8,7 +8,7 @@
 
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, desc, sql, count } from '@plexo/db'
-import { workspaces, tasks, users, conversations, installedConnections, memoryEntries, auditLog, workspaceMembers } from '@plexo/db'
+import { workspaces, tasks, users, conversations, installedConnections, memoryEntries, auditLog, workspaceMembers, DEFAULT_INTELLIGENCE_SETTINGS, DEFAULT_WORKSPACE_SETTINGS } from '@plexo/db'
 import { logger } from '../logger.js'
 
 export const adminRouter: RouterType = Router()
@@ -334,8 +334,8 @@ adminRouter.post('/workspaces', async (req, res) => {
         const [ws] = await db.insert(workspaces).values({
             name,
             ownerId,
-            // Phase 6 — flag for first-run wizard.
-            intelligenceSettings: { firstRunPending: true },
+            settings: DEFAULT_WORKSPACE_SETTINGS,
+            intelligenceSettings: DEFAULT_INTELLIGENCE_SETTINGS,
         }).returning({
             id: workspaces.id,
             name: workspaces.name,

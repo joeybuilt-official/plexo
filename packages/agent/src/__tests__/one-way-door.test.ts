@@ -87,6 +87,8 @@ import {
     getDecision,
     resolveDecision,
     listPending,
+    isOutboundChannelTool,
+    elevateOutboundOneWayDoors,
     type PendingDecision,
 } from '../one-way-door.js'
 
@@ -291,5 +293,170 @@ describe('listPending', () => {
         // Only the unresolved one should appear
         expect(list).toHaveLength(1)
         expect(list[0]!.taskId).toBe('task-b')
+    })
+})
+
+// ── isOutboundChannelTool (ADR 0006 §D2) ──────────────────────────────────
+
+describe('isOutboundChannelTool', () => {
+    it('matches outbound send_* tools across providers', () => {
+        expect(isOutboundChannelTool('gmail__send_email')).toBe(true)
+        expect(isOutboundChannelTool('twilio__send_sms')).toBe(true)
+        expect(isOutboundChannelTool('levio__send_email')).toBe(true)
+        expect(isOutboundChannelTool('telegram__send_message')).toBe(true)
+        expect(isOutboundChannelTool('discord__send_message')).toBe(true)
+        expect(isOutboundChannelTool('slack__send_message')).toBe(true)
+    })
+
+    it('matches reply_* and post_* tools', () => {
+        expect(isOutboundChannelTool('gmail__reply_to_thread')).toBe(true)
+        expect(isOutboundChannelTool('slack__post_message')).toBe(true)
+    })
+
+    it('rejects non-outbound tools', () => {
+        expect(isOutboundChannelTool('read_file')).toBe(false)
+        expect(isOutboundChannelTool('shell')).toBe(false)
+        expect(isOutboundChannelTool('gmail__list_emails')).toBe(false)
+        expect(isOutboundChannelTool('github__create_pull_request')).toBe(false)
+    })
+
+    it('matches db__send_query (documented false positive — see ADR 0006 L5.5 #3)', () => {
+        // Predicate is naming-pattern-based; if a future internal tool names
+        // itself with __send_/__reply_/__post_ it will trip the gate. Acceptable
+        // bias: false positives prompt for confirmation; false negatives leak.
+        expect(isOutboundChannelTool('db__send_query')).toBe(true)
+    })
+
+    it('rejects empty / undefined-ish input', () => {
+        expect(isOutboundChannelTool('')).toBe(false)
+    })
+
+    // Stage 3 security review (ADR 0006) extended the predicate to cover more
+    // verbs after auditing the connection registry — pagerduty trigger, github
+    // PR/push/merge, calendar invites, drafts, etc.
+    it('matches extended outbound verbs (Stage 3 security review)', () => {
+        expect(isOutboundChannelTool('gmail__create_draft')).toBe(true)
+        expect(isOutboundChannelTool('google_calendar__create_event')).toBe(true)
+        expect(isOutboundChannelTool('outlook__update_event')).toBe(true)
+        expect(isOutboundChannelTool('pagerduty__trigger_incident')).toBe(true)
+        expect(isOutboundChannelTool('github__open_pr')).toBe(true)
+        expect(isOutboundChannelTool('github__merge_pr')).toBe(true)
+        expect(isOutboundChannelTool('github__push_file')).toBe(true)
+        expect(isOutboundChannelTool('webhook__publish_event')).toBe(true)
+        expect(isOutboundChannelTool('alerting__notify_oncall')).toBe(true)
+        expect(isOutboundChannelTool('queue__dispatch_job')).toBe(true)
+        expect(isOutboundChannelTool('shipping__deliver_package')).toBe(true)
+        expect(isOutboundChannelTool('mail__forward_thread')).toBe(true)
+    })
+})
+
+// ── elevateOutboundOneWayDoors (ADR 0006 §D3) ─────────────────────────────
+
+describe('elevateOutboundOneWayDoors', () => {
+    function makePlan(overrides: {
+        steps?: Array<{ toolsRequired?: string[] }>
+        oneWayDoors?: Array<{ description: string; type: string; reversibility: string; requiresApproval: boolean }>
+    } = {}) {
+        return {
+            steps: overrides.steps ?? [],
+            oneWayDoors: overrides.oneWayDoors ?? [],
+        }
+    }
+
+    it('synthesizes a new OWD for an outbound tool when no covering OWD exists', () => {
+        const plan = makePlan({
+            steps: [{ toolsRequired: ['gmail__send_email'] }],
+            oneWayDoors: [],
+        })
+        const result = elevateOutboundOneWayDoors(plan)
+        expect(result.addedCount).toBe(1)
+        expect(result.addedTools).toEqual(['gmail__send_email'])
+        expect(result.oneWayDoors).toHaveLength(1)
+        const synth = result.oneWayDoors[0]!
+        expect(synth.type).toBe('external_call')
+        expect(synth.requiresApproval).toBe(true)
+        expect(synth.description).toContain('gmail__send_email')
+        expect(synth.reversibility).toContain('irreversible')
+    })
+
+    it('preserves existing OWDs when planner already classified the tool', () => {
+        const plan = makePlan({
+            steps: [{ toolsRequired: ['gmail__send_email'] }],
+            oneWayDoors: [{
+                description: 'Send notification via gmail__send_email to ops',
+                type: 'external_call',
+                reversibility: 'irreversible',
+                requiresApproval: true,
+            }],
+        })
+        const result = elevateOutboundOneWayDoors(plan)
+        expect(result.addedCount).toBe(0)
+        expect(result.addedTools).toHaveLength(0)
+        expect(result.oneWayDoors).toHaveLength(1)
+        // Original entry should be preserved
+        expect(result.oneWayDoors[0]!.description).toBe('Send notification via gmail__send_email to ops')
+    })
+
+    it('dedupes by description-contains-toolName substring match', () => {
+        const plan = makePlan({
+            steps: [
+                { toolsRequired: ['gmail__send_email'] },
+                { toolsRequired: ['gmail__send_email', 'twilio__send_sms'] },
+            ],
+            oneWayDoors: [{
+                description: 'Outbound: twilio__send_sms to user',
+                type: 'external_call',
+                reversibility: 'irreversible',
+                requiresApproval: true,
+            }],
+        })
+        const result = elevateOutboundOneWayDoors(plan)
+        // gmail tool elevated once (deduped against itself across steps)
+        // twilio tool already covered by existing OWD
+        expect(result.addedCount).toBe(1)
+        expect(result.addedTools).toEqual(['gmail__send_email'])
+        expect(result.oneWayDoors).toHaveLength(2)
+    })
+
+    it('does nothing when no outbound tools are present', () => {
+        const plan = makePlan({
+            steps: [
+                { toolsRequired: ['read_file', 'shell'] },
+                { toolsRequired: ['github__create_pull_request'] },
+            ],
+        })
+        const result = elevateOutboundOneWayDoors(plan)
+        expect(result.addedCount).toBe(0)
+        expect(result.addedTools).toEqual([])
+        expect(result.oneWayDoors).toEqual([])
+    })
+
+    it('handles empty plans / steps without throwing', () => {
+        const result = elevateOutboundOneWayDoors({ steps: [], oneWayDoors: [] })
+        expect(result.addedCount).toBe(0)
+        expect(result.oneWayDoors).toEqual([])
+    })
+
+    it('handles steps with missing toolsRequired arrays', () => {
+        const plan = makePlan({ steps: [{}, { toolsRequired: ['gmail__send_email'] }] })
+        const result = elevateOutboundOneWayDoors(plan)
+        expect(result.addedCount).toBe(1)
+        expect(result.addedTools).toEqual(['gmail__send_email'])
+    })
+
+    it('elevates multiple distinct outbound tools across steps with correct telemetry', () => {
+        const plan = makePlan({
+            steps: [
+                { toolsRequired: ['gmail__send_email'] },
+                { toolsRequired: ['slack__post_message'] },
+                { toolsRequired: ['twilio__send_sms'] },
+                { toolsRequired: ['read_file'] },
+            ],
+        })
+        const result = elevateOutboundOneWayDoors(plan)
+        expect(result.addedCount).toBe(3)
+        expect(result.addedTools.sort()).toEqual(['gmail__send_email', 'slack__post_message', 'twilio__send_sms'])
+        expect(result.oneWayDoors).toHaveLength(3)
+        expect(result.oneWayDoors.every((o) => o.type === 'external_call' && o.requiresApproval === true)).toBe(true)
     })
 })
