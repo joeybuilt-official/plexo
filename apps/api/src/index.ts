@@ -61,6 +61,7 @@ import { userSelfRouter } from './routes/user-self.js'
 import { registryRouter } from './routes/registry.js'
 import { hubRouter } from './routes/hub.js'
 import { analyticsRouter } from './analytics/router.js'
+import { channelDispatchRouter } from './routes/channel-dispatch.js'
 import { configureAnalytics, syncAnalyticsFromDB } from './analytics/config.js'
 import { clarificationRouter } from './routes/clarification.js'
 // External error webhooks removed — analytics uses native relay
@@ -245,6 +246,7 @@ v1.use('/stabilization', jsonDefault, stabilizationRouter) // service-key auth (
 v1.use('/profiles', jsonDefault, profilesRouter) // service-key auth (self-contained — app registration)
 v1.use('/s', jsonDefault, publicShareRouter) // public share links — no auth
 v1.use('/analytics', jsonDefault, analyticsRouter) // public: ingest, config read — no session required
+v1.use('/channel', jsonDefault, channelDispatchRouter) // service-key auth (Bearer + X-App-Id, self-contained)
 
 // ── Authenticated routes ─────────────────────────────────────
 // Everything mounted after this line requires a valid session.
