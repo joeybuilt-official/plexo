@@ -153,7 +153,7 @@ beforeEach(async () => {
     vi.clearAllMocks()
     // Reset dedup map between tests
     const mod = await import('../twilio.js')
-    mod._resetTwilioDedupForTests()
+    await mod._resetTwilioDedupForTests()
 })
 
 afterAll(() => { server?.close() })

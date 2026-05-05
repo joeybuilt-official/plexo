@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { describe, it, expect } from 'vitest'
-import { isSSRFSafeUrl } from '../ssrf-guard.js'
+import { isSSRFSafeUrl, resolveAndCheckSSRFSafe } from '../ssrf-guard.js'
 
 describe('isSSRFSafeUrl', () => {
     describe('selfhosted / embedded mode', () => {
@@ -61,5 +61,67 @@ describe('isSSRFSafeUrl', () => {
             expect(r.ok).toBe(false)
             if (!r.ok) expect(r.reason).toMatch(/private/i)
         })
+    })
+})
+
+describe('resolveAndCheckSSRFSafe (DNS-rebind protection)', () => {
+    it('no-ops on selfhosted / embedded', async () => {
+        await expect(resolveAndCheckSSRFSafe('http://anything.example.com', 'selfhosted')).resolves.toEqual({ ok: true })
+        await expect(resolveAndCheckSSRFSafe('http://localhost', 'embedded')).resolves.toEqual({ ok: true })
+    })
+
+    it('rejects on cloud when sync check already fails', async () => {
+        const r = await resolveAndCheckSSRFSafe('http://192.168.1.5', 'cloud')
+        expect(r.ok).toBe(false)
+    })
+
+    it('skips DNS lookup for IP-literal hosts (already handled by sync check)', async () => {
+        const r = await resolveAndCheckSSRFSafe('http://203.0.113.5', 'cloud')
+        expect(r.ok).toBe(true)
+    })
+
+    it('rejects when DNS resolves to a private IP (rebind defense)', async () => {
+        const lookup = async () => [{ address: '10.0.0.1', family: 4 }]
+        const r = await resolveAndCheckSSRFSafe('http://attacker.example.com', 'cloud', lookup)
+        expect(r.ok).toBe(false)
+        if (!r.ok) expect(r.reason).toMatch(/10\.0\.0\.1/)
+    })
+
+    it('rejects when DNS resolves to loopback IPv6', async () => {
+        const lookup = async () => [{ address: '::1', family: 6 }]
+        const r = await resolveAndCheckSSRFSafe('http://attacker.example.com', 'cloud', lookup)
+        expect(r.ok).toBe(false)
+    })
+
+    it('accepts when all DNS records are public', async () => {
+        const lookup = async () => [
+            { address: '203.0.113.5', family: 4 },
+            { address: '2606:4700::1', family: 6 },
+        ]
+        const r = await resolveAndCheckSSRFSafe('http://api.example.com', 'cloud', lookup)
+        expect(r.ok).toBe(true)
+    })
+
+    it('rejects on DNS resolution failure (NXDOMAIN, timeout, etc.)', async () => {
+        const lookup = async () => { throw new Error('ENOTFOUND') }
+        const r = await resolveAndCheckSSRFSafe('http://nope.example.invalid', 'cloud', lookup)
+        expect(r.ok).toBe(false)
+        if (!r.ok) expect(r.reason).toMatch(/DNS lookup failed/)
+    })
+
+    it('rejects when even one of multiple records points to a private IP', async () => {
+        const lookup = async () => [
+            { address: '203.0.113.5', family: 4 },
+            { address: '10.0.0.1', family: 4 },
+        ]
+        const r = await resolveAndCheckSSRFSafe('http://api.example.com', 'cloud', lookup)
+        expect(r.ok).toBe(false)
+    })
+
+    it('rejects when DNS returns no records (NODATA)', async () => {
+        const lookup = async () => []
+        const r = await resolveAndCheckSSRFSafe('http://nodata.example.com', 'cloud', lookup)
+        expect(r.ok).toBe(false)
+        if (!r.ok) expect(r.reason).toMatch(/no records/)
     })
 })

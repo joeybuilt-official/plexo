@@ -113,8 +113,8 @@ router.post('/', async (req: any, res: any) => {
             if (existing.some(p => p.endpointUrl?.replace(/\/+$/, '').toLowerCase() === normalized)) {
                 return res.status(409).json({ error: 'A provider with this server address is already added.' })
             }
-            const { isSSRFSafeUrl } = await import('../lib/ssrf-guard.js')
-            const safety = isSSRFSafeUrl(endpointUrl)
+            const { resolveAndCheckSSRFSafe } = await import('../lib/ssrf-guard.js')
+            const safety = await resolveAndCheckSSRFSafe(endpointUrl)
             if (!safety.ok) {
                 return res.status(400).json({ error: safety.reason })
             }
@@ -246,8 +246,8 @@ router.post('/test', async (req: any, res: any) => {
     try {
         // Ollama: test via /api/tags
         if (providerType === 'ollama' && endpointUrl) {
-            const { isSSRFSafeUrl } = await import('../lib/ssrf-guard.js')
-            const safety = isSSRFSafeUrl(endpointUrl)
+            const { resolveAndCheckSSRFSafe } = await import('../lib/ssrf-guard.js')
+            const safety = await resolveAndCheckSSRFSafe(endpointUrl)
             if (!safety.ok) {
                 return res.json({ ok: false, error: safety.reason, errorCode: 'forbidden_url' })
             }
@@ -411,9 +411,20 @@ router.post('/reorder', async (req: any, res: any) => {
 router.patch('/:instanceId', async (req: any, res: any) => {
     const instanceId = req.params.instanceId as string
     const workspaceId = req.params.id as string
-    const updates = req.body as { nickname?: string; selectedModel?: string; enabled?: boolean }
+    const updates = req.body as { nickname?: string; selectedModel?: string; enabled?: boolean; endpointUrl?: string }
 
     try {
+        if (updates.endpointUrl !== undefined) {
+            if (typeof updates.endpointUrl !== 'string' || updates.endpointUrl.length === 0) {
+                return res.status(400).json({ error: 'endpointUrl must be a non-empty string' })
+            }
+            const { resolveAndCheckSSRFSafe } = await import('../lib/ssrf-guard.js')
+            const safety = await resolveAndCheckSSRFSafe(updates.endpointUrl)
+            if (!safety.ok) {
+                return res.status(400).json({ error: safety.reason })
+            }
+        }
+
         const { updateProvider, getProvider } = await import('@plexo/agent/providers/instances')
 
         // Snapshot the prior selected model so we only re-validate on a real

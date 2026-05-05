@@ -30,12 +30,24 @@ import { verifyTwilioSignature } from '../lib/twilio-signature.js'
 
 export const twilioRouter: RouterType = Router()
 
-// ── Inbound MessageSid dedup (5-min TTL) ─────────────────────────────────────
+// ── Inbound MessageSid dedup (5-min TTL, Redis-backed with in-memory fallback) ─
 
 const SEEN_MESSAGE_SIDS = new Map<string, number>()
 const DEDUP_TTL_MS = 5 * 60_000
+const DEDUP_TTL_S = 5 * 60
 
-function alreadySeen(messageSid: string): boolean {
+async function alreadySeen(messageSid: string): Promise<boolean> {
+    try {
+        const { getRedis, isRedisAvailable } = await import('../redis-client.js')
+        if (isRedisAvailable()) {
+            const redis = await getRedis()
+            const key = `twilio:dedup:${messageSid}`
+            const reply = await redis.set(key, '1', { NX: true, EX: DEDUP_TTL_S })
+            return reply === null
+        }
+    } catch {
+        // Fall through to in-memory fallback
+    }
     const now = Date.now()
     if (SEEN_MESSAGE_SIDS.size > 5000) {
         for (const [sid, expiresAt] of SEEN_MESSAGE_SIDS) {
@@ -49,8 +61,16 @@ function alreadySeen(messageSid: string): boolean {
 }
 
 /** Test hook — allows the dedup map to be cleared between test cases. */
-export function _resetTwilioDedupForTests(): void {
+export async function _resetTwilioDedupForTests(): Promise<void> {
     SEEN_MESSAGE_SIDS.clear()
+    try {
+        const { getRedis, isRedisAvailable } = await import('../redis-client.js')
+        if (isRedisAvailable()) {
+            const redis = await getRedis()
+            const keys = await redis.keys('twilio:dedup:*')
+            if (keys.length > 0) await redis.del(keys)
+        }
+    } catch { /* ignore */ }
 }
 
 // ── URL reconstruction ───────────────────────────────────────────────────────
@@ -145,7 +165,7 @@ twilioRouter.post('/events/:channelId', async (req: Request, res: Response) => {
     }
 
     // Replay dedup: respond 200 OK with no double-push.
-    if (alreadySeen(params.MessageSid)) {
+    if (await alreadySeen(params.MessageSid)) {
         res.status(200).type('text/xml').send('<Response/>')
         return
     }

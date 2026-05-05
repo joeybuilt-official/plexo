@@ -17,6 +17,7 @@ import { registerTelegramChannel } from './telegram.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { fetchGmailProfile } from '../lib/gmail-client.js'
+import { filterChannelConfigForPatch } from '../lib/channel-config-allowlist.js'
 
 export const channelsRouter: RouterType = Router()
 
@@ -194,8 +195,29 @@ channelsRouter.patch('/:id', async (req, res) => {
     try {
         const update: Record<string, unknown> = {}
         if (enabled !== undefined) update.enabled = enabled
-        if (config !== undefined) update.config = config
         if (name !== undefined) update.name = name
+
+        if (config !== undefined) {
+            const [existing] = await db.select().from(channels)
+                .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+                .limit(1)
+            if (!existing) {
+                res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
+                return
+            }
+            const filterResult = filterChannelConfigForPatch(existing.type, config)
+            if (!filterResult.ok) {
+                res.status(400).json({
+                    error: {
+                        code: filterResult.error.code,
+                        message: `config.${filterResult.error.key} cannot be updated via PATCH for ${existing.type} channels`,
+                    },
+                })
+                return
+            }
+            const merged = { ...(existing.config ?? {}), ...filterResult.filtered }
+            update.config = merged
+        }
 
         await db.update(channels)
             .set(update)

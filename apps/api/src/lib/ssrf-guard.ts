@@ -11,7 +11,20 @@
  * Selfhosted/embedded: allow all — operator controls the network and may
  * legitimately use http://localhost:11434 or http://192.168.x.x.
  *
- * Hostname-only check; DNS-rebind protection is a follow-up.
+ * Two layers:
+ *   - `isSSRFSafeUrl` — synchronous hostname/IP-literal check. Use for
+ *     fast-fail on PATCH/POST request validation.
+ *   - `resolveAndCheckSSRFSafe` — async DNS resolution + per-record check.
+ *     Catches the case where a public-looking hostname resolves to a
+ *     private IP. Run after the sync check on any URL that will later be
+ *     fetched server-side.
+ *
+ * Apply-time DNS-rebind defense (re-resolve at HTTP-request time and
+ * verify the resolved IP matches the validated IP) requires injection
+ * into the HTTP layer used by each provider adapter — separate phase.
+ * `resolveAndCheckSSRFSafe` closes the typical exploit path (validate-time
+ * DNS lookup) but cannot defend against an attacker who flips DNS in the
+ * window between validation and use.
  */
 
 export type DeploymentMode = 'cloud' | 'selfhosted' | 'embedded'
@@ -56,6 +69,65 @@ export function isSSRFSafeUrl(url: string, mode: DeploymentMode = getServerDeplo
     }
     if (host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80')) {
         return { ok: false, reason: 'private IPv6 addresses are not allowed on Plexo Cloud' }
+    }
+    return { ok: true }
+}
+
+const PRIVATE_IPV6_PREFIXES = ['fc', 'fd', 'fe80', '::1', '::ffff:127.', '::ffff:10.', '::ffff:192.168.', '::ffff:169.254.']
+
+function ipIsPrivate(ip: string): boolean {
+    const lower = ip.toLowerCase()
+    if (lower === '::1' || lower === '0:0:0:0:0:0:0:1') return true
+    if (PRIVATE_IPV4.some(re => re.test(lower))) return true
+    if (PRIVATE_IPV6_PREFIXES.some(p => lower.startsWith(p))) return true
+    return false
+}
+
+export type DnsLookupFn = (host: string) => Promise<{ address: string; family: number }[]>
+
+/**
+ * DNS-resolves `url` and returns `{ ok: false }` if any A/AAAA record points
+ * to a private/loopback/link-local address (Cloud only). Catches DNS-rebind
+ * attempts where a public hostname resolves to a private IP.
+ *
+ * No-op on selfhosted/embedded — operator network is trusted.
+ *
+ * `lookup` is injectable for testability — production calls pass the default.
+ */
+export async function resolveAndCheckSSRFSafe(
+    url: string,
+    mode: DeploymentMode = getServerDeploymentMode(),
+    lookup?: DnsLookupFn,
+): Promise<SSRFCheck> {
+    if (mode !== 'cloud') return { ok: true }
+    const sync = isSSRFSafeUrl(url, mode)
+    if (!sync.ok) return sync
+
+    let parsed: URL
+    try { parsed = new URL(url) } catch { return { ok: false, reason: 'invalid URL' } }
+    const host = parsed.hostname.toLowerCase()
+
+    // IP-literal hosts already covered by isSSRFSafeUrl — skip DNS work.
+    if (/^[0-9.]+$/.test(host) || host.includes(':')) return { ok: true }
+
+    let records: { address: string; family: number }[]
+    try {
+        if (lookup) {
+            records = await lookup(host)
+        } else {
+            const dns = await import('node:dns/promises')
+            records = await dns.lookup(host, { all: true, verbatim: true })
+        }
+    } catch (err) {
+        return { ok: false, reason: `DNS lookup failed for '${host}': ${(err as Error).message}` }
+    }
+    if (records.length === 0) {
+        return { ok: false, reason: `DNS returned no records for '${host}'` }
+    }
+    for (const r of records) {
+        if (ipIsPrivate(r.address)) {
+            return { ok: false, reason: `DNS for '${host}' resolves to private address ${r.address}` }
+        }
     }
     return { ok: true }
 }

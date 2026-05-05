@@ -28,6 +28,7 @@
  */
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
+import { timingSafeStringEqual } from '../lib/timing-safe-equal.js'
 import { pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
@@ -1405,7 +1406,8 @@ telegramRouter.post('/webhook/:channelId', async (req: Request, res: Response) =
         res.status(503).json({ error: { code: 'INTERNAL_ERROR', message: 'Webhook not configured' } })
         return
     }
-    if (!secret || secret !== _webhookSecret) {
+    const secretStr = typeof secret === 'string' ? secret : Array.isArray(secret) ? secret[0] : ''
+    if (!secretStr || !timingSafeStringEqual(secretStr, _webhookSecret)) {
         logger.warn({ channelId, hasHeader: Boolean(secret) }, 'Telegram webhook secret mismatch or missing')
         res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } })
         return
