@@ -68,7 +68,8 @@ export function InlineApproval({ approval }: { approval: InlineApprovalRecord })
     }
     if (done === 'reject') {
         return (
-            <section role="status" aria-live="polite" className="rounded-sm border border-border/40 bg-surface-1/30 px-4 py-3 text-sm text-text-muted">
+            <section role="status" aria-live="polite" className="rounded-sm border border-border/40 bg-surface-1/30 px-4 py-3 flex items-center gap-2 text-sm text-text-muted">
+                <XCircle className="h-4 w-4 shrink-0 text-red-500" aria-hidden="true" />
                 Rejected.
             </section>
         )
