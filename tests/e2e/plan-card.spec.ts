@@ -73,10 +73,13 @@ test.describe('F1 PLAN: inline PlanCard visibility', () => {
     })
 
     test.fixme('Clicking Proceed advances execution', async ({ page }) => {
-        // FIXME: requires deterministic planner output (PLEXO_LLM_STUB=true)
-        // AND the @frontend PlanCard PR landed. The post-approval status text
-        // ("Approved — running…") is owned by @frontend; lock the exact string
-        // once their PR merges.
+        // FIXME: Phase K landed PLEXO_LLM_STUB=true for the planner
+        // (callModel-routed) but the executor uses `generateText` directly
+        // and is NOT covered by the stub. Until an executor stub lands,
+        // approving Proceed kicks off real LLM inference and the
+        // "Approved — running…" + agent-message assertions race against
+        // network latency / token spend. Re-enable when executor stub
+        // lands.
         test.skip(!HAS_SESSION, 'No auth session')
         test.skip(!HAS_STUB, 'Requires PLEXO_LLM_STUB=true for deterministic plan')
 
@@ -98,9 +101,9 @@ test.describe('F1 PLAN: inline PlanCard visibility', () => {
         ).toBeVisible({ timeout: 60_000 })
     })
 
-    test.fixme('No PlanCard for trivial single-step prompt', async ({ page }) => {
-        // FIXME: the planner could still emit a card for short prompts depending
-        // on LLM whim. Reliable only with PLEXO_LLM_STUB=true.
+    test('No PlanCard for trivial single-step prompt', async ({ page }) => {
+        // Phase K: PLEXO_LLM_STUB=true makes the planner emit a 1-step,
+        // no-OWD plan for /what time/i, so PlanCard should not render.
         test.skip(!HAS_SESSION, 'No auth session')
         test.skip(!HAS_STUB, 'Requires PLEXO_LLM_STUB=true for deterministic plan')
 

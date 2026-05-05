@@ -19,6 +19,7 @@ import { hasAuthSession, dismissAnalyticsModal } from './_helpers'
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const HAS_SESSION = hasAuthSession()
+const HAS_STUB = process.env.PLEXO_LLM_STUB === 'true'
 const RUN_LIVE = process.env.E2E_RUN_LIVE_LLM === 'true'
 
 const MULTI_STEP_PROMPT =
@@ -79,14 +80,42 @@ test.describe('F2 WORK DETAIL: enhanced detail page sections', () => {
         await expect(verifyRegion).toContainText(/no verification recorded/i)
     })
 
-    test.fixme('Mid-approval task surfaces inline approval card on detail page', async ({
-        page: _page,
-    }) => {
-        // FIXME: same blocker as Phase F1's mid-execution test — no PLEXO_LLM_STUB
-        // means we cannot deterministically pause a task in the approval state on
-        // a fresh session. Unfixme once stub mode lands; then drive the planner to
-        // a known multi-step plan, navigate directly to /app/tasks/<id> while the
-        // task is awaiting approval, and assert the inline approval card renders.
+    test('Mid-approval task surfaces inline approval card on detail page', async ({ page }) => {
+        // Phase K: PLEXO_LLM_STUB=true drives the planner to a deterministic
+        // 3-step plan with an OWD requiring approval. We submit the prompt,
+        // capture the resulting task id from the URL, navigate directly to
+        // /app/tasks/<id> while the task is in awaiting_approval, and assert
+        // the inline approval card renders.
+        test.skip(!HAS_SESSION, 'No auth session')
+        test.skip(!HAS_STUB, 'Requires PLEXO_LLM_STUB=true for deterministic awaiting_approval state')
+
+        test.setTimeout(60_000)
+
+        await page.goto(`${BASE}/app/chat`)
+        await dismissAnalyticsModal(page)
+        await submitPrompt(page, MULTI_STEP_PROMPT)
+
+        // Wait for the inline plan card on the chat page so we know the task
+        // exists and is in awaiting_approval. The "Open work detail" link
+        // (added by @frontend) takes us to the task detail page.
+        const planCard = page.locator('[role="region"][aria-labelledby^="plan-card-"]').first()
+        await planCard.waitFor({ state: 'visible', timeout: 30_000 })
+
+        const detailLink = page
+            .getByRole('link', { name: /Open work detail|View work|Open detail/i })
+            .first()
+        await detailLink.waitFor({ state: 'visible', timeout: 15_000 })
+        await detailLink.click()
+
+        await expect(page).toHaveURL(TASK_ID_RE, { timeout: 10_000 })
+
+        // The detail page must surface the inline approval card while the
+        // task is still awaiting approval. Heading is "One-way door — approval required".
+        const inlineApproval = page.locator('[role="region"][aria-labelledby^="inline-approval-"]')
+        await expect(inlineApproval).toBeVisible({ timeout: 10_000 })
+        await expect(
+            inlineApproval.getByRole('heading', { name: /One-way door/i }),
+        ).toBeVisible()
     })
 
     test('Direct navigation to a non-existent task returns 404', async ({ page }) => {

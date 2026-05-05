@@ -370,6 +370,163 @@ function buildRepairInstruction(opts: { schemaDescription?: string }): string {
     )
 }
 
+// ── Stub mode (Phase K) ───────────────────────────────────────────────
+// `PLEXO_LLM_STUB=true` short-circuits callModel and returns a
+// deterministic canned response. Used by Playwright e2e tests so they
+// can drive planner + judge code paths without real inference cost or
+// flake.
+//
+// Coverage:
+//   - text mode + taskType==='planning' → returns a deterministic JSON
+//     plan whose shape matches `PlannerOutputSchema` in
+//     `packages/agent/src/planner/index.ts`. Shape varies by prompt:
+//       * trivial prompts (matches /what time|what's the time|hello/i)
+//         → 1-step plan, no OWDs, no PlanCard renders.
+//       * everything else → 3-step plan with one OWD (state_change,
+//         requiresApproval=true) so PlanCard renders + approval flow
+//         engages.
+//   - schema mode + JudgmentSchema-shaped (has `scores` array of
+//     DimensionScoreSchema + `overall_notes`) → canned mid-quality
+//     judgment object.
+//   - any other text-mode call → returns `{ text: '[STUB]
+//     deterministic response' }`. (NB: the executor uses generateText
+//     directly, not callModel — this stub does NOT cover that path.
+//     Tests that drive task execution past the approval gate still
+//     need a separate executor stub.)
+//   - any other schema-mode call → throws CallModelError with a clear
+//     "stub does not know schema" message so the gap is visible
+//     immediately rather than silently producing garbage.
+function isPlexoLlmStubEnabled(): boolean {
+    return process.env.PLEXO_LLM_STUB === 'true'
+}
+
+const STUB_PLAN_TRIVIAL = {
+    type: 'plan' as const,
+    goal: 'Answer the user trivially',
+    steps: [
+        {
+            stepNumber: 1,
+            description: 'Provide a one-line answer',
+            toolsRequired: ['task_complete'],
+            verificationMethod: 'Manual review',
+            isOneWayDoor: false,
+            depends_on: [] as number[],
+        },
+    ],
+    oneWayDoors: [] as unknown[],
+    estimatedDurationMs: 1000,
+    confidenceScore: 0.95,
+    risks: [] as string[],
+    phases: [] as unknown[],
+}
+
+const STUB_PLAN_MULTISTEP = {
+    type: 'plan' as const,
+    goal: 'Push code, run tests, open a PR',
+    steps: [
+        {
+            stepNumber: 1,
+            description: 'Push code to the test branch',
+            toolsRequired: ['shell'],
+            verificationMethod: 'git push exit code is 0',
+            isOneWayDoor: true,
+            depends_on: [] as number[],
+        },
+        {
+            stepNumber: 2,
+            description: 'Run the full test suite',
+            toolsRequired: ['shell'],
+            verificationMethod: 'Test runner reports all green',
+            isOneWayDoor: false,
+            depends_on: [1],
+        },
+        {
+            stepNumber: 3,
+            description: 'Open a pull request',
+            toolsRequired: ['shell'],
+            verificationMethod: 'PR URL returned',
+            isOneWayDoor: true,
+            depends_on: [2],
+        },
+    ],
+    oneWayDoors: [
+        {
+            description: 'Push to the test branch — propagates work to a shared remote',
+            type: 'state_change',
+            reversibility: 'Revertible via force-push or branch reset',
+            requiresApproval: true,
+        },
+    ],
+    estimatedDurationMs: 60_000,
+    confidenceScore: 0.85,
+    risks: ['Tests may fail; push will surface as remote state'],
+    phases: [
+        { label: 'Pushing branch' },
+        { label: 'Running tests' },
+        { label: 'Opening pull request' },
+    ],
+}
+
+const STUB_JUDGMENT = {
+    scores: [
+        { dimension: 'completeness', score: 0.8, rationale: '[STUB] deterministic completeness' },
+        { dimension: 'correctness', score: 0.8, rationale: '[STUB] deterministic correctness' },
+    ],
+    overall_notes: '[STUB] deterministic judgment',
+}
+
+function isJudgmentLikeSchema(schema: ZodType<unknown> | undefined): boolean {
+    if (!schema) return false
+    return schema.safeParse(STUB_JUDGMENT).success
+}
+
+function buildStubResult(opts: CallModelOpts<unknown>): CallModelResult | CallModelObjectResult<unknown> {
+    const startedAt = Date.now()
+    const modelId = typeof opts.model === 'object' && opts.model
+        ? (opts.model as { modelId?: string }).modelId ?? 'stub'
+        : String(opts.model ?? 'stub')
+    const accounting = {
+        inputTokens: 0,
+        outputTokens: 0,
+        latencyMs: Date.now() - startedAt,
+        model: modelId,
+        attempts: 1,
+    }
+
+    if (opts.schema) {
+        if (isJudgmentLikeSchema(opts.schema)) {
+            const validated = opts.schema.safeParse(STUB_JUDGMENT)
+            if (validated.success) {
+                return {
+                    object: validated.data,
+                    text: '',
+                    repairUsed: false,
+                    ...accounting,
+                }
+            }
+        }
+        throw new CallModelError(
+            `PLEXO_LLM_STUB: stub does not know how to satisfy this schema. Add a canned object for it in call-model.ts (taskType=${opts.taskType ?? 'unknown'}).`,
+            'CALL_MODEL_PARSE',
+        )
+    }
+
+    if (opts.taskType === 'planning') {
+        const promptText = (opts.prompt ?? '') + JSON.stringify(opts.messages ?? '')
+        const isTrivial = /what\s*time|what'?s\s*the\s*time|^hello$|^hi$/i.test(promptText)
+        const plan = isTrivial ? STUB_PLAN_TRIVIAL : STUB_PLAN_MULTISTEP
+        return {
+            text: JSON.stringify(plan),
+            ...accounting,
+        }
+    }
+
+    return {
+        text: '[STUB] deterministic response',
+        ...accounting,
+    }
+}
+
 // ── Public entry ──────────────────────────────────────────────────────
 
 /**
@@ -384,6 +541,13 @@ function buildRepairInstruction(opts: { schemaDescription?: string }): string {
 export async function callModel(opts: CallModelOpts & { schema?: undefined }): Promise<CallModelResult>
 export async function callModel<T>(opts: CallModelOpts<T> & { schema: ZodType<T> }): Promise<CallModelObjectResult<T>>
 export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModelResult | CallModelObjectResult<unknown>> {
+    // Phase K — deterministic stub mode for e2e tests. Bypasses every
+    // downstream concern (cost gate, retries, abort composition) since
+    // the canned response is synchronous and free.
+    if (isPlexoLlmStubEnabled()) {
+        return buildStubResult(opts)
+    }
+
     // Argument-validation guard: generateObject does not accept a tool set,
     // so combining `schema` + `tools` is a misuse. Fail loudly and up-front
     // with CALL_MODEL_PARSE rather than let the SDK's error surface an

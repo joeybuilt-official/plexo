@@ -519,3 +519,98 @@ describe('callModel — schema repair + fall-through (C5)', () => {
         expect(generateObjectMock).toHaveBeenCalledTimes(2)
     })
 })
+
+// ── PLEXO_LLM_STUB ────────────────────────────────────────────────────
+// Phase K — deterministic stub mode for e2e tests.
+
+describe('callModel — PLEXO_LLM_STUB stub mode', () => {
+    const ORIG_STUB = process.env.PLEXO_LLM_STUB
+
+    beforeEach(() => {
+        process.env.PLEXO_LLM_STUB = 'true'
+    })
+
+    afterEach(() => {
+        if (ORIG_STUB === undefined) delete process.env.PLEXO_LLM_STUB
+        else process.env.PLEXO_LLM_STUB = ORIG_STUB
+    })
+
+    it('text mode + planning + multi-step prompt returns 3-step plan with OWD', async () => {
+        const result = await callModel({
+            model: 'stub-model',
+            prompt: 'Push my code to the test branch and run the full test suite, then open a pull request.',
+            taskType: 'planning',
+        })
+        const plan = JSON.parse(result.text) as {
+            type: string
+            steps: { stepNumber: number }[]
+            oneWayDoors: { requiresApproval?: boolean }[]
+        }
+        expect(plan.type).toBe('plan')
+        expect(plan.steps.length).toBe(3)
+        expect(plan.oneWayDoors.length).toBe(1)
+        expect(plan.oneWayDoors[0]!.requiresApproval).toBe(true)
+        // Real generateText / generateObject must NOT have been called.
+        expect(generateTextMock).not.toHaveBeenCalled()
+        expect(generateObjectMock).not.toHaveBeenCalled()
+    })
+
+    it('text mode + planning + trivial prompt returns 1-step plan with no OWD', async () => {
+        const result = await callModel({
+            model: 'stub-model',
+            prompt: 'What time is it?',
+            taskType: 'planning',
+        })
+        const plan = JSON.parse(result.text) as {
+            steps: unknown[]
+            oneWayDoors: unknown[]
+        }
+        expect(plan.steps.length).toBe(1)
+        expect(plan.oneWayDoors.length).toBe(0)
+    })
+
+    it('schema mode with judgment-shaped schema returns canned judgment', async () => {
+        const JudgmentSchema = z.object({
+            scores: z.array(z.object({
+                dimension: z.string(),
+                score: z.number().min(0).max(1),
+                rationale: z.string(),
+            })),
+            overall_notes: z.string(),
+        })
+        const result = await callModel({
+            model: 'stub-model',
+            prompt: 'judge this',
+            taskType: 'judging',
+            schema: JudgmentSchema,
+        })
+        expect(result.object.scores.length).toBeGreaterThan(0)
+        expect(typeof result.object.overall_notes).toBe('string')
+        expect(generateObjectMock).not.toHaveBeenCalled()
+    })
+
+    it('schema mode with unknown schema throws clear stub-does-not-know error', async () => {
+        const ExoticSchema = z.object({ foo: z.literal('exotic'), bar: z.number() })
+        let caught: unknown
+        try {
+            await callModel({
+                model: 'stub-model',
+                prompt: 'p',
+                taskType: 'exotic',
+                schema: ExoticSchema,
+            })
+        } catch (e) { caught = e }
+        expect(caught).toBeInstanceOf(CallModelError)
+        expect((caught as Error).message).toMatch(/stub does not know/i)
+    })
+
+    it('text mode + non-planning task returns generic stub text', async () => {
+        const result = await callModel({
+            model: 'stub-model',
+            prompt: 'hello',
+            taskType: 'chat',
+        })
+        expect(result.text).toContain('[STUB]')
+        expect(generateTextMock).not.toHaveBeenCalled()
+    })
+})
