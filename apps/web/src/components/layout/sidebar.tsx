@@ -125,7 +125,7 @@ const NAV_OPS: NavItem[] = [
 // UX-016: Federation, Debug, Audit, Schedules collapsed into Settings sub-pages
 const NAV_SYSTEM: NavItem[] = [
     { label: 'Settings', href: '/app/settings', icon: SettingsIcon },
-    { label: 'Schedules', href: '/app/cron', icon: Clock },
+    { label: 'Scheduling', href: '/app/scheduling', icon: Clock },
     { label: 'Logs', href: '/app/logs', icon: FileText },
     { label: 'Audit', href: '/app/audit', icon: ScrollText },
 ]
@@ -168,6 +168,7 @@ function sectionForPath(pathname: string): SectionId | null {
         !pathname.startsWith('/app/settings/intelligence') &&
         !pathname.startsWith('/app/settings/channels')
     ) return 'system'
+    if (pathname === '/app/scheduling' || pathname.startsWith('/app/scheduling/')) return 'system'
     if (pathname === '/app/cron' || pathname.startsWith('/app/cron/')) return 'system'
     if (pathname === '/app/audit' || pathname.startsWith('/app/audit/')) return 'system'
     if (pathname === '/app/logs' || pathname.startsWith('/app/logs/')) return 'system'

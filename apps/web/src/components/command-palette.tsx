@@ -65,7 +65,7 @@ const DESTINATIONS: PaletteItem[] = [
     { id: 'integrations', label: 'Integrations', section: 'Navigate', href: '/app/connections', icon: Plug, keywords: ['connections', 'oauth'] },
     { id: 'channels', label: 'Channels', section: 'Navigate', href: '/app/settings/channels', icon: Radio, keywords: ['telegram', 'slack', 'discord'] },
     { id: 'hub', label: 'Hub', section: 'Navigate', href: '/app/hub', icon: Store, keywords: ['marketplace', 'browse', 'extensions'] },
-    { id: 'schedules', label: 'Schedules', section: 'Navigate', href: '/app/cron', icon: Clock, keywords: ['cron', 'recurring', 'scheduled'] },
+    { id: 'schedules', label: 'Scheduling', section: 'Navigate', href: '/app/scheduling', icon: Clock, keywords: ['cron', 'recurring', 'scheduled', 'reminder', 'reminders'] },
 
     // System
     { id: 'settings', label: 'Settings', section: 'Navigate', href: '/app/settings', icon: Settings },

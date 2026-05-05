@@ -42,7 +42,7 @@ export const PLEXO_PATHS: PlexoPathEntry[] = [
     { pattern: /\b(?:your\s+)?sprints?\s*page\b/i, href: '/app/sprints', label: 'Sprints' },
     { pattern: /\b(?:your\s+)?approvals?\s*page\b/i, href: '/app/approvals', label: 'Approvals' },
     { pattern: /\b(?:your\s+)?insights?\s*page\b/i, href: '/app/memory', label: 'Insights' },
-    { pattern: /\b(?:your\s+)?schedules?\s*page\b/i, href: '/app/cron', label: 'Schedules' },
+    { pattern: /\b(?:your\s+)?(?:scheduling|schedules?|reminders?)\s*page\b/i, href: '/app/scheduling', label: 'Scheduling' },
     { pattern: /\b(?:your\s+)?logs?\s*page\b/i, href: '/app/logs', label: 'Logs' },
     { pattern: /\b(?:your\s+)?audit\s*(?:log\s*)?page\b/i, href: '/app/audit', label: 'Audit' },
     { pattern: /\b(?:your\s+)?tools?\s*page\b/i, href: '/app/extensions', label: 'Tools' },
@@ -63,7 +63,8 @@ export const PLEXO_PATHS: PlexoPathEntry[] = [
     { pattern: /\/app\/insights\b/i, href: '/app/memory', label: 'Insights' },
     { pattern: /\/app\/approvals\b/i, href: '/app/approvals', label: 'Approvals' },
     { pattern: /\/app\/conversations\b/i, href: '/app/conversations', label: 'Conversations' },
-    { pattern: /\/app\/cron\b/i, href: '/app/cron', label: 'Schedules' },
+    { pattern: /\/app\/scheduling\b/i, href: '/app/scheduling', label: 'Scheduling' },
+    { pattern: /\/app\/cron\b/i, href: '/app/scheduling', label: 'Scheduling' },
     { pattern: /\/app\/logs\b/i, href: '/app/logs', label: 'Logs' },
     { pattern: /\/app\/audit\b/i, href: '/app/audit', label: 'Audit' },
     // Broad "Settings" fallback must come last so it doesn't swallow deep paths.

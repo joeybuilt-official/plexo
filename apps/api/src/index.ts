@@ -289,7 +289,7 @@ v1.use('/workspaces/:id/ai-providers', requireWorkspaceMember('id'), aiProviderC
 v1.use('/workspaces/:id/key-shares', requireWorkspaceMember('id'), keySharesRouter)
 v1.use('/settings/ai-providers', aiProvidersRouter)
 v1.use('/channels', channelsRouter) // per-handler workspace check
-v1.use('/cron', cronRouter) // per-handler workspace check
+v1.use('/cron', workspaceRateLimit, cronRouter) // per-handler workspace check
 v1.use('/users', usersRouter)
 v1.use('/workspaces/:id/members', requireWorkspaceMember('id'), membersRouter)
 v1.use('/invites', invitesRouter)

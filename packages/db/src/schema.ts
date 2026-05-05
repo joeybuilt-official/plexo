@@ -57,6 +57,7 @@ export const taskTypeEnum = pgEnum('task_type', [
     'general',
     'data',
     'marketing',
+    'reminder',
 ])
 
 export type TaskType = (typeof taskTypeEnum.enumValues)[number]
@@ -581,7 +582,7 @@ export const cronJobs = pgTable('cron_jobs', {
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    schedule: text('schedule').notNull(),
+    schedule: text('schedule'),
     enabled: boolean('enabled').default(true).notNull(),
     /** Task type pushed to the queue when this job fires. Default: 'general' */
     taskType: text('task_type').notNull().default('general'),

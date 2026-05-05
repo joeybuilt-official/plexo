@@ -18,11 +18,12 @@
  */
 
 import { CronExpressionParser } from 'cron-parser'
-import { db, eq, sql, lte, or, isNull, and } from '@plexo/db'
-import { cronJobs } from '@plexo/db'
+import { db, eq, sql, isNull, and } from '@plexo/db'
+import { cronJobs, channels } from '@plexo/db'
 import type { TaskType } from '@plexo/db'
 import { push } from '@plexo/queue'
 import { logger } from './logger.js'
+import { deliverToOriginChannel } from './channel-delivery.js'
 
 const TICK_INTERVAL_MS = 60_000 // 1 minute
 const MAX_JOBS_PER_TICK = 50
@@ -36,7 +37,8 @@ const INTERNAL_JOB_NAMES = new Set(['Memory consolidation', 'RSI Monitor'])
  * Compute the next fire time after a given reference date.
  * Returns null if the expression is invalid or has no future date.
  */
-function nextRunAfter(schedule: string, after: Date): Date | null {
+function nextRunAfter(schedule: string | null, after: Date): Date | null {
+    if (!schedule) return null
     try {
         const expr = CronExpressionParser.parse(schedule, { currentDate: after })
         const next = expr.next()
@@ -81,11 +83,12 @@ export async function dispatchDueJobs(): Promise<void> {
         const taskType: string = r.taskType ?? r.task_type ?? 'general'
         const taskContext: Record<string, unknown> = r.taskContext ?? r.task_context ?? {}
         const prevFailures: number = r.consecutiveFailures ?? r.consecutive_failures ?? 0
+        const schedule: string | null = r.schedule ?? null
 
         // Skip internal jobs managed by cron.ts
         if (INTERNAL_JOB_NAMES.has(job.name)) {
             // Still need to advance next_run_at if it's null / stale
-            const next = nextRunAfter(job.schedule, now)
+            const next = nextRunAfter(schedule, now)
             if (next) {
                 await db
                     .update(cronJobs)
@@ -98,37 +101,110 @@ export async function dispatchDueJobs(): Promise<void> {
 
         let status: 'success' | 'failure' = 'success'
         try {
-            await push({
-                workspaceId,
-                type: taskType as TaskType,
-                source: 'cron',
-                context: {
-                    ...taskContext,
-                    cronJobId: job.id,
-                    cronJobName: job.name,
-                    firedAt: now.toISOString(),
-                },
-            })
-            logger.info({ jobId: job.id, name: job.name, workspaceId }, 'cron-dispatch: job fired')
+            if (taskType === 'reminder') {
+                // Reminder routing: bypass queue + executor, deliver straight to channel.
+                // Vera concern: do NOT log message contents at info — could contain PII.
+                const channel = typeof taskContext.channel === 'string' ? taskContext.channel : null
+                const chatId = taskContext.chatId as string | number | undefined
+                const message = typeof taskContext.message === 'string' ? taskContext.message : ''
+
+                if (!channel || !chatId) {
+                    logger.warn(
+                        { jobId: job.id, name: job.name, workspaceId, hasChannel: !!channel, hasChatId: !!chatId },
+                        'cron-dispatch: reminder job missing channel/chatId — skipping delivery',
+                    )
+                } else {
+                    // Verify the channel is enabled for this workspace before attempting delivery.
+                    const enabledChannel = await db
+                        .select({ id: channels.id })
+                        .from(channels)
+                        .where(and(
+                            eq(channels.workspaceId, workspaceId),
+                            eq(channels.type, channel as any),
+                            eq(channels.enabled, true),
+                        ))
+                        .limit(1)
+                        .catch(() => [] as { id: string }[])
+
+                    if (enabledChannel.length === 0) {
+                        logger.warn(
+                            { jobId: job.id, name: job.name, workspaceId, channel },
+                            'cron-dispatch: reminder job has no enabled channel of this type — skipping',
+                        )
+                    } else {
+                        await deliverToOriginChannel({
+                            taskId: job.id,
+                            workspaceId,
+                            summary: message,
+                            assets: [],
+                            error: undefined,
+                            // 'complete' triggers the success delivery path; the synthetic
+                            // task is the reminder itself.
+                            outcome: 'complete',
+                            context: {
+                                ...taskContext,
+                                channel,
+                                chatId,
+                            },
+                        })
+                        // Intentionally no message content in the info log (Vera concern).
+                        logger.info(
+                            { jobId: job.id, name: job.name, workspaceId, channel },
+                            'cron-dispatch: reminder fired',
+                        )
+                    }
+                }
+            } else {
+                await push({
+                    workspaceId,
+                    type: taskType as TaskType,
+                    source: 'cron',
+                    context: {
+                        ...taskContext,
+                        cronJobId: job.id,
+                        cronJobName: job.name,
+                        firedAt: now.toISOString(),
+                    },
+                })
+                logger.info({ jobId: job.id, name: job.name, workspaceId }, 'cron-dispatch: job fired')
+            }
         } catch (err) {
-            logger.error({ err, jobId: job.id, name: job.name }, 'cron-dispatch: failed to push task for job')
+            logger.error({ err, jobId: job.id, name: job.name }, 'cron-dispatch: failed to dispatch job')
             status = 'failure'
         }
 
-        // Advance the job's state
-        const next = nextRunAfter(job.schedule, now)
+        // Advance the job's state. Three cases:
+        //   - failure: bump consecutive_failures, leave nextRunAt as-is for retry on next tick
+        //   - one-shot success (schedule===null): disable, clear nextRunAt — fires once and is done
+        //   - recurring success: advance nextRunAt to the next cron occurrence
+        const isOneShot = schedule === null
         const consecutiveFailures = status === 'failure'
             ? prevFailures + 1
             : 0
 
+        const updateSet: Partial<typeof cronJobs.$inferInsert> = {
+            lastRunAt: now,
+            lastRunStatus: status,
+            consecutiveFailures,
+        }
+        if (status === 'failure') {
+            // One-shot reminders that have failed 3+ times in a row halt the
+            // retry loop — disabling the row is the only way to stop reads on
+            // the next tick. Recurring jobs stay enabled (user-managed cadence).
+            if (isOneShot && consecutiveFailures >= 3) {
+                updateSet.enabled = false
+            }
+            // leave nextRunAt untouched so the next tick retries
+        } else if (isOneShot) {
+            updateSet.enabled = false
+            updateSet.nextRunAt = null
+        } else {
+            updateSet.nextRunAt = nextRunAfter(schedule, now)
+        }
+
         await db
             .update(cronJobs)
-            .set({
-                lastRunAt: now,
-                lastRunStatus: status,
-                consecutiveFailures,
-                nextRunAt: next,
-            })
+            .set(updateSet)
             .where(eq(cronJobs.id, job.id))
             .catch((err) => logger.warn({ err, jobId: job.id }, 'cron-dispatch: failed to update job state'))
 
@@ -161,6 +237,10 @@ async function initNextRunAt(): Promise<void> {
 
     const now = new Date()
     for (const job of jobs) {
+        // One-shot jobs (schedule===null) with nextRunAt already set at creation
+        // time pass through without touching nextRunAfter. If a one-shot row
+        // somehow has a null nextRunAt it stays null — there's nothing to compute.
+        if (!job.schedule) continue
         const next = nextRunAfter(job.schedule, now)
         if (!next) continue
         await db

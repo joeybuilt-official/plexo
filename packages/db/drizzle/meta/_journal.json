@@ -778,6 +778,20 @@
       "when": 1778551200000,
       "tag": "0110_channels_error_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1778637600000,
+      "tag": "0111_cron_jobs_schedule_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1778724000000,
+      "tag": "0112_task_type_reminder",
+      "breakpoints": true
     }
   ]
 }
