@@ -38,14 +38,14 @@ const TYPE_BADGE: Record<string, { label: string; color: string; icon: typeof Bo
         iconAccent: 'text-green-400',
     },
     connector: {
-        label: 'Connector',
+        label: 'Connection',
         color: 'bg-rose-500/15 text-rose-400 border border-rose-500/30',
         icon: Plug,
         ring: '',
         iconAccent: 'text-rose-400',
     },
     'mcp-server': {
-        label: 'Connector',
+        label: 'MCP server',
         color: 'bg-rose-500/15 text-rose-400 border border-rose-500/30',
         icon: Plug,
         ring: '',

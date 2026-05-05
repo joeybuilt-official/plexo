@@ -60,6 +60,22 @@ export async function loadGmailCredentials(
     }
 }
 
+/** Refresh + persist the credentials. Returns the refreshed creds on success,
+ *  null on refresh failure. Persistence failures are logged but do not nullify
+ *  the result — the in-memory creds are still usable for the current request. */
+export async function refreshAndPersistCredentials(
+    connectionId: string,
+    workspaceId: string,
+    creds: GmailCredentials,
+): Promise<GmailCredentials | null> {
+    const refreshed = await refreshAccessToken(creds)
+    if (!refreshed) return null
+    await persistRefreshedCredentials(connectionId, workspaceId, refreshed).catch((err) =>
+        logger.warn({ err, connectionId }, 'gmail-client: failed to persist refreshed token'),
+    )
+    return refreshed
+}
+
 async function refreshAccessToken(creds: GmailCredentials): Promise<GmailCredentials | null> {
     if (!creds.refresh_token) return null
     const clientId = process.env.GOOGLE_CLIENT_ID
@@ -120,13 +136,8 @@ export async function fetchGmailProfile(
     if (!creds) return null
 
     if (isExpired(creds.expires_at)) {
-        const refreshed = await refreshAccessToken(creds)
-        if (refreshed) {
-            creds = refreshed
-            await persistRefreshedCredentials(connectionId, workspaceId, creds).catch((err) =>
-                logger.warn({ err, connectionId }, 'gmail-client: failed to persist refreshed token'),
-            )
-        }
+        const refreshed = await refreshAndPersistCredentials(connectionId, workspaceId, creds)
+        if (refreshed) creds = refreshed
     }
 
     let res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
@@ -134,12 +145,9 @@ export async function fetchGmailProfile(
     })
 
     if (res.status === 401 && creds.refresh_token) {
-        const refreshed = await refreshAccessToken(creds)
+        const refreshed = await refreshAndPersistCredentials(connectionId, workspaceId, creds)
         if (!refreshed) return null
         creds = refreshed
-        await persistRefreshedCredentials(connectionId, workspaceId, creds).catch((err) =>
-            logger.warn({ err, connectionId }, 'gmail-client: failed to persist refreshed token'),
-        )
         res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
             headers: { Authorization: `Bearer ${creds.access_token}` },
         })

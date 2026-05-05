@@ -86,7 +86,11 @@ const CHANNEL_META: Record<ChannelType, { label: string; icon: React.ElementType
     gmail: { label: 'Gmail', icon: Mail, color: 'text-red-400', docFields: [], description: 'Receive tasks from incoming Gmail messages' },
 }
 
-const AVAILABLE_TYPES: ChannelType[] = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix', 'twilio', 'gmail']
+// L2.5 dead-UI cleanup: whatsapp/signal/matrix have stub configs but no
+// inbound/outbound implementation. Hide from the "Add channel" picker so
+// operators can't create new ones; keep the types on existing rows so
+// any stub rows already in the DB still render.
+const AVAILABLE_TYPES: ChannelType[] = ['telegram', 'slack', 'discord', 'twilio', 'gmail']
 
 // ── Add channel modal state ───────────────────────────────────────────────────
 
@@ -248,6 +252,11 @@ function TelegramWizard({
 }
 
 function getPublicUrl(): string {
+    // Prefer explicit env over window.origin so cross-origin deploys
+    // (api on api.plexo.cloud, web on app.plexo.cloud) get the right
+    // webhook host without operator-side URL surgery.
+    const env = process.env.NEXT_PUBLIC_PLEXO_PUBLIC_URL
+    if (env && env.length > 0) return env.replace(/\/+$/, '')
     if (typeof window !== 'undefined') return window.location.origin
     return ''
 }
@@ -461,9 +470,8 @@ function TwilioForm({
     )
 }
 
-function TwilioWebhookSection({ channelId }: { channelId: string }) {
+function WebhookCopySection({ url, headline, instruction }: { url: string; headline: string; instruction: string }) {
     const [copied, setCopied] = useState(false)
-    const url = `${getPublicUrl()}/api/v1/channels/twilio/events/${channelId}`
     async function copy() {
         try {
             await navigator.clipboard.writeText(url)
@@ -477,7 +485,7 @@ function TwilioWebhookSection({ channelId }: { channelId: string }) {
         <div className="rounded-sm border border-azure/20 bg-azure/10 p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2">
                 <Webhook className="h-4 w-4 text-azure" />
-                <h3 className="text-sm font-medium text-azure">Webhook URL — paste this into your Twilio console</h3>
+                <h3 className="text-sm font-medium text-azure">{headline}</h3>
             </div>
             <div className="relative group">
                 <pre className="rounded-sm bg-canvas border border-border p-3 text-[11px] font-mono text-text-secondary overflow-x-auto whitespace-pre-wrap break-all">{url}</pre>
@@ -491,10 +499,48 @@ function TwilioWebhookSection({ channelId }: { channelId: string }) {
                 </button>
             </div>
             {copied && <p className="text-[11px] text-azure">Copied to clipboard.</p>}
-            <p className="text-[11px] text-azure/80 leading-relaxed">
-                In your Twilio console: Phone Numbers → Active → click your number → Messaging → A Message Comes In → Webhook → paste URL → HTTP POST → Save.
-            </p>
+            <p className="text-[11px] text-azure/80 leading-relaxed">{instruction}</p>
         </div>
+    )
+}
+
+function TwilioWebhookSection({ channelId }: { channelId: string }) {
+    return (
+        <WebhookCopySection
+            url={`${getPublicUrl()}/api/v1/channels/twilio/events/${channelId}`}
+            headline="Webhook URL — paste this into your Twilio console"
+            instruction="In your Twilio console: Phone Numbers → Active → click your number → Messaging → A Message Comes In → Webhook → paste URL → HTTP POST → Save."
+        />
+    )
+}
+
+function TelegramWebhookSection({ channelId }: { channelId: string }) {
+    return (
+        <WebhookCopySection
+            url={`${getPublicUrl()}/api/v1/channels/telegram/webhook/${channelId}`}
+            headline="Webhook URL — Telegram bot setWebhook target"
+            instruction="Plexo registers this URL with Telegram automatically when you save the bot token. Use this view if you need to re-register manually via the Telegram Bot API setWebhook endpoint."
+        />
+    )
+}
+
+function SlackWebhookSection({ channelId }: { channelId: string }) {
+    return (
+        <WebhookCopySection
+            url={`${getPublicUrl()}/api/v1/channels/slack/events/${channelId}`}
+            headline="Event URL — Slack app event subscription target"
+            instruction="In your Slack app config: Event Subscriptions → Enable → paste URL → save. Subscribe to message.channels and app_mention events."
+        />
+    )
+}
+
+function DiscordWebhookSection({ channelId }: { channelId: string }) {
+    return (
+        <WebhookCopySection
+            url={`${getPublicUrl()}/api/v1/channels/discord/interactions/${channelId}`}
+            headline="Interactions Endpoint URL — Discord application target"
+            instruction="In your Discord application portal: General Information → Interactions Endpoint URL → paste → save. Discord sends a verification ping on save."
+        />
     )
 }
 

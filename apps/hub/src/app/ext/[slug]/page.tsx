@@ -20,8 +20,8 @@ const TYPE_META: Record<string, { label: string; icon: ElementType; badge: strin
     tool: { label: 'Tool', icon: Wrench, badge: 'bg-amber-500/15 text-amber-400 border border-amber-500/30', accent: 'text-amber-400' },
     function: { label: 'Tool', icon: Wrench, badge: 'bg-amber-500/15 text-amber-400 border border-amber-500/30', accent: 'text-amber-400' },
     channel: { label: 'Channel', icon: Radio, badge: 'bg-green-500/15 text-green-400 border border-green-500/30', accent: 'text-green-400' },
-    connector: { label: 'Connector', icon: Plug, badge: 'bg-rose-500/15 text-rose-400 border border-rose-500/30', accent: 'text-rose-400' },
-    'mcp-server': { label: 'Connector', icon: Plug, badge: 'bg-rose-500/15 text-rose-400 border border-rose-500/30', accent: 'text-rose-400' },
+    connector: { label: 'Connection', icon: Plug, badge: 'bg-rose-500/15 text-rose-400 border border-rose-500/30', accent: 'text-rose-400' },
+    'mcp-server': { label: 'MCP server', icon: Plug, badge: 'bg-rose-500/15 text-rose-400 border border-rose-500/30', accent: 'text-rose-400' },
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

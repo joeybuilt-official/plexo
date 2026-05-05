@@ -580,6 +580,10 @@ async function pollOneChannel(channel: ChannelRow, deps: PollDeps): Promise<void
     // Advance lastHistoryId only after a successful cycle.
     if (lastResponseHistoryId && lastResponseHistoryId !== startHistoryId) {
         await deps.updateLastHistoryId(channel.id, lastResponseHistoryId)
+        logger.debug(
+            { channelId: channel.id, fromHistoryId: startHistoryId, toHistoryId: lastResponseHistoryId },
+            'gmail-poll: advanced lastHistoryId',
+        )
     }
 }
 

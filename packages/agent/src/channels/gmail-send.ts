@@ -33,8 +33,6 @@ export interface GmailSendParams {
     threadId?: string
     /** RFC 5322 Message-ID of the message we're replying to. */
     inReplyTo?: string
-    /** Optional explicit From header (falls back to channel config emailAddress). */
-    from?: string
 }
 
 export interface GmailSendResult {
@@ -259,8 +257,7 @@ export async function gmailSend(params: GmailSendParams): Promise<GmailSendResul
     const delivery = await loadGmailDelivery(channelId)
     if (!delivery) return { ok: false, error: 'Gmail channel/connection unavailable' }
 
-    const fromHeader = params.from ?? delivery.fromEmail
-    const rfc = buildRfc2822({ from: fromHeader, to, subject, body, inReplyTo })
+    const rfc = buildRfc2822({ from: delivery.fromEmail, to, subject, body, inReplyTo })
     const raw = base64url(rfc)
 
     let accessToken = delivery.accessToken
