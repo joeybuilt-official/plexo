@@ -13,7 +13,7 @@
  */
 
 import { pgSchema, uuid, text, integer, boolean, timestamp, primaryKey, index } from 'drizzle-orm/pg-core'
-import { workspaces, installedConnections, channels } from './schema.js'
+import { workspaces, installedConnections, channels } from './schema'
 
 const gmessagesSchema = pgSchema('plexo_gmessages')
 
