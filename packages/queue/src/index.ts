@@ -11,7 +11,7 @@ const CLAIM_TIMEOUT_SECONDS = parseInt(process.env.CLAIM_TIMEOUT_SECONDS ?? '300
 export interface PushParams {
     workspaceId: string
     type: TaskType
-    source: 'telegram' | 'slack' | 'discord' | 'scanner' | 'github' | 'cron' | 'dashboard' | 'api' | 'extension' | 'sentry' | 'a2a' | 'webhook' | 'twilio' | 'gmail'
+    source: 'telegram' | 'slack' | 'discord' | 'scanner' | 'github' | 'cron' | 'dashboard' | 'api' | 'extension' | 'sentry' | 'a2a' | 'webhook' | 'twilio' | 'gmail' | 'gmessages'
     context: Record<string, unknown>
     priority?: number
     project?: string

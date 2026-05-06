@@ -110,7 +110,31 @@ export type {
     ChannelExtension,
     ChannelHealthResult,
     ChannelSendResult,
+    PexVersion,
+    ChannelType,
+    ConnectionState,
+    ChannelAttachmentRef,
+    ChannelMessage,
+    ChannelThread,
+    ChannelDescriptor,
+    PairedConnectionDescriptor,
+    ChannelEvent,
+    ChannelSubscription,
+    ChannelScope,
+    ChannelSendRequest,
+    ChannelMessagePage,
+    ChannelThreadPage,
 } from './types/channel.js'
+export { PEX_VERSION } from './types/channel.js'
+
+// ---------------------------------------------------------------------------
+// ADR-0002 — Channel subscription runtime client
+// ---------------------------------------------------------------------------
+export { createChannelClient } from './channel-client.js'
+export type {
+    ChannelClient,
+    ChannelClientOptions,
+} from './channel-client.js'
 
 // ---------------------------------------------------------------------------
 // §7.4 — Event bus

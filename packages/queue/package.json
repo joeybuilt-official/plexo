@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./inngest": "./src/inngest/index.ts",
+    "./inngest-express": "./src/inngest/express.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -13,6 +15,7 @@
   "dependencies": {
     "@plexo/db": "workspace:*",
     "drizzle-orm": "^0.39",
+    "inngest": "^3.39",
     "ulid": "^2.3"
   },
   "devDependencies": {

@@ -10,8 +10,9 @@
  * DELETE /api/channels/:id            Delete channel
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and } from '@plexo/db'
-import { channels, installedConnections } from '@plexo/db'
+import { db, eq, and, desc, inArray, sql } from '@plexo/db'
+import { channels, conversations, installedConnections, pairedSessions } from '@plexo/db'
+import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 import { registerTelegramChannel } from './telegram.js'
 import { UUID_RE } from '../validation.js'
@@ -19,6 +20,37 @@ import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { fetchGmailProfile } from '../lib/gmail-client.js'
 import { filterChannelConfigForPatch } from '../lib/channel-config-allowlist.js'
 import { encryptSensitiveConfigKeys } from '../lib/channel-config-crypto.js'
+import { sidecarSessionSend } from '../lib/gmessages-sidecar.js'
+
+type PairedSessionState = (typeof pairedSessions.$inferSelect)['state']
+
+/**
+ * Fold per-channel paired_sessions rows down to the most-recent one and
+ * return a `Map<channelId, state>`. Used by the viewer list + detail
+ * endpoints to surface the offline banner sourced from
+ * `paired_sessions.state` (ADR-0005). Channels with no paired_session
+ * (telegram/slack/etc.) are absent from the map.
+ */
+async function loadLatestSessionStates(workspaceId: string): Promise<Map<string, PairedSessionState>> {
+    const rows = await db
+        .select({
+            channelId: pairedSessions.channelId,
+            state: pairedSessions.state,
+            stateChangedAt: pairedSessions.stateChangedAt,
+        })
+        .from(pairedSessions)
+        .where(eq(pairedSessions.workspaceId, workspaceId))
+    const out = new Map<string, PairedSessionState>()
+    const seenAt = new Map<string, Date>()
+    for (const r of rows) {
+        const prev = seenAt.get(r.channelId)
+        if (!prev || r.stateChangedAt.getTime() > prev.getTime()) {
+            seenAt.set(r.channelId, r.stateChangedAt)
+            out.set(r.channelId, r.state)
+        }
+    }
+    return out
+}
 
 export const channelsRouter: RouterType = Router()
 
@@ -61,16 +93,299 @@ channelsRouter.get('/', async (req, res) => {
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
     try {
-        const items = await db
-            .select()
-            .from(channels)
-            .where(eq(channels.workspaceId, workspaceId))
-            .limit(200)
+        const [rows, sessionStates] = await Promise.all([
+            db.select().from(channels).where(eq(channels.workspaceId, workspaceId)).limit(200),
+            loadLatestSessionStates(workspaceId),
+        ])
+        const items = rows.map((r) => ({ ...r, state: sessionStates.get(r.id) ?? null }))
         res.json({ items, total: items.length })
     } catch (err) {
         logger.error({ err }, 'GET /api/channels failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list channels' } })
     }
+})
+
+// ── Plexo viewer endpoints (Phase 4c, ADR-0005) ──────────────────────────────
+//
+// These power /app/channels/* — the host-side generic Channel viewer. Workspace
+// access is enforced via Better Auth + ensureWorkspaceAccess (same posture as
+// the list/CRUD handlers above). Distinct from /api/plexo/channels/* (HMAC,
+// sibling-app-facing) per ADR-0005 §"Consequences" boundary.
+//
+// Threads and messages return empty-state shells in Phase 4c. Phase 5 lands
+// the message-normalization + ingestion path, at which point these handlers
+// project rows from `messages` and join `plexo_gmessages.message_dedupe`.
+
+channelsRouter.get('/:id', async (req, res) => {
+    const { id } = req.params
+    const { workspaceId } = req.query as Record<string, string>
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required for channel id' } })
+        return
+    }
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+    if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
+    const [row] = await db.select()
+        .from(channels)
+        .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+        .limit(1)
+    if (!row) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
+        return
+    }
+    const sessionStates = await loadLatestSessionStates(workspaceId)
+    res.json({ ...row, state: sessionStates.get(row.id) ?? null })
+})
+
+channelsRouter.get('/:id/threads', async (req, res) => {
+    const { id } = req.params
+    const { workspaceId } = req.query as Record<string, string>
+    if (!UUID_RE.test(id) || !workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Valid id + workspaceId required' } })
+        return
+    }
+    if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
+    const [row] = await db.select({ id: channels.id, type: channels.type })
+        .from(channels)
+        .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+        .limit(1)
+    if (!row) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
+        return
+    }
+
+    try {
+        // Channel-type-agnostic thread aggregation. For gmessages the
+        // session_id prefix is `gmessages:`; we additionally narrow by
+        // channelRef.channelId so a workspace with multiple paired channels
+        // doesn't bleed threads across them. For other channel types we
+        // fall back to source = channel.type and channelRef.channelId.
+        const sourceFilter = row.type === 'gmessages' ? 'gmessages' : row.type
+        const rows = await db
+            .select({
+                sessionId: conversations.sessionId,
+                message: conversations.message,
+                reply: conversations.reply,
+                createdAt: conversations.createdAt,
+                channelRef: conversations.channelRef,
+            })
+            .from(conversations)
+            .where(sql`
+                ${conversations.workspaceId} = ${workspaceId}
+                AND ${conversations.source} = ${sourceFilter}
+                AND ${conversations.sessionId} IS NOT NULL
+                AND ${conversations.channelRef}->>'channelId' = ${id}
+            `)
+            .orderBy(desc(conversations.createdAt))
+            .limit(2000)
+
+        // Fold: most-recent row per sessionId wins for preview/lastMessageAt;
+        // earlier rows in the same session are dropped.
+        type ThreadAcc = { id: string; title: string; lastMessagePreview: string; lastMessageAt: string; unreadCount: number }
+        const seen = new Set<string>()
+        const threads: ThreadAcc[] = []
+        for (const r of rows) {
+            if (!r.sessionId) continue
+            if (seen.has(r.sessionId)) continue
+            seen.add(r.sessionId)
+            const ref = r.channelRef as { chatId?: string } | null
+            const threadId = ref?.chatId ?? r.sessionId.replace(/^gmessages:/, '')
+            const preview = r.reply && r.reply.length > 0 ? r.reply : r.message
+            threads.push({
+                id: threadId,
+                title: threadId,
+                lastMessagePreview: preview.slice(0, 280),
+                lastMessageAt: r.createdAt.toISOString(),
+                unreadCount: 0,
+            })
+        }
+        res.json({ threads })
+    } catch (err) {
+        logger.error({ err, channelId: id }, 'GET /channels/:id/threads failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list threads' } })
+    }
+})
+
+channelsRouter.get('/:id/threads/:threadId/messages', async (req, res) => {
+    const { id, threadId } = req.params
+    const { workspaceId } = req.query as Record<string, string>
+    if (!UUID_RE.test(id) || !workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Valid id + workspaceId required' } })
+        return
+    }
+    if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
+    const [row] = await db.select({ id: channels.id, type: channels.type })
+        .from(channels)
+        .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+        .limit(1)
+    if (!row) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
+        return
+    }
+
+    try {
+        const sourceFilter = row.type === 'gmessages' ? 'gmessages' : row.type
+        const sessionId = row.type === 'gmessages' ? `gmessages:${threadId}` : threadId
+        const rows = await db.select({
+            id: conversations.id,
+            message: conversations.message,
+            reply: conversations.reply,
+            createdAt: conversations.createdAt,
+            attachments: conversations.attachments,
+        })
+            .from(conversations)
+            .where(and(
+                eq(conversations.workspaceId, workspaceId),
+                eq(conversations.source, sourceFilter),
+                eq(conversations.sessionId, sessionId),
+            ))
+            .orderBy(desc(conversations.createdAt))
+            .limit(200)
+
+        // Reverse to ASC so the viewer renders oldest → newest.
+        const ascRows = rows.reverse()
+
+        type Msg = {
+            id: string
+            direction: 'inbound' | 'outbound'
+            text: string
+            sentAt: string
+            attachments: typeof conversations.$inferSelect.attachments
+        }
+        const messages: Msg[] = []
+        for (const r of ascRows) {
+            // Inbound shape: row.message is the user-sent text; row.reply may
+            // hold an outbound dispatch's text (Phase 5 outbound persistence
+            // currently writes a row with reply=text, message='' — see POST
+            // handler below). Emit the inbound row only when message has
+            // content; emit a virtual outbound row when reply has content.
+            if (r.message && r.message.length > 0) {
+                messages.push({
+                    id: r.id,
+                    direction: 'inbound',
+                    text: r.message,
+                    sentAt: r.createdAt.toISOString(),
+                    attachments: r.attachments ?? [],
+                })
+            }
+            if (r.reply && r.reply.length > 0) {
+                messages.push({
+                    id: r.id + ':out',
+                    direction: 'outbound',
+                    text: r.reply,
+                    sentAt: r.createdAt.toISOString(),
+                    attachments: [],
+                })
+            }
+        }
+        res.json({ messages })
+    } catch (err) {
+        logger.error({ err, channelId: id, threadId }, 'GET /channels/:id/threads/:threadId/messages failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list messages' } })
+    }
+})
+
+channelsRouter.post('/:id/threads/:threadId/messages', async (req, res) => {
+    const { id, threadId } = req.params
+    const { workspaceId, text } = req.body as { workspaceId?: string; text?: string }
+    if (!UUID_RE.test(id) || !workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Valid id + workspaceId required' } })
+        return
+    }
+    if (typeof text !== 'string' || !text.length) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'text required' } })
+        return
+    }
+    if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
+    const [row] = await db.select({ id: channels.id, type: channels.type })
+        .from(channels)
+        .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+        .limit(1)
+    if (!row) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
+        return
+    }
+
+    if (row.type !== 'gmessages') {
+        // Other channel types still 202-echo until their outbound flows ship.
+        res.status(202).json({
+            id: `pending_${Date.now()}`,
+            channelId: id,
+            threadId,
+            direction: 'outbound',
+            text,
+            sentAt: new Date().toISOString(),
+            pending: true,
+        })
+        return
+    }
+
+    // Find the most-recent live paired session for this channel.
+    const [session] = await db.select({
+        id: pairedSessions.id,
+        state: pairedSessions.state,
+        stateChangedAt: pairedSessions.stateChangedAt,
+    })
+        .from(pairedSessions)
+        .where(and(
+            eq(pairedSessions.channelId, id),
+            eq(pairedSessions.workspaceId, workspaceId),
+            inArray(pairedSessions.state, ['active', 'paired', 'refreshing']),
+        ))
+        .orderBy(desc(pairedSessions.stateChangedAt))
+        .limit(1)
+
+    if (!session) {
+        res.status(409).json({ error: { code: 'SESSION_NOT_LIVE', message: 'No live paired session for this channel' } })
+        return
+    }
+
+    const idempotencyKey = ulid()
+    const sentAt = new Date()
+    try {
+        await sidecarSessionSend(session.id, threadId, text, idempotencyKey)
+    } catch (err) {
+        logger.error({ err, channelId: id, threadId, pairedSessionId: session.id }, 'gmessages outbound send failed')
+        res.status(502).json({ error: { code: 'SIDECAR_SEND_FAILED', message: 'Sidecar dispatch failed' } })
+        return
+    }
+
+    // Persist the outbound row so the viewer's GET reflects the optimistic
+    // send. Convention: outbound text lives in `reply`; `message` is empty.
+    // The GET handler synthesizes direction:'outbound' for rows where reply
+    // is non-empty.
+    const conversationId = ulid()
+    try {
+        await db.insert(conversations).values({
+            id: conversationId,
+            workspaceId,
+            sessionId: `gmessages:${threadId}`,
+            source: 'gmessages',
+            message: '',
+            reply: text,
+            status: 'complete',
+            intent: null,
+            channelRef: { channel: 'gmessages', channelId: id, chatId: threadId },
+            attachments: [],
+            createdAt: sentAt,
+        })
+    } catch (err) {
+        // Don't fail the user-visible response over a logging row.
+        logger.warn({ err, channelId: id, threadId }, 'gmessages outbound conversation insert failed')
+    }
+
+    res.status(202).json({
+        id: conversationId,
+        channelId: id,
+        threadId,
+        direction: 'outbound',
+        text,
+        sentAt: sentAt.toISOString(),
+        pending: true,
+    })
 })
 
 // ── POST /api/channels ────────────────────────────────────────────────────────

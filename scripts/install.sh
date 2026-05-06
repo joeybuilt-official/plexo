@@ -130,6 +130,8 @@ STORAGE_ACCESS_KEY="plexo"
 STORAGE_SECRET_KEY="$(gen_hex 32)"
 INSTANCE_ID="$(gen_b64 16)"
 TELEGRAM_WEBHOOK_SECRET="$(gen_hex 32)"
+INNGEST_SIGNING_KEY="signkey-prod-$(gen_hex 32)"
+INNGEST_EVENT_KEY="$(gen_hex 32)"
 
 PUBLIC_URL="https://${DOMAIN}"
 PUBLIC_DOMAIN="${DOMAIN}"
@@ -156,6 +158,10 @@ SESSION_SECRET=${SESSION_SECRET}
 ENCRYPTION_SECRET=${ENCRYPTION_SECRET}
 PLEXO_SERVICE_KEY=${PLEXO_SERVICE_KEY}
 TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
+
+# ── Inngest (ADR-0006 — durable cron + workflow chaining) ───────────────────
+INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
+INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
 AUTH_SECRET=${AUTH_SECRET}

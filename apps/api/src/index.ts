@@ -15,6 +15,10 @@ validateEnv()
 import { trackError } from './event-tracker.js'
 import { handoffRouter } from './routes/handoff.js'
 import { ssoRouter } from './routes/sso.js'
+import { channelsSubscriptionRouter } from './routes/channels-subscription.js'
+import { channelsGmessagesRouter } from './routes/channels-gmessages.js'
+import { connectionsGmessagesRouter } from './routes/connections-gmessages.js'
+import { inngestExpressHandler } from '@plexo/queue/inngest-express'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
 installCCHandlers()
 import express, { type Express } from 'express'
@@ -319,6 +323,7 @@ v1.use('/memory', requireWorkspaceMember('workspaceId'), memoryRouter)
 v1.use('/synthesis', synthesisRouter) // service-key auth handled inside the router
 v1.use('/themes', themesRouter) // service-key auth handled inside the router (Phase 1: /forest)
 v1.use('/connections', connectionsRouter) // some endpoints have no workspaceId (registry); per-handler checks
+v1.use('/connections/gmessages', connectionsGmessagesRouter) // ADR-0005: pairing lifecycle, NOT subscription
 // ADR 0013 §D9 — draft attachments. Mounted BEFORE conversationsRouter so
 // the more specific /:conversationId/draft-attachments path matches first.
 // express.raw() is registered inside the router so the default jsonDefault
@@ -448,6 +453,19 @@ app.use('/api/oauth', authLimiter, jsonDefault, oauthRouter)
 // Mounted unversioned because sibling apps construct stable URLs of the
 // form /api/sso/handoff?app=…&return=… and /api/sso/verify.
 app.use('/api/sso', authLimiter, jsonDefault, ssoRouter)
+
+// Channel subscription contract for sibling apps (ADR-0002).
+// HMAC-authenticated; mounted unversioned so app SDKs target a stable URL.
+// The gmessages connector (Go sidecar) posts inbound events to the
+// /gmessages subpath using the same HMAC envelope.
+app.use('/api/plexo/channels/gmessages', jsonMedium, channelsGmessagesRouter)
+app.use('/api/plexo/channels', jsonDefault, channelsSubscriptionRouter)
+
+// Inngest function discovery + invocation. The dev server (compose service
+// `inngest`) GETs this endpoint at boot to list registered functions and
+// POSTs back to invoke them when crons fire. ADR-0006: Plexo and Levio
+// share the Inngest substrate.
+app.use('/api/inngest', inngestExpressHandler)
 
 // A2A spec — agent discovery at /.well-known/agent.json (no API prefix)
 app.use('/.well-known', wellKnownAgentHandler())

@@ -53,6 +53,7 @@ See `.env.example` for the full list with descriptions.
 - `TELEGRAM_BOT_TOKEN` — Telegram bot channel
 - `DISCORD_APP_ID/PUBLIC_KEY/BOT_TOKEN` — Discord slash commands
 - `GOOGLE_CLIENT_ID/SECRET` — Google Drive connection
+- `GMESSAGES_SIDECAR_URL` — Google Messages paired-phone connector (defaults to `http://gmessages:3010`; only override when splitting the sidecar to a separate host). See `apps/gmessages/README.md` and `apps/gmessages/RUNBOOK.md`.
 
 ## Platform-Specific Deployments (Coolify, Portainer)
 

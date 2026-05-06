@@ -194,6 +194,14 @@ services:
       # install extensions from a raw manifest without going through the Hub
       # should set ALLOW_SIDELOAD=true in .env.
       ALLOW_SIDELOAD: ${ALLOW_SIDELOAD:-false}
+      # Inngest — durable cron + workflow chaining (ADR-0006). The API
+      # registers functions with the dev server at boot via the SDK.
+      INNGEST_BASE_URL: ${INNGEST_BASE_URL:-http://inngest:8288}
+      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:-}
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-}
+      # Google Messages sidecar — Phase 4a pair endpoints. Same PLEXO_SERVICE_KEY
+      # signs HMAC requests both directions (api → sidecar and sidecar → api).
+      GMESSAGES_SIDECAR_URL: ${GMESSAGES_SIDECAR_URL:-http://gmessages:3010}
     volumes:
       - generated_skills:/var/plexo/generated-skills
     # When Coolify connects this container to its proxy network, 'postgres'
@@ -235,6 +243,62 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+    mem_limit: 512m
+    memswap_limit: 768m
+
+  # ── Google Messages connector (Go sidecar, ADR-0001) ──────
+  # Single-process multi-tenant per ADR-0004. Posts to Plexo API via the
+  # /api/plexo/channels/gmessages/* HMAC-authed contract; never touches
+  # Postgres directly. Phase 3 ships a skeleton with no libgmessages link;
+  # Phase 4 wires the real session lifecycle.
+  gmessages:
+    build:
+      context: .
+      dockerfile: apps/gmessages/docker/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      PORT: "3010"
+      PLEXO_BASE_URL: http://api:3001
+      PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-}
+      # Master key for HKDF per-session derivation. Reuses the existing
+      # ENCRYPTION_SECRET so operators don't need to manage a second
+      # secret; the derivation produces a session-scoped key per
+      # (workspace, paired_session) pair.
+      GMESSAGES_MASTER_KEY: ${ENCRYPTION_SECRET}
+      # Phase 3 self-test — emits one synthetic event on boot if set.
+      # Disable in production (Phase 6).
+      GMESSAGES_SYNTHETIC_BOOT: ${GMESSAGES_SYNTHETIC_BOOT:-0}
+    healthcheck:
+      # Distroless image — binary self-probes /health via -healthcheck flag.
+      test: ["CMD", "/gmessages", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 256m
+    memswap_limit: 384m
+
+  # ── Inngest (durable cron + workflow chaining, ADR-0006) ──
+  # Postgres-backed dev server. UI binds to 127.0.0.1 — never exposed
+  # to the public ingress. Operators access the dashboard via SSH
+  # tunnel (same posture as Postgres direct access).
+  inngest:
+    image: inngest/inngest:latest
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      INNGEST_POSTGRES_URI: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
+      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY}
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY}
+    ports:
+      - "127.0.0.1:8288:8288"
     mem_limit: 512m
     memswap_limit: 768m
 

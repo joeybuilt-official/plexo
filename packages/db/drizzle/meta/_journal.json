@@ -813,6 +813,20 @@
       "when": 1779156000000,
       "tag": "0115_attachment_scan_queue_backoff",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1779242400000,
+      "tag": "0116_gmessages_phase2",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1779242460000,
+      "tag": "0117_gmessages_phase2_schema",
+      "breakpoints": true
     }
   ]
 }

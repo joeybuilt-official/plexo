@@ -65,6 +65,9 @@ scripts/internal/
 images/internal/
 .gradle/
 
+# Session-bridge artifacts written by phased-plan / resume-prompt skills
+next-session.txt
+
 # Database dumps — NEVER commit production data
 *.sql
 !**/drizzle/*.sql

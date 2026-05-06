@@ -42,6 +42,7 @@ export const channelTypeEnum = pgEnum('channel_type', [
     'webchat',
     'twilio',
     'gmail',
+    'gmessages',
 ])
 
 export const taskTypeEnum = pgEnum('task_type', [
@@ -91,6 +92,7 @@ export const taskSourceEnum = pgEnum('task_source', [
     'webhook',
     'twilio',
     'gmail',
+    'gmessages',
 ])
 
 export const taskStepStateEnum = pgEnum('task_step_state', [
@@ -156,6 +158,7 @@ export const authTypeEnum = pgEnum('auth_type', [
     'api_key',
     'webhook',
     'none',
+    'paired_session',
 ])
 
 export const connectionStatusEnum = pgEnum('connection_status', [

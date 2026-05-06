@@ -245,11 +245,20 @@ export default function ConnectionDetail({
                                 </p>
                                 <div className="flex flex-col gap-1">
                                     {linkedChannels.map((ch) => (
-                                        <div key={ch.id} className="flex items-center justify-between">
-                                            <span className="text-[11px] text-teal-400/70">{ch.name}</span>
-                                            <span className={`text-[11px] font-medium ${ch.enabled ? 'text-azure' : 'text-text-muted'}`}>
-                                                {ch.enabled ? 'enabled' : 'disabled'}
-                                            </span>
+                                        <div key={ch.id} className="flex items-center justify-between gap-3">
+                                            <span className="text-[11px] text-teal-400/70 truncate">{ch.name}</span>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <a
+                                                    href={`/app/channels/${ch.id}`}
+                                                    className="flex items-center gap-1 text-[11px] text-teal-400 hover:text-teal-300 transition-colors"
+                                                >
+                                                    Open in Plexo viewer
+                                                    <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                                <span className={`text-[11px] font-medium ${ch.enabled ? 'text-azure' : 'text-text-muted'}`}>
+                                                    {ch.enabled ? 'enabled' : 'disabled'}
+                                                </span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
