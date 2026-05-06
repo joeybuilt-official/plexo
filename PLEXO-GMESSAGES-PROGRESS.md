@@ -2,17 +2,26 @@
 
 **Resume prompt (paste into a fresh Claude Code session at `/home/dustin/dev/plexo`):**
 
-> Resume `PLEXO-GMESSAGES` at `/home/dustin/dev/plexo`. Phase 6 code-side is **complete and dev-stack-smoke-validated** — the only remaining items are operator-only: **(a)** commit + push the gmessages working tree (currently uncommitted on `main` past `f65003eb`), **(b)** confirm push target (registry + tag scheme), **(c)** confirm deploy target (Coolify project / environment), **(d)** run the operator-witnessed staging smoke per `PLEXO-GMESSAGES-PHASE-6-OPS.md` §7.3 (pre-flight + 5 scenarios). After staging is green, promote to prod (master plan §authorization-gates #6).
+> Resume `PLEXO-GMESSAGES` at `/home/dustin/dev/plexo`. Phase 6 is **deployed to prod on the joeybuilt VPS** (`203.0.113.10`) as of 2026-05-06 22:49 UTC. Sidecar live, HMAC self-check passes against prod api, migrations 0117 applied, no paired sessions yet. **Only the witnessed phone-pair smoke (PHASE-6-OPS §7.3 scenarios 1-5) remains** before the master plan §authorization-gates #6 closes.
 >
-> **Read in order:** `/home/dustin/dev/plexo/PLEXO-GMESSAGES-PROGRESS.md` (top decisions-log entries = autonomous Phase 6 hardening + dev-stack smoke 2026-05-06), `/home/dustin/dev/plexo/PLEXO-GMESSAGES-PHASE-6-OPS.md` (§3 Coolify env, §6 ship-gate, §7.3 hardened pre-flight + smoke, §11 Phase L handoff), `/home/dustin/dev/plexo/apps/gmessages/RUNBOOK.md` (§4 references the Phase 6 self-check + boot-restore test), `/home/dustin/dev/plexo/checklist.md`, `/home/dustin/dev/plexo/plan.md` (Phase L scope).
+> **Read in order:** `/home/dustin/dev/plexo/PLEXO-GMESSAGES-PROGRESS.md` (top decisions-log entry = 2026-05-06 prod deploy), `/home/dustin/dev/plexo/PLEXO-GMESSAGES-PHASE-6-OPS.md` (§7.3 phone-pair scenarios), `/home/dustin/dev/plexo/apps/gmessages/RUNBOOK.md`, `/home/dustin/dev/plexo/checklist.md`, `/home/dustin/dev/plexo/plan.md` (Phase L scope).
 >
-> **Critical pre-flight finding (logged 2026-05-06):** the local plexo-api container at HEAD `f65003eb` predates the gmessages api routes (all uncommitted). When the sidecar boots against an api missing `/api/plexo/channels/gmessages/restore-list`, the self-check logs "inconclusive" + boot-restore logs 404 (graceful degradation, /health stays green). **Staging must build api + gmessages from the same commit** — §7.3 pre-flight now mandates `docker compose build api gmessages` together with a curl-test of restore-list (expect 200 + `{"entries":[]}`) before scenario 1.
+> **Prod state (2026-05-06 22:49 UTC):**
+> - `plexo-gmessages` healthy at `0.0.5-phase-6-ops`; libgm `v0.2604.0`; container_name `plexo-gmessages`; defined inline in `/opt/service/platform/infra/docker-compose.yml` (between `plexo-web` and `inference-gateway`).
+> - `plexo-api` healthy with `GMESSAGES_SIDECAR_URL=http://plexo-gmessages:3010` env wired.
+> - Prod DB at migration 0117; `plexo_gmessages.{paired_sessions,message_dedupe,rcs_feature_cache}` tables present; `connections_registry.gmessages` row seeded; `auth_type` enum has `paired_session`.
+> - Sidecar boot sequence verified clean: `http listener up port=3010` → `startup HMAC self-check passed` → `boot restore: rehydrating sessions count=0`.
 >
-> **State:** Sidecar at `0.0.5-phase-6-ops`, libgm `v0.2604.0`, Go 1.25. `qrcode.react` wired (auth-gate #8 closed). Phase 6 hardening: `runStartupSelfCheck` (sustained 401 → exit 1 with fix-pointer; 20s tolerance for "api still booting"); `cryptosvc.TestDecrypt_BootRestoreFailureModes` (8 sub-cases, all assert no panic on malformed AuthBlobs). Migrations 0108-0117 audited idempotent + journaled. Compose `gmessages:` service prod-shaped (distroless, internal-only :3010, mem 256m, restart unless-stopped, `depends_on: api healthy`). Verification battery green: sidecar `go vet`/`go build`/`go test`, api/queue/web typecheck (3 pre-existing deepgram + telegram errors carried forward), `docker compose build gmessages` → `plexo-gmessages:latest`. Dev-stack restart with new image confirmed: version stamp surfaces, listener boots, healthcheck self-probe exits 0, self-check retry path exercises correctly against a real (but stale) api.
+> **Driving the §7.3 phone-pair smoke**: pair flow lives at `https://getplexo.com/app/connections/gmessages/pair`. PHASE-6-OPS §7.3 scenarios 1-5 are pair → send → receive → force-expire/reconnect → restart sidecar/verify boot-restore. Append observations to PROGRESS.md decisions log as scenarios run. After smoke green: master plan §authorization-gates #6 closes.
 >
-> **When the operator returns:** ask whether to commit the gmessages work tree first, then push target + deploy target. Drive §7.3 step-by-step or stand by to log observations as they run scenarios. After smoke + promotion → next session is **Phase L** (Levio integration), gated on Levio Phase 7 closeout (`/home/dustin/dev/joeybuilt/levio/next-session.txt`); see PHASE-6-OPS §11 for the Phase L kickoff prompt.
+> **Known gaps to track separately (do not block §7.3):**
+> - Inngest service not in platform compose. `gmessages-session-refresh` (`*/15`) and `gmessages-stale-session-monitor` (`*/5`) crons won't fire in prod. Active session ops still work; 24h refresh + auto-stale-detection are degraded.
+> - PHASE-6-OPS §3 was written for Coolify; actual deploy is platform compose. Doc needs rewrite.
+> - The platform compose edit adding `plexo-gmessages` is **not in any git repo** — backup at `docker-compose.yml.bak.before-gmessages-2026-05-06`. Future platform updates may overwrite. Either propose a platform-repo PR or document this in platform's own README.
+> - Hub build (apps/hub via Turbopack) was missing from the §10 verification battery — caught a regression at deploy time. Add `pnpm --filter @plexo/hub build` to §10 before next phase.
+> - `__drizzle_migrations.created_at` is NULL on all 116 historical rows in prod. Triggers the memory-noted "Drizzle MAX(created_at) skip cursor gotcha" — `/migrate.sh` will always fail until backfilled. Recovery for any future migration: apply SQL directly via `docker exec ... psql -f` + insert tracking row.
 >
-> Pre-existing `deepgram.ts` + `telegram.ts` TS errors are unrelated; skip per CLAUDE.md. Auto-deploy daemon's REPO_MAP for `joeybuilt-official/plexo` does NOT include `plexo-gmessages` service today — the daemon redeploys plexo-api/saas/hub/embeddings only. After upstream push, gmessages sidecar redeploy is a manual operator step (or operator may want the daemon's REPO_MAP updated to include it).
+> Auto-deploy daemon's REPO_MAP for `joeybuilt-official/plexo` redeploys plexo-api/saas/hub/embeddings only. After any future plexo push, gmessages sidecar redeploy is a manual `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build plexo-gmessages` from `/opt/service/platform/infra/`.
 
 ---
 
@@ -26,7 +35,7 @@
 | 3 — Go connector skeleton | `complete` | `PLEXO-GMESSAGES-PHASE-3-SKELETON.md` | (no operator gate) — synthetic-boot smoke verified 2026-05-05 |
 | 4 — Pairing UI + lifecycle + viewer | `complete (4a + 4b + 4c)` | `PLEXO-GMESSAGES-PHASE-4-PAIRING.md` | (no operator gate) |
 | 5 — Message normalization + ingestion | `complete` | `PLEXO-GMESSAGES-PHASE-5-INGEST.md` | (no operator gate) |
-| 6 — Operations | `code-side complete (sidecar 0.0.5-phase-6-ops + hardening + qrcode.react wired); operator-only: push target + deploy target + witnessed staging smoke` | `apps/gmessages/{README,RUNBOOK}.md` + `PLEXO-GMESSAGES-PHASE-6-OPS.md` | first production deploy |
+| 6 — Operations | `deployed to prod 2026-05-06 22:49 UTC (sidecar live, HMAC self-check passing, migrations 0117 applied); witnessed §7.3 phone-pair smoke deferred` | `apps/gmessages/{README,RUNBOOK}.md` + `PLEXO-GMESSAGES-PHASE-6-OPS.md` | §7.3 scenarios 1-5 + master plan §authorization-gates #6 |
 | L — Levio integration | `not_started` | `PLEXO-GMESSAGES-PHASE-L-LEVIO.md` | first Levio deploy with messaging |
 
 ## Notes
@@ -36,6 +45,24 @@
 - The phased-plan skill files (`plan.md`, `checklist.md`, `adr/`) and the build prompt files (`PLEXO-GMESSAGES-PHASE-N-*.md`) are kept in parallel — no deduplication. Per-phase docs hold the build prompt's required deliverables; `plan.md` + `checklist.md` hold the skill's session-bridging state.
 
 ## Operator decisions log
+
+**2026-05-06 — Phase 6 prod deploy executed (sidecar live, witnessed phone-pair smoke deferred)**
+
+Operator drove commit + push + manual sidecar deploy to the joeybuilt VPS (`203.0.113.10`). All Claude-side gates closed; only the §7.3 witnessed phone-pair smoke (5 scenarios) remains, deferred to operator's convenience.
+
+- **Commit `bb9cd2cc`** — Phases 2-6 gmessages connector (80 files, +10399/-25), authored as Dustin via `GIT_AUTHOR_*`/`GIT_COMMITTER_*` env vars.
+- **Hub build regression caught + fixed (commit `9396b6bf`)**: `packages/db/src/gmessages-schema.ts` had `import … from './schema.js'`. Turbopack (apps/hub via Next.js) couldn't resolve `.js`. Fixed by aligning with the rest of `packages/db/src` (extensionless imports). **Hub was missing from §10 verification battery** — add before next phase.
+- **Auto-deploy daemon** (`auto-deploy.service` → `/opt/service/auto-deploy.mjs`) redeployed plexo-api/saas/hub/embeddings on the fix-push. Deploy completed 22:33:01 UTC. Daemon's REPO_MAP excludes gmessages by design (per §15).
+- **Migrations 0116/0117 NOT auto-applied** — daemon's `up -d <services>` doesn't include `migrate`. `/migrate.sh` then failed: prod `__drizzle_migrations` has all 116 rows with `created_at=NULL`, so `MAX(created_at)=NULL` triggers the memory-noted "Drizzle MAX(created_at) skip cursor gotcha" — drizzle treats every migration as pending and dies on the first re-CREATE. **Recovery**: applied 0116.sql + 0117.sql directly via `psql -f` (idempotent — `ADD VALUE IF NOT EXISTS` / `IF NOT EXISTS` / `ON CONFLICT DO NOTHING`), inserted tracking rows id 398/399 with filename-pattern hashes matching existing rows. Pre-flight DB state was safe before recovery: prod at 0115 with `channel_type` + `task_source` + `auth_type` in expected pre-0116 state, `plexo_gmessages` schema absent.
+- **Platform-vs-plexo-source compose drift surfaced**: daemon runs compose from `/opt/service/platform/infra/` (separate `platform` repo, `docker-compose.yml` + `docker-compose.prod.yml`). The plexo source's `docker-compose.yml` is **not** the deploy artifact. Platform compose has `plexo-api/saas/hub/embeddings/web` but lacks `migrate`, `gmessages`, and `inngest` services. **PHASE-6-OPS §3 ("Coolify configuration") is wrong for this VPS** — needs rewrite to match platform-compose reality.
+- **Manual platform compose edit** (operator authorized inline edit, no PR): added `plexo-gmessages` service to `/opt/service/platform/infra/docker-compose.yml` between `plexo-web` and `inference-gateway`; added `GMESSAGES_SIDECAR_URL: http://plexo-gmessages:3010` to plexo-api env. Backup: `docker-compose.yml.bak.before-gmessages-2026-05-06`. **Edit is not tracked in any git repo** — future platform updates may overwrite.
+- **Sidecar live at 22:49:02 UTC**: `plexo-gmessages` healthy, version `0.0.5-phase-6-ops`. Boot logs surfaced cleanly:
+  - `plexo-gmessages booting version=0.0.5-phase-6-ops`
+  - `http listener up port=3010`
+  - **`startup HMAC self-check passed`** — live api/sidecar HMAC handshake works with prod credentials, validating PHASE-6-OPS §7.3 pre-flight steps 5-6 in production.
+  - `boot restore: rehydrating sessions count=0` (no paired sessions yet)
+- **Inngest NOT in platform compose** — gmessages crons (`*/15` refresh, `*/5` stale-monitor) won't fire in prod. Active sessions still work; 24h refresh + stale-detection are degraded. Track or add Inngest service to platform compose later.
+- **Outstanding**: §7.3 witnessed phone-pair smoke (scenarios 1-5), Inngest deploy, PHASE-6-OPS §3 rewrite, hub build added to §10 verification battery.
 
 **2026-05-06 — Phase 6 dev-stack smoke + §7.3 pre-flight hardening**
 
