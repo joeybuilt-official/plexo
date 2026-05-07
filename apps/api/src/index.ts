@@ -465,7 +465,8 @@ app.use('/api/plexo/channels', jsonDefault, channelsSubscriptionRouter)
 // `inngest`) GETs this endpoint at boot to list registered functions and
 // POSTs back to invoke them when crons fire. ADR-0006: Plexo and Levio
 // share the Inngest substrate.
-app.use('/api/inngest', inngestExpressHandler)
+// Inngest payloads carry event data + step state per fn invocation.
+app.use('/api/inngest', jsonLarge, inngestExpressHandler)
 
 // A2A spec — agent discovery at /.well-known/agent.json (no API prefix)
 app.use('/.well-known', wellKnownAgentHandler())
