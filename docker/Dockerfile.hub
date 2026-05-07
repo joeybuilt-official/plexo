@@ -15,6 +15,13 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/hub/node_modules ./apps/hub/node_modules
 COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
+# Root manifest + workspace package.jsons — pnpm 11+ runs deps-status-check
+# before --filter build and exits with ERR_PNPM_NO_PKG_MANIFEST if these
+# aren't present. The deps stage already had them; the builder stage didn't.
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY apps/hub/package.json ./apps/hub/package.json
+COPY packages/db/package.json ./packages/db/package.json
+COPY packages/logger/package.json ./packages/logger/package.json
 COPY tsconfig.base.json ./
 COPY apps/hub ./apps/hub
 COPY packages/db ./packages/db
