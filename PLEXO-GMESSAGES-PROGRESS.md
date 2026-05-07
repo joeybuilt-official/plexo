@@ -46,6 +46,17 @@
 
 ## Operator decisions log
 
+**2026-05-07 — autonomous-prep continuation #9: §3.6 inngestFunctions blast-radius re-verified, zero drift (no operator gate)**
+
+Second day-2 re-verification pass; same shape as continuation #8. Both recurring drift wrappers green; one new datapoint added (the §3.6 `inngestFunctions` blast-radius claim, re-grep'd against current HEAD). No artifacts shipped beyond this receipt. The autonomous-prep stack remains stable for the operator-witnessed §7.3 phone-pair smoke gate. No prod state changed; no Levio-side code touched.
+
+- **Recurring drift checks: both green again.** `scripts/check-gmessages-prod-state.sh` → 5 PASS / 0 WARN: sidecar `Up 8 hours (healthy)` at `0.0.5-phase-6-ops`, boot logs canonical, `MAX(__drizzle_migrations.created_at) = 1779242460000`, 0 NULLs, 0 paired sessions, decode_error_rollup = 0, sidecar mem 4.945 MiB / 256 MiB. `scripts/check-platform-compose-drift.sh` → 3 PASS / 0 WARN: live diff sha256 still matches embedded baseline `911d054c…`, 43 lines. No drift since the 2026-05-06 22:47 UTC inline edit / 2026-05-06 ship snapshot.
+- **§3.6 `inngestFunctions` array blast-radius re-verified at tip `37cd38fb`.** `packages/queue/src/inngest/index.ts:19-23` still exports exactly three gmessages-only functions: `gmessagesStaleSessionMonitor`, `gmessagesSessionRefresh`, `gmessagesSessionRefreshReceiver`. File last touched at `bb9cd2cc` (the Phase 2-6 ship commit) — zero drift since deploy. The §3.6 paste-ready Inngest workflow's "blast radius purely gmessages" claim remains accurate; an operator approving §3.6 today would be approving the same surface they would have approved on 2026-05-06.
+- **All four wrapper scripts present + executable.** `scripts/{check-gmessages-prod-state.sh, check-platform-compose-drift.sh, next-migration-when.sh, verify-phase-6-ship-gate.sh}` all `-rwxr-xr-x` and discoverable from RUNBOOK Appendix A + PHASE-6-OPS §3.3/§3.5/§10. Doc-to-script cross-reference audit unchanged from session #8 — bidirectional and complete.
+- **Per the session #8 receipt + the verifications above, future sessions can continue to skip the §8/§11.1/script-cross-ref re-grep cycle through the next code-change push** and trust the continuation #8 + #9 receipts. The "stable" claim now has two consecutive day-2 receipts behind it.
+- **No new follow-ups uncovered.** The two operator-approval-required follow-ups (§3.5 platform-repo persist + §3.6 Inngest service add) and Phase L scope unchanged.
+- 15th LOCAL doc commit awaiting piggyback on the next code-change push. Local stack now 15 deep: be426292 → 95c701f0 → 4867d5c8 → a127e743 → 6d493fd5 → b3af24a2 → c6e17349 → c3199731 → 6f2d2456 → 40ee7278 → b1d4f62e → 2910118a → c2675842 → 37cd38fb → (this entry).
+
 **2026-05-07 — autonomous-prep continuation #8: session-start re-verification, zero drift (no operator gate)**
 
 Day-2 re-verification pass at session start. No new artifacts shipped; this entry is the receipt that the prior 13 LOCAL doc/script commits remain accurate against current HEAD `c2675842` (plexo) and current Levio HEAD `b2681d2` (9 commits past the `3fd0004` reference in §11.1). Future autonomous sessions can skip this re-grep + re-audit cycle by trusting this entry through the next code-change push. No prod state changed; no Levio-side code touched.
