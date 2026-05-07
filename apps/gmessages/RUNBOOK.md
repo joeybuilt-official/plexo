@@ -150,7 +150,7 @@ A restart loop usually means the sidecar boot path is failing **before** the HTT
 
 - `PLEXO_SERVICE_KEY` not set or doesn't match the api container. **Phase 6 fast-fail:** `runStartupSelfCheck` POSTs an HMAC-signed request at boot. A persistent 401 exits 1 with a clear `"startup HMAC self-check failed: HTTP 401"` log line + the fix command. If you see this in logs, jump straight to step 2 below.
 - `ENCRYPTION_SECRET` / `GMESSAGES_MASTER_KEY` missing or different from the api's.
-- `PLEXO_API_URL` unreachable from inside the gmessages container's network namespace.
+- `PLEXO_BASE_URL` unreachable from inside the gmessages container's network namespace.
 - `runBootRestore` failing on a corrupt `paired_sessions` row. **Phase 6 hardening:** all realistic decrypt failure modes are explicitly tested in `cryptosvc.TestDecrypt_BootRestoreFailureModes` and produce errors (which post `state='errored'`) rather than panicking the process. If you see a panic stack, it's a regression — file against the Plexo repo with the trace.
 
 ### Procedure
