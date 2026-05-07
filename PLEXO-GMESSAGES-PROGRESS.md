@@ -46,6 +46,16 @@
 
 ## Operator decisions log
 
+**2026-05-06 — autonomous prep for Phase 6 ops follow-ups (no operator gate)**
+
+Continuation of the post-deploy autonomous track. Picked the two remaining post-deploy follow-ups, did the read-only discovery work that any future operator-approved fix would require, and consolidated paste-ready workflows into `PHASE-6-OPS.md` §3.5 + §3.6. No code or config touched on the VPS or in either repo's main branch; this is doc-only prep.
+
+- **Prod sidecar health spot-check (read-only, ~7h after deploy):** `plexo-gmessages` Up 7h healthy at `0.0.5-phase-6-ops`. Boot logs still showing the canonical sequence (`http listener up` → `startup HMAC self-check passed` → `boot restore: rehydrating sessions count=0`). Zero paired sessions; `decode_error_count` rollup empty (no rows). `MAX(__drizzle_migrations.created_at) = 1779242460000`, NULL count = 0 — backfill intact.
+- **§3.5 added — persist `plexo-gmessages` to upstream platform repo.** Discovery: `/opt/service/platform` IS a real git repo (`origin: joeybuilt-official/platform` on `main`); `git status` confirms the inline edit is uncommitted (`M infra/docker-compose.yml` + untracked `.bak`). The current inline edit matches the §3.4 snippet byte-for-byte (verified `grep -A 25 "^  plexo-gmessages:"`). Auto-deploy daemon's REPO_MAP redeploys ONLY `caddy` on platform pushes — so persisting upstream triggers no plexo-side rebuild. §3.5 now ships a paste-ready commit + push workflow including the gitignore for the `.bak` file and the env-var-author commit pattern.
+- **§3.6 added — Inngest service for platform compose.** Discovery: platform `.env` has neither `INNGEST_SIGNING_KEY` nor `INNGEST_EVENT_KEY`; platform `.env.example` doesn't document them either. Platform postgres alias is `postgres` (user `postgres`, password `${POSTGRES_PASSWORD:-pushd_secret}` — verified against `plexo-api` env at `infra/docker-compose.yml:121`). §3.6 ships a paste-ready 5-step workflow: generate keys → append to `.env` → add `inngest:` service block (placed in the infrastructure tier alongside postgres+valkey) → wire `INNGEST_BASE_URL` into `plexo-api` env → bring up + verify via SSH-tunneled UI at `127.0.0.1:8288` → persist upstream + document in `.env.example`.
+- **Both follow-ups still REQUIRE OPERATOR APPROVAL before action.** §3.5 (commit + push to platform main) and §3.6 (new env vars + new long-lived service) each warrant operator review before any apply. The doc-only prep here just makes the future approval-fast: when the operator returns, the workflow is paste-ready and the read-only discovery is already done.
+- **Local doc commit batched** with the §3.3 backfill commit (`be426292`) for piggyback on next code-change push. No daemon redeploy churn from doc-only commits.
+
 **2026-05-06 — `__drizzle_migrations.created_at` backfilled (closes Phase 6 follow-up #2)**
 
 Autonomous follow-up to the prod deploy, picked from the resume-prompt's ranked list as highest-leverage / lowest-risk (idempotent, metadata-only). Backfilled all 118 NULL `drizzle.__drizzle_migrations.created_at` rows on prod from `packages/db/drizzle/meta/_journal.json` `when` values via direct join `__drizzle_migrations.hash = journal.tag`. Pre-flight verified all 118 prod hashes match unique journal tags (no drift, no duplicates).
