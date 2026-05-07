@@ -2,26 +2,9 @@
 
 **Resume prompt (paste into a fresh Claude Code session at `/home/dustin/dev/plexo`):**
 
-> Resume `PLEXO-GMESSAGES` at `/home/dustin/dev/plexo`. Phase 6 is **deployed to prod on the joeybuilt VPS** (`203.0.113.10`) as of 2026-05-06 22:49 UTC. Sidecar live, HMAC self-check passes against prod api, migrations 0117 applied, no paired sessions yet. **Only the witnessed phone-pair smoke (PHASE-6-OPS §7.3 scenarios 1-5) remains** before the master plan §authorization-gates #6 closes.
->
-> **Read in order:** `/home/dustin/dev/plexo/PLEXO-GMESSAGES-PROGRESS.md` (top decisions-log entry = 2026-05-06 prod deploy), `/home/dustin/dev/plexo/PLEXO-GMESSAGES-PHASE-6-OPS.md` (§7.3 phone-pair scenarios), `/home/dustin/dev/plexo/apps/gmessages/RUNBOOK.md`, `/home/dustin/dev/plexo/checklist.md`, `/home/dustin/dev/plexo/plan.md` (Phase L scope).
->
-> **Prod state (2026-05-06 22:49 UTC):**
-> - `plexo-gmessages` healthy at `0.0.5-phase-6-ops`; libgm `v0.2604.0`; container_name `plexo-gmessages`; defined inline in `/opt/service/platform/infra/docker-compose.yml` (between `plexo-web` and `inference-gateway`).
-> - `plexo-api` healthy with `GMESSAGES_SIDECAR_URL=http://plexo-gmessages:3010` env wired.
-> - Prod DB at migration 0117; `plexo_gmessages.{paired_sessions,message_dedupe,rcs_feature_cache}` tables present; `connections_registry.gmessages` row seeded; `auth_type` enum has `paired_session`.
-> - Sidecar boot sequence verified clean: `http listener up port=3010` → `startup HMAC self-check passed` → `boot restore: rehydrating sessions count=0`.
->
-> **Driving the §7.3 phone-pair smoke**: pair flow lives at `https://getplexo.com/app/connections/gmessages/pair`. PHASE-6-OPS §7.3 scenarios 1-5 are pair → send → receive → force-expire/reconnect → restart sidecar/verify boot-restore. Append observations to PROGRESS.md decisions log as scenarios run. After smoke green: master plan §authorization-gates #6 closes.
->
-> **Known gaps to track separately (do not block §7.3):**
-> - Inngest service not in platform compose. `gmessages-session-refresh` (`*/15`) and `gmessages-stale-session-monitor` (`*/5`) crons won't fire in prod. Active session ops still work; 24h refresh + auto-stale-detection are degraded.
-> - PHASE-6-OPS §3 was written for Coolify; actual deploy is platform compose. Doc needs rewrite.
-> - The platform compose edit adding `plexo-gmessages` is **not in any git repo** — backup at `docker-compose.yml.bak.before-gmessages-2026-05-06`. Future platform updates may overwrite. Either propose a platform-repo PR or document this in platform's own README.
-> - Hub build (apps/hub via Turbopack) was missing from the §10 verification battery — caught a regression at deploy time. Add `pnpm --filter @plexo/hub build` to §10 before next phase.
-> - `__drizzle_migrations.created_at` backfilled 2026-05-06 (118 rows from journal `when`; `/migrate.sh` now works for current state). **Caveat for 0118+**: journal `when` is hand-authored with future dates through 2026-05-20; drizzle-kit's auto-generated `when=Date.now()` will be < `MAX(created_at)` until 2026-05-20, so `meta/_journal.json` must be hand-edited for any migration authored before then. See PHASE-6-OPS §3.3.
->
-> Auto-deploy daemon's REPO_MAP for `joeybuilt-official/plexo` redeploys plexo-api/saas/hub/embeddings only. After any future plexo push, gmessages sidecar redeploy is a manual `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build plexo-gmessages` from `/opt/service/platform/infra/`.
+> Resume PLEXO-GMESSAGES Phase 6 closeout at `/home/dustin/dev/plexo`. Read in order per `PLEXO-GMESSAGES-PHASE-6-OPS.md` §12.2. Run `scripts/check-gmessages-prod-state.sh` + `scripts/check-platform-compose-drift.sh` first per §12.3. Authoritative state lives in this file's decisions log (top entry below) and PHASE-6-OPS §12 (autonomous session continuity). Operator-witnessed §7.3 phone-pair smoke is the only phase-blocking gate; never attempt autonomously. Continue safe non-blocking doc/script-only work per §12.1 + §12.4 until ~45% context, then update PROGRESS continuation + emit a fresh handoff per §12.7.
+
+**Phase 6 deployed to prod 2026-05-06 22:49 UTC.** Sidecar `plexo-gmessages` on joeybuilt VPS healthy at `0.0.5-phase-6-ops`; migrations 0117 applied; HMAC self-check passing; 0 paired sessions; auto-deploy daemon redeploys plexo-api/saas/hub/embeddings on every plexo:main push. Detail beyond this lives in PHASE-6-OPS §12 + the decisions log below — the resume prompt is intentionally thin.
 
 ---
 
@@ -45,6 +28,16 @@
 - The phased-plan skill files (`plan.md`, `checklist.md`, `adr/`) and the build prompt files (`PLEXO-GMESSAGES-PHASE-N-*.md`) are kept in parallel — no deduplication. Per-phase docs hold the build prompt's required deliverables; `plan.md` + `checklist.md` hold the skill's session-bridging state.
 
 ## Operator decisions log
+
+**2026-05-07 — autonomous-prep continuation #11: handoff-bloat fix; state migrated into PHASE-6-OPS §12 (no operator gate; doc restructure)**
+
+Operator pointed out the handoff prompts had grown to ~5 KB of repeated state on every session boundary. Restructured so the master plan / ops doc carries the canonical autonomous-session contract, and handoffs become thin pointers. This is the change-of-pattern entry; future continuation entries should be terser as a result.
+
+- **PHASE-6-OPS §12 added — "Autonomous session continuity (Phase 6 closeout window)".** Seven sub-sections cover (12.1) the 45%-context mandate, (12.2) the canonical read-order, (12.3) the session-start ritual (run both drift wrappers first), (12.4) the safe-vs-forbidden taxonomy of autonomous work — including the Levio-IS-in-REPO_MAP correction from continuation #10, (12.5) the GIT_AUTHOR_*/GIT_COMMITTER_* env-var commit pattern (no Co-Authored-By trailer), (12.6) the decisions-log entry format, (12.7) the handoff template (the new short version). New sessions read §12 once and don't need handoff prompts to carry state.
+- **PROGRESS.md top "Resume prompt" block trimmed.** Replaced the ~22-line state dump with a 1-paragraph thin pointer into PHASE-6-OPS §12 + a 1-paragraph state summary line. The detail that was inline (sidecar version + migration number + boot sequence + every known gap + platform compose mechanics) now lives where it belongs: in PHASE-6-OPS sections that already cover those topics.
+- **Recurring drift checks: both still green.** `scripts/check-gmessages-prod-state.sh` 5 PASS / 0 WARN; `scripts/check-platform-compose-drift.sh` 3 PASS / 0 WARN. No prod-state changes.
+- **No new follow-ups uncovered.** The two operator-approval-required follow-ups (§3.5 platform-repo persist + §3.6 Inngest service add) and Phase L scope unchanged. The §11.1 Levio-deploy correction from continuation #10 holds.
+- 17th LOCAL doc commit awaiting piggyback on the next code-change push. Local stack now 17 deep: be426292 → 95c701f0 → 4867d5c8 → a127e743 → 6d493fd5 → b3af24a2 → c6e17349 → c3199731 → 6f2d2456 → 40ee7278 → b1d4f62e → 2910118a → c2675842 → 37cd38fb → 5e6b6980 → 4524affa → (this entry).
 
 **2026-05-07 — autonomous-prep continuation #10: corrected stale §11.1 Levio-deploy claim (no operator gate; doc-only fix)**
 
