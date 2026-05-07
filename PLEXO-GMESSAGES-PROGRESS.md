@@ -46,6 +46,14 @@
 
 ## Operator decisions log
 
+**2026-05-06 — autonomous-prep continuation: §3.5 diff inlined + §3.6 SSH tunnel tightened (no operator gate)**
+
+Small polish pass on the prior autonomous-prep session's paste-ready workflows; no new follow-ups uncovered. Read-only spot-check at session start re-confirmed prod state: sidecar healthy 6h+ at `0.0.5-phase-6-ops`, `MAX(__drizzle_migrations.created_at) = 1779242460000` / 0 NULL, 0 paired sessions. Boot logs unchanged from the 22:49 UTC deploy.
+
+- **§3.5 — inlined verbatim VPS diff** (read-only `git --no-pager diff infra/docker-compose.yml` on `/opt/service/platform`; held stable since the 22:47 UTC inline edit). Replaced the `[...as in §3.4 snippet]` placeholder with the full 32-line diff so §3.5 is self-contained at apply time. Added "stop + reconcile if mismatch" guidance — drift would indicate external edits between 22:47 UTC and the apply window.
+- **§3.6 step 4 — SSH tunnel hardened**: `ssh -L ... -N &` (no key, brittle shell job-control backgrounding, no teardown) → `ssh -fN -L ... -i ~/.ssh/joeybuilt_vps` plus explicit `pkill -f` cleanup. Added `gmessages-session-refresh-receiver` to the expected Functions-list check (was missing alongside the two crons).
+- Stacked as `6d493fd5` — fifth LOCAL doc commit awaiting piggyback on the next code-change push. Both upstream-blocking follow-ups (§3.5 platform-repo persist + §3.6 Inngest service add) still require operator approval before action; this prep just keeps the future approval fast.
+
 **2026-05-06 — autonomous prep for Phase 6 ops follow-ups (no operator gate)**
 
 Continuation of the post-deploy autonomous track. Picked the two remaining post-deploy follow-ups, did the read-only discovery work that any future operator-approved fix would require, and consolidated paste-ready workflows into `PHASE-6-OPS.md` §3.5 + §3.6. No code or config touched on the VPS or in either repo's main branch; this is doc-only prep.
