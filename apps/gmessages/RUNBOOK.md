@@ -219,6 +219,11 @@ docker exec postgres psql -U postgres -d plexo -c \
   "SELECT state, count(*), max(decode_error_count)
    FROM plexo_gmessages.paired_sessions
    GROUP BY state ORDER BY count DESC;"
+
+# Read-only prod-state spot-check (wraps the recurring session-start check —
+# sidecar version + boot logs + drizzle MAX(created_at) + paired_sessions
+# count + decode_error rollup + sidecar memory):
+bash scripts/check-gmessages-prod-state.sh
 ```
 
 ---
