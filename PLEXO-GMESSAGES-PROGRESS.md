@@ -2,7 +2,7 @@
 
 **Resume prompt (paste into a fresh Claude Code session at `/home/dustin/dev/plexo`):**
 
-> Resume PLEXO-GMESSAGES Phase 6 closeout at `/home/dustin/dev/plexo`. Read in order per `PLEXO-GMESSAGES-PHASE-6-OPS.md` §12.2. Run `bash scripts/session-start.sh` first per §12.3 (combined drift-check gate). Authoritative state lives in this file's decisions log (top entry below) and PHASE-6-OPS §12 (autonomous session continuity). Operator-witnessed §7.3 phone-pair smoke is the only phase-blocking gate; never attempt autonomously. Continue safe non-blocking doc/script-only work per §12.1 + §12.4 until ~45% context, then update PROGRESS continuation + emit a fresh handoff per §12.7.
+> Resume PLEXO-GMESSAGES Phase 6 at `/home/dustin/dev/plexo`. Read `PLEXO-GMESSAGES-PHASE-6-OPS.md` §12 + the top decisions-log entry below. Run `bash scripts/session-start.sh` first. Continue per §12 until ~45% context.
 
 **Phase 6 deployed to prod 2026-05-06 22:49 UTC.** Sidecar `plexo-gmessages` on joeybuilt VPS healthy at `0.0.5-phase-6-ops`; migrations 0117 applied; HMAC self-check passing; 0 paired sessions; auto-deploy daemon redeploys plexo-api/saas/hub/embeddings on every plexo:main push. Detail beyond this lives in PHASE-6-OPS §12 + the decisions log below — the resume prompt is intentionally thin.
 
