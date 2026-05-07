@@ -46,6 +46,14 @@
 
 ## Operator decisions log
 
+**2026-05-06 — autonomous-prep continuation #4: Phase L file-layout sketch (no operator gate)**
+
+Pre-staged the concrete Phase L file map alongside §11.1 so the deep panel debates IA placement (Q2 — peer-to-email vs unified-inbox) against actual paths instead of abstract directory names. Read-only audit of `/home/dustin/dev/joeybuilt/levio` produced the peer pattern: email surface is `src/app/app/email/page.tsx` (17-line server component → `<EmailFullView />`) + 12 `/api/email/*` route files + `src/components/email/email-full-view.tsx` for the React tree. PlexoClient class at `src/lib/plexo/client.ts:49` exposes `dispatch / getToken / getTasks / autoAttachUser / ensureWorkspace / disconnect / oauthPopupUrl` — the existing Bearer-auth surface; `channel-subscription.ts` (Q6) would land alongside it without disturbing the Bearer client.
+
+- **PHASE-6-OPS §11.3 added** — file-layout sketches for peer-to-email outcome AND unified-inbox outcome (Q2 alternatives), AI enrichment surfaces (Q3), optional Levio-side cache schema delta (Q1), notification handler placement (Q4), `@plexo/sdk` install line (Q-blocker #4 alternatives), and ship-gate additions. Explicitly marked DO NOT APPLY — sketch contingent on Q1–Q6 resolution.
+- **No new follow-ups uncovered.** Pre-staged the discovery work that any post-panel implementation will need; panel can convene with byte-level concrete state.
+- 9th LOCAL doc commit awaiting piggyback on the next code-change push.
+
 **2026-05-06 — autonomous-prep continuation #3: RUNBOOK/README dev↔prod drift fixes (no operator gate)**
 
 Continued the autonomous-prep window with a small but high-leverage doc fix: the RUNBOOK and README still referenced two env-var names the sidecar doesn't actually read (`PLEXO_API_URL`, `GMESSAGES_HTTP_PORT`) and the dev-only container/service aliases. An operator hitting RUNBOOK §4 step 2 during §7.3 smoke would `grep` for `GMESSAGES_HTTP_PORT` and find nothing — the actual var is `PORT` (verified in `cmd/gmessages/main.go:134-137`). No prod state changed; no Levio-side code touched.
