@@ -224,6 +224,12 @@ docker exec postgres psql -U postgres -d plexo -c \
 # sidecar version + boot logs + drizzle MAX(created_at) + paired_sessions
 # count + decode_error rollup + sidecar memory):
 bash scripts/check-gmessages-prod-state.sh
+
+# Read-only drift check for the inline `plexo-gmessages` edit on the platform
+# compose (pre-flight before PHASE-6-OPS §3.5 push). Hashes the live
+# `git diff infra/docker-compose.yml` and compares against the 2026-05-06
+# inline-edit baseline; FAIL with full live diff if drift detected:
+bash scripts/check-platform-compose-drift.sh
 ```
 
 ---
