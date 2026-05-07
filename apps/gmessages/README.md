@@ -21,7 +21,7 @@ License: AGPL-3.0-only (libgm is AGPL-3; the SPDX header on every file enforces)
 
 ## Boot sequence
 
-1. Read env (`PLEXO_API_URL`, `PLEXO_SERVICE_KEY`, `ENCRYPTION_SECRET`/`GMESSAGES_MASTER_KEY`, `GMESSAGES_HTTP_PORT`).
+1. Read env (`PLEXO_BASE_URL`, `PLEXO_SERVICE_KEY`, `ENCRYPTION_SECRET`/`GMESSAGES_MASTER_KEY`, `PORT`).
 2. Construct `pex.Client` for outbound posts to Plexo Core.
 3. Construct `session.Manager` with the master key + handler + pex client.
 4. Construct `cryptosvc.Service` mirroring Plexo's AES-256-GCM scheme.
@@ -29,7 +29,7 @@ License: AGPL-3.0-only (libgm is AGPL-3; the SPDX header on every file enforces)
    - `/health` (anonymous, used by Docker healthcheck)
    - `/pair/{start,status,discard}` behind `httpauth.RequireHMAC`
    - `/sessions/{:id/send, :id/refresh}` behind `httpauth.RequireHMAC`
-6. `http.ListenAndServe` on `:GMESSAGES_HTTP_PORT` (default 3010).
+6. `http.ListenAndServe` on `:PORT` (default 3010).
 7. **Startup HMAC self-check** (Phase 6 — `runStartupSelfCheck`) — synchronous HMAC-authed GET against Plexo Core. A persistent HTTP 401 (`PLEXO_SERVICE_KEY` mismatch with the api container) exits 1 with a fix-pointer rather than emitting 401 storms during normal session work. 20s retry budget tolerates "api still booting." See RUNBOOK §4.
 8. **Boot restore** — `runBootRestore` GETs `/api/plexo/channels/gmessages/restore-list` (HMAC-authed), decrypts each entry locally, calls `manager.Start` per row. Failures post `state='errored'`. All decrypt failure modes are explicitly covered by `cryptosvc.TestDecrypt_BootRestoreFailureModes` (wrong key, wrong workspace, truncated ciphertext, corrupt IV, garbage input) — the loop continues to the next entry rather than panicking.
 
@@ -140,7 +140,7 @@ ADR-0001 / Phase 1 §3.6:
 | 4b — Lifecycle (boot restore + heartbeat + Inngest crons) | ✅ complete |
 | 4c — Generic Channel viewer (web side) | ✅ complete |
 | 5 — Message normalization + ingestion | ✅ complete |
-| 6 — Operations + first prod deploy | code-side complete; staging smoke + push/deploy targets are operator-only (this README reflects 6) |
+| 6 — Operations + first prod deploy | ✅ deployed to prod 2026-05-06 22:49 UTC (sidecar `plexo-gmessages` on joeybuilt VPS at `0.0.5-phase-6-ops`); operator-witnessed §7.3 phone-pair smoke deferred |
 | L — Levio integration | not started |
 
 Sidecar version constant lives in `cmd/gmessages/main.go`. Bump per phase.

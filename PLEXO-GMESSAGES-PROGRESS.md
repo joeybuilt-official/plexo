@@ -46,6 +46,15 @@
 
 ## Operator decisions log
 
+**2026-05-06 — autonomous-prep continuation #3: RUNBOOK/README dev↔prod drift fixes (no operator gate)**
+
+Continued the autonomous-prep window with a small but high-leverage doc fix: the RUNBOOK and README still referenced two env-var names the sidecar doesn't actually read (`PLEXO_API_URL`, `GMESSAGES_HTTP_PORT`) and the dev-only container/service aliases. An operator hitting RUNBOOK §4 step 2 during §7.3 smoke would `grep` for `GMESSAGES_HTTP_PORT` and find nothing — the actual var is `PORT` (verified in `cmd/gmessages/main.go:134-137`). No prod state changed; no Levio-side code touched.
+
+- **README.md** — boot sequence step 1 + step 6 fixed: `PLEXO_API_URL` → `PLEXO_BASE_URL`, `GMESSAGES_HTTP_PORT` → `PORT`. Phase status row updated to reflect prod deploy 2026-05-06.
+- **RUNBOOK.md** — added a "Production aliases" mapping table at the top of the doc so an operator running §7.3 can translate dev-shaped commands without re-reading PHASE-6-OPS §3. Fixed the env grep + network curl in §4 (Restart loop) to spell the actual var names + show both dev AND prod variants. Replaced the "Coolify dashboard" reference (Coolify is not the prod deploy topology). Appendix A one-liners now show both dev + prod variants for restart, log tail, and the active-session-spread psql query (force-trigger refresh stays dev-only since prod port 3010 is internal-network).
+- **No new follow-ups uncovered.** The audit also cross-referenced `verify-phase-6-ship-gate.sh` against `cmd/gmessages/main.go` env-var read sites and the script's pre-existing-error tolerance check (`TOTAL≤3 ∧ PREEX≥1 ∧ TOTAL==PREEX`); script is correct, no fixes needed.
+- Will be stacked as the 8th LOCAL doc commit awaiting piggyback on the next code-change push. Local stack now 8 deep: be426292 → 95c701f0 → 4867d5c8 → a127e743 → 6d493fd5 → b3af24a2 → c6e17349 → c3199731 → (this entry).
+
 **2026-05-06 — autonomous-prep continuation #2: ship-gate verification script + Phase L pre-flight (no operator gate)**
 
 Continued the autonomous-prep window past the small §3.5/§3.6 polish into two higher-leverage doc/script artifacts. No prod state changed; no Levio-side code touched.

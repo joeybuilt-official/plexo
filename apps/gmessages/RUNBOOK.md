@@ -5,12 +5,24 @@
 
 This document covers four scenarios. Read the **symptoms** column first to identify which one you're in, then jump to the matching procedure.
 
+> **Production aliases (joeybuilt VPS).** This runbook's commands are dev-shaped (`gmessages` service, `api` alias, direct `psql`, base `docker compose`). On the joeybuilt prod VPS the equivalents are:
+>
+> | dev | prod (joeybuilt VPS `203.0.113.10`) |
+> |---|---|
+> | `gmessages` (service) | `plexo-gmessages` (service) / `plexo-gmessages` (container) |
+> | `api` (service) | `plexo-api` / `plexo-api` (container) |
+> | `docker compose <cmd> gmessages` | `cd /opt/service/platform/infra && docker compose -f docker-compose.yml -f docker-compose.prod.yml <cmd> plexo-gmessages` |
+> | `psql -c "..."` | `docker exec postgres psql -U postgres -d plexo -c "..."` |
+> | `http://api:3001/...` (in-network) | `http://plexo-api:3001/...` (in-network) or `https://getplexo.com/...` (public) |
+>
+> See `PLEXO-GMESSAGES-PHASE-6-OPS.md` §3 for the full prod topology.
+
 | # | Scenario | Symptoms |
 |---|---|---|
 | 1 | **Session expired / revoked** | One or more `paired_sessions` rows in `state='expired'` or `'revoked'`; users see the offline banner; no inbound messages for the affected workspace. |
 | 2 | **libgm version bump** | Planned monthly maintenance, or upstream advisory. Bump cadence: monthly minimum, 5% canary for 24h. |
 | 3 | **Google protocol drift detected** | `decode_error_count` rising across multiple sessions simultaneously; inbound traffic stalls; libgm logs `ListenFatalError` or `HTTPError`. |
-| 4 | **Connector restart loop** | The `gmessages` Docker container repeatedly restarts (visible in `docker compose ps` or Coolify dashboard). |
+| 4 | **Connector restart loop** | The `gmessages` Docker container repeatedly restarts (visible in `docker compose ps` locally, or `docker ps --filter name=plexo-gmessages` on the prod VPS). |
 
 ---
 
@@ -146,12 +158,18 @@ A restart loop usually means the sidecar boot path is failing **before** the HTT
 1. **Inspect logs** — look for the panic stack trace or the env-var validation error at startup.
 2. **Verify env**:
    ```sh
-   docker compose exec gmessages env | grep -E 'PLEXO_(SERVICE_KEY|API_URL)|ENCRYPTION_SECRET|GMESSAGES_MASTER_KEY|GMESSAGES_HTTP_PORT'
+   # dev
+   docker compose exec gmessages env | grep -E 'PLEXO_(SERVICE_KEY|BASE_URL)|ENCRYPTION_SECRET|GMESSAGES_MASTER_KEY|^PORT='
+   # prod (from VPS ssh)
+   docker exec plexo-gmessages env | grep -E 'PLEXO_(SERVICE_KEY|BASE_URL)|ENCRYPTION_SECRET|GMESSAGES_MASTER_KEY|^PORT='
    ```
-   Cross-reference against `apps/api/`'s env (must use the same `PLEXO_SERVICE_KEY` + `ENCRYPTION_SECRET`).
+   Cross-reference against the api container's env (must use the same `PLEXO_SERVICE_KEY` + `ENCRYPTION_SECRET`). Note: the sidecar reads `PORT` (default `3010`) and `PLEXO_BASE_URL` (default `http://api:3001` in dev, hardcoded `http://plexo-api:3001` in prod platform compose) — `GMESSAGES_HTTP_PORT` and `PLEXO_API_URL` are not env vars the sidecar reads.
 3. **Verify network**:
    ```sh
-   docker compose exec gmessages wget -O- http://api:3001/api/health 2>&1 | head -3
+   # dev
+   docker compose exec gmessages wget -O- http://api:3001/health 2>&1 | head -3
+   # prod (from VPS ssh)
+   docker exec plexo-gmessages wget -O- http://plexo-api:3001/health 2>&1 | head -3
    ```
 4. **Skip boot restore as a triage step** (only if 1-3 don't reveal the cause):
    ```sh
@@ -172,12 +190,19 @@ If the loop persists after env + network + boot-skip triage, the most likely rem
 
 ```sh
 # Restart just the sidecar (preserves api + db + inngest):
+# dev
 docker compose up -d --no-deps --no-build gmessages
+# prod (from VPS ssh)
+cd /opt/service/platform/infra && \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --no-build plexo-gmessages
 
 # Tail sidecar logs:
+# dev
 docker compose logs -f --tail 100 gmessages
+# prod (from VPS ssh)
+docker logs -f --tail 100 plexo-gmessages
 
-# Force-trigger a session refresh (bypasses Inngest):
+# Force-trigger a session refresh (bypasses Inngest; dev only — prod sidecar port 3010 is internal-network):
 curl -X POST http://localhost:3010/sessions/<pairedSessionId>/refresh \
     -H "X-App-Id: plexo-api" \
     -H "X-Plexo-Timestamp: $(date -u +%FT%TZ)" \
@@ -185,9 +210,15 @@ curl -X POST http://localhost:3010/sessions/<pairedSessionId>/refresh \
     -H "Content-Type: application/json" -d '{}'
 
 # Show active session count + decode error spread:
+# dev
 psql -c "SELECT state, count(*), max(decode_error_count)
          FROM plexo_gmessages.paired_sessions
          GROUP BY state ORDER BY count DESC;"
+# prod (from VPS ssh)
+docker exec postgres psql -U postgres -d plexo -c \
+  "SELECT state, count(*), max(decode_error_count)
+   FROM plexo_gmessages.paired_sessions
+   GROUP BY state ORDER BY count DESC;"
 ```
 
 ---
