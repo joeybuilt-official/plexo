@@ -220,6 +220,10 @@ docker exec postgres psql -U postgres -d plexo -c \
    FROM plexo_gmessages.paired_sessions
    GROUP BY state ORDER BY count DESC;"
 
+# Combined PHASE-6-OPS §12.3 session-start ritual (runs both wrappers below
+# in sequence; single PASS/FAIL gate):
+bash scripts/session-start.sh
+
 # Read-only prod-state spot-check (wraps the recurring session-start check —
 # sidecar version + boot logs + drizzle MAX(created_at) + paired_sessions
 # count + decode_error rollup + sidecar memory):
