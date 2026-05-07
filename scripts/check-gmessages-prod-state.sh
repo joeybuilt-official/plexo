@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Read-only prod-state spot-check for the plexo-gmessages sidecar.
 #
-# Wraps the recurring autonomous-prep "session-start spot-check" pattern
-# documented in PROGRESS.md continuations into a single command. Surfaces
-# PASS/WARN lines plus an INFO line per non-comparable metric (sidecar mem,
-# paired_sessions count) so a reader can eyeball drift quickly.
+# Wraps the recurring autonomous-prep "session-start spot-check" pattern into
+# a single command. Surfaces PASS/WARN lines plus an INFO line per
+# non-comparable metric (sidecar mem, paired_sessions count) so a reader can
+# eyeball drift quickly.
+#
+# Canonical anchor: PHASE-6-OPS §12.3 (Session-start ritual). Pair this with
+# scripts/check-platform-compose-drift.sh — both run before any other work.
 #
 # Usage:
 #   bash scripts/check-gmessages-prod-state.sh

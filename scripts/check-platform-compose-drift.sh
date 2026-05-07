@@ -9,6 +9,9 @@
 # before pushing. This wrapper just SSHes, runs the diff, hashes it, and
 # compares against the captured baseline below.
 #
+# Also part of the §12.3 session-start ritual — pair with
+# scripts/check-gmessages-prod-state.sh; both run before any other work.
+#
 # Usage:
 #   bash scripts/check-platform-compose-drift.sh
 #
