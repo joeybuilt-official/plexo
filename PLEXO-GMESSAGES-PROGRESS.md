@@ -19,7 +19,7 @@
 > - PHASE-6-OPS §3 was written for Coolify; actual deploy is platform compose. Doc needs rewrite.
 > - The platform compose edit adding `plexo-gmessages` is **not in any git repo** — backup at `docker-compose.yml.bak.before-gmessages-2026-05-06`. Future platform updates may overwrite. Either propose a platform-repo PR or document this in platform's own README.
 > - Hub build (apps/hub via Turbopack) was missing from the §10 verification battery — caught a regression at deploy time. Add `pnpm --filter @plexo/hub build` to §10 before next phase.
-> - `__drizzle_migrations.created_at` is NULL on all 116 historical rows in prod. Triggers the memory-noted "Drizzle MAX(created_at) skip cursor gotcha" — `/migrate.sh` will always fail until backfilled. Recovery for any future migration: apply SQL directly via `docker exec ... psql -f` + insert tracking row.
+> - `__drizzle_migrations.created_at` backfilled 2026-05-06 (118 rows from journal `when`; `/migrate.sh` now works for current state). **Caveat for 0118+**: journal `when` is hand-authored with future dates through 2026-05-20; drizzle-kit's auto-generated `when=Date.now()` will be < `MAX(created_at)` until 2026-05-20, so `meta/_journal.json` must be hand-edited for any migration authored before then. See PHASE-6-OPS §3.3.
 >
 > Auto-deploy daemon's REPO_MAP for `joeybuilt-official/plexo` redeploys plexo-api/saas/hub/embeddings only. After any future plexo push, gmessages sidecar redeploy is a manual `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build plexo-gmessages` from `/opt/service/platform/infra/`.
 
@@ -45,6 +45,17 @@
 - The phased-plan skill files (`plan.md`, `checklist.md`, `adr/`) and the build prompt files (`PLEXO-GMESSAGES-PHASE-N-*.md`) are kept in parallel — no deduplication. Per-phase docs hold the build prompt's required deliverables; `plan.md` + `checklist.md` hold the skill's session-bridging state.
 
 ## Operator decisions log
+
+**2026-05-06 — `__drizzle_migrations.created_at` backfilled (closes Phase 6 follow-up #2)**
+
+Autonomous follow-up to the prod deploy, picked from the resume-prompt's ranked list as highest-leverage / lowest-risk (idempotent, metadata-only). Backfilled all 118 NULL `drizzle.__drizzle_migrations.created_at` rows on prod from `packages/db/drizzle/meta/_journal.json` `when` values via direct join `__drizzle_migrations.hash = journal.tag`. Pre-flight verified all 118 prod hashes match unique journal tags (no drift, no duplicates).
+
+- **SQL applied**: `UPDATE … FROM (VALUES …) j(tag, when_ms) WHERE m.hash = j.tag AND m.created_at IS NULL` inside a `BEGIN; … COMMIT;` block with pre/post `count(*) FILTER (WHERE created_at IS NULL)` and a monotonicity-inversion check.
+- **Result**: 118 rows updated, 0 NULL remain. `MIN(created_at) = 1743350400000` (2025-03-30), `MAX(created_at) = 1779242460000` (2026-05-20 02:01 UTC = tag `0117_gmessages_phase2_schema`).
+- **`/migrate.sh` now exits cleanly** for the current 0117 state (every journal entry's `when ≤ MAX(created_at)`, so nothing is reported pending).
+- **New caveat surfaced — future-dated journal entries**: the journal's `when` for tags 0112–0117 is hand-authored with May 2026 timestamps up to 2026-05-20. Drizzle-kit's auto-generated `when=Date.now()` for migrations authored before 2026-05-20 will be < `MAX(created_at)` → silently skipped per the original gotcha. Recommended workflow for 0118+: hand-edit `meta/_journal.json` so the new entry's `when` is strictly greater than `1779242460000`. Documented in PHASE-6-OPS §3.3.
+- **5 monotonic inversions in journal `when`** observed but not "fixed" (id 319 / 369→370 / 374 / 384 — all hand-authored with retroactive 2025 dates while neighbors are 2026). Left as-is per handoff mandate "use the journal's `when` values to preserve the historical ordering invariant"; they don't affect the MAX skip cursor since the final journal entry still has the global maximum `when`.
+- **Not pushed yet**: this entry + checklist tick + §3.3 rewrite are batched for the session-end commit; the backfill itself is a metadata-only DB change requiring no source push.
 
 **2026-05-06 — Phase 6 prod deploy executed (sidecar live, witnessed phone-pair smoke deferred)**
 
