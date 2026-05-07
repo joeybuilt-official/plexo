@@ -29,6 +29,18 @@
 
 ## Operator decisions log
 
+**2026-05-07 — autonomous-prep continuation #14: verified zero drift + #13 ADR forward-pointer integrity + script cross-ref audit (no operator gate)**
+
+Resumed at HEAD `528377e1` (continuation #13 tip) after the operator's prior session capped on the §12.7 handoff. Session-start gate green on first try; no new doc/script gap surfaced; the §12 contract continues to hold. No prod state changed; no Levio-side code touched.
+
+- **Recurring drift checks: both green at session start.** `bash scripts/session-start.sh` → 5 PASS / 0 WARN (sidecar `Up 15 hours (healthy)` at `0.0.5-phase-6-ops`, boot logs canonical, `MAX(__drizzle_migrations.created_at) = 1779242460000`, 0 NULLs, 0 paired_sessions, decode_error_rollup = 0, sidecar mem 5.164 MiB / 256 MiB) + 3 PASS / 0 WARN (platform-compose live diff sha256 still `911d054c…`, 43 lines, no drift since 2026-05-06 22:47 UTC). Combined wrapper exit 0 — symmetric with continuation #13's session-end check.
+- **Continuation #13 ADR forward-pointer integrity verified.** Both `adr/0001-gmessages-go-sidecar.md` and `adr/0004-sidecar-tenancy.md` carry the 2026-05-07 forward-pointer block at the top (Coolify→platform-compose disclaimer; runtime + tenancy decisions intact). Commit `2c455111` landed the change as claimed. No ADR amendment needed in this session.
+- **Script ↔ doc cross-ref audit re-spot-checked.** All three §12.3 session-start scripts reference the canonical anchor: `scripts/session-start.sh:2,15,30` (§12.3 + §12.4), `scripts/check-gmessages-prod-state.sh:9` (§12.3), `scripts/check-platform-compose-drift.sh:12` (§12.3 + §3.5 pre-flight). Continuation #12's "bidirectional and complete" claim still holds at HEAD `528377e1`.
+- **checklist.md + plan.md alignment with PROGRESS top.** Phase 6 row marked deployed-but-§7.3-deferred in both; Phase L gated on Phase 7 closure; master plan §authorization-gates #6 partial-closure language matches PROGRESS resume prompt + §7.2. No drift between the three state surfaces.
+- **Stack-depth convention nit (informational, not retroactively fixed).** Continuation #13's body says "Local stack now 27 deep" while the chain in that bullet enumerates 27 prior hashes + `(this entry)` = 28 commits — earlier entries (#11 = 17, #12 = 22) use the inclusive convention (count includes `(this entry)`). The operator's resume-prompt fill used `K=28` (inclusive), reconciling against `git rev-list --count origin/main..HEAD = 28`. Continuation #14 resumes the inclusive convention; #13 left as-is to preserve the historical record.
+- **No new follow-ups uncovered.** The two operator-approval-required follow-ups (§3.5 platform-repo persist + §3.6 Inngest service add), the §7.3 phone-pair smoke gate, and Phase L scope all unchanged.
+- 29th LOCAL doc/script commit awaiting piggyback on the next code-change push. Local stack now 29 deep: be426292 → 95c701f0 → 4867d5c8 → a127e743 → 6d493fd5 → b3af24a2 → c6e17349 → c3199731 → 6f2d2456 → 40ee7278 → b1d4f62e → 2910118a → c2675842 → 37cd38fb → 5e6b6980 → 4524affa → d14fe23b → 47156edb → 0ad15a1c → e1d74f1e → 4267c443 → f19e5bb7 → 6ee101e2 → 5e6b24b4 → 31889374 → eea68609 → 2c455111 → 528377e1 → (this entry).
+
 **2026-05-07 — autonomous-prep continuation #13: §12 mature-pattern follow-ons (no operator gate)**
 
 Continued past continuation #12 with five small follow-ons that close out the §12 contract maturation. Operator told this session to push to ~45% context per the new `/phased-plan` Step 7 (no early-stop before 40%); session-end drift check is green; no prod state changed; no Levio-side code touched.
