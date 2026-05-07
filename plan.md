@@ -80,14 +80,14 @@ Each phase has: scope, dependencies, expected context budget (≤45% per phased-
 - **Subagents:** general-purpose for ingest path + tests; Explore for memory-pipeline integration points.
 - **Exit criteria:** real SMS, MMS, and RCS messages round-trip through Plexo Core in dev. RCS feature parity decision (rich cards, suggested replies — in scope or deferred) honored per Phase 1 decision.
 
-### Phase 6 — Operations ⚠ one-way door (first prod deploy)
+### Phase 6 — Operations ⚠ one-way door (first prod deploy) — **deployed 2026-05-06**
 
-- **Scope:** Pushd deployment manifest for the Go service; Coolify config; health probes wired to telemetry tables; stale-session monitor as a cron (or Inngest, per Phase 1); runbook entries for session-expired / libgmessages bump / protocol drift / restart loop; README in connector dir.
+- **Scope (as built):** platform compose service definition for the Go sidecar (joeybuilt VPS, not Pushd as originally drafted; not Coolify); health probes wired to telemetry tables; Inngest-cron stale-session monitor (queued — Inngest service not yet in platform compose); runbook entries for session-expired / libgmessages bump / protocol drift / restart loop; README in connector dir.
 - **Dependencies:** Phase 5 ingest hardened.
 - **Context budget:** ≤35%.
-- **Subagents:** general-purpose for compose + Coolify + runbook.
-- **Exit criteria + ship gate:** all Plexo tests pass; `go vet`/`go test` clean; Node typecheck clean; no unintentional uncommitted changes; build succeeds end-to-end; push target + deploy target confirmed.
-- **Sign-off gate:** operator approves first production deploy. **STOP.**
+- **Subagents:** general-purpose for compose + ops doc + runbook.
+- **Exit criteria + ship gate:** all Plexo tests pass; `go vet`/`go test` clean; Node typecheck clean; **hub build clean** (added 2026-05-06 after a Turbopack regression slipped through); no unintentional uncommitted changes; build succeeds end-to-end; push target + deploy target confirmed.
+- **Sign-off gate:** operator-witnessed §7.3 phone-pair smoke green (deferred to operator's convenience post-deploy).
 
 ### Phase L — Levio integration ⚠ one-way door (first Levio prod deploy with messaging)
 
@@ -109,7 +109,7 @@ Hard stops; do not proceed without explicit operator sign-off:
 3. Pex protocol additions or extensions (Phase 1).
 4. Token encryption scheme (Phase 1).
 5. Schema migration execution (Phase 2).
-6. First production deploy via Pushd (Phase 6).
+6. First production deploy (Phase 6) — **partially closed 2026-05-06**: deploy executed cleanly to the joeybuilt VPS via auto-deploy daemon + manual platform-compose edit for the gmessages sidecar; only the operator-witnessed §7.3 phone-pair smoke remains.
 7. First Levio production deploy with the new messaging surface (Phase L).
 8. Any dependency add beyond `libgmessages` and its transitive deps.
 9. Any change to existing Pex Connector contracts that other connectors depend on.
