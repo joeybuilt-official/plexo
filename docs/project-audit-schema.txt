@@ -2441,12 +2441,12 @@ apps/web/src/components/workbench/code-mode-shell.tsx:249:    }, [taskId])
 apps/web/src/components/workbench/code-mode-shell.tsx:444:                            taskId={taskId}
 apps/web/src/components/workbench/code-mode-shell.tsx:454:                taskId={taskId}
 apps/api/src/routes/system.ts:217:        path: `/v1.41/containers/json?filters=${encodeURIComponent(JSON.stringify({ label: [`com.docker.compose.project=${COMPOSE_PROJECT}`] }))}`,
-apps/api/src/routes/system.ts:222:/** Fallback: find the API container across all compose projects (handles Coolify-generated project names). */
+apps/api/src/routes/system.ts:222:/** Fallback: find the API container across all compose projects (handles managed-host project name conventions). */
 apps/api/src/routes/system.ts:224:    // Try by compose service label first (most reliable across project names)
 apps/api/src/routes/system.ts:408:                // 1. Try project-scoped lookup first (standard self-hosted docker compose)
 apps/api/src/routes/system.ts:410:                const projectContainers = await getContainers()
 apps/api/src/routes/system.ts:411:                apiContainer = projectContainers.find(c => c.Names.some(n => n.includes('api')))
-apps/api/src/routes/system.ts:413:                // 2. If project filter returned nothing (Coolify generates its own project name),
+apps/api/src/routes/system.ts:413:                // 2. If project filter returned nothing (some managed hosts generate their own project name),
 apps/api/src/routes/system.ts:419:                const workingDir = apiContainer?.Labels?.['com.docker.compose.project.working_dir']
 apps/web/src/components/workbench/artifact-workbench.tsx:33:    taskId?: string
 apps/web/src/components/workbench/artifact-workbench.tsx:39:    taskId?: string

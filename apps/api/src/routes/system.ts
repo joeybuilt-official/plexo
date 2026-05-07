@@ -219,7 +219,7 @@ async function getContainers(): Promise<ContainerInfo[]> {
     return JSON.parse(res.body) as ContainerInfo[]
 }
 
-/** Fallback: find the API container across all compose projects (handles Coolify-generated project names). */
+/** Fallback: find the API container across all compose projects (handles managed-host project name conventions). */
 async function findApiContainerAnyProject(): Promise<ContainerInfo | undefined> {
     // Try by compose service label first (most reliable across project names)
     const byService = await dockerRequest({
@@ -398,7 +398,7 @@ systemRouter.post('/update', async (_req, res) => {
         if (isDocker) {
             send('status', { step: 'containers', message: 'Discovering host context…' })
 
-            // Allow explicit override for managed hosts (Coolify, Render, etc.)
+            // Allow explicit override for managed hosts (e.g. Render and similar PaaS)
             // where container labels may not reflect the actual host repo path.
             let hostRepoRoot: string
             const repoOverride = process.env.PLEXO_REPO_DIR
@@ -410,7 +410,7 @@ systemRouter.post('/update', async (_req, res) => {
                 const projectContainers = await getContainers()
                 apiContainer = projectContainers.find(c => c.Names.some(n => n.includes('api')))
 
-                // 2. If project filter returned nothing (Coolify generates its own project name),
+                // 2. If project filter returned nothing (some managed hosts generate their own project name),
                 //    scan all containers for the plexo API service.
                 if (!apiContainer) {
                     apiContainer = await findApiContainerAnyProject()

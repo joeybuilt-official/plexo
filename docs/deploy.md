@@ -55,13 +55,13 @@ See `.env.example` for the full list with descriptions.
 - `GOOGLE_CLIENT_ID/SECRET` — Google Drive connection
 - `GMESSAGES_SIDECAR_URL` — Google Messages paired-phone connector (defaults to `http://gmessages:3010`; only override when splitting the sidecar to a separate host). See `apps/gmessages/README.md` and `apps/gmessages/RUNBOOK.md`.
 
-## Platform-Specific Deployments (Coolify, Portainer)
+## Platform-Specific Deployments (Portainer and similar PaaS)
 
 When using a standard VPS, our `install.sh` script automatically generates cryptographically secure values for the required secrets (`POSTGRES_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_SECRET`), writes them to a `.env` file, and boots the stack.
 
-However, when deploying via PaaS solutions like **Coolify** or **Portainer**, they parse the `docker-compose.yml` directly and detect the required environment variables, but they **will leave the values blank by default**.
+However, when deploying via PaaS solutions like **Portainer** or similar Docker-Compose-aware dashboards, they parse the `docker-compose.yml` directly and detect the required environment variables, but they **will leave the values blank by default**.
 
-If you attempt to boot without filling these out in the Coolify/Portainer Web UI:
+If you attempt to boot without filling these out in the PaaS Web UI:
 1. `POSTGRES_PASSWORD` will be evaluated as blank.
 2. The `postgres` container will refuse to start because it disables "trust" authentication by default for security, throwing `Error: Database is uninitialized and superuser password is not specified.`
 3. Because Postgres never boots, the `migrate` container gets stuck in a loop trying to look up the host (`EAI_AGAIN postgres`) and eventually times out with an `exit 1`.

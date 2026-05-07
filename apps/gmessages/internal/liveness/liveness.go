@@ -3,7 +3,7 @@
 
 // Package liveness implements the layered probe schedule from ADR-0004:
 //
-//	Process health   10s   /health HTTP                  (Coolify owns this)
+//	Process health   10s   /health HTTP                  (the supervisor owns this)
 //	Library probe    30s   libgmessages.Session.Ping()   (Phase 4 wires)
 //	Flow heartbeat   60s   last-inbound + decode-error   (this package)
 //

@@ -240,7 +240,7 @@ pnpm -F @plexo/web typecheck
 > State: Phase 5 complete (sidecar event normalization + outbound send + refresh receiver + state-machine completion + API ingest + viewer GETs populated + Inngest receiver). Sidecar at `0.0.4-phase-5-ingest`, libgm `v0.2604.0`, Go 1.25. Untested live: phone-scan, `*libgm.WrappedMessage` round-trip, `RefreshPhoneRelay` against a real session, Inngest cron firing in dev, sidecar restart-restore against a Phase 4b boot path.
 >
 > Phase 6 = **operations**. Master plan §"Phase 6" + the per-phase doc gate. Scope:
-> - Pushd deployment manifest for the Go service + Coolify config.
+> - Pushd deployment manifest for the Go service + supervisor config.
 > - Health probes wired to telemetry tables (`apps/gmessages` already exposes `/health` + the binary `-healthcheck` self-probe).
 > - Stale-session monitor cron (already shipped Phase 4b — verify in dev).
 > - **Runbook entries**: session expired, libgmessages bump, Google protocol drift, connector restart loop. Document the bump cadence (monthly minimum, 5% canary 24h with decode-error counter watch — see `adr/0001`).

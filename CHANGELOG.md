@@ -287,13 +287,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ### Removed
 - `apps/api/src/one-way-door.ts` — deleted; canonical version in `@plexo/agent`
-- `docs/coolify-deploy.md` — replaced with platform-agnostic `docs/deploy.md`
+- legacy PaaS-specific deploy guide — replaced with platform-agnostic `docs/deploy.md`
 
 ## [1.2.0-dev] — 2026-03-04 (Phase 17 — Production deployment hardening)
 
 ### Added
 - `apps/api/src/env.ts` — fail-fast env validator; exits process on missing required vars, warns on optional gaps, requires at least one AI provider key
-- `docs/coolify-deploy.md` — Coolify setup guide: resource requirements, volumes, rollback, post-deploy smoke test
+- legacy PaaS deploy guide — setup notes: resource requirements, volumes, rollback, post-deploy smoke test
 
 ### Changed
 - `docker/Dockerfile.api` — fixed build: per-package node_modules in builder, packages built in dependency order (`db → queue → sdk → agent → api`), migrations dir included in runner

@@ -82,7 +82,7 @@ Each phase has: scope, dependencies, expected context budget (≤45% per phased-
 
 ### Phase 6 — Operations ⚠ one-way door (first prod deploy) — **deployed 2026-05-06**
 
-- **Scope (as built):** platform compose service definition for the Go sidecar (joeybuilt VPS, not Pushd as originally drafted; not Coolify); health probes wired to telemetry tables; Inngest-cron stale-session monitor (queued — Inngest service not yet in platform compose); runbook entries for session-expired / libgmessages bump / protocol drift / restart loop; README in connector dir.
+- **Scope (as built):** platform compose service definition for the Go sidecar (joeybuilt VPS, not Pushd as originally drafted); health probes wired to telemetry tables; Inngest-cron stale-session monitor (queued — Inngest service not yet in platform compose); runbook entries for session-expired / libgmessages bump / protocol drift / restart loop; README in connector dir.
 - **Dependencies:** Phase 5 ingest hardened.
 - **Context budget:** ≤35%.
 - **Subagents:** general-purpose for compose + ops doc + runbook.

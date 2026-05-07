@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-// Package health serves the connector's /health endpoint. Coolify polls
-// this every 10 seconds (ADR-0004 layered liveness — "Process health"
+// Package health serves the connector's /health endpoint. The supervisor
+// polls this every 10 seconds (ADR-0004 layered liveness — "Process health"
 // row). The library probe (libgmessages.Ping) and the flow heartbeat
 // (last-inbound + decode-error counter) live in package liveness because
 // they belong to the connector→Plexo direction, not to the supervisor's

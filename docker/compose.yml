@@ -15,9 +15,9 @@ services:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     logging: *default-logging
-    # Unique hostname avoids DNS collision when deployed via Coolify, which
-    # connects the api container to the Coolify network where 'postgres'
-    # already resolves to coolify-db. 'plexo-db' is scoped to this network only.
+    # Unique hostname avoids DNS collision in PaaS environments that attach
+    # the api container to a shared network where 'postgres' may resolve to
+    # a managed-DB hostname. 'plexo-db' is scoped to this network only.
     hostname: plexo-db
     environment:
       POSTGRES_USER: plexo
@@ -198,9 +198,9 @@ services:
       ALLOW_SIDELOAD: ${ALLOW_SIDELOAD:-false}
     volumes:
       - generated_skills:/var/plexo/generated-skills
-    # When Coolify connects this container to its proxy network, 'postgres'
-    # may resolve to coolify-db instead of our database. Use the unique
-    # hostname 'plexo-db' (set on the postgres service) to avoid collisions.
+    # In PaaS environments that attach this container to a shared network,
+    # 'postgres' may resolve to a managed-DB hostname instead of our database.
+    # Use the unique hostname 'plexo-db' (set on the postgres service) to avoid collisions.
     healthcheck:
       # node-based probe — bookworm-slim image has no wget/curl, but node
       # is always present. Uses /health which returns JSON with `ok` field.
@@ -380,7 +380,7 @@ services:
       OLLAMA_HOST: http://ollama:11434
 
   # ── Reverse Proxy (self-hosted only) ─────────────────────
-  # For managed deployments (Coolify), the platform proxy handles TLS.
+  # For managed deployments on a PaaS, the platform proxy handles TLS.
   # To enable caddy for self-hosted, use: docker compose --profile selfhosted up
   caddy:
     profiles: ["selfhosted"]

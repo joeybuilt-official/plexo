@@ -48,7 +48,7 @@ Layered liveness probes (ADR-0004 §"Liveness: layered, both signals"):
 
 | Layer | Cadence | Where |
 |---|---|---|
-| Process health | 10s | Coolify `/health` poll → `internal/health/health.go` |
+| Process health | 10s | supervisor `/health` poll → `internal/health/health.go` |
 | Library probe | 30s | `libgmessages.Session.Ping()` — Phase 4 wires |
 | Flow heartbeat | 60s | `internal/liveness/liveness.go::HeartbeatLoop` posts `Heartbeat{LastInboundAt, DecodeErrorCount}` to `/api/plexo/channels/gmessages/heartbeat` |
 | Stale-session monitor | 5m | Inngest cron `gmessages.stale-session.monitor` — Phase 4 |
@@ -115,7 +115,7 @@ Required env vars:
 | `GMESSAGES_MASTER_KEY` | HKDF master | falls back to `ENCRYPTION_SECRET` |
 | `GMESSAGES_SYNTHETIC_BOOT` | Phase 3 self-test toggle | `0` (off) |
 
-The sidecar reads env directly — no `.env` file traversal. Production injects via Coolify; dev injects via compose.
+The sidecar reads env directly — no `.env` file traversal. Production injects via the platform compose `.env`; dev injects via compose.
 
 ---
 
@@ -168,7 +168,7 @@ The Docker healthcheck calls `/gmessages -healthcheck` which self-probes `http:/
 ## 8. Deviations from Phase 1 design / ADRs
 
 - **No `golang.org/x/crypto/hkdf` dependency.** Plan called for HKDF; ADR-0004 specified HKDF. Implementation honors the spec via inline RFC 5869 (`internal/session/crypto.go`). When Phase 4 imports libgmessages and `x/crypto` becomes transitive, swap to the upstream package — behavior is byte-identical.
-- **Default port 3010** (not specified in any ADR). Compose service binds internally only; not exposed to host. Phase 6 confirms via Coolify.
+- **Default port 3010** (not specified in any ADR). Compose service binds internally only; not exposed to host. Phase 6 confirms via the platform compose deploy.
 
 ---
 

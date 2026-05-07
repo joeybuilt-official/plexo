@@ -1,6 +1,6 @@
 -- Idempotent re-application of app_profiles, nodes, and node_trust tables.
 -- Migration 0039 was tracked in __drizzle_migrations on first deploy but the
--- DDL did not execute (prior Coolify deploy applied the hash before SQL ran).
+-- DDL did not execute (a prior PaaS deploy applied the hash before SQL ran).
 -- This migration guarantees the tables exist on all production instances.
 
 CREATE TABLE IF NOT EXISTS app_profiles (

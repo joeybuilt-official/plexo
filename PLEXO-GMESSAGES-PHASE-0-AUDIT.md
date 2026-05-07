@@ -203,7 +203,7 @@ These cannot be decided unilaterally. Each is paired with the build prompt secti
 **Runtime / deployment**
 
 6. **Go runtime sign-off.** Adding Go to the Plexo stack is the most consequential one-way door in this build. Confirm intent before Phase 1.
-7. **Sidecar deployment shape.** Coolify service via Pushd, or first-class compose service in Plexo's main `docker-compose.yml`, or both? Affects how the Pushd auto-deploy daemon picks it up.
+7. **Sidecar deployment shape.** PaaS service via Pushd, or first-class compose service in Plexo's main `docker-compose.yml`, or both? Affects how the Pushd auto-deploy daemon picks it up.
 8. **Telemetry shim.** No Pushd SDK exists in Go. Either (a) write a thin Go shim posting to the existing Pushd HTTP ingest endpoint, or (b) the connector emits Pino-compatible JSON to stdout and Plexo Core's host process forwards. Recommend (a).
 
 **UX / scope**
