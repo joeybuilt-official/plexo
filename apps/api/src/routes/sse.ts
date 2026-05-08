@@ -6,6 +6,7 @@ import { registerClient, unregisterClient } from '../sse-emitter.js'
 import { requireAuth } from '../middleware/auth.js'
 import { db, eq, and } from '@plexo/db'
 import { workspaceMembers } from '@plexo/db'
+import { logger } from '../logger.js'
 
 export const sseRouter: RouterType = Router()
 
@@ -29,8 +30,9 @@ sseRouter.get('/', requireAuth, async (req, res) => {
                 res.status(403).json({ error: 'Not a member of this workspace' })
                 return
             }
-        } catch {
+        } catch (err) {
             // DB error — deny by default for security
+            logger.error({ err, workspaceId, userId: user.id }, 'GET /sse: workspace membership check failed')
             res.status(503).json({ error: 'Unable to verify workspace membership' })
             return
         }

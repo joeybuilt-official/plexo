@@ -17,6 +17,7 @@ import { stat as statAsync, readFile as readFileAsync, readdir as readdirAsync }
 import { db, eq, and } from '@plexo/db'
 import { tasks } from '@plexo/db'
 import { UUID_RE } from '../validation.js'
+import { logger } from '../logger.js'
 
 export const codeRouter: RouterType = Router()
 
@@ -116,7 +117,8 @@ codeRouter.get('/tree', async (req, res) => {
             if (!task) return void res.status(404).json({ error: 'Task not found' })
             const ctx2 = task.context as Record<string, unknown>
             sprintWorkDir = typeof ctx2.sprintWorkDir === 'string' ? ctx2.sprintWorkDir : undefined
-        } catch {
+        } catch (err) {
+            logger.error({ err, taskId, workspaceId }, 'GET /code/tree: DB lookup failed')
             return void res.status(500).json({ error: 'DB error' })
         }
     }
@@ -124,7 +126,8 @@ codeRouter.get('/tree', async (req, res) => {
     if (!sprintWorkDir) return void res.status(404).json({ error: 'No active code context for this task' })
 
     // Verify dir exists and is accessible
-    try { await statAsync(sprintWorkDir) } catch {
+    try { await statAsync(sprintWorkDir) } catch (err) {
+        logger.warn({ err, taskId, sprintWorkDir }, 'GET /code/tree: sprint work directory not found')
         return void res.status(404).json({ error: 'Sprint work directory not found' })
     }
 
@@ -158,7 +161,8 @@ codeRouter.get('/file', async (req, res) => {
             if (!task) return void res.status(404).json({ error: 'Task not found' })
             const ctx2 = task.context as Record<string, unknown>
             sprintWorkDir = typeof ctx2.sprintWorkDir === 'string' ? ctx2.sprintWorkDir : undefined
-        } catch {
+        } catch (err) {
+            logger.error({ err, taskId, workspaceId }, 'GET /code/file: DB lookup failed')
             return void res.status(500).json({ error: 'DB error' })
         }
     }
@@ -178,7 +182,8 @@ codeRouter.get('/file', async (req, res) => {
 
         const content = await readFileAsync(absPath, 'utf8')
         return void res.json({ path: filePath, content, size: s.size, mtime: s.mtimeMs })
-    } catch (e) {
+    } catch (err) {
+        logger.warn({ err, taskId, filePath }, 'GET /code/file: file read failed')
         return void res.status(404).json({ error: 'File not found' })
     }
 })

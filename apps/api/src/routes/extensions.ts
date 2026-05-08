@@ -86,6 +86,7 @@ function isAllowedInstallUrl(urlStr: string): boolean {
         // Allow other HTTPS URLs that aren't private/reserved
         return true
     } catch {
+        // intentional — URL constructor throws on malformed strings; treat as disallowed
         return false
     }
 }

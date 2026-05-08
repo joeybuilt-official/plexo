@@ -98,6 +98,48 @@ Each phase has: scope, dependencies, expected context budget (≤45% per phased-
 - **Exit criteria:** Levio ship gate (tests, typecheck, build) clean; Levio deploy target confirmed; one real paired Google Messages thread visible in Levio with smart-reply enrichment.
 - **Sign-off gate:** operator approves first Levio deploy with the new surface. **STOP.**
 
+### Phase O1 — Observability: Logging Completeness + External Error Sink
+
+Goal: ensure every API and client error is captured, visible, and
+actionable regardless of workspace analytics toggle state.
+
+Scope:
+- **Dark route cleanup:** `apps/api/src/routes/code.ts` (6 catch
+  blocks, zero logging) and `apps/api/src/routes/sse.ts` (1 silent
+  catch). Add `import { logger }` and replace bare catches with
+  `logger.warn`/`logger.error` at appropriate severity.
+- **Intentional-silence annotation:** any `catch {}` in sse-emitter.ts,
+  extensions.ts etc. that is genuinely silent by design gets an
+  explanatory comment so future contributors don't add logging
+  inadvertently.
+- **External error sink (Sentry):** add `@sentry/node` to the API;
+  `@sentry/nextjs` to apps/web. DSN via `SENTRY_DSN` env var.
+  `beforeSend` scrubs the `notes` field (pattern `/notes/i`) from
+  breadcrumbs. Port the existing `IGNORE_ERRORS` list from
+  `trackError()` into Sentry `beforeSend` to suppress noise.
+  Log a startup warning if `SENTRY_DSN` is undefined.
+- **Client-side capture:** wire `apps/web/src/instrumentation.ts`
+  (currently empty stub) and `apps/web/src/global-error.tsx` to the
+  Sentry Next.js SDK.
+
+ADR: 0007.
+
+Design decisions:
+- Sentry over Logtail (Logtail = log aggregator, no client-side SDK).
+- `notes` field scrubbed by pattern not literal for forward-safety.
+- `trackError()` already logs via pino regardless of relay; Sentry
+  adds a permanent external fallback.
+
+⚠ Operator sign-off required: approve Sentry as external service +
+supply `SENTRY_DSN` env var before code lands.
+
+Deps: none.
+Context budget: ≤20%.
+Subagents: one write agent for API changes, one for web changes (parallel).
+Exit: Sentry receives a test error from both API and web app; code.ts
+and sse.ts catch blocks emit structured log lines; typecheck clean;
+commit + push + deploy.
+
 ---
 
 ## Authorization gates (carry from build prompt)

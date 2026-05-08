@@ -89,7 +89,7 @@ export function emitToWorkspace(workspaceId: string, event: AgentEvent): void {
                 res.write(data)
                 delivered = true
             } catch {
-                // Use unregisterClient so userConnCounts is decremented properly
+                // intentional — socket gone; unregisterClient so userConnCounts is decremented properly
                 unregisterClient(workspaceId, id)
             }
         }
