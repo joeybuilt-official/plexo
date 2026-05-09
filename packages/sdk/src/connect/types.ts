@@ -182,6 +182,51 @@ export interface OcrResult {
 }
 
 // ---------------------------------------------------------------------------
+// SCL — concept graph (ADR 0008)
+// ---------------------------------------------------------------------------
+
+export interface SclConcept {
+    id: string
+    label: string
+    type: string
+}
+
+export interface SclMutateResult {
+    added: number
+    total: number
+}
+
+export interface SclExpandOptions {
+    depth?: number
+    width?: number
+}
+
+export interface SclExpandResult {
+    nodes: SclConcept[]
+    truncated: boolean
+}
+
+export interface GoldenRecordMeta {
+    enabled: boolean
+    booted?: boolean
+    version?: number | string
+    regionCount?: number
+    attractorCount?: number
+    spiritCount?: number
+    mechanicsCount?: number
+    transformationCount?: number
+    ledgerRefCount?: number
+    lastMutatedAt?: string
+    bootedAt?: string
+    [k: string]: unknown
+}
+
+export interface SclExtractTriggerOptions {
+    source?: string
+    sourceLogId?: string
+}
+
+// ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
 
