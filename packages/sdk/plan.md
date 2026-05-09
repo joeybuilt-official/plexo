@@ -101,7 +101,7 @@ silent-fail behavior as before; proper fix waits on Core SCL routes.
 - Nexalog pushed.
 - SDK version unchanged or bumped + all consumers re-pinned.
 
-### Phase 5 — Pushd refactor (Path B confirmed)
+### Phase 5 — Pushd refactor (Path B confirmed) ✅ done (commits `06ef212` swap + `af5f0a8` deletion)
 **Scope:** delete `@pushd/plexo-client`, move helpers to `apps/web/src/lib/plexo-deploy/`,
 have each helper build a deploy-shaped prompt and call `plexo.aiComplete()` from
 `@joeybuilt/plexo-sdk`. ⚠ One-way door — deletes a private monorepo package.
@@ -139,8 +139,12 @@ the bulk swap once mapping is clear.
 - Pushd typecheck clean.
 - Pushd pushed.
 
-### Phase 6 — SDK 1.0.0 + handoff
+### Phase 6 — SDK 1.0.0 + handoff ✅ done (2026-05-09)
 **Scope:** stabilize and ship 1.0.
+
+**Result:** `@joeybuilt/plexo-sdk@1.0.0` published to npm. All 5 consumers (app-starter,
+levio, fonto, nexalog, pushd) on ^1.0.0; typecheck clean across the board. Memory
+recorded at `/home/dustin/.claude/projects/-home-dustin/memory/plexo-sdk.md`.
 
 - Confirm SDK feature-complete: app-starter, levio, fonto, nexalog, pushd all on the
   same version + typecheck clean.

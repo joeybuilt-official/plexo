@@ -40,30 +40,27 @@
 - [x] Re-pinned all consumers (app-starter `fc88200`, levio `98b0fe2`, fonto `49b0d0e`)
 - [x] Commit nexalog
 
-## Phase 5 — Pushd refactor
+## Phase 5 — Pushd refactor ✅ (commits `06ef212` swap + `af5f0a8` deletion)
 
-- [ ] Clone pushd to `/home/dustin/dev/joeybuilt/pushd`
-- [ ] Inventory every export from `@pushd/plexo-client`
-- [ ] Map every import site of `@pushd/plexo-client` across pushd
-- [ ] Create `apps/web/src/lib/plexo-deploy/` directory
-- [ ] Move each helper to its own file under `plexo-deploy/`
-- [ ] Each helper uses `plexo` from `apps/web/src/lib/plexo.ts` (SDK init)
-- [ ] Rewrite `apps/web/src/lib/plexo.ts` as 5-line SDK init
-- [ ] Update import sites: `@pushd/plexo-client` → `@/lib/plexo-deploy/<helper>`
-- [ ] Typecheck pushd workspaces
-- [ ] ⚠ Operator gate: staging parity verification
-- [ ] Delete `packages/plexo-client/` (one-way door)
-- [ ] Remove from `pnpm-workspace.yaml`
-- [ ] Re-typecheck
-- [ ] Bump SDK if gaps surfaced (final lock)
-- [ ] Commit + push pushd
+- [x] Clone pushd to `/home/dustin/dev/joeybuilt/pushd`
+- [x] Inventory exports from `@pushd/plexo-client` (12 methods, 14 types) via Explore subagent
+- [x] Map import sites — only 3 (singleton holders); 6 helpers actively used, 6 dead
+- [x] Create `apps/web/src/lib/plexo-deploy/` w/ types, parse-json, 4 active helpers
+- [x] Each helper uses SDK `plexo.aiComplete()` w/ deploy-shaped prompt (Path B)
+- [x] Rewrite `apps/web/src/lib/plexo.ts` as 5-line SDK init
+- [x] Update import sites (deployer.ts, monitoring.ts, 3 API routes)
+- [x] Typecheck clean across changed files
+- [x] ⚠ Gate 2 — operator confirmed deletion
+- [x] Delete `packages/plexo-client/` entirely (one-way door)
+- [x] Update `apps/web/next.config.ts` (drop transpilePackages entry)
+- [x] Drop 6 dead helpers (suggestEnvVars, generateChangelog, validateApiKey, buildFromDescription, getBuildStatus, applyChange) — never called
+- [x] Commit pushd
 
-## Phase 6 — SDK 1.0.0 + handoff
+## Phase 6 — SDK 1.0.0 + handoff ✅
 
-- [ ] Confirm all consumers on same SDK version + typecheck clean
-- [ ] Bump SDK to 1.0.0
-- [ ] Refresh quick-start in `src/connect/index.ts`
-- [ ] Run `pnpm publish`
-- [ ] Bump every consumer to ^1.0.0
-- [ ] Update memories (SDK rollout complete + final version + consumer list)
-- [ ] Final `next-session.txt` handoff
+- [x] All consumers on ^0.4.0, typecheck clean
+- [x] Bump SDK to 1.0.0 + publish
+- [x] Quick-start in `src/connect/index.ts` reviewed, no drift
+- [x] Re-pin every consumer to ^1.0.0 (app-starter `a641185`, levio `ac0e890`, fonto `3275fd1`, nexalog clean, pushd `74d1910`)
+- [x] Memory written: `plexo-sdk.md` (consumers + version + ADR pointer)
+- [x] Final handoff written
