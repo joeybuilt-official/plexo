@@ -29,6 +29,7 @@ export default defineConfig({
             '@plexo/agent/memory/suggest': resolve(root, 'packages/agent/src/memory/suggest.ts'),
             '@plexo/agent/memory/streaming-touch': resolve(root, 'packages/agent/src/memory/streaming-touch.ts'),
             '@plexo/agent/memory/scl': resolve(root, 'packages/agent/src/memory/scl.ts'),
+            '@plexo/agent/memory/scl-query': resolve(root, 'packages/agent/src/memory/scl-query.ts'),
             '@plexo/agent/memory/promote': resolve(root, 'packages/agent/src/memory/promote.ts'),
             '@plexo/agent/types': resolve(root, 'packages/agent/src/types.ts'),
             '@plexo/agent/embeddings/router': resolve(root, 'packages/agent/src/embeddings/router.ts'),

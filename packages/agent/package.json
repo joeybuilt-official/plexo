@@ -95,6 +95,7 @@
     "./memory/promote": "./src/memory/promote.ts",
     "./embeddings/xenova": "./src/embeddings/xenova-adapter.ts",
     "./memory/scl": "./src/memory/scl.ts",
+    "./memory/scl-query": "./src/memory/scl-query.ts",
     "./memory/streaming-touch": "./src/memory/streaming-touch.ts"
   },
   "scripts": {
