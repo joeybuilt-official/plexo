@@ -12,7 +12,6 @@ import type {
     DispatchContext,
     DispatchOptions,
     DispatchResult,
-    GoldenRecordMeta,
     InboundHandlers,
     InstallConnectionOptions,
     MemorySearchResult,
@@ -24,10 +23,6 @@ import type {
     PlexoToken,
     PlexoTokenWithConnection,
     PublishEventOptions,
-    SclExpandOptions,
-    SclExpandResult,
-    SclExtractTriggerOptions,
-    SclMutateResult,
     StoreMemoryOptions,
     TestConnectionResult,
 } from './types.js'
@@ -328,96 +323,6 @@ export class PlexoClient {
             }
         } catch {
             return null
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // SCL — concept graph (ADR 0008)
-    // -----------------------------------------------------------------------
-
-    /**
-     * Append concepts to the workspace's SCL concept graph. Idempotent w.r.t.
-     * (label,type) pairs. Returns counts; never throws on graceful-degradation
-     * paths — caller can ignore the result.
-     */
-    async sclMutate(
-        workspaceId: string,
-        concepts: Array<{ label: string; type: string }>,
-        source?: string,
-    ): Promise<SclMutateResult> {
-        try {
-            return await this.#post<SclMutateResult>(
-                '/api/v1/scl/mutate',
-                { workspaceId, concepts, source: source ?? this.#opts.appId },
-                {},
-                20_000,
-            )
-        } catch {
-            return { added: 0, total: 0 }
-        }
-    }
-
-    /**
-     * Stimulus-driven concept lookup. Returns matching nodes plus a
-     * `truncated` flag when the result hit the width cap. Returns an empty
-     * result on any failure.
-     */
-    async sclExpand(
-        workspaceId: string,
-        stimulus: string,
-        opts: SclExpandOptions = {},
-    ): Promise<SclExpandResult> {
-        try {
-            return await this.#post<SclExpandResult>(
-                '/api/v1/scl/expand',
-                { workspaceId, stimulus, ...opts },
-                {},
-                15_000,
-            )
-        } catch {
-            return { nodes: [], truncated: false }
-        }
-    }
-
-    /**
-     * Read the workspace's golden-record metadata (`mindset_object`).
-     * Returns null if the workspace has no record or on any failure.
-     */
-    async sclRecordMeta(workspaceId: string): Promise<GoldenRecordMeta | null> {
-        try {
-            const params = new URLSearchParams({ workspaceId })
-            const data = await this.#get<GoldenRecordMeta>(
-                `/api/v1/scl/record/meta?${params}`,
-            )
-            if (!data || data.enabled === false) return null
-            return data
-        } catch {
-            return null
-        }
-    }
-
-    /**
-     * Fire-and-forget SCL extract trigger. Server is log + 200 today; the
-     * real extraction runs on a cron. Caller should not depend on side
-     * effects beyond the audit log.
-     */
-    async sclExtractTrigger(
-        workspaceId: string,
-        opts: SclExtractTriggerOptions = {},
-    ): Promise<void> {
-        try {
-            await this.#post(
-                '/api/v1/scl/extract/trigger',
-                {
-                    workspaceId,
-                    source: opts.source ?? this.#opts.appId,
-                    sourceLogId: opts.sourceLogId,
-                },
-                {},
-                10_000,
-            )
-        } catch {
-            /* fire-and-forget */
         }
     }
 
