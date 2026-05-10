@@ -747,7 +747,7 @@ export const workLedger = pgTable('work_ledger', {
     domainTag: text('domain_tag'),
     /** Domain mastery: context hash for credit assignment (ADR-003). */
     contextHash: text('context_hash'),
-    /** Domain mastery: rule keys + attractor IDs in prompt for invertible credit (Panel 2). */
+    /** Domain mastery: rule keys in prompt for invertible credit (Panel 2). */
     contextRuleKeys: jsonb('context_rule_keys').$type<string[] | null>(),
     completedAt: timestamp('completed_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table: any) => [

@@ -355,7 +355,6 @@ routing:
                                 {[
                                     { title: 'Concept Attractors', desc: 'Vector-positioned nodes with salience scoring, mutation tracking, and depth classes: spirit (drift-protected) and mechanics (freely evolving).' },
                                     { title: 'Domain Regions', desc: 'Semantic clusters with centroids, radius, density. 28+ relation types between regions.' },
-                                    { title: 'Drift Detection', desc: 'Protected attractor mutations beyond threshold fire DriftWarning for human review.' },
                                     { title: 'Budget-Aware Retrieval', desc: 'Token-budget-constrained context retrieval. Priority-sorted, region-aware, budget-packed.' },
                                 ].map(f => (
                                     <div key={f.title} className="rounded-md border border-border/60 p-4 hover:border-accent-dim transition-colors">

@@ -63,7 +63,7 @@ export interface ResolvedBehavior {
     rules: ResolvedRule[]
     /** Full compiled system prompt fragment */
     compiledPrompt: string
-    /** Domain mastery context hash — truncated SHA-256 of rule keys + attractor IDs in prompt.
+    /** Domain mastery context hash — truncated SHA-256 of rule keys in prompt.
      *  Used for credit assignment (ADR-003). Null when no learning content is present. */
     contextHash?: string | null
     /** Rule keys included in the compiled prompt (for invertible credit assignment). */

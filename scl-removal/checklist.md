@@ -54,17 +54,24 @@ Phase 4 is now small enough to do directly in main context — no subagent neede
 - [ ] Commit Phase 3 on `main` (next)
 
 ## Phase 4 — Wave A leftover cleanup + column drops (trimmed after Phase 1 pin)
-- [ ] `packages/agent/src/behavior/types.ts:66` — remove "attractor IDs in prompt" from JSDoc
-- [ ] `packages/db/src/schema.ts:750` — remove "attractor IDs" from JSDoc on Domain mastery column
-- [ ] `apps/web/src/app/page.tsx:358` — remove "Drift Detection" feature card
-- [ ] Drizzle migration: drop `workspaces.mindset_object` + `workspaces.graph_json` (idempotent)
-- [ ] ⚠ Operator gate: review column-drop migration
-- [ ] Apply migration to dev DB
-- [ ] `docs/memory.md` rewrite — atomic-fact + graph-layer language
+- [x] `packages/agent/src/behavior/types.ts:66` — removed "attractor IDs in prompt" from JSDoc
+- [x] `packages/db/src/schema.ts:750` — removed "attractor IDs" from JSDoc on Domain mastery column
+- [x] `apps/web/src/app/page.tsx:358` — removed "Drift Detection" feature card
+- [ ] **Discovery — schema location was wrong in plan.** `graph_json` + `mindset_object` are on `scl_concept_graphs` table (`packages/db/src/schema.ts:1680-1693`), NOT `workspaces` as plan said. The whole `scl_concept_graphs` table is leftover SCL infrastructure with active consumers:
+   - `apps/api/src/lib/embeddings-reembed.ts:255-265` — UPDATEs `graph_json`
+   - `apps/api/src/lib/embeddings-reembed.ts:349-353` — SELECTs `graph_json`
+   - `apps/api/src/routes/training-data.ts` — fixture handler for table
+   - 2 test files reference it
+   ⚠ **Operator gate — scope decision needed before column-drop migration.** Three options:
+   - **A: Drop the entire `scl_concept_graphs` table** + delete the SCL re-embed branch + training-data handler (~80 LOC). Cleanest end state.
+   - **B: Drop just the two jsonb columns** + neuter the SCL re-embed branch to no-op. Smaller diff; table shell remains.
+   - **C: Defer column drops.** Ship Phase 4 JSDoc + marketing only. Schedule follow-up after operator reviews consumer surface.
+- [ ] Apply chosen migration to dev DB (after operator decision)
+- [ ] `docs/memory.md` rewrite — atomic-fact + graph-layer language (deferred until scope decision lands)
 - [ ] Final sweep: grep no hits for `MindsetObject|mindset_object|graph_json|attractor` outside migration history + ADR 0009 + this checklist + ops/historical analysis dirs
 - [ ] `pnpm -C apps/api typecheck` no NEW errors (Buffer/BlobPart pre-existing OK)
 - [ ] `pnpm -C packages/agent test` clean
-- [ ] Commit Phase 4 on `main`
+- [ ] Commit Phase 4 on `main` — partial (JSDoc + marketing) committed; column-drop pending operator scope decision
 
 ## Phase 5 — Nexalog cutover
 - [ ] `nexalog/lib/plexo.ts:99-180` — swap raw fetch → SDK calls; rename SCL→graph internally
