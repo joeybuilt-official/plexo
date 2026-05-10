@@ -537,6 +537,7 @@ export function buildModel(
                     Authorization: `Bearer ${config.apiKey ?? ''}`,
                 },
                 fetch: ollamaCloudResilientFetch(),
+                supportsStructuredOutputs: true,
             })
             return oc(modelId)
         }
@@ -1082,6 +1083,7 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
                 baseURL: 'https://ollama.com/v1',
                 headers: { Authorization: `Bearer ${apiKey ?? ''}` },
                 fetch: ollamaCloudResilientFetch(),
+                supportsStructuredOutputs: true,
             })(modelId)
         }
         case 'fal': {
@@ -1226,6 +1228,7 @@ export async function testProvider(
                     baseURL: 'https://ollama.com/v1',
                     headers: { Authorization: `Bearer ${opts.apiKey}` },
                     fetch: ollamaCloudResilientFetch(),
+                    supportsStructuredOutputs: true,
                 })(modelId)
                 const ac = new AbortController()
                 const timer = setTimeout(() => ac.abort(), Math.max(timeoutMs - (Date.now() - start), 5000))
