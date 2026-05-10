@@ -172,6 +172,40 @@ export interface MemorySearchResult {
 }
 
 // ---------------------------------------------------------------------------
+// Concept Graph (ADR 0009)
+// ---------------------------------------------------------------------------
+
+export interface ConceptInput {
+    label: string
+    type?: string
+}
+
+export interface GraphMutateResult {
+    ok: true
+    nodeIds: string[]
+    created: number
+    existing: number
+}
+
+export interface ExpandedNode {
+    id: string
+    label: string
+    type: string | null
+    depth: number
+}
+
+export interface GraphExpandResult {
+    nodes: ExpandedNode[]
+    truncated: boolean
+}
+
+export interface GraphMeta {
+    nodeCount: number
+    edgeCount: number
+    lastUpdate: string | null
+}
+
+// ---------------------------------------------------------------------------
 // Vision
 // ---------------------------------------------------------------------------
 

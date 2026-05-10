@@ -9,9 +9,13 @@ import type {
     AppProfile,
     ChatOptions,
     ChatReply,
+    ConceptInput,
     DispatchContext,
     DispatchOptions,
     DispatchResult,
+    GraphExpandResult,
+    GraphMeta,
+    GraphMutateResult,
     InboundHandlers,
     InstallConnectionOptions,
     MemorySearchResult,
@@ -321,6 +325,82 @@ export class PlexoClient {
                 confidence: typeof data.confidence === 'number' ? data.confidence : 0,
                 model: data.model ?? 'unknown',
             }
+        } catch {
+            return null
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Concept Graph (ADR 0009)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Upsert concepts into the workspace graph and (optionally) link them to
+     * a memory entry. New nodes get light edge inference (cosine ≥ 0.85,
+     * capped at 5 edges per new node). Returns null on failure.
+     */
+    async graphMutate(
+        workspaceId: string,
+        concepts: ConceptInput[],
+        source: string,
+        memoryEntryId?: string,
+    ): Promise<GraphMutateResult | null> {
+        try {
+            return await this.#post<GraphMutateResult>(
+                '/api/v1/graph/mutate',
+                { workspaceId, concepts, source, ...(memoryEntryId ? { memoryEntryId } : {}) },
+            )
+        } catch {
+            return null
+        }
+    }
+
+    /**
+     * Recursive CTE BFS expansion from a stimulus. Default depth 2 / width
+     * 50; max depth 4 / width 200; result is `truncated: true` when caps hit.
+     * Returns an empty result on failure.
+     */
+    async graphExpand(
+        workspaceId: string,
+        stimulus: string,
+        opts?: { depth?: number; width?: number },
+    ): Promise<GraphExpandResult> {
+        try {
+            return await this.#post<GraphExpandResult>(
+                '/api/v1/graph/expand',
+                { workspaceId, stimulus, ...(opts ?? {}) },
+            )
+        } catch {
+            return { nodes: [], truncated: false }
+        }
+    }
+
+    /** Per-workspace counts + last update. Returns null on failure. */
+    async graphMeta(workspaceId: string): Promise<GraphMeta | null> {
+        try {
+            const data = await this.#get<{ meta: GraphMeta }>(
+                `/api/v1/graph/meta?workspaceId=${encodeURIComponent(workspaceId)}`,
+            )
+            return data.meta ?? null
+        } catch {
+            return null
+        }
+    }
+
+    /**
+     * Heartbeat for graph extraction. The real linker runs in the
+     * memory-extraction worker; this trigger mostly serves as an audit
+     * signal callers can hit explicitly.
+     */
+    async graphExtractTrigger(
+        workspaceId: string,
+        sourceLogId?: string,
+    ): Promise<{ ok: true } | null> {
+        try {
+            return await this.#post<{ ok: true }>(
+                '/api/v1/graph/extract/trigger',
+                { workspaceId, ...(sourceLogId ? { sourceLogId } : {}) },
+            )
         } catch {
             return null
         }

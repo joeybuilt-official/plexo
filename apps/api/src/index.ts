@@ -42,6 +42,7 @@ import { discordRouter } from './routes/discord.js'
 import { owdRouter } from './routes/approvals.js'
 import { sprintRunnerRouter } from './routes/sprint-runner.js'
 import { memoryRouter, synthesisRouter, themesRouter } from './routes/memory.js'
+import { graphRouter } from './routes/graph.js'
 import { memoryPaxRouter } from './routes/memory-pax.js'
 import { connectionsRouter } from './routes/connections.js'
 import { workspacesRouter } from './routes/workspaces.js'
@@ -322,6 +323,7 @@ v1.use('/memory', memoryPaxRouter) // service-key gated; covers /memory/embeddin
 v1.use('/memory', requireWorkspaceMember('workspaceId'), memoryRouter)
 v1.use('/synthesis', synthesisRouter) // service-key auth handled inside the router
 v1.use('/themes', themesRouter) // service-key auth handled inside the router (Phase 1: /forest)
+v1.use('/graph', graphRouter) // service-key auth handled inside the router (ADR 0009)
 v1.use('/connections', connectionsRouter) // some endpoints have no workspaceId (registry); per-handler checks
 v1.use('/connections/gmessages', connectionsGmessagesRouter) // ADR-0005: pairing lifecycle, NOT subscription
 // ADR 0013 §D9 — draft attachments. Mounted BEFORE conversationsRouter so
