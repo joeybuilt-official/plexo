@@ -214,7 +214,18 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
         res.status(400).json({ error: { code: 'MISSING_USER_MESSAGE', message: '`messages` must include at least one user/assistant turn' } })
         return
     }
-    const system = systemParts.length > 0 ? systemParts.join('\n\n') : undefined
+    const baseSystem = systemParts.length > 0 ? systemParts.join('\n\n') : undefined
+    let system = baseSystem
+    if (useSchema) {
+        const schemaJson = JSON.stringify((body.response_format as OAIJsonSchemaFormat).json_schema.schema, null, 2)
+        const directive =
+            'CRITICAL OUTPUT REQUIREMENT: You MUST respond with ONLY valid JSON matching this exact schema. ' +
+            'No prose, no markdown fences, no commentary. Your response must start with { and end with }. ' +
+            'Use the EXACT property names shown in the schema (e.g. if the schema has "extracted_entities", do NOT use "entities" or "items"). ' +
+            'Even if the natural answer is a single value, you MUST wrap it in the schema\'s object structure.\n\n' +
+            'JSON Schema:\n' + schemaJson
+        system = baseSystem ? `${baseSystem}\n\n${directive}` : directive
+    }
 
     let model: ReturnType<typeof resolveModelFromEnv>
     let provider = 'env-fallback'
