@@ -70,6 +70,17 @@ RUN pnpm install --frozen-lockfile --filter @plexo/api...
 # in the runner stage.
 RUN mkdir -p /app/packages/sdk/node_modules /app/packages/graphiti-bridge/node_modules
 
+# Build @joeybuilt/plexo-sdk dist. Phase 8 (1.1.0) flipped exports from
+# src/index.ts to dist/index.js for npm-publish target; without an in-Docker
+# build step apps/api crashes at boot trying to import @plexo/sdk dist.
+# The .dockerignore excludes packages/*/dist by default so building inside
+# the deps stage and COPY'ing forward is the right shape.
+COPY packages/sdk/src                  ./packages/sdk/src
+COPY packages/sdk/tsconfig.json        ./packages/sdk/
+COPY packages/sdk/tsup.config.ts       ./packages/sdk/
+RUN pnpm install --frozen-lockfile --filter @joeybuilt/plexo-sdk \
+ && pnpm -C packages/sdk run build
+
 # sharp@0.32.6 install hook — its package.json `scripts.install` invokes
 # `node install/libvips && node install/dll-copy && prebuild-install`.
 # We replicate that here. sharp@0.34.5 ships its install differently
@@ -116,7 +127,8 @@ COPY apps/api        ./apps/api
 COPY packages/agent  ./packages/agent
 COPY packages/db     ./packages/db
 COPY packages/queue  ./packages/queue
-COPY packages/sdk    ./packages/sdk
+COPY packages/sdk             ./packages/sdk
+COPY --from=deps /app/packages/sdk/dist ./packages/sdk/dist
 COPY packages/graphiti-bridge ./packages/graphiti-bridge
 COPY packages/logger   ./packages/logger
 COPY packages/storage  ./packages/storage
