@@ -22,6 +22,7 @@ export function AuthBadge({ type }: { type: AuthType }) {
         basic: { label: 'Basic Auth', cls: 'bg-amber-dim text-amber border-amber-500/20' },
         webhook: { label: 'Webhook', cls: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
         none: { label: 'No Auth', cls: 'bg-surface-2/30 text-text-muted border-border/30' },
+        paired_session: { label: 'QR Paired', cls: 'bg-green-500/10 text-green-400 border-green-500/20' },
     }
     const entry = map[type] ?? map.none
     const { label, cls } = entry

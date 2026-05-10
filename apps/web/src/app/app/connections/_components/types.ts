@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-export type AuthType = 'oauth2' | 'api_key' | 'webhook' | 'bearer' | 'basic' | 'none'
+export type AuthType = 'oauth2' | 'api_key' | 'webhook' | 'bearer' | 'basic' | 'none' | 'paired_session'
 export type ConnectionStatus = 'active' | 'disconnected' | 'error'
 export type DetailTab = 'overview' | 'tools' | 'config'
 

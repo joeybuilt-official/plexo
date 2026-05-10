@@ -18,7 +18,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, and } from '@plexo/db'
 import { isSsrfTarget } from '../utils/ssrf.js'
-import { connectionsRegistry, installedConnections, channels } from '@plexo/db'
+import { connectionsRegistry, installedConnections, channels, pairedSessions } from '@plexo/db'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
@@ -1163,6 +1163,31 @@ connectionsRouter.post('/test', async (req, res) => {
             }).from(installedConnections)
                 .where(and(eq(installedConnections.id, connectionId), eq(installedConnections.workspaceId, workspaceId)))
                 .limit(1)
+
+            if (row?.registryId === 'gmessages') {
+                // Paired-session connections have no URL — check session state from DB
+                const [session] = await db.select({
+                    state: pairedSessions.state,
+                    errorDetail: pairedSessions.errorDetail,
+                    lastInboundAt: pairedSessions.lastInboundAt,
+                }).from(pairedSessions)
+                    .where(and(
+                        eq(pairedSessions.installedConnectionId, connectionId),
+                        eq(pairedSessions.workspaceId, workspaceId),
+                    ))
+                    .limit(1)
+
+                if (!session) {
+                    res.json({ ok: false, status: 0, statusText: 'No paired session found — re-pair your phone', contentType: 'paired_session' })
+                    return
+                }
+                const healthy = session.state === 'active' || session.state === 'refreshing'
+                const detail = session.state === 'errored' && session.errorDetail
+                    ? `${session.state}: ${session.errorDetail}`
+                    : session.state
+                res.json({ ok: healthy, status: healthy ? 200 : 0, statusText: detail, contentType: 'paired_session' })
+                return
+            }
 
             if (row) {
                 const raw = row.credentials as Record<string, unknown>

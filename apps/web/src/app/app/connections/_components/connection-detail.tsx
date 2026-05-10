@@ -90,6 +90,11 @@ export default function ConnectionDetail({
                         <button
                             onClick={() => onTest(connectedItem.id)}
                             disabled={testing === connectedItem.id}
+                            title={testResult[connectedItem.id]
+                                ? testResult[connectedItem.id]!.ok
+                                    ? `OK — ${testResult[connectedItem.id]!.statusText}`
+                                    : `Failed: ${testResult[connectedItem.id]!.statusText}`
+                                : 'Test connection'}
                             className="flex items-center justify-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
                         >
                             {testing === connectedItem.id ? (
@@ -194,6 +199,13 @@ export default function ConnectionDetail({
                                         </div>
                                     )}
                                 </dl>
+                            </div>
+                        )}
+
+                        {isConnected && connectedItem && testResult[connectedItem.id] && !testResult[connectedItem.id]?.ok && (
+                            <div className="rounded-sm border border-red-800/50 bg-red-dim px-3 py-2.5 flex items-start gap-2">
+                                <AlertCircle className="h-3.5 w-3.5 text-red shrink-0 mt-0.5" />
+                                <span className="text-xs text-red">{testResult[connectedItem.id]!.statusText || 'Connection test failed'}</span>
                             </div>
                         )}
 

@@ -273,6 +273,11 @@ function IntegrationsContent() {
     async function handleInstall() {
         if (!selected || !WS_ID) return
 
+        if (selected.authType === 'paired_session') {
+            window.location.href = `/app/connections/${selected.id}/pair`
+            return
+        }
+
         if (selected.authType === 'oauth2') {
             const oauthUrl = `${API_BASE}/api/v1/oauth/${selected.id}/start?workspaceId=${WS_ID}`
             const popup = window.open(oauthUrl, 'plexo_oauth', 'width=600,height=700,left=200,top=100')
