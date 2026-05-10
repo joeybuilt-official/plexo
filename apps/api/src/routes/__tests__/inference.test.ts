@@ -19,7 +19,33 @@ vi.mock('@plexo/agent/memory/store', () => ({
     embed: vi.fn(),
 }))
 
+class MockCallModelError extends Error {
+    code: string
+    constructor(message: string, code: string) {
+        super(message)
+        this.name = 'CallModelError'
+        this.code = code
+    }
+}
+
+vi.mock('@plexo/agent/providers/call-model', () => ({
+    callModel: vi.fn(),
+    CallModelError: MockCallModelError,
+}))
+
+vi.mock('@plexo/agent/providers/registry', () => ({
+    resolveModel: vi.fn(),
+    resolveModelFromEnv: vi.fn(() => ({ __mock: 'env-model' })),
+}))
+
+vi.mock('@plexo/agent/providers/settings-from-instances', () => ({
+    loadSettingsFromInstances: vi.fn(async () => null),
+}))
+
 const { embed } = await import('@plexo/agent/memory/store')
+const { callModel } = await import('@plexo/agent/providers/call-model')
+const { resolveModel } = await import('@plexo/agent/providers/registry')
+const { loadSettingsFromInstances } = await import('@plexo/agent/providers/settings-from-instances')
 const { inferenceRouter } = await import('../inference.js')
 
 const SERVICE_KEY = 'test-service-key-1234567890abcd'
@@ -163,5 +189,260 @@ describe('POST /api/inference/v1/embeddings', () => {
             body: JSON.stringify({ input: [] }),
         })
         expect(res.status).toBe(400)
+    })
+})
+
+describe('POST /api/inference/v1/chat/completions', () => {
+    const FACT_SCHEMA = {
+        type: 'object',
+        properties: {
+            facts: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    properties: {
+                        subject: { type: 'string' },
+                        predicate: { type: 'string' },
+                        object: { type: 'string' },
+                    },
+                    required: ['subject', 'predicate', 'object'],
+                    additionalProperties: false,
+                },
+            },
+        },
+        required: ['facts'],
+        additionalProperties: false,
+    }
+
+    function chatBody(extra: Record<string, unknown> = {}) {
+        return {
+            model: 'plexo-router',
+            messages: [
+                { role: 'system', content: 'You extract facts.' },
+                { role: 'user', content: 'User lives in Austin.' },
+            ],
+            response_format: {
+                type: 'json_schema',
+                json_schema: { name: 'Facts', schema: FACT_SCHEMA },
+            },
+            ...extra,
+        }
+    }
+
+    it('translates json_schema response_format → callModel({schema}) and returns OpenAI shape', async () => {
+        const extracted = { facts: [{ subject: 'user', predicate: 'lives in', object: 'Austin' }] }
+        vi.mocked(callModel).mockResolvedValueOnce({
+            object: extracted,
+            text: '',
+            repairUsed: false,
+            inputTokens: 50,
+            outputTokens: 20,
+            latencyMs: 100,
+            model: 'gpt-4o-mini',
+            attempts: 1,
+        } as Awaited<ReturnType<typeof callModel>>)
+
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(chatBody({ max_tokens: 256 })),
+        })
+        expect(res.status).toBe(200)
+        const out = await res.json() as {
+            id: string
+            object: string
+            choices: Array<{ message: { role: string; content: string }; finish_reason: string }>
+            usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+            model: string
+        }
+        expect(out.object).toBe('chat.completion')
+        expect(out.id.startsWith('chatcmpl-')).toBe(true)
+        expect(out.choices).toHaveLength(1)
+        expect(out.choices[0]!.message.role).toBe('assistant')
+        expect(JSON.parse(out.choices[0]!.message.content)).toEqual(extracted)
+        expect(out.choices[0]!.finish_reason).toBe('stop')
+        expect(out.usage).toEqual({ prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 })
+        expect(out.model).toBe('gpt-4o-mini')
+
+        expect(callModel).toHaveBeenCalledTimes(1)
+        const opts = vi.mocked(callModel).mock.calls[0]![0]!
+        expect(opts.workspaceId).toBe(VALID_WORKSPACE)
+        expect(opts.system).toBe('You extract facts.')
+        expect(opts.messages).toEqual([{ role: 'user', content: 'User lives in Austin.' }])
+        expect(opts.maxTokens).toBe(256)
+        expect(opts.schemaName).toBe('Facts')
+        expect(opts.schema).toBeDefined()
+        // schema parses an object matching FACT_SCHEMA — sanity check it's a real Zod schema
+        const parsed = (opts.schema as { parse: (v: unknown) => unknown }).parse(extracted)
+        expect(parsed).toEqual(extracted)
+    })
+
+    it('passes through to text mode (no schema) when response_format is absent', async () => {
+        vi.mocked(callModel).mockResolvedValueOnce({
+            text: 'plain answer',
+            inputTokens: 5,
+            outputTokens: 3,
+            latencyMs: 50,
+            model: 'gpt-4o-mini',
+            attempts: 1,
+        } as Awaited<ReturnType<typeof callModel>>)
+
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+                messages: [{ role: 'user', content: 'hi' }],
+            }),
+        })
+        expect(res.status).toBe(200)
+        const out = await res.json() as { choices: Array<{ message: { content: string } }> }
+        expect(out.choices[0]!.message.content).toBe('plain answer')
+        const opts = vi.mocked(callModel).mock.calls[0]![0]!
+        expect(opts.schema).toBeUndefined()
+    })
+
+    it('uses workspace-resolved model when settings exist; falls through to env otherwise', async () => {
+        const aiSettings = { fakeSettings: true }
+        vi.mocked(loadSettingsFromInstances).mockResolvedValueOnce(aiSettings as never)
+        vi.mocked(resolveModel).mockResolvedValueOnce({
+            model: { __mock: 'workspace-model' } as never,
+            meta: { provider: 'openai', mode: 'byok', id: 'gpt-4o', costPerMIn: 0, costPerMOut: 0 } as never,
+        })
+        vi.mocked(callModel).mockResolvedValueOnce({
+            text: 'ok', inputTokens: 1, outputTokens: 1, latencyMs: 10, model: 'gpt-4o', attempts: 1,
+        } as Awaited<ReturnType<typeof callModel>>)
+
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
+        })
+        expect(res.status).toBe(200)
+        expect(resolveModel).toHaveBeenCalledWith('summarization', aiSettings, VALID_WORKSPACE)
+        const opts = vi.mocked(callModel).mock.calls[0]![0]!
+        expect((opts.model as { __mock: string }).__mock).toBe('workspace-model')
+        expect(opts.provider).toBe('openai')
+    })
+
+    it('rejects requests with tools (501 — Phase 3b scope)', async () => {
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+                messages: [{ role: 'user', content: 'hi' }],
+                tools: [{ type: 'function', function: { name: 'f', parameters: {} } }],
+            }),
+        })
+        expect(res.status).toBe(501)
+        const body = await res.json() as { error: { code: string } }
+        expect(body.error.code).toBe('TOOLS_NOT_SUPPORTED')
+        expect(callModel).not.toHaveBeenCalled()
+    })
+
+    it('rejects streaming requests (501)', async () => {
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], stream: true }),
+        })
+        expect(res.status).toBe(501)
+        const body = await res.json() as { error: { code: string } }
+        expect(body.error.code).toBe('STREAMING_NOT_SUPPORTED')
+    })
+
+    it('rejects empty messages array (400)', async () => {
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ messages: [] }),
+        })
+        expect(res.status).toBe(400)
+        const body = await res.json() as { error: { code: string } }
+        expect(body.error.code).toBe('MISSING_MESSAGES')
+    })
+
+    it('rejects messages with only system role (no user/assistant turn) — 400', async () => {
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+                messages: [{ role: 'system', content: 'be helpful' }],
+            }),
+        })
+        expect(res.status).toBe(400)
+        const body = await res.json() as { error: { code: string } }
+        expect(body.error.code).toBe('MISSING_USER_MESSAGE')
+    })
+
+    it('rejects malformed json_schema response_format (missing schema)', async () => {
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+                messages: [{ role: 'user', content: 'hi' }],
+                response_format: { type: 'json_schema', json_schema: { name: 'X' } },
+            }),
+        })
+        expect(res.status).toBe(400)
+        const body = await res.json() as { error: { code: string } }
+        expect(body.error.code).toBe('INVALID_RESPONSE_FORMAT')
+    })
+
+    it('maps CallModelError(CALL_MODEL_PARSE) → 502', async () => {
+        vi.mocked(callModel).mockRejectedValueOnce(new MockCallModelError('parse failed', 'CALL_MODEL_PARSE'))
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(chatBody()),
+        })
+        expect(res.status).toBe(502)
+        const body = await res.json() as { error: { code: string } }
+        expect(body.error.code).toBe('CALL_MODEL_PARSE')
+    })
+
+    it('maps CallModelError(CALL_MODEL_TIMEOUT) → 504', async () => {
+        vi.mocked(callModel).mockRejectedValueOnce(new MockCallModelError('timed out', 'CALL_MODEL_TIMEOUT'))
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(chatBody()),
+        })
+        expect(res.status).toBe(504)
+    })
+
+    it('rejects requests without service-key Bearer auth', async () => {
+        const headers = authHeaders()
+        delete headers.Authorization
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(chatBody()),
+        })
+        expect(res.status).toBe(401)
+    })
+
+    it('rejects requests without X-Plexo-Workspace-Id', async () => {
+        const headers = authHeaders()
+        delete headers['X-Plexo-Workspace-Id']
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(chatBody()),
+        })
+        expect(res.status).toBe(400)
+        const body = await res.json() as { error: { code: string } }
+        expect(body.error.code).toBe('MISSING_WORKSPACE_ID')
     })
 })
