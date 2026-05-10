@@ -307,24 +307,33 @@ function extractRawText(err: unknown, depth = 0): string | null {
 }
 
 function getZodObjectKeys(schema: ZodType<unknown>): string[] {
-    const def = (schema as { _def?: { shape?: () => Record<string, unknown> } })._def
-    if (def?.shape && typeof def.shape === 'function') {
-        try { return Object.keys(def.shape()) } catch { return [] }
+    const def = (schema as { _def?: { shape?: unknown } })._def
+    const shape = def?.shape
+    if (typeof shape === 'function') {
+        try { return Object.keys((shape as () => Record<string, unknown>)()) } catch { /* fall through */ }
+    } else if (shape && typeof shape === 'object') {
+        try { return Object.keys(shape as Record<string, unknown>) } catch { /* fall through */ }
     }
     return []
 }
 
+const COMMON_WRAP_KEYS = ['nodes', 'edges', 'extracted_entities', 'extracted_nodes', 'extracted_edges', 'entities', 'results', 'items', 'data', 'list', 'facts', 'records']
+
 function tryWrapArrayInObject(
     parsed: unknown,
     schema: ZodType<unknown>,
-): { success: true; data: unknown } | { success: false } {
-    if (!Array.isArray(parsed)) return { success: false }
-    for (const key of getZodObjectKeys(schema)) {
+): { success: true; data: unknown; wrappedWith: string } | { success: false; triedKeys: string[] } {
+    if (!Array.isArray(parsed)) return { success: false, triedKeys: [] }
+    const introspectKeys = getZodObjectKeys(schema)
+    const candidateSet = new Set<string>([...introspectKeys, ...COMMON_WRAP_KEYS])
+    const tried: string[] = []
+    for (const key of candidateSet) {
+        tried.push(key)
         const wrapped = { [key]: parsed }
         const result = schema.safeParse(wrapped)
-        if (result.success) return { success: true, data: result.data }
+        if (result.success) return { success: true, data: result.data, wrappedWith: key }
     }
-    return { success: false }
+    return { success: false, triedKeys: tried }
 }
 
 function tryRescueFencedJson(
@@ -768,8 +777,18 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                                     workspaceId: opts.workspaceId,
                                     taskType: opts.taskType,
                                     model: modelId,
+                                    wrappedWith: wrapped.wrappedWith,
                                 }, 'callModel: repair output was top-level array; wrapped to satisfy object schema')
-                                validated = wrapped
+                                validated = { success: true as const, data: wrapped.data }
+                            } else {
+                                logger.warn({
+                                    event: 'call_model.repair_array_wrap_failed',
+                                    workspaceId: opts.workspaceId,
+                                    taskType: opts.taskType,
+                                    model: modelId,
+                                    triedKeys: wrapped.triedKeys,
+                                    parsedSample: JSON.stringify(parsed).slice(0, 200),
+                                }, 'callModel: repair output was top-level array but no wrap key satisfied schema')
                             }
                         }
 
