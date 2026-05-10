@@ -41,9 +41,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from graphiti_core import Graphiti
+from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
 from graphiti_core.driver.kuzu_driver import KuzuDriver
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
-from graphiti_core.llm_client import OpenAIClient
+from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
 from graphiti_core.llm_client.config import LLMConfig
 from graphiti_core.nodes import EpisodeType
 
@@ -127,6 +128,7 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
         db_dir = pathlib.Path(KUZU_DATA_DIR) / workspace_id
         db_dir.mkdir(parents=True, exist_ok=True)
         driver = KuzuDriver(db=str(db_dir / "graph.kuzu"))
+        driver._database = workspace_id
 
         ws_base_url = f"{PLEXO_INFERENCE_BASE}/ws/{workspace_id}/v1"
         embedder = OpenAIEmbedder(
@@ -136,7 +138,7 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
                 embedding_model=GRAPHITI_EMBEDDING_MODEL,
             )
         )
-        llm_client = OpenAIClient(
+        llm_client = OpenAIGenericClient(
             config=LLMConfig(
                 api_key=SERVICE_KEY,
                 base_url=ws_base_url,
@@ -144,10 +146,18 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
                 small_model=GRAPHITI_LLM_SMALL_MODEL,
             )
         )
+        cross_encoder = OpenAIRerankerClient(
+            config=LLMConfig(
+                api_key=SERVICE_KEY,
+                base_url=ws_base_url,
+                model=GRAPHITI_LLM_SMALL_MODEL,
+            )
+        )
         graphiti = Graphiti(
             graph_driver=driver,
             llm_client=llm_client,
             embedder=embedder,
+            cross_encoder=cross_encoder,
         )
         await graphiti.build_indices_and_constraints()
         _GRAPHITI_INSTANCES[workspace_id] = graphiti

@@ -316,6 +316,7 @@ services:
     environment:
       PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY}
       KUZU_DATA_DIR: /data/graphiti
+      PLEXO_INFERENCE_BASE: ${PLEXO_INFERENCE_BASE:-http://api:3001/api/inference}
     volumes:
       - graphiti_data:/data/graphiti
     ports:
