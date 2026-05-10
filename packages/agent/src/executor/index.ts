@@ -1309,6 +1309,7 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
                 classification: ctx.modelOverrideId,
                 conversation: ctx.modelOverrideId,
                 logAnalysis: ctx.modelOverrideId,
+                extraction: ctx.modelOverrideId,
             }
         }
         : settings

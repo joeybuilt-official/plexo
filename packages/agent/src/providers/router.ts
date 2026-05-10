@@ -24,6 +24,7 @@ const CHAIN_TASK_TYPES: ReadonlySet<TaskType> = new Set<TaskType>([
     'conversation',
     'classification',
     'logAnalysis',
+    'extraction',
 ])
 
 export interface VaultConfig {

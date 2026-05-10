@@ -327,6 +327,27 @@ describe('POST /api/inference/v1/chat/completions', () => {
         expect(opts.provider).toBe('openai')
     })
 
+    it('routes json_schema requests through the extraction task type (Phase 3b follow-up)', async () => {
+        const aiSettings = { fakeSettings: true }
+        vi.mocked(loadSettingsFromInstances).mockResolvedValueOnce(aiSettings as never)
+        vi.mocked(resolveModel).mockResolvedValueOnce({
+            model: { __mock: 'extraction-model' } as never,
+            meta: { provider: 'ollama_cloud', mode: 'byok', id: 'gpt-oss:120b', costPerMIn: 0, costPerMOut: 0 } as never,
+        })
+        vi.mocked(callModel).mockResolvedValueOnce({
+            object: { facts: [] }, text: '', repairUsed: false, inputTokens: 1, outputTokens: 1, latencyMs: 10, model: 'gpt-oss:120b', attempts: 1,
+        } as Awaited<ReturnType<typeof callModel>>)
+
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(chatBody()),
+        })
+        expect(res.status).toBe(200)
+        expect(resolveModel).toHaveBeenCalledWith('extraction', aiSettings, VALID_WORKSPACE)
+    })
+
     it('rejects requests with tools (501 — Phase 3b scope)', async () => {
         const base = await getServer()
         const res = await fetch(`${base}/api/inference/v1/chat/completions`, {

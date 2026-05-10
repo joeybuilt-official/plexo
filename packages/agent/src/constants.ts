@@ -26,6 +26,7 @@ export const MODEL_ROUTING = {
     summarization: 'claude-haiku-4-5',
     classification: 'claude-haiku-4-5',
     logAnalysis: 'claude-haiku-4-5',
+    extraction: 'claude-sonnet-4-5',
 } as const
 
 export const QUALITY_RUBRICS = {

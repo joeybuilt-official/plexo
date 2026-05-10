@@ -35,6 +35,7 @@ export type ChainTaskType =
     | 'codeGeneration'
     | 'verification'
     | 'summarization'
+    | 'extraction'
     | 'conversation'
     | 'classification'
     | 'logAnalysis'

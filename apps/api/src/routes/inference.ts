@@ -221,7 +221,7 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
     try {
         const aiSettings = await loadSettingsFromInstances(workspaceId)
         if (aiSettings) {
-            const resolved = await resolveModel('summarization', aiSettings, workspaceId)
+            const resolved = await resolveModel(useSchema ? 'extraction' : 'summarization', aiSettings, workspaceId)
             model = resolved.model
             provider = resolved.meta.provider
         } else {

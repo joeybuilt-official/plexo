@@ -261,6 +261,7 @@ export type TaskType =
     | 'conversation'
     | 'classification'
     | 'logAnalysis'
+    | 'extraction'
 
 /**
  * Default model IDs per task type.
@@ -275,6 +276,7 @@ export const DEFAULT_MODEL_ROUTING: Record<TaskType, string> = {
     conversation: 'claude-haiku-4-5',
     classification: 'claude-haiku-4-5',
     logAnalysis: 'claude-haiku-4-5',
+    extraction: 'claude-sonnet-4-5',
 }
 
 export interface AIProviderConfig {
@@ -390,6 +392,7 @@ export function buildModel(
         'codeGeneration',
         'verification',
         'logAnalysis',
+        'extraction',
     ])
 
     if (modelId === 'deepseek-reasoner') {

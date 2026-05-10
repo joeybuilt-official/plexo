@@ -57,6 +57,7 @@ export type RoutingTaskType =
     | 'conversation'
     | 'classification'
     | 'logAnalysis'
+    | 'extraction'
 
 export const ROUTING_TASK_TYPES: readonly RoutingTaskType[] = [
     'planning',
@@ -66,6 +67,7 @@ export const ROUTING_TASK_TYPES: readonly RoutingTaskType[] = [
     'conversation',
     'classification',
     'logAnalysis',
+    'extraction',
 ] as const
 
 /**
@@ -80,6 +82,7 @@ export const REASONER_NEVER_TIERS: ReadonlySet<RoutingTaskType> = new Set([
     'codeGeneration',
     'verification',
     'logAnalysis',
+    'extraction',
 ])
 
 /** Model ids treated as "reasoner-class" — substring match, lowercased. */
@@ -137,6 +140,7 @@ const WEIGHTS: Record<RoutingTaskType, TaskWeights> = {
     conversation:   { reasoning: 0, speed: 4, cheap: 3, code: 0, tools: 1, longContext: 0 },
     classification: { reasoning: 0, speed: 5, cheap: 4, code: 0, tools: 0, longContext: 0 },
     logAnalysis:    { reasoning: 0, speed: 3, cheap: 3, code: 0, tools: 0, longContext: 2 },
+    extraction:     { reasoning: 1, speed: 2, cheap: 3, code: 0, tools: 0, longContext: 3 },
 }
 
 /**
