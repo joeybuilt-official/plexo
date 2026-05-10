@@ -45,6 +45,7 @@ COPY packages/agent/package.json        packages/agent/
 COPY packages/db/package.json           packages/db/
 COPY packages/queue/package.json        packages/queue/
 COPY packages/sdk/package.json          packages/sdk/
+COPY packages/graphiti-bridge/package.json packages/graphiti-bridge/
 COPY packages/logger/package.json       packages/logger/
 COPY packages/storage/package.json      packages/storage/
 COPY packages/ui/package.json           packages/ui/
@@ -61,6 +62,13 @@ RUN apt-get update \
 # to fetch the linux-x64 (glibc) prebuild. Run sharp's install hook directly
 # after pnpm install to download the right binary into both pinned versions.
 RUN pnpm install --frozen-lockfile --filter @plexo/api...
+
+# Ensure per-package node_modules dirs exist for downstream COPY layers.
+# Workspaces with zero direct deps (e.g. @joeybuilt/plexo-sdk has only zod
+# which hoists; @plexo/graphiti-bridge has zero deps) don't get a
+# node_modules dir created by pnpm install, which breaks `COPY --from=deps`
+# in the runner stage.
+RUN mkdir -p /app/packages/sdk/node_modules /app/packages/graphiti-bridge/node_modules
 
 # sharp@0.32.6 install hook — its package.json `scripts.install` invokes
 # `node install/libvips && node install/dll-copy && prebuild-install`.
@@ -98,6 +106,7 @@ COPY --from=deps /app/packages/agent/node_modules  ./packages/agent/node_modules
 COPY --from=deps /app/packages/db/node_modules     ./packages/db/node_modules
 COPY --from=deps /app/packages/queue/node_modules  ./packages/queue/node_modules
 COPY --from=deps /app/packages/sdk/node_modules    ./packages/sdk/node_modules
+COPY --from=deps /app/packages/graphiti-bridge/node_modules ./packages/graphiti-bridge/node_modules
 COPY --from=deps /app/packages/logger/node_modules    ./packages/logger/node_modules
 COPY --from=deps /app/packages/storage/node_modules    ./packages/storage/node_modules
 
@@ -108,6 +117,7 @@ COPY packages/agent  ./packages/agent
 COPY packages/db     ./packages/db
 COPY packages/queue  ./packages/queue
 COPY packages/sdk    ./packages/sdk
+COPY packages/graphiti-bridge ./packages/graphiti-bridge
 COPY packages/logger   ./packages/logger
 COPY packages/storage  ./packages/storage
 
@@ -149,7 +159,7 @@ ENV APP_VERSION=auto
 # Link workspace packages so dynamic imports resolve at runtime (tsx static
 # imports work via process memory; dynamic imports need these symlinks)
 RUN mkdir -p /app/node_modules/@plexo && \
-    for pkg in agent db queue sdk logger scl-core storage; do \
+    for pkg in agent db queue sdk graphiti-bridge logger scl-core storage; do \
       ln -sf /app/packages/${pkg} /app/node_modules/@plexo/${pkg}; \
     done
 
