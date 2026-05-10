@@ -160,6 +160,35 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
             cross_encoder=cross_encoder,
         )
         await graphiti.build_indices_and_constraints()
+        # graphiti-core 0.29 KuzuDriver.build_indices_and_constraints is a no-op;
+        # the four FTS indices it needs at search time must be created manually.
+        # See graphiti_core/graph_queries.py:123 (KUZU branch). Without these
+        # the first edge_fulltext_search hit fails with:
+        #   "Table RelatesToNode_ doesn't have an index with name edge_name_and_fact"
+        try:
+            await driver.execute_query("INSTALL fts;", {})
+        except Exception as e:
+            logger.debug("graphiti.fts.install_skipped", extra={"workspace_id": workspace_id, "err": str(e)[:200]})
+        try:
+            await driver.execute_query("LOAD fts;", {})
+        except Exception as e:
+            logger.debug("graphiti.fts.load_skipped", extra={"workspace_id": workspace_id, "err": str(e)[:200]})
+        for fts_query in (
+            "CALL CREATE_FTS_INDEX('Episodic', 'episode_content', ['content', 'source', 'source_description']);",
+            "CALL CREATE_FTS_INDEX('Entity', 'node_name_and_summary', ['name', 'summary']);",
+            "CALL CREATE_FTS_INDEX('Community', 'community_name', ['name']);",
+            "CALL CREATE_FTS_INDEX('RelatesToNode_', 'edge_name_and_fact', ['name', 'fact']);",
+        ):
+            try:
+                await driver.execute_query(fts_query, {})
+            except Exception as e:
+                msg = str(e)
+                # Idempotent path: a prior run created the index; ignore.
+                if "already exists" not in msg.lower() and "duplicate" not in msg.lower():
+                    logger.warning(
+                        "graphiti.fts.create_failed",
+                        extra={"workspace_id": workspace_id, "query": fts_query, "err": msg[:300]},
+                    )
         _GRAPHITI_INSTANCES[workspace_id] = graphiti
         logger.info(
             "graphiti.instance.created",
