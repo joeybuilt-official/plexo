@@ -57,6 +57,7 @@ export class PlexoClient {
 
         const profile: AppProfile = {
             appId: this.#opts.appId,
+            schemaNamespace: this.#opts.schemaNamespace ?? this.#opts.appId,
             displayName: this.#opts.displayName ?? this.#opts.appId,
             domain,
             extensions: this.#opts.extensions ?? [],

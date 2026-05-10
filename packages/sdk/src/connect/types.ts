@@ -46,6 +46,8 @@ export interface PlexoClientOptions {
     serviceKeyVersion?: string
     /** Human-readable app name shown in Plexo UI. Defaults to appId. */
     displayName?: string
+    /** DB namespace for this app's schema objects. Defaults to appId. */
+    schemaNamespace?: string
     /** Tools, channels, and connectors this app exposes to Plexo agents. */
     extensions?: AppExtension[]
     /** Event topics this app may emit. e.g. ['my-app.order.created'] */
@@ -257,6 +259,7 @@ export interface DispatchResult {
 
 export interface AppProfile {
     appId: string
+    schemaNamespace: string
     displayName: string
     domain: string
     extensions: AppExtension[]
