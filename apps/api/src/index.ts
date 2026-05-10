@@ -18,7 +18,8 @@ import { ssoRouter } from './routes/sso.js'
 import { channelsSubscriptionRouter } from './routes/channels-subscription.js'
 import { channelsGmessagesRouter } from './routes/channels-gmessages.js'
 import { connectionsGmessagesRouter } from './routes/connections-gmessages.js'
-import { inngestExpressHandler } from '@plexo/queue/inngest-express'
+import { createInngestExpressHandler } from '@plexo/queue/inngest-express'
+import { extractTurnFn } from '@plexo/agent/memory/inngest/extract-turn-fn'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
 installCCHandlers()
 import express, { type Express } from 'express'
@@ -466,7 +467,7 @@ app.use('/api/plexo/channels', jsonDefault, channelsSubscriptionRouter)
 // POSTs back to invoke them when crons fire. ADR-0006: Plexo and Levio
 // share the Inngest substrate.
 // Inngest payloads carry event data + step state per fn invocation.
-app.use('/api/inngest', jsonLarge, inngestExpressHandler)
+app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn]))
 
 // A2A spec — agent discovery at /.well-known/agent.json (no API prefix)
 app.use('/.well-known', wellKnownAgentHandler())

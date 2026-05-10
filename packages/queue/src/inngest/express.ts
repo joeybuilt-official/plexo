@@ -8,13 +8,23 @@
  *
  * Kept in @plexo/queue (not @plexo/api) so the api workspace doesn't need
  * to add `inngest` as a direct dep — it already lives in this package.
+ *
+ * Phase 1 of ADR-0010 (Graphiti adoption) added `createInngestExpressHandler`
+ * so apps/api can register cross-package Inngest functions (e.g. memory
+ * extract from @plexo/agent) without queue depending on agent.
  */
 
 import { serve } from 'inngest/express'
 import { inngest } from './client.js'
 import { inngestFunctions } from './index.js'
 
-export const inngestExpressHandler = serve({
-    client: inngest,
-    functions: [...inngestFunctions],
-})
+type ServeFunctions = Parameters<typeof serve>[0]['functions']
+
+export function createInngestExpressHandler(extra: ServeFunctions = []): ReturnType<typeof serve> {
+    return serve({
+        client: inngest,
+        functions: [...inngestFunctions, ...extra],
+    })
+}
+
+export const inngestExpressHandler = createInngestExpressHandler()

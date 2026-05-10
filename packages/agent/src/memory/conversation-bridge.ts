@@ -196,9 +196,14 @@ export async function extractConversationMemory(params: {
         void extractPersonalFacts(workspaceId, userMessage, assistantReply, aiSettings ?? undefined)
             .catch((e: unknown) => logger.debug({ err: e }, 'Personal fact extraction skipped'))
 
-        // Phase 3: extract structured facts fire-and-forget after response is sent
-        void import('./extract-worker.js').then(m => m.extractTurn({ workspaceId, userMessage, assistantReply, sessionId, source }))
-            .catch((e: unknown) => logger.warn({ err: e, workspaceId }, 'extract-worker: fire-and-forget failed'))
+        // Phase 1 of ADR-0010 (Graphiti adoption): structured fact extraction now
+        // runs as a durable, per-workspace-serialized Inngest function (was
+        // fire-and-forget Promise). Failures land in the Inngest DLQ instead of
+        // disappearing into a logger.warn.
+        void import('@plexo/queue/inngest').then(m => m.inngest.send({
+            name: 'memory.extract.requested',
+            data: { workspaceId, userMessage, assistantReply, sessionId, source },
+        })).catch((e: unknown) => logger.warn({ err: e, workspaceId }, 'memory-extract event send failed'))
     } catch (err) {
         logger.warn({ err, workspaceId }, 'Failed to extract conversation memory')
     }

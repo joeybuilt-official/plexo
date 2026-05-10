@@ -39,6 +39,15 @@ export type GmessagesEvents = {
     'levio.smart-reply.requested': {
         data: { workspaceId: string; channelId: string; threadId: string }
     }
+    'memory.extract.requested': {
+        data: {
+            workspaceId: string
+            userMessage: string
+            assistantReply: string
+            sessionId: string
+            source: string
+        }
+    }
 }
 
 export const inngest = new Inngest({
