@@ -306,6 +306,27 @@ function extractRawText(err: unknown, depth = 0): string | null {
     return null
 }
 
+function getZodObjectKeys(schema: ZodType<unknown>): string[] {
+    const def = (schema as { _def?: { shape?: () => Record<string, unknown> } })._def
+    if (def?.shape && typeof def.shape === 'function') {
+        try { return Object.keys(def.shape()) } catch { return [] }
+    }
+    return []
+}
+
+function tryWrapArrayInObject(
+    parsed: unknown,
+    schema: ZodType<unknown>,
+): { success: true; data: unknown } | { success: false } {
+    if (!Array.isArray(parsed)) return { success: false }
+    for (const key of getZodObjectKeys(schema)) {
+        const wrapped = { [key]: parsed }
+        const result = schema.safeParse(wrapped)
+        if (result.success) return { success: true, data: result.data }
+    }
+    return { success: false }
+}
+
 function tryRescueFencedJson(
     err: unknown,
     schema: ZodType<unknown> | undefined,
@@ -735,9 +756,22 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                         if (stripped) {
                             try { parsed = JSON.parse(stripped) } catch { parsed = null }
                         }
-                        const validated = parsed !== null && opts.schema
+                        let validated = parsed !== null && opts.schema
                             ? opts.schema.safeParse(parsed)
                             : (parsed !== null ? { success: true as const, data: parsed } : { success: false as const })
+
+                        if (!validated.success && Array.isArray(parsed) && opts.schema) {
+                            const wrapped = tryWrapArrayInObject(parsed, opts.schema)
+                            if (wrapped.success) {
+                                logger.info({
+                                    event: 'call_model.repair_array_wrap',
+                                    workspaceId: opts.workspaceId,
+                                    taskType: opts.taskType,
+                                    model: modelId,
+                                }, 'callModel: repair output was top-level array; wrapped to satisfy object schema')
+                                validated = wrapped
+                            }
+                        }
 
                         if (!validated.success) {
                             logger.warn({
