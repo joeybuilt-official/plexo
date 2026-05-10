@@ -116,6 +116,7 @@
     "@anthropic-ai/sdk": "^0.39",
     "@openrouter/ai-sdk-provider": "^2.2.3",
     "@plexo/db": "workspace:*",
+    "@plexo/graphiti-bridge": "workspace:*",
     "@plexo/queue": "workspace:*",
     "@plexo/sdk": "link:../sdk",
     "@plexo/storage": "workspace:*",

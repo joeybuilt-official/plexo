@@ -81,7 +81,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/queue
       '@plexo/sdk':
-        specifier: workspace:*
+        specifier: link:../../packages/sdk
         version: link:../../packages/sdk
       '@plexo/storage':
         specifier: workspace:*
@@ -537,6 +537,9 @@ importers:
       '@plexo/db':
         specifier: workspace:*
         version: link:../db
+      '@plexo/graphiti-bridge':
+        specifier: workspace:*
+        version: link:../graphiti-bridge
       '@plexo/queue':
         specifier: workspace:*
         version: link:../queue

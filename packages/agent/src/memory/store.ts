@@ -244,6 +244,28 @@ export async function storeMemory(params: {
 
     const id = crypto.randomUUID()
 
+    const { getWriteBackend, shouldWritePostgres, shouldMirrorGraphiti, mirrorToGraphiti } = await import('./write-backend.js')
+    const backend = getWriteBackend()
+
+    if (shouldMirrorGraphiti(backend)) {
+        void mirrorToGraphiti({
+            workspaceId,
+            content,
+            sourceDescription: `app:plexo|src:storeMemory|ns:${namespace}`,
+            name: `${type}-${id.slice(0, 8)}`,
+            metadata: { type, tier, namespace, ...(metadata as Record<string, unknown>) },
+        })
+    }
+
+    if (!shouldWritePostgres(backend)) {
+        // Graphiti-only mode — skip the entire postgres write + shorthand + embed
+        // chain. Callers receive the generated id so the analytics surface
+        // stays consistent; Phase 6 (read-path cutover) replaces any postgres-
+        // dependent reads of this id.
+        void invalidateSearchCache(workspaceId)
+        return id
+    }
+
     await db.insert(memoryEntries).values({
         id,
         workspaceId,
@@ -568,6 +590,24 @@ export async function writeShared(params: {
         ...metadata,
         sharedBy: authorAgentId ?? null,
         sharedAt: new Date().toISOString(),
+    }
+
+    const { getWriteBackend, shouldWritePostgres, shouldMirrorGraphiti, mirrorToGraphiti } = await import('./write-backend.js')
+    const backend = getWriteBackend()
+
+    if (shouldMirrorGraphiti(backend)) {
+        void mirrorToGraphiti({
+            workspaceId: rest.workspaceId,
+            content: rest.content,
+            sourceDescription: `app:plexo|src:writeShared|ns:${SHARED_NAMESPACE}`,
+            name: `shared-${id.slice(0, 8)}`,
+            metadata: { ...mergedMetadata, type: rest.type, tier: rest.tier ?? 'active' },
+        })
+    }
+
+    if (!shouldWritePostgres(backend)) {
+        void invalidateSearchCache(rest.workspaceId)
+        return id
     }
 
     await db.insert(memoryEntries).values({

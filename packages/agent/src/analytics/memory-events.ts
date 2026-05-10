@@ -158,3 +158,44 @@ export function emitMemoryUserWrite(opts: {
         conditional: opts.conditional,
     })
 }
+
+/**
+ * Phase 5 — every memory write emits one of these so the dashboards can
+ * compute `graphiti.write.success.rate` over an arbitrary window.
+ */
+export function emitMemoryWriteBackend(opts: {
+    workspaceId: string
+    mode: 'graphiti' | 'dual' | 'postgres'
+    graphitiOk: boolean
+    latencyMs: number
+    episodeId?: string
+    extractedFacts?: number
+    reason?: string
+}): void {
+    void emit('memory.write-backend', {
+        workspace_id: opts.workspaceId,
+        mode: opts.mode,
+        graphiti_ok: opts.graphitiOk,
+        latency_ms: opts.latencyMs,
+        episode_id: opts.episodeId ?? null,
+        extracted_facts: opts.extractedFacts ?? null,
+        reason: opts.reason ?? null,
+    })
+}
+
+/**
+ * Phase 5 — divergence-detector output. Emitted from a periodic sampler
+ * (operator-triggered today; cron-wired post-Phase-9).
+ */
+export function emitMemoryDivergence(opts: {
+    workspaceId: string
+    sampled: number
+    missingInGraphiti: number
+}): void {
+    void emit('memory.divergence', {
+        workspace_id: opts.workspaceId,
+        sampled: opts.sampled,
+        missing_in_graphiti: opts.missingInGraphiti,
+        missing_pct: opts.sampled === 0 ? 0 : opts.missingInGraphiti / opts.sampled,
+    })
+}
