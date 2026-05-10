@@ -97,7 +97,8 @@
     "./memory/promote": "./src/memory/promote.ts",
     "./embeddings/xenova": "./src/embeddings/xenova-adapter.ts",
     "./memory/scl": "./src/memory/scl.ts",
-    "./memory/streaming-touch": "./src/memory/streaming-touch.ts"
+    "./memory/streaming-touch": "./src/memory/streaming-touch.ts",
+    "./memory/divergence": "./src/memory/divergence.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
