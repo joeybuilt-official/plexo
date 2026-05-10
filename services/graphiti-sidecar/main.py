@@ -106,6 +106,18 @@ async def _require_hmac(request: Request) -> bytes:
 
 _GRAPHITI_INSTANCES: dict[str, Graphiti] = {}
 _GRAPHITI_LOCK = asyncio.Lock()
+# Process-wide lock around add_episode / search. Kuzu's embedded mode does not
+# support multiple databases per process safely — keeping a per-workspace
+# Graphiti instance cache means N native Kuzu handles coexist in this uvicorn
+# worker, and concurrent operations across them produced silent native crashes
+# (worker died mid-pipeline, no Python traceback) during the 2026-05-10 Phase 7
+# corpus-migration attempt: 117 worker respawns visible in one container
+# uptime, all immediately after a successful embeddings call. Serializing every
+# graphiti.* operation through this lock removes the concurrency surface.
+# Throughput cost is small: each add_episode is already ~18s of serialized
+# LLM+embedder work; the lock just prevents two such pipelines from
+# interleaving in the same process.
+_GRAPHITI_OP_LOCK = asyncio.Lock()
 
 
 def _validate_workspace_id(workspace_id: str) -> None:
@@ -255,14 +267,15 @@ def _parse_reference_time(value: str | None) -> datetime:
 async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
     await _require_hmac(request)
     graphiti = await _get_graphiti(body.workspace_id)
-    result = await graphiti.add_episode(
-        name=body.name,
-        episode_body=body.content,
-        source_description=body.source_description,
-        reference_time=_parse_reference_time(body.reference_time),
-        source=_episode_type(body.episode_type),
-        group_id=body.workspace_id,
-    )
+    async with _GRAPHITI_OP_LOCK:
+        result = await graphiti.add_episode(
+            name=body.name,
+            episode_body=body.content,
+            source_description=body.source_description,
+            reference_time=_parse_reference_time(body.reference_time),
+            source=_episode_type(body.episode_type),
+            group_id=body.workspace_id,
+        )
     # AddEpisodeResults in graphiti-core 0.29 exposes `episode` (an EpisodicNode)
     # plus `nodes` and `edges` lists. Surface a stable shape for the bridge.
     episode_node = getattr(result, "episode", None)
@@ -287,11 +300,12 @@ class SearchRequest(BaseModel):
 async def search(request: Request, body: SearchRequest) -> JSONResponse:
     await _require_hmac(request)
     graphiti = await _get_graphiti(body.workspace_id)
-    edges = await graphiti.search(
-        query=body.query,
-        group_ids=[body.workspace_id],
-        num_results=body.num_results,
-    )
+    async with _GRAPHITI_OP_LOCK:
+        edges = await graphiti.search(
+            query=body.query,
+            group_ids=[body.workspace_id],
+            num_results=body.num_results,
+        )
     results = [
         {
             "uuid": getattr(e, "uuid", None),
