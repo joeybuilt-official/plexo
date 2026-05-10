@@ -54,6 +54,7 @@
     "./providers/vision": "./src/providers/vision.ts",
     "./providers/knowledge": "./src/providers/knowledge.ts",
     "./providers/call-model": "./src/providers/call-model.ts",
+    "./policy": "./src/policy/index.ts",
     "./providers/validate-compat": "./src/providers/validate-compat.ts",
     "./behavior/types": "./src/behavior/types.ts",
     "./behavior/resolver": "./src/behavior/resolver.ts",
