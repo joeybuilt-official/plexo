@@ -240,7 +240,19 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
         }
     } catch (err) {
         logger.warn({ err, workspaceId }, 'inference.chat: resolveModel fell through to env')
-        model = resolveModelFromEnv()
+        try {
+            model = resolveModelFromEnv()
+        } catch (envErr) {
+            const message = envErr instanceof Error ? envErr.message : String(envErr)
+            logger.warn({ workspaceId, message }, 'inference.chat: no provider available — refusing call')
+            res.status(503).json({
+                error: {
+                    code: 'NO_PROVIDER_AVAILABLE',
+                    message: `Workspace ${workspaceId} has no LLM provider configured. Add a provider in workspace settings or set a system-wide provider env var (OPENAI_API_KEY/GEMINI/OPENROUTER/GROQ).`,
+                },
+            })
+            return
+        }
     }
 
     const maxTokens = body.max_completion_tokens ?? body.max_tokens

@@ -628,7 +628,15 @@ export async function resolveModel(
  * Resolve a model from environment variables — for internal code paths
  * (sprint planner, memory modules) that run without a user session / workspace settings.
  *
- * Priority: OPENAI_API_KEY → OPENROUTER_API_KEY → Ollama local
+ * Priority: OPENAI_API_KEY → GEMINI/GOOGLE_GENERATIVE_AI_API_KEY → OPENROUTER_API_KEY → GROQ_API_KEY.
+ *
+ * Throws ProviderResolutionError when no provider env is configured. Earlier
+ * versions fell back to a local Ollama at OLLAMA_INTERNAL_URL (default
+ * http://ollama:11434) "as a last resort"; in this deployment the host does
+ * not exist, so the silent fallback masked the real failure as cryptic
+ * `getaddrinfo ENOTFOUND ollama` errors deep in the call chain. Callers must
+ * either provide workspace AI settings (preferred path) or configure one of
+ * the env vars above.
  *
  * @param modelId  Optional explicit model ID override.
  *                 When omitted the DEFAULT_MODEL_ROUTING for the task type is used.
@@ -653,9 +661,17 @@ export function resolveModelFromEnv(modelId?: string): AnyLanguageModel {
         const gr = createGroq({ apiKey: process.env.GROQ_API_KEY })
         return gr('llama-3.3-70b-versatile')
     }
-    // Last resort — local Ollama
-    const ol = createOpenAICompatible({ name: 'ollama', baseURL: resolveBaseUrl(process.env.OLLAMA_INTERNAL_URL ?? 'http://localhost:11434') + '/v1' })
-    return ol('llama3.2')
+    throw new ProviderResolutionError(
+        'No LLM provider available: workspace AI settings not loaded for this request and no system-wide provider env var is configured (OPENAI_API_KEY, GEMINI/GOOGLE_GENERATIVE_AI_API_KEY, OPENROUTER_API_KEY, or GROQ_API_KEY).'
+    )
+}
+
+export class ProviderResolutionError extends Error {
+    readonly code = 'NO_PROVIDER_AVAILABLE'
+    constructor(message: string) {
+        super(message)
+        this.name = 'ProviderResolutionError'
+    }
 }
 
 

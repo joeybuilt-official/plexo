@@ -59,9 +59,18 @@ PLEXO_INFERENCE_BASE = os.environ.get(
     "PLEXO_INFERENCE_BASE",
     "http://plexo-api:8080/api/inference",
 ).rstrip("/")
-GRAPHITI_LLM_MODEL = os.environ.get("GRAPHITI_LLM_MODEL", "plexo-router")
-GRAPHITI_LLM_SMALL_MODEL = os.environ.get("GRAPHITI_LLM_SMALL_MODEL", "plexo-router-small")
-GRAPHITI_EMBEDDING_MODEL = os.environ.get("GRAPHITI_EMBEDDING_MODEL", "plexo-embeddings")
+# Model identifiers passed to plexo-api's /api/inference/.../v1/chat/completions
+# endpoint. plexo-api IGNORES this field and routes by workspace AI settings
+# (resolveModel → IntelligentRouter → primaryProvider) — the value here is a
+# marker only. `default` makes that intent explicit; the previous
+# `plexo-router` name suggested a real router that didn't exist and led to a
+# diagnosis dead-end during the 2026-05-10 Phase 7 cutover when the broken
+# OLLAMA_INTERNAL_URL fallback path was misread as "the sidecar is hardcoded
+# to Ollama". The actual routing lives in plexo-api; this value is the name
+# we report in usage telemetry.
+GRAPHITI_LLM_MODEL = os.environ.get("GRAPHITI_LLM_MODEL", "default")
+GRAPHITI_LLM_SMALL_MODEL = os.environ.get("GRAPHITI_LLM_SMALL_MODEL", "default-small")
+GRAPHITI_EMBEDDING_MODEL = os.environ.get("GRAPHITI_EMBEDDING_MODEL", "default-embedding")
 HMAC_TS_TOLERANCE_SEC = 300  # 5-min clock-skew window
 
 UUID_RE = (
