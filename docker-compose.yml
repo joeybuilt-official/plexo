@@ -302,6 +302,27 @@ services:
     mem_limit: 512m
     memswap_limit: 768m
 
+  # ── Graphiti sidecar (ADR 0011) ──────────────────────────
+  # Phase 2 scaffold. Profile-gated so existing dev workflows are
+  # untouched until Phase 3 wires in real Graphiti+Kuzu integration.
+  # Start with: `docker compose --profile graphiti up -d graphiti-sidecar`
+  graphiti-sidecar:
+    profiles: ["graphiti"]
+    build:
+      context: .
+      dockerfile: services/graphiti-sidecar/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY}
+      KUZU_DATA_DIR: /data/graphiti
+    volumes:
+      - graphiti_data:/data/graphiti
+    ports:
+      - "127.0.0.1:8090:8080"
+    mem_limit: 1g
+    memswap_limit: 1500m
+
   # ── Web Dashboard ────────────────────────────────────────
 
   web:
@@ -456,3 +477,4 @@ volumes:
   caddy_config:
   generated_skills:
   postgres-backups:
+  graphiti_data:

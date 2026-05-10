@@ -83,3 +83,8 @@ ops/harnesseval/harness/node_modules/
 ops/harnesseval/harness/vendor/node_modules/
 README.md.bak
 .serena/
+
+# Graphiti sidecar (ADR 0011) — Python build artifacts + local Kuzu DB files
+services/graphiti-sidecar/__pycache__/
+services/graphiti-sidecar/.venv/
+data/graphiti/
