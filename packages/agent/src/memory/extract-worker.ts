@@ -52,7 +52,6 @@ export async function extractTurn(params: {
         const { resolveModel, resolveModelFromEnv } = await import('../providers/registry.js')
         const { loadSettingsFromInstances } = await import('../providers/settings-from-instances.js')
         const { embed } = await import('./store.js')
-        const { graphMutate } = await import('./graph-query.js')
 
         let model: ReturnType<typeof resolveModelFromEnv>
         let provider = 'env-fallback'
@@ -128,15 +127,6 @@ export async function extractTurn(params: {
             }
 
             logger.info({ workspaceId, factType: fact.factType, subject: fact.subject }, 'extract-worker: fact persisted')
-
-            // ADR 0009 — link this fact into the concept graph. Non-fatal.
-            await graphMutate({
-                workspaceId,
-                concepts: [{ label: fact.subject, type: fact.factType }],
-                source: `extract-worker:${source}`,
-                memoryEntryId: id,
-                aiSettings: aiSettings ?? undefined,
-            }).catch((e: unknown) => logger.warn({ err: e, workspaceId, subject: fact.subject }, 'extract-worker: graphMutate failed (non-fatal)'))
         }
         emitMemoryExtraction({
             workspaceId,
