@@ -446,3 +446,78 @@ describe('POST /api/inference/v1/chat/completions', () => {
         expect(body.error.code).toBe('MISSING_WORKSPACE_ID')
     })
 })
+
+/**
+ * URL-routed `/ws/:workspaceId/v1/...` form added in Phase 3c. Reason:
+ * Graphiti's OpenAIEmbedderConfig + LLMConfig (graphiti-core 0.29) only
+ * forward api_key + base_url to AsyncOpenAI — no default_headers — so the
+ * sidecar can't inject X-Plexo-Workspace-Id / X-App-Id per request. The URL
+ * carries workspace; the wsRouter synthesizes X-App-Id: graphiti-sidecar.
+ */
+describe('URL-routed /api/inference/ws/:workspaceId/v1/...', () => {
+    function noAppIdHeaders(extra: Record<string, string> = {}): Record<string, string> {
+        return {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${SERVICE_KEY}`,
+            // X-App-Id intentionally OMITTED — wsRouter synthesizes it
+            ...extra,
+        }
+    }
+
+    it('embeddings: extracts workspaceId from URL params, no X-Plexo-Workspace-Id needed', async () => {
+        vi.mocked(embed).mockResolvedValueOnce(new Array(256).fill(0.5))
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/ws/${VALID_WORKSPACE}/v1/embeddings`, {
+            method: 'POST',
+            headers: noAppIdHeaders(),
+            body: JSON.stringify({ input: 'hello' }),
+        })
+        expect(res.status).toBe(200)
+        expect(embed).toHaveBeenCalledWith('hello', VALID_WORKSPACE)
+    })
+
+    it('embeddings: rejects malformed workspaceId in URL (400)', async () => {
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/ws/not-a-uuid/v1/embeddings`, {
+            method: 'POST',
+            headers: noAppIdHeaders(),
+            body: JSON.stringify({ input: 'hello' }),
+        })
+        expect(res.status).toBe(400)
+        const body = await res.json() as { error: { code: string } }
+        expect(body.error.code).toBe('MISSING_WORKSPACE_ID')
+    })
+
+    it('chat/completions: extracts workspaceId from URL params, synthesizes X-App-Id', async () => {
+        const extracted = { facts: [] }
+        vi.mocked(callModel).mockResolvedValueOnce({
+            object: extracted,
+            text: '',
+            repairUsed: false,
+            inputTokens: 1, outputTokens: 1, latencyMs: 10, model: 'gpt-4o', attempts: 1,
+        } as Awaited<ReturnType<typeof callModel>>)
+
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/ws/${VALID_WORKSPACE}/v1/chat/completions`, {
+            method: 'POST',
+            headers: noAppIdHeaders(),
+            body: JSON.stringify({
+                messages: [{ role: 'user', content: 'hi' }],
+                response_format: { type: 'json_schema', json_schema: { name: 'X', schema: { type: 'object' } } },
+            }),
+        })
+        expect(res.status).toBe(200)
+        const opts = vi.mocked(callModel).mock.calls.at(-1)![0]!
+        expect(opts.workspaceId).toBe(VALID_WORKSPACE)
+    })
+
+    it('chat/completions: still requires Bearer auth even via URL form', async () => {
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/ws/${VALID_WORKSPACE}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
+        })
+        expect(res.status).toBe(401)
+    })
+})

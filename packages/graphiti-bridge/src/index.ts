@@ -32,14 +32,41 @@ export interface HealthResponse {
 export interface AddEpisodeRequest {
     workspaceId: string
     content: string
+    /** Free-text provenance string. Default: 'plexo-bridge'. */
+    sourceDescription?: string
+    /** Episode display name. Default: 'episode'. */
+    name?: string
+    /** EpisodeType — 'message' (default) | 'text' | 'json'. */
     episodeType?: string
+    /** ISO-8601 reference time for bi-temporal placement. Default: server's now(). */
+    referenceTime?: string
     sourceMetadata?: Record<string, unknown>
+}
+
+export interface AddEpisodeResult {
+    episodeId: string | null
+    extractedFactsCount: number
+    extractedNodesCount: number
 }
 
 export interface SearchRequest {
     workspaceId: string
     query: string
     numResults?: number
+}
+
+export interface SearchResultEdge {
+    uuid: string | null
+    fact: string | null
+    source_node_uuid: string | null
+    target_node_uuid: string | null
+    valid_at: string | null
+    invalid_at: string | null
+    created_at: string | null
+}
+
+export interface SearchResult {
+    results: SearchResultEdge[]
 }
 
 const APP_ID_DEFAULT = 'plexo-api'
@@ -74,25 +101,34 @@ export class GraphitiClient {
         }
     }
 
-    /** Phase 3 wires the actual Graphiti add_episode call. Phase 2 stub returns null. */
-    async addEpisode(req: AddEpisodeRequest): Promise<{ episodeId: string } | null> {
+    /** Phase 3c: posts an episode to the sidecar's Graphiti.add_episode wrapper. */
+    async addEpisode(req: AddEpisodeRequest): Promise<AddEpisodeResult | null> {
         const body = JSON.stringify({
             workspace_id: req.workspaceId,
+            name: req.name ?? 'episode',
             content: req.content,
+            source_description: req.sourceDescription ?? 'plexo-bridge',
             episode_type: req.episodeType ?? 'message',
+            reference_time: req.referenceTime,
             source_metadata: req.sourceMetadata ?? {},
         })
-        return this.postSigned<{ episodeId: string }>('/v1/episodes', body)
+        const raw = await this.postSigned<{ episode_id: string | null; extracted_facts_count: number; extracted_nodes_count: number }>('/v1/episodes', body)
+        if (!raw) return null
+        return {
+            episodeId: raw.episode_id,
+            extractedFactsCount: raw.extracted_facts_count,
+            extractedNodesCount: raw.extracted_nodes_count,
+        }
     }
 
-    /** Phase 3 wires search recipes. Phase 2 stub returns null. */
-    async search(req: SearchRequest): Promise<{ results: unknown[] } | null> {
+    /** Phase 3c: hybrid-search query against the workspace's Graphiti store. */
+    async search(req: SearchRequest): Promise<SearchResult | null> {
         const body = JSON.stringify({
             workspace_id: req.workspaceId,
             query: req.query,
             num_results: req.numResults ?? 10,
         })
-        return this.postSigned<{ results: unknown[] }>('/v1/search', body)
+        return this.postSigned<SearchResult>('/v1/search', body)
     }
 
     private async postSigned<T>(path: string, body: string): Promise<T | null> {

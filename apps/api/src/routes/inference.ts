@@ -2,24 +2,27 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Inference shim — exposes Plexo's per-workspace LLM provider router
- * as an OpenAI-compatible HTTP endpoint so the Graphiti Python sidecar
- * (ADR 0011) can use it as its `base_url` without ever holding workspace
- * LLM credentials.
+ * Inference shim — exposes Plexo's per-workspace LLM provider router as an
+ * OpenAI-compatible HTTP endpoint so the Graphiti Python sidecar (ADR 0011)
+ * can use it as its `base_url` without ever holding workspace LLM credentials.
  *
  * Phase 3a: /v1/embeddings.
- * Phase 3b (this file): /v1/chat/completions w/ response_format=json_schema
- *   translated through callModel({schema}). Tool-calling is rejected (501)
- *   because callModel forbids the schema+tools combo and Graphiti's primary
- *   extraction path is json_schema; if tool-mode becomes needed, wire in 3c.
+ * Phase 3b: /v1/chat/completions w/ response_format=json_schema translated
+ *   through callModel({schema}). Tools + streaming → 501.
+ * Phase 3c: URL-routed `/ws/:workspaceId/v1/...` variants. Why: Graphiti's
+ *   `OpenAIEmbedderConfig` and `LLMConfig` only forward `api_key` + `base_url`
+ *   to AsyncOpenAI as of graphiti-core 0.29 — `default_headers` is not plumbed
+ *   through their public surface, so per-request `X-Plexo-Workspace-Id` /
+ *   `X-App-Id` headers can't ride on Graphiti calls. Each per-workspace
+ *   Graphiti instance therefore points its base_url at `/api/inference/ws/:ws/v1`
+ *   and the workspace ID rides in the URL.
  *
- * Auth: `requireServiceKey` (Bearer PLEXO_SERVICE_KEY + X-App-Id) — same
- * surface used by the existing service-key endpoints. Workspace routing
- * lives in `X-Plexo-Workspace-Id` because the OpenAI request body has no
- * workspace concept.
+ * Auth: `requireServiceKey` (Bearer PLEXO_SERVICE_KEY + X-App-Id) on both
+ * routing styles. URL-routed requests synthesize `X-App-Id: graphiti-sidecar`
+ * if absent, so Graphiti's locked client surface satisfies auth.
  */
 
-import { Router } from 'express'
+import { Router, type Request, type Response } from 'express'
 import pino from 'pino'
 import { ulid } from 'ulid'
 import { jsonSchemaToZod, type JSONSchema } from './json-schema-to-zod.js'
@@ -30,11 +33,16 @@ import { resolveModel, resolveModelFromEnv } from '@plexo/agent/providers/regist
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 
 const logger = pino({ name: 'inference-routes' })
-const router: import('express').Router = Router()
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-router.use(requireServiceKey)
+function resolveWorkspaceId(req: Request): string | null {
+    const fromParams = (req.params as { workspaceId?: string }).workspaceId
+    if (typeof fromParams === 'string' && UUID_RE.test(fromParams)) return fromParams
+    const fromHeader = req.headers['x-plexo-workspace-id']
+    if (typeof fromHeader === 'string' && UUID_RE.test(fromHeader)) return fromHeader
+    return null
+}
 
 interface OpenAIEmbeddingsRequest {
     input: string | string[]
@@ -50,8 +58,6 @@ interface OpenAIEmbeddingsResponse {
     model: string
     usage: { prompt_tokens: number; total_tokens: number }
 }
-
-/* ---------- /v1/chat/completions (Phase 3b) ---------- */
 
 interface OAIMessage {
     role: 'system' | 'user' | 'assistant' | 'tool'
@@ -100,10 +106,57 @@ function mapCallModelErrorStatus(code: CallModelError['code']): number {
     }
 }
 
-router.post('/v1/chat/completions', async (req, res) => {
-    const workspaceId = req.headers['x-plexo-workspace-id']
-    if (typeof workspaceId !== 'string' || !UUID_RE.test(workspaceId)) {
-        res.status(400).json({ error: { code: 'MISSING_WORKSPACE_ID', message: 'X-Plexo-Workspace-Id header must be a valid UUID' } })
+async function embeddingsHandler(req: Request, res: Response): Promise<void> {
+    const workspaceId = resolveWorkspaceId(req)
+    if (!workspaceId) {
+        res.status(400).json({
+            error: { code: 'MISSING_WORKSPACE_ID', message: 'workspace ID must be supplied via /ws/:workspaceId/ path or X-Plexo-Workspace-Id header (UUID)' },
+        })
+        return
+    }
+
+    const body = req.body as OpenAIEmbeddingsRequest | undefined
+    if (!body || body.input === undefined) {
+        res.status(400).json({ error: { code: 'MISSING_INPUT', message: 'request body must include `input`' } })
+        return
+    }
+
+    const inputs = typeof body.input === 'string' ? [body.input] : body.input
+    if (!Array.isArray(inputs) || inputs.length === 0) {
+        res.status(400).json({ error: { code: 'EMPTY_INPUT', message: '`input` must be a string or non-empty array' } })
+        return
+    }
+
+    try {
+        const vectors = await Promise.all(inputs.map((text) => embed(text, workspaceId)))
+        const failedIdx = vectors.findIndex((v) => v === null)
+        if (failedIdx !== -1) {
+            logger.warn({ workspaceId, failedIdx, totalInputs: inputs.length }, 'inference.embeddings: provider returned null')
+            res.status(502).json({ error: { code: 'EMBEDDING_PROVIDER_ERROR', message: `embedding adapter unavailable for input #${failedIdx}` } })
+            return
+        }
+
+        const dims = vectors[0]!.length
+        const totalTokens = inputs.reduce((sum, t) => sum + Math.ceil(t.length / 4), 0)
+        const response: OpenAIEmbeddingsResponse = {
+            object: 'list',
+            data: vectors.map((vec, idx) => ({ object: 'embedding', index: idx, embedding: vec! })),
+            model: body.model ?? `plexo-embeddings/${dims}`,
+            usage: { prompt_tokens: totalTokens, total_tokens: totalTokens },
+        }
+        res.json(response)
+    } catch (err) {
+        logger.error({ err, workspaceId, inputCount: inputs.length }, 'inference.embeddings: unexpected error')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'embeddings call failed' } })
+    }
+}
+
+async function chatCompletionsHandler(req: Request, res: Response): Promise<void> {
+    const workspaceId = resolveWorkspaceId(req)
+    if (!workspaceId) {
+        res.status(400).json({
+            error: { code: 'MISSING_WORKSPACE_ID', message: 'workspace ID must be supplied via /ws/:workspaceId/ path or X-Plexo-Workspace-Id header (UUID)' },
+        })
         return
     }
 
@@ -237,59 +290,25 @@ router.post('/v1/chat/completions', async (req, res) => {
         logger.error({ err, workspaceId }, 'inference.chat: unexpected error')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'chat completions call failed' } })
     }
+}
+
+const router: import('express').Router = Router()
+
+const headerRouter = Router()
+headerRouter.use(requireServiceKey)
+headerRouter.post('/embeddings', embeddingsHandler)
+headerRouter.post('/chat/completions', chatCompletionsHandler)
+
+const wsRouter = Router({ mergeParams: true })
+wsRouter.use((req, _res, next) => {
+    if (!req.headers['x-app-id']) req.headers['x-app-id'] = 'graphiti-sidecar'
+    next()
 })
+wsRouter.use(requireServiceKey)
+wsRouter.post('/embeddings', embeddingsHandler)
+wsRouter.post('/chat/completions', chatCompletionsHandler)
 
-router.post('/v1/embeddings', async (req, res) => {
-    const workspaceId = req.headers['x-plexo-workspace-id']
-    if (typeof workspaceId !== 'string' || !UUID_RE.test(workspaceId)) {
-        res.status(400).json({
-            error: { code: 'MISSING_WORKSPACE_ID', message: 'X-Plexo-Workspace-Id header must be a valid UUID' },
-        })
-        return
-    }
-
-    const body = req.body as OpenAIEmbeddingsRequest | undefined
-    if (!body || body.input === undefined) {
-        res.status(400).json({
-            error: { code: 'MISSING_INPUT', message: 'request body must include `input`' },
-        })
-        return
-    }
-
-    const inputs = typeof body.input === 'string' ? [body.input] : body.input
-    if (!Array.isArray(inputs) || inputs.length === 0) {
-        res.status(400).json({
-            error: { code: 'EMPTY_INPUT', message: '`input` must be a string or non-empty array' },
-        })
-        return
-    }
-
-    try {
-        const vectors = await Promise.all(inputs.map((text) => embed(text, workspaceId)))
-        const failedIdx = vectors.findIndex((v) => v === null)
-        if (failedIdx !== -1) {
-            logger.warn({ workspaceId, failedIdx, totalInputs: inputs.length }, 'inference.embeddings: provider returned null')
-            res.status(502).json({
-                error: { code: 'EMBEDDING_PROVIDER_ERROR', message: `embedding adapter unavailable for input #${failedIdx}` },
-            })
-            return
-        }
-
-        const dims = vectors[0]!.length
-        const totalTokens = inputs.reduce((sum, t) => sum + Math.ceil(t.length / 4), 0)
-        const response: OpenAIEmbeddingsResponse = {
-            object: 'list',
-            data: vectors.map((vec, idx) => ({ object: 'embedding', index: idx, embedding: vec! })),
-            model: body.model ?? `plexo-embeddings/${dims}`,
-            usage: { prompt_tokens: totalTokens, total_tokens: totalTokens },
-        }
-        res.json(response)
-    } catch (err) {
-        logger.error({ err, workspaceId, inputCount: inputs.length }, 'inference.embeddings: unexpected error')
-        res.status(500).json({
-            error: { code: 'INTERNAL_ERROR', message: 'embeddings call failed' },
-        })
-    }
-})
+router.use('/v1', headerRouter)
+router.use('/ws/:workspaceId/v1', wsRouter)
 
 export const inferenceRouter = router

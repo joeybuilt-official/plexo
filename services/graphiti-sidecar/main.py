@@ -2,36 +2,77 @@
 # Copyright (C) 2026 Joeybuilt LLC
 
 """
-Plexo Graphiti sidecar — Phase 2 scaffold (ADR 0011).
+Plexo Graphiti sidecar — Phase 3c (ADR 0011).
 
-Phase 2 ships:
+What ships:
 - HMAC-authenticated request boundary (mirrors gmessages-session-refresh-receiver)
 - /v1/health readiness probe
-- /v1/episodes + /v1/search stub endpoints (501 Not Implemented; wired in Phase 3)
+- /v1/episodes wired to Graphiti.add_episode
+- /v1/search wired to Graphiti.search
+- Per-workspace Graphiti instances cached in-process, each with its own
+  KuzuDriver pointed at /data/graphiti/<workspace_id>/graph.kuzu (door #4
+  isolation per ADR 0010).
 
-Phase 3 fills in the Graphiti + Kuzu integration once schema mapping is decided.
+Per-workspace LLM + embedder routing:
+  Each Graphiti instance's OpenAIEmbedderConfig + LLMConfig point at the
+  Plexo inference shim using a workspace-scoped base_url:
+    `${PLEXO_INFERENCE_BASE}/ws/<workspace_id>/v1`
+  Why URL-routed and not headers: as of graphiti-core 0.29 the public
+  EmbedderConfig + LLMConfig surface only forwards `api_key` + `base_url`
+  to AsyncOpenAI; `default_headers` is not plumbed through. The Plexo
+  inference shim's wsRouter (apps/api/src/routes/inference.ts) reads the
+  workspace ID from the URL and synthesizes `X-App-Id: graphiti-sidecar`,
+  so Graphiti's locked client surface satisfies auth without any header
+  injection trickery.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
+import logging
 import os
+import pathlib
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-app = FastAPI(title="plexo-graphiti", version="0.1.0")
+from graphiti_core import Graphiti
+from graphiti_core.driver.kuzu_driver import KuzuDriver
+from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
+from graphiti_core.llm_client import OpenAIClient
+from graphiti_core.llm_client.config import LLMConfig
+from graphiti_core.nodes import EpisodeType
+
+logger = logging.getLogger("plexo-graphiti")
+logging.basicConfig(level=logging.INFO)
+
+app = FastAPI(title="plexo-graphiti", version="0.3.0")
 
 SERVICE_KEY = os.environ.get("PLEXO_SERVICE_KEY", "")
 KUZU_DATA_DIR = os.environ.get("KUZU_DATA_DIR", "/data/graphiti")
-HMAC_TS_TOLERANCE_SEC = 300  # 5 minutes; matches typical clock-skew window
+PLEXO_INFERENCE_BASE = os.environ.get(
+    "PLEXO_INFERENCE_BASE",
+    "http://plexo-api:8080/api/inference",
+).rstrip("/")
+GRAPHITI_LLM_MODEL = os.environ.get("GRAPHITI_LLM_MODEL", "plexo-router")
+GRAPHITI_LLM_SMALL_MODEL = os.environ.get("GRAPHITI_LLM_SMALL_MODEL", "plexo-router-small")
+GRAPHITI_EMBEDDING_MODEL = os.environ.get("GRAPHITI_EMBEDDING_MODEL", "plexo-embeddings")
+HMAC_TS_TOLERANCE_SEC = 300  # 5-min clock-skew window
+
+UUID_RE = (
+    "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+
+import re
+
+_UUID_PAT = re.compile(UUID_RE, re.IGNORECASE)
 
 
 def _verify_hmac(raw_body: bytes, signature_header: str, ts_header: str) -> tuple[bool, str]:
-    """Return (ok, reason) so the caller can produce a useful 401."""
     if not SERVICE_KEY:
         return False, "PLEXO_SERVICE_KEY not configured on sidecar"
     if not signature_header.startswith("sha256="):
@@ -60,6 +101,63 @@ async def _require_hmac(request: Request) -> bytes:
     return raw_body
 
 
+# ---------- Per-workspace Graphiti instance cache ----------
+
+_GRAPHITI_INSTANCES: dict[str, Graphiti] = {}
+_GRAPHITI_LOCK = asyncio.Lock()
+
+
+def _validate_workspace_id(workspace_id: str) -> None:
+    if not _UUID_PAT.match(workspace_id):
+        raise HTTPException(status_code=400, detail="workspace_id must be a UUID")
+
+
+async def _get_graphiti(workspace_id: str) -> Graphiti:
+    """Resolve (and cache) a per-workspace Graphiti instance.
+
+    Each workspace gets its own Kuzu DB file under KUZU_DATA_DIR/<ws>/graph.kuzu
+    plus its own LLM/embedder client pinned to the workspace's inference URL.
+    """
+    _validate_workspace_id(workspace_id)
+    async with _GRAPHITI_LOCK:
+        cached = _GRAPHITI_INSTANCES.get(workspace_id)
+        if cached is not None:
+            return cached
+
+        db_dir = pathlib.Path(KUZU_DATA_DIR) / workspace_id
+        db_dir.mkdir(parents=True, exist_ok=True)
+        driver = KuzuDriver(db=str(db_dir / "graph.kuzu"))
+
+        ws_base_url = f"{PLEXO_INFERENCE_BASE}/ws/{workspace_id}/v1"
+        embedder = OpenAIEmbedder(
+            config=OpenAIEmbedderConfig(
+                api_key=SERVICE_KEY,
+                base_url=ws_base_url,
+                embedding_model=GRAPHITI_EMBEDDING_MODEL,
+            )
+        )
+        llm_client = OpenAIClient(
+            config=LLMConfig(
+                api_key=SERVICE_KEY,
+                base_url=ws_base_url,
+                model=GRAPHITI_LLM_MODEL,
+                small_model=GRAPHITI_LLM_SMALL_MODEL,
+            )
+        )
+        graphiti = Graphiti(
+            graph_driver=driver,
+            llm_client=llm_client,
+            embedder=embedder,
+        )
+        await graphiti.build_indices_and_constraints()
+        _GRAPHITI_INSTANCES[workspace_id] = graphiti
+        logger.info(
+            "graphiti.instance.created",
+            extra={"workspace_id": workspace_id, "db_path": str(db_dir / "graph.kuzu")},
+        )
+        return graphiti
+
+
 @app.get("/v1/health")
 async def health() -> JSONResponse:
     """Readiness probe. Public — no HMAC required."""
@@ -69,26 +167,77 @@ async def health() -> JSONResponse:
             "service": "plexo-graphiti",
             "kuzu_data_dir": KUZU_DATA_DIR,
             "hmac_configured": bool(SERVICE_KEY),
-            "phase": "2-scaffold",
+            "graphiti_version": _safe_graphiti_version(),
+            "phase": "3c-integrated",
+            "instances_cached": len(_GRAPHITI_INSTANCES),
         }
     )
 
 
+def _safe_graphiti_version() -> str:
+    try:
+        from importlib.metadata import version
+        return version("graphiti-core")
+    except Exception:  # noqa: BLE001 — version probe must not crash health
+        return "unknown"
+
+
+# ---------- /v1/episodes ----------
+
 class EpisodeCreate(BaseModel):
     workspace_id: str
+    name: str = Field(default="episode")
     content: str
-    episode_type: str = "message"
-    source_metadata: dict = {}
+    source_description: str = Field(default="plexo-bridge")
+    episode_type: str = Field(default="message")  # one of EpisodeType values
+    reference_time: str | None = None  # ISO timestamp; defaults to now()
+    source_metadata: dict = Field(default_factory=dict)
+
+
+def _episode_type(name: str) -> EpisodeType:
+    try:
+        return EpisodeType[name]
+    except KeyError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown episode_type '{name}' (expected one of: {[m.name for m in EpisodeType]})",
+        ) from e
+
+
+def _parse_reference_time(value: str | None) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="reference_time must be ISO-8601") from e
 
 
 @app.post("/v1/episodes")
 async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
     await _require_hmac(request)
-    # Phase 3: wire Graphiti.add_episode here. Phase 2 returns 501 so the bridge
-    # package can be exercised end-to-end via /v1/health while the real
-    # extraction path is still being designed.
-    raise HTTPException(status_code=501, detail="add_episode wired in Phase 3")
+    graphiti = await _get_graphiti(body.workspace_id)
+    result = await graphiti.add_episode(
+        name=body.name,
+        episode_body=body.content,
+        source_description=body.source_description,
+        reference_time=_parse_reference_time(body.reference_time),
+        source=_episode_type(body.episode_type),
+        group_id=body.workspace_id,
+    )
+    # AddEpisodeResults in graphiti-core 0.29 exposes `episode` (an EpisodicNode)
+    # plus `nodes` and `edges` lists. Surface a stable shape for the bridge.
+    episode_node = getattr(result, "episode", None)
+    return JSONResponse(
+        {
+            "episode_id": getattr(episode_node, "uuid", None),
+            "extracted_facts_count": len(getattr(result, "edges", []) or []),
+            "extracted_nodes_count": len(getattr(result, "nodes", []) or []),
+        }
+    )
 
+
+# ---------- /v1/search ----------
 
 class SearchRequest(BaseModel):
     workspace_id: str
@@ -99,4 +248,30 @@ class SearchRequest(BaseModel):
 @app.post("/v1/search")
 async def search(request: Request, body: SearchRequest) -> JSONResponse:
     await _require_hmac(request)
-    raise HTTPException(status_code=501, detail="search wired in Phase 3")
+    graphiti = await _get_graphiti(body.workspace_id)
+    edges = await graphiti.search(
+        query=body.query,
+        group_ids=[body.workspace_id],
+        num_results=body.num_results,
+    )
+    results = [
+        {
+            "uuid": getattr(e, "uuid", None),
+            "fact": getattr(e, "fact", None),
+            "source_node_uuid": getattr(e, "source_node_uuid", None),
+            "target_node_uuid": getattr(e, "target_node_uuid", None),
+            "valid_at": _isoformat(getattr(e, "valid_at", None)),
+            "invalid_at": _isoformat(getattr(e, "invalid_at", None)),
+            "created_at": _isoformat(getattr(e, "created_at", None)),
+        }
+        for e in (edges or [])
+    ]
+    return JSONResponse({"results": results})
+
+
+def _isoformat(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
