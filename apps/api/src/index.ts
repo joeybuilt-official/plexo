@@ -20,6 +20,7 @@ import { channelsGmessagesRouter } from './routes/channels-gmessages.js'
 import { connectionsGmessagesRouter } from './routes/connections-gmessages.js'
 import { createInngestExpressHandler } from '@plexo/queue/inngest-express'
 import { extractTurnFn } from '@plexo/agent/memory/inngest/extract-turn-fn'
+import { inferenceRouter } from './routes/inference.js'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
 installCCHandlers()
 import express, { type Express } from 'express'
@@ -468,6 +469,11 @@ app.use('/api/plexo/channels', jsonDefault, channelsSubscriptionRouter)
 // share the Inngest substrate.
 // Inngest payloads carry event data + step state per fn invocation.
 app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn]))
+
+// Inference shim — exposes Plexo's per-workspace LLM provider router as an
+// OpenAI-compatible endpoint for the Graphiti Python sidecar (ADR 0011).
+// Phase 3a ships /v1/embeddings; Phase 3b adds /v1/chat/completions.
+app.use('/api/inference', jsonDefault, inferenceRouter)
 
 // A2A spec — agent discovery at /.well-known/agent.json (no API prefix)
 app.use('/.well-known', wellKnownAgentHandler())
