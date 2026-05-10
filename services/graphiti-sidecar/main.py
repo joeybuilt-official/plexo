@@ -166,12 +166,12 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
         # the first edge_fulltext_search hit fails with:
         #   "Table RelatesToNode_ doesn't have an index with name edge_name_and_fact"
         try:
-            await driver.execute_query("INSTALL fts;", {})
+            await driver.execute_query("INSTALL fts;")
             logger.info(f"graphiti.fts.install_ok ws={workspace_id}")
         except Exception as e:
             logger.info(f"graphiti.fts.install_skipped ws={workspace_id} err={str(e)[:300]}")
         try:
-            await driver.execute_query("LOAD fts;", {})
+            await driver.execute_query("LOAD fts;")
             logger.info(f"graphiti.fts.load_ok ws={workspace_id}")
         except Exception as e:
             logger.warning(f"graphiti.fts.load_failed ws={workspace_id} err={str(e)[:300]}")
@@ -182,7 +182,7 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
             "CALL CREATE_FTS_INDEX('RelatesToNode_', 'edge_name_and_fact', ['name', 'fact']);",
         ):
             try:
-                await driver.execute_query(fts_query, {})
+                await driver.execute_query(fts_query)
                 logger.info(f"graphiti.fts.create_ok ws={workspace_id} q={fts_query[:60]}")
             except Exception as e:
                 msg = str(e)
