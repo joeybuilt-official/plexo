@@ -46,7 +46,18 @@ if (!health?.ok) {
 }
 console.log('  →', health)
 
-const factText = `Phase 3c smoke marker — ${new Date().toISOString()} — Plexo prefers Kuzu for embedded graph storage`
+// Canonical probe text per phase-11-design.md §"Probe text". Five
+// unambiguous subject-verb-object triples that any reasonable LLM should
+// extract; gives the smoke (and the future Phase-11 schema-compat probe)
+// a meaningful regression signal beyond just "did the boundary respond".
+const factText = [
+    `Phase 3c smoke marker — ${new Date().toISOString()}.`,
+    'Alice manages Bob.',
+    'Bob reports to Alice.',
+    'Alice works at Acme.',
+    'Acme is headquartered in Austin.',
+    'Bob lives in Austin.',
+].join(' ')
 
 console.log('\n[2/3] addEpisode …')
 const added = await client.addEpisode({
@@ -71,8 +82,8 @@ if (!added.episodeId) {
 // indexes are visible. 1s is conservative for a local smoke run.
 await new Promise((r) => setTimeout(r, 1000))
 
-console.log('\n[3/3] search("Kuzu") …')
-const found = await client.search({ workspaceId: WORKSPACE_ID, query: 'Kuzu', numResults: 5 })
+console.log('\n[3/3] search("Austin") …')
+const found = await client.search({ workspaceId: WORKSPACE_ID, query: 'Austin', numResults: 5 })
 if (!found) {
     console.error('FAIL: search returned null')
     process.exit(1)
