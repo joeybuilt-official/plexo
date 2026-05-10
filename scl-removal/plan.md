@@ -1,6 +1,8 @@
 # Plan — SCL removal + graph-layer replacement
 
-**Goal:** Reverse the just-shipped (un-pushed) SCL endpoints rollout, replace it with a minimal in-house graph layer atop existing pgvector + memory_entries, complete the May-1 SCL removal leftovers, and cut nexalog over to the new layer in a single coordinated SDK 1.1.0 publish.
+**Status:** SUPERSEDED 2026-05-09. Concept-graph trajectory abandoned in favor of wholesale Graphiti adoption (see `/home/dustin/dev/joeybuilt/plexo/adr/0010-graphiti-adoption.md` and `/home/dustin/dev/joeybuilt/plexo/graphiti-migration/plan.md`). Phases 2 + 3 of this plan were reverted on `plexo/main` (commits `9032efb3` + `843fec76`); reference branch `pre-graphiti-concept-graph` preserves the original work. Phase 1 (SCL revert) and Phase 4 partial (JSDoc + marketing SCL leftovers, commit `f53e4076`) remain on main as orthogonal SCL cleanup that survives the Graphiti pivot.
+
+**Goal (original — historical):** Reverse the just-shipped (un-pushed) SCL endpoints rollout, replace it with a minimal in-house graph layer atop existing pgvector + memory_entries, complete the May-1 SCL removal leftovers, and cut nexalog over to the new layer in a single coordinated SDK 1.1.0 publish.
 
 **Related docs:**
 - `/home/dustin/dev/joeybuilt/plexo/adr/0009-scl-removal-and-graph-replacement.md` — this ADR

@@ -1,5 +1,7 @@
 # Checklist — SCL removal + graph-layer replacement
 
+**Status:** SUPERSEDED 2026-05-09 by `/home/dustin/dev/joeybuilt/plexo/graphiti-migration/checklist.md`. See `plan.md` in this directory for context. Items marked done below remain valid history.
+
 Flat ordered steps, derived from `plan.md`. Tick as completed.
 
 ## Phase 1 — State pin + Wave B revert ✅ done 2026-05-09
