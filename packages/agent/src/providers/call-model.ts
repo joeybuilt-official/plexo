@@ -336,6 +336,30 @@ function tryWrapArrayInObject(
     return { success: false, triedKeys: tried }
 }
 
+function tryRekeyObject(
+    parsed: unknown,
+    schema: ZodType<unknown>,
+): { success: true; data: unknown; rekeyedFrom: string; rekeyedTo: string } | { success: false; triedRenames: string[] } {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { success: false, triedRenames: [] }
+    }
+    const obj = parsed as Record<string, unknown>
+    const objKeys = Object.keys(obj)
+    if (objKeys.length !== 1) return { success: false, triedRenames: [] }
+    const fromKey = objKeys[0]!
+    const introspectKeys = getZodObjectKeys(schema)
+    const candidateSet = new Set<string>([...introspectKeys, ...COMMON_WRAP_KEYS])
+    const tried: string[] = []
+    for (const toKey of candidateSet) {
+        if (toKey === fromKey) continue
+        tried.push(toKey)
+        const renamed = { [toKey]: obj[fromKey] }
+        const result = schema.safeParse(renamed)
+        if (result.success) return { success: true, data: result.data, rekeyedFrom: fromKey, rekeyedTo: toKey }
+    }
+    return { success: false, triedRenames: tried }
+}
+
 function tryRescueFencedJson(
     err: unknown,
     schema: ZodType<unknown> | undefined,
@@ -769,18 +793,6 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                             ? opts.schema.safeParse(parsed)
                             : (parsed !== null ? { success: true as const, data: parsed } : { success: false as const })
 
-                        if (!validated.success) {
-                            logger.warn({
-                                event: 'call_model.repair_pre_wrap_diag',
-                                workspaceId: opts.workspaceId,
-                                taskType: opts.taskType,
-                                model: modelId,
-                                parsedType: parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed,
-                                hasSchema: !!opts.schema,
-                                repairTextSample: repairText.slice(0, 200),
-                                parsedSample: parsed === null ? null : JSON.stringify(parsed).slice(0, 200),
-                            }, 'callModel: pre-wrap diagnostic — repair output failed initial schema validation')
-                        }
                         if (!validated.success && Array.isArray(parsed) && opts.schema) {
                             const wrapped = tryWrapArrayInObject(parsed, opts.schema)
                             if (wrapped.success) {
@@ -792,15 +804,20 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                                     wrappedWith: wrapped.wrappedWith,
                                 }, 'callModel: repair output was top-level array; wrapped to satisfy object schema')
                                 validated = { success: true as const, data: wrapped.data }
-                            } else {
-                                logger.warn({
-                                    event: 'call_model.repair_array_wrap_failed',
+                            }
+                        }
+                        if (!validated.success && parsed && typeof parsed === 'object' && !Array.isArray(parsed) && opts.schema) {
+                            const rekeyed = tryRekeyObject(parsed, opts.schema)
+                            if (rekeyed.success) {
+                                logger.info({
+                                    event: 'call_model.repair_rekey',
                                     workspaceId: opts.workspaceId,
                                     taskType: opts.taskType,
                                     model: modelId,
-                                    triedKeys: wrapped.triedKeys,
-                                    parsedSample: JSON.stringify(parsed).slice(0, 200),
-                                }, 'callModel: repair output was top-level array but no wrap key satisfied schema')
+                                    rekeyedFrom: rekeyed.rekeyedFrom,
+                                    rekeyedTo: rekeyed.rekeyedTo,
+                                }, 'callModel: repair output had wrong wrap key; renamed to satisfy schema')
+                                validated = { success: true as const, data: rekeyed.data }
                             }
                         }
 
