@@ -1,0 +1,61 @@
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# ── Install deps ──────────────────────────────────────────────────────────────
+FROM base AS deps
+WORKDIR /app
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/embeddings/package.json apps/embeddings/
+
+RUN pnpm install --frozen-lockfile --filter @plexo/embeddings...
+
+# ── Download model at build time ──────────────────────────────────────────────
+# Bakes the model into the image for fast cold starts. ~66MB for arctic-embed-s.
+FROM node:22-alpine AS model-dl
+WORKDIR /model
+RUN apk add --no-cache curl && \
+    mkdir -p /model/snowflake-arctic-embed-s && \
+    curl -fSL -o /model/snowflake-arctic-embed-s/model.onnx \
+      "https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/main/onnx/model.onnx" && \
+    curl -fSL -o /model/snowflake-arctic-embed-s/tokenizer.json \
+      "https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/main/tokenizer.json" && \
+    curl -fSL -o /model/snowflake-arctic-embed-s/config.json \
+      "https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/main/config.json"
+
+# ── Runtime (Debian slim — onnxruntime needs real glibc) ─────────────────────
+FROM node:22-slim AS runner
+WORKDIR /app
+
+# onnxruntime-node links against glibc + libstdc++ — Debian slim has both.
+# wget needed for healthcheck.
+RUN apt-get update && apt-get install -y --no-install-recommends wget && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system --gid 1001 plexo && \
+    useradd --system --uid 1001 --gid plexo plexo
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/embeddings/node_modules ./apps/embeddings/node_modules
+
+# Root manifests (pnpm workspace resolution)
+COPY package.json pnpm-workspace.yaml ./
+COPY tsconfig.base.json ./
+
+# Source
+COPY apps/embeddings ./apps/embeddings
+
+# Baked model weights
+COPY --from=model-dl /model/snowflake-arctic-embed-s ./apps/embeddings/models/snowflake-arctic-embed-s
+
+RUN chown -R plexo:plexo /app
+
+USER plexo
+EXPOSE 3001
+
+ENV PORT=3001
+ENV EMBEDDING_MODEL_DIR=/app/apps/embeddings/models/snowflake-arctic-embed-s
+ENV EMBEDDING_MODEL_NAME=plexo-embed-v1
+ENV EMBEDDING_MODEL=Snowflake/snowflake-arctic-embed-s
+
+CMD ["node", "--max-old-space-size=512", "/app/apps/embeddings/node_modules/tsx/dist/cli.mjs", "apps/embeddings/src/index.ts"]

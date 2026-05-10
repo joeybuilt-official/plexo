@@ -1,0 +1,447 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
+'use client'
+
+export const dynamic = 'force-dynamic'
+
+import { useState, useEffect, useRef, useMemo } from 'react'
+import useSWR from 'swr'
+import { jsonFetcher } from '@web/lib/swr'
+import {
+    AlertCircle,
+    CheckCircle,
+    Clock,
+    XCircle,
+    Loader2,
+    MessageSquare,
+    MessageCircle,
+    ExternalLink,
+    Info,
+    Layers,
+} from 'lucide-react'
+import Link from 'next/link'
+import { EmptyState } from '@web/components/ui/empty-state'
+import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
+import type { FilterDimension } from '@web/components/list-toolbar'
+import { useWorkspace } from '@web/context/workspace'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface ConversationItem {
+    id: string
+    source: string
+    message: string
+    reply: string | null
+    errorMsg: string | null
+    status: string
+    intent: string | null
+    sessionId: string | null
+    taskId: string | null
+    createdAt: string
+    // From groupBySession mode:
+    turn_count?: number | string
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
+
+const FILTER_KEYS = ['status', 'source'] as const
+
+// ── Badge maps ────────────────────────────────────────────────────────────────
+
+const STATUS_ICON: Record<string, React.ReactElement> = {
+    pending: <Clock className="h-3.5 w-3.5 text-amber" />,
+    complete: <CheckCircle className="h-3.5 w-3.5 text-azure" />,
+    failed: <XCircle className="h-3.5 w-3.5 text-red" />,
+}
+
+const ALL_STATUSES = ['pending', 'complete', 'failed'] as const
+
+const SOURCE_BADGE: Record<string, { icon: string; label: string; className: string }> = {
+    telegram: { icon: '✈️', label: 'Telegram', className: 'bg-sky-900/40 text-sky-400 border border-sky-800/50' },
+    slack: { icon: '⚡', label: 'Slack', className: 'bg-purple-900/40 text-purple-400 border border-purple-800/50' },
+    discord: { icon: '💬', label: 'Discord', className: 'bg-azure-900/40 text-azure border border-azure-800/50' },
+    github: { icon: '🐙', label: 'GitHub', className: 'bg-surface-2 text-text-secondary border border-border/50' },
+    levio: { icon: '📋', label: 'Levio', className: 'bg-emerald-900/40 text-emerald-400 border border-emerald-800/50' },
+    dashboard: { icon: '🖥', label: 'Dashboard', className: 'bg-surface-2/60 text-text-muted border border-border/40' },
+    api: { icon: '🔗', label: 'API', className: 'bg-surface-2/60 text-text-muted border border-border/40' },
+    widget: { icon: '💬', label: 'Widget', className: 'bg-teal-900/40 text-teal-400 border border-teal-800/50' },
+}
+const DEFAULT_SOURCE_BADGE = { icon: '🖥', label: 'Unknown', className: 'bg-surface-2/60 text-text-muted border border-border/40' }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function groupByDate(items: ConversationItem[]) {
+    const groups: Record<string, ConversationItem[]> = {}
+    for (const item of items) {
+        const date = new Date(item.createdAt).toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'short',
+            day: 'numeric',
+        })
+        if (!groups[date]) groups[date] = []
+        groups[date]!.push(item)
+    }
+    return groups
+}
+
+function getPreview(item: ConversationItem): string {
+    if (item.reply) return item.reply
+    if (item.errorMsg) return item.errorMsg
+    return item.message
+}
+
+/** Returns the href that "Continue conversation" should navigate to */
+function continueHref(item: ConversationItem): string {
+    // If the item has a sessionId, restore the full thread context
+    if (item.sessionId) return `/app/chat?sessionId=${encodeURIComponent(item.sessionId)}`
+    // Otherwise fall back to single-turn context
+    return `/app/chat?context=${encodeURIComponent(item.id)}`
+}
+
+/** Returns the number of turns in a session, shown as a label */
+function turnLabel(item: ConversationItem): string | null {
+    const n = typeof item.turn_count === 'string' ? parseInt(item.turn_count, 10) : (item.turn_count ?? 1)
+    if (!n || n <= 1) return null
+    return `${n} turns`
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+function SkeletonRow() {
+    return (
+        <div className="flex items-start gap-3 rounded-sm border border-border bg-surface-1/40 p-4 animate-pulse">
+            <div className="mt-0.5 h-3.5 w-3.5 rounded-full bg-surface-2 shrink-0" />
+            <div className="flex-1 space-y-2">
+                <div className="flex gap-2">
+                    <div className="h-3 w-16 rounded bg-surface-2" />
+                    <div className="h-3 w-12 rounded bg-surface-2" />
+                </div>
+                <div className="h-3 w-3/4 rounded bg-surface-2" />
+                <div className="h-2.5 w-20 rounded bg-surface-2" />
+            </div>
+        </div>
+    )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+interface Props {
+    workspaceId: string
+    initialItems: ConversationItem[]
+}
+
+export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }: Props) {
+    const { workspaceId: ctxWorkspaceId } = useWorkspace()
+    const workspaceId = ctxWorkspaceId || propWorkspaceId
+
+    const workspaceMismatch = !!ctxWorkspaceId && ctxWorkspaceId !== propWorkspaceId
+    const [olderPages, setOlderPages] = useState<ConversationItem[]>([])
+    const [nextCursor, setNextCursor] = useState<string | null>(null)
+    const [loadingMore, setLoadingMore] = useState(false)
+    const esRef = useRef<EventSource | null>(null)
+
+    // ── Filter state ─────────────────────────────────────────────────────────
+    const lf = useListFilter(FILTER_KEYS, 'newest')
+    const { search, filterValues, hasFilters, clearAll } = lf
+
+    // ── Phase 8: SWR-backed live first page ──────────────────────────────────
+    // SWR dedupes overlapping navigations and revalidates on window focus. A
+    // 30s background interval replaces the old manual setInterval (and the
+    // SSE listener below still forces a revalidate on server-push events so
+    // completions land instantly).
+    const swrKey = workspaceId
+        ? `${API_BASE}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100&groupBySession=true`
+        : null
+    const { data, error: fetchError, isLoading, mutate } = useSWR<{ items: ConversationItem[]; nextCursor: string | null }>(
+        swrKey,
+        jsonFetcher,
+        {
+            fallbackData: workspaceMismatch ? undefined : { items: initialItems, nextCursor: null },
+            refreshInterval: 30_000,
+            revalidateOnFocus: true,
+            dedupingInterval: 10_000,
+            keepPreviousData: true,
+        },
+    )
+
+    useEffect(() => {
+        if (data?.nextCursor !== undefined) setNextCursor(data.nextCursor)
+    }, [data?.nextCursor])
+
+    const items = useMemo(
+        () => [...(data?.items ?? []), ...olderPages],
+        [data?.items, olderPages],
+    )
+    const loading = isLoading && !data
+
+    // Manual pagination for "load older" — SWR owns the live first page.
+    async function loadMore(cursor: string) {
+        try {
+            setLoadingMore(true)
+            const url = `${API_BASE}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100&groupBySession=true&cursor=${cursor}`
+            const res = await fetch(url, { cache: 'no-store' })
+            if (!res.ok) return
+            const page = (await res.json()) as { items: ConversationItem[]; nextCursor: string | null }
+            setOlderPages(prev => [...prev, ...(page.items ?? [])])
+            setNextCursor(page.nextCursor ?? null)
+        } finally {
+            setLoadingMore(false)
+        }
+    }
+
+    // SSE live updates — revalidate SWR on server-push events
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const url = `${API_BASE}/api/v1/sse?workspaceId=${encodeURIComponent(workspaceId)}`
+        let es: EventSource
+        try {
+            es = new EventSource(url)
+            esRef.current = es
+            es.onmessage = (e) => {
+                try {
+                    const event = JSON.parse(e.data as string) as { type: string }
+                    if (['task_complete', 'task_failed', 'task_queued', 'conversation_updated'].includes(event.type)) {
+                        void mutate()
+                    }
+                } catch { /* malformed */ }
+            }
+            es.onerror = () => { es.close(); esRef.current = null }
+        } catch {
+            return
+        }
+        return () => { es.close(); esRef.current = null }
+    }, [workspaceId, mutate])
+
+    // ── Derived sources ───────────────────────────────────────────────────────
+    const availableSources = useMemo(() => new Set(items.map((i) => i.source)), [items])
+    const availableStatuses = useMemo(() => new Set(items.map((i) => i.status)), [items])
+
+    // ── Client-side filtering & sorting ───────────────────────────────────────
+    const displayed = useMemo(() => {
+        const q = search.trim().toLowerCase()
+        let result = items.filter((item) => {
+            if (filterValues.status && item.status !== filterValues.status) return false
+            if (filterValues.source && item.source !== filterValues.source) return false
+            if (q) {
+                const preview = getPreview(item)
+                return (
+                    item.id.toLowerCase().includes(q) ||
+                    item.source.toLowerCase().includes(q) ||
+                    item.status.toLowerCase().includes(q) ||
+                    item.message.toLowerCase().includes(q) ||
+                    (preview?.toLowerCase().includes(q) ?? false)
+                )
+            }
+            return true
+        })
+        result = [...result].sort((a, b) => {
+            if (lf.sort === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        })
+        return result
+    }, [items, search, filterValues.status, filterValues.source, lf.sort])
+
+    // ── Filter dimensions ─────────────────────────────────────────────────────
+    const dimensions = useMemo((): FilterDimension[] => [
+        {
+            key: 'status',
+            label: 'Status',
+            options: ALL_STATUSES.map((s) => ({
+                value: s,
+                label: s,
+                dimmed: !availableStatuses.has(s),
+            })),
+        },
+        {
+            key: 'source',
+            label: 'Source',
+            options: Object.entries(SOURCE_BADGE).map(([key, meta]) => ({
+                value: key,
+                label: meta.label,
+                icon: <span>{meta.icon}</span>,
+                dimmed: !availableSources.has(key),
+            })),
+        },
+    ], [availableStatuses, availableSources])
+
+    const groups = groupByDate(displayed)
+
+    // ── Render ────────────────────────────────────────────────────────────────
+    return (
+        <div className="flex flex-col gap-6 max-w-3xl">
+            {/* Header */}
+            <div>
+                <h1 className="text-2xl font-medium text-text-primary">Conversations</h1>
+                <p className="mt-0.5 text-sm text-text-muted">
+                    {loading
+                        ? 'Loading…'
+                        : items.length > 0
+                            ? `${displayed.length}${displayed.length !== items.length ? ` of ${items.length}` : ''} thread${items.length === 1 ? '' : 's'}`
+                            : 'Chat history from all channels'}
+                </p>
+            </div>
+
+            {/* Search + filter + sort toolbar */}
+            <ListToolbar
+                hook={lf}
+                placeholder="Search by source, message, or outcome…"
+                dimensions={dimensions}
+                sortOptions={[
+                    { label: 'Newest first', value: 'newest' },
+                    { label: 'Oldest first', value: 'oldest' },
+                ]}
+            />
+
+            {/* Content */}
+            {fetchError && !data ? (
+                <div className="rounded-sm border border-red-800/40 bg-red-dim p-8 text-center">
+                    <AlertCircle className="h-5 w-5 text-red mx-auto mb-2" />
+                    <p className="text-sm text-red">Failed to load conversations</p>
+                    <button onClick={() => mutate()} className="mt-2 text-xs text-text-muted underline">Retry</button>
+                </div>
+            ) : loading ? (
+                <div className="flex flex-col gap-2">
+                    {[0, 1, 2].map(i => <SkeletonRow key={i} />)}
+                </div>
+            ) : items.length === 0 ? (
+                <EmptyState
+                    icon={MessageSquare}
+                    headline="No conversations yet"
+                    description="Chat history from all channels appears here."
+                    actionLabel="Open Chat"
+                    actionHref="/app/chat"
+                />
+            ) : displayed.length === 0 ? (
+                <div className="rounded-sm border border-border bg-surface-1/40 py-16 text-center">
+                    <p className="text-sm text-text-muted">No conversations match your filters</p>
+                    <button
+                        onClick={clearAll}
+                        className="mt-3 flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mx-auto"
+                    >
+                        Clear filters
+                    </button>
+                </div>
+            ) : (
+                Object.entries(groups).map(([date, groupItems]) => (
+                    <div key={date}>
+                        <p className="mb-3 text-[11px] font-medium uppercase tracking-widest text-text-muted">{date}</p>
+                        <div className="flex flex-col gap-2">
+                            {groupItems.map((item) => {
+                                const preview = getPreview(item)
+                                const badge = SOURCE_BADGE[item.source] ?? DEFAULT_SOURCE_BADGE
+                                const isFailed = item.status === 'failed'
+                                const turns = turnLabel(item)
+                                const isThread = !!(item.sessionId && turns)
+
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className="flex items-start gap-3 rounded-sm border border-border bg-surface-1/40 p-4 hover:border-border transition-colors group"
+                                    >
+                                        <span className="mt-0.5 shrink-0">
+                                            {STATUS_ICON[item.status] ?? STATUS_ICON['pending']}
+                                        </span>
+                                        {/* Clickable body → thread detail (session-grouped) is the canonical
+                                            detail view post UI-audit Phase 2. Items without a sessionId are
+                                            legacy rows (imports, pre-session webhook data) and fall through
+                                            to the single-message /app/conversations/[id] shell. */}
+                                        <Link
+                                            href={
+                                                item.sessionId
+                                                    ? `/app/conversations/thread?sessionId=${encodeURIComponent(item.sessionId)}`
+                                                    : `/app/conversations/${encodeURIComponent(item.id)}`
+                                            }
+                                            className="flex-1 min-w-0 block hover:opacity-80 transition-opacity"
+                                        >
+                                            {/* User message */}
+                                            <p className="text-sm text-text-primary leading-snug line-clamp-2">{item.message}</p>
+                                            {/* Reply or error */}
+                                            {preview && preview !== item.message && (
+                                                <p className={`mt-1 text-xs leading-snug line-clamp-2 ${isFailed ? 'text-red/80' : 'text-text-muted'}`}>
+                                                    {isFailed ? '⚠ ' : '↳ '}{preview}
+                                                </p>
+                                            )}
+                                            <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                                <span className={`rounded px-1.5 py-0.5 text-[10px] flex items-center gap-1 ${badge.className}`}>
+                                                    {badge.icon} {badge.label}
+                                                </span>
+                                                {item.intent && item.intent !== 'CONVERSATION' && (
+                                                    <span className="rounded bg-azure-900/40 border border-azure-800/50 px-1.5 py-0.5 text-[10px] text-azure capitalize">
+                                                        {item.intent.toLowerCase()}
+                                                    </span>
+                                                )}
+                                                {isThread && (
+                                                    <span className="flex items-center gap-0.5 rounded bg-surface-2 border border-border/50 px-1.5 py-0.5 text-[10px] text-text-muted">
+                                                        <Layers className="h-2.5 w-2.5" /> {turns}
+                                                    </span>
+                                                )}
+                                                <span className="text-[11px] text-text-muted">
+                                                    {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        </Link>
+
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            {/* Linked task */}
+                                            {item.taskId && (
+                                                <Link
+                                                    href={`/app/tasks/${item.taskId}`}
+                                                    className="rounded-sm p-2.5 sm:p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
+                                                    title="View spawned task"
+                                                >
+                                                    <ExternalLink className="h-4 w-4" />
+                                                </Link>
+                                            )}
+                                            {/* Conversation info / detail */}
+                                            <Link
+                                                href={
+                                                    item.sessionId
+                                                        ? `/app/conversations/thread?sessionId=${encodeURIComponent(item.sessionId)}`
+                                                        : `/app/conversations/${encodeURIComponent(item.id)}`
+                                                }
+                                                className="rounded-sm p-2.5 sm:p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
+                                                title={isThread ? 'View thread' : 'Conversation info'}
+                                            >
+                                                <Info className="h-4 w-4" />
+                                            </Link>
+                                            {/* Continue in chat */}
+                                            <Link
+                                                href={continueHref(item)}
+                                                className="rounded-sm p-2.5 sm:p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-text-muted hover:text-azure hover:bg-surface-2 transition-colors"
+                                                title="Continue conversation"
+                                            >
+                                                <MessageCircle className="h-4 w-4" />
+                                            </Link>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                ))
+            )}
+
+            {nextCursor && !loading && search.trim() === '' && (
+                <div className="flex justify-center mt-6 mb-10">
+                    <button
+                        onClick={() => void loadMore(nextCursor)}
+                        disabled={loadingMore}
+                        className="flex items-center gap-2 rounded-sm border border-border bg-surface-1/40 px-6 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-2 hover:border-border/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loadingMore ? (
+                            <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Loading...
+                            </>
+                        ) : (
+                            'Load older conversations'
+                        )}
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}

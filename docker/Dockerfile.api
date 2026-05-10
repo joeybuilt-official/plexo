@@ -1,0 +1,185 @@
+FROM node:22-bookworm-slim AS base
+# Phase 4 N.6 — bookworm-slim base unblocks onnxruntime-node + @xenova/transformers
+# (multilingual-e5-small embedder). Alpine's musl libc can't load the prebuilt
+# .so files; bookworm-slim ships glibc and is the official Node.js team's
+# recommendation for ML/native-dep workloads.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# ── Resolve git commit hash ──────────────────────────────────────────────────
+# Parse .git/HEAD (+ refs or packed-refs) to resolve the current commit SHA.
+# .dockerignore excludes .git/objects and other heavy dirs but keeps HEAD, refs,
+# and packed-refs so this stage can resolve the commit without bloating the context.
+# When SOURCE_COMMIT is passed explicitly (e.g. by the updater), that value wins.
+FROM alpine:3.20 AS git-meta
+ARG SOURCE_COMMIT=unknown
+WORKDIR /meta
+COPY .gi[t] /meta/git
+COPY .source-commit-overrid[e] /meta/
+RUN SC="${SOURCE_COMMIT}"; \
+    if [ "$SC" = "unknown" ] && [ -f /meta/.source-commit-override ]; then \
+      SC=$(cat /meta/.source-commit-override); \
+    fi; \
+    if [ "$SC" = "unknown" ] && [ -f /meta/git/HEAD ]; then \
+      REF=$(cat /meta/git/HEAD); \
+      case "$REF" in \
+        ref:*) RPATH=$(echo "$REF" | sed 's/^ref: *//'); \
+               if [ -f "/meta/git/$RPATH" ]; then SC=$(cat "/meta/git/$RPATH"); \
+               elif [ -f /meta/git/packed-refs ]; then SC=$(grep " $RPATH" /meta/git/packed-refs | head -1 | cut -d' ' -f1); fi ;; \
+        *) SC="$REF" ;; \
+      esac; \
+    fi; \
+    echo "${SC:-unknown}" > /meta/SOURCE_COMMIT
+
+# ── Install workspace deps ────────────────────────────────────────────────────
+FROM base AS deps
+WORKDIR /app
+
+# Workspace manifests first — maximise layer cache
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/api/package.json              apps/api/
+COPY apps/web/package.json              apps/web/
+COPY packages/agent/package.json        packages/agent/
+COPY packages/db/package.json           packages/db/
+COPY packages/queue/package.json        packages/queue/
+COPY packages/sdk/package.json          packages/sdk/
+COPY packages/graphiti-bridge/package.json packages/graphiti-bridge/
+COPY packages/logger/package.json       packages/logger/
+COPY packages/storage/package.json      packages/storage/
+COPY packages/ui/package.json           packages/ui/
+
+# Native build deps so sharp prebuild fetch + onnxruntime-node prebuild
+# fetch can fall through to source compile if needed.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ libc6-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+# Phase 4 N.6 — bookworm-slim base means alpine prebuilds (musl) are wrong.
+# pnpm 10 enforces an `onlyBuiltDependencies` allowlist (see root
+# package.json) — sharp isn't in it, so its install/check.js never fires
+# to fetch the linux-x64 (glibc) prebuild. Run sharp's install hook directly
+# after pnpm install to download the right binary into both pinned versions.
+RUN pnpm install --frozen-lockfile --filter @plexo/api...
+
+# Ensure per-package node_modules dirs exist for downstream COPY layers.
+# Workspaces with zero direct deps (e.g. @joeybuilt/plexo-sdk has only zod
+# which hoists; @plexo/graphiti-bridge has zero deps) don't get a
+# node_modules dir created by pnpm install, which breaks `COPY --from=deps`
+# in the runner stage.
+RUN mkdir -p /app/packages/sdk/node_modules /app/packages/graphiti-bridge/node_modules
+
+# Build @joeybuilt/plexo-sdk dist. Phase 8 (1.1.0) flipped exports from
+# src/index.ts to dist/index.js for npm-publish target; without an in-Docker
+# build step apps/api crashes at boot trying to import @plexo/sdk dist.
+# The .dockerignore excludes packages/*/dist by default so building inside
+# the deps stage and COPY'ing forward is the right shape.
+COPY packages/sdk/src                  ./packages/sdk/src
+COPY packages/sdk/tsconfig.json        ./packages/sdk/
+COPY packages/sdk/tsup.config.ts       ./packages/sdk/
+RUN pnpm install --frozen-lockfile --filter @joeybuilt/plexo-sdk \
+ && pnpm -C packages/sdk run build
+
+# sharp@0.32.6 install hook — its package.json `scripts.install` invokes
+# `node install/libvips && node install/dll-copy && prebuild-install`.
+# We replicate that here. sharp@0.34.5 ships its install differently
+# (single binary in @img/sharp-*); pnpm install resolves those packages
+# already since they're plain dependencies.
+RUN cd /app/node_modules/.pnpm/sharp@0.32.6/node_modules/sharp \
+ && node install/libvips \
+ && node install/dll-copy \
+ && (./node_modules/.bin/prebuild-install || (node install/can-compile && node-gyp rebuild && node install/dll-copy))
+
+# ── Runtime image ─────────────────────────────────────────────────────────────
+FROM base AS runner
+WORKDIR /app
+
+# docker-cli for the deploy webhook path; on bookworm, install from Docker's
+# official apt repo (docker.io in Debian main lags; ce-cli ships current).
+RUN install -m 0755 -d /etc/apt/keyrings \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends curl gnupg \
+ && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" \
+    > /etc/apt/sources.list.d/docker.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends docker-ce-cli wget \
+ && apt-get purge -y --auto-remove curl gnupg \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 1001 plexo \
+ && useradd  --system --uid 1001 --gid plexo --shell /usr/sbin/nologin plexo
+
+# Workspace manifests (needed for pnpm workspace resolution)
+COPY --from=deps /app/node_modules              ./node_modules
+COPY --from=deps /app/apps/api/node_modules     ./apps/api/node_modules
+COPY --from=deps /app/packages/agent/node_modules  ./packages/agent/node_modules
+COPY --from=deps /app/packages/db/node_modules     ./packages/db/node_modules
+COPY --from=deps /app/packages/queue/node_modules  ./packages/queue/node_modules
+COPY --from=deps /app/packages/sdk/node_modules    ./packages/sdk/node_modules
+COPY --from=deps /app/packages/graphiti-bridge/node_modules ./packages/graphiti-bridge/node_modules
+COPY --from=deps /app/packages/logger/node_modules    ./packages/logger/node_modules
+COPY --from=deps /app/packages/storage/node_modules    ./packages/storage/node_modules
+
+# Source files
+COPY tsconfig.base.json ./
+COPY apps/api        ./apps/api
+COPY packages/agent  ./packages/agent
+COPY packages/db     ./packages/db
+COPY packages/queue  ./packages/queue
+COPY packages/sdk             ./packages/sdk
+COPY --from=deps /app/packages/sdk/dist ./packages/sdk/dist
+COPY packages/graphiti-bridge ./packages/graphiti-bridge
+COPY packages/logger   ./packages/logger
+COPY packages/storage  ./packages/storage
+
+# Bundled reference extensions (Phase 5) — activate() entry points loaded by
+# the persistent worker pool at /app/extensions/core/<name>/dist/index.js
+COPY extensions/core/research-agent/dist    ./extensions/core/research-agent/dist
+COPY extensions/core/research-agent/plexo.json ./extensions/core/research-agent/plexo.json
+COPY extensions/core/fonto-bridge/dist    ./extensions/core/fonto-bridge/dist
+COPY extensions/core/fonto-bridge/plexo.json ./extensions/core/fonto-bridge/plexo.json
+COPY extensions/core/nexalog-bridge/dist    ./extensions/core/nexalog-bridge/dist
+COPY extensions/core/nexalog-bridge/plexo.json ./extensions/core/nexalog-bridge/plexo.json
+COPY extensions/core/levio-bridge/dist    ./extensions/core/levio-bridge/dist
+COPY extensions/core/levio-bridge/plexo.json ./extensions/core/levio-bridge/plexo.json
+COPY extensions/core/koforje-bridge/dist    ./extensions/core/koforje-bridge/dist
+COPY extensions/core/koforje-bridge/plexo.json ./extensions/core/koforje-bridge/plexo.json
+
+# Root manifest — needed to read version field at build time
+COPY --from=deps /app/package.json ./
+
+# Drizzle migrations — run via migrate service (compose.yml) before api starts
+COPY docker/migrate.sh /migrate.sh
+RUN chmod +x /migrate.sh
+
+# Bake the version from package.json into the image at build time.
+# Override via: docker build --build-arg APP_VERSION=x.y.z
+# Defaults to the version field in root package.json if not supplied.
+ARG APP_VERSION=auto
+RUN V="${APP_VERSION}"; \
+    [ "$V" = "auto" ] && V=$(node -p "require('./package.json').version"); \
+    echo "$V" > /app/.version && \
+    echo "APP_VERSION baked: $V"
+# Bake source commit and build timestamp — used for commit-aware update detection
+COPY --from=git-meta /meta/SOURCE_COMMIT /tmp/SOURCE_COMMIT
+RUN SC=$(cat /tmp/SOURCE_COMMIT); \
+    echo "$SC" > /app/.source-commit && echo "Commit: $SC" && \
+    date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build-time && rm /tmp/SOURCE_COMMIT
+ENV APP_VERSION=auto
+
+# Link workspace packages so dynamic imports resolve at runtime (tsx static
+# imports work via process memory; dynamic imports need these symlinks)
+RUN mkdir -p /app/node_modules/@plexo && \
+    for pkg in agent db queue sdk graphiti-bridge logger scl-core storage; do \
+      ln -sf /app/packages/${pkg} /app/node_modules/@plexo/${pkg}; \
+    done
+
+RUN chown -R plexo:plexo /app
+
+# TODO: OPS-004 — Zero-downtime deploy: add healthcheck + rolling update config in compose
+# TODO: DI-008 — MinIO backup: add scheduled mc mirror to offsite storage
+USER plexo
+EXPOSE 3001
+
+CMD ["node", "--max-old-space-size=350", "/app/apps/api/node_modules/tsx/dist/cli.mjs", "apps/api/src/index.ts"]

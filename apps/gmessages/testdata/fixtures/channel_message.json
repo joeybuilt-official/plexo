@@ -1,0 +1,24 @@
+{
+  "id": "msg_01HZ6X8K8N2T9V8WXR7QY3JX5K",
+  "channelId": "ce0b6f5e-2ae7-4cb5-bfd5-2a72d3c4a610",
+  "threadId": "+15555550100",
+  "direction": "inbound",
+  "text": "Hey, are we still on for dinner?",
+  "attachments": [
+    {
+      "id": "att_01HZ6X8K8N2T9V8WXR7QY3JX5L",
+      "mimeType": "image/jpeg",
+      "filename": "menu.jpg",
+      "sizeBytes": 102400,
+      "thumbnailId": "att_01HZ6X8K8N2T9V8WXR7QY3JX5M"
+    }
+  ],
+  "senderId": "+15555550100",
+  "senderName": "Sam Rivera",
+  "sentAt": "2026-05-05T22:34:01Z",
+  "metadata": {
+    "isRcs": true,
+    "supportsReceipts": true
+  },
+  "pexVersion": "0.4.0"
+}

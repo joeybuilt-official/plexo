@@ -1,0 +1,8 @@
+/bin/
+/dist/
+/.go-cache/
+*.out
+*.test
+
+# `go build` at module root drops a bare `gmessages` binary — never commit it
+/gmessages

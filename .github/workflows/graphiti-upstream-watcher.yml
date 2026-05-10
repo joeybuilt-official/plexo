@@ -1,0 +1,130 @@
+# Phase 11 — graphiti-core upstream version watcher.
+#
+# Daily cron checks PyPI for a new graphiti-core release, opens a PR
+# pinning the new version, runs schema-compat probe, surfaces probe
+# result as a PR check. NEVER auto-merges. See
+# graphiti-migration/phase-11-design.md for the full architecture.
+#
+# Operator setup TODO before this workflow goes live (post-Phase-9):
+#   - Add repo secret PROBE_PLEXO_SERVICE_KEY (a probe-only key, NOT the
+#     prod key — the probe stub doesn't talk to prod, but key reuse risk).
+#   - Add repo secret VPS_SSH_KEY for fetching the prod Kuzu snapshot.
+#   - Confirm joeybuilt-official/plexo has Actions enabled.
+
+name: graphiti-core upstream watcher
+
+on:
+  schedule:
+    - cron: '0 14 * * *'  # 14:00 UTC daily
+  workflow_dispatch: {}    # manual trigger for testing
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect latest graphiti-core release
+        id: detect
+        run: |
+          PINNED=$(grep -oE 'graphiti-core==[0-9]+\.[0-9]+\.[0-9]+' \
+            services/graphiti-sidecar/requirements.txt | cut -d= -f3)
+          LATEST=$(curl -fsS https://pypi.org/pypi/graphiti-core/json \
+            | python -c 'import json,sys; d=json.load(sys.stdin); \
+              vs=[v for v in d["releases"] if not any(c in v for c in ("a","b","rc","dev"))]; \
+              vs.sort(key=lambda v: tuple(int(x) for x in v.split("."))); \
+              print(vs[-1])')
+          echo "pinned=$PINNED" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          if [[ "$PINNED" == "$LATEST" ]]; then
+            echo "no-op: $PINNED already latest"
+            echo "needs_bump=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "bump candidate: $PINNED → $LATEST"
+            echo "needs_bump=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open feature branch + bump pin
+        if: steps.detect.outputs.needs_bump == 'true'
+        run: |
+          git config user.name 'joeybuilt-bot'
+          git config user.email 'bot@joeybuilt.com'
+          BRANCH="chore/graphiti-core-${{ steps.detect.outputs.latest }}"
+          git checkout -b "$BRANCH"
+          sed -i "s|graphiti-core==${{ steps.detect.outputs.pinned }}|graphiti-core==${{ steps.detect.outputs.latest }}|" \
+            services/graphiti-sidecar/requirements.txt
+          git add services/graphiti-sidecar/requirements.txt
+          git commit -m "chore(graphiti-core): bump ${{ steps.detect.outputs.pinned }} → ${{ steps.detect.outputs.latest }}"
+          git push origin "$BRANCH"
+
+      - name: Build sidecar image at new pin
+        if: steps.detect.outputs.needs_bump == 'true'
+        run: |
+          docker build \
+            -t service:probe-${{ steps.detect.outputs.latest }} \
+            services/graphiti-sidecar/
+
+      - name: Fetch prod Kuzu snapshot
+        if: steps.detect.outputs.needs_bump == 'true'
+        env:
+          VPS_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh && echo "$VPS_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H REDACTED_VPS_IP >> ~/.ssh/known_hosts
+          # Snapshot the canonical compat workspace (00000000-...-c0fe)
+          # which is seeded post-Phase-9 with the canonical 5-S-V-O text.
+          ssh root@REDACTED_VPS_IP \
+            "docker exec service tar -czf /tmp/graphiti-snapshot.tgz \
+             -C /data graphiti/00000000-0000-0000-0000-00000000c0fe --exclude='*.wal'"
+          scp root@REDACTED_VPS_IP:/tmp/graphiti-snapshot.tgz /tmp/graphiti-snapshot.tgz
+
+      - name: Run schema-compat probe
+        if: steps.detect.outputs.needs_bump == 'true'
+        env:
+          PROBE_VERSION: ${{ steps.detect.outputs.latest }}
+          PLEXO_SERVICE_KEY: ${{ secrets.PROBE_PLEXO_SERVICE_KEY }}
+          PROBE_KUZU_SOURCE: /tmp/graphiti-snapshot.tgz
+        run: ./services/graphiti-sidecar/test/snapshot-probe.sh
+
+      - name: Open PR with probe result
+        if: steps.detect.outputs.needs_bump == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES=$(curl -fsS "https://api.github.com/repos/getzep/graphiti/releases/tags/v${{ steps.detect.outputs.latest }}" \
+            | python -c 'import json,sys; print(json.load(sys.stdin).get("body","(no release notes)")[:2000])')
+          gh pr create \
+            --title "chore(graphiti-core): bump to ${{ steps.detect.outputs.latest }}" \
+            --body "$(cat <<EOF
+          Automated upstream bump per Phase 11.
+
+          - **Previous pin:** ${{ steps.detect.outputs.pinned }}
+          - **New pin:** ${{ steps.detect.outputs.latest }}
+          - **Schema-compat probe:** PASS (workflow run ${{ github.run_id }})
+
+          Upstream release notes (truncated to 2000 chars):
+
+          \`\`\`
+          $NOTES
+          \`\`\`
+
+          ## ⚠ Operator review checklist
+
+          - [ ] Read the full upstream changelog at https://github.com/getzep/graphiti/releases/tag/v${{ steps.detect.outputs.latest }}
+          - [ ] Confirm no Kuzu file-format breaking change is called out
+          - [ ] Probe ran against a real prod Kuzu snapshot (snapshot job logs above)
+          - [ ] Merge → auto-deploy daemon ships
+
+          NEVER auto-merge. NEVER skip the operator review.
+          EOF
+          )" \
+            --base main \
+            --head "chore/graphiti-core-${{ steps.detect.outputs.latest }}"

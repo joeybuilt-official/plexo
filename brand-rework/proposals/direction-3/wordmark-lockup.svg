@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" fill="none">
+  <!-- Symbol -->
+  <circle cx="18" cy="12" r="3.5" fill="#7bbfd4"/>
+  <circle cx="18" cy="24" r="3.5" fill="#7bbfd4"/>
+  <circle cx="18" cy="36" r="3.5" fill="#7bbfd4"/>
+  <line x1="8" y1="43" x2="28" y2="43" stroke="#7bbfd4" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Wordmark -->
+  <text x="42" y="33" font-family="'Geist', 'Inter', system-ui, sans-serif" font-weight="600" font-size="22" fill="#e8edf2" letter-spacing="-0.02em">plexo</text>
+</svg>

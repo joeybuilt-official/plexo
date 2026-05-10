@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Plexo PNG Export</title>
+<style>
+  body { margin: 2rem; font-family: system-ui; background: #101520; color: #E2E8F0; }
+  canvas { border: 1px solid #253354; margin: 1rem 0; display: block; }
+  button { padding: 0.5rem 1rem; margin: 0.25rem; cursor: pointer; }
+  h2 { margin-top: 2rem; }
+</style>
+</head>
+<body>
+<h1>Plexo PNG Export — V2 Geometric Precision</h1>
+<p>Click each button to download the PNG.</p>
+
+<h2>App Icon (512x512)</h2>
+<canvas id="icon512" width="512" height="512"></canvas>
+<button onclick="download('icon512','plexo-app-icon-512.png')">Download 512px Icon</button>
+
+<h2>OG Image (1200x630)</h2>
+<canvas id="og" width="1200" height="630"></canvas>
+<button onclick="download('og','plexo-og-image.png')">Download OG Image</button>
+
+<script>
+const ACCENT = '#4DAAFC';
+const BG = '#101520';
+const SURFACE = '#161D2C';
+const TEXT = '#E2E8F0';
+
+// Helper: draw tesseract frame at given center/size
+function tesseract(ctx, cx, cy, half, strokeW, projW) {
+  // Outer square
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = strokeW;
+  ctx.strokeRect(cx - half, cy - half, half * 2, half * 2);
+  // Inner rotated square (diamond)
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - half);
+  ctx.lineTo(cx + half, cy);
+  ctx.lineTo(cx, cy + half);
+  ctx.lineTo(cx - half, cy);
+  ctx.closePath();
+  ctx.stroke();
+  // Projection lines (vertical at left/right edges)
+  ctx.lineWidth = projW;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath(); ctx.moveTo(cx - half, cy - half); ctx.lineTo(cx - half, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + half, cy - half); ctx.lineTo(cx + half, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - half, cy + half); ctx.lineTo(cx - half, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + half, cy + half); ctx.lineTo(cx + half, cy); ctx.stroke();
+  ctx.globalAlpha = 1.0;
+  // Center node
+  ctx.fillStyle = ACCENT;
+  ctx.beginPath();
+  ctx.arc(cx, cy, half * 0.16, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ── App Icon 512 ──
+(function() {
+  const c = document.getElementById('icon512');
+  const ctx = c.getContext('2d');
+  // Background with rounded corners
+  ctx.fillStyle = BG;
+  roundRect(ctx, 0, 0, 512, 512, 96);
+  ctx.fill();
+  tesseract(ctx, 256, 256, 170, 16, 6);
+})();
+
+// ── OG Image 1200x630 ──
+(function() {
+  const c = document.getElementById('og');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, 1200, 630);
+
+  // Tesseract frame left of center
+  tesseract(ctx, 440, 315, 120, 6, 2.5);
+
+  // "plexo" wordmark
+  ctx.fillStyle = TEXT;
+  ctx.font = "600 56px 'Geist', system-ui, sans-serif";
+  ctx.letterSpacing = '-0.03em';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('plexo', 600, 300);
+
+  // Tagline
+  ctx.fillStyle = '#8294B0';
+  ctx.font = "400 20px 'IBM Plex Sans', system-ui, sans-serif";
+  ctx.fillText('structured intelligence, precisely routed.', 600, 345);
+})();
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function download(id, filename) {
+  const c = document.getElementById(id);
+  const a = document.createElement('a');
+  a.download = filename;
+  a.href = c.toDataURL('image/png');
+  a.click();
+}
+</script>
+</body>
+</html>

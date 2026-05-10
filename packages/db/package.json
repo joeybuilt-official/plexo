@@ -1,0 +1,36 @@
+{
+  "name": "@plexo/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./client": "./src/client.ts",
+    "./work-kind": "./src/work-kind.ts",
+    "./auth/config": "./src/auth/config.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:rollback": "tsx src/rollback.ts",
+    "db:check-drift": "tsx scripts/check-drift.ts"
+  },
+  "dependencies": {
+    "better-auth": "^1.5.6",
+    "drizzle-orm": "^0.39",
+    "pg": "^8.20.0",
+    "postgres": "^3.4",
+    "dotenv": "^16",
+    "tsx": "^4"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30",
+    "typescript": "^5.7",
+    "@types/node": "^22",
+    "@types/pg": "^8"
+  },
+  "license": "AGPL-3.0-only"
+}
