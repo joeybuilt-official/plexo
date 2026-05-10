@@ -40,10 +40,15 @@
     "sync-compose": "cp docker-compose.yml docker/compose.yml && [ -f docker-compose.override.yml ] && cp docker-compose.override.yml docker/compose.override.yml || true",
     "prebuild": "pnpm run sync-compose"
   },
+  "dependencies": {
+    "@plexo/db": "link:packages/db",
+    "@plexo/graphiti-bridge": "link:packages/graphiti-bridge"
+  },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "^22",
     "prettier": "^3",
+    "tsx": "^4.21.0",
     "turbo": "^2",
     "typescript": "^5.7",
     "vitest": "^3"
