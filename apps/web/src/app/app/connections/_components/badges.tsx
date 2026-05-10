@@ -9,7 +9,7 @@ import type { AuthType, ConnectionStatus } from './types'
 
 export function AuthIcon({ type }: { type: AuthType }) {
     if (type === 'oauth2') return <Globe2 className="h-3.5 w-3.5 text-azure" />
-    if (type === 'api_key') return <Key className="h-3.5 w-3.5 text-amber" />
+    if (type === 'api_key' || type === 'bearer' || type === 'basic') return <Key className="h-3.5 w-3.5 text-amber" />
     if (type === 'webhook') return <Webhook className="h-3.5 w-3.5 text-violet-400" />
     return null
 }
@@ -18,10 +18,13 @@ export function AuthBadge({ type }: { type: AuthType }) {
     const map: Record<AuthType, { label: string; cls: string }> = {
         oauth2: { label: 'OAuth2', cls: 'bg-azure/10 text-azure border-azure/20' },
         api_key: { label: 'API Key / PAT', cls: 'bg-amber-dim text-amber border-amber-500/20' },
+        bearer: { label: 'Bearer Token', cls: 'bg-amber-dim text-amber border-amber-500/20' },
+        basic: { label: 'Basic Auth', cls: 'bg-amber-dim text-amber border-amber-500/20' },
         webhook: { label: 'Webhook', cls: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
         none: { label: 'No Auth', cls: 'bg-surface-2/30 text-text-muted border-border/30' },
     }
-    const { label, cls } = map[type]
+    const entry = map[type] ?? map.none
+    const { label, cls } = entry
     return (
         <span className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>
             <AuthIcon type={type} />
