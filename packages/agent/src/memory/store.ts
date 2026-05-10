@@ -360,6 +360,25 @@ export async function searchMemory(params: {
 }): Promise<MemorySearchResult[]> {
     const { workspaceId, query, type, limit = 5, useCache = true } = params
 
+    // Phase 6 — read-backend gateway. In graphiti mode, delegate to the
+    // sidecar's hybrid search and short-circuit. Postgres mode (default)
+    // keeps today's path. Bridge-not-configured falls through to postgres
+    // so dev workflows w/o the sidecar don't break.
+    if (query && query.trim().length > 0) {
+        const { getReadBackend, readFromGraphiti } = await import('./read-backend.js')
+        if (getReadBackend() === 'graphiti') {
+            const grResults = await readFromGraphiti({ workspaceId, queryText: query, limit })
+            if (grResults !== null) {
+                // Apply type filter client-side (Graphiti collapses Plexo's
+                // type enum onto edges; the schema-mapping doc maps everything
+                // to 'pattern' for Phase 6, so a `type` filter equal to
+                // 'pattern' is a no-op and any other type returns []).
+                if (type && type !== 'pattern') return []
+                return grResults
+            }
+        }
+    }
+
     // Namespace resolution precedence: namespaces[] → namespace → agentId → default.
     const resolvedNamespaces: string[] = (() => {
         if (params.namespaces && params.namespaces.length > 0) return params.namespaces

@@ -134,7 +134,8 @@ describe('mirrorToGraphiti', () => {
             metadata: { foo: 'bar' },
         })
         expect(fakeClient.addEpisode).toHaveBeenCalledTimes(1)
-        const arg = fakeClient.addEpisode.mock.calls[0]![0] as { sourceMetadata: Record<string, unknown> }
+        const calls = fakeClient.addEpisode.mock.calls as unknown as Array<[{ sourceMetadata: Record<string, unknown> }]>
+        const arg = calls[0]![0]
         expect(arg.sourceMetadata.foo).toBe('bar')
         expect(arg.sourceMetadata.triple).toEqual({ subject: 'X', predicate: 'likes', object: 'Y' })
     })

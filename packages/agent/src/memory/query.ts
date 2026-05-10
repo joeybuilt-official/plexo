@@ -65,6 +65,16 @@ export async function queryMemory(params: QueryMemoryParams): Promise<MemorySear
     if (!queryText.trim()) return []
     const _retrievalStart = Date.now()
 
+    // Phase 6 read-backend gateway. Default 'postgres' preserves today's
+    // behavior; flip to 'graphiti' once Phase 5 dual-write has been observed
+    // clean for ≥7 days. Bridge-not-configured silently falls through to
+    // postgres so dev workflows w/o the sidecar don't break.
+    const { getReadBackend, readFromGraphiti } = await import('./read-backend.js')
+    if (getReadBackend() === 'graphiti') {
+        const grResults = await readFromGraphiti({ workspaceId, queryText, limit })
+        if (grResults !== null) return grResults
+    }
+
     const nsArray = sql`ARRAY[${sql.join(namespaces.map((n) => sql`${n}`), sql`, `)}]::text[]`
     const userClause = userId
         ? sql`AND (user_id = ${userId}::uuid OR user_id IS NULL)`
