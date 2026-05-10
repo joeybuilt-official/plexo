@@ -769,6 +769,18 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                             ? opts.schema.safeParse(parsed)
                             : (parsed !== null ? { success: true as const, data: parsed } : { success: false as const })
 
+                        if (!validated.success) {
+                            logger.warn({
+                                event: 'call_model.repair_pre_wrap_diag',
+                                workspaceId: opts.workspaceId,
+                                taskType: opts.taskType,
+                                model: modelId,
+                                parsedType: parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed,
+                                hasSchema: !!opts.schema,
+                                repairTextSample: repairText.slice(0, 200),
+                                parsedSample: parsed === null ? null : JSON.stringify(parsed).slice(0, 200),
+                            }, 'callModel: pre-wrap diagnostic — repair output failed initial schema validation')
+                        }
                         if (!validated.success && Array.isArray(parsed) && opts.schema) {
                             const wrapped = tryWrapArrayInObject(parsed, opts.schema)
                             if (wrapped.success) {
