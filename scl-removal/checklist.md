@@ -36,22 +36,20 @@ Phase 4 is now small enough to do directly in main context — no subagent neede
 - [x] `pnpm -C packages/agent test` — 11/11 graph-query tests pass; 10 pre-existing failures in unrelated files (namespace.test.ts, build-memory-block.test.ts) — not regressions
 - [ ] Commit Phase 2 on `main` (next)
 
-## Phase 3 — Graph endpoints + SDK 1.1.0 ✅ done 2026-05-09
-- [x] `apps/api/src/routes/graph.ts` — 4 endpoints under `/api/v1/graph/*`
-- [x] Service-key auth via `requireServiceKey` (mirrors synthesisRouter/themesRouter)
-- [x] Mounted `v1.use('/graph', graphRouter)` at `apps/api/src/index.ts:325` (next to `/synthesis` and `/themes`)
-- [x] `apps/api/src/__tests__/graph-routes.test.ts` — 11 tests passing (happy + 401 auth-fail per route + 3 input-validation cases for bonus coverage)
-- [x] SDK methods in `packages/sdk/src/connect/client.ts:329-396`: `graphMutate`, `graphExpand`, `graphMeta`, `graphExtractTrigger` — all return null/empty on failure (matches storeMemory/searchMemory/visionOcr precedent)
-- [x] SDK types in `packages/sdk/src/connect/types.ts:174-201`: `ConceptInput`, `GraphMutateResult`, `ExpandedNode`, `GraphExpandResult`, `GraphMeta`
-- [x] Added `./memory/graph-query` to `packages/agent/package.json` exports map
-- [x] Bumped `packages/sdk/package.json` → `1.1.0`
-- [x] Created `packages/sdk/CHANGELOG.md` — 1.1.0 entry notes the never-published SCL-flavored 1.1.0 candidate that was reverted before publish
-- [x] `pnpm -C packages/sdk build` clean (DTS + ESM)
-- [x] `pnpm -C packages/sdk typecheck` clean
-- [x] `pnpm -C apps/api typecheck` shows only the 3 pre-existing Buffer/BlobPart errors — no regressions
-- [x] `pnpm -C apps/api test` — graph-routes.test.ts 11/11 pass; 30 pre-existing failures in unrelated suites (admin/contract-fuzz) — known per memory `plexo-preexisting-test-failures`
-- [x] `npm publish --dry-run` clean from `packages/sdk` — version 1.1.0, 7 files, 57.3 kB tarball
-- [ ] Commit Phase 3 on `main` (next)
+## Phase 3 — Graph endpoints + SDK 1.1.0
+- [ ] `apps/api/src/routes/graph.ts` — 4 endpoints under `/api/v1/graph/*`
+- [ ] Service-key auth in router (mirrors synthesis/themes)
+- [ ] Mount `v1.use('/graph', graphRouter)` in `apps/api/src/index.ts`
+- [ ] `apps/api/src/__tests__/graph-routes.test.ts` — happy + auth-fail per route (8 tests)
+- [ ] SDK methods in `packages/sdk/src/connect/client.ts`: `graphMutate`, `graphExpand`, `graphMeta`, `graphExtractTrigger`
+- [ ] SDK types in `packages/sdk/src/types/`
+- [ ] Bump `packages/sdk/package.json` → `1.1.0`
+- [ ] Update SDK CHANGELOG (or create) — note SCL→graph rename, never-published 1.1.0 SCL preview
+- [ ] `pnpm -C packages/sdk build` clean
+- [ ] `pnpm -C packages/sdk typecheck` clean
+- [ ] `pnpm -C apps/api typecheck + test` clean
+- [ ] `npm publish --dry-run` clean from `packages/sdk`
+- [ ] Commit Phase 3 on `main`
 
 ## Phase 4 — Wave A leftover cleanup + column drops (trimmed after Phase 1 pin)
 - [x] `packages/agent/src/behavior/types.ts:66` — removed "attractor IDs in prompt" from JSDoc
