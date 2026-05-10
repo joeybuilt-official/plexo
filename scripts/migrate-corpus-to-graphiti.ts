@@ -41,6 +41,18 @@
  *   --delay-ms=MS     Pause between bridge calls (default 100)
  *   --all             Migrate every workspace (default: only WORKSPACE_ID)
  *   --resume          Resume from corpus_migration_log; skip already-done rows
+ *   --retry-failed    Process the durable failed_ids queue first; rows that
+ *                     succeed on retry are removed from the queue. Use with
+ *                     --resume after a transient sidecar/embedder outage.
+ *   --limit=N         Process at most N rows per workspace this run; useful
+ *                     for sample/sanity runs before committing to the full
+ *                     multi-day migration.
+ *
+ * Failure handling:
+ *   Each addEpisode failure is appended to corpus_migration_log.failed_ids
+ *   and the cursor still advances (so a transient sidecar blip doesn't stall
+ *   forward progress). Re-run with `--resume --retry-failed` to drain the
+ *   queue once the sidecar/embedder is healthy again.
  */
 
 import { db, sql } from '@plexo/db'
@@ -58,8 +70,10 @@ if (!SIDECAR_URL || !SERVICE_KEY) {
 const dryRun = process.argv.includes('--dry-run')
 const allWorkspaces = process.argv.includes('--all')
 const resume = process.argv.includes('--resume')
+const retryFailed = process.argv.includes('--retry-failed')
 const batchSize = Number(process.argv.find((a) => a.startsWith('--batch='))?.split('=')[1] ?? 50)
 const delayMs = Number(process.argv.find((a) => a.startsWith('--delay-ms='))?.split('=')[1] ?? 100)
+const limit = Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] ?? 0)
 
 if (!allWorkspaces && !SINGLE_WORKSPACE) {
     console.error('FAIL: pass WORKSPACE_ID or --all')
@@ -75,10 +89,16 @@ async function ensureMigrationLog(): Promise<void> {
             last_memory_id UUID,
             episodes_migrated INTEGER NOT NULL DEFAULT 0,
             errors_encountered INTEGER NOT NULL DEFAULT 0,
+            failed_ids UUID[] NOT NULL DEFAULT ARRAY[]::UUID[],
             started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             completed_at TIMESTAMPTZ
         )
+    `)
+    // Backfill column on pre-existing tables (no-op if already present).
+    await db.execute(sql`
+        ALTER TABLE corpus_migration_log
+            ADD COLUMN IF NOT EXISTS failed_ids UUID[] NOT NULL DEFAULT ARRAY[]::UUID[]
     `)
 }
 
@@ -87,27 +107,44 @@ interface LogRow extends Record<string, unknown> {
     last_memory_id: string | null
     episodes_migrated: number
     errors_encountered: number
+    failed_ids: string[]
     completed_at: string | null
 }
 
 async function getLog(workspaceId: string): Promise<LogRow | null> {
     const r = await db.execute<LogRow>(sql`
         SELECT workspace_id::text AS workspace_id, last_memory_id::text AS last_memory_id,
-               episodes_migrated, errors_encountered, completed_at::text AS completed_at
+               episodes_migrated, errors_encountered,
+               COALESCE(failed_ids, ARRAY[]::UUID[])::text[] AS failed_ids,
+               completed_at::text AS completed_at
         FROM corpus_migration_log WHERE workspace_id = ${workspaceId}::uuid
     `)
     const rows = Array.isArray(r) ? (r as LogRow[]) : ((r as { rows?: LogRow[] }).rows ?? [])
     return rows[0] ?? null
 }
 
-async function upsertLog(workspaceId: string, lastMemoryId: string | null, episodes: number, errors: number, done: boolean): Promise<void> {
+// Writes ABSOLUTE totals — no increment math. Caller passes the running totals
+// (loaded from the prior log row on resume, or zero on a fresh start) so that
+// retried/duplicate batches can never double-count.
+async function upsertLog(
+    workspaceId: string,
+    lastMemoryId: string | null,
+    totalMigrated: number,
+    totalErrors: number,
+    failedIds: string[],
+    done: boolean,
+): Promise<void> {
+    const failedLiteral = failedIds.length === 0
+        ? sql`ARRAY[]::UUID[]`
+        : sql.raw(`ARRAY[${failedIds.map((id) => `'${id}'::uuid`).join(',')}]`)
     await db.execute(sql`
-        INSERT INTO corpus_migration_log (workspace_id, last_memory_id, episodes_migrated, errors_encountered, completed_at)
-        VALUES (${workspaceId}::uuid, ${lastMemoryId ? sql`${lastMemoryId}::uuid` : sql`NULL`}, ${episodes}, ${errors}, ${done ? sql`NOW()` : sql`NULL`})
+        INSERT INTO corpus_migration_log (workspace_id, last_memory_id, episodes_migrated, errors_encountered, failed_ids, completed_at)
+        VALUES (${workspaceId}::uuid, ${lastMemoryId ? sql`${lastMemoryId}::uuid` : sql`NULL`}, ${totalMigrated}, ${totalErrors}, ${failedLiteral}, ${done ? sql`NOW()` : sql`NULL`})
         ON CONFLICT (workspace_id) DO UPDATE
             SET last_memory_id = EXCLUDED.last_memory_id,
-                episodes_migrated = corpus_migration_log.episodes_migrated + EXCLUDED.episodes_migrated,
-                errors_encountered = corpus_migration_log.errors_encountered + EXCLUDED.errors_encountered,
+                episodes_migrated = EXCLUDED.episodes_migrated,
+                errors_encountered = EXCLUDED.errors_encountered,
+                failed_ids = EXCLUDED.failed_ids,
                 updated_at = NOW(),
                 completed_at = COALESCE(EXCLUDED.completed_at, corpus_migration_log.completed_at)
     `)
@@ -137,17 +174,84 @@ async function listWorkspaces(): Promise<string[]> {
     return rows.map((row) => row.workspace_id)
 }
 
-async function migrateWorkspace(workspaceId: string): Promise<{ migrated: number; errors: number }> {
+function rowToEpisode(row: MemoryRow) {
+    const triple = row.subject && row.predicate && row.object
+        ? { subject: row.subject, predicate: row.predicate, object: row.object }
+        : undefined
+    return {
+        workspaceId: row.workspace_id,
+        content: row.content,
+        name: `corpus-${row.id.slice(0, 8)}`,
+        sourceDescription: `app:plexo|src:corpus-migrate|orig_type:${row.type}`,
+        episodeType: 'message' as const,
+        referenceTime: row.created_at,
+        triple,
+        sourceMetadata: {
+            plexo_memory_id: row.id,
+            fact_type: row.fact_type ?? null,
+            domain: row.domain ?? null,
+            source: row.source ?? null,
+            namespace: row.namespace,
+            orig_type: row.type,
+        },
+    }
+}
+
+async function migrateWorkspace(workspaceId: string): Promise<{ migrated: number; errors: number; failed: number }> {
     const log = resume ? await getLog(workspaceId) : null
-    const cursorClause = log?.last_memory_id ? sql`AND id > ${log.last_memory_id}::uuid` : sql``
-
-    let totalMigrated = 0
-    let totalErrors = 0
     let lastId: string | null = log?.last_memory_id ?? null
+    // Cumulative across runs — preserves prior progress on resume so the DB
+    // counter reflects total work done across migrator invocations. Sanitize
+    // negatives left over from the pre-fix increment-math bug.
+    let totalMigrated = Math.max(0, log?.episodes_migrated ?? 0)
+    let totalErrors = Math.max(0, log?.errors_encountered ?? 0)
+    const failedSet = new Set<string>(log?.failed_ids ?? [])
 
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-        const lastIdClause = lastId ? sql`AND id > ${lastId}::uuid` : cursorClause
+    let processedThisRun = 0
+
+    // Phase A: retry previously-failed rows when --retry-failed is set.
+    if (resume && retryFailed && failedSet.size > 0) {
+        const ids = Array.from(failedSet)
+        console.log(`  ${workspaceId}: retrying ${ids.length} previously-failed row(s)`)
+        for (let i = 0; i < ids.length; i += batchSize) {
+            const slice = ids.slice(i, i + batchSize)
+            const inLiteral = sql.raw(`(${slice.map((id) => `'${id}'::uuid`).join(',')})`)
+            const r = await db.execute<MemoryRow>(sql`
+                SELECT id::text AS id, workspace_id::text AS workspace_id, type, content,
+                       subject, predicate, object, fact_type, domain, source, namespace,
+                       created_at::text AS created_at
+                FROM memory_entries
+                WHERE id IN ${inLiteral}
+            `)
+            const batch = Array.isArray(r) ? (r as MemoryRow[]) : ((r as { rows?: MemoryRow[] }).rows ?? [])
+            for (const row of batch) {
+                if (dryRun) {
+                    failedSet.delete(row.id)
+                    processedThisRun++
+                    if (limit > 0 && processedThisRun >= limit) break
+                    continue
+                }
+                const result = await client.addEpisode(rowToEpisode(row))
+                if (result) {
+                    failedSet.delete(row.id)
+                    totalMigrated++
+                    if (totalErrors > 0) totalErrors-- // recover one prior error
+                } else {
+                    console.error(`  ERROR: retry returned null for ${row.id}`)
+                }
+                processedThisRun++
+                if (delayMs > 0) await new Promise((res) => setTimeout(res, delayMs))
+                if (limit > 0 && processedThisRun >= limit) break
+            }
+            if (!dryRun) await upsertLog(workspaceId, lastId, totalMigrated, totalErrors, Array.from(failedSet), false)
+            console.log(`  ${workspaceId}: retry-batch ${batch.length} → remaining-failed=${failedSet.size}`)
+            if (limit > 0 && processedThisRun >= limit) break
+        }
+    }
+
+    // Phase B: cursor-based forward migration.
+    while (limit === 0 || processedThisRun < limit) {
+        const lastIdClause = lastId ? sql`AND id > ${lastId}::uuid` : sql``
         const r = await db.execute<MemoryRow>(sql`
             SELECT id::text AS id, workspace_id::text AS workspace_id, type, content,
                    subject, predicate, object, fact_type, domain, source, namespace,
@@ -163,66 +267,64 @@ async function migrateWorkspace(workspaceId: string): Promise<{ migrated: number
         const batch = Array.isArray(r) ? (r as MemoryRow[]) : ((r as { rows?: MemoryRow[] }).rows ?? [])
         if (batch.length === 0) break
 
+        let perBatchOk = 0
+        let perBatchErr = 0
         for (const row of batch) {
             if (dryRun) {
-                totalMigrated++
+                perBatchOk++
                 lastId = row.id
+                processedThisRun++
+                if (limit > 0 && processedThisRun >= limit) break
                 continue
             }
-            const triple = row.subject && row.predicate && row.object
-                ? { subject: row.subject, predicate: row.predicate, object: row.object }
-                : undefined
-            const result = await client.addEpisode({
-                workspaceId,
-                content: row.content,
-                name: `corpus-${row.id.slice(0, 8)}`,
-                sourceDescription: `app:plexo|src:corpus-migrate|orig_type:${row.type}`,
-                episodeType: 'message',
-                referenceTime: row.created_at,
-                triple,
-                sourceMetadata: {
-                    plexo_memory_id: row.id,
-                    fact_type: row.fact_type ?? null,
-                    domain: row.domain ?? null,
-                    source: row.source ?? null,
-                    namespace: row.namespace,
-                    orig_type: row.type,
-                },
-            })
+            const result = await client.addEpisode(rowToEpisode(row))
             if (!result) {
-                totalErrors++
+                perBatchErr++
+                failedSet.add(row.id)
                 console.error(`  ERROR: bridge.addEpisode returned null for ${row.id}`)
             } else {
-                totalMigrated++
+                perBatchOk++
             }
+            // Cursor advances always — failures are tracked in failedSet for
+            // durable retry via --retry-failed.
             lastId = row.id
+            processedThisRun++
             if (delayMs > 0) await new Promise((res) => setTimeout(res, delayMs))
+            if (limit > 0 && processedThisRun >= limit) break
         }
+        totalMigrated += perBatchOk
+        totalErrors += perBatchErr
 
-        if (!dryRun) await upsertLog(workspaceId, lastId, batch.length - totalErrors, totalErrors, false)
-        console.log(`  ${workspaceId}: batch ${batch.length} → migrated=${totalMigrated} errors=${totalErrors}`)
+        if (!dryRun) await upsertLog(workspaceId, lastId, totalMigrated, totalErrors, Array.from(failedSet), false)
+        console.log(`  ${workspaceId}: batch ${batch.length} → ok=${perBatchOk} err=${perBatchErr} cumOk=${totalMigrated} cumErr=${totalErrors} failedQueue=${failedSet.size}`)
     }
 
-    if (!dryRun) await upsertLog(workspaceId, lastId, 0, 0, true)
-    return { migrated: totalMigrated, errors: totalErrors }
+    const done = limit === 0 && failedSet.size === 0
+    if (!dryRun) await upsertLog(workspaceId, lastId, totalMigrated, totalErrors, Array.from(failedSet), done)
+    return { migrated: totalMigrated, errors: totalErrors, failed: failedSet.size }
 }
 
 async function main(): Promise<void> {
     if (!dryRun) await ensureMigrationLog()
     const workspaces = await listWorkspaces()
-    console.log(`migrate-corpus: ${workspaces.length} workspace(s) ${dryRun ? '(DRY-RUN)' : ''}`)
+    console.log(`migrate-corpus: ${workspaces.length} workspace(s) ${dryRun ? '(DRY-RUN)' : ''}${limit > 0 ? ` (limit=${limit}/ws)` : ''}`)
 
     let totalMig = 0
     let totalErr = 0
+    let totalFailed = 0
     for (const ws of workspaces) {
         console.log(`\n=== workspace ${ws} ===`)
         const r = await migrateWorkspace(ws)
         totalMig += r.migrated
         totalErr += r.errors
+        totalFailed += r.failed
     }
 
-    console.log(`\nDONE: migrated=${totalMig} errors=${totalErr}${dryRun ? ' (DRY-RUN — nothing written)' : ''}`)
-    if (totalErr > 0) process.exit(1)
+    console.log(`\nDONE: cumMigrated=${totalMig} cumErrors=${totalErr} pendingFailedRetry=${totalFailed}${dryRun ? ' (DRY-RUN — nothing written)' : ''}`)
+    // Exit non-zero only if there are failed rows still pending retry. Past
+    // errors that have been recovered (via --retry-failed) shouldn't trigger
+    // failure exit; the failed-queue size is the live signal.
+    if (totalFailed > 0) process.exit(1)
 }
 
 main().catch((err) => {
