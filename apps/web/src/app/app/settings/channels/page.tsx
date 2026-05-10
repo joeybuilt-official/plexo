@@ -31,6 +31,7 @@ import {
     Save,
     Eye,
     EyeOff,
+    Smartphone,
 } from 'lucide-react'
 import { useWorkspaceId } from '@web/context/workspace'
 import { useConfirm } from '@web/components/ui/confirm-dialog'
@@ -60,7 +61,7 @@ interface InstalledSummary {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ChannelType = 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix' | 'twilio' | 'gmail'
+type ChannelType = 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix' | 'twilio' | 'gmail' | 'gmessages'
 
 interface Channel {
     id: string
@@ -84,13 +85,18 @@ const CHANNEL_META: Record<ChannelType, { label: string; icon: React.ElementType
     matrix: { label: 'Matrix', icon: Hash, color: 'text-purple-400', docFields: ['homeserver', 'access_token', 'user_id'] },
     twilio: { label: 'SMS (Twilio)', icon: Phone, color: 'text-rose-400', docFields: ['account_sid', 'auth_token', 'phone_number'] },
     gmail: { label: 'Gmail', icon: Mail, color: 'text-red-400', docFields: [], description: 'Receive tasks from incoming Gmail messages' },
+    gmessages: { label: 'Google Messages', icon: Smartphone, color: 'text-green-400', docFields: [], description: 'Paired via QR code — reads and sends SMS, MMS, and RCS from your phone' },
 }
 
 // L2.5 dead-UI cleanup: whatsapp/signal/matrix have stub configs but no
 // inbound/outbound implementation. Hide from the "Add channel" picker so
 // operators can't create new ones; keep the types on existing rows so
 // any stub rows already in the DB still render.
-const AVAILABLE_TYPES: ChannelType[] = ['telegram', 'slack', 'discord', 'twilio', 'gmail']
+// gmessages is excluded from ADDABLE_TYPES — it's created via the QR pairing
+// flow at /app/connections/gmessages/pair, not the standard add-channel form.
+const ADDABLE_TYPES: ChannelType[] = ['telegram', 'slack', 'discord', 'twilio', 'gmail']
+// All types that can appear in filter options (includes pairing-only types).
+const ALL_CHANNEL_TYPES: ChannelType[] = [...ADDABLE_TYPES, 'gmessages']
 
 // ── Add channel modal state ───────────────────────────────────────────────────
 
@@ -795,7 +801,7 @@ export default function ChannelsPage() {
             {
                 key: 'type',
                 label: 'Type',
-                options: AVAILABLE_TYPES.map((t) => ({
+                options: ALL_CHANNEL_TYPES.map((t) => ({
                     value: t,
                     label: CHANNEL_META[t].label,
                     dimmed: !availableTypes.has(t),
@@ -896,7 +902,7 @@ export default function ChannelsPage() {
             <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-text-secondary">Type</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {AVAILABLE_TYPES.map((t) => {
+                    {ADDABLE_TYPES.map((t) => {
                         const m = CHANNEL_META[t]
                         const Icon = m.icon
                         return (
@@ -1046,7 +1052,7 @@ export default function ChannelsPage() {
                         }
                         {selected.enabled ? 'Enabled' : 'Disabled'}
                     </button>
-                    {selected.type !== 'gmail' && (
+                    {selected.type !== 'gmail' && selected.type !== 'gmessages' && (
                         <button
                             onClick={() => editing ? cancelEditing() : startEditing(selected)}
                             className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0"
@@ -1093,6 +1099,24 @@ export default function ChannelsPage() {
                         </p>
                     </div>
                 </div>
+
+                {/* Google Messages pairing info */}
+                {selected.type === 'gmessages' && (
+                    <div className="rounded-sm border border-border bg-surface-1/40 p-4 flex flex-col gap-3">
+                        <h3 className="text-xs font-medium uppercase tracking-wider text-text-muted">Phone pairing</h3>
+                        <p className="text-[11px] text-text-muted leading-relaxed">
+                            This channel is paired to your Google Messages app via QR code. SMS, MMS, and RCS messages
+                            flow through the sidecar relay. If your phone is offline or the session expired, re-pair below.
+                        </p>
+                        <a
+                            href="/app/connections/gmessages/pair"
+                            className="self-start flex items-center gap-1.5 rounded-sm border border-border bg-surface-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors min-h-[44px]"
+                        >
+                            <Smartphone className="h-3.5 w-3.5" />
+                            Pair / re-pair phone
+                        </a>
+                    </div>
+                )}
 
                 {/* Gmail-specific summary (linked email + last poll) */}
                 {selected.type === 'gmail' && (() => {
@@ -1211,8 +1235,8 @@ export default function ChannelsPage() {
                     </div>
                 ) : (
                     <>
-                        {/* Config keys (masked) — suppressed for gmail (its Gmail account card above covers it) */}
-                        {selected.type !== 'gmail' && Object.keys(selected.config).length > 0 && (
+                        {/* Config keys (masked) — suppressed for gmail/gmessages (covered by their own info cards above) */}
+                        {selected.type !== 'gmail' && selected.type !== 'gmessages' && Object.keys(selected.config).length > 0 && (
                             <div className="rounded-sm border border-border bg-surface-1/40 p-4">
                                 <h3 className="text-xs font-medium uppercase tracking-wider text-text-muted mb-3">Configuration</h3>
                                 <div className="flex flex-col gap-2">

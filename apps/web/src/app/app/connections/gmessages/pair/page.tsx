@@ -125,7 +125,7 @@ function GmessagesPairContent() {
             window.location.href = '/app/messages'  // Levio's surface; Phase L
             return
         }
-        router.push('/app/connections')
+        router.push('/app/settings/channels')
     }, [returnTo, router])
 
     const handleRetry = useCallback(() => {
