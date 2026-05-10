@@ -13,6 +13,7 @@
   "dependencies": {
     "@plexo/agent": "workspace:*",
     "@plexo/db": "workspace:*",
+    "@plexo/graphiti-bridge": "link:../../packages/graphiti-bridge",
     "@plexo/logger": "workspace:*",
     "@plexo/queue": "workspace:*",
     "@plexo/sdk": "link:../../packages/sdk",

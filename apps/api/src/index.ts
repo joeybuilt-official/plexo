@@ -21,6 +21,7 @@ import { connectionsGmessagesRouter } from './routes/connections-gmessages.js'
 import { createInngestExpressHandler } from '@plexo/queue/inngest-express'
 import { extractTurnFn } from '@plexo/agent/memory/inngest/extract-turn-fn'
 import { inferenceRouter } from './routes/inference.js'
+import { graphRouter } from './routes/graph.js'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
 installCCHandlers()
 import express, { type Express } from 'express'
@@ -474,6 +475,10 @@ app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn]))
 // OpenAI-compatible endpoint for the Graphiti Python sidecar (ADR 0011).
 // Phase 3a ships /v1/embeddings; Phase 3b adds /v1/chat/completions.
 app.use('/api/inference', jsonDefault, inferenceRouter)
+
+// Phase 8 graph routes — public surface for @joeybuilt/plexo-sdk 1.1.0.
+// Proxies addEpisode + searchFacts through the bridge to the Graphiti sidecar.
+app.use('/api/v1/graph', jsonDefault, graphRouter)
 
 // A2A spec — agent discovery at /.well-known/agent.json (no API prefix)
 app.use('/.well-known', wellKnownAgentHandler())

@@ -74,6 +74,9 @@ importers:
       '@plexo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@plexo/graphiti-bridge':
+        specifier: link:../../packages/graphiti-bridge
+        version: link:../../packages/graphiti-bridge
       '@plexo/logger':
         specifier: workspace:*
         version: link:../../packages/logger

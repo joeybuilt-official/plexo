@@ -172,8 +172,37 @@ export interface MemorySearchResult {
 }
 
 // ---------------------------------------------------------------------------
-// Vision
+// Graph (SDK 1.1.0 — Plexo Graphiti integration)
 // ---------------------------------------------------------------------------
+
+export interface AddEpisodeOptions {
+    /** Free-form content extracted into the workspace's knowledge graph. */
+    content: string
+    /** Display name for the episode. Defaults to a derived name. */
+    name?: string
+    /** Provenance string. Defaults to `app:<appId>|src:sdk` server-side. */
+    sourceDescription?: string
+    /** ISO-8601 reference time for bi-temporal placement. Defaults to server now(). */
+    referenceTime?: string
+    /** Free-form metadata threaded into the underlying episode. */
+    metadata?: Record<string, unknown>
+}
+
+export interface AddEpisodeResult {
+    episodeId: string | null
+    extractedFactsCount: number
+    extractedNodesCount: number
+}
+
+export interface FactSearchResult {
+    uuid: string | null
+    fact: string | null
+    sourceNodeUuid: string | null
+    targetNodeUuid: string | null
+    validAt: string | null
+    invalidAt: string | null
+    createdAt: string | null
+}
 
 export interface OcrResult {
     text: string

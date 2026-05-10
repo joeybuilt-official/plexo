@@ -5,6 +5,8 @@ import { PlexoApiError, PlexoAuthError, PlexoRateLimitedError, PlexoUnreachableE
 import { createInboundRouter } from './inbound.js'
 import { register } from './registration.js'
 import type {
+    AddEpisodeOptions,
+    AddEpisodeResult,
     AiCompleteOptions,
     AppProfile,
     ChatOptions,
@@ -12,6 +14,7 @@ import type {
     DispatchContext,
     DispatchOptions,
     DispatchResult,
+    FactSearchResult,
     InboundHandlers,
     InstallConnectionOptions,
     MemorySearchResult,
@@ -294,6 +297,53 @@ export class PlexoClient {
                 `/api/v1/memory/search?${params}`,
             )
             return data.results ?? []
+        } catch {
+            return []
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Graph (SDK 1.1.0 — Plexo Graphiti integration)
+    // -----------------------------------------------------------------------
+    //
+    // Two methods land in 1.1.0; `searchNodes` and `getCommunity` are
+    // deferred to 1.2.0. graphiti-core 0.29 has no `search_nodes` method
+    // and no community accessor (only `build_communities` as a builder),
+    // so cleanly typed wrappers wait until upstream surface lands or the
+    // sidecar grows custom Cypher/Kuzu queries.
+
+    /** Add a knowledge-graph episode. Returns null on any failure. */
+    async addEpisode(
+        workspaceId: string,
+        opts: AddEpisodeOptions,
+    ): Promise<AddEpisodeResult | null> {
+        try {
+            return await this.#post<AddEpisodeResult>('/api/v1/graph/episodes', { workspaceId, ...opts })
+        } catch {
+            return null
+        }
+    }
+
+    /** Hybrid-search facts in the workspace's knowledge graph. Returns [] on any failure. */
+    async searchFacts(
+        workspaceId: string,
+        query: string,
+        limit = 10,
+    ): Promise<FactSearchResult[]> {
+        try {
+            const params = new URLSearchParams({ workspaceId, q: query, limit: String(limit) })
+            const data = await this.#get<{ results?: Array<{ uuid: string | null; fact: string | null; source_node_uuid: string | null; target_node_uuid: string | null; valid_at: string | null; invalid_at: string | null; created_at: string | null }> }>(
+                `/api/v1/graph/facts/search?${params}`,
+            )
+            return (data.results ?? []).map((edge) => ({
+                uuid: edge.uuid,
+                fact: edge.fact,
+                sourceNodeUuid: edge.source_node_uuid,
+                targetNodeUuid: edge.target_node_uuid,
+                validAt: edge.valid_at,
+                invalidAt: edge.invalid_at,
+                createdAt: edge.created_at,
+            }))
         } catch {
             return []
         }
