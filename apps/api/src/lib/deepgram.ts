@@ -360,7 +360,7 @@ export async function transcribeAudio(
                 Authorization: `Token ${key}`,
                 'Content-Type': contentType,
             },
-            body: audioBuffer,
+            body: new Uint8Array(audioBuffer),
             signal: AbortSignal.timeout(30_000),
         })
 
@@ -574,7 +574,7 @@ async function transcribeWithGroq(
     try {
         const form = new FormData()
         const ext = extFromContentType(contentType)
-        form.append('file', new Blob([audioBuffer], { type: contentType }), `audio.${ext}`)
+        form.append('file', new Blob([new Uint8Array(audioBuffer)], { type: contentType }), `audio.${ext}`)
         form.append('model', GROQ_MODEL)
         form.append('response_format', 'verbose_json')
 

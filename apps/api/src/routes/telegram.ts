@@ -236,7 +236,7 @@ async function sendVoice(token: string, chatId: number | string, audio: Buffer, 
     try {
         const form = new FormData()
         form.append('chat_id', String(chatId))
-        form.append('voice', new Blob([audio], { type: 'audio/ogg' }), 'response.ogg')
+        form.append('voice', new Blob([new Uint8Array(audio)], { type: 'audio/ogg' }), 'response.ogg')
         if (caption) form.append('caption', caption.slice(0, 1024))
         const res = await fetch(`${TELEGRAM_API}${token}/sendVoice`, { method: 'POST', body: form, signal: AbortSignal.timeout(15_000) })
         if (!res.ok) {

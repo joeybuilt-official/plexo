@@ -535,8 +535,14 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
                     return { score, meta: { mode: 'single' as const, selfScore, judgeCount: 1, dissenters: [], models: [judgeProviderUsed] } }
                 } catch (judgeErr: unknown) {
                     const msg = judgeErr instanceof Error ? judgeErr.message : String(judgeErr)
-                    if (msg.includes('json_schema') || msg.includes('response format') || msg.includes('structured')) {
-                        logger.warn({ crossProviderKey, err: msg }, 'Cross-model judge: provider lacks structured output support, trying next')
+                    const isSkippable = (
+                        msg.includes('json_schema') || msg.includes('response format') || msg.includes('structured') ||
+                        msg.includes('429') || msg.includes('rate_limit') || msg.includes('rate limit') ||
+                        msg.includes('quota') || msg.includes('tpd') || msg.includes('CALL_MODEL_TIMEOUT') ||
+                        msg.includes('ENOTFOUND') || msg.includes('fetch failed')
+                    )
+                    if (isSkippable) {
+                        logger.warn({ crossProviderKey, err: msg }, 'Cross-model judge: provider unavailable or rate-limited, trying next')
                         continue
                     }
                     throw judgeErr
