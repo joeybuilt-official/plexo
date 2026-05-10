@@ -303,36 +303,12 @@ export class IntelligentRouter {
     }
 
     private async handleByok(taskType: TaskType) {
-        // Phase 2b: per-task-type chain takes precedence over legacy
-        // primary-provider config when configured. The chain walker
-        // returns the first entry whose provider has working creds; if
-        // none do, we fall through to the legacy primaryProvider path
-        // so a misconfigured chain never breaks an otherwise-working
-        // workspace.
-        const chainHit = await this.resolveChainEntry(taskType)
-        if (chainHit) {
-            const { entry, provider } = chainHit
-            const creds = this.vault[provider] || {}
-            return {
-                model: buildModel(provider, { provider, apiKey: creds.apiKey, baseUrl: creds.baseUrl, model: entry.modelId }, taskType, {
-                    primaryProvider: provider,
-                    fallbackChain: [],
-                    providers: { [provider]: { model: entry.modelId } },
-                    modelOverrides: { [taskType]: entry.modelId },
-                } as any),
-                meta: {
-                    id: entry.modelId,
-                    provider,
-                    mode: 'byok' as InferenceMode,
-                    costPerMIn: 0,
-                    costPerMOut: 0,
-                } as ResolvedModelMeta,
-            }
-        }
-
-        // Mode 2: Standard user-configured fallback chains.
-        // primaryProvider MUST be set — agent-loop's credential check ensures this.
-        // If it reaches here without a primary, something bypassed the pre-flight.
+        // Single-model policy: always use the workspace's primary provider for
+        // all task types. Per-task routing_chains are bypassed — operators
+        // configure one primary and rely on the legacy fallbackChain only
+        // when the primary fails at call time. The chain-resolver / catalog
+        // path (Phase 2b) is retained in the codebase but unused; see
+        // adr/ for the decision context.
         const provider = this.config.primaryProvider
         if (!provider) {
             throw new Error('No AI provider configured for this workspace. Set a primary provider in Settings → AI Providers.')

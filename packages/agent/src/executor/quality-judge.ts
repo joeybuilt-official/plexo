@@ -414,10 +414,6 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
     const { taskType, selfScore, aiSettings } = params
     const rubric = QUALITY_RUBRICS[taskType as TaskType] ?? QUALITY_RUBRICS.coding
 
-    // Resolve workspace-configurable parameters, with safe defaults.
-    const ensembleSize = Math.max(1, Math.min(5, aiSettings?.ensembleSize ?? DEFAULT_ENSEMBLE_SIZE))
-    const dissentThreshold = Math.max(0, Math.min(1, aiSettings?.dissentThreshold ?? DEFAULT_DISSENT_THRESHOLD))
-
     // Side-effect verification: detect when the user asked for a real-world
     // action (create/send/update via a connected service) but the agent did
     // not invoke any matching tool. When penalised, the final score is capped
@@ -444,126 +440,27 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
         meta: { mode: 'fallback', selfScore, judgeCount: 0, dissenters: [], models: [] },
     }
 
+    // Single-model policy: judge with the workspace's primary model. Ollama
+    // ensemble and cross-provider walking are removed — they were the source
+    // of recurring ENOTFOUND cascades and reward-hacking concerns are
+    // accepted in exchange for simplicity. Future work: per-sub-agent
+    // model suggestions surfaced as a recommendation in the UI.
     try {
-        const ollamaBase = aiSettings?.providers?.ollama?.baseUrl
-
-        if (ollamaBase) {
-            logger.info({ baseUrl: ollamaBase, ensembleSize, dissentThreshold }, 'Attempting ensemble via configured Ollama')
-            try {
-                const models = await discoverOllamaModels(ollamaBase, ensembleSize)
-
-                if (models.length > 0) {
-                    const { score: ensembleScore, dissenters, models: usedModels, verdicts } =
-                        await runEnsemble(params, rubric, ollamaBase, models, dissentThreshold)
-
-                    // Async reliability feedback — fire-and-forget, never blocks the score path.
-                    void updateReliabilityScores(verdicts, ensembleScore, dissenters)
-
-                    if (dissenters.length > 0) {
-                        logger.info({ dissenters, ensembleMean: ensembleScore.toFixed(3) }, 'Dissent detected — cloud arbitration')
-                        try {
-                            const arbitrator = aiSettings
-                                ? (await resolveModel('summarization', aiSettings).catch(() => ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null }))).model
-                                : resolveModelFromEnv(MODEL_ROUTING.summarization)
-                            const arbitratedScore = await runSingleJudge(params, rubric, arbitrator)
-                            const finalScore = capScore(Math.min(1, Math.max(0, (ensembleScore + arbitratedScore) / 2)))
-                            return {
-                                score: finalScore,
-                                meta: {
-                                    mode: 'ensemble+arbitration',
-                                    selfScore,
-                                    judgeCount: usedModels.length + 1,
-                                    dissenters,
-                                    models: [...usedModels, 'cloud-arbitrator'],
-                                },
-                            }
-                        } catch (arbErr) {
-                            logger.warn({ arbErr }, 'Arbitration failed — using ensemble mean')
-                            return {
-                                score: capScore(Math.min(1, Math.max(0, ensembleScore))),
-                                meta: { mode: 'ensemble', selfScore, judgeCount: usedModels.length, dissenters, models: usedModels },
-                            }
-                        }
-                    }
-
-                    logger.info({ ensembleMean: ensembleScore.toFixed(3), selfScore: selfScore.toFixed(3) }, 'Ensemble done (no dissent)')
-                    return {
-                        score: capScore(Math.min(1, Math.max(0, ensembleScore))),
-                        meta: { mode: 'ensemble', selfScore, judgeCount: usedModels.length, dissenters: [], models: usedModels },
-                    }
-                }
-
-                logger.info({ baseUrl: ollamaBase }, 'No Ollama models found — falling back to single judge')
-            } catch (ensembleErr) {
-                logger.warn({ ensembleErr }, 'Ensemble failed — falling back to single judge')
-            }
-        }
-
-        // Single judge — cross-model enforcement: judge must use a different
-        // provider than the executor to prevent self-evaluation bias. Walk the
-        // workspace provider chain (primary + fallbackChain) and pick the first
-        // configured provider that is NOT the primary. If only one provider is
-        // available, self-score with a warning.
-        let singleModel: Awaited<ReturnType<typeof resolveModel>>['model']
-        let judgeProviderUsed: string = 'cloud'
-        let selfScoredWarning = false
-        if (aiSettings) {
-            const primary = aiSettings.primaryProvider ?? ''
-            const configuredChain = [primary, ...(aiSettings.fallbackChain ?? [])]
-                .filter((k, i, arr) => k && arr.indexOf(k) === i) // de-dupe, preserve order
-            const configuredProviders = configuredChain
-                .filter(k => aiSettings.providers[k]?.apiKey || aiSettings.providers[k]?.baseUrl)
-            const crossProviderKeys = configuredProviders.filter(k => k !== primary)
-            // Try each cross-provider in order; skip any that fail structured output
-            // (e.g. Groq models that don't support json_schema).
-            let resolvedCross = false
-            for (const crossProviderKey of crossProviderKeys) {
-                const crossSettings: WorkspaceAISettings = {
-                    ...aiSettings,
-                    primaryProvider: crossProviderKey,
-                    fallbackChain: [],
-                }
-                const crossModel = (await resolveModel('summarization', crossSettings).catch(() =>
-                    ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
-                )).model
-                try {
-                    const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, crossModel)))
-                    judgeProviderUsed = crossProviderKey
-                    logger.info({ primary, judgeProvider: crossProviderKey, chain: configuredProviders }, 'Cross-model judge: using different provider from chain')
-                    const score = capScore(rawScore)
-                    logger.info({ taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised }, 'Single judge done')
-                    return { score, meta: { mode: 'single' as const, selfScore, judgeCount: 1, dissenters: [], models: [judgeProviderUsed] } }
-                } catch (judgeErr: unknown) {
-                    const msg = judgeErr instanceof Error ? judgeErr.message : String(judgeErr)
-                    const isSkippable = (
-                        msg.includes('json_schema') || msg.includes('response format') || msg.includes('structured') ||
-                        msg.includes('429') || msg.includes('rate_limit') || msg.includes('rate limit') ||
-                        msg.includes('quota') || msg.includes('tpd') || msg.includes('CALL_MODEL_TIMEOUT') ||
-                        msg.includes('ENOTFOUND') || msg.includes('fetch failed')
-                    )
-                    if (isSkippable) {
-                        logger.warn({ crossProviderKey, err: msg }, 'Cross-model judge: provider unavailable or rate-limited, trying next')
-                        continue
-                    }
-                    throw judgeErr
-                }
-            }
-            // All cross-providers exhausted or none available — self-score.
-            selfScoredWarning = true
-            singleModel = (await resolveModel('summarization', aiSettings).catch(() =>
+        const judgeModel = aiSettings
+            ? (await resolveModel('summarization', aiSettings).catch(() =>
                 ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
             )).model
-            judgeProviderUsed = primary
-            logger.warn({ primary, configured: configuredProviders }, 'Cross-model judge unavailable — self-scoring')
-        } else {
-            singleModel = resolveModelFromEnv(MODEL_ROUTING.summarization)
-        }
-        const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, singleModel)))
+            : resolveModelFromEnv(MODEL_ROUTING.summarization)
+        const judgeProvider = aiSettings?.primaryProvider ?? 'env'
+        const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, judgeModel)))
         const score = capScore(rawScore)
-        logger.info({ taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, selfScoredWarning }, 'Single judge done')
+        logger.info(
+            { taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, judgeProvider },
+            'Single judge done',
+        )
         return {
             score,
-            meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: [judgeProviderUsed] },
+            meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: [judgeProvider] },
         }
     } catch (err) {
         logger.warn({ err }, 'Quality judge failed — self-score passthrough')
