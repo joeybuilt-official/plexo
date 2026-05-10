@@ -40,5 +40,4 @@ docker run --rm --network joeybuilt_internal \
     -e PLEXO_SERVICE_KEY="$PLEXO_KEY" \
     -e PLEXO_GRAPHITI_SIDECAR_URL=http://service:8080 \
     -e DATABASE_URL="$DB_URL" \
-    --add-host service:host-gateway \
     node:22 ./node_modules/.bin/tsx scripts/migrate-corpus-to-graphiti.ts "${EXTRA_ARGS[@]}"
