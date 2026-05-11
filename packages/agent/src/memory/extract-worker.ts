@@ -132,7 +132,10 @@ export async function extractTurn(params: {
                 }
             }
 
-            if (shouldMirrorGraphiti(backend)) {
+            const hasChatProvider = aiSettings !== null && Object.keys(aiSettings.providers).length > 0
+            if (shouldMirrorGraphiti(backend) && !hasChatProvider) {
+                logger.info({ workspaceId }, 'extract-worker: skipping graphiti mirror — workspace has no chat provider')
+            } else if (shouldMirrorGraphiti(backend)) {
                 // Fire-and-forget; the helper never throws and emits its own
                 // success/failure analytics. We don't await it because the
                 // Inngest fn already runs in a step.run() boundary that owns
