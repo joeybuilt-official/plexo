@@ -26,6 +26,7 @@ import { z } from 'zod'
 import pino from 'pino'
 import { QUALITY_RUBRICS, MODEL_ROUTING } from '../constants.js'
 import { resolveModelFromEnv, resolveModel, buildModel } from '../providers/registry.js'
+import type { ProviderKey } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { db, eq, sql } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
@@ -41,6 +42,21 @@ const DEFAULT_DISSENT_THRESHOLD = 0.25
 const PREFERRED_LOCAL_MODELS = [
     'llama3.2', 'llama3.1', 'phi3', 'phi3.5', 'gemma2', 'gemma3',
     'mistral', 'qwen2.5', 'deepseek-r1', 'llava',
+]
+
+/**
+ * Curated list of models that reliably produce JSON-schema output for the
+ * quality judge, ordered by closeness to Anthropic Claude Haiku (cheap +
+ * strict structured output). Used as fallback candidates when the workspace
+ * has no explicit `judgeModel` pin, OR when the pinned model fails. We only
+ * use a candidate the workspace already has keyed — never force a provider.
+ */
+const RECOMMENDED_JUDGE_MODELS: Array<{ provider: ProviderKey; model: string }> = [
+    { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' },
+    { provider: 'openai', model: 'gpt-4o-mini' },
+    { provider: 'google', model: 'gemini-2.5-flash' },
+    { provider: 'mistral', model: 'mistral-small-latest' },
+    { provider: 'cohere', model: 'command-r-08-2024' },
 ]
 
 // ── Reliability nudge constants ───────────────────────────────────────────────
@@ -440,48 +456,104 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
         meta: { mode: 'fallback', selfScore, judgeCount: 0, dissenters: [], models: [] },
     }
 
-    // Single-model policy: judge with the workspace's primary model. Ollama
-    // ensemble and cross-provider walking are removed — they were the source
-    // of recurring ENOTFOUND cascades and reward-hacking concerns are
-    // accepted in exchange for simplicity. Future work: per-sub-agent
-    // model suggestions surfaced as a recommendation in the UI.
-    try {
-        // Pinned judge model takes precedence over primary — many primary
-        // models (llama-3.3, deepseek) can't emit JSON-schema reliably and
-        // the judge needs structured output. See WorkspaceAISettings.judgeModel.
-        let judgeModel
-        let judgeProvider: string
-        if (aiSettings?.judgeModel) {
+    // Single-model policy w/ recommended-judge fallback.
+    //
+    // The judge needs structured-JSON output, which many primary execution
+    // models (llama-3.3, deepseek) can't emit reliably. So we try, in order:
+    //   1. workspace-pinned judgeModel (WorkspaceAISettings.judgeModel)
+    //   2. curated list of JSON-reliable models, filtered by what the
+    //      workspace has keyed (so we never force a provider on the user)
+    //   3. workspace primary (current behaviour — usually parse-fails to
+    //      self-score passthrough)
+    //   4. env fallback (resolveModelFromEnv)
+    //
+    // Each candidate is tried; on a SKIPPABLE error (parse failure, credit
+    // depleted, rate-limit, network) we move to the next. Hard errors
+    // surface to the outer catch which returns self-score passthrough.
+    type JudgeCandidate = { provider: string; model?: string; build: () => unknown }
+    const candidates: JudgeCandidate[] = []
+
+    if (aiSettings) {
+        // 1. Workspace pin
+        if (aiSettings.judgeModel) {
             const { provider, model } = aiSettings.judgeModel
             const cfg = aiSettings.providers[provider]
-            judgeModel = buildModel(
+            candidates.push({
                 provider,
-                { provider, apiKey: cfg?.apiKey, baseUrl: cfg?.baseUrl, model },
-                'summarization',
-                aiSettings,
-            )
-            judgeProvider = `${provider}/${model}`
-        } else if (aiSettings) {
-            judgeModel = (await resolveModel('summarization', aiSettings).catch(() =>
+                model,
+                build: () => buildModel(
+                    provider,
+                    { provider, apiKey: cfg?.apiKey, baseUrl: cfg?.baseUrl, model },
+                    'summarization',
+                    aiSettings,
+                ),
+            })
+        }
+
+        // 2. Recommended JSON-reliable models — added only if the workspace
+        //    has the provider keyed (apiKey present). Skip duplicates of the pin.
+        for (const rec of RECOMMENDED_JUDGE_MODELS) {
+            if (aiSettings.judgeModel?.provider === rec.provider && aiSettings.judgeModel?.model === rec.model) continue
+            const cfg = aiSettings.providers[rec.provider]
+            if (!cfg?.apiKey) continue
+            candidates.push({
+                provider: rec.provider,
+                model: rec.model,
+                build: () => buildModel(
+                    rec.provider,
+                    { provider: rec.provider, apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, model: rec.model },
+                    'summarization',
+                    aiSettings,
+                ),
+            })
+        }
+
+        // 3. Workspace primary (current behaviour)
+        candidates.push({
+            provider: aiSettings.primaryProvider,
+            build: async () => (await resolveModel('summarization', aiSettings).catch(() =>
                 ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
-            )).model
-            judgeProvider = aiSettings.primaryProvider
-        } else {
-            judgeModel = resolveModelFromEnv(MODEL_ROUTING.summarization)
-            judgeProvider = 'env'
-        }
-        const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, judgeModel)))
-        const score = capScore(rawScore)
-        logger.info(
-            { taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, judgeProvider },
-            'Single judge done',
-        )
-        return {
-            score,
-            meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: [judgeProvider] },
-        }
-    } catch (err) {
-        logger.warn({ err }, 'Quality judge failed — self-score passthrough')
-        return fallback
+            )).model,
+        })
     }
+
+    // 4. Env fallback — always last
+    candidates.push({
+        provider: 'env',
+        build: () => resolveModelFromEnv(MODEL_ROUTING.summarization),
+    })
+
+    const skippablePattern = /json_schema|response format|structured|No object generated|JSON parsing failed|credit balance|insufficient_quota|rate.?limit|quota|tpd|429|ENOTFOUND|fetch failed|CALL_MODEL_TIMEOUT|CALL_MODEL_PARSE/i
+
+    for (const cand of candidates) {
+        try {
+            const model = await Promise.resolve(cand.build())
+            const judgeProvider = cand.model ? `${cand.provider}/${cand.model}` : cand.provider
+            const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, model)))
+            const score = capScore(rawScore)
+            logger.info(
+                { taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, judgeProvider },
+                'Single judge done',
+            )
+            return {
+                score,
+                meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: [judgeProvider] },
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            if (skippablePattern.test(msg)) {
+                logger.warn(
+                    { candidate: cand.model ? `${cand.provider}/${cand.model}` : cand.provider, reason: msg.slice(0, 200) },
+                    'Judge candidate skipped — trying next',
+                )
+                continue
+            }
+            // Non-skippable: surface
+            logger.warn({ err }, 'Quality judge failed — self-score passthrough')
+            return fallback
+        }
+    }
+
+    logger.warn('Quality judge: all candidates exhausted — self-score passthrough')
+    return fallback
 }
