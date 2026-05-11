@@ -13,4 +13,25 @@ import { getAuth } from '@web/lib/auth'
 
 export const runtime = 'nodejs'
 
-export const { GET, POST } = toNextJsHandler(getAuth().handler)
+function wrap(method: 'GET' | 'POST') {
+    return async (req: Request): Promise<Response> => {
+        try {
+            const auth = getAuth()
+            const handlers = toNextJsHandler(auth.handler)
+            const fn = handlers[method]
+            return await fn(req)
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            const stack = err instanceof Error ? err.stack : undefined
+            // eslint-disable-next-line no-console
+            console.error(JSON.stringify({ level: 'error', ns: 'auth.route', method, url: req.url, msg, stack }))
+            return new Response(JSON.stringify({ error: 'auth_handler_failure', message: msg }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+            })
+        }
+    }
+}
+
+export const GET = wrap('GET')
+export const POST = wrap('POST')
