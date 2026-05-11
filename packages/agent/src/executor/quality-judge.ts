@@ -25,7 +25,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
 import pino from 'pino'
 import { QUALITY_RUBRICS, MODEL_ROUTING } from '../constants.js'
-import { resolveModelFromEnv, resolveModel } from '../providers/registry.js'
+import { resolveModelFromEnv, resolveModel, buildModel } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { db, eq, sql } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
@@ -446,12 +446,30 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
     // accepted in exchange for simplicity. Future work: per-sub-agent
     // model suggestions surfaced as a recommendation in the UI.
     try {
-        const judgeModel = aiSettings
-            ? (await resolveModel('summarization', aiSettings).catch(() =>
+        // Pinned judge model takes precedence over primary — many primary
+        // models (llama-3.3, deepseek) can't emit JSON-schema reliably and
+        // the judge needs structured output. See WorkspaceAISettings.judgeModel.
+        let judgeModel
+        let judgeProvider: string
+        if (aiSettings?.judgeModel) {
+            const { provider, model } = aiSettings.judgeModel
+            const cfg = aiSettings.providers[provider]
+            judgeModel = buildModel(
+                provider,
+                { provider, apiKey: cfg?.apiKey, baseUrl: cfg?.baseUrl, model },
+                'summarization',
+                aiSettings,
+            )
+            judgeProvider = `${provider}/${model}`
+        } else if (aiSettings) {
+            judgeModel = (await resolveModel('summarization', aiSettings).catch(() =>
                 ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
             )).model
-            : resolveModelFromEnv(MODEL_ROUTING.summarization)
-        const judgeProvider = aiSettings?.primaryProvider ?? 'env'
+            judgeProvider = aiSettings.primaryProvider
+        } else {
+            judgeModel = resolveModelFromEnv(MODEL_ROUTING.summarization)
+            judgeProvider = 'env'
+        }
         const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, judgeModel)))
         const score = capScore(rawScore)
         logger.info(
