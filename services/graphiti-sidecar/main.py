@@ -114,18 +114,18 @@ async def _require_hmac(request: Request) -> bytes:
 # ---------- Per-workspace Graphiti instance cache ----------
 
 _GRAPHITI_INSTANCES: dict[str, Graphiti] = {}
-_GRAPHITI_LOCK = asyncio.Lock()
-# Process-wide lock around add_episode / search. Kuzu's embedded mode does not
-# support multiple databases per process safely — keeping a per-workspace
-# Graphiti instance cache means N native Kuzu handles coexist in this uvicorn
-# worker, and concurrent operations across them produced silent native crashes
-# (worker died mid-pipeline, no Python traceback) during the 2026-05-10 Phase 7
-# corpus-migration attempt: 117 worker respawns visible in one container
-# uptime, all immediately after a successful embeddings call. Serializing every
-# graphiti.* operation through this lock removes the concurrency surface.
-# Throughput cost is small: each add_episode is already ~18s of serialized
-# LLM+embedder work; the lock just prevents two such pipelines from
-# interleaving in the same process.
+# Single process-wide lock for both cache mutation (load/evict workspace
+# instances) AND graphiti.* operations. Originally split into two locks
+# (a cache lock and an op lock); the split caused a race on 2026-05-11
+# where workspace B's chat could acquire the cache lock + evict workspace
+# A's instance while A's add_episode was mid-flight under the op lock,
+# yielding `RuntimeError: cannot schedule new futures after shutdown`
+# from kuzu/async_connection.py:171 on the orphaned connection. Collapsing
+# both paths through one lock removes the race. Throughput cost is small:
+# each add_episode is already ~3s of serialized LLM+embedder+Kuzu work,
+# and the cache hit path is a dict lookup (~µs). Cold-load paths (workspace
+# switch) take 3-5s for FTS index re-init; that's the expected cost of
+# the single-instance policy.
 _GRAPHITI_OP_LOCK = asyncio.Lock()
 
 
@@ -183,85 +183,91 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
     Single-instance policy: only one workspace's Graphiti is loaded at a time.
     A request for a different workspace evicts the cached one (closes its
     Kuzu DB) before loading the new one. See _evict_other_workspaces for why.
+
+    MUST be called while holding _GRAPHITI_OP_LOCK. The cache mutation +
+    eviction path shares the same lock as add_episode/search so a chat for
+    workspace B can never evict workspace A's Kuzu connection while A's
+    add_episode is mid-flight (observed 2026-05-11 — yielded
+    `RuntimeError: cannot schedule new futures after shutdown` from
+    kuzu/async_connection.py:171, 213/269 errors during a 10-min window).
     """
     _validate_workspace_id(workspace_id)
-    async with _GRAPHITI_LOCK:
-        cached = _GRAPHITI_INSTANCES.get(workspace_id)
-        if cached is not None:
-            return cached
+    cached = _GRAPHITI_INSTANCES.get(workspace_id)
+    if cached is not None:
+        return cached
 
-        # Different workspace requested → drop the prior one before opening.
-        await _evict_other_workspaces(keep_ws=workspace_id)
+    # Different workspace requested → drop the prior one before opening.
+    await _evict_other_workspaces(keep_ws=workspace_id)
 
-        db_dir = pathlib.Path(KUZU_DATA_DIR) / workspace_id
-        db_dir.mkdir(parents=True, exist_ok=True)
-        driver = KuzuDriver(db=str(db_dir / "graph.kuzu"))
-        driver._database = workspace_id
+    db_dir = pathlib.Path(KUZU_DATA_DIR) / workspace_id
+    db_dir.mkdir(parents=True, exist_ok=True)
+    driver = KuzuDriver(db=str(db_dir / "graph.kuzu"))
+    driver._database = workspace_id
 
-        ws_base_url = f"{PLEXO_INFERENCE_BASE}/ws/{workspace_id}/v1"
-        embedder = OpenAIEmbedder(
-            config=OpenAIEmbedderConfig(
-                api_key=SERVICE_KEY,
-                base_url=ws_base_url,
-                embedding_model=GRAPHITI_EMBEDDING_MODEL,
-            )
+    ws_base_url = f"{PLEXO_INFERENCE_BASE}/ws/{workspace_id}/v1"
+    embedder = OpenAIEmbedder(
+        config=OpenAIEmbedderConfig(
+            api_key=SERVICE_KEY,
+            base_url=ws_base_url,
+            embedding_model=GRAPHITI_EMBEDDING_MODEL,
         )
-        llm_client = OpenAIGenericClient(
-            config=LLMConfig(
-                api_key=SERVICE_KEY,
-                base_url=ws_base_url,
-                model=GRAPHITI_LLM_MODEL,
-                small_model=GRAPHITI_LLM_SMALL_MODEL,
-            )
+    )
+    llm_client = OpenAIGenericClient(
+        config=LLMConfig(
+            api_key=SERVICE_KEY,
+            base_url=ws_base_url,
+            model=GRAPHITI_LLM_MODEL,
+            small_model=GRAPHITI_LLM_SMALL_MODEL,
         )
-        cross_encoder = OpenAIRerankerClient(
-            config=LLMConfig(
-                api_key=SERVICE_KEY,
-                base_url=ws_base_url,
-                model=GRAPHITI_LLM_SMALL_MODEL,
-            )
+    )
+    cross_encoder = OpenAIRerankerClient(
+        config=LLMConfig(
+            api_key=SERVICE_KEY,
+            base_url=ws_base_url,
+            model=GRAPHITI_LLM_SMALL_MODEL,
         )
-        graphiti = Graphiti(
-            graph_driver=driver,
-            llm_client=llm_client,
-            embedder=embedder,
-            cross_encoder=cross_encoder,
-        )
-        await graphiti.build_indices_and_constraints()
-        # graphiti-core 0.29 KuzuDriver.build_indices_and_constraints is a no-op;
-        # the four FTS indices it needs at search time must be created manually.
-        # See graphiti_core/graph_queries.py:123 (KUZU branch). Without these
-        # the first edge_fulltext_search hit fails with:
-        #   "Table RelatesToNode_ doesn't have an index with name edge_name_and_fact"
+    )
+    graphiti = Graphiti(
+        graph_driver=driver,
+        llm_client=llm_client,
+        embedder=embedder,
+        cross_encoder=cross_encoder,
+    )
+    await graphiti.build_indices_and_constraints()
+    # graphiti-core 0.29 KuzuDriver.build_indices_and_constraints is a no-op;
+    # the four FTS indices it needs at search time must be created manually.
+    # See graphiti_core/graph_queries.py:123 (KUZU branch). Without these
+    # the first edge_fulltext_search hit fails with:
+    #   "Table RelatesToNode_ doesn't have an index with name edge_name_and_fact"
+    try:
+        await driver.execute_query("INSTALL fts;")
+        logger.info(f"graphiti.fts.install_ok ws={workspace_id}")
+    except Exception as e:
+        logger.info(f"graphiti.fts.install_skipped ws={workspace_id} err={str(e)[:300]}")
+    try:
+        await driver.execute_query("LOAD fts;")
+        logger.info(f"graphiti.fts.load_ok ws={workspace_id}")
+    except Exception as e:
+        logger.warning(f"graphiti.fts.load_failed ws={workspace_id} err={str(e)[:300]}")
+    for fts_query in (
+        "CALL CREATE_FTS_INDEX('Episodic', 'episode_content', ['content', 'source', 'source_description']);",
+        "CALL CREATE_FTS_INDEX('Entity', 'node_name_and_summary', ['name', 'summary']);",
+        "CALL CREATE_FTS_INDEX('Community', 'community_name', ['name']);",
+        "CALL CREATE_FTS_INDEX('RelatesToNode_', 'edge_name_and_fact', ['name', 'fact']);",
+    ):
         try:
-            await driver.execute_query("INSTALL fts;")
-            logger.info(f"graphiti.fts.install_ok ws={workspace_id}")
+            await driver.execute_query(fts_query)
+            logger.info(f"graphiti.fts.create_ok ws={workspace_id} q={fts_query[:60]}")
         except Exception as e:
-            logger.info(f"graphiti.fts.install_skipped ws={workspace_id} err={str(e)[:300]}")
-        try:
-            await driver.execute_query("LOAD fts;")
-            logger.info(f"graphiti.fts.load_ok ws={workspace_id}")
-        except Exception as e:
-            logger.warning(f"graphiti.fts.load_failed ws={workspace_id} err={str(e)[:300]}")
-        for fts_query in (
-            "CALL CREATE_FTS_INDEX('Episodic', 'episode_content', ['content', 'source', 'source_description']);",
-            "CALL CREATE_FTS_INDEX('Entity', 'node_name_and_summary', ['name', 'summary']);",
-            "CALL CREATE_FTS_INDEX('Community', 'community_name', ['name']);",
-            "CALL CREATE_FTS_INDEX('RelatesToNode_', 'edge_name_and_fact', ['name', 'fact']);",
-        ):
-            try:
-                await driver.execute_query(fts_query)
-                logger.info(f"graphiti.fts.create_ok ws={workspace_id} q={fts_query[:60]}")
-            except Exception as e:
-                msg = str(e)
-                if "already exists" not in msg.lower() and "duplicate" not in msg.lower():
-                    logger.warning(f"graphiti.fts.create_failed ws={workspace_id} q={fts_query[:60]} err={msg[:300]}")
-        _GRAPHITI_INSTANCES[workspace_id] = graphiti
-        logger.info(
-            "graphiti.instance.created",
-            extra={"workspace_id": workspace_id, "db_path": str(db_dir / "graph.kuzu")},
-        )
-        return graphiti
+            msg = str(e)
+            if "already exists" not in msg.lower() and "duplicate" not in msg.lower():
+                logger.warning(f"graphiti.fts.create_failed ws={workspace_id} q={fts_query[:60]} err={msg[:300]}")
+    _GRAPHITI_INSTANCES[workspace_id] = graphiti
+    logger.info(
+        "graphiti.instance.created",
+        extra={"workspace_id": workspace_id, "db_path": str(db_dir / "graph.kuzu")},
+    )
+    return graphiti
 
 
 @app.get("/v1/health")
@@ -322,8 +328,8 @@ def _parse_reference_time(value: str | None) -> datetime:
 @app.post("/v1/episodes")
 async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
     await _require_hmac(request)
-    graphiti = await _get_graphiti(body.workspace_id)
     async with _GRAPHITI_OP_LOCK:
+        graphiti = await _get_graphiti(body.workspace_id)
         result = await graphiti.add_episode(
             name=body.name,
             episode_body=body.content,
@@ -355,8 +361,8 @@ class SearchRequest(BaseModel):
 @app.post("/v1/search")
 async def search(request: Request, body: SearchRequest) -> JSONResponse:
     await _require_hmac(request)
-    graphiti = await _get_graphiti(body.workspace_id)
     async with _GRAPHITI_OP_LOCK:
+        graphiti = await _get_graphiti(body.workspace_id)
         edges = await graphiti.search(
             query=body.query,
             group_ids=[body.workspace_id],
