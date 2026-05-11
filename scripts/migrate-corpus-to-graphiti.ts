@@ -47,6 +47,11 @@
  *   --limit=N         Process at most N rows per workspace this run; useful
  *                     for sample/sanity runs before committing to the full
  *                     multi-day migration.
+ *   --timeout-ms=MS   Max time per addEpisode HTTP call (default 90_000).
+ *                     A bound is required because graphiti-core's
+ *                     add_episode can deadlock internally on Kuzu WAL
+ *                     issues. Hung calls are recorded in failed_ids and
+ *                     the cursor advances so the migration keeps moving.
  *
  * Failure handling:
  *   Each addEpisode failure is appended to corpus_migration_log.failed_ids
@@ -74,13 +79,40 @@ const retryFailed = process.argv.includes('--retry-failed')
 const batchSize = Number(process.argv.find((a) => a.startsWith('--batch='))?.split('=')[1] ?? 50)
 const delayMs = Number(process.argv.find((a) => a.startsWith('--delay-ms='))?.split('=')[1] ?? 100)
 const limit = Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] ?? 0)
+const requestTimeoutMs = Number(process.argv.find((a) => a.startsWith('--timeout-ms='))?.split('=')[1] ?? 90_000)
 
 if (!allWorkspaces && !SINGLE_WORKSPACE) {
     console.error('FAIL: pass WORKSPACE_ID or --all')
     process.exit(2)
 }
 
-const client = new GraphitiClient({ baseUrl: SIDECAR_URL, serviceKey: SERVICE_KEY, appId: 'corpus-migrate' })
+// stdout is line-buffered when piped (e.g., nohup ... > /var/log/...);
+// force flush after each write so live tail of the log file reflects the
+// migrator's true position. Without this, progress lines stay in the pipe
+// buffer and don't appear in the log until the buffer fills, masking
+// progress and complicating "is it hung?" diagnostics.
+if (process.stdout && typeof (process.stdout as { _handle?: { setBlocking?: (b: boolean) => void } })._handle?.setBlocking === 'function') {
+    ;(process.stdout as { _handle: { setBlocking: (b: boolean) => void } })._handle.setBlocking(true)
+}
+
+// Hard timeout per HTTP request to the sidecar. graphiti-core's add_episode
+// can deadlock internally when Kuzu's WAL accumulates without checkpointing
+// (observed 2026-05-10 — first run hung after ~50 episodes, never produced
+// any post-batch upsertLog write because the fetch was stuck awaiting a
+// response that never came). AbortController bounds each call so a hung
+// addEpisode lands in the failed_ids queue instead of stalling the
+// migration indefinitely.
+const fetchWithTimeout: typeof fetch = async (input, init) => {
+    const ac = new AbortController()
+    const id = setTimeout(() => ac.abort(), requestTimeoutMs)
+    try {
+        return await fetch(input, { ...(init ?? {}), signal: ac.signal })
+    } finally {
+        clearTimeout(id)
+    }
+}
+
+const client = new GraphitiClient({ baseUrl: SIDECAR_URL, serviceKey: SERVICE_KEY, appId: 'corpus-migrate', fetchImpl: fetchWithTimeout })
 
 async function ensureMigrationLog(): Promise<void> {
     await db.execute(sql`
@@ -277,26 +309,31 @@ async function migrateWorkspace(workspaceId: string): Promise<{ migrated: number
                 if (limit > 0 && processedThisRun >= limit) break
                 continue
             }
+            const t0 = Date.now()
             const result = await client.addEpisode(rowToEpisode(row))
+            const elapsedMs = Date.now() - t0
             if (!result) {
                 perBatchErr++
+                totalErrors++
                 failedSet.add(row.id)
-                console.error(`  ERROR: bridge.addEpisode returned null for ${row.id}`)
+                console.log(`  ${workspaceId} row ${processedThisRun + 1}: ERR ${row.id} (${elapsedMs}ms)`)
             } else {
                 perBatchOk++
+                totalMigrated++
+                console.log(`  ${workspaceId} row ${processedThisRun + 1}: ok ${row.id} (${elapsedMs}ms) facts=${result.extractedFactsCount} nodes=${result.extractedNodesCount}`)
             }
             // Cursor advances always — failures are tracked in failedSet for
             // durable retry via --retry-failed.
             lastId = row.id
             processedThisRun++
+            // Per-row durability — if the next addEpisode hangs and we get
+            // killed, progress through this row is committed.
+            await upsertLog(workspaceId, lastId, totalMigrated, totalErrors, Array.from(failedSet), false)
             if (delayMs > 0) await new Promise((res) => setTimeout(res, delayMs))
             if (limit > 0 && processedThisRun >= limit) break
         }
-        totalMigrated += perBatchOk
-        totalErrors += perBatchErr
 
-        if (!dryRun) await upsertLog(workspaceId, lastId, totalMigrated, totalErrors, Array.from(failedSet), false)
-        console.log(`  ${workspaceId}: batch ${batch.length} → ok=${perBatchOk} err=${perBatchErr} cumOk=${totalMigrated} cumErr=${totalErrors} failedQueue=${failedSet.size}`)
+        console.log(`  ${workspaceId}: batch summary ${batch.length} → ok=${perBatchOk} err=${perBatchErr} cumOk=${totalMigrated} cumErr=${totalErrors} failedQueue=${failedSet.size}`)
     }
 
     const done = limit === 0 && failedSet.size === 0
