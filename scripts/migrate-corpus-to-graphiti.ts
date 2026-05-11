@@ -80,6 +80,17 @@ const batchSize = Number(process.argv.find((a) => a.startsWith('--batch='))?.spl
 const delayMs = Number(process.argv.find((a) => a.startsWith('--delay-ms='))?.split('=')[1] ?? 100)
 const limit = Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] ?? 0)
 const requestTimeoutMs = Number(process.argv.find((a) => a.startsWith('--timeout-ms='))?.split('=')[1] ?? 90_000)
+const typesFilterRaw = process.argv.find((a) => a.startsWith('--types='))?.split('=')[1] ?? null
+const typesFilter: string[] | null = typesFilterRaw ? typesFilterRaw.split(',').map((s) => s.trim()).filter(Boolean) : null
+const ALLOWED_TYPES = new Set(['task', 'pattern', 'session', 'note'])
+if (typesFilter) {
+    for (const t of typesFilter) {
+        if (!ALLOWED_TYPES.has(t)) {
+            console.error(`FAIL: --types contains unknown type "${t}" (allowed: ${Array.from(ALLOWED_TYPES).join(', ')})`)
+            process.exit(2)
+        }
+    }
+}
 
 if (!allWorkspaces && !SINGLE_WORKSPACE) {
     console.error('FAIL: pass WORKSPACE_ID or --all')
@@ -284,6 +295,9 @@ async function migrateWorkspace(workspaceId: string): Promise<{ migrated: number
     // Phase B: cursor-based forward migration.
     while (limit === 0 || processedThisRun < limit) {
         const lastIdClause = lastId ? sql`AND id > ${lastId}::uuid` : sql``
+        const typesClause = typesFilter && typesFilter.length > 0
+            ? sql`AND type IN ${sql.raw(`(${typesFilter.map((t) => `'${t}'`).join(',')})`)}`
+            : sql``
         const r = await db.execute<MemoryRow>(sql`
             SELECT id::text AS id, workspace_id::text AS workspace_id, type, content,
                    subject, predicate, object, fact_type, domain, source, namespace,
@@ -293,6 +307,7 @@ async function migrateWorkspace(workspaceId: string): Promise<{ migrated: number
               AND superseded_by IS NULL
               AND (invalid_at IS NULL OR invalid_at > NOW())
               ${lastIdClause}
+              ${typesClause}
             ORDER BY id ASC
             LIMIT ${batchSize}
         `)
