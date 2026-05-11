@@ -231,23 +231,48 @@ function ChatContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
+    // Tracks which context (keyed by sessionId or context-id) we've already
+    // started loading. Prevents duplicate fetches when the effect re-runs
+    // after WS_ID hydrates, and lets the effect re-fire when the user
+    // navigates between different conversations without unmounting.
+    const contextLoadKeyRef = useRef<string | null>(null)
+    const sessionIdParam = searchParams.get('sessionId')
+    const contextIdParam = searchParams.get('context')
+    const prefillParamForLoad = searchParams.get('prefill')
+
     useEffect(() => {
-        const contextId = searchParams.get('context')
-        const sessionIdParam = searchParams.get('sessionId')
-        if (!contextId && !sessionIdParam) return
-        if (messages.length > 0) return
+        if (!contextIdParam && !sessionIdParam) return
         // QuickSend prefill handoff owns the initial paint — skip the
         // context loader so we don't race against it and overwrite the
         // seeded bubbles with a stale empty history fetch.
-        if (searchParams.get('prefill') === '1') return
+        if (prefillParamForLoad === '1') return
+        // ?taskId= is owned by the taskId effect below (which seeds its own
+        // bubbles + polls reply-stream). Don't race with it.
+        if (searchParams.get('taskId')) return
+        // Wait for workspace to hydrate. Without this, the effect's
+        // previous `[]` deps would silently bail on first mount when
+        // WS_ID was still empty (e.g., right after client-side nav from
+        // /app/conversations) and never re-fire — leaving the chat
+        // blank and looking like a fresh conversation. See bug report:
+        // "click 'Continue conversation' → dropped into new conversation."
+        if (!WS_ID) return
+
+        const loadKey = sessionIdParam ? `s:${sessionIdParam}` : `c:${contextIdParam}`
+        if (contextLoadKeyRef.current === loadKey) return
+        contextLoadKeyRef.current = loadKey
 
         async function loadContext() {
+            setHistoryLoading(true)
+            setHistoryError(false)
             try {
-                if (sessionIdParam && WS_ID) {
+                if (sessionIdParam) {
                     const res = await fetch(
                         `${API}/api/v1/conversations?workspaceId=${encodeURIComponent(WS_ID)}&sessionId=${encodeURIComponent(sessionIdParam)}&limit=100`
                     )
-                    if (!res.ok) return
+                    if (!res.ok) {
+                        setHistoryError(true)
+                        return
+                    }
                     const data = await res.json() as { items: Array<{ id: string; message: string; reply: string | null; errorMsg: string | null; status: string; intent: string | null; taskId: string | null }> }
                     const turns = data.items ?? []
                     const loaded: Message[] = []
@@ -292,9 +317,12 @@ function ChatContent() {
                     return
                 }
 
-                if (contextId) {
-                    const res = await fetch(`${API}/api/v1/conversations/${contextId}`)
-                    if (!res.ok) return
+                if (contextIdParam) {
+                    const res = await fetch(`${API}/api/v1/conversations/${contextIdParam}`)
+                    if (!res.ok) {
+                        setHistoryError(true)
+                        return
+                    }
                     const data = await res.json() as {
                         id: string; message: string; reply: string | null; sessionId: string | null; status: string
                     }
@@ -317,11 +345,19 @@ function ChatContent() {
                         sessionStorage.setItem('plexo-chat-session', data.sessionId)
                     }
                 }
-            } catch { /* conversation context is optional; proceed without it */ }
+            } catch (err) {
+                console.error('[chat] context load failed', err)
+                setHistoryError(true)
+            } finally {
+                setHistoryLoading(false)
+            }
         }
         void loadContext()
+        // hydrateAssets is intentionally omitted — it's a stable useCallback
+        // and pulling it in would force a forward reference (TDZ) since it's
+        // defined further down in this component.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [WS_ID, sessionIdParam, contextIdParam, prefillParamForLoad])
 
     // Stable ref so voice/TTS callbacks always call the latest sendMessageWith
     // without needing it in their dependency arrays.

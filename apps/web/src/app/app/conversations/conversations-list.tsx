@@ -93,8 +93,11 @@ function getPreview(item: ConversationItem): string {
     return item.message
 }
 
-/** Returns the href that "Continue conversation" should navigate to */
-function continueHref(item: ConversationItem): string {
+/** Returns the href that "Continue conversation" should navigate to.
+ *  Exported so the routing rule (sessionId → /app/chat?sessionId=…, otherwise
+ *  fall back to the row id) is locked in by tests. The whole bug class here
+ *  is using `id` where `sessionId` is expected (or vice versa). */
+export function continueHref(item: Pick<ConversationItem, 'id' | 'sessionId'>): string {
     // If the item has a sessionId, restore the full thread context
     if (item.sessionId) return `/app/chat?sessionId=${encodeURIComponent(item.sessionId)}`
     // Otherwise fall back to single-turn context
