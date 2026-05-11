@@ -134,17 +134,64 @@ def _validate_workspace_id(workspace_id: str) -> None:
         raise HTTPException(status_code=400, detail="workspace_id must be a UUID")
 
 
+async def _evict_other_workspaces(keep_ws: str) -> None:
+    """Single-instance policy: close + drop any cached Graphiti instance for a
+    different workspace. Kuzu's embedded Python binding (kuzu==0.11.3) has no
+    client/server transport — every Database handle holds a native filesystem
+    lock, and coexisting handles in one process produced repeated silent
+    worker crashes during the 2026-05-10 Phase 7 migration attempt (~50
+    successful episodes then native deadlock, no Python traceback). Eviction
+    cost: ~3-5s of FTS index re-init on next switch. Acceptable for the
+    expected workload (one workspace dominates traffic; switches are rare).
+    """
+    for prior_ws in list(_GRAPHITI_INSTANCES.keys()):
+        if prior_ws == keep_ws:
+            continue
+        prior_inst = _GRAPHITI_INSTANCES.pop(prior_ws)
+        try:
+            driver = prior_inst.driver
+            # Try closing in graphiti-core's preferred order. KuzuDriver in
+            # graphiti-core 0.29 doesn't expose a close() method itself but
+            # the underlying kuzu.Database may; if neither works the GC
+            # finalizer + manual gc.collect() releases the native handle.
+            for target in (driver, getattr(driver, "client", None), getattr(driver, "db", None)):
+                if target is None:
+                    continue
+                close_fn = getattr(target, "close", None)
+                if close_fn is None:
+                    continue
+                try:
+                    if asyncio.iscoroutinefunction(close_fn):
+                        await close_fn()
+                    else:
+                        close_fn()
+                except Exception as close_err:
+                    logger.warning(f"graphiti.instance.close_method_failed prior_ws={prior_ws} target={type(target).__name__} err={str(close_err)[:200]}")
+            logger.info(f"graphiti.instance.evicted prior_ws={prior_ws} for new_ws={keep_ws}")
+        except Exception as e:
+            logger.warning(f"graphiti.instance.evict_error prior_ws={prior_ws} err={str(e)[:200]}")
+    # Force native handle release before opening a new Kuzu Database in the
+    # same process. Without this, GC may delay finalization past the next
+    # Database() call, briefly reintroducing the multi-handle condition.
+    import gc
+    gc.collect()
+
+
 async def _get_graphiti(workspace_id: str) -> Graphiti:
     """Resolve (and cache) a per-workspace Graphiti instance.
 
-    Each workspace gets its own Kuzu DB file under KUZU_DATA_DIR/<ws>/graph.kuzu
-    plus its own LLM/embedder client pinned to the workspace's inference URL.
+    Single-instance policy: only one workspace's Graphiti is loaded at a time.
+    A request for a different workspace evicts the cached one (closes its
+    Kuzu DB) before loading the new one. See _evict_other_workspaces for why.
     """
     _validate_workspace_id(workspace_id)
     async with _GRAPHITI_LOCK:
         cached = _GRAPHITI_INSTANCES.get(workspace_id)
         if cached is not None:
             return cached
+
+        # Different workspace requested → drop the prior one before opening.
+        await _evict_other_workspaces(keep_ws=workspace_id)
 
         db_dir = pathlib.Path(KUZU_DATA_DIR) / workspace_id
         db_dir.mkdir(parents=True, exist_ok=True)
