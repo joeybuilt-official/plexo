@@ -113,11 +113,19 @@ if (process.stdout && typeof (process.stdout as { _handle?: { setBlocking?: (b: 
 // response that never came). AbortController bounds each call so a hung
 // addEpisode lands in the failed_ids queue instead of stalling the
 // migration indefinitely.
+//
+// NOTE: Node 22's built-in fetch (undici) has headersTimeout=300_000ms by
+// default, which fires BEFORE the AbortController when --timeout-ms > 300s.
+// We override it via undici's Agent dispatcher so the AbortController is the
+// only effective deadline.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { Agent } = require('undici') as typeof import('undici')
+const _undiciAgent = new Agent({ headersTimeout: requestTimeoutMs + 10_000, bodyTimeout: requestTimeoutMs + 10_000 })
 const fetchWithTimeout: typeof fetch = async (input, init) => {
     const ac = new AbortController()
     const id = setTimeout(() => ac.abort(), requestTimeoutMs)
     try {
-        return await fetch(input, { ...(init ?? {}), signal: ac.signal })
+        return await fetch(input, { ...(init ?? {}), signal: ac.signal, dispatcher: _undiciAgent } as RequestInit)
     } finally {
         clearTimeout(id)
     }
