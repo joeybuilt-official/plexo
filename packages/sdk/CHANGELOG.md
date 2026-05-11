@@ -1,6 +1,16 @@
 # @joeybuilt/plexo-sdk — changelog
 
-## 1.1.0 — 2026-05-09 (unreleased; pending operator publish)
+## 1.1.0 — 2026-05-11
+
+### Fixed — Webpack/edge bundling at Next.js consumers
+
+- tsup `onSuccess` hook now restores the `node:` prefix on Node built-in
+  imports in dist. esbuild strips `node:` from external imports during ESM
+  emit (even with `platform:'node'`), which broke Next.js webpack + edge
+  runtime bundling at consumer sites — webpack couldn't resolve bare `crypto`.
+- Source-level imports already used `node:crypto`; the fix preserves that
+  contract end-to-end through the build pipeline.
+- No public-API change. Pure build artifact correctness.
 
 ### Added — Graph methods (Phase 8 of `graphiti-migration/plan.md`)
 
