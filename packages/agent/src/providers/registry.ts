@@ -970,7 +970,17 @@ function isRetryableProviderError(err: unknown): boolean {
         msg.includes('billing') ||
         msg.includes('quota exceeded') ||
         msg.includes('payment required') ||
-        msg.includes('402')
+        msg.includes('402') ||
+        // Model-not-available errors — provider's catalog doesn't include the
+        // workspace's selected_model (often happens when a provider deprecates
+        // a model or the operator's config drifts from the provider's roster).
+        // Skip to the next provider in the chain instead of hard-failing.
+        msg.includes('404') ||
+        msg.includes('not found') ||
+        msg.includes('model not found') ||
+        msg.includes('model_not_found') ||
+        msg.includes('does not exist') ||
+        msg.includes('unknown model')
     )
 }
 
