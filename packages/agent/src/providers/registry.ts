@@ -304,6 +304,17 @@ export interface WorkspaceAISettings {
     ensembleSize?: number
     /** Score deviation from mean that triggers cloud arbitration (0–1). Default 0.25. */
     dissentThreshold?: number
+    /**
+     * Optional dedicated model for the quality judge — pinned because most
+     * primary models (e.g. llama-3.3-70b) can't reliably emit JSON-schema
+     * output, which causes the judge's structured-output call to fail and
+     * fall through to a self-score passthrough. Set this to a JSON-reliable
+     * model (Anthropic Claude, OpenAI gpt-4o-mini) to restore judge function
+     * without changing the execution primary.
+     *
+     * Stored in `workspaces.intelligence_settings.judgeModel`.
+     */
+    judgeModel?: { provider: ProviderKey; model: string }
 }
 
 // Use a broad type that works with generateText — all providers return LanguageModelV2 or V3

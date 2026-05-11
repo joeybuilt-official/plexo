@@ -10,7 +10,7 @@
  */
 
 import { db, eq, asc } from '@plexo/db'
-import { providerInstances } from '@plexo/db'
+import { providerInstances, workspaces } from '@plexo/db'
 import type { WorkspaceAISettings, ProviderKey, AIProviderConfig } from './registry.js'
 import { createHmac, createDecipheriv } from 'crypto'
 import pino from 'pino'
@@ -107,16 +107,35 @@ export async function loadSettingsFromInstances(workspaceId: string): Promise<Wo
 
     if (!primaryProvider) return null
 
+    // Workspace-level overrides stored in workspaces.intelligence_settings.
+    // Currently we read `judgeModel` (pinned model for the quality judge).
+    let judgeModel: WorkspaceAISettings['judgeModel'] | undefined
+    try {
+        const wsRow = await db.select({ intelligenceSettings: workspaces.intelligenceSettings })
+            .from(workspaces)
+            .where(eq(workspaces.id, workspaceId))
+            .limit(1)
+        const intel = (wsRow[0]?.intelligenceSettings ?? {}) as Record<string, unknown>
+        const j = intel.judgeModel as { provider?: string; model?: string } | undefined
+        if (j?.provider && j.model) {
+            judgeModel = { provider: j.provider as ProviderKey, model: j.model }
+        }
+    } catch (err) {
+        logger.warn({ workspaceId, err: err instanceof Error ? err.message : String(err) }, 'failed to load intelligence_settings.judgeModel')
+    }
+
     logger.info({
         workspaceId,
         primary: primaryProvider,
         chain,
         instanceCount: rows.length,
+        judgeModel: judgeModel ? `${judgeModel.provider}/${judgeModel.model}` : null,
     }, 'AI settings loaded from provider_instances')
 
     return {
         primaryProvider,
         fallbackChain: chain.filter(k => k !== primaryProvider),
         providers,
+        ...(judgeModel ? { judgeModel } : {}),
     }
 }
