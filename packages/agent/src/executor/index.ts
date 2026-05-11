@@ -1232,6 +1232,11 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     const { buildEnvironmentTools } = await import('../tools/environment-tools.js')
     const environmentTools = buildEnvironmentTools()
 
+    // Corpus migration introspection — workspace-scoped read-only query against
+    // corpus_migration_log. Safe in both conversational and task paths.
+    const { buildMigrationTools } = await import('../tools/migration-tools.js')
+    const migrationTools = buildMigrationTools(ctx.workspaceId)
+
     // For conversational tasks, restrict to task_complete + connections + plugins + self-knowledge + env.
     // Connection tools (levio__list_emails, levio__list_events, etc.) are included so the
     // agent can answer data questions ("what's on my calendar?") inline without spawning a
@@ -1240,8 +1245,8 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     // would leave those connections with zero callable tools in conversational mode.
     // Base task-management tools remain off for conversational mode.
     const allTools = isConversational
-        ? { task_complete: baseTools.task_complete, ...connectionTools, ...pluginTools, ...selfKnowledgeTools, ...environmentTools }
-        : { ...baseTools, ...connectionTools, ...pluginTools, ...selfKnowledgeTools, ...environmentTools }
+        ? { task_complete: baseTools.task_complete, ...connectionTools, ...pluginTools, ...selfKnowledgeTools, ...environmentTools, ...migrationTools }
+        : { ...baseTools, ...connectionTools, ...pluginTools, ...selfKnowledgeTools, ...environmentTools, ...migrationTools }
 
     // Append plugin tool names to the capability block so the model knows the
     // plugin__ call format for each loaded extension. The capability block was

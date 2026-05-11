@@ -24,6 +24,7 @@ import { loadConnectionTools, type ToolSet } from '../connections/bridge.js'
 import { buildSelfKnowledgeTools } from './self-knowledge-tools.js'
 import { buildEnvironmentTools } from './environment-tools.js'
 import { buildWebTools } from './web-tools.js'
+import { buildMigrationTools } from './migration-tools.js'
 import { getCachedToolSet } from '../tool-set-cache.js'
 import pino from 'pino'
 
@@ -150,6 +151,10 @@ export async function buildWorkspaceTools(workspaceId: string, opts?: {
         // Single source of truth — packages/agent/src/tools/web-tools.ts.
         // Provider priority: Tavily > Brave > DuckDuckGo HTML scrape (no key needed).
         ...buildWebTools({ tavilyApiKey: tavilyKey, braveApiKey: braveKey }),
+
+        // ── Migration introspection (get_corpus_migration_status) ──────────
+        // Workspace-scoped: queries corpus_migration_log for this workspace only.
+        ...buildMigrationTools(workspaceId),
 
         // ── Memory query ────────────────────────────────────────────────
         memory_query: tool({
