@@ -793,6 +793,12 @@ export interface FallbackOptions {
     workspaceId?: string
     /** Called when a provider is skipped or fails due to auth errors. */
     onAuthFailure?: (providerKey: string, error: string) => void
+    /**
+     * Called once when a non-primary provider successfully serves a request.
+     * Use this to surface "we had to fall back" to the operator (logs, telegram,
+     * UI toast). Fires only on success — failures are noisy and would spam.
+     */
+    onFallbackEngaged?: (info: { workspaceId?: string; taskType: TaskType; primary: string; used: string; skipped: string[]; lastError: string }) => void
 }
 
 /**
@@ -813,16 +819,18 @@ export async function withFallback<T>(
     const chain = [settings.primaryProvider, ...settings.fallbackChain]
     const wsId = opts?.workspaceId
     let lastError: unknown
+    const skipped: string[] = []
 
     for (const providerKey of chain) {
         const config = settings.providers[providerKey]
         if (!config) continue
 
         // Skip providers with known-stale keys (auto-expires after TTL)
-        if (wsId && isKeyStale(wsId, providerKey)) continue
+        if (wsId && isKeyStale(wsId, providerKey)) { skipped.push(providerKey); continue }
 
         if (isBreakerTripped(providerKey, config.apiKey)) {
             lastError = new Error(`provider ${providerKey} circuit-open — rotate API key`)
+            skipped.push(providerKey)
             continue
         }
 
@@ -830,6 +838,18 @@ export async function withFallback<T>(
             const model = buildModel(providerKey, config, taskType, settings)
             const result = await fn(model)
             recordBreakerSuccess(providerKey, config.apiKey)
+            if (providerKey !== settings.primaryProvider) {
+                const info = {
+                    workspaceId: wsId,
+                    taskType,
+                    primary: settings.primaryProvider,
+                    used: providerKey,
+                    skipped,
+                    lastError: lastError instanceof Error ? lastError.message.slice(0, 200) : String(lastError ?? ''),
+                }
+                console.info(JSON.stringify({ event: 'provider.fallback_engaged', ...info }))
+                try { opts?.onFallbackEngaged?.(info) } catch { /* notification is best-effort */ }
+            }
             return result
         } catch (err) {
             lastError = err
@@ -867,6 +887,9 @@ export async function withFallback<T>(
             }
 
             if (!isRetryableProviderError(err)) throw err
+
+            // This provider failed retryably — record and advance to the next one
+            skipped.push(providerKey)
 
             // Backoff on rate-limit (429) before trying next provider
             if (err instanceof Error && isRateLimitError(err)) {
@@ -937,7 +960,17 @@ function isRetryableProviderError(err: unknown): boolean {
         msg.includes('econnreset') ||
         msg.includes('cannot connect') ||
         msg.includes('fetch failed') ||
-        msg.includes('network error')
+        msg.includes('network error') ||
+        // Billing / quota exhaustion — same provider can't process the request
+        // until the operator tops up; advancing to the next provider in the
+        // chain is the only way through without user intervention.
+        msg.includes('credit balance') ||
+        msg.includes('insufficient_quota') ||
+        msg.includes('insufficient quota') ||
+        msg.includes('billing') ||
+        msg.includes('quota exceeded') ||
+        msg.includes('payment required') ||
+        msg.includes('402')
     )
 }
 

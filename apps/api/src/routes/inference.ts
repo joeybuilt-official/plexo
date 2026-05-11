@@ -29,7 +29,7 @@ import { jsonSchemaToZod, type JSONSchema } from './json-schema-to-zod.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { embed } from '@plexo/agent/memory/store'
 import { callModel, CallModelError } from '@plexo/agent/providers/call-model'
-import { resolveModel, resolveModelFromEnv } from '@plexo/agent/providers/registry'
+import { resolveModelFromEnv, withFallback } from '@plexo/agent/providers/registry'
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 
 const logger = pino({ name: 'inference-routes' })
@@ -227,40 +227,21 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
         system = baseSystem ? `${baseSystem}\n\n${directive}` : directive
     }
 
-    let model: ReturnType<typeof resolveModelFromEnv>
-    let provider = 'env-fallback'
-    try {
-        const aiSettings = await loadSettingsFromInstances(workspaceId)
-        if (aiSettings) {
-            const resolved = await resolveModel(useSchema ? 'extraction' : 'summarization', aiSettings, workspaceId)
-            model = resolved.model
-            provider = resolved.meta.provider
-        } else {
-            model = resolveModelFromEnv()
-        }
-    } catch (err) {
-        logger.warn({ err, workspaceId }, 'inference.chat: resolveModel fell through to env')
-        try {
-            model = resolveModelFromEnv()
-        } catch (envErr) {
-            const message = envErr instanceof Error ? envErr.message : String(envErr)
-            logger.warn({ workspaceId, message }, 'inference.chat: no provider available — refusing call')
-            res.status(503).json({
-                error: {
-                    code: 'NO_PROVIDER_AVAILABLE',
-                    message: `Workspace ${workspaceId} has no LLM provider configured. Add a provider in workspace settings or set a system-wide provider env var (OPENAI_API_KEY/GEMINI/OPENROUTER/GROQ).`,
-                },
-            })
-            return
-        }
-    }
+    const aiSettings = await loadSettingsFromInstances(workspaceId).catch((err) => {
+        logger.warn({ err, workspaceId }, 'inference.chat: loadSettings failed; will try env fallback')
+        return null
+    })
 
     const maxTokens = body.max_completion_tokens ?? body.max_tokens
+    // Use a TaskType that exists in the routing table. The inference shim
+    // serves both schema-mode (extraction) and free-text (summarization)
+    // shapes; pick the one matching the request.
+    const taskType = useSchema ? 'extraction' as const : 'summarization' as const
 
-    try {
-        const result = useSchema
+    const doCall = async (model: import('ai').LanguageModel, provider: string) => {
+        return useSchema
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime Zod schema produced by jsonSchemaToZod
-            ? await callModel<any>({
+            ? callModel<any>({
                 model,
                 provider,
                 workspaceId,
@@ -273,7 +254,7 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
                 schemaName,
                 schemaDescription,
             })
-            : await callModel({
+            : callModel({
                 model,
                 provider,
                 workspaceId,
@@ -282,6 +263,47 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
                 messages: conversational,
                 maxTokens,
             })
+    }
+
+    try {
+        let result: Awaited<ReturnType<typeof doCall>>
+        if (aiSettings) {
+            // Walk the workspace's full provider chain — primary first, then
+            // each fallback in preference_order. Billing/quota/auth/rate-limit
+            // failures advance to the next provider automatically.
+            result = await withFallback(
+                aiSettings,
+                taskType,
+                async (model) => {
+                    // The provider that built this model is what we're trying — derive it
+                    // from the model object so the callModel telemetry stays accurate.
+                    const provider = (model as { provider?: string }).provider ?? 'unknown'
+                    return doCall(model, provider)
+                },
+                {
+                    workspaceId,
+                    onFallbackEngaged: (info) => {
+                        logger.warn({ event: 'inference.chat.fallback', ...info }, 'inference.chat: primary provider failed; served by fallback')
+                    },
+                },
+            )
+        } else {
+            // No workspace settings — env-var fallback path (dev / self-host)
+            try {
+                const envModel = resolveModelFromEnv()
+                result = await doCall(envModel, 'env-fallback')
+            } catch (envErr) {
+                const message = envErr instanceof Error ? envErr.message : String(envErr)
+                logger.warn({ workspaceId, message }, 'inference.chat: no provider available — refusing call')
+                res.status(503).json({
+                    error: {
+                        code: 'NO_PROVIDER_AVAILABLE',
+                        message: `Workspace ${workspaceId} has no LLM provider configured. Add a provider in workspace settings or set a system-wide provider env var (OPENAI_API_KEY/GEMINI/OPENROUTER/GROQ).`,
+                    },
+                })
+                return
+            }
+        }
 
         const content = 'object' in result ? JSON.stringify(result.object) : result.text
 
