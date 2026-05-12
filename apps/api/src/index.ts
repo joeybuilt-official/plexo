@@ -145,6 +145,7 @@ import { workspaceAppsRouter } from './routes/workspace-apps.js'
 import { workbenchRouter } from './routes/workbench.js'
 import { worksRouter } from './routes/works.js'
 import { toolsRouter } from './routes/tools.js'
+import { toolsGmessagesRouter } from './routes/tools-gmessages.js'
 import { requireAuth } from './middleware/auth.js'
 import { requireWorkspaceMember } from './middleware/workspace-access.js'
 import { requireSuperAdmin } from './middleware/super-admin.js'
@@ -392,6 +393,7 @@ v1.use('/code', codeRouter)
 v1.use('/works', worksRouter) // works listing — workspace-scoped
 v1.use('/workbench', workbenchRouter) // works phase 7 — per-user pins
 v1.use('/tools', toolsRouter) // works phase 5 — UI-initiated tool invoke
+v1.use('/tools/gmessages', toolsGmessagesRouter) // app-integration surface (Levio SMS card, etc.)
 v1.use('/shares', sharesRouter) // artifact share links — auth required
 
 v1.get('/agent/status', async (req, res) => {
