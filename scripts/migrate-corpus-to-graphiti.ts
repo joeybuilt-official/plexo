@@ -79,7 +79,7 @@ const retryFailed = process.argv.includes('--retry-failed')
 const batchSize = Number(process.argv.find((a) => a.startsWith('--batch='))?.split('=')[1] ?? 50)
 const delayMs = Number(process.argv.find((a) => a.startsWith('--delay-ms='))?.split('=')[1] ?? 100)
 const limit = Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] ?? 0)
-const requestTimeoutMs = Number(process.argv.find((a) => a.startsWith('--timeout-ms='))?.split('=')[1] ?? 90_000)
+const requestTimeoutMs = Number(process.argv.find((a) => a.startsWith('--timeout-ms='))?.split('=')[1] ?? 300_000)
 const typesFilterRaw = process.argv.find((a) => a.startsWith('--types='))?.split('=')[1] ?? null
 const typesFilter: string[] | null = typesFilterRaw ? typesFilterRaw.split(',').map((s) => s.trim()).filter(Boolean) : null
 const ALLOWED_TYPES = new Set(['task', 'pattern', 'session', 'note'])
