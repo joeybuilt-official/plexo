@@ -164,11 +164,19 @@ async function persistPairedConnection(args: PersistArgs): Promise<PersistResult
 
         if (!channel) throw new Error('failed to insert channel')
 
+        // We insert `state='active'` (not `'paired'`) so the sidecar's
+        // boot-restore picks this row up on its next start and calls
+        // manager.Start with the decrypted AuthBlob — the long-poll
+        // session goes live. Inserting `'paired'` strands the session:
+        // the encrypted credentials sit in installed_connections but the
+        // sidecar never runs manager.Start, leaving `activeSessions=0`
+        // (the Phase 4a/4b gap — Phase 4b was supposed to land a
+        // sidecar `/sessions/start` call here but never did).
         const [paired] = await tx.insert(pairedSessions).values({
             workspaceId,
             installedConnectionId: installed.id,
             channelId: channel.id,
-            state: 'paired',
+            state: 'active',
             pairStartedAt: new Date(),
             pairedAt: new Date(),
         }).returning({ id: pairedSessions.id })

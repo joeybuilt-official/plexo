@@ -26,12 +26,16 @@ channelsGmessagesRouter.use(requireHmacService)
 
 // ── Restore list — sidecar boot rehydration (ADR-0004 §"Restart semantics") ─
 //
-// Returns one entry per paired session in state IN ('active','refreshing'),
+// Returns one entry per paired session in state IN ('paired','active','refreshing'),
 // each carrying the encrypted AuthData blob from installed_connections.
 // Decryption happens INSIDE the sidecar — Plexo API never returns plaintext
 // libgm credentials. The sidecar reads ENCRYPTION_SECRET via its
 // GMESSAGES_MASTER_KEY env and reproduces the workspace-keyed AES-256-GCM
 // derivation that crypto.ts performed at pair time.
+//
+// `'paired'` is included so any row stranded by the historical Phase 4a
+// gap (state never advanced past `'paired'`) rehydrates on the next
+// sidecar restart instead of requiring a manual psql UPDATE.
 channelsGmessagesRouter.get('/restore-list', async (_req: Request, res: Response) => {
     try {
         const rows = await db
@@ -44,7 +48,7 @@ channelsGmessagesRouter.get('/restore-list', async (_req: Request, res: Response
             .from(pairedSessions)
             .innerJoin(installedConnections, eq(installedConnections.id, pairedSessions.installedConnectionId))
             .where(and(
-                inArray(pairedSessions.state, ['active', 'refreshing']),
+                inArray(pairedSessions.state, ['paired', 'active', 'refreshing']),
                 eq(installedConnections.registryId, 'gmessages'),
             ))
 
