@@ -10,7 +10,7 @@
 
 import { parse as parseYaml } from 'yaml'
 import type { ParsedSkillMd, SkillFrontmatter, SkillPlusFrontmatter } from './types.js'
-import type { ExtensionManifest } from '@plexo/sdk'
+import type { ExtensionManifest } from '@joeybuilt/plexo-sdk'
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/
 

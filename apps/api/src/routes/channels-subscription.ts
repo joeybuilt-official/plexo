@@ -25,7 +25,7 @@
 
 import express, { type Request, type Response, type Router } from 'express'
 import { db, channels, eq } from '@plexo/db'
-import { PEX_VERSION, type ChannelDescriptor, type ChannelScope } from '@plexo/sdk'
+import { PEX_VERSION, type ChannelDescriptor, type ChannelScope } from '@joeybuilt/plexo-sdk'
 import { requireHmacService } from '../middleware/hmac-service.js'
 import { logger } from '../logger.js'
 

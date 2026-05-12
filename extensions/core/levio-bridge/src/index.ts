@@ -5,7 +5,7 @@
 // Levio's /api/plexo/data endpoint. Interim bridge until Pex v0.5.0 ships
 // native remote tool support. See ADR-0001 for rationale.
 
-import type { PlexoSDK, ToolRegistration, InvokeContext } from '@plexo/sdk'
+import type { PlexoSDK, ToolRegistration, InvokeContext } from '@joeybuilt/plexo-sdk'
 
 // ── Config ──────────────────────────────────────────────────────────────────
 

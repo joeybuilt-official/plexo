@@ -8,7 +8,7 @@
  * the gmessages-session-refresh-receiver signing scheme: SHA256 HMAC of
  * the request body keyed by PLEXO_SERVICE_KEY, plus an ISO timestamp.
  *
- * Null-on-failure semantics match the rest of @plexo/sdk so callers can
+ * Null-on-failure semantics match the rest of @joeybuilt/plexo-sdk so callers can
  * treat the bridge as best-effort during the migration window.
  */
 

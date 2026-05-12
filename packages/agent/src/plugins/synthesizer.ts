@@ -23,7 +23,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { terminateWorker } from './persistent-pool.js'
 import { isBlockedUrl } from '../tools/web-tools.js'
-import type { ExtensionManifest, ManifestType } from '@plexo/sdk'
+import type { ExtensionManifest, ManifestType } from '@joeybuilt/plexo-sdk'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 

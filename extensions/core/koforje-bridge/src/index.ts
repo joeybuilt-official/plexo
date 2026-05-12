@@ -4,7 +4,7 @@
 // @joeybuilt/koforje-bridge — Pex tool extension that proxies tool calls to
 // Koforje's HTTP API. Mirrors @joeybuilt/levio-bridge / @joeybuilt/nexalog-bridge.
 
-import type { PlexoSDK, ToolRegistration, InvokeContext } from '@plexo/sdk'
+import type { PlexoSDK, ToolRegistration, InvokeContext } from '@joeybuilt/plexo-sdk'
 
 // ── Config ──────────────────────────────────────────────────────────────────
 

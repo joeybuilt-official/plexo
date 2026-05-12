@@ -39,7 +39,7 @@ export default defineConfig({
             '@plexo/db': resolve(root, 'packages/db/src/index.ts'),
             '@plexo/agent': resolve(root, 'packages/agent/src/index.ts'),
             '@plexo/queue': resolve(root, 'packages/queue/src/index.ts'),
-            '@plexo/sdk': resolve(root, 'packages/sdk/src/index.ts'),
+            '@joeybuilt/plexo-sdk': resolve(root, 'packages/sdk/src/index.ts'),
             '@plexo/storage': resolve(root, 'packages/storage/src/index.ts'),
             // apps/web internal alias — matches its tsconfig "paths"
             '@web': resolve(root, 'apps/web/src'),

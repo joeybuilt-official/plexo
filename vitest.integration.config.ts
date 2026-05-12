@@ -38,7 +38,7 @@ export default defineConfig({
         // Inline workspace packages; externalize everything else for native resolution
         server: {
             deps: {
-                inline: ['@plexo/db', '@plexo/db/auth/config', '@plexo/queue', '@plexo/agent', '@plexo/sdk'],
+                inline: ['@plexo/db', '@plexo/db/auth/config', '@plexo/queue', '@plexo/agent', '@joeybuilt/plexo-sdk'],
             },
         },
     },
