@@ -893,11 +893,13 @@ export async function loadConnectionTools(workspaceId: string): Promise<ToolSet>
                 continue
             }
 
-            // Decrypt credentials
+            // Decrypt credentials. gmessages stores a base64-encoded libgm
+            // AuthData blob (not JSON) and its factory ignores creds entirely
+            // (state lives in the sidecar); skip the JSON.parse for it.
             let creds: ConnectionCredentials = {}
             try {
                 const raw = row.credentials as { encrypted?: string } | null
-                if (raw?.encrypted) {
+                if (raw?.encrypted && row.registryId !== 'gmessages') {
                     const decrypted = decrypt(raw.encrypted, workspaceId)
                     creds = JSON.parse(decrypted) as ConnectionCredentials
                 }
