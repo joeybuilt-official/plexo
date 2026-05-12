@@ -1166,6 +1166,8 @@ connectionsRouter.post('/test', async (req, res) => {
 
             if (row?.registryId === 'gmessages') {
                 // Paired-session connections have no URL — check session state from DB
+                // plus the sidecar's /health to confirm the session is alive in-process,
+                // not just paired-in-DB.
                 const [session] = await db.select({
                     state: pairedSessions.state,
                     errorDetail: pairedSessions.errorDetail,
@@ -1181,11 +1183,34 @@ connectionsRouter.post('/test', async (req, res) => {
                     res.json({ ok: false, status: 0, statusText: 'No paired session found — re-pair your phone', contentType: 'paired_session' })
                     return
                 }
-                const healthy = session.state === 'active' || session.state === 'refreshing'
-                const detail = session.state === 'errored' && session.errorDetail
-                    ? `${session.state}: ${session.errorDetail}`
-                    : session.state
-                res.json({ ok: healthy, status: healthy ? 200 : 0, statusText: detail, contentType: 'paired_session' })
+                const dbHealthy = session.state === 'active' || session.state === 'refreshing'
+                let sidecarOk = false
+                let sidecarActive = 0
+                try {
+                    const url = (process.env.GMESSAGES_SIDECAR_URL ?? 'http://gmessages:3010') + '/health'
+                    const r = await fetch(url, { signal: AbortSignal.timeout(3_000) })
+                    if (r.ok) {
+                        const h = await r.json() as { ok?: boolean; activeSessions?: number }
+                        sidecarOk = !!h.ok
+                        sidecarActive = typeof h.activeSessions === 'number' ? h.activeSessions : 0
+                    }
+                } catch (err) {
+                    logger.warn({ err }, 'gmessages sidecar /health probe failed in connections/test')
+                }
+                const ok = dbHealthy && sidecarOk && sidecarActive >= 1
+                let detail: string
+                if (ok) {
+                    detail = `session ${session.state}, sidecar reports ${sidecarActive} active session${sidecarActive === 1 ? '' : 's'}`
+                } else if (!sidecarOk) {
+                    detail = 'sidecar /health unreachable — gmessages container down?'
+                } else if (sidecarActive < 1) {
+                    detail = `session ${session.state} in DB but sidecar reports 0 active sessions — likely needs re-pair`
+                } else if (session.state === 'errored' && session.errorDetail) {
+                    detail = `${session.state}: ${session.errorDetail}`
+                } else {
+                    detail = session.state
+                }
+                res.json({ ok, status: ok ? 200 : 0, statusText: detail, contentType: 'paired_session' })
                 return
             }
 

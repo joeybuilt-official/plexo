@@ -4,13 +4,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Globe2, Key, Webhook, CheckCircle2, Circle, AlertCircle, Copy, Check } from 'lucide-react'
+import { Globe2, Key, Webhook, CheckCircle2, Circle, AlertCircle, Copy, Check, Smartphone } from 'lucide-react'
 import type { AuthType, ConnectionStatus } from './types'
 
 export function AuthIcon({ type }: { type: AuthType }) {
     if (type === 'oauth2') return <Globe2 className="h-3.5 w-3.5 text-azure" />
     if (type === 'api_key' || type === 'bearer' || type === 'basic') return <Key className="h-3.5 w-3.5 text-amber" />
     if (type === 'webhook') return <Webhook className="h-3.5 w-3.5 text-violet-400" />
+    if (type === 'paired_session') return <Smartphone className="h-3.5 w-3.5 text-green-400" />
     return null
 }
 
