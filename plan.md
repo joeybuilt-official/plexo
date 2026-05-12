@@ -80,13 +80,19 @@
 
 ## Phase 4 — Migrate remaining callers (one PR each)
 
-- Scope: One PR per file, behind same flag:
-  - `apps/api/src/routes/chat.ts` (6 call sites: :542, :705, :922, :930, :1047, :1131)
-  - `apps/api/src/routes/ai-complete.ts:80`
-  - `apps/api/src/routes/vision.ts:138`
-  - `apps/api/src/routes/chat-app-transport.ts` (:255, :310)
-  - `apps/api/src/channel-ai.ts` (:776, :789, :824, :1182)
-  - `packages/agent/src/memory/store.ts:183`
+- Scope: One PR per file, behind same flag. **11 source files** (Phase 2 audit revised from 7 — 4 internal callers added):
+  - Route handlers:
+    - `apps/api/src/routes/chat.ts` (6 call sites: :542, :705, :922, :930, :1047, :1131)
+    - `apps/api/src/routes/ai-complete.ts:80`
+    - `apps/api/src/routes/vision.ts:138`
+    - `apps/api/src/routes/chat-app-transport.ts` (:255, :310)
+    - `apps/api/src/channel-ai.ts` (:776, :789, :824, :1182)
+    - `packages/agent/src/memory/store.ts:183`
+  - Internal callers (added Phase 2 surfacing):
+    - `packages/agent/src/planner/index.ts:282`
+    - `packages/agent/src/executor/index.ts:1508`
+    - `packages/agent/src/sprint/planner.ts:129`
+    - `packages/agent/src/tasks/escalate.ts:181`
 - Deps: Phase 3 (telemetry schema frozen; shadow methodology proven)
 - Context budget: ≤45% per PR; spread across sessions if needed
 - Subagents: Explore per file for task-type + chain-composition; general-purpose for the edit
@@ -101,7 +107,7 @@
 - Deps: Phase 4
 - Context budget: ≤45%
 - Subagents: Explore for current telemetry sink + dashboard infra (Helm? PostHog? OTel?)
-- Exit: dashboards live; weekly manifest-staleness report cron scheduled (mitigates pre-mortem #1).
+- Exit: dashboards live; weekly manifest-staleness report cron scheduled (mitigates pre-mortem #1). **Settings-page badge UI surface wired for `provider.auth_failed` event** (operator decision C3 — not just dashboard event).
 - Status: pending
 
 ---
@@ -112,7 +118,7 @@
 - Deps: Phase 5
 - Context budget: ≤45%
 - Subagents: none
-- Exit: 7-day clean window — no regressions in p95 latency, error rate, or operator-filed routing complaints.
+- Exit: 7-day clean window — no regressions in p95 latency, error rate, or operator-filed routing complaints. **Cooldown-equivalence verified**: router-v2 cooldowns cover all failure modes that legacy `providerBreaker` map covered (bypass is by design but must be at-parity before flip).
 - Status: pending
 
 ⚠ **One-way door:** rollback after flip requires either flag-flip-and-redeploy (cheap) or, if Phase 7 has started, code revert (expensive). Phase 7 MUST NOT start until Phase 6 bake completes.
