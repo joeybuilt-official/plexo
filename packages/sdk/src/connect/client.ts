@@ -30,6 +30,8 @@ import type {
     PlexoToken,
     PlexoTokenWithConnection,
     PublishEventOptions,
+    RunCustomOptions,
+    RunCustomResult,
     StoreMemoryOptions,
     TestConnectionResult,
 } from './types.js'
@@ -38,9 +40,23 @@ export class PlexoClient {
     readonly #opts: PlexoClientOptions
     readonly #base: string
 
+    /** Agent-loop operations. EP1: caller-provided systemPrompt + tools via HTTP callback. */
+    readonly agents: {
+        runCustom: (workspaceId: string, opts: RunCustomOptions) => Promise<RunCustomResult>
+    }
+
     constructor(opts: PlexoClientOptions) {
         this.#opts = opts
         this.#base = opts.plexoUrl.replace(/\/$/, '')
+        this.agents = {
+            runCustom: (workspaceId, runOpts) =>
+                this.#post<RunCustomResult>(
+                    '/api/v1/agents/run-custom',
+                    { workspaceId, ...runOpts },
+                    {},
+                    120_000,
+                ),
+        }
     }
 
     get appId(): string { return this.#opts.appId }
