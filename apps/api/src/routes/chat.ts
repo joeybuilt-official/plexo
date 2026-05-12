@@ -30,7 +30,7 @@ import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } f
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { runSprint } from '@plexo/agent/sprint/runner'
 import { storeMemory, rememberInstruction } from '@plexo/agent/memory/store'
-import { queryMemory } from '@plexo/agent/memory/query'
+import { readFromGraphiti } from '@plexo/agent/memory/read-backend'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { setPreference } from '@plexo/agent/memory/preferences'
 import {
@@ -609,20 +609,18 @@ chatRouter.post('/message', async (req, res) => {
         const skipRecallForTrivial = isTrivialMessage(trimmedMsg)
 
         // ── Proactive memory recall for conversations ──
-        // Search memory_entries via vector similarity so personal facts
-        // (location, role, preferences) are available even when the
-        // conversation-table recall misses. Non-blocking, non-fatal.
+        // Search graphiti so personal facts (location, role, preferences) are
+        // available even when the conversation-table recall misses.
+        // Non-blocking, non-fatal.
         let memoryContext: string | null = null
         if (!skipRecallForTrivial && trimmedMsg.length >= 10) {
             try {
-                const hits = await queryMemory({
+                const hits = await readFromGraphiti({
                     workspaceId,
-                    userId: req.user?.id,
                     queryText: trimmedMsg,
                     limit: 5,
-                    aiSettings,
                 })
-                if (hits.length > 0) {
+                if (hits && hits.length > 0) {
                     memoryContext = '=== RELEVANT MEMORY ===\n' + hits.map(h =>
                         `- ${h.shorthand || h.content.slice(0, 200)}`
                     ).join('\n') + '\n=== END MEMORY ==='

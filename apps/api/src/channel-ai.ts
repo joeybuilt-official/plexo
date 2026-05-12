@@ -607,9 +607,9 @@ export async function chatWithAI(
         const msgText = typeof lastUserMsg === 'string' ? lastUserMsg : ''
         if (msgText.length >= 10) {
             try {
-                const { queryMemory } = await import('@plexo/agent/memory/query')
-                const hits = await queryMemory({ workspaceId, queryText: msgText, limit: 5, aiSettings })
-                if (hits.length > 0) {
+                const { readFromGraphiti } = await import('@plexo/agent/memory/read-backend')
+                const hits = await readFromGraphiti({ workspaceId, queryText: msgText, limit: 5 })
+                if (hits && hits.length > 0) {
                     const memBlock = hits.map(h => `- ${h.shorthand || h.content.slice(0, 200)}`).join('\n')
                     finalSystem += `\n\n=== RELEVANT MEMORY ===\n${memBlock}\n=== END MEMORY ===`
                     logger.info({ workspaceId, hits: hits.length, query: msgText.slice(0, 60) }, 'channel-ai: injected proactive memory context')

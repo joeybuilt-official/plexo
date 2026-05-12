@@ -21,7 +21,7 @@
     "./sprint/retry": "./src/sprint/retry.ts",
     "./github/client": "./src/github/client.ts",
     "./memory/store": "./src/memory/store.ts",
-    "./memory/query": "./src/memory/query.ts",
+    "./memory/read-backend": "./src/memory/read-backend.ts",
     "./memory/preferences": "./src/memory/preferences.ts",
     "./memory/self-improvement": "./src/memory/self-improvement.ts",
     "./memory/prompt-improvement": "./src/memory/prompt-improvement.ts",

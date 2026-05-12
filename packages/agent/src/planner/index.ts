@@ -19,7 +19,7 @@ import { withFallback } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
-import { queryMemory } from '../memory/query.js'
+import { readFromGraphiti } from '../memory/read-backend.js'
 import { emitMemoryInjection } from '../analytics/memory-events.js'
 import type { ExecutionPlan, ExecutionContext, PlanStep, OneWayDoor, PlannerResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
@@ -182,23 +182,23 @@ export async function buildMemoryBlock(
     aiSettings: WorkspaceAISettings,
 ): Promise<string | undefined> {
     try {
-        const scopedUserId = UUID_RE.test(userId) ? userId : undefined
-        const hits = await queryMemory({
+        void userId
+        void aiSettings
+        const hits = await readFromGraphiti({
             workspaceId,
-            userId: scopedUserId,
             queryText,
             limit: MEMORY_FACT_LIMIT,
-            aiSettings,
         })
-        emitMemoryInjection({ workspaceId, userId, factsInjected: hits.length, retrievalFailed: false })
-        if (hits.length === 0) return undefined
+        const hitCount = hits?.length ?? 0
+        emitMemoryInjection({ workspaceId, userId, factsInjected: hitCount, retrievalFailed: false })
+        if (!hits || hits.length === 0) return undefined
         const lines = hits.map((h) => {
             const text = (h.shorthand?.trim() || h.content.trim()).replace(/\s+/g, ' ')
             return `- ${text.length > MEMORY_FACT_CHAR_CAP ? text.slice(0, MEMORY_FACT_CHAR_CAP - 1) + '…' : text}`
         })
         return `RELEVANT PAST CONTEXT (from prior tasks and learned facts — use to avoid known failures and reuse established patterns; ignore if not applicable):\n${lines.join('\n')}`
     } catch (err) {
-        logger.warn({ err, workspaceId }, 'planner: queryMemory failed — proceeding without memory context')
+        logger.warn({ err, workspaceId }, 'planner: graphiti memory read failed — proceeding without memory context')
         emitMemoryInjection({ workspaceId, userId, factsInjected: 0, retrievalFailed: true })
         return undefined
     }

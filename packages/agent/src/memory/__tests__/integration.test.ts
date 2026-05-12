@@ -313,30 +313,6 @@ describe('user-authored immunity probe', () => {
     })
 })
 
-// ── Hybrid retrieval probe ─────────────────────────────────────────────────────
-
-describe('hybrid retrieval probe', () => {
-    it('queryMemory invokes db.execute for both vector and keyword modes', async () => {
-        const WS = 'ws-hybrid-probe'
-
-        const executeCalls: unknown[] = []
-        const { db } = await import('@plexo/db')
-        vi.mocked(db.execute).mockImplementation(((sqlObj: unknown) => {
-            executeCalls.push(sqlObj)
-            return Promise.resolve([])
-        }) as unknown as typeof db.execute)
-
-        // Import queryMemory dynamically after mocking is set up
-        const { queryMemory } = await import('../query.js')
-
-        // keyword mode — should call db.execute (no embed needed)
-        executeCalls.length = 0
-        await queryMemory({ workspaceId: WS, queryText: 'postgres', mode: 'keyword' })
-        expect(executeCalls.length).toBeGreaterThan(0)
-
-        // Vector mode — embed is mocked to null in this test env, so queryMemory returns [] early
-        // but we can at least assert queryMemory doesn't throw
-        executeCalls.length = 0
-        await expect(queryMemory({ workspaceId: WS, queryText: 'postgres', mode: 'vector' })).resolves.not.toThrow()
-    })
-})
+// Hybrid retrieval probe removed — postgres queryMemory deleted in Phase F.1
+// (ADR 0014). Read path now goes through readFromGraphiti; see
+// memory/__tests__/read-backend.test.ts for coverage of the new path.
