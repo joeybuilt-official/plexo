@@ -78,6 +78,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@joeybuilt/plexo-sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@plexo/agent':
         specifier: workspace:*
         version: link:../../packages/agent
@@ -93,9 +96,6 @@ importers:
       '@plexo/queue':
         specifier: workspace:*
         version: link:../../packages/queue
-      '@plexo/sdk':
-        specifier: link:../../packages/sdk
-        version: link:../../packages/sdk
       '@plexo/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -435,8 +435,8 @@ importers:
 
   extensions/core/fonto-bridge:
     devDependencies:
-      '@plexo/sdk':
-        specifier: link:../../../packages/sdk
+      '@joeybuilt/plexo-sdk':
+        specifier: workspace:*
         version: link:../../../packages/sdk
       '@types/node':
         specifier: ^22
@@ -447,8 +447,8 @@ importers:
 
   extensions/core/fylo-bridge:
     devDependencies:
-      '@plexo/sdk':
-        specifier: link:../../../packages/sdk
+      '@joeybuilt/plexo-sdk':
+        specifier: workspace:*
         version: link:../../../packages/sdk
       '@types/node':
         specifier: ^22
@@ -461,8 +461,8 @@ importers:
 
   extensions/core/koforje-bridge:
     devDependencies:
-      '@plexo/sdk':
-        specifier: link:../../../packages/sdk
+      '@joeybuilt/plexo-sdk':
+        specifier: workspace:*
         version: link:../../../packages/sdk
       '@types/node':
         specifier: ^22
@@ -473,8 +473,8 @@ importers:
 
   extensions/core/levio-bridge:
     devDependencies:
-      '@plexo/sdk':
-        specifier: link:../../../packages/sdk
+      '@joeybuilt/plexo-sdk':
+        specifier: workspace:*
         version: link:../../../packages/sdk
       '@types/node':
         specifier: ^22
@@ -485,8 +485,8 @@ importers:
 
   extensions/core/nexalog-bridge:
     devDependencies:
-      '@plexo/sdk':
-        specifier: link:../../../packages/sdk
+      '@joeybuilt/plexo-sdk':
+        specifier: workspace:*
         version: link:../../../packages/sdk
       '@types/node':
         specifier: ^22
@@ -499,8 +499,8 @@ importers:
 
   extensions/core/research-agent:
     devDependencies:
-      '@plexo/sdk':
-        specifier: link:../../../packages/sdk
+      '@joeybuilt/plexo-sdk':
+        specifier: workspace:*
         version: link:../../../packages/sdk
       '@types/node':
         specifier: ^22
@@ -544,6 +544,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.39
         version: 0.39.0
+      '@joeybuilt/plexo-sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@openrouter/ai-sdk-provider':
         specifier: ^2.2.3
         version: 2.2.3(ai@6.0.111(zod@3.25.76))(zod@3.25.76)
@@ -556,9 +559,6 @@ importers:
       '@plexo/queue':
         specifier: workspace:*
         version: link:../queue
-      '@plexo/sdk':
-        specifier: link:../sdk
-        version: link:../sdk
       '@plexo/storage':
         specifier: workspace:*
         version: link:../storage

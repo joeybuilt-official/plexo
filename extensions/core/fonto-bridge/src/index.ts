@@ -4,7 +4,7 @@
 // @joeybuilt/fonto-bridge — Pex tool extension that proxies tool calls to
 // Fonto's /api/plexo/data endpoint. Mirrors @joeybuilt/levio-bridge.
 
-import type { PlexoSDK, ToolRegistration, InvokeContext } from '@plexo/sdk'
+import type { PlexoSDK, ToolRegistration, InvokeContext } from '@joeybuilt/plexo-sdk'
 
 function fontoBase(): string {
     return (process.env.FONTO_INTERNAL_URL ?? 'http://fonto:3500').replace(/\/$/, '')

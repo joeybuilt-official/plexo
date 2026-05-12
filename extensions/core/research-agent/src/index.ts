@@ -14,7 +14,7 @@
 // this ships as a tool-bundle-with-an-agent-badge so the install flow,
 // marketplace surfacing, and manifest schema can all be exercised end-to-end.
 
-import type { PlexoSDK, ToolRegistration } from '@plexo/sdk'
+import type { PlexoSDK, ToolRegistration } from '@joeybuilt/plexo-sdk'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

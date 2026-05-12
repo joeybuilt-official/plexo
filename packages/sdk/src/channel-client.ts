@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * @plexo/sdk runtime channel client (ADR-0002).
+ * @joeybuilt/plexo-sdk runtime channel client (ADR-0002).
  *
  * Sibling apps consume Plexo Channels — list/subscribe/read/send/events — via
  * this client. HMAC-authenticated, host-side REST + SSE. Pex SPEC stays at

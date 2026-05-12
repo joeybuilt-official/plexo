@@ -18,7 +18,7 @@
  * Capability enforcement: every sdk.* call checks the declared capabilities[]
  * from the manifest before proceeding (§4).
  */
-import type { PlexoSDK, ToolRegistration, ScheduleRegistration, WidgetRegistration } from '@plexo/sdk'
+import type { PlexoSDK, ToolRegistration, ScheduleRegistration, WidgetRegistration } from '@joeybuilt/plexo-sdk'
 
 export interface ActivationResult {
     tools: ToolRegistration[]
@@ -95,7 +95,7 @@ export function createActivationSDK(
             registered.widgets.push(widget)
         },
 
-        registerPrompt(prompt: import('@plexo/sdk').PromptRegistration): void {
+        registerPrompt(prompt: import('@joeybuilt/plexo-sdk').PromptRegistration): void {
             requireCap('prompts:register')
             void bridge('prompts.register', {
                 workspaceId,
@@ -112,7 +112,7 @@ export function createActivationSDK(
             })
         },
 
-        registerContext(context: import('@plexo/sdk').ContextRegistration): void {
+        registerContext(context: import('@joeybuilt/plexo-sdk').ContextRegistration): void {
             requireCap('context:register')
             void bridge('context.register', {
                 workspaceId,
@@ -132,7 +132,7 @@ export function createActivationSDK(
         prompts: {
             async list() {
                 requireCap('prompts:read')
-                return bridge('prompts.list', { workspaceId, extensionName }) as Promise<import('@plexo/sdk').PromptSummary[]>
+                return bridge('prompts.list', { workspaceId, extensionName }) as Promise<import('@joeybuilt/plexo-sdk').PromptSummary[]>
             },
             async resolve(promptId: string, variables?: Record<string, unknown>) {
                 requireCap('prompts:read')
@@ -154,7 +154,7 @@ export function createActivationSDK(
             },
             async list() {
                 requireCap('context:read')
-                return bridge('context.list', { workspaceId, extensionName }) as Promise<import('@plexo/sdk').ContextSummary[]>
+                return bridge('context.list', { workspaceId, extensionName }) as Promise<import('@joeybuilt/plexo-sdk').ContextSummary[]>
             },
         },
 

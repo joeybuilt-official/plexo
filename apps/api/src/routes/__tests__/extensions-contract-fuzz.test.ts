@@ -121,7 +121,7 @@ vi.mock('../../middleware/workspace-access.js', () => ({
     requireWorkspaceMember: () => (_req: any, _res: any, next: any) => next(),
 }))
 
-vi.mock('@plexo/sdk', () => ({
+vi.mock('@joeybuilt/plexo-sdk', () => ({
     validateManifest: vi.fn((_manifest: unknown, _opts?: unknown) => {
         if (ctl.validateOk) return { valid: true, errors: [] }
         return {

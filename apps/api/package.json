@@ -16,7 +16,7 @@
     "@plexo/graphiti-bridge": "link:../../packages/graphiti-bridge",
     "@plexo/logger": "workspace:*",
     "@plexo/queue": "workspace:*",
-    "@plexo/sdk": "link:../../packages/sdk",
+    "@joeybuilt/plexo-sdk": "workspace:*",
     "@plexo/storage": "workspace:*",
     "@types/pg": "^8.20.0",
     "ai": "^6.0.111",

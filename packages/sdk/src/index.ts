@@ -2,14 +2,14 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * @plexo/sdk — PEX extension SDK types
+ * @joeybuilt/plexo-sdk — PEX extension SDK types
  *
  * Plexo implements the PEX specification (plexo: "0.4.0").
  * This package exports the protocol types so extensions targeting
  * Plexo use the same contract.
  *
- * Extensions should import from '@plexo/sdk' in their plexo.json entry point:
- *   import type { PlexoSDK } from '@plexo/sdk'
+ * Extensions should import from '@joeybuilt/plexo-sdk' in their plexo.json entry point:
+ *   import type { PlexoSDK } from '@joeybuilt/plexo-sdk'
  *   export async function activate(sdk: PlexoSDK): Promise<void> { ... }
  *
  * Host compliance: Standard (target)

@@ -43,6 +43,7 @@ import { GOOGLE_CALENDAR_TOOLS } from './factories/google-calendar.js'
 import { AIRTABLE_TOOLS } from './factories/airtable.js'
 import { DISCORD_TOOLS } from './factories/discord.js'
 import { TELEGRAM_TOOLS } from './factories/telegram.js'
+import { GMESSAGES_TOOLS } from './factories/gmessages.js'
 import {
     GITLAB_TOOLS,
     NETLIFY_TOOLS,
@@ -211,6 +212,22 @@ export const CONNECTION_REGISTRY: Record<string, ConnectionDescriptor> = {
             { name: 'send_message', description: 'Send a Telegram message' },
         ],
         factory: TELEGRAM_TOOLS,
+    },
+    // Google Messages — backed by apps/gmessages Go sidecar (libgm). Pairing
+    // lives at /app/connections/gmessages/pair; the factory talks to the
+    // sidecar over PLEXO_SERVICE_KEY HMAC. Capability names MUST match the
+    // connections_registry seed in 0117_gmessages_phase2_schema.sql, which
+    // advertises ["gmessages__send_message", "gmessages__list_threads"].
+    gmessages: {
+        id: 'gmessages',
+        displayName: 'Google Messages',
+        category: 'comms',
+        toolPrefix: 'gmessages',
+        capabilities: [
+            { name: 'send_message', description: 'Send an SMS/RCS via the paired phone' },
+            { name: 'list_threads', description: 'List recent Google Messages threads' },
+        ],
+        factory: GMESSAGES_TOOLS,
     },
 
     // ── Infra / Ops ──────────────────────────────────────────────────────────

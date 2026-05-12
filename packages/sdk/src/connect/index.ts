@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * @plexo/sdk — connect module
+ * @joeybuilt/plexo-sdk — connect module
  *
  * Universal client for connecting any app to Plexo Core.
  *

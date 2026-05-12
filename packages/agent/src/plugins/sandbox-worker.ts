@@ -27,7 +27,7 @@ import { readFileSync } from 'node:fs'
 import { createActivationSDK } from './activation-sdk.js'
 import type { HostBridge } from './activation-sdk.js'
 import type { SandboxInput } from './pool.js'
-import type { ToolRegistration } from '@plexo/sdk'
+import type { ToolRegistration } from '@joeybuilt/plexo-sdk'
 
 // Phase P (ADR 0011 — Option B). isolated-vm is a native addon; it may fail
 // to load on dev machines without the build toolchain. Loaded eagerly so any

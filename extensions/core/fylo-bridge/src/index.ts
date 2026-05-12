@@ -8,7 +8,7 @@
 // can be layered on later — this scaffold only registers the synthesis
 // subscriber so the Phase 5 pipeline has a target.
 
-import type { PlexoSDK } from '@plexo/sdk'
+import type { PlexoSDK } from '@joeybuilt/plexo-sdk'
 
 function fyloBase(): string {
     return (process.env.FYLO_INTERNAL_URL ?? 'http://service:3700').replace(/\/$/, '')
