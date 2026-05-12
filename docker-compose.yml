@@ -302,12 +302,31 @@ services:
     mem_limit: 512m
     memswap_limit: 768m
 
-  # ── Graphiti sidecar (ADR 0011) ──────────────────────────
-  # Phase 2 scaffold. Profile-gated so existing dev workflows are
-  # untouched until Phase 3 wires in real Graphiti+Kuzu integration.
+  # ── FalkorDB (ADR 0015) ──────────────────────────────────
+  # Multi-tenant graph backend for the graphiti sidecar. One server,
+  # one Cypher graph per workspace. Replaces Kuzu (single-instance
+  # filesystem-locked binding). SSPL license is acceptable here per
+  # ADR 0010 §Pre-mortem: server-side only, never shipped.
+  falkordb:
+    profiles: ["graphiti"]
+    image: falkordb/falkordb:v4.12.6
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["--save", "60 1000", "--appendonly", "yes"]
+    volumes:
+      - falkordb_data:/data
+    # No host-port exposure; sidecar reaches it on the compose-internal
+    # network only.
+    mem_limit: 4g
+    memswap_limit: 4g
+
+  # ── Graphiti sidecar (ADR 0011, ADR 0015) ────────────────
+  # Profile-gated; brings up FalkorDB alongside.
   # Start with: `docker compose --profile graphiti up -d graphiti-sidecar`
   graphiti-sidecar:
     profiles: ["graphiti"]
+    depends_on:
+      - falkordb
     build:
       context: .
       dockerfile: services/graphiti-sidecar/Dockerfile
@@ -315,10 +334,9 @@ services:
     logging: *default-logging
     environment:
       PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY}
-      KUZU_DATA_DIR: /data/graphiti
+      FALKORDB_HOST: falkordb
+      FALKORDB_PORT: "6379"
       PLEXO_INFERENCE_BASE: ${PLEXO_INFERENCE_BASE:-http://api:3001/api/inference}
-    volumes:
-      - graphiti_data:/data/graphiti
     ports:
       - "127.0.0.1:8090:8080"
     mem_limit: 1g
@@ -478,4 +496,5 @@ volumes:
   caddy_config:
   generated_skills:
   postgres-backups:
-  graphiti_data:
+  graphiti_data:  # ADR 0015: orphaned by FalkorDB switch; retain 30 days then drop
+  falkordb_data:
