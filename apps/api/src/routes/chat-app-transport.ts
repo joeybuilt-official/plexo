@@ -20,6 +20,7 @@ import { workspaces } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 import { generateText } from 'ai'
+// TODO(router-v2 Phase 4): migrate withFallback() call sites in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
 import { withFallback } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import {

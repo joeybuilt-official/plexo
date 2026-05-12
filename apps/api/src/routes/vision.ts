@@ -24,6 +24,7 @@ import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { findVisionCapableModel, modelSupportsVision } from '@plexo/agent/providers/vision'
+// TODO(router-v2 Phase 4): migrate withFallback() call site in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
 import { PROVIDER_DEFAULT_MODELS, withFallback } from '@plexo/agent/providers/registry'
 import { logger } from '../logger.js'
 

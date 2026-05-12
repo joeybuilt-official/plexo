@@ -24,6 +24,7 @@ import { trackDelivery } from '../delivery-tracker.js'
 import { pushTask } from '@plexo/queue'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { generateText, streamText, stepCountIs } from 'ai'
+// TODO(router-v2 Phase 4): migrate withFallback() call sites in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
 import { withFallback, PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/providers/registry'
 import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } from '@plexo/agent/providers/vision'
 import { loadWorkspaceAISettings } from '../agent-loop.js'

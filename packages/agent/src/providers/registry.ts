@@ -815,6 +815,52 @@ export async function withFallback<T>(
     fn: (model: AnyLanguageModel) => Promise<T>,
     opts?: FallbackOptions,
 ): Promise<T> {
+    // Phase 2 feature flag: when ROUTER_V2_ENABLED, delegate to the new
+    // task-routed selector. On any INTERNAL error from router-v2 (not from
+    // the call itself), fall back to the legacy walk below — defense in depth.
+    //
+    // ADR 0012 + plan.md Phase 2. Phase 4 migrates call sites to import
+    // `routeAndCall` directly; this gate is the transitional bridge.
+    // TODO(Phase 4): migrate 7 call sites of withFallback to call routeAndCall directly.
+    try {
+        const { isRouterV2Enabled, routeAndCall, RouterV2NoCandidateError, RouterV2CallError } =
+            await import('./router-v2/index.js')
+        if (isRouterV2Enabled()) {
+            try {
+                return await routeAndCall({
+                    workspaceId: opts?.workspaceId,
+                    taskType,
+                    settings,
+                    doCall: fn,
+                    opts,
+                })
+            } catch (err) {
+                // User-visible call error router-v2 decided not to retry → unwrap + propagate.
+                if (err instanceof RouterV2CallError) throw err.cause
+                // Q2 hybrid / no-candidate-available → propagate.
+                if (err instanceof RouterV2NoCandidateError) throw err
+                // Cascade exhausted → propagate; do not double-cascade.
+                if (err instanceof Error && err.name === 'RouterV2CascadeExhausted') throw err
+                // Anything else = internal selector/manifest bug → legacy path (defense in depth).
+            }
+        }
+    } catch (err) {
+        // Dynamic-import failure or unexpected throw at the gate — preserve
+        // router-v2's typed errors; fall through for unknown failures.
+        if (err instanceof Error && (
+            err.name === 'RouterV2NoCandidateError' ||
+            err.name === 'RouterV2CascadeExhausted' ||
+            err.name === 'RouterV2CallError'
+        )) {
+            throw err
+        }
+        // Also pass through the original cause when router-v2 wrapped a user error.
+        const anyErr = err as { name?: string; cause?: unknown }
+        if (anyErr && anyErr.cause && anyErr.name === 'RouterV2CallError') {
+            throw anyErr.cause
+        }
+    }
+
     const chain = [settings.primaryProvider, ...settings.fallbackChain]
     const wsId = opts?.workspaceId
     let lastError: unknown
