@@ -51,6 +51,7 @@
     "tsx": "^4.21.0",
     "turbo": "^2",
     "typescript": "^5.7",
+    "undici": "^6",
     "vitest": "^3"
   },
   "repository": {
