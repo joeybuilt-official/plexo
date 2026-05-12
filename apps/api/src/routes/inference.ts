@@ -29,6 +29,7 @@ import { jsonSchemaToZod, type JSONSchema } from './json-schema-to-zod.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { embed } from '@plexo/agent/memory/store'
 import { callModel, CallModelError } from '@plexo/agent/providers/call-model'
+// TODO(router-v2 Phase 4): migrate withFallback() call site in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
 import { resolveModelFromEnv, withFallback } from '@plexo/agent/providers/registry'
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 

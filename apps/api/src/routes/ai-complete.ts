@@ -24,6 +24,7 @@ import { Router, type Router as RouterType } from 'express'
 import { generateText } from 'ai'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { loadDecryptedAIProviders } from './ai-provider-creds.js'
+// TODO(router-v2 Phase 4): migrate withFallback() call site in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
 import { withFallback } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { logger } from '../logger.js'

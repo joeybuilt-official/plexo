@@ -17,6 +17,7 @@ import pino from 'pino'
 import { generateText } from 'ai'
 import { db, eq, ne, and, desc, sql, inArray } from '@plexo/db'
 import { memoryEntries, workspaces } from '@plexo/db'
+// TODO(router-v2 Phase 4): migrate withFallback() call site in this file to routeAndCall from '../providers/router-v2/index.js'.
 import { withFallback, type WorkspaceAISettings } from '../providers/registry.js'
 import {
     DEFAULT_NAMESPACE,

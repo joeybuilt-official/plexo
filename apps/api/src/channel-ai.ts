@@ -10,6 +10,7 @@
 
 import { generateText, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
+// TODO(router-v2 Phase 4): migrate withFallback() call sites in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
 import { withFallback, PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/providers/registry'
 import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } from '@plexo/agent/providers/vision'
 import { enforceSmallestAction, forceConversationOverrideWithContext, isObviousTaskRequest } from '@plexo/agent/principles'
