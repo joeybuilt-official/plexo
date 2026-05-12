@@ -138,6 +138,7 @@ import { parallelRouter } from './routes/parallel.js'
 import { paxRouter } from './routes/pax.js'
 import { profilesRouter } from './routes/profiles.js'
 import { agentsRunRouter } from './routes/agents-run.js'
+import { agentsRunCustomRouter } from './routes/agents-run-custom.js'
 import { nodesRouter } from './routes/nodes.js'
 import { federationRouter } from './routes/federation.js'
 import { nodeEventsRouter } from './routes/node-events.js'
@@ -311,6 +312,7 @@ v1.use(jsonDefault)
 
 // External app agent dispatch (service-key auth via requireAuth above)
 v1.use('/agents', agentsRunRouter)
+v1.use('/agents', agentsRunCustomRouter)
 
 // Workspace-scoped (CRUD over workspace-owned data)
 v1.use('/tasks', (req, res, next) => req.method === 'POST' ? taskCreationLimiter(req, res, next) : next(), workspaceRateLimit, tasksRouter)

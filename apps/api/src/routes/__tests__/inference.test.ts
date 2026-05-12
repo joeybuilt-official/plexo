@@ -36,6 +36,14 @@ vi.mock('@plexo/agent/providers/call-model', () => ({
 vi.mock('@plexo/agent/providers/registry', () => ({
     resolveModel: vi.fn(),
     resolveModelFromEnv: vi.fn(() => ({ __mock: 'env-model' })),
+    withFallback: vi.fn(),
+}))
+
+// inference.ts also imports router-v2's `routeAndCall` + `isRouterV2Enabled`
+// (Phase 3 wiring). Default flag-off so these tests stay on the legacy path.
+vi.mock('@plexo/agent/providers/router-v2', () => ({
+    routeAndCall: vi.fn(),
+    isRouterV2Enabled: vi.fn(() => false),
 }))
 
 vi.mock('@plexo/agent/providers/settings-from-instances', () => ({
