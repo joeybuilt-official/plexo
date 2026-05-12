@@ -82,6 +82,10 @@ export type {
     PlexoTokenWithConnection,
     PublishEventOptions,
     ResilienceOptions,
+    RunCustomOptions,
+    RunCustomResult,
+    RunCustomStep,
+    RunCustomTool,
     StoreMemoryOptions,
     TestConnectionResult,
 } from './types.js'

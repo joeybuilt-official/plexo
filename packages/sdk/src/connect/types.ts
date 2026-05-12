@@ -116,6 +116,68 @@ export interface AiCompleteOptions {
     taskType?: string
 }
 
+// ---------------------------------------------------------------------------
+// EP1: runCustom — multi-step agent loop with caller-provided prompt + tools
+// ---------------------------------------------------------------------------
+
+export interface RunCustomTool {
+    /** Tool name surfaced to the LLM. Must be `[a-zA-Z0-9_]{1,64}`. */
+    name: string
+    /** Plain-English purpose. Influences when the LLM chooses this tool. */
+    description: string
+    /**
+     * JSON Schema describing tool input. Plexo validates the LLM's call against this
+     * before dispatching; failures are surfaced as tool errors back to the LLM.
+     */
+    inputSchema: Record<string, unknown>
+    /**
+     * Plexo POSTs `{ runId, toolName, input }` here when the LLM calls this tool.
+     * Caller's handler must respond with `{ output: <string|json> }` within 30s.
+     * Signed with per-run JWT (HS256, claims: workspaceId/runId/allowedTools).
+     */
+    callbackUrl: string
+}
+
+export interface RunCustomOptions {
+    /** Free-form system prompt; replaces any built-in agent prompt for this run. */
+    systemPrompt: string
+    /** Caller-provided tools. Plexo dispatches via HTTP callback per `RunCustomTool.callbackUrl`. */
+    tools: RunCustomTool[]
+    /** Initial user-turn input to the agent loop. */
+    input: string
+    /** Optional model override. Defaults to workspace primary model. */
+    model?: string
+    /** Hard cap on agent loop iterations. Default 12. */
+    maxSteps?: number
+    /**
+     * EP2: when true, Plexo registers a `read_memory` tool alongside caller tools.
+     * Body shape: `{ query: string, limit?: number, tags?: string[] }` → `MemoryEntry[]`.
+     */
+    enableMemoryTool?: boolean
+}
+
+export interface RunCustomStep {
+    /** Tool name invoked, if any. Absent on final assistant text turn. */
+    tool?: string
+    /** Input that was passed to the tool. */
+    input?: Record<string, unknown>
+    /** Tool output (string or JSON, as returned by callback). */
+    output?: unknown
+    /** Free-form error if the tool call failed. */
+    error?: string
+}
+
+export interface RunCustomResult {
+    /** Server-issued run identifier. Stable across the agent loop; tied to JWT claims. */
+    runId: string
+    /** Final assistant message after the loop terminated. */
+    output: string
+    /** Ordered transcript of tool dispatches + outputs. Empty if LLM responded directly. */
+    steps: RunCustomStep[]
+    /** True if `maxSteps` cap was hit before the LLM declared done. */
+    truncated: boolean
+}
+
 export interface ChatOptions {
     message: string
     sessionId?: string
