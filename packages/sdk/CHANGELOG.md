@@ -2,6 +2,27 @@
 
 ## 1.2.0 — 2026-05-12
 
+### Added — `agents.runCustom` (EP1 + EP2 per Frame Forge ADR 0035)
+
+- `client.agents.runCustom(workspaceId, { systemPrompt, tools, input, ... })`
+  → `RunCustomResult`. Multi-step agent loop where the **caller** supplies
+  the system prompt and tools[]; Plexo runs the Vercel AI SDK loop and
+  dispatches each LLM tool call as a signed HTTP POST to the caller-provided
+  `callbackUrl`. Synchronous (120s timeout); returns full `{ runId, output,
+  steps[], truncated }` when the loop terminates.
+- Tool dispatch contract: Plexo POSTs `{ runId, toolName, input }` to
+  `tool.callbackUrl` with `Authorization: Bearer <runJwt>` (HS256,
+  300s lifetime, claims: `{ workspaceId, runId, allowedTools[] }`).
+  Caller's handler responds with `{ output: <string|json> }` or
+  `{ error: <string> }`. 30s per-tool timeout.
+- **EP2 — memory as tool.** Setting `enableMemoryTool: true` causes Plexo
+  to register a `read_memory` tool in the LLM's tool list. The LLM can
+  call it mid-loop to query stored memory via `{ query, limit?, type? }`.
+- New types: `RunCustomOptions`, `RunCustomTool`, `RunCustomStep`,
+  `RunCustomResult`.
+- Server-side surface: `POST /api/v1/agents/run-custom` (Plexo API).
+  Requires `PLEXO_RUN_JWT_SECRET` (≥32 chars) on the Plexo API container.
+
 ### Added — Synchronous gmessages tool-invoke (Levio↔gmessages bridge)
 
 - `client.tools.gmessages.send({ workspaceId, threadId?, phoneE164?, text })`
