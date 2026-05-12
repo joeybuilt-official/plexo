@@ -39,6 +39,7 @@ export * from './selector.js'
 export * from './error-classifier.js'
 export * from './stats.js'
 export * from './telemetry.js'
+export * from './shadow.js'
 
 const COOLDOWN_RATE_LIMIT_MS = 60_000
 const COOLDOWN_TRANSIENT_MS = 15_000
