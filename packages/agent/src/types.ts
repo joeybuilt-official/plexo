@@ -365,6 +365,7 @@ export type StepEventType =
     | 'agent_step'
     | 'task_resumed'
     | 'routing_fallback'
+    | 'provider_fallback_engaged'
     | 'cost_ceiling_warn'
 
 export interface StepShellLineEvent {
@@ -418,7 +419,7 @@ export interface StepAgentStepEvent {
 
 /** Generic step event for lifecycle signals (resume, routing fallback, etc.) */
 export interface StepGenericEvent {
-    type: 'task_resumed' | 'routing_fallback' | 'cost_ceiling_warn'
+    type: 'task_resumed' | 'routing_fallback' | 'provider_fallback_engaged' | 'cost_ceiling_warn'
     taskId: string
     workspaceId: string
     ts: number

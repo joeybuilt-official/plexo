@@ -1466,6 +1466,14 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             /timeout/i, /ETIMEDOUT/i, /ECONNRESET/i, /ECONNREFUSED/i,
             /rate.?limit/i, /429/i, /503/i, /502/i, /overloaded/i,
             /AbortError/i, /network/i, /socket hang up/i,
+            // Billing / credit-balance exhaustion across the whole fallback
+            // chain. withFallback already advances on 402 from the primary,
+            // but if every provider in the chain is depleted the error
+            // bubbles up here — treat it as transient so the task requeues
+            // (operator may top up between attempts) instead of permanently
+            // failing.
+            /402/, /credit balance/i, /insufficient credits/i,
+            /insufficient_quota/i, /payment required/i,
         ]
         const isTransient = TRANSIENT_PATTERNS.some(p => p.test(message))
             || errCode === 'CALL_MODEL_TIMEOUT'

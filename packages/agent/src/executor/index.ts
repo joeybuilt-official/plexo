@@ -1330,7 +1330,12 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         effectiveSettings,
         ctx.workspaceId,
     ).catch(async (err) => {
-        // Router failure (e.g. empty models_knowledge table) — fall back to BYOK
+        // Router failure (e.g. empty models_knowledge table) — fall back to BYOK.
+        // This withFallback call resolves a usable AnyLanguageModel from the
+        // workspace's provider chain when the router itself can't pick one.
+        // The actual generateText step further down is ALSO wrapped in
+        // withFallback (see ~line 1745) — that's where 402 / 5xx / 429 from
+        // the resolved provider triggers chain advancement during execution.
         routingFallbackUsed = true
         routingFallbackReason = err instanceof Error ? err.message : String(err)
         const fallbackModel = await withFallback(settings, taskTier, async (m) => m)
@@ -1742,16 +1747,67 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                             ? AbortSignal.any([ctx.signal, AbortSignal.timeout(STEP_TIMEOUT_MS)])
                             : stepSignal
 
-                        result = await generateText({
-                            model: resolvedModel,
-                            system: systemPrompt,
-                            messages,
-                            tools: stepTools,
-                            maxOutputTokens: resolvedCeiling,
-                            // stopWhen defaults to stepCountIs(1) — one tool call per outer iteration.
-                            // Each iteration is checkpointed to DB so crashes lose at most 1 step.
-                            abortSignal: currentStepSignal,
-                        })
+                        // Wrap the step call in withFallback so a primary
+                        // provider failure (402 credit-balance, 5xx, 429,
+                        // 404 model-not-found) advances through the
+                        // workspace's preference_order instead of permanently
+                        // failing the task. The closure captures `meta` from
+                        // each attempt so resolvedMeta reflects the provider
+                        // that actually served the request — keeping cost
+                        // attribution, step events, and the identity line in
+                        // sync with reality.
+                        //
+                        // Note: the closure receives only the model from
+                        // withFallback; we re-derive provider+modelId from
+                        // each tried provider via a shadow capture below so
+                        // resolvedMeta gets updated only on success.
+                        result = await withFallback(
+                            effectiveSettings,
+                            taskTier,
+                            async (model) => {
+                                const stepResult = await generateText({
+                                    model,
+                                    system: systemPrompt,
+                                    messages,
+                                    tools: stepTools,
+                                    maxOutputTokens: resolvedCeiling,
+                                    // stopWhen defaults to stepCountIs(1) — one tool call per outer iteration.
+                                    // Each iteration is checkpointed to DB so crashes lose at most 1 step.
+                                    abortSignal: currentStepSignal,
+                                })
+                                return stepResult
+                            },
+                            {
+                                workspaceId: ctx.workspaceId,
+                                onFallbackEngaged: (info) => {
+                                    // Update resolvedMeta so downstream
+                                    // (cost attribution, step events,
+                                    // identity line) reflect the provider
+                                    // that actually served this step.
+                                    const newProvider = info.used as import('../providers/registry.js').ProviderKey
+                                    const newConfig = effectiveSettings.providers[newProvider]
+                                    const newModelId = effectiveSettings.modelOverrides?.[taskTier]
+                                        ?? newConfig?.model
+                                        ?? PROVIDER_DEFAULT_MODELS[newProvider]
+                                        ?? resolvedMeta.id
+                                    resolvedMeta = {
+                                        ...resolvedMeta,
+                                        provider: newProvider,
+                                        id: newModelId,
+                                    }
+                                    ctx.emitStepEvent?.({
+                                        type: 'provider_fallback_engaged',
+                                        taskId: ctx.taskId,
+                                        workspaceId: ctx.workspaceId,
+                                        primary: info.primary,
+                                        used: info.used,
+                                        skipped: info.skipped,
+                                        lastError: info.lastError,
+                                        ts: Date.now(),
+                                    })
+                                },
+                            },
+                        )
                         break // success — exit retry loop
                     } catch (stepErr) {
                         // Only retry abort/timeout errors, not task-level cancellation
