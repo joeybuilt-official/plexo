@@ -1,6 +1,6 @@
 # @joeybuilt/plexo-sdk — changelog
 
-## 1.2.0 — 2026-05-12
+## 1.3.0 — 2026-05-12
 
 ### Added — `agents.runCustom` (EP1 + EP2 per Frame Forge ADR 0035)
 
@@ -22,6 +22,15 @@
   `RunCustomResult`.
 - Server-side surface: `POST /api/v1/agents/run-custom` (Plexo API).
   Requires `PLEXO_RUN_JWT_SECRET` (≥32 chars) on the Plexo API container.
+
+### Compatibility
+
+- 1.2.0 surface unchanged. New method lands on `agents.runCustom`;
+  nothing existing renames or moves.
+- Internal: requires Plexo Core ≥ commit `34470cdf` (`POST /api/v1/agents/run-custom`
+  + per-run JWT middleware). Older Plexo cores will return 404.
+
+## 1.2.0 — 2026-05-09
 
 ### Added — Synchronous gmessages tool-invoke (Levio↔gmessages bridge)
 
