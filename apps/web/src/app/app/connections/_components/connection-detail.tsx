@@ -209,6 +209,17 @@ export default function ConnectionDetail({
                             </div>
                         )}
 
+                        {isConnected && connectedItem && testResult[connectedItem.id]?.ok && (
+                            <div className="rounded-sm border border-green-800/50 bg-green-500/10 px-3 py-2.5 flex items-start gap-2">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-green-400 shrink-0 mt-0.5" />
+                                <span className="text-xs text-green-400">
+                                    {testResult[connectedItem.id]!.statusText
+                                        ? `Connection OK — ${testResult[connectedItem.id]!.statusText}`
+                                        : 'Connection OK'}
+                                </span>
+                            </div>
+                        )}
+
                         {!isConnected && (selected.setupFields ?? []).length > 0 && (
                             <div className="flex flex-col gap-3">
                                 <h3 className="text-xs font-medium uppercase tracking-wider text-text-muted">Configuration</h3>

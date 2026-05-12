@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Google Messages">
+  <title>Google Messages</title>
+  <defs>
+    <linearGradient id="gm-grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1A73E8"/>
+      <stop offset="0.55" stop-color="#0F9D58"/>
+      <stop offset="1" stop-color="#34A853"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#gm-grad)" d="M24 4C12.954 4 4 11.984 4 21.84c0 5.516 2.84 10.44 7.32 13.736V44l7.91-4.402a23.59 23.59 0 0 0 4.77.482c11.046 0 20-7.984 20-17.84S35.046 4 24 4Z"/>
+  <circle cx="16" cy="22" r="2.6" fill="#FFFFFF"/>
+  <circle cx="24" cy="22" r="2.6" fill="#FFFFFF"/>
+  <circle cx="32" cy="22" r="2.6" fill="#FFFFFF"/>
+</svg>
