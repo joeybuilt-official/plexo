@@ -15,6 +15,10 @@ import type {
     DispatchOptions,
     DispatchResult,
     FactSearchResult,
+    GmessagesListThreadsOptions,
+    GmessagesSendOptions,
+    GmessagesSendResult,
+    GmessagesThread,
     InboundHandlers,
     InstallConnectionOptions,
     MemorySearchResult,
@@ -348,6 +352,63 @@ export class PlexoClient {
         } catch {
             return []
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Tools (SDK 1.2.0 — synchronous tool-invoke surface)
+    // -----------------------------------------------------------------------
+    //
+    // Surface: `client.tools.gmessages.send({...})` and
+    // `client.tools.gmessages.listThreads({...})`. Distinct from
+    // `dispatch()` (which is the async channel-delivery primitive) — these
+    // calls block until the sidecar has accepted (or rejected) the request
+    // and surface dispatch errors directly so Levio's chat loop can react.
+    //
+    // Errors are NOT swallowed here (unlike addEpisode/searchFacts): a Levio
+    // user pressing "send" expects to see the failure. Network errors bubble
+    // as PlexoUnreachableError; HTTP-level errors bubble as PlexoApiError
+    // with the structured `error.code` from the route in the message body.
+
+    get tools(): {
+        gmessages: {
+            send: (opts: GmessagesSendOptions) => Promise<GmessagesSendResult>
+            listThreads: (opts: GmessagesListThreadsOptions) => Promise<GmessagesThread[]>
+        }
+    } {
+        return {
+            gmessages: {
+                send: (opts) => this.#gmessagesSend(opts),
+                listThreads: (opts) => this.#gmessagesListThreads(opts),
+            },
+        }
+    }
+
+    async #gmessagesSend(opts: GmessagesSendOptions): Promise<GmessagesSendResult> {
+        const body: Record<string, unknown> = {
+            workspaceId: opts.workspaceId,
+            text: opts.text,
+        }
+        if (opts.threadId) body.threadId = opts.threadId
+        if (opts.phoneE164) body.phoneE164 = opts.phoneE164
+        const data = await this.#post<{ messageId?: string; deliveryStatus?: string }>(
+            '/api/v1/tools/gmessages/send',
+            body,
+            { workspaceId: opts.workspaceId },
+        )
+        return {
+            messageId: data.messageId ?? '',
+            deliveryStatus: data.deliveryStatus ?? 'accepted',
+        }
+    }
+
+    async #gmessagesListThreads(opts: GmessagesListThreadsOptions): Promise<GmessagesThread[]> {
+        const params = new URLSearchParams({ workspaceId: opts.workspaceId })
+        if (opts.phoneE164) params.set('phoneE164', opts.phoneE164)
+        if (typeof opts.limit === 'number') params.set('limit', String(opts.limit))
+        const data = await this.#get<{ threads?: GmessagesThread[] }>(
+            `/api/v1/tools/gmessages/threads?${params}`,
+        )
+        return data.threads ?? []
     }
 
     // -----------------------------------------------------------------------

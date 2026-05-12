@@ -213,6 +213,63 @@ export interface OcrResult {
 }
 
 // ---------------------------------------------------------------------------
+// Tools — gmessages sync invoke (SDK 1.2.0 — Levio↔gmessages bridge)
+// ---------------------------------------------------------------------------
+
+export interface GmessagesSendOptions {
+    workspaceId: string
+    /** libgm thread id. Use one of threadId or phoneE164. */
+    threadId?: string
+    /**
+     * E.164 phone number for outbound resolution. NOT YET IMPLEMENTED — the
+     * sidecar does not surface a phone→thread lookup; supplying phoneE164
+     * without threadId returns 501 PHONE_LOOKUP_NOT_IMPLEMENTED. Use
+     * `listThreads()` first to obtain the threadId. Kept in the type for
+     * forward-compatibility.
+     */
+    phoneE164?: string
+    text: string
+}
+
+export interface GmessagesSendResult {
+    messageId: string
+    deliveryStatus: 'accepted' | string
+}
+
+export interface GmessagesListThreadsOptions {
+    workspaceId: string
+    /** Reserved — not yet honored server-side (no phone↔thread index). */
+    phoneE164?: string
+    /** 1–100, default 25. */
+    limit?: number
+}
+
+export interface GmessagesThreadParticipant {
+    phone: string | null
+    name: string | null
+}
+
+export interface GmessagesLastMessage {
+    text: string
+    direction: 'inbound' | 'outbound'
+    sentAt: string
+}
+
+export interface GmessagesThread {
+    threadId: string
+    /**
+     * Always `[]` in 1.2.0 — gmessages schema has no per-thread participant
+     * table yet and libgm does not surface participant lists through the
+     * sidecar. Kept for forward-compatibility; consumers must not depend on
+     * this being populated until the gap is closed.
+     */
+    participants: GmessagesThreadParticipant[]
+    lastMessage: GmessagesLastMessage
+    /** Always 0 in 1.2.0 — read state is not tracked in `conversations`. */
+    unreadCount: number
+}
+
+// ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
 
