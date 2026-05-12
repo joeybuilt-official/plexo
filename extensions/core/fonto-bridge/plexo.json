@@ -1,0 +1,52 @@
+{
+  "plexo": "0.4.0",
+  "name": "@joeybuilt/fonto-bridge",
+  "type": "tool",
+  "version": "1.0.0",
+  "displayName": "Fonto Bridge",
+  "description": "Proxies tool calls to Fonto's data API for asset, collection, and tag operations.",
+  "author": "Joeybuilt LLC",
+  "license": "AGPL-3.0-only",
+  "entry": "/app/extensions/core/fonto-bridge/dist/index.js",
+  "minPexVersion": "0.4.0",
+  "homepage": "https://getplexo.com/ext/@joeybuilt/fonto-bridge",
+  "repository": "https://github.com/joeybuilt-official/plexo",
+  "keywords": ["fonto", "assets", "files", "bridge"],
+  "capabilities": ["storage:read", "events:subscribe"],
+  "capabilitiesRationale": {
+    "storage:read": "Reads the Fonto connection credentials (fonto_user_id) to authenticate data API calls.",
+    "events:subscribe": "Subscribes to ext.synthesis-promote.fonto.projects.create so Plexo's synthesis loop can promote an asset cluster → Fonto project."
+  },
+  "trust": "owner",
+  "escalation": {
+    "irreversibleActions": [],
+    "requestsStandingApprovals": false
+  },
+  "dataResidency": {
+    "sendsDataExternally": false,
+    "externalDestinations": []
+  },
+  "resourceHints": {
+    "maxInvocationMs": 15000
+  },
+  "tools": [
+    { "name": "fonto.asset.list",              "description": "List active assets in the user's Fonto workspace, filtered by classification, collection, or tag." },
+    { "name": "fonto.asset.search",            "description": "Search assets by filename, AI description, or extracted text." },
+    { "name": "fonto.asset.get",               "description": "Fetch full details of a single asset by ID, including description and extracted text." },
+    { "name": "fonto.asset.update",            "description": "Update an asset's filename, description, or classification." },
+    { "name": "fonto.asset.delete",            "description": "Soft-delete an asset by ID." },
+    { "name": "fonto.asset.tag",               "description": "Apply a tag to an asset." },
+    { "name": "fonto.asset.untag",             "description": "Remove a tag from an asset." },
+    { "name": "fonto.collection.list",         "description": "List collections (curated asset groups) in the user's Fonto workspace." },
+    { "name": "fonto.collection.get",          "description": "Fetch details of a single collection by ID." },
+    { "name": "fonto.collection.create",       "description": "Create a new collection in the user's Fonto workspace." },
+    { "name": "fonto.collection.update",       "description": "Rename or update the description of a collection." },
+    { "name": "fonto.collection.delete",       "description": "Delete a collection. Assets in the collection are NOT deleted." },
+    { "name": "fonto.collection.add_asset",    "description": "Add an asset to a collection." },
+    { "name": "fonto.collection.remove_asset", "description": "Remove an asset from a collection." },
+    { "name": "fonto.tag.list",                "description": "List tags (labels) in the user's Fonto workspace." },
+    { "name": "fonto.tag.create",              "description": "Create a new tag in the user's Fonto workspace." },
+    { "name": "fonto.tag.update",              "description": "Rename or recolor a tag." },
+    { "name": "fonto.tag.delete",              "description": "Delete a tag by ID. Removed from all assets it was applied to." }
+  ]
+}

@@ -1,0 +1,87 @@
+name: Deploy Plexo Services
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-plexo
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_REPO: ${{ secrets.VPS_REPO || '/opt/plexo' }}
+      COMPOSE_DIR: ${{ secrets.COMPOSE_DIR || '/opt/app/infra' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed services
+        id: changes
+        run: |
+          SERVICES=""
+          # Manual trigger or failed diff → rebuild all
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "all")
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CHANGED="all"
+          fi
+
+          if echo "$CHANGED" | grep -qE '^(apps/api|packages/|docker/Dockerfile\.api)' || [ "$CHANGED" = "all" ]; then
+            SERVICES="plexo-api cc-plexo-api"
+          fi
+
+          if echo "$CHANGED" | grep -qE '^(apps/web|packages/|docker/Dockerfile\.web)' || [ "$CHANGED" = "all" ]; then
+            SERVICES="$SERVICES plexo-saas"
+          fi
+
+          SERVICES=$(echo "$SERVICES" | xargs)
+          if [ -z "$SERVICES" ]; then
+            echo "No services to rebuild"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
+          echo "Rebuilding: ${SERVICES:-none}"
+
+      - name: Setup SSH
+        if: steps.changes.outputs.skip != 'true'
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync code to VPS
+        if: steps.changes.outputs.skip != 'true'
+        run: |
+          rsync -azP --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='.env*' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ "$VPS_USER@$VPS_HOST:$VPS_REPO/"
+
+      - name: Rebuild services
+        if: steps.changes.outputs.skip != 'true'
+        env:
+          SERVICES: ${{ steps.changes.outputs.services }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" "bash -s -- $SERVICES" <<'REMOTE'
+          cd $COMPOSE_DIR
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps $@ 2>&1
+          REMOTE

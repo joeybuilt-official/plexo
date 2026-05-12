@@ -1,0 +1,90 @@
+# Environment — never commit real values
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# Local Docker overrides — personal customizations stay local
+docker-compose.override.yml
+docker-compose.*.override.yml
+
+# Runtime
+node_modules/
+.next/
+.next.bak/
+dist/
+*.tsbuildinfo
+
+# Exception: bundled reference extensions ship their prebuilt dist so the
+# API container can import them at activation time without a build step
+!extensions/core/*/dist/
+!extensions/core/*/dist/**
+.turbo/
+
+# Secrets that might be generated locally
+*.pem
+*.key
+*.p12
+docker/caddy/data/
+
+# Self-updater artifacts (written to repo root on VPS by one-click update)
+.source-commit-override
+.update-log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+.agents-local.md
+
+# One-off scaffold/patch scripts and local test harnesses (may contain secrets)
+fix_api_routes.js
+update_chat.js
+update_chat_page.js
+update_telegram.js
+test-*.ts
+test-*.js
+*-test-local.*
+
+# Playwright
+playwright-report/
+test-results/
+caddy.json
+
+# Tool-specific artifacts — local config, worktrees, settings stay ignored; skills are committed
+.claude/*
+!.claude/skills/
+.cache/
+tmp/
+*.log
+scripts/internal/
+images/internal/
+.gradle/
+
+# Session-bridge artifacts written by phased-plan / resume-prompt skills
+next-session.txt
+
+# Database dumps — NEVER commit production data
+*.sql
+!**/drizzle/*.sql
+*.dump
+*.pgdump
+*.sql.gz
+*.sql.bz2
+tests/.auth/
+forensics-data/
+ops/stabilization/results/
+ops/harnesseval/results/
+ops/harnesseval/harness/node_modules/
+ops/harnesseval/harness/vendor/node_modules/
+README.md.bak
+.serena/
+
+# Graphiti sidecar (ADR 0011) — Python build artifacts + local Kuzu DB files
+services/graphiti-sidecar/__pycache__/
+services/graphiti-sidecar/.venv/
+data/graphiti/

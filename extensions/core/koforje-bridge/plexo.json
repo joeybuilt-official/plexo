@@ -1,0 +1,42 @@
+{
+  "plexo": "0.4.0",
+  "name": "@joeybuilt/koforje-bridge",
+  "type": "tool",
+  "version": "1.0.0",
+  "displayName": "Koforje Bridge",
+  "description": "Proxies tool calls to Koforje's HTTP API for workspace, file search, agent run, and deploy operations.",
+  "author": "Joeybuilt LLC",
+  "license": "AGPL-3.0-only",
+  "entry": "/app/extensions/core/koforje-bridge/dist/index.js",
+  "minPexVersion": "0.4.0",
+  "homepage": "https://getplexo.com/ext/@joeybuilt/koforje-bridge",
+  "repository": "https://github.com/joeybuilt-official/plexo",
+  "keywords": ["koforje", "ide", "developer", "agents", "bridge"],
+  "capabilities": ["storage:read"],
+  "capabilitiesRationale": {
+    "storage:read": "Reads the Koforje connection credentials (koforje_user_id) to authenticate API calls."
+  },
+  "trust": "owner",
+  "escalation": {
+    "irreversibleActions": ["koforje.workspace.delete", "koforje.deploy.create"],
+    "requestsStandingApprovals": false
+  },
+  "dataResidency": {
+    "sendsDataExternally": false,
+    "externalDestinations": []
+  },
+  "resourceHints": {
+    "maxInvocationMs": 30000
+  },
+  "tools": [
+    { "name": "koforje.workspace.list",   "description": "List the user's Koforje workspaces." },
+    { "name": "koforje.workspace.get",    "description": "Fetch details of a single Koforje workspace." },
+    { "name": "koforje.workspace.create", "description": "Create a new Koforje workspace, optionally cloning a Git repo." },
+    { "name": "koforje.workspace.delete", "description": "Delete a Koforje workspace by ID." },
+    { "name": "koforje.file.search",      "description": "Text or semantic search across files in a Koforje workspace." },
+    { "name": "koforje.agent.run",        "description": "Trigger an agent run inside a Koforje workspace." },
+    { "name": "koforje.agent.runs.list",  "description": "List recent agent runs for a workspace." },
+    { "name": "koforje.deploy.create",    "description": "Trigger a deploy of a Koforje workspace." },
+    { "name": "koforje.deploy.list",      "description": "List recent deploys for a workspace." }
+  ]
+}

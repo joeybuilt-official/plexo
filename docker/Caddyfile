@@ -1,0 +1,87 @@
+{$PUBLIC_DOMAIN:localhost} {
+  request_body {
+    max_size 10MB
+  }
+
+  # Rate limiting — proxy-layer throttle before requests reach Node.js
+  # Requires caddy-ratelimit module (built into Dockerfile.caddy via xcaddy)
+  rate_limit {
+    zone api_zone {
+      match {
+        path /api/*
+      }
+      key {remote_host}
+      events 100
+      window 10s
+    }
+  }
+
+  # SSE — disable buffering (must be before generic /api/* catch)
+  handle /api/sse {
+    reverse_proxy api:3001 {
+      flush_interval -1
+    }
+  }
+
+  # Auth.js callback routes — served by web
+  handle /api/auth/* {
+    reverse_proxy web:3000
+  }
+
+  # API backend
+  handle /api/* {
+    reverse_proxy api:3001 {
+      transport http {
+        read_timeout 120s
+        write_timeout 120s
+      }
+    }
+  }
+  handle /health {
+    reverse_proxy api:3001
+  }
+
+  # Dashboard — catch-all (must be last)
+  handle {
+    reverse_proxy web:3000
+  }
+
+  # Security headers
+  header {
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy strict-origin-when-cross-origin
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    -Server
+    -X-XSS-Protection
+  }
+
+  # Access logging — stdout for container log aggregation (S-05)
+  log {
+    output stdout
+    format json
+  }
+
+  encode gzip zstd
+}
+
+hub.{$PUBLIC_DOMAIN:localhost} {
+  # Security headers
+  header {
+    X-Content-Type-Options nosniff
+    X-Frame-Options SAMEORIGIN
+    Referrer-Policy strict-origin-when-cross-origin
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    -Server
+  }
+
+  log {
+    output stdout
+    format json
+  }
+
+  encode gzip zstd
+
+  reverse_proxy hub:3002
+}

@@ -1,0 +1,15 @@
+node_modules
+apps/*/node_modules
+packages/*/node_modules
+plugins/*/*/node_modules
+.next
+dist
+build
+.git/objects
+.git/lfs
+.git/hooks
+.git/logs
+
+# Keep bundled reference extension dist — imported by persistent worker pool
+!extensions/core/*/dist
+!extensions/core/*/dist/**

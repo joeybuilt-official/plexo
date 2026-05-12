@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Direction 2: Delta Frame
+       Three lines forming an open triangle (no fill), with three dots at vertices.
+       The triangle does not close -- bottom edge has a gap (underscore nod).
+       Structural, geometric, references the original connecting-lines topology. -->
+  <line x1="24" y1="10" x2="12" y2="34" stroke="#6db8cc" stroke-width="2" stroke-linecap="round"/>
+  <line x1="24" y1="10" x2="36" y2="34" stroke="#6db8cc" stroke-width="2" stroke-linecap="round"/>
+  <!-- Bottom edge: gap in center (underscore reference) -->
+  <line x1="12" y1="34" x2="20" y2="34" stroke="#6db8cc" stroke-width="2" stroke-linecap="round"/>
+  <line x1="28" y1="34" x2="36" y2="34" stroke="#6db8cc" stroke-width="2" stroke-linecap="round"/>
+  <!-- Vertex dots -->
+  <circle cx="24" cy="10" r="3" fill="#6db8cc"/>
+  <circle cx="12" cy="34" r="3" fill="#6db8cc"/>
+  <circle cx="36" cy="34" r="3" fill="#6db8cc"/>
+</svg>

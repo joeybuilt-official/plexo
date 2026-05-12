@@ -1,0 +1,20 @@
+{
+  "name": "@plexo/graphiti-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7",
+    "@types/node": "^22",
+    "vitest": "^3"
+  },
+  "license": "AGPL-3.0-only"
+}

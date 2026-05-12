@@ -1,0 +1,432 @@
+@import "tailwindcss";
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Plexo Design Tokens — Single Source of Truth
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Canonical token vocabulary. DO NOT introduce shadcn-style aliases
+ * (`text-foreground`, `bg-surface`, `text-muted-foreground`, `border-input`
+ * etc.) — they do not resolve in this theme.
+ *
+ * Colors (use these class names):
+ *   bg-canvas            — page background (#101520)
+ *   bg-surface-1/2/3     — card / panel / pressed surface hierarchy
+ *   border-border        — default border
+ *   border-border-subtle — low-emphasis border
+ *   text-text-primary    — primary body copy (#E2E8F0)
+ *   text-text-secondary  — secondary / label copy (#8294B0)
+ *   text-text-muted      — disabled / tertiary copy
+ *   text-accent / bg-accent / border-accent         — brand accent (#4DAAFC)
+ *   text-azure / bg-azure / border-azure            — alias → accent
+ *   text-amber / bg-amber / border-amber            — warning / one-way-door
+ *   text-red   / bg-red   / border-red              — error
+ *
+ * Radius: rounded-md (4px), rounded-lg (4px), rounded-xl (4px) — Joeybuilt max 4px
+ * Fonts:  font-display (Geist), font-body (IBM Plex Sans), font-mono (JetBrains Mono)
+ *
+ * Focus rings: add `focus-ring` utility (below) to interactive elements.
+ * Global `*:focus-visible` also applies a visible outline for keyboard nav.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Dark mode via class strategy (next-themes adds class="dark" / class="light" to <html>).
+ * Tailwind v4: declare the variant explicitly so dark: utilities resolve to .dark selector.
+ */
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* ── Plexo V2: Geometric Precision ──────────────────────────────────────── */
+  /* Navy-black canvas, high-sat blue accent, architectural density.          */
+
+  /* Surfaces */
+  --color-canvas:       #101520;   /* Deep navy-black. Mathematical blackboard. */
+  --color-surface-1:    #161D2C;   /* Blueprint layer one. */
+  --color-surface-2:    #1D2640;   /* Active surfaces. */
+  --color-surface-3:    #243052;   /* Selected, focused. */
+  --color-border:       #253354;   /* Structural. Construction lines. */
+  --color-border-subtle:#1C2744;   /* Grid lines, dividers. */
+
+  /* Text */
+  --color-text-primary: #E2E8F0;   /* Slate-50 equivalent. */
+  --color-text-secondary:#8294B0;  /* Blueprint annotation tone. */
+  --color-text-muted:   #576A88;   /* Dimensional labels. */
+
+  /* Accent — high-sat electric blue, 20% more saturated than V1. */
+  --color-accent:       #4DAAFC;
+  --color-accent-dim:   #3B8FDE;
+  --color-accent-hover: #6DBCFF;
+  --color-accent-muted: rgba(77,170,252,0.12);
+  --color-accent-glow:  rgba(77,170,252,0.06);
+
+  /* Azure aliases — backward compat for existing bg-azure / text-azure */
+  --color-azure:        var(--color-accent);
+  --color-azure-500:    var(--color-accent);
+  --color-azure-600:    var(--color-accent-dim);
+  --color-azure-700:    #2E78C2;
+  --color-azure-800:    #2466A8;
+  --color-azure-900:    #1A548E;
+  --color-azure-dim:    var(--color-accent-muted);
+  --color-azure-glow:   var(--color-accent-glow);
+
+  /* Legacy indigo aliases — resolve through azure → accent */
+  --color-indigo:       var(--color-accent);
+  --color-indigo-500:   var(--color-accent);
+  --color-indigo-600:   var(--color-accent-dim);
+  --color-indigo-dim:   var(--color-accent-muted);
+  --color-indigo-glow:  var(--color-accent-glow);
+
+  /* Signal colors */
+  --color-signal-green: #10B981;
+  --color-signal-red:   #F43F5E;
+
+  /* Amber — warnings, one-way-door signal */
+  --color-amber:        #F59E0B;
+  --color-amber-500:    var(--color-amber);
+  --color-amber-600:    #D97706;
+  --color-amber-dim:    rgba(245,158,11,0.13);
+
+  --color-red:          #F43F5E;
+  --color-red-500:      var(--color-red);
+  --color-red-600:      var(--color-red);
+  --color-red-dim:      rgba(244,63,94,0.12);
+
+  /* Radius — Joeybuilt ceiling: 4px */
+  --radius-md:          4px;  /* buttons, inputs */
+  --radius-lg:          4px;  /* cards, panels */
+  --radius-xl:          4px;  /* large surfaces */
+
+  /* Fonts — Geist tight-tracked display, JetBrains Mono for data, Plex for prose */
+  --font-display: 'Geist', system-ui, sans-serif;
+  --font-body:    'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+  --font-sans:    'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+}
+
+@layer base {
+  html {
+    font-size: 16px;
+  }
+  
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: theme(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: theme(--color-text-muted);
+}
+
+/*
+ * Global focus-visible outline — required for keyboard accessibility (WCAG 2.4.7).
+ * Uses azure accent on 2px offset so it's visible against any surface.
+ * Mouse users don't see this (only :focus-visible), so it doesn't show on click.
+ * Inputs / textareas can opt out with the `.no-focus-ring` class if their
+ * internal styling already indicates focus (e.g. border color change + ring).
+ */
+*:focus-visible {
+  outline: 2px solid var(--color-azure);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.no-focus-ring:focus-visible {
+  outline: none;
+}
+
+/*
+ * Inputs/textareas/selects opt out of the global azure focus outline.
+ * The user explicitly does not want a blue ring on click into a text
+ * field — Chromium treats text-entry fields as always-focus-visible
+ * for a11y, so the global rule above fires on every click.
+ *
+ * Mouse focus → no outline (clean field). Keyboard focus → muted
+ * outline so WCAG 2.4.7 keyboard navigation is still satisfied.
+ *
+ * Buttons / links / toggles still get the global azure outline
+ * because their focus indicator is intentional brand signal.
+ */
+input:focus,
+textarea:focus,
+select:focus,
+[contenteditable]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: none !important;
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[contenteditable]:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--color-text-muted) 40%, transparent) !important;
+  outline-offset: 2px;
+  box-shadow: none !important;
+  --tw-ring-shadow: none !important;
+}
+
+/* Smooth transitions on interactive elements only */
+a, button, [role="button"], input, select, textarea,
+.card-glow, [data-interactive] {
+  transition-property: color, background-color, border-color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Card hover — border shift only, no shadow */
+.card-glow:hover {
+  border-color: var(--color-accent-dim);
+}
+
+/* Activity log entry animation */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Landing page: scroll reveal ────────────────────────────────────────────── */
+.reveal-section {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-section[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Landing page: gradient-text removed (Joeybuilt: no gradients) ─────── */
+/* .gradient-text kept as plain accent color fallback so existing markup
+   still resolves to something visible until Phase 4 rewrites the page. */
+.gradient-text {
+  color: var(--color-accent);
+}
+
+/* ── Landing page: glow effects removed (Joeybuilt: no shadows/glows) ──── */
+.glow-azure {
+  /* no-op — depth via border only */
+}
+.glow-border {
+  border: 1px solid var(--color-border);
+  transition: border-color 0.3s ease;
+}
+.glow-border:hover {
+  border-color: var(--color-accent-dim);
+}
+
+/* ── Landing page: backgrounds (no-op stubs) ─────────────────────────────── */
+.bg-grid-dots {
+  /* removed — Joeybuilt: no decorative backgrounds */
+}
+.hero-glow {
+  /* removed — Joeybuilt: no gradients */
+}
+
+/* ── Landing page: terminal cursor ─────────────────────────────────────────── */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.terminal-cursor::after {
+  content: '▊';
+  animation: blink 1s step-end infinite;
+  color: theme(--color-azure);
+  margin-left: 2px;
+  font-size: 0.85em;
+}
+
+/* ── Landing page: concept graph animation ─────────────────────────────────── */
+@keyframes concept-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+@keyframes concept-orbit {
+  from { transform: rotate(0deg) translateX(14px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(14px) rotate(-360deg); }
+}
+
+/*
+ * ── Light mode palette ─────────────────────────────────────────────────────────
+ * High-contrast light palette. WCAG AA compliant for all text/bg combinations.
+ * Activated when next-themes sets class="light" on <html>.
+ *
+ * Surface hierarchy (darkest → lightest):
+ *   surface-3  #DDE1EA  (hover, pressed — clearly distinct)
+ *   surface-2  #E8EBF2  (selected, secondary bg)
+ *   surface-1  #F1F3F7  (cards, panels — slightly off-white)
+ *   canvas     #F7F8FC  (page background — near-white)
+ *   white      #FFFFFF  (inputs, dropdowns, modals)
+ *
+ * Borders are fully visible: subtle at 60% opacity of border, normal at 100%.
+ */
+.light {
+  /* Page background */
+  --color-canvas:        #F7F8FC;
+
+  /* Card / panel surfaces — clearly off-white, not white */
+  --color-surface-1:     #F0F2F8;
+  /* Selected states, secondary backgrounds */
+  --color-surface-2:     #E4E8F2;
+  /* Hover, pressed states */
+  --color-surface-3:     #D6DCE8;
+
+  /* Fully visible borders */
+  --color-border:        #C0C8D8;
+  --color-border-subtle: #D6DCE8;
+
+  /* Text — high contrast (WCAG AA on all surfaces) */
+  --color-text-primary:   #101520;   /* near-black navy */
+  --color-text-secondary: #364050;
+  --color-text-muted:     #6B7280;
+
+  /* Accent — darker for WCAG AA on light backgrounds */
+  --color-accent:       #2B7DC0;
+  --color-accent-dim:   #236AA8;
+  --color-azure:        var(--color-accent);
+
+  /* Accent dims — slightly stronger on light backgrounds */
+  --color-azure-dim:    rgba(77,170,252,0.10);
+  --color-azure-glow:   rgba(77,170,252,0.05);
+  --color-indigo-dim:   rgba(77,170,252,0.10);
+  --color-indigo-glow:  rgba(77,170,252,0.05);
+  --color-amber-dim:    rgba(245,158,11,0.12);
+  --color-red-dim:      rgba(244,63,94,0.10);
+}
+
+/* Light mode body */
+.light body {
+  background-color: var(--color-canvas);
+  color: var(--color-text-primary);
+}
+
+/*
+ * ── Light mode zinc overrides ─────────────────────────────────────────────────
+ * Components use hardcoded zinc-* utility classes for dark mode. These overrides
+ * remap them to light equivalents when the .light class is on <html>.
+ * Covers: sidebar active state, group labels, dropdowns, user footer, badges.
+ */
+
+/* Nav group labels: zinc-600 → readable slate */
+.light .text-zinc-600 { color: #6B7280; }
+/* Sidebar active icon (azure already correct) */
+.light .text-zinc-700 { color: #9CA3AF; }
+
+/* Hardcoded dark badge / text in dropdowns */
+.light .text-zinc-200 { color: #111827; }
+.light .text-zinc-300 { color: #374151; }
+
+/* Sidebar active item background: zinc-800/80 → accent-muted */
+.light .bg-zinc-800\/80 { background-color: rgba(77,170,252,0.10); }
+.light .bg-zinc-800 { background-color: var(--color-surface-2); }
+.light .bg-zinc-700 { background-color: var(--color-surface-3); }
+
+/* Workspace switcher / dropdown surfaces */
+.light .border-zinc-700\/60 { border-color: var(--color-border); }
+.light .border-zinc-700 { border-color: var(--color-border); }
+
+/* User avatar / initials chip */
+.light .ring-zinc-700\/50 { --tw-ring-color: var(--color-border); }
+.light .ring-inset { --tw-ring-color: var(--color-border); }
+
+/* Input in workspace name creation */
+.light .border-zinc-700 { border-color: var(--color-border); }
+.light .bg-canvas { background-color: var(--color-canvas); }
+
+/* Scrollbar thumb */
+.light ::-webkit-scrollbar-thumb { background: var(--color-border); }
+.light ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+@layer utilities {
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /*
+   * Preferred focus treatment for buttons/links/selects — explicit ring
+   * on azure with canvas offset, replacing the global outline.
+   * Apply this class to interactive elements for a component-level ring.
+   */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+  }
+
+  /* ── V2 Button Variants ──────────────────────────────────────────────────── */
+  /* Primary: accent bg, white text, accent-dim hover */
+  .btn-primary {
+    @apply inline-flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-dim transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+  }
+  /* Secondary: text + arrow, no bg, accent text */
+  .btn-secondary {
+    @apply inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+  }
+  .btn-secondary::after {
+    content: '\2192';
+    display: inline-block;
+    margin-left: 2px;
+    transition: transform 150ms ease;
+  }
+  .btn-secondary:hover::after {
+    transform: translateX(2px);
+  }
+  /* Inline: accent underline, for in-text links */
+  .btn-inline {
+    @apply text-xs font-medium text-accent underline underline-offset-2 decoration-accent/40 hover:decoration-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+  }
+
+  /* ── V2 Status Bracket Stamps ────────────────────────────────────────────── */
+  .stamp {
+    @apply inline-flex items-center font-mono text-[11px] font-medium uppercase tracking-wider;
+  }
+  .stamp::before { content: '['; }
+  .stamp::after  { content: ']'; }
+  .stamp-active  { @apply text-accent; }
+  .stamp-idle    { @apply text-text-muted; }
+  .stamp-error   { @apply text-red; }
+  .stamp-warning { @apply text-amber; }
+  .stamp-success { @apply text-signal-green; }
+
+  /* ── V2 Blinking Cursor Loader ───────────────────────────────────────────── */
+  .loading-cursor::after {
+    content: '_';
+    animation: blink 1s step-end infinite;
+    color: var(--color-accent);
+    margin-left: 1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

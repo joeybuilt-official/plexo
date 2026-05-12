@@ -1,0 +1,264 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
+import { CopyButton } from './copy-button'
+import { TaskError } from '@web/components/task-error'
+import { WorksPanel } from '@web/components/works-panel'
+
+interface TaskStep {
+    id: string
+    stepNumber: number
+    model: string | null
+    tokensIn: number | null
+    tokensOut: number | null
+    toolCalls: unknown
+    outcome: string | null
+    createdAt: string
+}
+
+interface TaskWork {
+    type: 'file' | 'diff' | 'url' | 'data' | 'command'
+    label: string
+    content: string
+}
+
+interface TaskDeliverable {
+    summary: string
+    outcome: 'completed' | 'partial' | 'blocked' | 'failed'
+    works: TaskWork[]
+    verificationSteps: string[]
+}
+
+interface TaskDetail {
+    id: string
+    type: string
+    status: string
+    source: string
+    context: Record<string, unknown>
+    qualityScore: number | null
+    tokensIn: number | null
+    tokensOut: number | null
+    costUsd: number | null
+    outcomeSummary: string | null
+    deliverable: TaskDeliverable | null
+    createdAt: string | null
+    claimedAt: string | null
+    completedAt: string | null
+}
+
+const STATUS_STYLES: Record<string, string> = {
+    complete: 'bg-azure-dim text-azure border-azure-800',
+    running: 'bg-azure-dim text-azure border-azure-800',
+    queued: 'bg-surface-2 text-text-secondary border-border',
+    blocked: 'bg-amber-dim text-amber border-amber-800',
+    failed: 'bg-red-dim text-red border-red-800',
+}
+
+function fmt(iso: string | null | undefined): string {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function elapsed(start: string | null, end: string | null): string {
+    if (!start || !end) return '—'
+    const ms = new Date(end).getTime() - new Date(start).getTime()
+    if (isNaN(ms) || ms < 0) return '—'
+    return ms < 60_000 ? `${(ms / 1000).toFixed(2)}s` : `${(ms / 60_000).toFixed(2)}m`
+}
+
+async function fetchTask(id: string): Promise<{ task: TaskDetail; steps: TaskStep[] } | null> {
+    const INTERNAL = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
+    try {
+        const res = await fetch(`${INTERNAL}/api/v1/tasks/${encodeURIComponent(id)}`, { cache: 'no-store' })
+        if (!res.ok) return null
+        const data = await res.json() as { task?: TaskDetail; steps?: TaskStep[] }
+        if (!data.task) return null
+        return { task: data.task, steps: data.steps ?? [] }
+    } catch { return null }
+}
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params
+    const result = await fetchTask(id)
+
+    if (!result) {
+        return (
+            <div className="flex flex-col gap-4 max-w-4xl">
+                <Link href="/app/logs" className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors w-fit">
+                    <ArrowLeft size={12} /> Back to logs
+                </Link>
+                <div className="rounded-sm border border-border bg-surface-1/40 px-6 py-12 text-center">
+                    <p className="text-sm text-text-secondary font-medium mb-1">Task not found</p>
+                    <p className="text-xs text-text-muted font-mono">{id}</p>
+                </div>
+            </div>
+        )
+    }
+
+    const { task, steps } = result
+    const context = (task.context ?? {}) as Record<string, unknown>
+    // Strip SCL Golden Record + workspace memory preludes from historical
+    // task rows. chat.ts no longer bakes these in for new tasks, but the
+    // strip keeps old rows tidy without a data migration.
+    const rawDescription = (context.description ?? context.prompt ?? context.message ?? '') as string
+    const description = rawDescription
+        .replace(/=== YOUR LEARNED KNOWLEDGE \(SCL Golden Record\) ===[\s\S]*?=== END LEARNED KNOWLEDGE ===/g, '')
+        .replace(/=== WORKSPACE MEMORY \(SCL Golden Record[\s\S]*?=== END WORKSPACE MEMORY ===/g, '')
+        .trim()
+    const contextRest = Object.fromEntries(
+        Object.entries(context).filter(([k]) => !['description', 'prompt', 'message', 'recalledContext'].includes(k))
+    )
+
+    const exportText = [
+        `Task: ${task.id}`,
+        `Status: ${task.status}  Type: ${task.type}  Source: ${task.source}`,
+        `Created: ${fmt(task.createdAt)}`,
+        `Completed: ${fmt(task.completedAt)}`,
+        `Duration: ${elapsed(task.claimedAt ?? task.createdAt, task.completedAt)}`,
+        task.tokensIn != null ? `Tokens: ${task.tokensIn + (task.tokensOut ?? 0)}` : '',
+        task.costUsd != null ? `Cost: $${task.costUsd.toFixed(5)}` : '',
+        task.qualityScore != null ? `Quality: ${Math.round(task.qualityScore * 100)}%` : '',
+        description ? `\nDescription:\n${description}` : '',
+        task.outcomeSummary ? `\nOutcome:\n${task.outcomeSummary}` : '',
+        Object.keys(contextRest).length > 0 ? `\nContext:\n${JSON.stringify(contextRest, null, 2)}` : '',
+        steps.length > 0
+            ? `\nSteps (${steps.length}):\n${steps.map(s =>
+                `  [${s.stepNumber}] ${s.model ?? ''} ${s.tokensIn != null ? `${s.tokensIn + (s.tokensOut ?? 0)}tok` : ''}\n  ${s.outcome ?? ''}`
+            ).join('\n')}`
+            : '',
+    ].filter(Boolean).join('\n')
+
+    return (
+        <div className="flex flex-col gap-6 max-w-4xl">
+            {/* Back + copy */}
+            <div className="flex items-center justify-between">
+                <Link href="/app/logs" className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors">
+                    <ArrowLeft size={12} /> Back to logs
+                </Link>
+                <CopyButton text={exportText} label="Copy log" />
+            </div>
+
+            {/* Header */}
+            <div>
+                <div className="flex items-center gap-3 mb-2">
+                    <span className={`rounded border px-1.5 py-0.5 text-[11px] font-medium capitalize ${STATUS_STYLES[task.status] ?? 'bg-surface-2 text-text-muted border-border'}`}>
+                        {task.status}
+                    </span>
+                    <span className="font-mono text-xs text-text-muted">{task.id}</span>
+                </div>
+                <p className="text-lg font-medium text-text-primary leading-snug">
+                    {description?.slice(0, 200) || `${task.type} task`}
+                </p>
+            </div>
+
+            {/* Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {([
+                    ['Source', task.source, false],
+                    ['Type', task.type, false],
+                    ['Duration', elapsed(task.claimedAt ?? task.createdAt, task.completedAt), true],
+                    ['Tokens', task.tokensIn != null ? (task.tokensIn + (task.tokensOut ?? 0)).toLocaleString() : '—', true],
+                    ['Cost', task.costUsd != null ? `$${task.costUsd.toFixed(5)}` : '—', true],
+                    ['Quality', task.qualityScore != null ? `${Math.round(task.qualityScore * 100)}%` : '—', true],
+                    ['Created', fmt(task.createdAt), false],
+                    ['Completed', fmt(task.completedAt), false],
+                ] as [string, string, boolean][]).map(([label, value, mono]) => (
+                    <div key={label} className="rounded-sm border border-border bg-surface-1/40 px-3 py-2.5">
+                        <p className="text-[11px] text-text-muted uppercase tracking-wider mb-1">{label}</p>
+                        <p className={`text-sm text-text-secondary truncate capitalize ${mono ? 'font-mono' : ''}`}>{value}</p>
+                    </div>
+                ))}
+            </div>
+
+            {/* Outcome / error */}
+            {task.outcomeSummary && (task.status === 'blocked' || task.status === 'failed') ? (
+                <TaskError outcomeSummary={task.outcomeSummary} status={task.status} />
+            ) : task.outcomeSummary ? (
+                <div className="rounded-sm border border-border bg-surface-1/40 p-4">
+                    <p className="text-[11px] text-text-muted uppercase tracking-wider mb-2">Outcome</p>
+                    <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">{task.outcomeSummary}</p>
+                </div>
+            ) : ['blocked', 'failed', 'cancelled'].includes(task.status) ? (
+                <div className="rounded-sm border border-amber-900/40 bg-amber-dim p-4">
+                    <p className="text-[11px] text-amber-700 uppercase tracking-wider mb-2">
+                        {task.status === 'blocked' ? 'Blocked — no execution' : task.status === 'failed' ? 'Failed' : 'Cancelled'}
+                    </p>
+                    <p className="text-sm text-amber/70 leading-relaxed">
+                        {task.status === 'blocked'
+                            ? 'Agent claimed this task but could not execute — likely no AI provider credential was configured at the time.'
+                            : 'No outcome was recorded.'}
+                    </p>
+                </div>
+            ) : null}
+
+            {/* Structured deliverable */}
+            {task.deliverable && <WorksPanel deliverable={task.deliverable} />}
+
+            {/* Context */}
+            {(description || Object.keys(contextRest).length > 0) && (
+                <div className="rounded-sm border border-border bg-surface-1/40 p-4">
+                    <p className="text-[11px] text-text-muted uppercase tracking-wider mb-3">Context</p>
+                    {description && (
+                        <div className="mb-4">
+                            <p className="text-xs text-text-muted mb-1">Request</p>
+                            <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">{description}</p>
+                        </div>
+                    )}
+                    {Object.keys(contextRest).length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {Object.entries(contextRest).map(([k, v]) => (
+                                <div key={k} className="rounded bg-canvas px-2.5 py-2">
+                                    <p className="text-[11px] text-text-muted uppercase tracking-wider mb-0.5">{k}</p>
+                                    <p className="text-xs text-text-secondary font-mono truncate">{String(v)}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Steps */}
+            {steps.length > 0 && (
+                <div className="rounded-sm border border-border bg-surface-1/40 p-4">
+                    <p className="text-[11px] text-text-muted uppercase tracking-wider mb-3">Execution steps ({steps.length})</p>
+                    <ol className="flex flex-col gap-3">
+                        {steps.map((step) => {
+                            const toolCalls = Array.isArray(step.toolCalls)
+                                ? (step.toolCalls as Array<{ name?: string }>)
+                                : []
+                            return (
+                                <li key={step.id} className="flex gap-3">
+                                    <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-2 text-[11px] font-mono text-text-secondary">
+                                        {step.stepNumber}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            {step.model && <span className="text-[11px] font-mono text-text-muted">{step.model}</span>}
+                                            {step.tokensIn != null && (
+                                                <span className="text-[11px] text-text-muted">
+                                                    {(step.tokensIn + (step.tokensOut ?? 0)).toLocaleString()} tok
+                                                </span>
+                                            )}
+                                            {toolCalls.map((t, i) => t.name
+                                                ? <span key={i} className="text-[11px] text-violet-600 bg-surface-2/40 rounded px-1">{t.name}</span>
+                                                : null
+                                            )}
+                                        </div>
+                                        {step.outcome && (
+                                            <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{step.outcome}</p>
+                                        )}
+                                    </div>
+                                </li>
+                            )
+                        })}
+                    </ol>
+                </div>
+            )}
+        </div>
+    )
+}
