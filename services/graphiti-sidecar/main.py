@@ -43,10 +43,11 @@ from pydantic import BaseModel, Field
 from graphiti_core import Graphiti
 from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
 from graphiti_core.driver.kuzu_driver import KuzuDriver
+from graphiti_core.edges import EntityEdge
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
 from graphiti_core.llm_client.config import LLMConfig
-from graphiti_core.nodes import EpisodeType
+from graphiti_core.nodes import EntityNode, EpisodeType
 
 logger = logging.getLogger("plexo-graphiti")
 logging.basicConfig(level=logging.INFO)
@@ -389,3 +390,143 @@ def _isoformat(value: datetime | None) -> str | None:
     if isinstance(value, datetime):
         return value.isoformat()
     return str(value)
+
+
+# ---------- /v1/triplets (Phase A — ADR 0013 Route A bypass) ----------
+#
+# Constructs typed EntityNode + EntityEdge + EntityNode and calls
+# graphiti.add_triplet directly, skipping the 3-5 internal LLM rounds that
+# graphiti.add_episode runs (entity extract, edge extract, dedup, summarize).
+# Used by the Phase 7 corpus migration (Personal workspace, 4,193 session+
+# pattern rows) to collapse per-row lock-hold from ~30s → ~1s.
+#
+# Latencies are reported back so pre-mortem #2 (lock-hold not meaningfully
+# faster than add_episode) can be falsified during the first 10 calls of
+# the migration run.
+
+_VALID_ENTITY_TYPES = {
+    "IdentityFact",
+    "PreferenceFact",
+    "SkillFact",
+    "ContextFact",
+    "ConstraintFact",
+    "Generic",
+}
+_VALID_MEMORY_TYPES = {"session", "pattern"}
+
+
+class TripletNode(BaseModel):
+    name: str
+    type: str
+    attributes: dict = Field(default_factory=dict)
+
+
+class TripletCreate(BaseModel):
+    workspace_id: str
+    subject: TripletNode
+    predicate: str
+    object: TripletNode
+    source_metadata: dict
+    valid_at: str | None = None
+
+
+def _validate_triplet_node(label: str, node: TripletNode) -> None:
+    if node.type not in _VALID_ENTITY_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{label}.type '{node.type}' not in {sorted(_VALID_ENTITY_TYPES)}",
+        )
+    if not node.name or not node.name.strip():
+        raise HTTPException(status_code=422, detail=f"{label}.name must be non-empty")
+
+
+def _validate_source_metadata(source_metadata: dict) -> tuple[str, str]:
+    plexo_memory_id = source_metadata.get("plexo_memory_id")
+    plexo_memory_type = source_metadata.get("plexo_memory_type")
+    if not plexo_memory_id or not _UUID_PAT.match(str(plexo_memory_id)):
+        raise HTTPException(
+            status_code=422,
+            detail="source_metadata.plexo_memory_id must be a UUID",
+        )
+    if plexo_memory_type not in _VALID_MEMORY_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"source_metadata.plexo_memory_type must be one of {sorted(_VALID_MEMORY_TYPES)}",
+        )
+    return str(plexo_memory_id), str(plexo_memory_type)
+
+
+def _build_entity_node(workspace_id: str, node: TripletNode, plexo_memory_type: str) -> EntityNode:
+    attrs = {**(node.attributes or {}), "plexo_memory_type": plexo_memory_type}
+    return EntityNode(
+        name=node.name,
+        group_id=workspace_id,
+        labels=[node.type],
+        attributes=attrs,
+    )
+
+
+@app.post("/v1/triplets")
+async def add_triplet(request: Request, body: TripletCreate) -> JSONResponse:
+    await _require_hmac(request)
+    # Validate before acquiring the heavy op lock.
+    if not _UUID_PAT.match(body.workspace_id):
+        raise HTTPException(status_code=422, detail="workspace_id must be a UUID")
+    _validate_triplet_node("subject", body.subject)
+    _validate_triplet_node("object", body.object)
+    plexo_memory_id, plexo_memory_type = _validate_source_metadata(body.source_metadata)
+    if not body.predicate or not body.predicate.strip():
+        raise HTTPException(status_code=422, detail="predicate must be non-empty")
+
+    valid_at_dt = _parse_reference_time(body.valid_at)
+
+    lock_wait_start = _now_monotonic_ms()
+    async with _GRAPHITI_OP_LOCK:
+        lock_wait_ms = _now_monotonic_ms() - lock_wait_start
+        write_start = _now_monotonic_ms()
+        graphiti = await _get_graphiti(body.workspace_id)
+
+        source_node = _build_entity_node(body.workspace_id, body.subject, plexo_memory_type)
+        target_node = _build_entity_node(body.workspace_id, body.object, plexo_memory_type)
+
+        edge_attrs = {
+            "plexo_memory_type": plexo_memory_type,
+            "plexo_memory_id": plexo_memory_id,
+        }
+        edge = EntityEdge(
+            group_id=body.workspace_id,
+            source_node_uuid=source_node.uuid,
+            target_node_uuid=target_node.uuid,
+            created_at=valid_at_dt,
+            valid_at=valid_at_dt,
+            name=body.predicate,
+            fact=f"{body.subject.name} {body.predicate} {body.object.name}",
+            attributes=edge_attrs,
+        )
+
+        result = await graphiti.add_triplet(source_node, edge, target_node)
+        triplet_write_ms = _now_monotonic_ms() - write_start
+
+    # graphiti.add_triplet returns AddTripletResults(nodes, edges). Prefer the
+    # returned edge uuid (graphiti may have replaced ours during dedup); fall
+    # back to the uuid we constructed if the result list is unexpectedly empty.
+    result_edges = getattr(result, "edges", None) or []
+    if result_edges:
+        triplet_id = getattr(result_edges[0], "uuid", None) or edge.uuid
+    else:
+        triplet_id = edge.uuid
+
+    return JSONResponse(
+        {
+            "triplet_id": triplet_id,
+            "latencies": {
+                "lock_wait_ms": int(lock_wait_ms),
+                "triplet_write_ms": int(triplet_write_ms),
+            },
+        }
+    )
+
+
+def _now_monotonic_ms() -> int:
+    import time
+    return int(time.monotonic() * 1000)
