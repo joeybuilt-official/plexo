@@ -1,0 +1,71 @@
+# Phase F per-app schema for Fonto (unified personal digital asset manager).
+# Loaded by services/graphiti-sidecar/schema_registry.py.
+#
+# Phase D-Fonto-1 ships pHash near-duplicate detection on the FalkorDB
+# vector index, replacing the linear in-memory scan in
+# app/api/v1/assets/route.ts:findPHashNearDuplicate. See ADR 0027.
+#
+# Required = property keys that MUST appear on the node.
+# Optional = property keys we recognize and allow without warning.
+# STRICT_SCHEMA=true → unregistered keys raise 422.
+
+app: fonto
+graph_template: "fonto:<workspace_id>"
+
+node_labels:
+  Asset:
+    required: [id, filename, mimeType, lifecycleState]
+    # phash_vec: 64-dim float vector (1.0/0.0 per bit) of the 64-bit pHash.
+    # FalkorDB vector index on this prop powers the NN query.
+    optional:
+      - classification
+      - phash_vec
+      - ocrState
+      - capturedAt
+      - correspondentId
+      - documentTypeId
+  Tag:
+    required: [id, name]
+    optional: [aiSuggested, color]
+  Collection:
+    required: [id, name]
+    optional: [projectId, sortOrder]
+  Project:
+    required: [id, name]
+    optional: []
+  Correspondent:
+    required: [id, name]
+    optional: [matchPattern]
+  DocumentType:
+    required: [id, name]
+    optional: [matchPattern]
+
+edge_types:
+  TAGGED_WITH:
+    from: Asset
+    to: Tag
+    props: [addedAt]
+  IN_COLLECTION:
+    from: Asset
+    to: Collection
+    props: [addedAt]
+  IN_PROJECT:
+    from: Collection
+    to: Project
+    props: []
+  FROM:
+    from: Asset
+    to: Correspondent
+    props: []
+  IS_TYPE:
+    from: Asset
+    to: DocumentType
+    props: []
+  # Phase D-Fonto-1 — phash-Hamming near-duplicate edge. Distance is
+  # bit-difference count (0..64); lower = more similar.
+  NEAR_DUPLICATE:
+    from: Asset
+    to: Asset
+    props: [hamming]
+
+predicate_vocabulary: []
