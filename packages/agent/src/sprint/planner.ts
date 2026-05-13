@@ -16,6 +16,8 @@ import { categoryPlannerPrompt } from './categories.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
 import { SprintIntelligence } from './sprint-intelligence.js'
 import { buildExecutionWaves } from '../utils/topo-sort.js'
+import { buildCypherExecutionWavesById } from '../planner/cypher-waves.js'
+import { createHmac } from 'node:crypto'
 
 const logger = pino({ name: 'sprint-planner' })
 
@@ -170,12 +172,18 @@ export async function planSprint(params: {
         depends_on: t.depends_on ?? [],
     }))
 
-    // Persist sprint_tasks rows
+    // Persist sprint_tasks rows. Postgres is the authoritative store
+    // until the B1 cutover ADR (0020) flips. Falkor dual-write fires
+    // after the postgres insert and is awaited-with-catch — never
+    // fails the sprint creation, but we want to know synchronously
+    // when graph falls behind so the FALKORDB_PLANNER_WAVES read path
+    // can be trusted.
     const insertedRows = await persistSprintTasks(sprintId, tasks)
+    await dualWriteTaskDagToFalkor({ sprintId, workspaceId, tasks })
 
     await db.update(sprints).set({ totalTasks: insertedRows.length }).where(eq(sprints.id, sprintId))
 
-    const executionOrder = buildExecutionWaves(tasks)
+    const executionOrder = await computeExecutionOrder({ workspaceId, sprintId, tasks })
 
     logger.info({ sprintId, taskCount: insertedRows.length, waves: executionOrder.length }, 'Sprint plan complete')
 
@@ -206,5 +214,118 @@ async function persistSprintTasks(
     }
 
     return results
+}
+
+// ── Phase B1 (ADR 0020): task DAG dual-write + cypher waves ───────────────────
+
+/**
+ * Dual-write Task + DEPENDS_ON to FalkorDB via /v1/graph/write.
+ * Awaited-with-catch — postgres remains authoritative, but we log +
+ * emit telemetry so graph drift is visible before B1 cutover.
+ */
+async function dualWriteTaskDagToFalkor(params: {
+    sprintId: string
+    workspaceId: string
+    tasks: SprintTask[]
+}): Promise<void> {
+    const { sprintId, workspaceId, tasks } = params
+    const baseUrl = process.env.PLEXO_GRAPHITI_SIDECAR_URL
+    const serviceKey = process.env.PLEXO_SERVICE_KEY
+    if (!baseUrl || !serviceKey) {
+        logger.debug({ sprintId, workspaceId }, 'sprint-planner: falkor dual-write skipped — sidecar URL or key absent')
+        return
+    }
+
+    const nodes = tasks.map((t) => ({
+        label: 'Task',
+        id: t.id,
+        properties: {
+            description: t.description,
+            status: 'queued',
+            priority: t.priority,
+            scope: t.scope,
+            acceptance: t.acceptance,
+            branch: t.branch,
+            sprint_id: sprintId,
+        },
+    }))
+    const edges: Array<{
+        type: 'DEPENDS_ON'
+        from_label: 'Task'
+        from_id: string
+        to_label: 'Task'
+        to_id: string
+        properties: Record<string, never>
+    }> = []
+    for (const t of tasks) {
+        for (const dep of t.depends_on ?? []) {
+            edges.push({
+                type: 'DEPENDS_ON',
+                from_label: 'Task',
+                from_id: t.id,
+                to_label: 'Task',
+                to_id: dep,
+                properties: {},
+            })
+        }
+    }
+
+    const body = JSON.stringify({ workspace_id: workspaceId, app: 'plexo', nodes, edges })
+    const sig = 'sha256=' + createHmac('sha256', serviceKey).update(body).digest('hex')
+    const ts = new Date().toISOString()
+
+    try {
+        const res = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/graph/write`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-App-Id': 'plexo-agent',
+                'X-Plexo-Timestamp': ts,
+                'X-Plexo-Signature': sig,
+            },
+            body,
+        })
+        if (!res.ok) {
+            const text = await res.text().catch(() => '')
+            logger.warn({ sprintId, workspaceId, status: res.status, body: text.slice(0, 200) }, 'sprint-planner: falkor dual-write returned non-OK — postgres is authoritative')
+        } else {
+            logger.info({ sprintId, workspaceId, nodes: nodes.length, edges: edges.length }, 'sprint-planner: falkor dual-write ok')
+        }
+    } catch (err) {
+        logger.warn({ err, sprintId, workspaceId }, 'sprint-planner: falkor dual-write failed — postgres is authoritative')
+    }
+}
+
+/**
+ * Compute execution order — gated on `FALKORDB_PLANNER_WAVES=true`.
+ * The JS path is always the fallback on env-off, cypher-error, or any
+ * shape mismatch. Critical path: agent loop drives off these waves, so
+ * we MUST surface a non-null answer.
+ */
+async function computeExecutionOrder(params: {
+    workspaceId: string
+    sprintId: string
+    tasks: SprintTask[]
+}): Promise<string[][]> {
+    const { workspaceId, sprintId, tasks } = params
+    const flag = (process.env.FALKORDB_PLANNER_WAVES ?? '').toLowerCase()
+    if (flag === 'true' || flag === '1') {
+        try {
+            const cypherWaves = await buildCypherExecutionWavesById(workspaceId, sprintId)
+            if (cypherWaves && cypherWaves.length > 0) {
+                // Sanity: cypher must cover every task — if it doesn't,
+                // graph is behind on the dual-write. Fall back to JS.
+                const cypherCount = cypherWaves.reduce((n, w) => n + w.length, 0)
+                if (cypherCount === tasks.length) {
+                    logger.info({ sprintId, waves: cypherWaves.length }, 'sprint-planner: using cypher execution waves')
+                    return cypherWaves
+                }
+                logger.warn({ sprintId, cypherCount, taskCount: tasks.length }, 'sprint-planner: cypher waves missing tasks — falling back to JS')
+            }
+        } catch (err) {
+            logger.warn({ err, sprintId }, 'sprint-planner: cypher waves threw — falling back to JS')
+        }
+    }
+    return buildExecutionWaves(tasks)
 }
 
