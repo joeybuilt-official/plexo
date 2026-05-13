@@ -1,0 +1,50 @@
+# Phase F per-app schema for plexo (memory layer).
+# Loaded by services/graphiti-sidecar/schema_registry.py.
+#
+# Required = property keys that MUST appear in node.attributes (or, for
+# graphiti-native fields like Episodic content/source_description, in the
+# request body that becomes the node).
+# Optional = property keys we recognize and allow without warning.
+# Any other key is "unregistered": logged when STRICT_SCHEMA=false, raises
+# 422 when STRICT_SCHEMA=true.
+
+app: plexo
+graph_template: "plexo:<workspace_id>"
+
+node_labels:
+  Episodic:
+    required: [content, source_description]
+    optional: [name, source, valid_at, episode_type]
+  Entity:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  IdentityFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  PreferenceFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  SkillFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  ContextFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  ConstraintFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  Generic:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+
+edge_types:
+  RELATES_TO:
+    from: Entity
+    to: Entity
+    props: [fact, plexo_memory_id, plexo_memory_type]
+  HAS_EPISODE_OF:
+    from: Episodic
+    to: Entity
+    props: []
+
+predicate_vocabulary: []
