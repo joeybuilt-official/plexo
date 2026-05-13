@@ -66,6 +66,8 @@ const added = await client.addEpisode({
     content: factText,
     sourceDescription: 'phase-3c-smoke',
     episodeType: 'message',
+    // A3 S1 — every plexo-side call site allocates a plexo_memory_id.
+    sourceMetadata: { plexo_memory_id: globalThis.crypto.randomUUID() },
 })
 if (!added) {
     console.error('FAIL: addEpisode returned null (network or HMAC error). Check sidecar logs + service key.')

@@ -21,6 +21,7 @@
  *     Cypher/Kuzu queries on the sidecar side.
  */
 
+import { randomUUID } from 'node:crypto'
 import { Router } from 'express'
 import pino from 'pino'
 import { GraphitiClient } from '@plexo/graphiti-bridge'
@@ -75,13 +76,21 @@ router.post('/episodes', async (req, res) => {
         res.status(503).json({ error: { code: 'BRIDGE_UNCONFIGURED', message: 'graphiti sidecar URL or service key not set' } })
         return
     }
+    // A3 S1 — allocate plexo_memory_id at the proxy boundary if the SDK
+    // caller didn't supply one, so every Episodic node has a stable
+    // plexo-side identity.
+    const incomingMeta = body.metadata ?? {}
+    const sourceMetadata =
+        typeof incomingMeta.plexo_memory_id === 'string' && incomingMeta.plexo_memory_id.length > 0
+            ? incomingMeta
+            : { ...incomingMeta, plexo_memory_id: randomUUID() }
     const result = await client.addEpisode({
         workspaceId: body.workspaceId,
         content: body.content,
         name: body.name,
         sourceDescription: body.sourceDescription ?? `app:${req.serviceContext?.appId ?? 'unknown'}|src:sdk`,
         referenceTime: body.referenceTime,
-        sourceMetadata: body.metadata ?? {},
+        sourceMetadata,
         episodeType: 'message',
     })
     if (!result) {

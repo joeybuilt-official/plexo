@@ -66,6 +66,8 @@ export const PLEXO_SCHEMA: AppSchema = {
         'confidence',
         'superseded_by',
         'embedding',
+        // A3 S1 (ADR 0031, Path a) — plexo-side identity, REQUIRED at S4.
+        'plexo_memory_id',
       ],
     },
     Entity: { required: ['name'], optional: ['summary', 'plexo_memory_type'] },

@@ -26,6 +26,11 @@ node_labels:
       - confidence          # real; decays weekly via cypher SET
       - superseded_by       # node id; cold-tier guard
       - embedding           # vector; FalkorDB vector index
+      # A3 S1 (ADR 0031, Path a) — plexo-side identity for dual-store
+      # parity. Lifted by the sidecar from source_metadata.plexo_memory_id
+      # and SET on the Episodic node post-graphiti.add_episode. Soft-
+      # introduced as optional; flipped to REQUIRED at A3 S4 cutover.
+      - plexo_memory_id
   Entity:
     required: [name]
     optional: [summary, plexo_memory_type]

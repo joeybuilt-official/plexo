@@ -314,11 +314,15 @@ async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
     await _require_hmac(request)
     # Phase F: schema-validate BEFORE the heavy lock; cheap reject path.
     resolved_app = _resolve_app(request, body.app)
-    _schema_check_node(
-        resolved_app,
-        "Episodic",
-        {"content": body.content, "source_description": body.source_description},
-    )
+    # A3 S1 (ADR 0031, Path a) — plexo_memory_id rides in source_metadata.
+    # When present, include it in the schema check so STRICT_SCHEMA
+    # enforces the registered key, and persist it as a top-level Episodic
+    # prop post-add_episode (graphiti-core has no hook for extra props).
+    plexo_memory_id = body.source_metadata.get("plexo_memory_id") if body.source_metadata else None
+    check_props: dict = {"content": body.content, "source_description": body.source_description}
+    if plexo_memory_id is not None:
+        check_props["plexo_memory_id"] = plexo_memory_id
+    _schema_check_node(resolved_app, "Episodic", check_props)
     lock_wait_start = _now_monotonic_ms()
     async with _ws_lock(body.workspace_id):
         lock_wait_ms = _now_monotonic_ms() - lock_wait_start
@@ -332,6 +336,17 @@ async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
             source=_episode_type(body.episode_type),
             group_id=body.workspace_id,
         )
+        # A3 S1 — lift plexo_memory_id onto the Episodic node so cardinality
+        # reports + future RECALL queries can see it. Same workspace lock
+        # holds; idempotent on retry via SET.
+        episode_node_for_lift = getattr(result, "episode", None)
+        episode_uuid_for_lift = getattr(episode_node_for_lift, "uuid", None) if episode_node_for_lift else None
+        if plexo_memory_id is not None and episode_uuid_for_lift:
+            graph = _falkordb_client().select_graph(body.workspace_id)
+            await graph.query(
+                "MATCH (e:Episodic {uuid: $uuid}) SET e.plexo_memory_id = $pmid",
+                {"uuid": episode_uuid_for_lift, "pmid": plexo_memory_id},
+            )
         write_ms = _now_monotonic_ms() - write_start
     # AddEpisodeResults in graphiti-core 0.29 exposes `episode` (an EpisodicNode)
     # plus `nodes` and `edges` lists. Surface a stable shape for the bridge.
