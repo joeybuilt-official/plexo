@@ -125,3 +125,19 @@ These are auto-configured by Docker Compose. Only set them if running services e
 |----------|---------|-------------|
 | `DOCKER_SOCKET_ENABLED` | `false` | Enables one-click update via Docker API (requires Docker socket mount) |
 | `COMPOSE_PROJECT_NAME` | `plexo` | Docker Compose project name |
+
+## Bridge Integrations
+
+Plexo ships optional bridge extensions that let it talk to sibling Joeybuilt apps (Levio, Fylo, Nexalog, Fonto, Koforje). Each bridge extension is **opt-in** — if you haven't enabled the corresponding extension, leave its `*_INTERNAL_URL` unset.
+
+These are only required when (a) you've enabled the matching bridge extension, **and** (b) the target app is reachable from the Plexo container (typically on the same Docker network).
+
+| Variable | Required if | Description | Example |
+|----------|-------------|-------------|---------|
+| `LEVIO_INTERNAL_URL` | Levio bridge enabled | URL to your Levio API service | `http://localhost:3000` |
+| `FYLO_INTERNAL_URL` | Fylo bridge enabled | URL to your Fylo API service | `http://localhost:3000` |
+| `NEXALOG_INTERNAL_URL` | Nexalog bridge enabled | URL to your Nexalog API service | `http://localhost:3000` |
+| `FONTO_INTERNAL_URL` | Fonto bridge enabled | URL to your Fonto API service | `http://localhost:3000` |
+| `KOFORJE_INTERNAL_URL` | Koforje bridge enabled | URL to your Koforje API service | `http://localhost:3000` |
+
+Standalone Plexo deployments don't need any of these. Leave them unset and the bridge extensions will stay dormant.
