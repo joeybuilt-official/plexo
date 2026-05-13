@@ -25,6 +25,8 @@ export interface RoutedEvent {
     selectorDurationMs: number
     fallbackEngaged: boolean
     requireOperatorAction: boolean
+    /** Present when the selector routed to a sub-recommended provider (ADR §C6 Q2). */
+    degradation_reason?: 'workspace_low_quality_only'
 }
 
 export function buildRoutedEvent(args: {
@@ -48,6 +50,7 @@ export function buildRoutedEvent(args: {
         selectorDurationMs,
         fallbackEngaged,
         requireOperatorAction: selection.requireOperatorAction,
+        ...(selection.degradationReason ? { degradation_reason: selection.degradationReason } : {}),
     }
 }
 

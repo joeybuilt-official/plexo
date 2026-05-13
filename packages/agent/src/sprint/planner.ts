@@ -9,7 +9,8 @@ import { z } from 'zod'
 import pino from 'pino'
 import { db, eq } from '@plexo/db'
 import { sprints, sprintTasks } from '@plexo/db'
-import { resolveModelFromEnv, withFallback, AnyLanguageModel } from '../providers/registry.js'
+import { resolveModelFromEnv, AnyLanguageModel } from '../providers/registry.js'
+import { routeAndCall } from '../providers/router-v2/index.js'
 import { callModel } from '../providers/call-model.js'
 import { MODEL_ROUTING } from '../constants.js'
 import { categoryPlannerPrompt } from './categories.js'
@@ -151,7 +152,7 @@ export async function planSprint(params: {
                     'Go to Settings → AI Providers and add at least one API key.'
                 )
             }
-            rawPlan = await withFallback(aiSettings, 'planning', doPlan)
+            rawPlan = await routeAndCall({ workspaceId, taskType: 'planning', settings: aiSettings, doCall: doPlan })
         } else {
             rawPlan = await doPlan(resolveModelFromEnv(MODEL_ROUTING.planning))
         }

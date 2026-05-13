@@ -261,6 +261,7 @@ export type TaskType =
     | 'classification'
     | 'logAnalysis'
     | 'extraction'
+    | 'judging'
 
 /**
  * Default model IDs per task type.
@@ -276,6 +277,7 @@ export const DEFAULT_MODEL_ROUTING: Record<TaskType, string> = {
     classification: 'claude-haiku-4-5',
     logAnalysis: 'claude-haiku-4-5',
     extraction: 'claude-sonnet-4-5',
+    judging: 'claude-sonnet-4-5',
 }
 
 export interface AIProviderConfig {

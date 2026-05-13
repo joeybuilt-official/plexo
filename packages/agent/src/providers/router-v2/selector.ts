@@ -11,7 +11,7 @@
  *   2. Look up manifest entry per candidate; skip if `hardSkipPredicate` true.
  *   3. Q2 hybrid: high-stakes task + all candidates < LOW_QUALITY_THRESHOLD →
  *      requireOperatorAction. Other task types route through anyway.
- *   4. Score = qualityScore × 1.0 − latencyP95Penalty × 0.3 − recentFailurePenalty × 0.2.
+  *   4. Score = priorScore × 1.0 − latencyP95Penalty × 0.3 − recentFailurePenalty × 0.2.
  *   5. chosen = top scorer; alternatives = next 2 with reason.
  *
  * Must return within 50ms p95 (first principle #1).
@@ -26,6 +26,7 @@ import {
     type ManifestEntry,
 } from './manifest.js'
 import { getStats } from './stats.js'
+import { RECOMMENDED_PRIOR } from './quality-warnings.js'
 import {
     DEFAULT_MODEL_ROUTING,
     PROVIDER_DEFAULT_MODELS,
@@ -44,7 +45,7 @@ export interface Alternative {
     provider: ProviderKey
     model: string
     score: number
-    qualityScore: number
+    priorScore: number
     whyNotPicked: string
 }
 
@@ -52,7 +53,7 @@ export interface ChosenModel {
     provider: ProviderKey
     model: string
     score: number
-    qualityScore: number
+    priorScore: number
     manifestEntry: ManifestEntry
 }
 
@@ -66,6 +67,11 @@ export interface SelectionResult {
     requireOperatorAction: boolean
     /** True when no candidate was scoreable (e.g. all providers were unmanifested). */
     noManifestMatch: boolean
+    /**
+     * Set when the chosen candidate's priorScore is below RECOMMENDED_PRIOR.
+     * Settings page reads the 7-day count to render the `provider_quality_warning` chip.
+     */
+    degradationReason?: 'workspace_low_quality_only'
 }
 
 export interface SelectInput {
@@ -98,7 +104,8 @@ interface Scored {
     model: string
     entry: ManifestEntry
     score: number
-    qualityScore: number
+    priorScore: number
+    successRate: number
     /** True iff the candidate is currently in cooldown. */
     cooling: boolean
     cooldownEndAt: number
@@ -107,10 +114,15 @@ interface Scored {
     recentFailurePenalty: number
 }
 
-function scoreCandidate(scored: { qualityScore: number; p95Ms: number; recentFailurePenalty: number }): number {
-    // Normalize latency penalty: 0 below 1s, scales linearly to 1.0 at 10s+
+function scoreCandidate(scored: { priorScore: number; successRate: number; p95Ms: number; recentFailurePenalty: number }): number {
+    // ADR 0012 §C6 Q1: hybrid = static prior, refined by 7-day stats.
+    // priorScore (1-5) is multiplied by a success-rate multiplier in [0.5, 1.0]
+    // so a healthy provider keeps its full prior; a failing one drops toward half.
+    // Latency + recent-tail penalty are additive on top so transient regressions
+    // bias against a candidate without erasing its long-run reputation.
+    const successMultiplier = 0.5 + 0.5 * Math.max(0, Math.min(1, scored.successRate))
     const latencyPenalty = Math.min(1, Math.max(0, (scored.p95Ms - 1000) / 9000))
-    return scored.qualityScore * 1.0 - latencyPenalty * 0.3 - scored.recentFailurePenalty * 0.2
+    return scored.priorScore * successMultiplier - latencyPenalty * 0.3 - scored.recentFailurePenalty * 0.2
 }
 
 function whyNotPicked(c: Scored, top: Scored): string {
@@ -118,8 +130,8 @@ function whyNotPicked(c: Scored, top: Scored): string {
         const secs = Math.max(0, Math.round((c.cooldownEndAt - Date.now()) / 1000))
         return `in cooldown for ${secs}s`
     }
-    if (c.qualityScore < top.qualityScore) {
-        return `lower manifest quality (${c.qualityScore} vs ${top.qualityScore})`
+    if (c.priorScore < top.priorScore) {
+        return `lower manifest prior (${c.priorScore} vs ${top.priorScore})`
     }
     if (c.recentFailurePenalty > 0.3) {
         return `recent failure rate ${(c.recentFailurePenalty * 100).toFixed(0)}%`
@@ -147,7 +159,8 @@ export function selectModel(input: SelectInput): SelectionResult {
             provider: ap.provider,
             model: modelId,
             entry,
-            qualityScore: entry.qualityScore,
+            priorScore: entry.priorScore,
+            successRate: stats.successRate,
             p95Ms: stats.latencyP95Ms,
             recentFailurePenalty: stats.recentFailurePenalty,
             cooling,
@@ -172,7 +185,7 @@ export function selectModel(input: SelectInput): SelectionResult {
     // Q2 hybrid: block + prompt only for high-stakes tasks when NO candidate
     // (cooling or not) meets the quality bar.
     const highStakes = HIGH_STAKES_TASK_TYPES.has(taskType)
-    const anyMeetsBar = scoredAll.some(c => c.qualityScore >= LOW_QUALITY_THRESHOLD)
+    const anyMeetsBar = scoredAll.some(c => c.priorScore >= LOW_QUALITY_THRESHOLD)
     if (highStakes && !anyMeetsBar) {
         return {
             chosen: null,
@@ -195,25 +208,29 @@ export function selectModel(input: SelectInput): SelectionResult {
         provider: c.provider,
         model: c.model,
         score: c.score,
-        qualityScore: c.qualityScore,
+        priorScore: c.priorScore,
         whyNotPicked: whyNotPicked(c, top),
     }))
 
     const reason: string[] = []
-    reason.push(`quality=${top.qualityScore}/5`)
+    reason.push(`prior=${top.priorScore}/5`)
     if (top.p95Ms > 0) reason.push(`p95=${top.p95Ms}ms`)
+    if (top.successRate < 1) reason.push(`success=${(top.successRate * 100).toFixed(0)}%`)
     if (top.recentFailurePenalty > 0) reason.push(`recent-fail=${(top.recentFailurePenalty * 100).toFixed(0)}%`)
     const altSummary = alternatives.length > 0
         ? `; next: ${alternatives.map(a => `${a.provider} (${a.whyNotPicked})`).join(', ')}`
         : ''
     const rationale = `${top.provider}/${top.model} picked: ${reason.join(', ')}${altSummary}.`
 
+    const degradationReason: 'workspace_low_quality_only' | undefined =
+        top.priorScore < RECOMMENDED_PRIOR ? 'workspace_low_quality_only' : undefined
+
     return {
         chosen: {
             provider: top.provider,
             model: top.model,
             score: top.score,
-            qualityScore: top.qualityScore,
+            priorScore: top.priorScore,
             manifestEntry: top.entry,
         },
         alternatives,
@@ -221,5 +238,6 @@ export function selectModel(input: SelectInput): SelectionResult {
         manifestVersion,
         requireOperatorAction: false,
         noManifestMatch: false,
+        degradationReason,
     }
 }

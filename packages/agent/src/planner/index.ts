@@ -15,7 +15,7 @@
  */
 import pino from 'pino'
 import { z } from 'zod'
-import { withFallback } from '../providers/registry.js'
+import { routeAndCall } from '../providers/router-v2/index.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
@@ -287,7 +287,7 @@ Shape 2 — clarification (use ONLY when a required capability is truly missing 
 
 CRITICAL: If the task involves ANY website, web service, social media platform, SaaS tool, or online form — return a PLAN using browser_* tools. Do NOT return clarification. The browser IS the capability.`
 
-    const raw = await withFallback(settings, 'planning', async (model) => {
+    const raw = await routeAndCall({ workspaceId: ctx.workspaceId, taskType: 'planning', settings, doCall: async (model) => {
         // Phase 4 NOTE: This site is intentionally NOT migrated to
         // callModel({ schema: PlannerOutputSchema }). The planner's
         // output is a z.discriminatedUnion(['plan','clarification'], ...)
@@ -336,7 +336,7 @@ CRITICAL: If the task involves ANY website, web service, social media platform, 
         }
         const jsonObj = JSON.parse(cleaned)
         return { object: PlannerOutputSchema.parse(jsonObj) }
-    })
+    } })
 
     // Clarification path — browser automation has been removed (dead Playwright code);
     // if the planner asks for clarification, surface it as-is.

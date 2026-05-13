@@ -7,13 +7,13 @@
  * Scope is explicitly workspace-scoped (pre-mortem #2 — never global).
  * No DB persistence in Phase 2; periodic snapshot to DB deferred to Phase 5.
  *
- * Window: last 100 calls OR last 10 minutes, whichever is smaller.
+ * Window: last 500 calls OR last 7 days, whichever is smaller (ADR 0012 §C6 Q1).
  */
 
 import type { ProviderKey, TaskType } from '../registry.js'
 
-const MAX_SAMPLES = 100
-const WINDOW_MS = 10 * 60 * 1000
+const MAX_SAMPLES = 500
+const WINDOW_MS = 7 * 24 * 60 * 60 * 1000  // 7 days (ADR 0012 §C6 Q1)
 
 interface Sample {
     durationMs: number
