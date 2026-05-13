@@ -34,8 +34,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import json
 import logging
 import os
+import random
+import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -77,6 +80,16 @@ GRAPHITI_LLM_MODEL = os.environ.get("GRAPHITI_LLM_MODEL", "default")
 GRAPHITI_LLM_SMALL_MODEL = os.environ.get("GRAPHITI_LLM_SMALL_MODEL", "default-small")
 GRAPHITI_EMBEDDING_MODEL = os.environ.get("GRAPHITI_EMBEDDING_MODEL", "default-embedding")
 HMAC_TS_TOLERANCE_SEC = 300  # 5-min clock-skew window
+
+# Phase G observability (ADR 0030): structured-log sample rate per write. The
+# plexo telemetry pipeline already scrapes the sidecar container's stdout, so
+# no separate sink is needed — `logger.info` with a JSON body is sufficient.
+# Sampling keeps overhead near-zero on the hot path even at backfill rate.
+TELEMETRY_SAMPLE_RATE = float(os.environ.get("TELEMETRY_SAMPLE_RATE", "0.01"))
+# Cross-app namespacing per ADR 0016. Single-tenant (plexo-only) callers
+# default; future Levio/Helm/Frame Forge callers pass X-Plexo-App.
+TELEMETRY_APP_HEADER = "X-Plexo-App"
+TELEMETRY_DEFAULT_APP = os.environ.get("TELEMETRY_DEFAULT_APP", "plexo")
 
 UUID_RE = (
     "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -264,7 +277,10 @@ def _parse_reference_time(value: str | None) -> datetime:
 @app.post("/v1/episodes")
 async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
     await _require_hmac(request)
+    lock_wait_start = _now_monotonic_ms()
     async with _ws_lock(body.workspace_id):
+        lock_wait_ms = _now_monotonic_ms() - lock_wait_start
+        write_start = _now_monotonic_ms()
         graphiti = await _get_graphiti(body.workspace_id)
         result = await graphiti.add_episode(
             name=body.name,
@@ -274,14 +290,25 @@ async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
             source=_episode_type(body.episode_type),
             group_id=body.workspace_id,
         )
+        write_ms = _now_monotonic_ms() - write_start
     # AddEpisodeResults in graphiti-core 0.29 exposes `episode` (an EpisodicNode)
     # plus `nodes` and `edges` lists. Surface a stable shape for the bridge.
     episode_node = getattr(result, "episode", None)
+    edges = getattr(result, "edges", []) or []
+    nodes = getattr(result, "nodes", []) or []
+    _emit_write_telemetry(
+        request=request,
+        workspace_id=body.workspace_id,
+        endpoint="/v1/episodes",
+        lock_wait_ms=lock_wait_ms,
+        write_ms=write_ms,
+        result_size=len(edges) + len(nodes),
+    )
     return JSONResponse(
         {
             "episode_id": getattr(episode_node, "uuid", None),
-            "extracted_facts_count": len(getattr(result, "edges", []) or []),
-            "extracted_nodes_count": len(getattr(result, "nodes", []) or []),
+            "extracted_facts_count": len(edges),
+            "extracted_nodes_count": len(nodes),
         }
     )
 
@@ -297,13 +324,25 @@ class SearchRequest(BaseModel):
 @app.post("/v1/search")
 async def search(request: Request, body: SearchRequest) -> JSONResponse:
     await _require_hmac(request)
+    lock_wait_start = _now_monotonic_ms()
     async with _ws_lock(body.workspace_id):
+        lock_wait_ms = _now_monotonic_ms() - lock_wait_start
+        write_start = _now_monotonic_ms()
         graphiti = await _get_graphiti(body.workspace_id)
         edges = await graphiti.search(
             query=body.query,
             group_ids=[body.workspace_id],
             num_results=body.num_results,
         )
+        write_ms = _now_monotonic_ms() - write_start
+    _emit_write_telemetry(
+        request=request,
+        workspace_id=body.workspace_id,
+        endpoint="/v1/search",
+        lock_wait_ms=lock_wait_ms,
+        write_ms=write_ms,
+        result_size=len(edges or []),
+    )
     results = [
         {
             "uuid": getattr(e, "uuid", None),
@@ -446,10 +485,20 @@ async def add_triplet(request: Request, body: TripletCreate) -> JSONResponse:
     # returned edge uuid (graphiti may have replaced ours during dedup); fall
     # back to the uuid we constructed if the result list is unexpectedly empty.
     result_edges = getattr(result, "edges", None) or []
+    result_nodes = getattr(result, "nodes", None) or []
     if result_edges:
         triplet_id = getattr(result_edges[0], "uuid", None) or edge.uuid
     else:
         triplet_id = edge.uuid
+
+    _emit_write_telemetry(
+        request=request,
+        workspace_id=body.workspace_id,
+        endpoint="/v1/triplets",
+        lock_wait_ms=lock_wait_ms,
+        write_ms=triplet_write_ms,
+        result_size=len(result_edges) + len(result_nodes),
+    )
 
     return JSONResponse(
         {
@@ -463,5 +512,45 @@ async def add_triplet(request: Request, body: TripletCreate) -> JSONResponse:
 
 
 def _now_monotonic_ms() -> int:
-    import time
     return int(time.monotonic() * 1000)
+
+
+# ---------- Phase G telemetry (ADR 0030) ----------
+#
+# `_emit_write_telemetry` is called inline at the end of write paths after the
+# response payload is built. logger.info → stdout is non-blocking on the event
+# loop (Python logging uses an unbuffered stream handler under uvicorn); we
+# don't need fire-and-forget tasks here. Sampling decision happens on the hot
+# path but is a single random.random() comparison.
+
+def _telemetry_app(request: Request) -> str:
+    return request.headers.get(TELEMETRY_APP_HEADER, TELEMETRY_DEFAULT_APP)
+
+
+def _emit_write_telemetry(
+    *,
+    request: Request,
+    workspace_id: str,
+    endpoint: str,
+    lock_wait_ms: int,
+    write_ms: int,
+    result_size: int,
+) -> None:
+    if TELEMETRY_SAMPLE_RATE <= 0.0:
+        return
+    if random.random() >= TELEMETRY_SAMPLE_RATE:
+        return
+    body = {
+        "event": "falkordb.write",
+        "app": _telemetry_app(request),
+        "workspace_id": workspace_id,
+        "endpoint": endpoint,
+        "lock_wait_ms": int(lock_wait_ms),
+        "write_ms": int(write_ms),
+        "result_size": int(result_size),
+    }
+    # json.dumps with default separators is fine; loki parses arbitrary JSON.
+    # `extra=` would inject our keys into LogRecord — keep them inside the
+    # message string so the existing logging.basicConfig formatter doesn't
+    # need changes.
+    logger.info(json.dumps(body))
