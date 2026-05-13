@@ -38,6 +38,8 @@ export type ProviderQuirk =
     | 'google-content-policy-returns-200-with-refusal-string'
     | 'deepseek-slow-on-long-prompts'
     | 'openai-strict-json-mode'
+    | 'ollama-cloud-managed-pool-rate-limit'
+    | 'ollama-cloud-cold-start-latency'
 
 export interface ManifestContext {
     workspaceId: string | undefined
@@ -47,13 +49,15 @@ export interface ManifestContext {
 }
 
 export interface ManifestEntry {
-    /** 1–5; 5 = best-in-class on this taskType. From public leaderboard data. */
-    qualityScore: 1 | 2 | 3 | 4 | 5
+    /** 1–5; 5 = best-in-class on this taskType. Static prior from public leaderboard data; refined at runtime by stats.ts. */
+    priorScore: 1 | 2 | 3 | 4 | 5
     capabilities: Capability[]
     quirks: ProviderQuirk[]
+    /** ISO date (YYYY-MM-DD) of last manual review; pre-mortem F1 fallback (a) — entries older than 180d trigger a review alert. */
+    lastValidatedAt: string
     /**
      * If returns true, this entry is skipped before scoring.
-     * Use sparingly: prefer to encode soft signals in qualityScore.
+     * Use sparingly: prefer to encode soft signals in priorScore.
      */
     hardSkipPredicate?: (ctx: ManifestContext) => boolean
 }
@@ -69,6 +73,7 @@ export const PROVIDER_DEFAULT_MODEL_CLASS: Partial<Record<ProviderKey, string>> 
     google: 'gemini-2.0-flash',
     deepseek: 'deepseek-v3',
     groq: 'llama-3.3-70b',
+    ollama_cloud: 'gpt-oss:20b-cloud',
 }
 
 /** Convenience for tests + downstream introspection. */
@@ -78,6 +83,7 @@ export const MANIFEST_PROVIDERS: ProviderKey[] = [
     'google',
     'deepseek',
     'groq',
+    'ollama_cloud',
 ]
 
 /** Quality threshold: entries strictly below this are considered "low-quality" for Q2 hybrid routing. */
@@ -85,7 +91,7 @@ export const LOW_QUALITY_THRESHOLD = 3 as const
 
 /**
  * Task types for which the system blocks + prompts the operator when no
- * candidate has qualityScore ≥ LOW_QUALITY_THRESHOLD (Q2 hybrid).
+ * candidate has priorScore ≥ LOW_QUALITY_THRESHOLD (Q2 hybrid).
  * Other task types route through low-quality silently.
  */
 export const HIGH_STAKES_TASK_TYPES: ReadonlySet<TaskType> = new Set<TaskType>([
@@ -99,68 +105,86 @@ type ManifestTable = Record<TaskType, Partial<Record<ProviderKey, ManifestEntry>
 const BASE: Capability[] = ['tool-calling', 'streaming']
 
 /**
- * 5 providers × 8 task types = 40 entries.
- * qualityScore values reflect public leaderboard performance as of 2026-05.
- * Anthropic Sonnet leads code/planning; GPT-4o leads vision + general; Gemini
- * leads long-context; DeepSeek-v3 strong on summarization/extraction at low cost;
- * Llama-3.3-70b via Groq leads low-latency conversation/classification.
+ * 9 task types × up to 6 providers. ADR 0012 §C6 first-cut covers the 6 in-scope
+ * task types (planning, extraction, classification, conversation, judging,
+ * summarization) at 6 providers each; codeGeneration/verification/logAnalysis
+ * retain the 5-provider shape (ollama_cloud added in a later sweep).
+ * priorScore values reflect public leaderboard performance as of 2026-05.
+ * Anthropic Sonnet leads code/planning/judging; GPT-4o leads extraction;
+ * Gemini leads long-context + logAnalysis; DeepSeek-v3 strong on summarization
+ * at low cost; Llama-3.3-70b via Groq leads low-latency conversation/classification;
+ * gpt-oss:20b via ollama_cloud is the managed-pool fallback (low priorScore,
+ * never lead — used when an installed-provider quality bar is unmet).
  */
 export const MANIFEST: ManifestTable = {
     planning: {
-        anthropic: { qualityScore: 5, capabilities: [...BASE, 'long-context-200k'], quirks: ['anthropic-429-respects-retry-after'] },
-        openai: { qualityScore: 4, capabilities: [...BASE, 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'] },
-        google: { qualityScore: 4, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'] },
-        deepseek: { qualityScore: 3, capabilities: [...BASE], quirks: ['deepseek-slow-on-long-prompts'] },
-        groq: { qualityScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [] },
+        anthropic: { priorScore: 5, capabilities: [...BASE, 'long-context-200k'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
+        openai: { priorScore: 4, capabilities: [...BASE, 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
+        google: { priorScore: 4, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 3, capabilities: [...BASE], quirks: ['deepseek-slow-on-long-prompts'], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
+        ollama_cloud: { priorScore: 2, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit', 'ollama-cloud-cold-start-latency'], lastValidatedAt: '2026-05-13' },
     },
     codeGeneration: {
-        anthropic: { qualityScore: 5, capabilities: [...BASE, 'long-context-200k'], quirks: ['anthropic-429-respects-retry-after'] },
-        openai: { qualityScore: 4, capabilities: [...BASE, 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'] },
-        deepseek: { qualityScore: 4, capabilities: [...BASE], quirks: ['deepseek-slow-on-long-prompts'] },
-        google: { qualityScore: 3, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'] },
-        groq: { qualityScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [] },
+        anthropic: { priorScore: 5, capabilities: [...BASE, 'long-context-200k'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
+        openai: { priorScore: 4, capabilities: [...BASE, 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 4, capabilities: [...BASE], quirks: ['deepseek-slow-on-long-prompts'], lastValidatedAt: '2026-05-13' },
+        google: { priorScore: 3, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
     },
     verification: {
-        anthropic: { qualityScore: 5, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'] },
-        openai: { qualityScore: 5, capabilities: [...BASE, 'json-mode', 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'] },
-        google: { qualityScore: 3, capabilities: [...BASE, 'json-mode'], quirks: ['google-content-policy-returns-200-with-refusal-string'] },
-        deepseek: { qualityScore: 3, capabilities: [...BASE], quirks: [] },
-        groq: { qualityScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [] },
+        anthropic: { priorScore: 5, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
+        openai: { priorScore: 5, capabilities: [...BASE, 'json-mode', 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
+        google: { priorScore: 3, capabilities: [...BASE, 'json-mode'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 3, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
     },
     summarization: {
-        openai: { qualityScore: 4, capabilities: [...BASE], quirks: ['openai-no-retry-after'] },
-        anthropic: { qualityScore: 4, capabilities: [...BASE], quirks: ['anthropic-429-respects-retry-after'] },
-        deepseek: { qualityScore: 4, capabilities: [...BASE], quirks: [] },
-        google: { qualityScore: 4, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'] },
-        groq: { qualityScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [] },
+        openai: { priorScore: 4, capabilities: [...BASE], quirks: ['openai-no-retry-after'], lastValidatedAt: '2026-05-13' },
+        anthropic: { priorScore: 4, capabilities: [...BASE], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 4, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
+        google: { priorScore: 4, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
+        ollama_cloud: { priorScore: 3, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-05-13' },
     },
     conversation: {
-        openai: { qualityScore: 5, capabilities: [...BASE], quirks: ['openai-no-retry-after'] },
-        anthropic: { qualityScore: 5, capabilities: [...BASE], quirks: ['anthropic-429-respects-retry-after'] },
-        google: { qualityScore: 4, capabilities: [...BASE], quirks: ['google-content-policy-returns-200-with-refusal-string'] },
-        groq: { qualityScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [] },
-        deepseek: { qualityScore: 3, capabilities: [...BASE], quirks: [] },
+        openai: { priorScore: 5, capabilities: [...BASE], quirks: ['openai-no-retry-after'], lastValidatedAt: '2026-05-13' },
+        anthropic: { priorScore: 5, capabilities: [...BASE], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
+        google: { priorScore: 4, capabilities: [...BASE], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 3, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
+        ollama_cloud: { priorScore: 3, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit', 'ollama-cloud-cold-start-latency'], lastValidatedAt: '2026-05-13' },
     },
     classification: {
-        groq: { qualityScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [] },
-        openai: { qualityScore: 4, capabilities: [...BASE, 'json-mode'], quirks: ['openai-no-retry-after'] },
-        anthropic: { qualityScore: 4, capabilities: [...BASE], quirks: ['anthropic-429-respects-retry-after'] },
-        deepseek: { qualityScore: 3, capabilities: [...BASE], quirks: [] },
-        google: { qualityScore: 3, capabilities: [...BASE], quirks: ['google-content-policy-returns-200-with-refusal-string'] },
+        groq: { priorScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
+        openai: { priorScore: 4, capabilities: [...BASE, 'json-mode'], quirks: ['openai-no-retry-after'], lastValidatedAt: '2026-05-13' },
+        anthropic: { priorScore: 4, capabilities: [...BASE], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 3, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
+        google: { priorScore: 3, capabilities: [...BASE], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
+        ollama_cloud: { priorScore: 3, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-05-13' },
     },
     logAnalysis: {
-        google: { qualityScore: 5, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'] },
-        anthropic: { qualityScore: 4, capabilities: [...BASE, 'long-context-200k'], quirks: ['anthropic-429-respects-retry-after'] },
-        openai: { qualityScore: 4, capabilities: [...BASE], quirks: ['openai-no-retry-after'] },
-        deepseek: { qualityScore: 3, capabilities: [...BASE, 'long-context-200k'], quirks: ['deepseek-slow-on-long-prompts'] },
-        groq: { qualityScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [] },
+        google: { priorScore: 5, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
+        anthropic: { priorScore: 4, capabilities: [...BASE, 'long-context-200k'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
+        openai: { priorScore: 4, capabilities: [...BASE], quirks: ['openai-no-retry-after'], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 3, capabilities: [...BASE, 'long-context-200k'], quirks: ['deepseek-slow-on-long-prompts'], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
     },
     extraction: {
-        openai: { qualityScore: 5, capabilities: [...BASE, 'json-mode', 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'] },
-        anthropic: { qualityScore: 4, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'] },
-        deepseek: { qualityScore: 4, capabilities: [...BASE], quirks: [] },
-        google: { qualityScore: 3, capabilities: [...BASE, 'json-mode'], quirks: ['google-content-policy-returns-200-with-refusal-string'] },
-        groq: { qualityScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [] },
+        openai: { priorScore: 5, capabilities: [...BASE, 'json-mode', 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
+        anthropic: { priorScore: 4, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 4, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
+        google: { priorScore: 3, capabilities: [...BASE, 'json-mode'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
+        ollama_cloud: { priorScore: 2, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-05-13' },
+    },
+    judging: {
+        anthropic: { priorScore: 5, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
+        openai: { priorScore: 5, capabilities: [...BASE, 'json-mode', 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
+        google: { priorScore: 4, capabilities: [...BASE, 'json-mode', 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 3, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-05-13' },
+        ollama_cloud: { priorScore: 2, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-05-13' },
     },
 }
 

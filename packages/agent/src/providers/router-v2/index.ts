@@ -32,6 +32,8 @@ import {
 import { selectModel, type AvailableProvider, type SelectionResult } from './selector.js'
 import { recordCall, recordCooldown } from './stats.js'
 import { classifyError } from './error-classifier.js'
+import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
+import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
 
 export * from './manifest.js'
@@ -40,6 +42,8 @@ export * from './error-classifier.js'
 export * from './stats.js'
 export * from './telemetry.js'
 export * from './shadow.js'
+export * from './auth-events.js'
+export * from './quality-warnings.js'
 
 const COOLDOWN_RATE_LIMIT_MS = 60_000
 const COOLDOWN_TRANSIENT_MS = 15_000
@@ -176,6 +180,15 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
                 Date.now() - t0,
                 true,
             )
+            recordAuthSuccess({ workspaceId, providerId: chosen.provider })
+            if (sel.degradationReason === 'workspace_low_quality_only') {
+                recordDegradation({
+                    workspaceId,
+                    taskType,
+                    provider: chosen.provider,
+                    priorScore: chosen.priorScore,
+                })
+            }
             emitRoutedEvent(buildRoutedEvent({
                 workspaceId, taskType, selection: sel,
                 selectorDurationMs: selDur, fallbackEngaged,
@@ -192,6 +205,12 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
 
             const cls = classifyError(err)
             if (cls.class === 'auth' && err instanceof Error) {
+                recordAuthFailure({
+                    workspaceId,
+                    providerId: chosen.provider,
+                    modelId: chosen.model,
+                    errorMessage: err.message,
+                })
                 try { opts?.onAuthFailure?.(chosen.provider, err.message) } catch { /* best effort */ }
             }
             if (!cls.shouldFallback) {

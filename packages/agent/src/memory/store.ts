@@ -17,8 +17,8 @@ import pino from 'pino'
 import { generateText } from 'ai'
 import { db, eq, ne, and, desc, sql, inArray } from '@plexo/db'
 import { memoryEntries, workspaces } from '@plexo/db'
-// TODO(router-v2 Phase 4): migrate withFallback() call site in this file to routeAndCall from '../providers/router-v2/index.js'.
-import { withFallback, type WorkspaceAISettings } from '../providers/registry.js'
+import { type WorkspaceAISettings } from '../providers/registry.js'
+import { routeAndCall } from '../providers/router-v2/index.js'
 import {
     DEFAULT_NAMESPACE,
     SHARED_NAMESPACE,
@@ -181,8 +181,11 @@ async function summarizeMemory(params: {
     try {
         if (aiSettings) {
             // Use full provider chain (e.g. DeepSeek → Groq → Ollama)
-            const text = await withFallback(aiSettings, 'summarization', (model) =>
-                generateText({
+            const text = await routeAndCall({
+                workspaceId,
+                taskType: 'summarization',
+                settings: aiSettings,
+                doCall: (model) => generateText({
                     model,
                     system: SHORTHAND_SYSTEM_PROMPT,
                     messages: [{ role: 'user', content }],
@@ -191,7 +194,7 @@ async function summarizeMemory(params: {
                     // @ts-expect-error maxTokens exists in AI SDK v6 but type inference misses it
                     maxTokens: 150,
                 }).then((r) => r.text),
-            { workspaceId })
+            })
             return text.trim() || null
         }
 

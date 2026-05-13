@@ -21,7 +21,7 @@
 
 import { z } from 'zod'
 import pino from 'pino'
-import { withFallback } from '../providers/registry.js'
+import { routeAndCall } from '../providers/router-v2/index.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { EscalationSummarySchema, type EscalationSummary, type FailureReason } from './types.js'
 
@@ -168,7 +168,7 @@ export async function generateEscalationSummary(
     aiSettings: WorkspaceAISettings,
 ): Promise<EscalationSummary> {
     try {
-        const result = await withFallback(aiSettings, 'summarization', async (model) => {
+        const result = await routeAndCall({ workspaceId: undefined, taskType: 'summarization', settings: aiSettings, doCall: async (model) => {
             const { callModel } = await import('../providers/call-model.js')
             const { object } = await callModel({
                 model,
@@ -181,7 +181,7 @@ export async function generateEscalationSummary(
                 taskType: 'summarization',
             })
             return object
-        })
+        } })
         return result
     } catch (err) {
         logger.warn(

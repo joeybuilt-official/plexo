@@ -62,6 +62,7 @@ import {
     isRouterV2Enabled,
     _setRouterV2EnabledForTest,
     _resetStatsForTest,
+    recordCall,
     RouterV2NoCandidateError,
     RouterV2CascadeExhausted,
     LOW_QUALITY_THRESHOLD,
@@ -82,11 +83,15 @@ const baseSettings = (overrides: Partial<WorkspaceAISettings> = {}): WorkspaceAI
     ...overrides,
 })
 
-beforeEach(() => {
+beforeEach(async () => {
     _resetProviderBreakerForTest()
     _resetStatsForTest()
     _setRouterV2EnabledForTest(null)
     _drainOpsEventQueueForTest()
+    const { _resetAuthEventsForTest } = await import('../auth-events.js')
+    const { _resetQualityWarningsForTest } = await import('../quality-warnings.js')
+    _resetAuthEventsForTest()
+    _resetQualityWarningsForTest()
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,24 +114,52 @@ describe('router-v2 feature flag', () => {
 // Manifest
 
 describe('router-v2 manifest', () => {
-    it('has 5 providers × 8 task types = 40 entries', () => {
+    it('has 9 task types; 6 in-scope tasks have all 6 providers, 3 out-of-scope retain 5', () => {
         const taskTypes = Object.keys(MANIFEST)
-        expect(taskTypes).toHaveLength(8)
-        let total = 0
-        for (const t of taskTypes) total += Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length
-        expect(total).toBe(40)
+        expect(taskTypes).toHaveLength(9)
+        const inScope = ['planning', 'extraction', 'classification', 'conversation', 'judging', 'summarization']
+        for (const t of inScope) {
+            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(6)
+        }
+        const outOfScope = ['codeGeneration', 'verification', 'logAnalysis']
+        for (const t of outOfScope) {
+            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(5)
+        }
     })
 
-    it('every entry has qualityScore 1..5 + capabilities + quirks arrays', () => {
+    it('every entry has priorScore 1..5 + capabilities + quirks arrays + ISO lastValidatedAt', () => {
+        const isoDate = /^\d{4}-\d{2}-\d{2}$/
         for (const tt of Object.keys(MANIFEST)) {
             const row = MANIFEST[tt as keyof typeof MANIFEST]
             for (const prov of Object.keys(row) as ProviderKey[]) {
                 const e = row[prov]!
-                expect(e.qualityScore).toBeGreaterThanOrEqual(1)
-                expect(e.qualityScore).toBeLessThanOrEqual(5)
+                expect(e.priorScore).toBeGreaterThanOrEqual(1)
+                expect(e.priorScore).toBeLessThanOrEqual(5)
                 expect(Array.isArray(e.capabilities)).toBe(true)
                 expect(Array.isArray(e.quirks)).toBe(true)
+                expect(e.lastValidatedAt).toMatch(isoDate)
             }
+        }
+    })
+
+    it('6 in-scope task types each have ollama_cloud as the lowest-priorScore option', () => {
+        const inScope = ['planning', 'extraction', 'classification', 'conversation', 'judging', 'summarization'] as const
+        for (const tt of inScope) {
+            const row = MANIFEST[tt]
+            const oc = row.ollama_cloud
+            expect(oc, `ollama_cloud missing for ${tt}`).toBeDefined()
+            const others = (Object.entries(row) as [string, { priorScore: number }][])
+                .filter(([k]) => k !== 'ollama_cloud')
+                .map(([, e]) => e.priorScore)
+            expect(Math.min(...others)).toBeGreaterThanOrEqual(oc!.priorScore)
+        }
+    })
+
+    it('judging row covers all 6 providers with priorScore ≥ 2', () => {
+        const row = MANIFEST.judging
+        expect(Object.keys(row).sort()).toEqual(['anthropic', 'deepseek', 'google', 'groq', 'ollama_cloud', 'openai'])
+        for (const e of Object.values(row)) {
+            expect(e!.priorScore).toBeGreaterThanOrEqual(2)
         }
     })
 
@@ -156,7 +189,7 @@ describe('router-v2 manifest', () => {
 // Selector
 
 describe('router-v2 selector', () => {
-    it('cold-start: stats empty → manifest priors win (best qualityScore)', () => {
+    it('cold-start: stats empty → manifest priors win (best priorScore)', () => {
         const r = selectModel({
             workspaceId: 'ws-1',
             taskType: 'codeGeneration',
@@ -192,7 +225,7 @@ describe('router-v2 selector', () => {
 
     it('Q2 hybrid: planning + only low-quality providers → requireOperatorAction', () => {
         // Construct an "all low quality" candidate set by monkey-patching the
-        // manifest for the test. groq alone for planning has qualityScore=2.
+        // manifest for the test. groq alone for planning has priorScore=2.
         const settings = baseSettings({
             primaryProvider: 'groq',
             fallbackChain: [],
@@ -213,8 +246,8 @@ describe('router-v2 selector', () => {
 
     it('Q2 hybrid: summarization + only low-quality providers → routes through anyway', () => {
         // For summarization, groq scores 3 (at threshold). Mutate to 2.
-        const orig = MANIFEST.summarization.groq!.qualityScore
-        ;(MANIFEST.summarization.groq as any).qualityScore = 2
+        const orig = MANIFEST.summarization.groq!.priorScore
+        ;(MANIFEST.summarization.groq as any).priorScore = 2
         try {
             const settings = baseSettings({
                 primaryProvider: 'groq',
@@ -233,8 +266,61 @@ describe('router-v2 selector', () => {
             expect(r.requireOperatorAction).toBe(false)
             expect(r.chosen!.provider).toBe('groq')
         } finally {
-            ;(MANIFEST.summarization.groq as any).qualityScore = orig
+            ;(MANIFEST.summarization.groq as any).priorScore = orig
         }
+    })
+
+    it('Q1 hybrid: stats refine prior — low-prior provider with perfect record overtakes high-prior provider with bad record', () => {
+        // Construct: settings expose anthropic (prior=5) + deepseek (prior=3) for `conversation`.
+        // Record anthropic with 80% failure rate, deepseek with 100% success — over enough
+        // samples that recentFailurePenalty + successMultiplier flip the ranking.
+        _resetStatsForTest()
+        const settings = baseSettings()
+        const workspaceId = 'ws-hybrid'
+        for (let i = 0; i < 40; i++) {
+            recordCall(
+                { workspaceId, provider: 'anthropic', model: 'claude-sonnet-4-6', taskType: 'conversation' },
+                500,
+                i % 5 === 0, // 20% success rate
+            )
+            recordCall(
+                { workspaceId, provider: 'deepseek', model: 'deepseek-v3', taskType: 'conversation' },
+                500,
+                true,
+            )
+        }
+        const r = selectModel({
+            workspaceId,
+            taskType: 'conversation',
+            availableProviders: [
+                { provider: 'anthropic', config: settings.providers.anthropic! },
+                { provider: 'deepseek', config: settings.providers.deepseek! },
+            ],
+            settings,
+        })
+        expect(r.chosen).not.toBeNull()
+        expect(r.chosen!.provider).toBe('deepseek')
+    })
+
+    it('Q1 hybrid: stats window retains samples within 7-day cutoff', async () => {
+        _resetStatsForTest()
+        const workspaceId = 'ws-window'
+        recordCall(
+            { workspaceId, provider: 'anthropic', model: 'claude-sonnet-4-6', taskType: 'conversation' },
+            500,
+            true,
+        )
+        // Look up via the same getStats path used by selectModel.
+        const { getStats } = await import('../stats.js')
+        const stats = getStats({ workspaceId, provider: 'anthropic', model: 'claude-sonnet-4-6', taskType: 'conversation' })
+        // A single just-recorded sample must remain in-window; pre-fix (10-min window)
+        // this still passes — what we actually guard is the type-level constant.
+        expect(stats.sampleCount).toBe(1)
+        // Confirm the constant is the 7-day value by reading the module's internal source.
+        const fs = await import('node:fs')
+        const path = await import('node:path')
+        const src = fs.readFileSync(path.resolve(__dirname, '../stats.ts'), 'utf-8')
+        expect(src).toMatch(/WINDOW_MS = 7 \* 24 \* 60 \* 60 \* 1000/)
     })
 
     it('selector p95 < 50ms over 200 iterations (benchmark)', () => {
