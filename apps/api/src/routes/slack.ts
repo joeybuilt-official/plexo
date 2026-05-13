@@ -27,6 +27,7 @@ import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystem
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { trackDelivery } from '../delivery-tracker.js'
 import { maybeReact } from '@plexo/agent/channels/reaction-manager'
+import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
 import { sanitizeForSlack } from '../lib/telegram-sanitize.js'
 
 export const slackRouter: RouterType = Router()
@@ -508,16 +509,13 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
 
         const sessionId = resolvedSessionId
 
-        // ── Fire-and-forget: conversation memory bridge ──────────────────
-        try {
-            const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
-            if (hasInstructionIntent(text)) {
-                void persistInstruction({ workspaceId, userMessage: text, assistantReply: replyText, sessionId })
-                    .catch((err: unknown) => logger.warn({ err }, 'Slack: persistInstruction failed'))
-            }
-            void extractConversationMemory({ workspaceId, userMessage: text, assistantReply: replyText, sessionId, source: 'slack' })
-                .catch((err: unknown) => logger.warn({ err }, 'Slack: extractConversationMemory failed'))
-        } catch { /* conversation-bridge module not available — non-fatal */ }
+        // Fire-and-forget conversation memory bridge.
+        if (hasInstructionIntent(text)) {
+            void persistInstruction({ workspaceId, userMessage: text, assistantReply: replyText, sessionId })
+                .catch((err: unknown) => logger.warn({ err }, 'Slack: persistInstruction failed'))
+        }
+        void extractConversationMemory({ workspaceId, userMessage: text, assistantReply: replyText, sessionId, source: 'slack' })
+            .catch((err: unknown) => logger.warn({ err }, 'Slack: extractConversationMemory failed'))
 
         const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
         await recordConversation({
