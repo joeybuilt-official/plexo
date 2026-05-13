@@ -1,0 +1,36 @@
+# Phase F per-app schema for levio (email graph).
+# Scaffolding only — real Levio ingest lands in Phase D1; expect this
+# file to grow as the email pipeline registers new properties.
+
+app: levio
+graph_template: "levio:<workspace_id>"
+
+node_labels:
+  Contact:
+    required: [email]
+    optional: [name, company, last_seen_at]
+  Thread:
+    required: [subject]
+    optional: [started_at, last_msg_at, message_count]
+  Email:
+    required: [body, sent_at]
+    optional: [subject, from_email, to_emails, message_id]
+  Entity:
+    required: [name]
+    optional: [summary, type]
+
+edge_types:
+  PARTICIPATES_IN:
+    from: Contact
+    to: Thread
+    props: [role]
+  MENTIONS:
+    from: Email
+    to: Entity
+    props: [confidence]
+  IN_THREAD:
+    from: Email
+    to: Thread
+    props: []
+
+predicate_vocabulary: []
