@@ -309,7 +309,7 @@ services:
   # ADR 0010 §Pre-mortem: server-side only, never shipped.
   falkordb:
     profiles: ["graphiti"]
-    image: falkordb/falkordb:v4.12.6
+    image: falkordb/falkordb:v4.18.6
     restart: unless-stopped
     logging: *default-logging
     command: ["--save", "60 1000", "--appendonly", "yes"]
