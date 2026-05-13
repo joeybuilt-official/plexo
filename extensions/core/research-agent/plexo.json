@@ -1,0 +1,58 @@
+{
+  "plexo": "0.4.0",
+  "name": "@plexo/research-agent",
+  "type": "agent",
+  "version": "1.0.0",
+  "displayName": "Research Agent",
+  "description": "Deep research with source gathering and cited summaries. Reference implementation of a Plexo PEX Agent.",
+  "author": "Plexo",
+  "license": "AGPL-3.0-only",
+  "entry": "/app/extensions/core/research-agent/dist/index.js",
+  "minPexVersion": "0.4.0",
+  "homepage": "https://getplexo.com/ext/@plexo/research-agent",
+  "repository": "https://github.com/joeybuilt-official/plexo",
+  "keywords": ["research", "web-search", "reports", "reference"],
+  "capabilities": [
+    "storage:read",
+    "storage:write",
+    "ui:notify",
+    "memory:read:thread",
+    "memory:write:note"
+  ],
+  "capabilitiesRationale": {
+    "memory:read:thread": "Reads the conversation thread to understand what the user is researching and pick up on follow-up questions.",
+    "memory:write:note": "Saves the cited research summary back to your workspace as a note so you can reference it later.",
+    "ui:notify": "Posts the 'research complete' status update into the active chat when the report is ready."
+  },
+  "trust": "verified",
+  "modelRequirements": {
+    "minimumContextWindow": 32000,
+    "requiresFunctionCalling": true,
+    "localModelAcceptable": false,
+    "preferredProviders": ["anthropic", "openai"]
+  },
+  "escalation": {
+    "irreversibleActions": [],
+    "requestsStandingApprovals": false
+  },
+  "agentHints": {
+    "taskTypes": [
+      "research",
+      "literature_review",
+      "market_analysis",
+      "competitive_analysis",
+      "fact_check"
+    ],
+    "minConfidence": 0.65
+  },
+  "dataResidency": {
+    "sendsDataExternally": true,
+    "externalDestinations": [
+      { "host": "duckduckgo.com", "purpose": "Web search (no API key)" },
+      { "host": "*.wikipedia.org", "purpose": "Source fetch" }
+    ]
+  },
+  "resourceHints": {
+    "maxInvocationMs": 60000
+  }
+}

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Connect to Plexo</title>
+    <!-- Tailwind CSS (CDN for simple local injection) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              zinc: {
+                900: '#18181b',
+                925: '#121215',
+                950: '#09090b',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col items-center justify-center p-6 m-0 antialiased">
+    
+    <div id="loader" class="hidden flex-col items-center justify-center space-y-4">
+        <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-800 border-t-zinc-100"></div>
+        <p class="text-sm font-medium text-zinc-400">Connecting to Plexo...</p>
+    </div>
+
+    <div id="connectScreen" class="w-full max-w-sm space-y-8 bg-zinc-900/50 p-8 rounded-2xl border border-zinc-800 backdrop-blur-sm hidden">
+        <div class="space-y-2 text-center">
+            <div class="mx-auto w-12 h-12 bg-zinc-800 rounded-xl mb-6 flex items-center justify-center border border-zinc-700">
+                <!-- Simple Plexo Logo / Node Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-zinc-300">
+                    <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-semibold tracking-tight">Connect to Plexo</h1>
+            <p class="text-sm text-zinc-400 px-2">Enter your self-hosted instance URL below to connect the app.</p>
+        </div>
+
+        <form id="connectForm" class="space-y-4 pt-4">
+            <div class="space-y-2">
+                <input 
+                    type="url" 
+                    id="urlInput"
+                    placeholder="https://app.your-domain.com"
+                    required
+                    class="w-full h-12 px-4 rounded-xl bg-zinc-950 border border-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-700 focus:border-transparent transition-all placeholder:text-zinc-600"
+                />
+            </div>
+            <button 
+                type="submit"
+                class="w-full h-12 bg-zinc-100 text-zinc-950 font-medium rounded-xl hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 focus:ring-offset-zinc-950 transition-all active:scale-[0.98]"
+            >
+                Connect Instance
+            </button>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const connectScreen = document.getElementById('connectScreen');
+            const loader = document.getElementById('loader');
+            const connectForm = document.getElementById('connectForm');
+            const urlInput = document.getElementById('urlInput');
+
+            // Quick helper to wait for capacitor injection (usually instant, but safety first)
+            const getPrefs = async () => {
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) {
+                    return window.Capacitor.Plugins.Preferences;
+                }
+                // Fallback loop if injected slightly late
+                for(let i=0; i<5; i++) {
+                    await new Promise(r => setTimeout(r, 100));
+                    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) {
+                        return window.Capacitor.Plugins.Preferences;
+                    }
+                }
+                return null;
+            };
+
+            const init = async () => {
+                const Preferences = await getPrefs();
+                
+                try {
+                    if (Preferences) {
+                        const { value } = await Preferences.get({ key: 'plexo_instance_url' });
+                        if (value) {
+                            loader.classList.remove('hidden');
+                            loader.classList.add('flex');
+                            window.location.href = value;
+                            return;
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to read native preferences:', err);
+                }
+
+                // If no value or failed, show the connect screen
+                connectScreen.classList.remove('hidden');
+            };
+
+            await init();
+
+            connectForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                let url = urlInput.value.trim();
+                
+                if (!/^https?:\/\//i.test(url)) {
+                    url = 'https://' + url;
+                }
+                
+                // Add trailing slash standardizing
+                if(url.endsWith('/')) {
+                    url = url.slice(0, -1);
+                }
+                
+                // Save it natively via Preferences so remote webview shares it
+                const Preferences = await getPrefs();
+                try {
+                    if (Preferences) {
+                        await Preferences.set({ key: 'plexo_instance_url', value: url });
+                    } else {
+                        // Fallback to local storage if running in browser
+                        localStorage.setItem('plexo_instance_url', url);
+                    }
+                } catch (err) {
+                    console.error('Failed to save native preferences', err);
+                }
+
+                connectScreen.classList.add('hidden');
+                loader.classList.remove('hidden');
+                loader.classList.add('flex');
+                
+                window.location.href = url;
+            });
+        });
+    </script>
+</body>
+</html>

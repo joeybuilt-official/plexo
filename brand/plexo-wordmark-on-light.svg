@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" fill="none">
+  <rect width="200" height="48" fill="#F7F8FC"/>
+  <!-- Tesseract frame symbol -->
+  <rect x="8" y="8" width="32" height="32" stroke="#2B7DC0" stroke-width="1.5" fill="none"/>
+  <polygon points="24,8 40,24 24,40 8,24" stroke="#2B7DC0" stroke-width="1.5" fill="none"/>
+  <line x1="8" y1="8" x2="8" y2="24" stroke="#2B7DC0" stroke-width="0.75" opacity="0.4"/>
+  <line x1="40" y1="8" x2="40" y2="24" stroke="#2B7DC0" stroke-width="0.75" opacity="0.4"/>
+  <line x1="8" y1="40" x2="8" y2="24" stroke="#2B7DC0" stroke-width="0.75" opacity="0.4"/>
+  <line x1="40" y1="40" x2="40" y2="24" stroke="#2B7DC0" stroke-width="0.75" opacity="0.4"/>
+  <circle cx="24" cy="24" r="2.5" fill="#2B7DC0"/>
+  <!-- Wordmark -->
+  <text x="54" y="33" font-family="'Geist', system-ui, sans-serif" font-weight="600" font-size="22" fill="#101520" letter-spacing="-0.03em">plexo</text>
+</svg>

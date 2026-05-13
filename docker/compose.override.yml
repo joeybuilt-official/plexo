@@ -1,0 +1,35 @@
+# Audit-only override: expose api/web ports and patch postgres listen_addresses
+# (the audited postgresql.conf omits listen_addresses, so Postgres binds
+# localhost only and migrate cannot reach it from the docker network).
+# Created by ops/coreaudit Phase 2 setup. Not for prod.
+services:
+  postgres:
+    command: >
+      postgres
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c listen_addresses=*
+    ports:
+      - "5432:5432"
+  api:
+    ports:
+      - "3001:3001"
+    mem_limit: 2g
+    memswap_limit: 2g
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=1500 --import=/app/undici-bootstrap.mjs"
+      XENOVA_EMBEDDER: "0"
+      PLEXO_DISABLE_CRONS: "1"
+      SELF_IMPROVEMENT_ENABLED: "false"
+      EMBEDDINGS_URL: ""
+      INFERENCE_GATEWAY_URL: ""
+      OLLAMA_INTERNAL_URL: ""
+      ENABLE_SPRINT_CODING_TASKS: "true"
+    volumes:
+      - ./ops/harnesseval/harness/undici-bootstrap.mjs:/app/undici-bootstrap.mjs:ro
+      - ./ops/harnesseval/harness/vendor/node_modules/undici:/app/node_modules/undici:ro
+  web:
+    ports:
+      - "3000:3000"
+  redis:
+    ports:
+      - "6379:6379"

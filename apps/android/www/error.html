@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Connection Error</title>
+    <!-- Tailwind CSS (CDN for simple local injection) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              zinc: {
+                900: '#18181b',
+                925: '#121215',
+                950: '#09090b',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col items-center justify-center p-6 m-0 antialiased" style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);">
+    
+    <div id="errorScreen" class="w-full max-w-sm space-y-8 bg-zinc-900/50 p-8 rounded-2xl border border-zinc-800 backdrop-blur-sm shadow-2xl shadow-black/40">
+        <div class="space-y-4 text-center">
+            <div class="mx-auto w-14 h-14 bg-red-500/10 rounded-2xl mb-6 flex items-center justify-center border border-red-500/20 text-red-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight">Connection Failed</h1>
+            <p class="text-sm text-zinc-400 px-2 leading-relaxed">
+                Could not connect to your Plexo instance. The server might be offline, or your device may have lost network connectivity.
+            </p>
+        </div>
+
+        <div class="space-y-3 pt-4">
+            <button 
+                id="btnRetry"
+                class="flex w-full h-12 items-center justify-center gap-2 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-500 transition-all active:scale-[0.98]"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                    <path d="M16 21v-5h5"/>
+                </svg>
+                Try Again
+            </button>
+            <button 
+                id="btnReset"
+                class="flex w-full h-12 items-center justify-center gap-2 bg-zinc-800 text-zinc-300 font-medium rounded-xl hover:bg-zinc-700 hover:text-white transition-all active:scale-[0.98]"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                </svg>
+                Change Instance URL
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const btnRetry = document.getElementById('btnRetry');
+            const btnReset = document.getElementById('btnReset');
+
+            const getPrefs = async () => {
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) {
+                    return window.Capacitor.Plugins.Preferences;
+                }
+                for(let i=0; i<5; i++) {
+                    await new Promise(r => setTimeout(r, 100));
+                    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) {
+                        return window.Capacitor.Plugins.Preferences;
+                    }
+                }
+                return null;
+            };
+
+            btnRetry.addEventListener('click', async () => {
+                // Navigate back to index.html which will automatically redirect based on the saved preference
+                window.location.href = 'index.html';
+            });
+
+            btnReset.addEventListener('click', async () => {
+                const Preferences = await getPrefs();
+                if (Preferences) {
+                    await Preferences.remove({ key: 'plexo_instance_url' });
+                } else {
+                    localStorage.removeItem('plexo_instance_url');
+                }
+                window.location.href = 'index.html';
+            });
+        });
+    </script>
+</body>
+</html>

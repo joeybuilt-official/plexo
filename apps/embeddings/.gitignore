@@ -1,0 +1,6 @@
+# ONNX model weights (downloaded at build/startup, not tracked in git)
+models/*.onnx
+models/*/model.onnx
+models/*/tokenizer.json
+models/*/config.json
+!models/.gitkeep

@@ -1,0 +1,60 @@
+{
+  "plexo": "0.4.0",
+  "name": "@joeybuilt/nexalog-bridge",
+  "type": "tool",
+  "version": "1.0.0",
+  "displayName": "Nexalog Bridge",
+  "description": "Proxies tool calls to Nexalog's data API for note, capture, bookmark, and memo operations.",
+  "author": "Joeybuilt LLC",
+  "license": "AGPL-3.0-only",
+  "entry": "/app/extensions/core/nexalog-bridge/dist/index.js",
+  "minPexVersion": "0.4.0",
+  "homepage": "https://getplexo.com/ext/@joeybuilt/nexalog-bridge",
+  "repository": "https://github.com/joeybuilt-official/plexo",
+  "keywords": ["nexalog", "notes", "knowledge", "pkms", "bridge"],
+  "capabilities": ["storage:read"],
+  "capabilitiesRationale": {
+    "storage:read": "Reads the Nexalog connection credentials (nexalog_user_id) to authenticate data API calls."
+  },
+  "trust": "owner",
+  "escalation": {
+    "irreversibleActions": [],
+    "requestsStandingApprovals": false
+  },
+  "dataResidency": {
+    "sendsDataExternally": false,
+    "externalDestinations": []
+  },
+  "resourceHints": {
+    "maxInvocationMs": 60000
+  },
+  "tools": [
+    { "name": "nexalog.note.list",           "description": "List active notes across the user's Nexalog workspaces." },
+    { "name": "nexalog.note.search",         "description": "Full-text search across note titles and content." },
+    { "name": "nexalog.note.get",            "description": "Fetch the full content of a single note by ID." },
+    { "name": "nexalog.note.create",         "description": "Create a new text note in the user's Nexalog workspace." },
+    { "name": "nexalog.note.update",         "description": "Update the title or content of an existing note." },
+    { "name": "nexalog.note.delete",         "description": "Soft-delete a note by ID." },
+    { "name": "nexalog.save_url",            "description": "Save a URL as a stable bookmark (type='bookmark') or ephemeral clipping (type='clipping'). Preferred over nexalog.bookmark.add." },
+    { "name": "nexalog.bookmark.list",       "description": "List saved URLs. Accepts optional kind filter: 'url' (stable bookmarks) or 'url_clipping' (clippings)." },
+    { "name": "nexalog.bookmark.search",     "description": "Search saved URLs by title, URL, or description. Accepts optional kind filter." },
+    { "name": "nexalog.bookmark.get",        "description": "Fetch the full details of a single bookmark by ID." },
+    { "name": "nexalog.bookmark.add",        "description": "Deprecated — use nexalog.save_url instead. Saves a stable bookmark (kind=url)." },
+    { "name": "nexalog.bookmark.update",     "description": "Update the URL or title of an existing bookmark." },
+    { "name": "nexalog.bookmark.delete",     "description": "Delete a saved bookmark by ID." },
+    { "name": "nexalog.bookmark.tags.list",  "description": "List all bookmark tags in the user's Nexalog workspace." },
+    { "name": "nexalog.bookmark.tag.create", "description": "Create a new bookmark tag in the user's Nexalog workspace." },
+    { "name": "nexalog.bookmark.tag.update", "description": "Rename or recolor a bookmark tag." },
+    { "name": "nexalog.bookmark.tag.delete", "description": "Delete a bookmark tag. Removed from all bookmarks it was applied to." },
+    { "name": "nexalog.bookmark.tag.assign", "description": "Assign a tag to a bookmark." },
+    { "name": "nexalog.bookmark.tag.remove", "description": "Remove a tag from a bookmark." },
+    { "name": "nexalog.memo.create",         "description": "Save a voice memo transcript as a note in the user's Nexalog workspace." },
+    { "name": "nexalog.capture.list",        "description": "List capture sources (raw inbox of links and snippets)." },
+    { "name": "nexalog.capture.get",         "description": "Fetch full details of a single capture source by ID." },
+    { "name": "nexalog.capture.create",      "description": "Create a new capture source (link, snippet) in the user's Nexalog workspace." },
+    { "name": "nexalog.capture.update",              "description": "Update the state or content of a capture source." },
+    { "name": "nexalog.capture.delete",              "description": "Delete a capture source by ID." },
+    { "name": "nexalog.claude.import_conversation",  "description": "Import a single Claude conversation as a Nexalog note, preserving full message history, model, timestamps, and artifacts." },
+    { "name": "nexalog.claude.import_export",        "description": "Batch-import a Claude data export (conversations.json + projects.json) into Nexalog notes. Call repeatedly with offset to process all conversations." }
+  ]
+}
