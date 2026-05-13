@@ -222,17 +222,10 @@ const INTERNAL_JOBS: Array<{
         intervalMs: 7 * 24 * 60 * 60 * 1000,
         handler: runDataRetention,
     },
-    {
-        // Phase 4 N.5 — synthesis nightly (cluster, label, SCL flag, suggestions,
-        // nexalog stale-archive trigger). Runs across every workspace.
-        name: 'Synthesis nightly',
-        schedule: '0 3 * * *',   // 03:00 UTC daily
-        intervalMs: 24 * 60 * 60 * 1000,
-        handler: async () => {
-            const result = await runSynthesisNightly()
-            logger.info({ event: 'synthesis_nightly_complete', ...result }, 'Synthesis nightly complete')
-        },
-    },
+    // Synthesis nightly DISABLED per ADR 0017 — operated on memory_entries
+    // which is being deprecated; clustering/SCL paths replaced by Phase A2
+    // (FalkorDB cypher). Re-enable by reverting the cron-removal commit if
+    // you need the legacy clustering refresh during the dual-store window.
     {
         // Phase 7 — tier cooldown: hot→active (7d stale), active→cold (90d stale).
         name: '__internal_flush_retrieval_counts',

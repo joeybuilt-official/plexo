@@ -503,7 +503,11 @@ export async function searchMemory(params: {
     return results
 }
 
-// ── Record task outcome as memory ─────────────────────────────────────────────
+// ── Record task outcome as memory (DISABLED — ADR 0017) ─────────────────────
+// Per ADR 0017: agent task logs constitute 85% of memory_entries with zero
+// retrieval_count. Disabled at the recording layer; callers compile + behave
+// as no-ops. Re-enable by reverting this commit if the task-as-memory pattern
+// is needed again (no schema or interface changes).
 
 export async function recordTaskMemory(params: {
     workspaceId: string
@@ -515,34 +519,14 @@ export async function recordTaskMemory(params: {
     durationMs?: number
     notes?: string
     aiSettings?: WorkspaceAISettings
-    /** Phase 10 — optional per-agent namespace. */
     namespace?: string
     agentId?: string
 }): Promise<void> {
-    const {
-        workspaceId, taskId, description, outcome, toolsUsed,
-        qualityScore, durationMs, notes, aiSettings, namespace, agentId,
-    } = params
-
-    const content = [
-        `Task: ${description}`,
-        `Outcome: ${outcome}`,
-        `Tools: ${toolsUsed.join(', ')}`,
-        qualityScore != null ? `Quality: ${qualityScore.toFixed(2)}` : '',
-        notes ? `Notes: ${notes}` : '',
-    ].filter(Boolean).join('\n')
-
-    await storeMemory({
-        workspaceId,
-        type: 'task',
-        content,
-        metadata: { taskId, outcome, toolsUsed, qualityScore, durationMs },
-        aiSettings,
-        namespace,
-        agentId,
-    })
-
-    logger.debug({ taskId, outcome, workspaceId, namespace: namespace ?? defaultNamespaceForAgent(agentId) }, 'Task memory recorded')
+    const { workspaceId, taskId, outcome, agentId, namespace } = params
+    logger.debug(
+        { taskId, outcome, workspaceId, namespace: namespace ?? defaultNamespaceForAgent(agentId) },
+        'recordTaskMemory called but DISABLED (ADR 0017) — no write performed',
+    )
 }
 
 // ── Direct user-instruction memory write ─────────────────────────────────────
