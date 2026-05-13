@@ -11,7 +11,9 @@
 import type { PlexoSDK } from '@joeybuilt/plexo-sdk'
 
 function fyloBase(): string {
-    return (process.env.FYLO_INTERNAL_URL ?? 'http://service:3700').replace(/\/$/, '')
+    const host = process.env.FYLO_BASE_URL
+    if (!host) throw new Error('FYLO_BASE_URL env var is required for the Fylo bridge extension')
+    return host.replace(/\/$/, '')
 }
 
 function serviceHeaders(): Record<string, string> {

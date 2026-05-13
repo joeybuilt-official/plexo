@@ -22,7 +22,9 @@ import pino from 'pino'
 const logger = pino({ name: 'levio:tools' })
 
 function levioBase(): string {
-    return (process.env.LEVIO_INTERNAL_URL ?? 'http://service:3000').replace(/\/$/, '')
+    const host = process.env.LEVIO_BASE_URL
+    if (!host) throw new Error('LEVIO_BASE_URL env var is required for the Levio connection factory')
+    return host.replace(/\/$/, '')
 }
 
 function serviceHeaders(): Record<string, string> {
