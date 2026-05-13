@@ -304,7 +304,6 @@ export type { ValidationResult, ValidationError, ValidationOptions } from './val
 export {
     PLEXO_SCHEMA,
     LEVIO_SCHEMA,
-    FRAME_FORGE_SCHEMA,
     HELM_SCHEMA,
     SCHEMA_REGISTRY,
     getAppSchema,

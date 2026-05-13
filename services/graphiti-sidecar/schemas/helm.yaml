@@ -1,8 +1,12 @@
 # Phase F per-app schema for helm (ops graph: deploys, services, incidents).
-# Scaffolding only — Helm ingest is Phase D3.
+# Scaffolding only — Helm ingest is Phase D3 (ADR 0025).
+#
+# Helm is the operator UI for the JB platform — not a multi-tenant SaaS.
+# Tenancy is per-environment, not per-workspace. Two operators looking at
+# prod ops see the same graph.
 
 app: helm
-graph_template: "helm:<workspace_id>"
+graph_template: "helm:<env>"
 
 node_labels:
   Deploy:
