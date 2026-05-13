@@ -159,6 +159,40 @@ export const FRAME_FORGE_SCHEMA: AppSchema = {
   predicateVocabulary: [],
 };
 
+export const FONTO_SCHEMA: AppSchema = {
+  app: 'fonto',
+  graphTemplate: 'fonto:<workspace_id>',
+  nodeLabels: {
+    // Phase D-Fonto-1 (ADR 0027) — Asset.phash_vec is the 64-dim float
+    // vector (1.0/0.0 per bit) of the 64-bit pHash, indexed for kNN.
+    Asset: {
+      required: ['id', 'filename', 'mimeType', 'lifecycleState'],
+      optional: [
+        'classification',
+        'phash_vec',
+        'ocrState',
+        'capturedAt',
+        'correspondentId',
+        'documentTypeId',
+      ],
+    },
+    Tag: { required: ['id', 'name'], optional: ['aiSuggested', 'color'] },
+    Collection: { required: ['id', 'name'], optional: ['projectId', 'sortOrder'] },
+    Project: { required: ['id', 'name'], optional: [] },
+    Correspondent: { required: ['id', 'name'], optional: ['matchPattern'] },
+    DocumentType: { required: ['id', 'name'], optional: ['matchPattern'] },
+  },
+  edgeTypes: {
+    TAGGED_WITH: { from: 'Asset', to: 'Tag', props: ['addedAt'] },
+    IN_COLLECTION: { from: 'Asset', to: 'Collection', props: ['addedAt'] },
+    IN_PROJECT: { from: 'Collection', to: 'Project', props: [] },
+    FROM: { from: 'Asset', to: 'Correspondent', props: [] },
+    IS_TYPE: { from: 'Asset', to: 'DocumentType', props: [] },
+    NEAR_DUPLICATE: { from: 'Asset', to: 'Asset', props: ['hamming'] },
+  },
+  predicateVocabulary: [],
+};
+
 export const HELM_SCHEMA: AppSchema = {
   app: 'helm',
   graphTemplate: 'helm:<workspace_id>',
@@ -187,6 +221,7 @@ export const SCHEMA_REGISTRY: Readonly<Record<string, AppSchema>> = Object.freez
   levio: LEVIO_SCHEMA,
   'frame-forge': FRAME_FORGE_SCHEMA,
   helm: HELM_SCHEMA,
+  fonto: FONTO_SCHEMA,
 });
 
 export type ValidationResult = { ok: true } | { ok: false; error: string };
