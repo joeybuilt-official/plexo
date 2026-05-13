@@ -76,7 +76,12 @@ const RELIABILITY_CEIL = 2.0
 
 const DimensionScoreSchema = z.object({
     dimension: z.string(),
-    score: z.number().min(0).max(1),
+    // .refine instead of .min().max() — Anthropic structured-output rejects
+    // {minimum, maximum} on number-typed JSON Schema fields with
+    // `output_config.format.schema: For 'number' type, properties maximum,
+    // minimum are not supported`. Refines aren't translated to JSON Schema,
+    // so they preserve runtime validation without tripping the API.
+    score: z.number().refine((n) => n >= 0 && n <= 1, { message: 'score must be 0..1' }),
     rationale: z.string(),
 })
 

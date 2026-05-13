@@ -27,7 +27,9 @@ const FactSchema = z.object({
         predicate: z.string().max(100),
         object: z.string().max(300),
         domain: z.string().max(60).optional(),
-        confidence: z.number().min(0).max(1),
+        // .refine instead of .min().max() — Anthropic structured-output rejects
+        // {minimum, maximum} on number-typed JSON Schema fields. See quality-judge.ts.
+        confidence: z.number().refine((n) => n >= 0 && n <= 1, { message: 'confidence must be 0..1' }),
     })),
 })
 
