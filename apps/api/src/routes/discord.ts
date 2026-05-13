@@ -33,6 +33,7 @@ import { sanitizeForDiscord } from '../lib/telegram-sanitize.js'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { trackDelivery } from '../delivery-tracker.js'
 import { maybeReact } from '@plexo/agent/channels/reaction-manager'
+import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
 import type { Request, Response } from 'express'
 
 export const discordRouter: RouterType = Router()
@@ -393,16 +394,13 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
 
                 const sessionId = discordSession.sessionId
 
-                // ── Fire-and-forget: conversation memory bridge ──────────
-                try {
-                    const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
-                    if (hasInstructionIntent(description)) {
-                        void persistInstruction({ workspaceId, userMessage: description, assistantReply: replyText, sessionId })
-                            .catch((err: unknown) => logger.warn({ err }, 'Discord: persistInstruction failed'))
-                    }
-                    void extractConversationMemory({ workspaceId, userMessage: description, assistantReply: replyText, sessionId, source: 'discord' })
-                        .catch((err: unknown) => logger.warn({ err }, 'Discord: extractConversationMemory failed'))
-                } catch { /* conversation-bridge module not available — non-fatal */ }
+                // Fire-and-forget conversation memory bridge.
+                if (hasInstructionIntent(description)) {
+                    void persistInstruction({ workspaceId, userMessage: description, assistantReply: replyText, sessionId })
+                        .catch((err: unknown) => logger.warn({ err }, 'Discord: persistInstruction failed'))
+                }
+                void extractConversationMemory({ workspaceId, userMessage: description, assistantReply: replyText, sessionId, source: 'discord' })
+                    .catch((err: unknown) => logger.warn({ err }, 'Discord: extractConversationMemory failed'))
 
                 const channelRef: ChannelRef = { channel: 'discord', channelId: interaction.channel_id ?? '', chatId: user?.id ?? '' }
                 await recordConversation({

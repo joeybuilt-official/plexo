@@ -52,6 +52,7 @@ import { isTrivialMessage, buildTrivialSystemPrompt, FASTPATH_MODEL } from '../l
 import { getCachedToolSet } from '../lib/tool-set-cache.js'
 import { describeToolCall } from '../utils/tool-labels.js'
 import type { FallbackOptions } from '@plexo/agent/providers/registry'
+import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
 
 export const chatRouter: RouterType = Router()
 
@@ -1011,20 +1012,17 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         metadata: { source: 'chat', sessionId: sessionId ?? null, intent },
                     }).catch((err: unknown) => logger.debug({ err, workspaceId }, 'storeMemory failed (non-fatal)'))
 
-                    try {
-                        const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
-                        if (hasInstructionIntent(trimmedMsg)) {
-                            void persistInstruction({ workspaceId, userMessage: trimmedMsg, assistantReply: replyText, sessionId: sessionId ?? '' })
-                                .catch((err: unknown) => logger.debug({ err, workspaceId }, 'persistInstruction failed (non-fatal)'))
-                        }
-                        void extractConversationMemory({
-                            workspaceId,
-                            userMessage: trimmedMsg,
-                            assistantReply: replyText,
-                            sessionId: sessionId ?? '',
-                            source: 'chat',
-                        }).catch((err: unknown) => logger.debug({ err, workspaceId }, 'extractConversationMemory failed (non-fatal)'))
-                    } catch { /* module not available — non-fatal */ }
+                    if (hasInstructionIntent(trimmedMsg)) {
+                        void persistInstruction({ workspaceId, userMessage: trimmedMsg, assistantReply: replyText, sessionId: sessionId ?? '' })
+                            .catch((err: unknown) => logger.debug({ err, workspaceId }, 'persistInstruction failed (non-fatal)'))
+                    }
+                    void extractConversationMemory({
+                        workspaceId,
+                        userMessage: trimmedMsg,
+                        assistantReply: replyText,
+                        sessionId: sessionId ?? '',
+                        source: 'chat',
+                    }).catch((err: unknown) => logger.debug({ err, workspaceId }, 'extractConversationMemory failed (non-fatal)'))
 
                     trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'sent', messageLength: replyText.length })
                 } else {
@@ -1090,20 +1088,17 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         metadata: { source: 'chat', sessionId: sessionId ?? null, intent },
                     }).catch((err: unknown) => logger.debug({ err, workspaceId }, 'storeMemory failed (non-fatal)'))
 
-                    try {
-                        const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
-                        if (hasInstructionIntent(trimmedMsg)) {
-                            void persistInstruction({ workspaceId, userMessage: trimmedMsg, assistantReply: replyText, sessionId: sessionId ?? '' })
-                                .catch((err: unknown) => logger.debug({ err, workspaceId }, 'persistInstruction failed (non-fatal)'))
-                        }
-                        void extractConversationMemory({
-                            workspaceId,
-                            userMessage: trimmedMsg,
-                            assistantReply: replyText,
-                            sessionId: sessionId ?? '',
-                            source: 'chat',
-                        }).catch((err: unknown) => logger.debug({ err, workspaceId }, 'extractConversationMemory failed (non-fatal)'))
-                    } catch { /* module not available — non-fatal */ }
+                    if (hasInstructionIntent(trimmedMsg)) {
+                        void persistInstruction({ workspaceId, userMessage: trimmedMsg, assistantReply: replyText, sessionId: sessionId ?? '' })
+                            .catch((err: unknown) => logger.debug({ err, workspaceId }, 'persistInstruction failed (non-fatal)'))
+                    }
+                    void extractConversationMemory({
+                        workspaceId,
+                        userMessage: trimmedMsg,
+                        assistantReply: replyText,
+                        sessionId: sessionId ?? '',
+                        source: 'chat',
+                    }).catch((err: unknown) => logger.debug({ err, workspaceId }, 'extractConversationMemory failed (non-fatal)'))
 
                     trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'sent', messageLength: replyText.length })
                     res.json({ status: 'complete', reply: replyText, model: usedModel, ...(visionDegraded ? { visionDegraded: true } : {}) })

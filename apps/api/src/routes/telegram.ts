@@ -50,6 +50,7 @@ import { loadVoiceSettings, transcribeWithFallback, synthesizeSpeech, hasAnyTran
 import { markTaskDelivered } from '../channel-delivery.js'
 import { trackDelivery } from '../delivery-tracker.js'
 import { maybeReact } from '@plexo/agent/channels/reaction-manager'
+import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
 import { sanitizeForTelegram } from '../lib/telegram-sanitize.js'
 
 export const telegramRouter: RouterType = Router()
@@ -1074,17 +1075,13 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
 
         // Reaction already sent above (before AI processing)
 
-        // ── Fire-and-forget: conversation memory bridge ──────────────────
-        // Runs AFTER response is sent — zero latency impact on the user.
-        try {
-            const { hasInstructionIntent, persistInstruction, extractConversationMemory } = await import('@plexo/agent/memory/conversation-bridge')
-            if (hasInstructionIntent(text)) {
-                void persistInstruction({ workspaceId, userMessage: text, assistantReply: replyText, sessionId })
-                    .catch((e: unknown) => logger.warn({ err: e }, 'Instruction persistence failed'))
-            }
-            void extractConversationMemory({ workspaceId, userMessage: text, assistantReply: replyText, sessionId, source: 'telegram' })
-                .catch((e: unknown) => logger.warn({ err: e }, 'Conversation memory extraction failed'))
-        } catch { /* conversation-bridge module not available — non-fatal */ }
+        // Fire-and-forget conversation memory bridge — runs AFTER response sent (zero latency).
+        if (hasInstructionIntent(text)) {
+            void persistInstruction({ workspaceId, userMessage: text, assistantReply: replyText, sessionId })
+                .catch((e: unknown) => logger.warn({ err: e }, 'Instruction persistence failed'))
+        }
+        void extractConversationMemory({ workspaceId, userMessage: text, assistantReply: replyText, sessionId, source: 'telegram' })
+            .catch((e: unknown) => logger.warn({ err: e }, 'Conversation memory extraction failed'))
 
         // Quality analytics — response latency, no content
         try {
