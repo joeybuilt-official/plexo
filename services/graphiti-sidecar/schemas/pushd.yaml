@@ -1,0 +1,83 @@
+# Phase D-Pushd-1 per-app schema for Pushd (AI-native deployment platform).
+# Loaded by services/graphiti-sidecar/schema_registry.py. See ADR 0027.
+#
+# Pushd graph is keyed on organization_id, not workspace_id, because the
+# top-level tenancy unit in Pushd is the Organization (org → project →
+# environment → service → resource).
+#
+# Two adoption arcs ride this schema:
+#   1. Deploy/Error causality — INTRODUCED + RESOLVED_IN edges power
+#      "what did this deploy break / when was it fixed" queries that
+#      today require unnest over openErrorIds uuid[].
+#   2. RBAC cascade — MEMBER_OF + OWNS + HAS_ENV + RUNS edges. Follows
+#      ADR 0016 Failure-C dual-read pattern (30-day window) before any
+#      cutover.
+
+app: pushd
+graph_template: "pushd:<organization_id>"
+
+node_labels:
+  Organization:
+    required: [id, name]
+    optional: []
+  User:
+    required: [id]
+    optional: [email]
+  Project:
+    required: [id, name]
+    optional: []
+  Environment:
+    required: [id, name, type]
+    optional: [parentEnvId, branch, prNumber]
+  Service:
+    required: [id, name, type]
+    optional: [stack, repoUrl]
+  Deploy:
+    required: [id, status]
+    optional: [commitSha, branch]
+  Error:
+    required: [id, fingerprint, status]
+    optional: [type, severity, occurrenceCount]
+  ErrorPattern:
+    required: [id, regex]
+    optional: [diagnosis, suggestedFix, frequency]
+
+edge_types:
+  MEMBER_OF:
+    from: User
+    to: Organization
+    props: [role]
+  OWNS:
+    from: Organization
+    to: Project
+    props: []
+  HAS_ENV:
+    from: Project
+    to: Environment
+    props: []
+  PARENT_OF:
+    from: Environment
+    to: Environment
+    props: []
+  RUNS:
+    from: Environment
+    to: Service
+    props: []
+  DEPLOY_OF:
+    from: Deploy
+    to: Service
+    props: []
+  INTRODUCED:
+    from: Deploy
+    to: Error
+    props: []
+  RESOLVED_IN:
+    from: Error
+    to: Deploy
+    props: []
+  MATCHES_PATTERN:
+    from: Error
+    to: ErrorPattern
+    props: [confidence]
+
+predicate_vocabulary: []
