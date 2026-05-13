@@ -8,7 +8,9 @@ import { readFile } from 'node:fs/promises'
 import type { PlexoSDK, ToolRegistration, InvokeContext } from '@joeybuilt/plexo-sdk'
 
 function nexalogBase(): string {
-    return (process.env.NEXALOG_INTERNAL_URL ?? 'http://service:3300').replace(/\/$/, '')
+    const host = process.env.NEXALOG_BASE_URL
+    if (!host) throw new Error('NEXALOG_BASE_URL env var is required for the Nexalog bridge extension')
+    return host.replace(/\/$/, '')
 }
 
 function serviceHeaders(): Record<string, string> {

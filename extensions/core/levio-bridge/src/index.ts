@@ -10,7 +10,9 @@ import type { PlexoSDK, ToolRegistration, InvokeContext } from '@joeybuilt/plexo
 // ── Config ──────────────────────────────────────────────────────────────────
 
 function levioBase(): string {
-    return (process.env.LEVIO_INTERNAL_URL ?? 'http://service:3000').replace(/\/$/, '')
+    const host = process.env.LEVIO_BASE_URL
+    if (!host) throw new Error('LEVIO_BASE_URL env var is required for the Levio bridge extension')
+    return host.replace(/\/$/, '')
 }
 
 function serviceHeaders(): Record<string, string> {
