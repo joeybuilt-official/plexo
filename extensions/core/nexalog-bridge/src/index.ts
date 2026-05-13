@@ -8,8 +8,8 @@ import { readFile } from 'node:fs/promises'
 import type { PlexoSDK, ToolRegistration, InvokeContext } from '@joeybuilt/plexo-sdk'
 
 function nexalogBase(): string {
-    const host = process.env.NEXALOG_BASE_URL
-    if (!host) throw new Error('NEXALOG_BASE_URL env var is required for the Nexalog bridge extension')
+    const host = process.env.NEXALOG_INTERNAL_URL
+    if (!host) throw new Error('NEXALOG_INTERNAL_URL env var is required for the Nexalog bridge extension')
     return host.replace(/\/$/, '')
 }
 
