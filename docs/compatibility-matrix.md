@@ -23,7 +23,7 @@ The matrix tracks three coordinates:
 
 | SDK version | Plexo Core (min commit / version) | DB schema state                                      | Notes                                                                                          |
 |-------------|-----------------------------------|------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| `1.3.0`     | commit `34470cdf` or later        | `<schema-state-current>` (operator to fill on cut)   | Adds `agents.runCustom`. Requires `PLEXO_RUN_JWT_SECRET` (≥32 chars) on Plexo API container.   |
+| `1.3.0`     | commit `34470cdf` or later        | migrations `0001`–`0117` (latest: `0117_gmessages_phase2_schema`) | Adds `agents.runCustom`. Requires `PLEXO_RUN_JWT_SECRET` (≥32 chars) on Plexo API container. `runCustom` itself is schema-agnostic; the `0117` floor reflects the full set of migrations shipped on `34470cdf`. |
 
 ## How to read a row
 
