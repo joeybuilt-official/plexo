@@ -1,0 +1,121 @@
+name: Release SDK
+
+# Publishes @joeybuilt/plexo-sdk to npm + tags + creates a GitHub Release
+# whenever a push to main bumps packages/sdk/package.json's "version" field.
+#
+# Skip conditions:
+#   - the merge commit did not change packages/sdk/package.json's version
+#     (the workflow exits cleanly without publishing)
+#
+# Required repository secrets:
+#   - NPM_TOKEN  npm automation token w/ publish rights to @joeybuilt scope
+#
+# Required permissions: contents:write (tags + releases), id-token:write
+# (npm provenance, optional but recommended).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/sdk/package.json"
+
+concurrency:
+  group: release-sdk
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect version bump
+        id: bump
+        run: |
+          set -euo pipefail
+          CURR=$(node -p "require('./packages/sdk/package.json').version")
+          # PREV: read the previous commit's package.json. If missing (first
+          # commit on a fresh repo), treat as a bump.
+          if git show HEAD~1:packages/sdk/package.json >/dev/null 2>&1; then
+            PREV=$(git show HEAD~1:packages/sdk/package.json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).version))")
+          else
+            PREV=""
+          fi
+          echo "current=$CURR"  >> "$GITHUB_OUTPUT"
+          echo "previous=$PREV" >> "$GITHUB_OUTPUT"
+          if [ "$CURR" = "$PREV" ]; then
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SDK version unchanged ($CURR). Skipping release."
+          else
+            echo "bumped=true"  >> "$GITHUB_OUTPUT"
+            echo "::notice::SDK version bumped $PREV -> $CURR. Releasing."
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.bump.outputs.bumped == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.bump.outputs.bumped == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install
+        if: steps.bump.outputs.bumped == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SDK
+        if: steps.bump.outputs.bumped == 'true'
+        run: pnpm --filter @joeybuilt/plexo-sdk build
+
+      - name: Publish to npm
+        if: steps.bump.outputs.bumped == 'true'
+        run: pnpm publish --filter @joeybuilt/plexo-sdk --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Extract CHANGELOG section for this version
+        if: steps.bump.outputs.bumped == 'true'
+        id: notes
+        run: |
+          set -euo pipefail
+          VER="${{ steps.bump.outputs.current }}"
+          # Pull from packages/sdk/CHANGELOG.md the block from "## <VER>" up to
+          # but not including the next "## " heading.
+          awk -v ver="$VER" '
+            $0 ~ "^## "ver"( |$|—)" { capture=1; print; next }
+            capture && /^## / { exit }
+            capture { print }
+          ' packages/sdk/CHANGELOG.md > /tmp/release-notes.md
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "## $VER" > /tmp/release-notes.md
+            echo "" >> /tmp/release-notes.md
+            echo "(no CHANGELOG entry found for v$VER — see packages/sdk/CHANGELOG.md)" >> /tmp/release-notes.md
+          fi
+          echo "path=/tmp/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create git tag + GitHub Release
+        if: steps.bump.outputs.bumped == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VER="${{ steps.bump.outputs.current }}"
+          TAG="v$VER"
+          # Tag idempotency: bail if tag already exists.
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::warning::Tag $TAG already exists; skipping tag + release."
+            exit 0
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "@joeybuilt/plexo-sdk $TAG" \
+            --notes-file /tmp/release-notes.md
