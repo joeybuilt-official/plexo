@@ -94,6 +94,40 @@ export async function mirrorMembershipUpsert(args: MirrorMembershipArgs): Promis
 }
 
 /**
+ * Read the MEMBER_OF edge role from the permission graph. Returns the
+ * role string, or null when no membership exists. Used by the
+ * workspace-access middleware in shadow-read mode — logs disagreement
+ * with postgres without changing the access decision.
+ *
+ * Returns null + logs warn-level on sidecar errors so the middleware
+ * can treat "absent" and "broken" identically for the comparison.
+ */
+export async function readMembershipFromGraph(args: {
+    userId: string
+    workspaceId: string
+}): Promise<string | null> {
+    const client = getClient()
+    if (!client) return null
+    try {
+        const result = await client.cypher({
+            workspaceId: PERMISSION_GRAPH_NAME,
+            cypher: `
+                MATCH (u:User {id: $userId})-[r:MEMBER_OF]->(w:Workspace {id: $workspaceId})
+                RETURN r.role AS role
+                LIMIT 1
+            `,
+            params: { userId: args.userId, workspaceId: args.workspaceId },
+        })
+        if (!result || result.rows.length === 0) return null
+        const [role] = result.rows[0] as [string]
+        return role ?? null
+    } catch (err) {
+        logger.warn({ err, ...args }, 'permission-graph read failed')
+        return null
+    }
+}
+
+/**
  * Fire-and-forget delete of the MEMBER_OF edge. User + Workspace nodes
  * are left in place — other memberships may reference them.
  */

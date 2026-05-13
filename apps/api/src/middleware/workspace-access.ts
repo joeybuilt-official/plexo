@@ -27,6 +27,7 @@ import { db, and, eq } from '@plexo/db'
 import { workspaceMembers } from '@plexo/db'
 import { UUID_RE } from '../validation.js'
 import { logger } from '../logger.js'
+import { readMembershipFromGraph } from '../lib/permission-graph.js'
 
 declare global {
     namespace Express {
@@ -84,6 +85,26 @@ async function lookupMembership(userId: string, workspaceId: string): Promise<st
             role,
             expiry: Date.now() + (role ? POSITIVE_TTL_MS : NEGATIVE_TTL_MS),
         })
+        // Phase C1 (ADR 0022) shadow-READ — fire-and-forget compare against
+        // the plexo-permissions graph. Postgres still owns the decision;
+        // logs feed the cardinality of cache-miss-shaped traffic so day-1
+        // of the 30-day cutover gate has graph-side coverage data even on
+        // workspace_members rows that never see a write event during the
+        // window.
+        void (async () => {
+            try {
+                const graphRole = await readMembershipFromGraph({ userId, workspaceId })
+                if (graphRole !== role) {
+                    logger.warn(
+                        { userId, workspaceId, postgresRole: role, graphRole },
+                        'permission-graph shadow read disagreement',
+                    )
+                }
+            } catch {
+                // permission-graph helper already logs; never let this
+                // observation path leak into the auth flow.
+            }
+        })()
         return role
     } catch (err) {
         logger.error({ err, userId, workspaceId }, 'workspace membership lookup failed')
