@@ -26,6 +26,7 @@
  * dev environment a safe default if the sidecar isn't running.
  */
 
+import { randomUUID } from 'node:crypto'
 import pino from 'pino'
 import { GraphitiClient, type AddEpisodeRequest } from '@plexo/graphiti-bridge'
 import { emitMemoryWriteBackend } from '../analytics/memory-events.js'
@@ -100,6 +101,12 @@ export interface MirrorMemoryArgs {
     triple?: { subject: string; predicate: string; object: string }
     /** Free-form metadata; merged into Graphiti's source_metadata. */
     metadata?: Record<string, unknown>
+    /**
+     * A3 S1 (ADR 0031, Path a) — plexo-side memory identity. Allocated
+     * here if caller doesn't supply one; sidecar lifts onto the Episodic
+     * node as a top-level prop. Becomes REQUIRED at A3 S4 cutover.
+     */
+    plexoMemoryId?: string
 }
 
 export interface MirrorResult {
@@ -121,6 +128,7 @@ export async function mirrorToGraphiti(args: MirrorMemoryArgs): Promise<MirrorRe
         return result
     }
 
+    const plexoMemoryId = args.plexoMemoryId ?? (args.metadata?.plexo_memory_id as string | undefined) ?? randomUUID()
     const req: AddEpisodeRequest = {
         workspaceId: args.workspaceId,
         content: args.content,
@@ -128,7 +136,11 @@ export async function mirrorToGraphiti(args: MirrorMemoryArgs): Promise<MirrorRe
         name: args.name,
         referenceTime: args.referenceTime,
         episodeType: 'message',
-        sourceMetadata: { ...(args.metadata ?? {}), ...(args.triple ? { triple: args.triple } : {}) },
+        sourceMetadata: {
+            ...(args.metadata ?? {}),
+            ...(args.triple ? { triple: args.triple } : {}),
+            plexo_memory_id: plexoMemoryId,
+        },
     }
 
     const res = await client.addEpisode(req)

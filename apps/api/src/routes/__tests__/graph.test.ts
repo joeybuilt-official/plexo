@@ -129,6 +129,46 @@ describe('POST /api/v1/graph/episodes', () => {
         })
         expect(res.status).toBe(401)
     })
+
+    // A3 S1 (ADR 0031) — proxy boundary allocates plexo_memory_id when the
+    // SDK caller didn't supply one, and preserves it when they did.
+    it('allocates plexo_memory_id when caller does not supply one', async () => {
+        const fake = {
+            addEpisode: vi.fn(async () => ({ episodeId: 'ep-pa', extractedFactsCount: 0, extractedNodesCount: 0 })),
+        } as unknown as GraphitiClient
+        setGraphRouterClientForTest(fake)
+        const base = await getServer()
+        const res = await fetch(`${base}/api/v1/graph/episodes`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ workspaceId: VALID_WORKSPACE, content: 'hello' }),
+        })
+        expect(res.status).toBe(200)
+        const calls = (fake.addEpisode as unknown as { mock: { calls: Array<[{ sourceMetadata: Record<string, unknown> }]> } }).mock.calls
+        const pmid = calls[0]![0].sourceMetadata.plexo_memory_id
+        expect(typeof pmid).toBe('string')
+        expect((pmid as string).length).toBeGreaterThan(0)
+    })
+
+    it('preserves caller-supplied metadata.plexo_memory_id', async () => {
+        const fake = {
+            addEpisode: vi.fn(async () => ({ episodeId: 'ep-pb', extractedFactsCount: 0, extractedNodesCount: 0 })),
+        } as unknown as GraphitiClient
+        setGraphRouterClientForTest(fake)
+        const base = await getServer()
+        const res = await fetch(`${base}/api/v1/graph/episodes`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+                workspaceId: VALID_WORKSPACE,
+                content: 'hello',
+                metadata: { plexo_memory_id: 'sdk-caller-id-xyz' },
+            }),
+        })
+        expect(res.status).toBe(200)
+        const calls = (fake.addEpisode as unknown as { mock: { calls: Array<[{ sourceMetadata: Record<string, unknown> }]> } }).mock.calls
+        expect(calls[0]![0].sourceMetadata.plexo_memory_id).toBe('sdk-caller-id-xyz')
+    })
 })
 
 describe('GET /api/v1/graph/facts/search', () => {

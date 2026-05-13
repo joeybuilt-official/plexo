@@ -139,4 +139,50 @@ describe('mirrorToGraphiti', () => {
         expect(arg.sourceMetadata.foo).toBe('bar')
         expect(arg.sourceMetadata.triple).toEqual({ subject: 'X', predicate: 'likes', object: 'Y' })
     })
+
+    // A3 S1 (ADR 0031) — plexo_memory_id must be allocated on every mirror
+    // and threaded through source_metadata so the sidecar can lift it onto
+    // the Episodic node.
+    it('allocates plexo_memory_id when caller does not supply one', async () => {
+        const fakeClient = {
+            addEpisode: vi.fn(async () => ({ episodeId: 'ep-pmid', extractedFactsCount: 0, extractedNodesCount: 0 })),
+        }
+        setWriteBackendClientForTest(fakeClient as unknown as Parameters<typeof setWriteBackendClientForTest>[0])
+
+        await mirrorToGraphiti({ workspaceId: WS, content: 'plain content' })
+        const calls = fakeClient.addEpisode.mock.calls as unknown as Array<[{ sourceMetadata: Record<string, unknown> }]>
+        const pmid = calls[0]![0].sourceMetadata.plexo_memory_id
+        expect(typeof pmid).toBe('string')
+        expect((pmid as string).length).toBeGreaterThan(0)
+    })
+
+    it('preserves caller-supplied plexoMemoryId without overwriting', async () => {
+        const fakeClient = {
+            addEpisode: vi.fn(async () => ({ episodeId: 'ep-pmid-2', extractedFactsCount: 0, extractedNodesCount: 0 })),
+        }
+        setWriteBackendClientForTest(fakeClient as unknown as Parameters<typeof setWriteBackendClientForTest>[0])
+
+        await mirrorToGraphiti({
+            workspaceId: WS,
+            content: 'preserve me',
+            plexoMemoryId: 'caller-supplied-id-123',
+        })
+        const calls = fakeClient.addEpisode.mock.calls as unknown as Array<[{ sourceMetadata: Record<string, unknown> }]>
+        expect(calls[0]![0].sourceMetadata.plexo_memory_id).toBe('caller-supplied-id-123')
+    })
+
+    it('preserves metadata.plexo_memory_id (legacy migration-style caller)', async () => {
+        const fakeClient = {
+            addEpisode: vi.fn(async () => ({ episodeId: 'ep-pmid-3', extractedFactsCount: 0, extractedNodesCount: 0 })),
+        }
+        setWriteBackendClientForTest(fakeClient as unknown as Parameters<typeof setWriteBackendClientForTest>[0])
+
+        await mirrorToGraphiti({
+            workspaceId: WS,
+            content: 'legacy path',
+            metadata: { plexo_memory_id: 'legacy-row-id-456' },
+        })
+        const calls = fakeClient.addEpisode.mock.calls as unknown as Array<[{ sourceMetadata: Record<string, unknown> }]>
+        expect(calls[0]![0].sourceMetadata.plexo_memory_id).toBe('legacy-row-id-456')
+    })
 })
