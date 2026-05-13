@@ -523,7 +523,11 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
         build: () => resolveModelFromEnv(MODEL_ROUTING.summarization),
     })
 
-    const skippablePattern = /json_schema|response format|structured|No object generated|JSON parsing failed|credit balance|insufficient_quota|rate.?limit|quota|tpd|429|ENOTFOUND|fetch failed|CALL_MODEL_TIMEOUT|CALL_MODEL_PARSE/i
+    // NO_PROVIDER_AVAILABLE is the env-fallback's "no judge provider configured
+    // anywhere" verdict. When the workspace primary also skipped (e.g. credit
+    // balance low), the cascade ends here. Treat it as skippable so the run
+    // returns a quiet passthrough instead of a per-turn warning.
+    const skippablePattern = /json_schema|response format|structured|No object generated|JSON parsing failed|credit balance|insufficient_quota|rate.?limit|quota|tpd|429|ENOTFOUND|fetch failed|CALL_MODEL_TIMEOUT|CALL_MODEL_PARSE|NO_PROVIDER_AVAILABLE|ProviderResolutionError/i
 
     for (const cand of candidates) {
         try {
@@ -554,6 +558,10 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
         }
     }
 
-    logger.warn('Quality judge: all candidates exhausted — self-score passthrough')
+    // Downgraded to debug — when ALL candidates skipped via the pattern above
+    // (typically credit-balance-low → no env judge), this is the expected quiet
+    // path, not a warning condition. A real failure surfaces from the catch's
+    // non-skippable branch (line ~552) and DOES log at warn level there.
+    logger.debug('Quality judge: all candidates exhausted — self-score passthrough')
     return fallback
 }
