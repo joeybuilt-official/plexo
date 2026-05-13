@@ -7,8 +7,8 @@
 import type { PlexoSDK, ToolRegistration, InvokeContext } from '@joeybuilt/plexo-sdk'
 
 function fontoBase(): string {
-    const host = process.env.FONTO_BASE_URL
-    if (!host) throw new Error('FONTO_BASE_URL env var is required for the Fonto bridge extension')
+    const host = process.env.FONTO_INTERNAL_URL
+    if (!host) throw new Error('FONTO_INTERNAL_URL env var is required for the Fonto bridge extension')
     return host.replace(/\/$/, '')
 }
 

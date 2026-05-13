@@ -11,8 +11,8 @@
 import type { PlexoSDK } from '@joeybuilt/plexo-sdk'
 
 function fyloBase(): string {
-    const host = process.env.FYLO_BASE_URL
-    if (!host) throw new Error('FYLO_BASE_URL env var is required for the Fylo bridge extension')
+    const host = process.env.FYLO_INTERNAL_URL
+    if (!host) throw new Error('FYLO_INTERNAL_URL env var is required for the Fylo bridge extension')
     return host.replace(/\/$/, '')
 }
 

@@ -22,8 +22,8 @@ import pino from 'pino'
 const logger = pino({ name: 'levio:tools' })
 
 function levioBase(): string {
-    const host = process.env.LEVIO_BASE_URL
-    if (!host) throw new Error('LEVIO_BASE_URL env var is required for the Levio connection factory')
+    const host = process.env.LEVIO_INTERNAL_URL
+    if (!host) throw new Error('LEVIO_INTERNAL_URL env var is required for the Levio connection factory')
     return host.replace(/\/$/, '')
 }
 
