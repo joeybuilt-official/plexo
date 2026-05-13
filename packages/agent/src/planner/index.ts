@@ -82,7 +82,9 @@ const ExecutionPlanShape = z.object({
     steps: z.array(PlanStepSchema).min(1),
     oneWayDoors: z.array(OneWayDoorSchema).default([]).transform(arr => arr.filter(Boolean)),
     estimatedDurationMs: z.number().nonnegative().default(30000),
-    confidenceScore: z.number().min(0).max(1).default(0.8),
+    // .refine instead of .min().max() — Anthropic structured-output rejects
+    // {minimum, maximum} on number-typed JSON Schema fields. See quality-judge.ts.
+    confidenceScore: z.number().refine((n) => n >= 0 && n <= 1, { message: 'confidenceScore must be 0..1' }).default(0.8),
     // Accept either string[] (preferred) or object[] (LLM occasionally emits
     // `[{description: "...", mitigation: "..."}]`). Coerce objects → "description"
     // string so downstream callers see a uniform string[] regardless of LLM shape.
