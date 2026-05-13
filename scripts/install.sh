@@ -14,6 +14,16 @@
 #   --domain=DOMAIN   Required. The domain Plexo will run on (e.g. plexo.example.com)
 #   --force           Overwrite existing .env (DANGEROUS — destroys secrets)
 #   --no-start        Generate .env but don't run docker compose
+#
+# Re-running on an existing install:
+#   This script generates a fresh POSTGRES_PASSWORD every run. If a Postgres
+#   volume already exists from a previous install, the new password will not
+#   match what Postgres stored on first boot and the API will fail to connect.
+#   To do a clean re-install, first destroy the volumes:
+#
+#       docker compose --profile selfhosted down -v
+#
+#   Then re-run this script with --force to regenerate .env.
 # =============================================================================
 
 set -euo pipefail
@@ -110,7 +120,27 @@ ENV_FILE="${REPO_ROOT}/.env"
 # ── Guard existing .env ──────────────────────────────────────────────────────
 
 if [[ -f "$ENV_FILE" && "$FORCE" == false ]]; then
-  die ".env already exists at ${ENV_FILE}. Use --force to overwrite (destroys secrets)."
+  warn ".env already exists at ${ENV_FILE}."
+  warn "Re-running install would generate a new POSTGRES_PASSWORD that won't"
+  warn "match the existing Postgres volume — the API will fail to connect."
+  warn ""
+  warn "For a clean re-install:"
+  warn "  docker compose --profile selfhosted down -v   # destroys all data"
+  warn "  bash scripts/install.sh --domain=${DOMAIN} --force"
+  die "Aborting. Use --force to overwrite .env (only safe after 'down -v')."
+fi
+
+# ── Warn if a stale Postgres volume exists without .env ──────────────────────
+# (User ran 'down' but not 'down -v', then deleted .env to start fresh.)
+
+if [[ ! -f "$ENV_FILE" ]] && command -v docker &>/dev/null; then
+  if docker volume ls --format '{{.Name}}' 2>/dev/null | grep -qE "^${COMPOSE_PROJECT_NAME:-plexo}.*(postgres|plexo-db)"; then
+    warn "Detected an existing Plexo Postgres volume but no .env file."
+    warn "Installing fresh will generate a new POSTGRES_PASSWORD that won't"
+    warn "match the volume's stored password. To avoid auth failures, first run:"
+    warn "  docker compose --profile selfhosted down -v"
+    warn ""
+  fi
 fi
 
 # ── Generate secrets ─────────────────────────────────────────────────────────
