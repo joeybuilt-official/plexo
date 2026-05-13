@@ -94,10 +94,17 @@ export async function readFromGraphiti(opts: GraphitiSearchOpts): Promise<Memory
         logger.warn({ workspaceId: opts.workspaceId }, 'memory.read.graphiti: bridge.search returned null')
         return null
     }
-    return res.results.map((edge) => mapEdgeToResult(edge, opts.workspaceId))
+    const total = res.results.length
+    return res.results.map((edge, idx) => mapEdgeToResult(edge, opts.workspaceId, idx, total))
 }
 
-function mapEdgeToResult(edge: SearchResultEdge, workspaceId: string): MemorySearchResult {
+function mapEdgeToResult(edge: SearchResultEdge, workspaceId: string, rank: number, total: number): MemorySearchResult {
+    // Graphiti's hybrid (semantic + BM25 + BFS) is RRF-fused and re-ranked by
+    // OpenAIRerankerClient. The sidecar doesn't currently expose the per-edge
+    // score, but the list order *is* the rank. Convert rank → similarity so
+    // downstream UIs + threshold callers see a real gradient (top=1.0, tail→0).
+    // Swap to the real graphiti score in Phase 5 once the sidecar redeploys.
+    const similarity = total > 1 ? 1 - (rank / total) : 1
     return {
         id: edge.uuid ?? `graphiti:${workspaceId}:unknown`,
         workspaceId,
@@ -109,13 +116,11 @@ function mapEdgeToResult(edge: SearchResultEdge, workspaceId: string): MemorySea
             target_node_uuid: edge.target_node_uuid,
             valid_at: edge.valid_at,
             invalid_at: edge.invalid_at,
+            graphiti_rank: rank,
         },
         tier: 'active' as MemoryTier,
         namespace: DEFAULT_NAMESPACE,
         createdAt: edge.created_at ? new Date(edge.created_at) : new Date(),
-        // Graphiti's hybrid search returns RRF-fused rankings, not similarity
-        // scores. Use 1 as a placeholder so existing callers (which mostly
-        // ignore similarity) don't break their threshold checks.
-        similarity: 1,
+        similarity,
     }
 }

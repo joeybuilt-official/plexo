@@ -106,9 +106,19 @@ export async function claimBatch(): Promise<(typeof tasks.$inferSelect)[]> {
         return []
     }
 
+    // Channel-source fast-lane (ADR 0001 post-cutover-stabilization Phase 1 fix 5).
+    // User-facing channels (telegram, twilio SMS, gmessages) historically have been
+    // starved indefinitely by the gmail-poll cron flood that creates ~96 priority=1
+    // tasks/hr — Telegram TASKs at priority=2 never claimed a slot. Fast-lane sorts
+    // type='automation' AND channel-source tasks ahead of every non-channel task,
+    // regardless of priority, so user replies aren't blocked by background polling.
     const queuedTasks = await db.select().from(tasks)
         .where(sql`${tasks.status} = 'queued' AND (${tasks.retryAfter} IS NULL OR ${tasks.retryAfter} <= NOW())`)
-        .orderBy(sql`${tasks.priority} ASC`, sql`${tasks.createdAt} ASC`)
+        .orderBy(
+            sql`CASE WHEN ${tasks.source} IN ('telegram','twilio','gmessages') AND ${tasks.type} = 'automation' THEN 0 ELSE 1 END ASC`,
+            sql`${tasks.priority} ASC`,
+            sql`${tasks.createdAt} ASC`,
+        )
         .limit(20)
 
     const claimedTasks: (typeof tasks.$inferSelect)[] = []

@@ -83,7 +83,25 @@ const ExecutionPlanShape = z.object({
     oneWayDoors: z.array(OneWayDoorSchema).default([]).transform(arr => arr.filter(Boolean)),
     estimatedDurationMs: z.number().nonnegative().default(30000),
     confidenceScore: z.number().min(0).max(1).default(0.8),
-    risks: z.array(z.string()).default([]),
+    // Accept either string[] (preferred) or object[] (LLM occasionally emits
+    // `[{description: "...", mitigation: "..."}]`). Coerce objects → "description"
+    // string so downstream callers see a uniform string[] regardless of LLM shape.
+    risks: z.preprocess(
+        (val) => {
+            if (!Array.isArray(val)) return val
+            return val.map((r) => {
+                if (typeof r === 'string') return r
+                if (r && typeof r === 'object') {
+                    const obj = r as Record<string, unknown>
+                    const desc = obj.description ?? obj.risk ?? obj.text ?? obj.summary
+                    if (typeof desc === 'string') return desc
+                    try { return JSON.stringify(r) } catch { return String(r) }
+                }
+                return String(r)
+            })
+        },
+        z.array(z.string()).default([]),
+    ),
     phases: z.array(PhaseSchema).optional().default([]),
 })
 
