@@ -1,0 +1,63 @@
+name: CHANGELOG check
+
+# Gate: any PR that modifies packages/sdk/src/** must also update
+# packages/sdk/CHANGELOG.md.
+#
+# Escape hatch: include the marker [skip-changelog] in either the PR body
+# or any commit message in the PR. Use only for refactors, comment-only
+# changes, or other PRs that genuinely don't ship a behavior delta to
+# consumers.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/sdk/src/**"
+      - "packages/sdk/CHANGELOG.md"
+
+jobs:
+  changelog-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for [skip-changelog] escape hatch
+        id: skip
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          # Search PR body
+          if printf '%s' "$PR_BODY" | grep -qF '[skip-changelog]'; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::[skip-changelog] marker found in PR body."
+            exit 0
+          fi
+          # Search commit messages on the PR's branch (since merge-base)
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          if git log --format='%B' "$BASE_SHA..$HEAD_SHA" | grep -qF '[skip-changelog]'; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::[skip-changelog] marker found in a commit message."
+            exit 0
+          fi
+          echo "found=false" >> "$GITHUB_OUTPUT"
+
+      - name: Verify CHANGELOG updated when src changed
+        if: steps.skip.outputs.found == 'false'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          SRC_TOUCHED=$(echo "$CHANGED" | grep -c '^packages/sdk/src/' || true)
+          CHANGELOG_TOUCHED=$(echo "$CHANGED" | grep -c '^packages/sdk/CHANGELOG.md$' || true)
+          if [ "$SRC_TOUCHED" -gt 0 ] && [ "$CHANGELOG_TOUCHED" -eq 0 ]; then
+            echo "::error::PRs that change packages/sdk/src/ must update packages/sdk/CHANGELOG.md. If this PR is genuinely no-changelog (refactor, comment, etc.), add a [skip-changelog] line to the commit body or PR description."
+            exit 1
+          fi
+          echo "::notice::CHANGELOG gate passed (src=$SRC_TOUCHED files, changelog=$CHANGELOG_TOUCHED files)."
