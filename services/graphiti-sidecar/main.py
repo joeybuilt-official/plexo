@@ -52,6 +52,8 @@ from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
 from graphiti_core.llm_client.config import LLMConfig
 from graphiti_core.nodes import EntityNode, EpisodeType
 
+import schema_registry
+
 logger = logging.getLogger("plexo-graphiti")
 logging.basicConfig(level=logging.INFO)
 
@@ -114,6 +116,36 @@ async def _require_hmac(request: Request) -> bytes:
     if not ok:
         raise HTTPException(status_code=401, detail=reason)
     return raw_body
+
+
+# ---------- Phase F schema registry wiring (ADR 0029) ----------
+#
+# App identity rules (back-compat with pre-Phase-F callers):
+# 1. Explicit body field `app` wins.
+# 2. Otherwise read `X-Plexo-App` header.
+# 3. Otherwise default to "plexo" — every existing endpoint belongs to the
+#    plexo app, so omitting the field on a legacy bridge request is fine.
+#
+# STRICT_SCHEMA is read on every request (not cached) so an operator can
+# flip it via compose env-update + container restart without a deploy.
+
+def _resolve_app(request: Request, body_app: str | None = None) -> str:
+    if body_app:
+        return body_app
+    header_app = request.headers.get("X-Plexo-App")
+    if header_app:
+        return header_app
+    return "plexo"
+
+
+def _schema_check_node(app: str, label: str, properties: dict | None) -> None:
+    """Wrap schema_registry.validate so a ValidationError surfaces as
+    HTTPException(422). Called BEFORE acquiring _ws_lock — validation is
+    cheap and we want fast rejection."""
+    try:
+        schema_registry.validate(app, label, properties)
+    except schema_registry.ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 # ---------- Per-workspace Graphiti instance cache ----------
@@ -240,6 +272,9 @@ class EpisodeCreate(BaseModel):
     episode_type: str = Field(default="message")  # one of EpisodeType values
     reference_time: str | None = None  # ISO timestamp; defaults to now()
     source_metadata: dict = Field(default_factory=dict)
+    # Phase F: optional explicit app identity. Defaults to header X-Plexo-App
+    # else "plexo" (back-compat for the existing bridge).
+    app: str | None = None
 
 
 def _episode_type(name: str) -> EpisodeType:
@@ -264,6 +299,18 @@ def _parse_reference_time(value: str | None) -> datetime:
 @app.post("/v1/episodes")
 async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
     await _require_hmac(request)
+    # Phase F validation BEFORE the heavy lock. The Episodic label's required
+    # props are content + source_description (see schemas/plexo.yaml); both
+    # are pydantic-required on EpisodeCreate so they're guaranteed present
+    # here. The check is the registry's "this app/label is registered"
+    # gate — useful when STRICT_SCHEMA flips on and a non-plexo caller hits
+    # /v1/episodes without first registering its schema.
+    resolved_app = _resolve_app(request, body.app)
+    _schema_check_node(
+        resolved_app,
+        "Episodic",
+        {"content": body.content, "source_description": body.source_description},
+    )
     async with _ws_lock(body.workspace_id):
         graphiti = await _get_graphiti(body.workspace_id)
         result = await graphiti.add_episode(
@@ -363,6 +410,7 @@ class TripletCreate(BaseModel):
     object: TripletNode
     source_metadata: dict
     valid_at: str | None = None
+    app: str | None = None  # Phase F; defaults to header / "plexo"
 
 
 def _validate_triplet_node(label: str, node: TripletNode) -> None:
@@ -412,6 +460,15 @@ async def add_triplet(request: Request, body: TripletCreate) -> JSONResponse:
     plexo_memory_id, plexo_memory_type = _validate_source_metadata(body.source_metadata)
     if not body.predicate or not body.predicate.strip():
         raise HTTPException(status_code=422, detail="predicate must be non-empty")
+
+    # Phase F per-app schema check (ADR 0029). The triplet endpoint always
+    # writes node `name` + the merged attributes that include
+    # `plexo_memory_type`. Sub/obj go through the same registered-label gate.
+    resolved_app = _resolve_app(request, body.app)
+    sub_props = {**(body.subject.attributes or {}), "name": body.subject.name, "plexo_memory_type": plexo_memory_type}
+    obj_props = {**(body.object.attributes or {}), "name": body.object.name, "plexo_memory_type": plexo_memory_type}
+    _schema_check_node(resolved_app, body.subject.type, sub_props)
+    _schema_check_node(resolved_app, body.object.type, obj_props)
 
     valid_at_dt = _parse_reference_time(body.valid_at)
 

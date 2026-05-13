@@ -7,3 +7,4 @@ uvicorn[standard]==0.32.1
 pydantic==2.11.5
 graphiti-core==0.29.0
 falkordb==1.6.1
+pyyaml==6.0.2

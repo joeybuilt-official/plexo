@@ -299,6 +299,27 @@ export { validateManifest } from './validation/manifest.js'
 export type { ValidationResult, ValidationError, ValidationOptions } from './validation/manifest.js'
 
 // ---------------------------------------------------------------------------
+// Phase F — graphiti per-app schema registry (ADR 0029)
+// ---------------------------------------------------------------------------
+export {
+    PLEXO_SCHEMA,
+    LEVIO_SCHEMA,
+    FRAME_FORGE_SCHEMA,
+    HELM_SCHEMA,
+    SCHEMA_REGISTRY,
+    getAppSchema,
+    graphName,
+    validateNode,
+    validateEdge,
+} from './graphiti-schema.js'
+export type {
+    AppSchema,
+    LabelSchema,
+    EdgeSchema,
+    ValidationResult as GraphitiSchemaValidationResult,
+} from './graphiti-schema.js'
+
+// ---------------------------------------------------------------------------
 // §3.3 — Signature verification (stub v1)
 // ---------------------------------------------------------------------------
 export { verifySignature } from './validation/signature.js'
