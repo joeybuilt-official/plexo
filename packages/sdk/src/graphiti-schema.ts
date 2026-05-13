@@ -54,7 +54,19 @@ export const PLEXO_SCHEMA: AppSchema = {
   nodeLabels: {
     Episodic: {
       required: ['content', 'source_description'],
-      optional: ['name', 'source', 'valid_at', 'episode_type'],
+      optional: [
+        'name',
+        'source',
+        'valid_at',
+        'episode_type',
+        // Phase A2 (ADR 0018) — confidence lifecycle + kNN on graph nodes.
+        'tier',
+        'last_retrieved_at',
+        'is_anchored',
+        'confidence',
+        'superseded_by',
+        'embedding',
+      ],
     },
     Entity: { required: ['name'], optional: ['summary', 'plexo_memory_type'] },
     IdentityFact: { required: ['name'], optional: ['summary', 'plexo_memory_type'] },
@@ -63,6 +75,28 @@ export const PLEXO_SCHEMA: AppSchema = {
     ContextFact: { required: ['name'], optional: ['summary', 'plexo_memory_type'] },
     ConstraintFact: { required: ['name'], optional: ['summary', 'plexo_memory_type'] },
     Generic: { required: ['name'], optional: ['summary', 'plexo_memory_type'] },
+    // Phase B1 (ADR 0020) — task execution DAG on graph.
+    Task: {
+      required: ['id', 'description', 'status'],
+      optional: ['priority', 'scope', 'acceptance', 'branch', 'sprint_id'],
+    },
+    // Phase B2 (ADR 0021) — conversation threading on graph.
+    Message: {
+      required: ['id', 'source', 'message', 'created_at'],
+      optional: [
+        'reply',
+        'error_msg',
+        'status',
+        'intent',
+        'task_id',
+        'channel_ref',
+        'attachments',
+      ],
+    },
+    Session: {
+      required: ['id'],
+      optional: ['source', 'session_key', 'last_activity_at'],
+    },
   },
   edgeTypes: {
     RELATES_TO: {
@@ -71,9 +105,16 @@ export const PLEXO_SCHEMA: AppSchema = {
       props: ['fact', 'plexo_memory_id', 'plexo_memory_type'],
     },
     HAS_EPISODE_OF: { from: 'Episodic', to: 'Entity', props: [] },
+    // Phase A2 — kNN edges between Episodic nodes; weight = cosine similarity.
+    SIMILAR_TO: { from: 'Episodic', to: 'Episodic', props: ['weight'] },
+    // Phase B1 — task DAG.
+    DEPENDS_ON: { from: 'Task', to: 'Task', props: [] },
+    // Phase B2 — message-to-session membership + sibling chain.
+    IN_SESSION: { from: 'Message', to: 'Session', props: [] },
+    NEXT: { from: 'Message', to: 'Message', props: [] },
   },
   predicateVocabulary: [],
-};
+};;
 
 export const LEVIO_SCHEMA: AppSchema = {
   app: 'levio',

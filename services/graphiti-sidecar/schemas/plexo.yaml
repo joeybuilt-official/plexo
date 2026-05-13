@@ -14,7 +14,18 @@ graph_template: "plexo:<workspace_id>"
 node_labels:
   Episodic:
     required: [content, source_description]
-    optional: [name, source, valid_at, episode_type]
+    optional:
+      - name
+      - source
+      - valid_at
+      - episode_type
+      # Phase A2 (ADR 0018) — confidence lifecycle + kNN on graph nodes.
+      - tier                # 'hot' | 'active' | 'cold'
+      - last_retrieved_at   # ISO ts; bumped on retrieval
+      - is_anchored         # bool; anchored nodes skip decay
+      - confidence          # real; decays weekly via cypher SET
+      - superseded_by       # node id; cold-tier guard
+      - embedding           # vector; FalkorDB vector index
   Entity:
     required: [name]
     optional: [summary, plexo_memory_type]
@@ -36,6 +47,24 @@ node_labels:
   Generic:
     required: [name]
     optional: [summary, plexo_memory_type]
+  # Phase B1 (ADR 0020) — task execution DAG on graph.
+  Task:
+    required: [id, description, status]
+    optional: [priority, scope, acceptance, branch, sprint_id]
+  # Phase B2 (ADR 0021) — conversation threading on graph.
+  Message:
+    required: [id, source, message, created_at]
+    optional:
+      - reply
+      - error_msg
+      - status
+      - intent
+      - task_id
+      - channel_ref
+      - attachments
+  Session:
+    required: [id]
+    optional: [source, session_key, last_activity_at]
 
 edge_types:
   RELATES_TO:
@@ -45,6 +74,25 @@ edge_types:
   HAS_EPISODE_OF:
     from: Episodic
     to: Entity
+    props: []
+  # Phase A2 — kNN edges between Episodic nodes; weight = cosine similarity.
+  SIMILAR_TO:
+    from: Episodic
+    to: Episodic
+    props: [weight]
+  # Phase B1 — task DAG.
+  DEPENDS_ON:
+    from: Task
+    to: Task
+    props: []
+  # Phase B2 — message-to-session membership + sibling chain.
+  IN_SESSION:
+    from: Message
+    to: Session
+    props: []
+  NEXT:
+    from: Message
+    to: Message
     props: []
 
 predicate_vocabulary: []
