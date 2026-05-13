@@ -96,10 +96,19 @@ TELEMETRY_DEFAULT_APP = os.environ.get("TELEMETRY_DEFAULT_APP", "plexo")
 UUID_RE = (
     "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
+# Phase 1 Fix 8 — accept named system graphs (e.g. `plexo-permissions`) per ADR-0022.
+# Standard UUID OR lowercase identifier starting with letter, 2–64 chars,
+# letters/digits/underscore/dash only. Excludes colon to defer ADR-0016
+# `<app>:<workspace>` namespacing until that lands.
+WORKSPACE_ID_RE = (
+    "^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    "|[a-z][a-z0-9_-]{1,63})$"
+)
 
 import re
 
 _UUID_PAT = re.compile(UUID_RE, re.IGNORECASE)
+_WORKSPACE_ID_PAT = re.compile(WORKSPACE_ID_RE, re.IGNORECASE)
 
 
 def _verify_hmac(raw_body: bytes, signature_header: str, ts_header: str) -> tuple[bool, str]:
@@ -180,8 +189,11 @@ _WORKSPACE_LOCKS: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
 def _validate_workspace_id(workspace_id: str) -> None:
-    if not _UUID_PAT.match(workspace_id):
-        raise HTTPException(status_code=400, detail="workspace_id must be a UUID")
+    if not _WORKSPACE_ID_PAT.match(workspace_id):
+        raise HTTPException(
+            status_code=400,
+            detail="workspace_id must be a UUID or a named system graph (^[a-z][a-z0-9_-]{1,63}$)",
+        )
 
 
 def _ws_lock(workspace_id: str) -> asyncio.Lock:
