@@ -159,6 +159,75 @@ export const FRAME_FORGE_SCHEMA: AppSchema = {
   predicateVocabulary: [],
 };
 
+export const FYLO_SCHEMA: AppSchema = {
+  app: 'fylo',
+  graphTemplate: 'fylo:<workspace_id>',
+  nodeLabels: {
+    User: { required: ['id'], optional: ['email'] },
+    Merchant: {
+      required: ['normalizedName'],
+      optional: ['displayName', 'parentCompany', 'businessType', 'confidence', 'globalUseCount'],
+    },
+    Descriptor: { required: ['pattern'], optional: ['patternType'] },
+    Category: { required: ['name'], optional: ['groupId', 'isIncome'] },
+    Account: { required: ['id', 'type'], optional: ['institution', 'isOffBudget'] },
+    FinancialEvent: {
+      required: ['id', 'amount', 'date'],
+      optional: ['merchantName', 'transferId'],
+    },
+    RecurringPattern: {
+      required: ['id', 'frequency'],
+      optional: ['nextExpected', 'confidence', 'status'],
+    },
+  },
+  edgeTypes: {
+    RESOLVES_TO: { from: 'Descriptor', to: 'Merchant', props: ['confidence'] },
+    BELONGS_TO: { from: 'Merchant', to: 'Category', props: [] },
+    PARENT_OF: { from: 'Merchant', to: 'Merchant', props: [] },
+    CONFIRMED: { from: 'User', to: 'Merchant', props: ['count'] },
+    TRANSFER_LEG: { from: 'FinancialEvent', to: 'FinancialEvent', props: ['transferId'] },
+    INSTANCE_OF: { from: 'FinancialEvent', to: 'RecurringPattern', props: ['variance'] },
+  },
+  predicateVocabulary: [],
+};
+
+export const PUSHD_SCHEMA: AppSchema = {
+  app: 'pushd',
+  // Pushd's tenancy boundary is the Organization, not a workspace.
+  graphTemplate: 'pushd:<organization_id>',
+  nodeLabels: {
+    Organization: { required: ['id', 'name'], optional: [] },
+    User: { required: ['id'], optional: ['email'] },
+    Project: { required: ['id', 'name'], optional: [] },
+    Environment: {
+      required: ['id', 'name', 'type'],
+      optional: ['parentEnvId', 'branch', 'prNumber'],
+    },
+    Service: { required: ['id', 'name', 'type'], optional: ['stack', 'repoUrl'] },
+    Deploy: { required: ['id', 'status'], optional: ['commitSha', 'branch'] },
+    Error: {
+      required: ['id', 'fingerprint', 'status'],
+      optional: ['type', 'severity', 'occurrenceCount'],
+    },
+    ErrorPattern: {
+      required: ['id', 'regex'],
+      optional: ['diagnosis', 'suggestedFix', 'frequency'],
+    },
+  },
+  edgeTypes: {
+    MEMBER_OF: { from: 'User', to: 'Organization', props: ['role'] },
+    OWNS: { from: 'Organization', to: 'Project', props: [] },
+    HAS_ENV: { from: 'Project', to: 'Environment', props: [] },
+    PARENT_OF: { from: 'Environment', to: 'Environment', props: [] },
+    RUNS: { from: 'Environment', to: 'Service', props: [] },
+    DEPLOY_OF: { from: 'Deploy', to: 'Service', props: [] },
+    INTRODUCED: { from: 'Deploy', to: 'Error', props: [] },
+    RESOLVED_IN: { from: 'Error', to: 'Deploy', props: [] },
+    MATCHES_PATTERN: { from: 'Error', to: 'ErrorPattern', props: ['confidence'] },
+  },
+  predicateVocabulary: [],
+};
+
 export const FONTO_SCHEMA: AppSchema = {
   app: 'fonto',
   graphTemplate: 'fonto:<workspace_id>',
@@ -222,6 +291,8 @@ export const SCHEMA_REGISTRY: Readonly<Record<string, AppSchema>> = Object.freez
   'frame-forge': FRAME_FORGE_SCHEMA,
   helm: HELM_SCHEMA,
   fonto: FONTO_SCHEMA,
+  fylo: FYLO_SCHEMA,
+  pushd: PUSHD_SCHEMA,
 });
 
 export type ValidationResult = { ok: true } | { ok: false; error: string };
