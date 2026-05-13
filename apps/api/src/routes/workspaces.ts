@@ -8,6 +8,7 @@ import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/db/auth/con
 import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
+import { mirrorMembershipUpsert } from '../lib/permission-graph.js'
 import { getAuth } from '../middleware/better-auth.js'
 import { cancelActiveTask } from '../agent-loop.js'
 import { deleteByPrefix } from '@plexo/storage'
@@ -171,6 +172,8 @@ workspacesRouter.post('/', async (req, res) => {
                 userId: ownerId,
                 role: 'owner',
             }).onConflictDoNothing()
+            // Phase C1 (ADR 0022) shadow-write — owner seed on POST /workspaces.
+            void mirrorMembershipUpsert({ workspaceId: ws.id, userId: ownerId, role: 'owner' })
 
             return ws
         })

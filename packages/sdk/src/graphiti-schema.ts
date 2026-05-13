@@ -99,6 +99,9 @@ export const PLEXO_SCHEMA: AppSchema = {
       required: ['id'],
       optional: ['source', 'session_key', 'last_activity_at'],
     },
+    // Phase C1 (ADR 0022) — workspace permission graph.
+    User: { required: ['id'], optional: ['email'] },
+    Workspace: { required: ['id'], optional: ['name'] },
   },
   edgeTypes: {
     RELATES_TO: {
@@ -114,6 +117,8 @@ export const PLEXO_SCHEMA: AppSchema = {
     // Phase B2 — message-to-session membership + sibling chain.
     IN_SESSION: { from: 'Message', to: 'Session', props: [] },
     NEXT: { from: 'Message', to: 'Message', props: [] },
+    // Phase C1 (ADR 0022) — membership edge with role property.
+    MEMBER_OF: { from: 'User', to: 'Workspace', props: ['role'] },
   },
   predicateVocabulary: [],
 };;
