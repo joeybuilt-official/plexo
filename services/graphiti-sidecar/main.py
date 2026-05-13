@@ -563,6 +563,201 @@ async def add_triplet(request: Request, body: TripletCreate) -> JSONResponse:
     )
 
 
+# ---------- /v1/graph/write + /v1/graph/cypher (ADRs 0018/0020/0021) ----------
+#
+# Direct FalkorDB endpoints — bypass graphiti's add_episode/add_triplet
+# pipeline. Used by phases that read/write nodes graphiti doesn't model:
+#   - A2 memory synthesis: SET on Episodic props (tier/confidence),
+#     SIMILAR_TO edges between Episodic nodes
+#   - B1 task DAG: Task nodes + DEPENDS_ON edges
+#   - B2 conversation threading: Message+Session+IN_SESSION+NEXT
+#
+# Trust model: HMAC + PLEXO_SERVICE_KEY gate all writes. /v1/graph/cypher
+# allows arbitrary cypher (read OR write) — schema_registry only validates
+# the structured /v1/graph/write path. Callers issuing raw cypher are
+# trusted to construct safe queries.
+
+try:
+    from falkordb.asyncio import FalkorDB as _AsyncFalkorDB  # type: ignore
+except ImportError:  # pragma: no cover — pin requires falkordb>=1.6.1
+    _AsyncFalkorDB = None  # type: ignore
+
+_FALKORDB_CLIENT: object | None = None
+
+
+def _falkordb_client():
+    """Lazy-init async FalkorDB client. Shared across all workspaces via
+    per-graph select_graph(workspace_id)."""
+    global _FALKORDB_CLIENT
+    if _FALKORDB_CLIENT is None:
+        if _AsyncFalkorDB is None:
+            raise HTTPException(
+                status_code=500,
+                detail="falkordb.asyncio not available; reinstall falkordb>=1.6.1",
+            )
+        _FALKORDB_CLIENT = _AsyncFalkorDB(host=FALKORDB_HOST, port=FALKORDB_PORT)
+    return _FALKORDB_CLIENT
+
+
+class GraphNode(BaseModel):
+    label: str
+    id: str
+    properties: dict = Field(default_factory=dict)
+
+
+class GraphEdge(BaseModel):
+    type: str
+    from_label: str
+    from_id: str
+    to_label: str
+    to_id: str
+    properties: dict = Field(default_factory=dict)
+
+
+class GraphWriteRequest(BaseModel):
+    workspace_id: str
+    app: str | None = None
+    nodes: list[GraphNode] = Field(default_factory=list)
+    edges: list[GraphEdge] = Field(default_factory=list)
+
+
+@app.post("/v1/graph/write")
+async def graph_write(request: Request, body: GraphWriteRequest) -> JSONResponse:
+    """Structured node/edge write with schema-registry validation.
+
+    Each node is MERGE'd by (label, id); each edge MATCH'es both endpoints
+    by (label, id) and MERGE's the relationship. Idempotent on retry.
+    """
+    await _require_hmac(request)
+    _validate_workspace_id(body.workspace_id)
+    resolved_app = _resolve_app(request, body.app)
+
+    # Validate all writes BEFORE acquiring the lock (cheap reject).
+    for n in body.nodes:
+        _schema_check_node(resolved_app, n.label, {**n.properties, "id": n.id})
+    for e in body.edges:
+        try:
+            schema_registry.validate_edge(
+                resolved_app,
+                e.type,
+                from_label=e.from_label,
+                to_label=e.to_label,
+                properties=e.properties,
+            )
+        except schema_registry.ValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    lock_wait_start = _now_monotonic_ms()
+    async with _ws_lock(body.workspace_id):
+        lock_wait_ms = _now_monotonic_ms() - lock_wait_start
+        write_start = _now_monotonic_ms()
+        client = _falkordb_client()
+        graph = client.select_graph(body.workspace_id)
+
+        nodes_written = 0
+        for n in body.nodes:
+            cypher = f"MERGE (n:{n.label} {{id: $id}}) SET n += $props"
+            await graph.query(cypher, {"id": n.id, "props": n.properties})
+            nodes_written += 1
+
+        edges_written = 0
+        for e in body.edges:
+            cypher = (
+                f"MATCH (a:{e.from_label} {{id: $from_id}}), "
+                f"(b:{e.to_label} {{id: $to_id}}) "
+                f"MERGE (a)-[r:{e.type}]->(b) "
+                f"SET r += $props"
+            )
+            await graph.query(
+                cypher,
+                {"from_id": e.from_id, "to_id": e.to_id, "props": e.properties},
+            )
+            edges_written += 1
+
+        write_ms = _now_monotonic_ms() - write_start
+
+    _emit_write_telemetry(
+        request=request,
+        workspace_id=body.workspace_id,
+        endpoint="/v1/graph/write",
+        lock_wait_ms=lock_wait_ms,
+        write_ms=write_ms,
+        result_size=nodes_written + edges_written,
+    )
+    return JSONResponse(
+        {
+            "nodes_written": nodes_written,
+            "edges_written": edges_written,
+            "latencies": {
+                "lock_wait_ms": int(lock_wait_ms),
+                "write_ms": int(write_ms),
+            },
+        }
+    )
+
+
+class GraphCypherRequest(BaseModel):
+    workspace_id: str
+    cypher: str
+    params: dict = Field(default_factory=dict)
+
+
+def _serialize_falkor_value(v):
+    """FalkorDB python client returns Node/Edge/scalar. Coerce to JSON-safe."""
+    if hasattr(v, "properties"):
+        return {
+            "labels": list(
+                getattr(v, "labels", None) or [getattr(v, "label", None)]
+            ),
+            "properties": dict(v.properties),
+            "id": getattr(v, "id", None),
+        }
+    if isinstance(v, list):
+        return [_serialize_falkor_value(x) for x in v]
+    if isinstance(v, dict):
+        return {k: _serialize_falkor_value(x) for k, x in v.items()}
+    return v
+
+
+@app.post("/v1/graph/cypher")
+async def graph_cypher(request: Request, body: GraphCypherRequest) -> JSONResponse:
+    """Arbitrary cypher (read OR write). HMAC + service_key gate auth;
+    callers are trusted to construct safe queries. Use /v1/graph/write for
+    schema-validated structured writes."""
+    await _require_hmac(request)
+    _validate_workspace_id(body.workspace_id)
+
+    lock_wait_start = _now_monotonic_ms()
+    async with _ws_lock(body.workspace_id):
+        lock_wait_ms = _now_monotonic_ms() - lock_wait_start
+        query_start = _now_monotonic_ms()
+        client = _falkordb_client()
+        graph = client.select_graph(body.workspace_id)
+        result = await graph.query(body.cypher, body.params)
+        query_ms = _now_monotonic_ms() - query_start
+
+    rows: list = []
+    if hasattr(result, "result_set") and result.result_set:
+        for row in result.result_set:
+            rows.append([_serialize_falkor_value(v) for v in row])
+
+    header_raw = getattr(result, "header", None) or []
+    header = [
+        h[1] if isinstance(h, (list, tuple)) and len(h) > 1 else h
+        for h in header_raw
+    ]
+
+    _emit_write_telemetry(
+        request=request,
+        workspace_id=body.workspace_id,
+        endpoint="/v1/graph/cypher",
+        lock_wait_ms=lock_wait_ms,
+        write_ms=query_ms,
+        result_size=len(rows),
+    )
+    return JSONResponse({"header": header, "rows": rows})
+
+
 def _now_monotonic_ms() -> int:
     return int(time.monotonic() * 1000)
 
