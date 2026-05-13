@@ -1,0 +1,21 @@
+# /etc/cron.d/falkordb-backup
+# Phase G nightly RDB snapshot. Operator installs this file on the VPS by
+# copying it to /etc/cron.d/falkordb-backup. ADR 0030.
+#
+# Schedule:
+#   - Daily snapshot at 03:30 UTC (low-traffic window)
+#   - Weekly off-host upload Sunday 04:00 UTC (after the daily completes)
+#
+# Required env for off-host upload (set in /etc/default/falkordb-backup or
+# inline above the relevant line):
+#   AWS_S3_BACKUP_BUCKET=<bucket-name>
+#   AWS_ACCESS_KEY_ID=...
+#   AWS_SECRET_ACCESS_KEY=...
+#   AWS_DEFAULT_REGION=us-east-1
+#
+# Path to the script assumes the plexo repo is checked out at /opt/joeybuilt/plexo.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+30 3 * * * root /opt/joeybuilt/plexo/services/graphiti-sidecar/scripts/falkordb_backup.sh >> /var/log/falkordb-backup.log 2>&1
+0  4 * * 0 root /opt/joeybuilt/plexo/services/graphiti-sidecar/scripts/falkordb_backup.sh --offhost-upload >> /var/log/falkordb-backup.log 2>&1
