@@ -70,6 +70,14 @@ node_labels:
   Session:
     required: [id]
     optional: [source, session_key, last_activity_at]
+  # Phase C1 (ADR 0022) — workspace permission graph (security-critical;
+  # 30-day dual-read window before any read-path cutover).
+  User:
+    required: [id]
+    optional: [email]
+  Workspace:
+    required: [id]
+    optional: [name]
 
 edge_types:
   RELATES_TO:
@@ -99,5 +107,12 @@ edge_types:
     from: Message
     to: Message
     props: []
+  # Phase C1 (ADR 0022) — membership edge carries the role string.
+  # Role-as-node + GRANTS edge deferred to a follow-on if hierarchical
+  # roles are needed.
+  MEMBER_OF:
+    from: User
+    to: Workspace
+    props: [role]
 
 predicate_vocabulary: []
