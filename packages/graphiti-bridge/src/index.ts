@@ -69,6 +69,17 @@ export interface SearchResult {
     results: SearchResultEdge[]
 }
 
+export interface CypherRequest {
+    workspaceId: string
+    cypher: string
+    params?: Record<string, unknown>
+}
+
+export interface CypherResponse {
+    header: string[]
+    rows: unknown[][]
+}
+
 const APP_ID_DEFAULT = 'plexo-api'
 
 function sign(serviceKey: string, body: string): { sig: string; ts: string } {
@@ -119,6 +130,20 @@ export class GraphitiClient {
             extractedFactsCount: raw.extracted_facts_count,
             extractedNodesCount: raw.extracted_nodes_count,
         }
+    }
+
+    /**
+     * Phase A2 (ADR 0018): arbitrary cypher (read or write) against the
+     * workspace's FalkorDB graph. HMAC-signed; sidecar serializes Node/Edge
+     * values to `{labels, properties, id}` shapes.
+     */
+    async cypher(req: CypherRequest): Promise<CypherResponse | null> {
+        const body = JSON.stringify({
+            workspace_id: req.workspaceId,
+            cypher: req.cypher,
+            params: req.params ?? {},
+        })
+        return this.postSigned<CypherResponse>('/v1/graph/cypher', body)
     }
 
     /** Phase 3c: hybrid-search query against the workspace's Graphiti store. */
