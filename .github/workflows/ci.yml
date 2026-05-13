@@ -57,7 +57,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: test
-    if: github.event_name == 'pull_request'
+    # Run on both pull_request (gate merges) and push to main (catch
+    # regressions that slipped past PR e2e, e.g. merge-time conflicts).
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
