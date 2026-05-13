@@ -39,12 +39,12 @@ The probe runs against a real prod Kuzu snapshot, so a fail = real break. If you
 
 ## After merging
 
-The joeybuilt auto-deploy daemon polls `main` and rebuilds `service` on commit detection. Wait for the new image to be live, then:
+Your auto-deploy daemon (or equivalent) polls `main` and rebuilds the graphiti sidecar on commit detection. Wait for the new image to be live, then verify the running version (env: `PLEXO_DEPLOY_HOST`, `PLEXO_DEPLOY_SSH_KEY`, `PLEXO_GRAPHITI_CONTAINER` — default `plexo-graphiti-sidecar`):
 
 ```bash
-ssh -i ~/.ssh/deploy-key root@REDACTED_VPS_IP \
-  "docker exec service python -c 'import graphiti_core; print(graphiti_core.__version__)' 2>&1 || \
-   docker exec service pip show graphiti-core | grep Version"
+ssh -i "$PLEXO_DEPLOY_SSH_KEY" "$PLEXO_DEPLOY_HOST" \
+  "docker exec $PLEXO_GRAPHITI_CONTAINER python -c 'import graphiti_core; print(graphiti_core.__version__)' 2>&1 || \
+   docker exec $PLEXO_GRAPHITI_CONTAINER pip show graphiti-core | grep Version"
 ```
 
 (Older graphiti-core builds don't expose `__version__`; the `pip show` fallback works.)
@@ -52,8 +52,8 @@ ssh -i ~/.ssh/deploy-key root@REDACTED_VPS_IP \
 Run the cutover smoke against a tracked workspace to verify:
 
 ```bash
-ssh -i ~/.ssh/deploy-key root@REDACTED_VPS_IP \
-  "cd /srv/plexo && ./scripts/cutover-smoke.sh"
+ssh -i "$PLEXO_DEPLOY_SSH_KEY" "$PLEXO_DEPLOY_HOST" \
+  "cd \$PLEXO_OPS_DIR && ./scripts/cutover-smoke.sh"
 ```
 
 Expected: addEpisode → episode_id, search → ≥1 result. Same canonical 5-S-V-O probe text used by the workflow.
@@ -65,10 +65,10 @@ Expected: addEpisode → episode_id, search → ≥1 result. Same canonical 5-S-
 If the new version breaks prod (e.g., latency regression, data corruption):
 
 ```bash
-ssh -i ~/.ssh/deploy-key root@REDACTED_VPS_IP '
-  PREV=$(cat /srv/state/graphiti-sidecar.last_sha)
-  docker tag service:$PREV service:latest
-  cd /srv/platform/infra
+ssh -i "$PLEXO_DEPLOY_SSH_KEY" "$PLEXO_DEPLOY_HOST" '
+  PREV=$(cat "$PLEXO_OPS_STATE_DIR/graphiti-sidecar.last_sha")
+  docker tag "$PLEXO_GRAPHITI_CONTAINER:$PREV" "$PLEXO_GRAPHITI_CONTAINER:latest"
+  cd "$PLEXO_COMPOSE_DIR"
   docker compose --profile graphiti up -d --no-deps graphiti-sidecar
 '
 ```

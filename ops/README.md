@@ -1,9 +1,9 @@
 # ops/
 
 Operator-run scripts + cron entries + dashboard stubs that live alongside
-the plexo repo but are deployed onto the joeybuilt VPS by hand (or by the
-joeybuilt auto-deploy daemon when explicitly listed). Nothing in here is
-imported by application code.
+the plexo repo but are deployed onto your prod host by hand (or by an
+auto-deploy daemon when explicitly listed). Nothing in here is imported
+by application code.
 
 ## FalkorDB backup + restore (Phase G, ADR 0030)
 
@@ -12,10 +12,10 @@ imported by application code.
 Script: `services/graphiti-sidecar/scripts/falkordb_backup.sh`
 Cron:   `ops/falkordb-backup.cron`
 
-Install on VPS:
+Install on the prod host (paths assume `$PLEXO_REPO_DIR` is where this repo is cloned):
 
 ```bash
-sudo cp /opt/joeybuilt/plexo/ops/falkordb-backup.cron /etc/cron.d/falkordb-backup
+sudo cp "$PLEXO_REPO_DIR/ops/falkordb-backup.cron" /etc/cron.d/falkordb-backup
 sudo chmod 644 /etc/cron.d/falkordb-backup
 sudo mkdir -p /var/backups/falkordb
 sudo touch /var/log/falkordb-backup.log
@@ -50,19 +50,19 @@ references env vars by name only.
 Script: `services/graphiti-sidecar/scripts/falkordb_restore.sh`
 
 ```bash
-sudo /opt/joeybuilt/plexo/services/graphiti-sidecar/scripts/falkordb_restore.sh \
+sudo "$PLEXO_REPO_DIR/services/graphiti-sidecar/scripts/falkordb_restore.sh" \
   /var/backups/falkordb/falkordb-2026-05-12.rdb
 ```
 
-Spins up a fresh `service` container on port 16379
+Spins up a fresh `plexo-falkordb-restore-drill` container on port 16379
 with the supplied dump mounted as `/data/dump.rdb`, waits for redis to
 finish loading, prints `GRAPH.LIST`, and tears the container down.
 
 To verify a known set of workspaces is present:
 
 ```bash
-EXPECTED_WORKSPACES_FILE=/etc/joeybuilt/expected-workspaces.txt \
-  /opt/joeybuilt/plexo/services/graphiti-sidecar/scripts/falkordb_restore.sh \
+EXPECTED_WORKSPACES_FILE=/etc/plexo/expected-workspaces.txt \
+  "$PLEXO_REPO_DIR/services/graphiti-sidecar/scripts/falkordb_restore.sh" \
   /var/backups/falkordb/falkordb-2026-05-12.rdb
 ```
 
@@ -76,20 +76,17 @@ which backup is canonical.
 
 1. Stop dependents that write to falkordb:
    ```bash
-   ssh root@REDACTED_VPS_IP \
-     'cd /srv/platform/infra && \
-      docker compose stop graphiti-sidecar plexo-api'
+   ssh -i "$PLEXO_DEPLOY_SSH_KEY" "$PLEXO_DEPLOY_HOST" \
+     "cd \$PLEXO_COMPOSE_DIR && docker compose stop graphiti-sidecar plexo-api"
    ```
 2. Stop the live falkordb container:
    ```bash
    docker compose stop falkordb
    ```
-3. Replace the volume contents:
+3. Replace the volume contents (substitute `$PLEXO_FALKORDB_VOLUME` with your named volume from compose):
    ```bash
-   # joeybuilt_falkordb_data is the named volume per
-   # /srv/platform/infra/docker-compose.yml.
    docker run --rm \
-     -v joeybuilt_falkordb_data:/data \
+     -v "$PLEXO_FALKORDB_VOLUME:/data" \
      -v /var/backups/falkordb:/backups:ro \
      alpine sh -c 'cp /backups/falkordb-YYYY-MM-DD.rdb /data/dump.rdb'
    ```
