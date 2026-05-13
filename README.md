@@ -85,8 +85,10 @@ stay reachable either way.
 | Layer | Technology |
 |---|---|
 | Frontend | Next.js, React, Tailwind CSS |
-| Backend | Node.js, TypeScript, Express |
-| Database | PostgreSQL + pgvector |
+| Backend | Node.js, TypeScript, Express, FastAPI (graph sidecar) |
+| Relational DB | PostgreSQL + pgvector |
+| Graph DB | FalkorDB (per-workspace Cypher graphs) |
+| Knowledge Graph | graphiti-core (temporal extraction) |
 | Cache / Queue | Redis / Valkey |
 | ORM | Drizzle |
 | AI SDK | Vercel AI SDK |
@@ -105,14 +107,31 @@ Task Queue (Redis/Valkey)
     v
 Planner --> Executor --> Quality Judge
     |           |
-    |           +--> Memory Store (pgvector)
+    |           +--> Memory Store (pgvector + FalkorDB)
     |           +--> SCL Engine
     |           +--> Tool Registry / MCP Client
     |           +--> Extension Synthesizer
     |           +--> One-Way Door Approvals
+    |
+    +--> Knowledge Graph (per-workspace Cypher graphs)
+    |       Task DAG · Conversation Threads · Memory Lifecycle
+    |       Schema Registry · Observability · Backup/Restore
     v
 AI Providers (BYOK: Anthropic, OpenAI, Google, DeepSeek, Groq, Ollama, +11 more)
 ```
+
+## Knowledge Graph Platform
+
+Plexo runs a shared graph backend ([FalkorDB](https://www.falkordb.com)) behind a [FastAPI](https://fastapi.tiangolo.com) sidecar that powers:
+
+- **Memory lifecycle** — Episodic node tier transitions (hot → active → cold) and confidence decay run as bulk Cypher `SET` mutations
+- **Task DAG execution** — Sprint task dependencies stored as `(:Task)-[:DEPENDS_ON]->(:Task)`; topological waves and critical-path queries run as native Cypher
+- **Conversation threading** — Messages stored as `(:Message)-[:IN_SESSION]->(:Session)` with `(:Message)-[:NEXT]->(:Message)` sibling chain for O(1) traversal
+- **Per-workspace isolation** — Each workspace owns a Cypher graph (`plexo:<workspace_id>`); multi-tenant via Redis-protocol namespacing
+- **Schema registry** — Per-app YAML schemas validate every write; nightly cardinality reports flag drift
+- **Observability + backup** — 1% sampled latency/lock-wait telemetry; nightly AOF/RDB snapshots with weekly off-host upload
+
+See [`adr/0016-falkordb-platform-strategy.md`](adr/0016-falkordb-platform-strategy.md) for the full architecture.
 
 ## Extension Hub
 
@@ -127,6 +146,30 @@ Browse and install community extensions at [hub.getplexo.com](https://hub.getple
 - [MCP](docs/mcp.md) — MCP server and client usage
 - [Memory](docs/memory.md) — SCL / Workspace Memory explanation
 - [Analytics](ANALYTICS.md) — What telemetry is collected and how to opt out
+
+## Built With
+
+Plexo stands on the shoulders of incredible open-source work. Big thanks to:
+
+- **[FalkorDB](https://www.falkordb.com)** ([repo](https://github.com/FalkorDB/FalkorDB)) — high-performance multi-tenant graph database (Redis-protocol, Cypher, native vector). The shared graph platform behind plexo's memory lifecycle, task DAG, and conversation threading.
+- **[graphiti-core](https://github.com/getzep/graphiti)** by [Zep](https://www.getzep.com) — temporal knowledge graph framework for AI agents. Powers Episodic / Entity extraction over the FalkorDB backend.
+- **[GraphRAG-SDK](https://github.com/FalkorDB/GraphRAG-SDK)** — agentic LLM workflows over FalkorDB (currently evaluating for plexo's planner).
+- **[pgvector](https://github.com/pgvector/pgvector)** — open-source vector similarity search for Postgres. Powers plexo's HNSW-indexed embedding store.
+- **[Drizzle ORM](https://orm.drizzle.team)** ([repo](https://github.com/drizzle-team/drizzle-orm)) — TypeScript SQL toolkit that doesn't get in your way.
+- **[FastAPI](https://fastapi.tiangolo.com)** ([repo](https://github.com/fastapi/fastapi)) + **[Pydantic](https://docs.pydantic.dev)** ([repo](https://github.com/pydantic/pydantic)) — the graph sidecar's request boundary and schema validation.
+- **[Next.js](https://nextjs.org)** + **[React](https://react.dev)** + **[Tailwind CSS](https://tailwindcss.com)** — frontend trio.
+- **[Vercel AI SDK](https://sdk.vercel.ai)** ([repo](https://github.com/vercel/ai)) — provider-agnostic LLM streaming.
+- **[Ollama](https://ollama.com)** ([repo](https://github.com/ollama/ollama)) — local-first inference for the embeddings sidecar.
+- **[snowflake-arctic-embed](https://github.com/Snowflake-Labs/arctic-embed)** — the embedding model running inside the embeddings sidecar.
+- **[Deepgram](https://deepgram.com)** — voice transcription (BYOK).
+- **[Redis](https://redis.io)** / **[Valkey](https://valkey.io)** ([repo](https://github.com/valkey-io/valkey)) — task queue + sidecar transport.
+- **[Inngest](https://www.inngest.com)** ([repo](https://github.com/inngest/inngest)) — durable workflow engine for memory + extract pipelines.
+- **[pino](https://getpino.io)** ([repo](https://github.com/pinojs/pino)) — fast structured logging.
+- **[pnpm](https://pnpm.io)** + **[Turborepo](https://turborepo.com)** ([repo](https://github.com/vercel/turbo)) — monorepo orchestration.
+- **[vitest](https://vitest.dev)** ([repo](https://github.com/vitest-dev/vitest)) + **[Playwright](https://playwright.dev)** ([repo](https://github.com/microsoft/playwright)) — unit and end-to-end testing.
+- **[MCP](https://modelcontextprotocol.io)** — the Model Context Protocol; plexo speaks MCP as both server and client.
+
+If you build something on top of plexo, send a PR adding it to the [Extension Hub](https://hub.getplexo.com).
 
 ## Contributing
 
