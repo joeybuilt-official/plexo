@@ -143,27 +143,6 @@ export const LEVIO_SCHEMA: AppSchema = {
   predicateVocabulary: [],
 };
 
-export const FRAME_FORGE_SCHEMA: AppSchema = {
-  app: 'frame-forge',
-  graphTemplate: 'frame-forge:<workspace_id>',
-  nodeLabels: {
-    Brand: { required: ['name'], optional: ['tone', 'voice', 'palette'] },
-    StyleRule: {
-      required: ['rule'],
-      optional: ['category', 'source_doc', 'confidence'],
-    },
-    Decision: { required: ['text', 'made_at'], optional: ['author', 'pitch_id'] },
-    Asset: { required: ['uri'], optional: ['kind', 'brand_id', 'created_at'] },
-    Pitch: { required: ['title'], optional: ['client', 'status', 'created_at'] },
-  },
-  edgeTypes: {
-    APPLIES_TO: { from: 'StyleRule', to: 'Brand', props: [] },
-    DERIVED_FROM: { from: 'Decision', to: 'Pitch', props: [] },
-    IN_PITCH: { from: 'Asset', to: 'Pitch', props: ['position'] },
-  },
-  predicateVocabulary: [],
-};
-
 export const FYLO_SCHEMA: AppSchema = {
   app: 'fylo',
   graphTemplate: 'fylo:<workspace_id>',
@@ -269,7 +248,9 @@ export const FONTO_SCHEMA: AppSchema = {
 
 export const HELM_SCHEMA: AppSchema = {
   app: 'helm',
-  graphTemplate: 'helm:<workspace_id>',
+  // Helm tenancy is per-environment (prod/staging/dev), not per-workspace.
+  // See ADR 0025 §Decision for why.
+  graphTemplate: 'helm:<env>',
   nodeLabels: {
     Deploy: {
       required: ['commit', 'deployed_at'],
@@ -293,7 +274,6 @@ export const HELM_SCHEMA: AppSchema = {
 export const SCHEMA_REGISTRY: Readonly<Record<string, AppSchema>> = Object.freeze({
   plexo: PLEXO_SCHEMA,
   levio: LEVIO_SCHEMA,
-  'frame-forge': FRAME_FORGE_SCHEMA,
   helm: HELM_SCHEMA,
   fonto: FONTO_SCHEMA,
   fylo: FYLO_SCHEMA,
