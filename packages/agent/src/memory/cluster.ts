@@ -33,8 +33,9 @@ import pino from 'pino'
 import { z } from 'zod'
 import { db, sql } from '@plexo/db'
 import { callModel, CallModelError } from '../providers/call-model.js'
-import { resolveModel, resolveModelFromEnv, type AnyLanguageModel } from '../providers/registry.js'
+import { resolveModelFromEnv, type AnyLanguageModel } from '../providers/registry.js'
 import { loadSettingsFromInstances } from '../providers/settings-from-instances.js'
+import { routeAndCall } from '../providers/router-v2/index.js'
 import { refreshKnnEdges, readKnnEdges } from './knn.js'
 // Shared primitive — Phase 5 promotion. Synthesis still uses the
 // inline llmLabel below for label+why semantics it needs (level=1
@@ -233,26 +234,6 @@ async function llmLabel(
 ): Promise<{ label: string; why: string } | null> {
     try {
         const settings = await loadSettingsFromInstances(workspaceId)
-        let model: AnyLanguageModel | null = null
-        let providerKey = 'env'
-        if (settings) {
-            try {
-                const r = await resolveModel('summarization', settings, workspaceId)
-                model = r.model
-                providerKey = r.meta.provider
-            } catch (err) {
-                logger.warn({ err, workspaceId }, 'cluster.llmLabel: resolveModel failed — env fallback')
-            }
-        }
-        if (!model) {
-            try {
-                model = resolveModelFromEnv()
-                providerKey = 'env'
-            } catch (err) {
-                logger.warn({ err, workspaceId }, 'cluster.llmLabel: env resolve failed — null label')
-                return null
-            }
-        }
 
         const N = memberContents.length
         const cleanedExemplars = exemplars.slice(0, 3).map(e =>
@@ -264,9 +245,9 @@ async function llmLabel(
         const system = 'You name clusters of saved items. Output JSON only: {label, why}. Label ≤ 36 chars, noun phrase, no quotes, no period, English even if items are French/Russian.'
         const user = `These ${N} items cluster together. Top keyphrases: [${keyBlock}]. Three exemplars:\n${exemplarBlock}\nName the cluster.`
 
-        const result = await callModel({
-            model: model!,
-            provider: providerKey,
+        const doCall = (model: AnyLanguageModel) => callModel({
+            model,
+            provider: 'router-v2',
             system,
             messages: [{ role: 'user', content: user }],
             maxTokens: 200,
@@ -274,6 +255,25 @@ async function llmLabel(
             schemaName: 'cluster_label',
             schemaDescription: 'A short English noun phrase naming the cluster, plus a one-sentence rationale.',
         })
+
+        let result: Awaited<ReturnType<typeof doCall>> | null = null
+        if (settings) {
+            try {
+                result = await routeAndCall({ workspaceId, taskType: 'summarization', settings, doCall })
+            } catch (err) {
+                logger.warn({ err, workspaceId }, 'cluster.llmLabel: routeAndCall failed — env fallback')
+            }
+        }
+        if (!result) {
+            let envModel: AnyLanguageModel
+            try {
+                envModel = resolveModelFromEnv()
+            } catch (err) {
+                logger.warn({ err, workspaceId }, 'cluster.llmLabel: env resolve failed — null label')
+                return null
+            }
+            result = await doCall(envModel)
+        }
 
         // schema-mode call — `object` is parsed JSON
         const obj = (result as { object?: { label: string; why: string } }).object

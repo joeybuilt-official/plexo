@@ -130,7 +130,11 @@ describe('transcribeAudio', () => {
         expect(headers['Authorization']).toBe('Token key_abc')
         expect(headers['Content-Type']).toBe('audio/ogg')
         expect(call.init?.method).toBe('POST')
-        expect(call.init?.body).toBe(audio)
+        // Implementation wraps the Buffer in a Uint8Array (deepgram.ts:363)
+        // for fetch-API compatibility. Compare byte equivalence rather than
+        // reference identity.
+        const sentBytes = Buffer.from(call.init?.body as ArrayBufferLike)
+        expect(sentBytes.equals(audio)).toBe(true)
     })
 
     it('maps Deepgram 401 → INVALID_KEY failure', async () => {

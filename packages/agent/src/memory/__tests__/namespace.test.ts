@@ -38,6 +38,9 @@ vi.mock('@plexo/db', async () => {
         chain.from = ret
         chain.where = vi.fn(() => ({
             orderBy: vi.fn(() => ({ limit: vi.fn(async () => [] as unknown[]) })),
+            // storeMemory's workspace-existence check is .where(...).limit(1)
+            // without an orderBy. Return a non-empty row so the write path proceeds.
+            limit: vi.fn(async () => [{ id: 'ws-1' }]),
         }))
         chain.orderBy = ret
         chain.limit = vi.fn(async () => [])
@@ -71,6 +74,9 @@ vi.mock('@plexo/db', async () => {
             tier: 'tier',
             namespace: 'namespace',
             createdAt: 'createdAt',
+        },
+        workspaces: {
+            id: 'workspaces.id',
         },
     }
 })

@@ -6,7 +6,7 @@
  */
 import { test, expect } from '@playwright/test'
 
-const LIVE_URL = 'https://getplexo.com'
+const LIVE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 
 test.describe('P1: A2A Server', () => {
     test('agent card at /.well-known/agent.json is valid A2A JSON', async ({ request }) => {

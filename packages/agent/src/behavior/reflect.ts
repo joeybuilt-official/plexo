@@ -16,20 +16,36 @@
 import pino from 'pino'
 import { generateText } from 'ai'
 import { db, sql } from '@plexo/db'
-import { resolveModel, resolveModelFromEnv } from '../providers/registry.js'
-import type { TaskType } from '../providers/registry.js'
+import { resolveModelFromEnv, type AnyLanguageModel } from '../providers/registry.js'
 import { loadSettingsFromInstances } from '../providers/settings-from-instances.js'
+import { routeAndCall } from '../providers/router-v2/index.js'
 
 const logger = pino({ name: 'behavior.reflect' })
 
-/** Resolve cheapest model from workspace chain, env-var fallback if no chain configured. */
-async function resolveReflectionModel(workspaceId: string) {
+/**
+ * Run a reflection-track LLM call through router-v2 (workspace settings) with
+ * env-var fallback when no chain is configured or routing fails.
+ */
+async function runReflectionLLM(workspaceId: string, system: string, userContent: string): Promise<string> {
     const aiSettings = await loadSettingsFromInstances(workspaceId)
-    if (aiSettings) {
-        return (await resolveModel('summarization' as TaskType, aiSettings, workspaceId)
-            .catch(() => ({ model: resolveModelFromEnv() }))).model
+    const doCall = async (model: AnyLanguageModel) => {
+        const { text } = await generateText({
+            model,
+            system,
+            messages: [{ role: 'user', content: userContent }],
+            // @ts-expect-error maxTokens exists in AI SDK v6 but type inference misses it
+            maxTokens: 300,
+        })
+        return text
     }
-    return resolveModelFromEnv()
+    if (aiSettings) {
+        try {
+            return await routeAndCall({ workspaceId, taskType: 'summarization', settings: aiSettings, doCall })
+        } catch (err) {
+            logger.warn({ err, workspaceId }, 'reflect: routeAndCall failed — env fallback')
+        }
+    }
+    return doCall(resolveModelFromEnv())
 }
 
 export interface ReflectCtx {
@@ -92,21 +108,13 @@ export async function reflectAndPromote(ctx: ReflectCtx): Promise<ReflectResult>
     if (!ctx.outcomeSummary || ctx.outcomeSummary.length < 50) return { track: 'skipped' as const, observationCount: 0 }
 
     // ── LLM call ──────────────────────────────────────────────────────────
-    const model = await resolveReflectionModel(ctx.workspaceId)
-
     let observations: Observation[]
     try {
-        const { text } = await generateText({
-            model,
-            system: `You extract reusable strategy observations from completed tasks. Respond with a raw JSON array only — no preamble, no markdown fences. Format: [{ "key": string, "label": string, "insight": string }]. Keys must be snake_case, prefixed reflect.<taskType>.<shortname>. Return 1-3 observations. Each insight should be a concise, actionable principle (1-2 sentences).`,
-            messages: [{
-                role: 'user',
-                content: `Task type: ${ctx.taskType}\nGoal: ${ctx.goal}\nOutcome: ${ctx.outcomeSummary}\nTools used: ${ctx.toolsUsed.join(', ')}\nSteps: ${ctx.stepCount}\nDuration: ${ctx.durationMs}ms`,
-            }],
-            // @ts-expect-error maxTokens exists in AI SDK v6 but type inference misses it
-            maxTokens: 300,
-        })
-
+        const text = await runReflectionLLM(
+            ctx.workspaceId,
+            `You extract reusable strategy observations from completed tasks. Respond with a raw JSON array only — no preamble, no markdown fences. Format: [{ "key": string, "label": string, "insight": string }]. Keys must be snake_case, prefixed reflect.<taskType>.<shortname>. Return 1-3 observations. Each insight should be a concise, actionable principle (1-2 sentences).`,
+            `Task type: ${ctx.taskType}\nGoal: ${ctx.goal}\nOutcome: ${ctx.outcomeSummary}\nTools used: ${ctx.toolsUsed.join(', ')}\nSteps: ${ctx.stepCount}\nDuration: ${ctx.durationMs}ms`,
+        )
         observations = JSON.parse(text.trim())
     } catch (err) {
         logger.warn({ err, taskId: ctx.taskId }, 'Reflection LLM call or JSON parse failed')
@@ -185,21 +193,13 @@ interface FailureObservation {
 async function reflectOnFailure(ctx: ReflectCtx): Promise<ReflectResult> {
     if (!ctx.outcomeSummary || ctx.outcomeSummary.length < 50) return { track: 'failure', observationCount: 0 }
 
-    const model = await resolveReflectionModel(ctx.workspaceId)
-
     let observations: FailureObservation[]
     try {
-        const { text } = await generateText({
-            model,
-            system: `You analyze failed tasks to extract preventive behavioral rules. Respond with a raw JSON array only — no preamble, no markdown fences. Format: [{ "key": string, "label": string, "rootCause": string, "prevention": string }]. Keys must be snake_case, prefixed reflect.failure.<taskType>.<shortname>. Return 1-2 observations. Each prevention rule should be a concise, actionable instruction (1-2 sentences) that would prevent this failure from recurring.`,
-            messages: [{
-                role: 'user',
-                content: `Task type: ${ctx.taskType}\nGoal: ${ctx.goal}\nOutcome (FAILED): ${ctx.outcomeSummary}\nTools used: ${ctx.toolsUsed.join(', ')}\nSteps taken: ${ctx.stepCount}\nDuration: ${ctx.durationMs}ms\nQuality score: ${ctx.qualityScore}`,
-            }],
-            // @ts-expect-error maxTokens exists in AI SDK v6 but type inference misses it
-            maxTokens: 300,
-        })
-
+        const text = await runReflectionLLM(
+            ctx.workspaceId,
+            `You analyze failed tasks to extract preventive behavioral rules. Respond with a raw JSON array only — no preamble, no markdown fences. Format: [{ "key": string, "label": string, "rootCause": string, "prevention": string }]. Keys must be snake_case, prefixed reflect.failure.<taskType>.<shortname>. Return 1-2 observations. Each prevention rule should be a concise, actionable instruction (1-2 sentences) that would prevent this failure from recurring.`,
+            `Task type: ${ctx.taskType}\nGoal: ${ctx.goal}\nOutcome (FAILED): ${ctx.outcomeSummary}\nTools used: ${ctx.toolsUsed.join(', ')}\nSteps taken: ${ctx.stepCount}\nDuration: ${ctx.durationMs}ms\nQuality score: ${ctx.qualityScore}`,
+        )
         observations = JSON.parse(text.trim())
     } catch (err) {
         logger.warn({ err, taskId: ctx.taskId }, 'Failure reflection LLM call or JSON parse failed')
