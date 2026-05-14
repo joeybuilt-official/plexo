@@ -114,6 +114,7 @@ function cooldownMsForClass(c: ReturnType<typeof classifyError>): number {
         case 'quota': return COOLDOWN_QUOTA_MS
         case 'context-window': return COOLDOWN_TRANSIENT_MS
         case 'content-policy': return COOLDOWN_TRANSIENT_MS
+        case 'parse-malformed': return COOLDOWN_TRANSIENT_MS
         default: return COOLDOWN_TRANSIENT_MS
     }
 }
@@ -147,6 +148,8 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
     let cascadePos = 0
     let firstSelection: SelectionResult | null = null
     let firstSelectorDurationMs = 0
+    let firstChosenProvider: string | undefined
+    const skippedProviders: string[] = []
 
     while (cascadePos < MAX_CASCADE && available.length > 0) {
         const selStart = Date.now()
@@ -170,6 +173,7 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
         }
 
         const chosen = sel.chosen
+        if (!firstChosenProvider) firstChosenProvider = chosen.provider
         const cfg = settings.providers[chosen.provider] as AIProviderConfig
         const t0 = Date.now()
         try {
@@ -193,6 +197,17 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
                 workspaceId, taskType, selection: sel,
                 selectorDurationMs: selDur, fallbackEngaged,
             }))
+            if (fallbackEngaged && firstChosenProvider) {
+                const fbInfo = {
+                    workspaceId,
+                    taskType,
+                    primary: firstChosenProvider,
+                    used: chosen.provider,
+                    skipped: [...skippedProviders],
+                    lastError: lastError instanceof Error ? lastError.message.slice(0, 200) : String(lastError ?? ''),
+                }
+                try { opts?.onFallbackEngaged?.(fbInfo) } catch { /* best-effort */ }
+            }
             return result
         } catch (err) {
             lastError = err
@@ -228,6 +243,7 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
             )
 
             // Exclude the failed provider from the next iteration's candidate pool.
+            skippedProviders.push(chosen.provider)
             available = available.filter(a => a.provider !== chosen.provider)
             fallbackEngaged = true
             cascadePos++
@@ -248,6 +264,56 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
         )
     }
     throw new RouterV2CascadeExhausted('router-v2 fallback chain exhausted', lastError)
+}
+
+export interface RouteAndBuildResult {
+    model: AnyLanguageModel
+    meta: {
+        id: string
+        provider: ProviderKey
+        mode: 'byok'
+        costPerMIn: number
+        costPerMOut: number
+    }
+}
+
+/**
+ * Pre-resolve a model without calling it. Returns the model instance + meta
+ * for callers that need the model identity (vision gate, cost attribution,
+ * identity line) before the actual generation step.
+ *
+ * Throws RouterV2NoCandidateError when no provider can be selected.
+ */
+export async function routeAndBuild(input: {
+    workspaceId: string | undefined
+    taskType: TaskType
+    settings: WorkspaceAISettings
+}): Promise<RouteAndBuildResult> {
+    const { workspaceId, taskType, settings } = input
+    const available = buildAvailable(settings)
+    if (available.length === 0) {
+        throw new RouterV2NoCandidateError(
+            `router-v2: no providers configured for workspace${workspaceId ? ' ' + workspaceId : ''}`,
+            false,
+        )
+    }
+    const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings })
+    if (!sel.chosen) {
+        throw new RouterV2NoCandidateError(sel.rationale, sel.requireOperatorAction)
+    }
+    const chosen = sel.chosen
+    const cfg = settings.providers[chosen.provider] as AIProviderConfig
+    const model = buildModel(chosen.provider, cfg, taskType, settings)
+    return {
+        model,
+        meta: {
+            id: chosen.model,
+            provider: chosen.provider,
+            mode: 'byok',
+            costPerMIn: 3,
+            costPerMOut: 15,
+        },
+    }
 }
 
 /** Process-boot env-var read. Reads ONCE per import — set before module load. */

@@ -7,7 +7,7 @@
  */
 import { test, expect } from '@playwright/test'
 
-const LIVE_URL = 'https://getplexo.com'
+const LIVE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 
 test.describe('P2: SKILL.md Runtime', () => {
     // POST /api/v1/skills/validate is a public endpoint (no auth, no DB)

@@ -367,6 +367,11 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
                 const envModel = resolveModelFromEnv()
                 result = await doCall(envModel, 'env-fallback')
             } catch (envErr) {
+                // CallModelError surfaces parse/timeout/etc — let the outer
+                // handler map it to the appropriate HTTP status (502/504/...).
+                // Only "no provider configured" failures (ProviderResolutionError
+                // and friends) should return 503 NO_PROVIDER_AVAILABLE here.
+                if (envErr instanceof CallModelError) throw envErr
                 const message = envErr instanceof Error ? envErr.message : String(envErr)
                 logger.warn({ workspaceId, message }, 'inference.chat: no provider available — refusing call')
                 res.status(503).json({

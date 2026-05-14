@@ -6,7 +6,9 @@ import { z } from 'zod'
 import { db, sql, eq, and } from '@plexo/db'
 import { tasks, taskSteps, artifacts, artifactVersions, installedConnections, WORK_KINDS, inferKind, kindToLegacyType, type WorkKind } from '@plexo/db'
 import { ulid } from 'ulid'
-import { withFallback, resolveModel, buildModel, PROVIDER_DEFAULT_MODELS } from '../providers/registry.js'
+import { withFallback, buildModel, PROVIDER_DEFAULT_MODELS } from '../providers/registry.js'
+import { routeAndBuild, routeAndCall, RouterV2CallError } from '../providers/router-v2/index.js'
+import type { ResolvedModelMeta } from '../providers/router.js'
 import { modelSupportsVision, findVisionCapableModel } from '../providers/vision.js'
 import { assertAgentCostCeilingOk, CostCeilingExceededError } from '../cost-gate.js'
 import { getResumeStep, buildResumeMessages, hasTaskComplete } from './step-builder.js'
@@ -1322,14 +1324,14 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     let routingFallbackUsed = false
     let routingFallbackReason: string | undefined
     // eslint-disable-next-line prefer-const -- resolvedModel may be swapped below for a vision-capable fallback
-    let resolvedModel: Awaited<ReturnType<typeof resolveModel>>['model']
+    let resolvedModel: import('../providers/registry.js').AnyLanguageModel
     // eslint-disable-next-line prefer-const -- resolvedMeta is only updated alongside resolvedModel
-    let resolvedMeta: Awaited<ReturnType<typeof resolveModel>>['meta']
-    ;({ model: resolvedModel, meta: resolvedMeta } = await resolveModel(
-        taskTier,
-        effectiveSettings,
-        ctx.workspaceId,
-    ).catch(async (err) => {
+    let resolvedMeta: ResolvedModelMeta
+    ;({ model: resolvedModel, meta: resolvedMeta } = await routeAndBuild({
+        workspaceId: ctx.workspaceId,
+        taskType: taskTier,
+        settings: effectiveSettings,
+    }).catch(async (err) => {
         // Router failure (e.g. empty models_knowledge table) — fall back to BYOK.
         // This withFallback call resolves a usable AnyLanguageModel from the
         // workspace's provider chain when the router itself can't pick one.
@@ -1747,24 +1749,17 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                             ? AbortSignal.any([ctx.signal, AbortSignal.timeout(STEP_TIMEOUT_MS)])
                             : stepSignal
 
-                        // Wrap the step call in withFallback so a primary
-                        // provider failure (402 credit-balance, 5xx, 429,
-                        // 404 model-not-found) advances through the
-                        // workspace's preference_order instead of permanently
-                        // failing the task. The closure captures `meta` from
-                        // each attempt so resolvedMeta reflects the provider
-                        // that actually served the request — keeping cost
-                        // attribution, step events, and the identity line in
-                        // sync with reality.
-                        //
-                        // Note: the closure receives only the model from
-                        // withFallback; we re-derive provider+modelId from
-                        // each tried provider via a shadow capture below so
-                        // resolvedMeta gets updated only on success.
-                        result = await withFallback(
-                            effectiveSettings,
-                            taskTier,
-                            async (model) => {
+                        // routeAndCall handles cascade fallback across providers:
+                        // auth, rate-limit, quota, transient-5xx, network, and
+                        // parse-malformed errors all advance to the next candidate.
+                        // onFallbackEngaged fires when the first provider fails so
+                        // resolvedMeta, cost attribution, and step events stay in sync
+                        // with the provider that actually served the step.
+                        result = await routeAndCall({
+                            workspaceId: ctx.workspaceId,
+                            taskType: taskTier,
+                            settings: effectiveSettings,
+                            doCall: async (model) => {
                                 const stepResult = await generateText({
                                     model,
                                     system: systemPrompt,
@@ -1777,7 +1772,7 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                                 })
                                 return stepResult
                             },
-                            {
+                            opts: {
                                 workspaceId: ctx.workspaceId,
                                 onFallbackEngaged: (info) => {
                                     // Update resolvedMeta so downstream
@@ -1807,25 +1802,28 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                                     })
                                 },
                             },
-                        )
+                        })
                         break // success — exit retry loop
                     } catch (stepErr) {
+                        // Unwrap RouterV2CallError so abort/timeout checks below
+                        // see the root cause (e.g. AbortError from the step signal).
+                        const rootErr = stepErr instanceof RouterV2CallError ? stepErr.cause : stepErr
                         // Only retry abort/timeout errors, not task-level cancellation
-                        const isTimeout = stepErr instanceof Error && (
-                            stepErr.name === 'AbortError'
-                            || stepErr.name === 'TimeoutError'
-                            || stepErr.message.includes('aborted')
-                            || stepErr.message.includes('timeout')
+                        const isTimeout = rootErr instanceof Error && (
+                            rootErr.name === 'AbortError'
+                            || rootErr.name === 'TimeoutError'
+                            || rootErr.message.includes('aborted')
+                            || rootErr.message.includes('timeout')
                         )
                         // Tool validation errors (Zod schema failures) should not
                         // block the task — the AI SDK normally handles these
                         // internally but edge cases can throw. Retry so the model
                         // gets another chance with different arguments.
-                        const isToolValidation = stepErr instanceof Error && (
-                            stepErr.name === 'AI_InvalidToolInputError'
-                            || stepErr.message.includes('invalid_union')
-                            || stepErr.message.includes('Invalid input for tool')
-                            || stepErr.message.includes('TypeValidationError')
+                        const isToolValidation = rootErr instanceof Error && (
+                            rootErr.name === 'AI_InvalidToolInputError'
+                            || rootErr.message.includes('invalid_union')
+                            || rootErr.message.includes('Invalid input for tool')
+                            || rootErr.message.includes('TypeValidationError')
                         )
                         // If the task-level signal was aborted (user cancel), don't retry
                         const isTaskCancelled = ctx.signal.aborted

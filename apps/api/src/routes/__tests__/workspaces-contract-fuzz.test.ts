@@ -83,6 +83,8 @@ vi.mock('@plexo/db', () => {
         conversations: { workspaceId: 'workspace_id', createdAt: 'created_at' },
         memoryEntries: { workspaceId: 'workspace_id' },
         behaviorRules: { workspaceId: 'workspace_id' },
+        DEFAULT_WORKSPACE_SETTINGS: {},
+        DEFAULT_INTELLIGENCE_SETTINGS: {},
         desc: vi.fn((c: any) => c),
         eq: vi.fn(),
         and: vi.fn(),

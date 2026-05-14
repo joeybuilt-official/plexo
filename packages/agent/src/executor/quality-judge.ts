@@ -25,7 +25,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
 import pino from 'pino'
 import { QUALITY_RUBRICS, MODEL_ROUTING } from '../constants.js'
-import { resolveModelFromEnv, resolveModel, buildModel } from '../providers/registry.js'
+import { resolveModelFromEnv, buildModel } from '../providers/registry.js'
 import type { ProviderKey } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { db, eq, sql } from '@plexo/db'
@@ -44,20 +44,6 @@ const PREFERRED_LOCAL_MODELS = [
     'mistral', 'qwen2.5', 'deepseek-r1', 'llava',
 ]
 
-/**
- * Curated list of models that reliably produce JSON-schema output for the
- * quality judge, ordered by closeness to Anthropic Claude Haiku (cheap +
- * strict structured output). Used as fallback candidates when the workspace
- * has no explicit `judgeModel` pin, OR when the pinned model fails. We only
- * use a candidate the workspace already has keyed — never force a provider.
- */
-const RECOMMENDED_JUDGE_MODELS: Array<{ provider: ProviderKey; model: string }> = [
-    { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' },
-    { provider: 'openai', model: 'gpt-4o-mini' },
-    { provider: 'google', model: 'gemini-2.5-flash' },
-    { provider: 'mistral', model: 'mistral-small-latest' },
-    { provider: 'cohere', model: 'command-r-08-2024' },
-]
 
 // ── Reliability nudge constants ───────────────────────────────────────────────
 
@@ -466,107 +452,81 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
     // The judge needs structured-JSON output, which many primary execution
     // models (llama-3.3, deepseek) can't emit reliably. So we try, in order:
     //   1. workspace-pinned judgeModel (WorkspaceAISettings.judgeModel)
-    //   2. curated list of JSON-reliable models, filtered by what the
-    //      workspace has keyed (so we never force a provider on the user)
-    //   3. workspace primary (current behaviour — usually parse-fails to
-    //      self-score passthrough)
+    //   2+3. router-v2 cascade with taskType='judging' (manifest encodes
+    //        the curated JSON-reliable list; buildAvailable filters by keyed
+    //        providers; parse-malformed/quota/rate-limit all advance cascade)
     //   4. env fallback (resolveModelFromEnv)
-    //
-    // Each candidate is tried; on a SKIPPABLE error (parse failure, credit
-    // depleted, rate-limit, network) we move to the next. Hard errors
-    // surface to the outer catch which returns self-score passthrough.
-    type JudgeCandidate = { provider: string; model?: string; build: () => unknown }
-    const candidates: JudgeCandidate[] = []
 
-    if (aiSettings) {
-        // 1. Workspace pin
-        if (aiSettings.judgeModel) {
-            const { provider, model } = aiSettings.judgeModel
-            const cfg = aiSettings.providers[provider]
-            candidates.push({
-                provider,
-                model,
-                build: () => buildModel(
-                    provider,
-                    { provider, apiKey: cfg?.apiKey, baseUrl: cfg?.baseUrl, model },
-                    'summarization',
-                    aiSettings,
-                ),
-            })
-        }
+    // Errors that warrant skipping a pinned judge and trying the cascade.
+    const pinSkippable = /json_schema|response format|structured|No object generated|JSON parsing failed|credit balance|insufficient_quota|rate.?limit|quota|tpd|429|ENOTFOUND|fetch failed|CALL_MODEL_TIMEOUT|CALL_MODEL_PARSE|NO_PROVIDER_AVAILABLE|ProviderResolutionError/i
 
-        // 2. Recommended JSON-reliable models — added only if the workspace
-        //    has the provider keyed (apiKey present). Skip duplicates of the pin.
-        for (const rec of RECOMMENDED_JUDGE_MODELS) {
-            if (aiSettings.judgeModel?.provider === rec.provider && aiSettings.judgeModel?.model === rec.model) continue
-            const cfg = aiSettings.providers[rec.provider]
-            if (!cfg?.apiKey) continue
-            candidates.push({
-                provider: rec.provider,
-                model: rec.model,
-                build: () => buildModel(
-                    rec.provider,
-                    { provider: rec.provider, apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, model: rec.model },
-                    'summarization',
-                    aiSettings,
-                ),
-            })
-        }
-
-        // 3. Workspace primary (current behaviour)
-        candidates.push({
-            provider: aiSettings.primaryProvider,
-            build: async () => (await resolveModel('summarization', aiSettings).catch(() =>
-                ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null })
-            )).model,
-        })
-    }
-
-    // 4. Env fallback — always last
-    candidates.push({
-        provider: 'env',
-        build: () => resolveModelFromEnv(MODEL_ROUTING.summarization),
-    })
-
-    // NO_PROVIDER_AVAILABLE is the env-fallback's "no judge provider configured
-    // anywhere" verdict. When the workspace primary also skipped (e.g. credit
-    // balance low), the cascade ends here. Treat it as skippable so the run
-    // returns a quiet passthrough instead of a per-turn warning.
-    const skippablePattern = /json_schema|response format|structured|No object generated|JSON parsing failed|credit balance|insufficient_quota|rate.?limit|quota|tpd|429|ENOTFOUND|fetch failed|CALL_MODEL_TIMEOUT|CALL_MODEL_PARSE|NO_PROVIDER_AVAILABLE|ProviderResolutionError/i
-
-    for (const cand of candidates) {
+    // 1. Workspace pin — one-shot attempt; on skippable error fall through to cascade.
+    if (aiSettings?.judgeModel) {
+        const { provider, model } = aiSettings.judgeModel
+        const cfg = aiSettings.providers[provider]
         try {
-            const model = await Promise.resolve(cand.build())
-            const judgeProvider = cand.model ? `${cand.provider}/${cand.model}` : cand.provider
-            const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, model)))
+            const pinnedModel = buildModel(
+                provider,
+                { provider, apiKey: cfg?.apiKey, baseUrl: cfg?.baseUrl, model },
+                'summarization',
+                aiSettings,
+            )
+            const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, pinnedModel)))
             const score = capScore(rawScore)
             logger.info(
-                { taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, judgeProvider },
+                { taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, judgeProvider: `${provider}/${model}` },
                 'Single judge done',
             )
-            return {
-                score,
-                meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: [judgeProvider] },
-            }
+            return { score, meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: [`${provider}/${model}`] } }
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
-            if (skippablePattern.test(msg)) {
-                logger.warn(
-                    { candidate: cand.model ? `${cand.provider}/${cand.model}` : cand.provider, reason: msg.slice(0, 200) },
-                    'Judge candidate skipped — trying next',
-                )
-                continue
+            if (pinSkippable.test(msg)) {
+                logger.warn({ candidate: `${provider}/${model}`, reason: msg.slice(0, 200) }, 'Pinned judge skipped — trying router-v2 cascade')
+            } else {
+                logger.warn({ err }, 'Quality judge failed — self-score passthrough')
+                return fallback
             }
-            // Non-skippable: surface
-            logger.warn({ err }, 'Quality judge failed — self-score passthrough')
-            return fallback
         }
     }
 
-    // Downgraded to debug — when ALL candidates skipped via the pattern above
-    // (typically credit-balance-low → no env judge), this is the expected quiet
-    // path, not a warning condition. A real failure surfaces from the catch's
-    // non-skippable branch (line ~552) and DOES log at warn level there.
-    logger.debug('Quality judge: all candidates exhausted — self-score passthrough')
+    // 2+3. Router-v2 cascade: manifest-scored judging candidates, filtered
+    //      by workspace-keyed providers. parse-malformed/quota/rate-limit errors
+    //      automatically advance the cascade via the error classifier.
+    if (aiSettings) {
+        try {
+            const { routeAndCall } = await import('../providers/router-v2/index.js')
+            const rawScore = await routeAndCall({
+                workspaceId: undefined,
+                taskType: 'judging',
+                settings: aiSettings,
+                doCall: (model) => runSingleJudge(params, rubric, model),
+            })
+            const score = capScore(Math.min(1, Math.max(0, rawScore)))
+            logger.info(
+                { taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, judgeProvider: 'router-v2/judging' },
+                'Single judge done',
+            )
+            return { score, meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: ['router-v2/judging'] } }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            logger.warn({ reason: msg.slice(0, 200) }, 'router-v2 judging cascade exhausted — env fallback')
+        }
+    }
+
+    // 4. Env fallback — always last.
+    try {
+        const envModel = resolveModelFromEnv(MODEL_ROUTING.summarization)
+        const rawScore = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, envModel)))
+        const score = capScore(rawScore)
+        logger.info(
+            { taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, judgeProvider: 'env' },
+            'Single judge done',
+        )
+        return { score, meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: ['env'] } }
+    } catch (err) {
+        logger.warn({ err }, 'Quality judge env fallback failed — self-score passthrough')
+    }
+
+    logger.debug('Quality judge: all tiers exhausted — self-score passthrough')
     return fallback
 }

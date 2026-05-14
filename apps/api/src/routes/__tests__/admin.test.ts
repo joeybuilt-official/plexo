@@ -79,6 +79,9 @@ vi.mock('@plexo/db', () => ({
     auditLog: {},
     memoryEntries: {},
     conversations: {},
+    attachmentScanQueue: {},
+    DEFAULT_WORKSPACE_SETTINGS: {},
+    DEFAULT_INTELLIGENCE_SETTINGS: {},
 }))
 
 vi.mock('../../logger.js', () => ({

@@ -205,20 +205,6 @@ export async function runSelfImprovementCycle(params: {
     }
     const stratified = Array.from(byType.values()).flat()
 
-    // Resolve model — prefer workspace-configured model, fall back to env
-    let model: import('../providers/registry.js').AnyLanguageModel
-    if (aiSettings) {
-        try {
-            const { resolveModel } = await import('../providers/registry.js')
-            const resolved = await resolveModel('summarization', aiSettings, workspaceId)
-            model = resolved.model
-        } catch {
-            model = resolveModelFromEnv('claude-haiku-4-5')
-        }
-    } else {
-        model = resolveModelFromEnv('claude-haiku-4-5')
-    }
-
     const ledgerSummary = stratified.map((r) => ({
         taskId: r.taskId?.slice(0, 8),
         type: r.type,
@@ -228,12 +214,7 @@ export async function runSelfImprovementCycle(params: {
         tokensIn: r.tokensIn,
     }))
 
-    let proposals: ImprovementProposal[] = []
-    try {
-        const textResult = await generateText({
-            model,
-            system: 'You are an AI operations analyst. Given task performance data, identify patterns that an AI agent could use to improve. Focus heavily on identifying when a repetitive workflow needs a Skill, an ad-hoc or dangerous boundary crossing needs a deterministic extension, or when context saturation/multi-modal needs call for a specialized Agent.',
-            prompt: `Analyze these recent task outcomes (${stratified.length} tasks) and identify up to 5 improvement patterns.
+    const promptPayload = `Analyze these recent task outcomes (${stratified.length} tasks) and identify up to 5 improvement patterns.
 
 Look specifically for:
 1. Friction & Flail (Knowledge Gaps): If you see high tool call counts for simple file modifications or repeated failures, propose a 'skill_proposal' (e.g. standardizing a deploy script or framework convention).
@@ -245,9 +226,29 @@ If there are no clear patterns or no tasks, return an empty array for proposals.
 
 Respond with ONLY valid JSON: { "proposals": [{ "pattern_type": "failure_pattern"|"success_pattern"|"tool_preference"|"scope_adjustment"|"skill_proposal"|"extension_proposal"|"agent_proposal", "description": string, "evidence": string[], "proposed_change": string }] }
 
-${JSON.stringify(ledgerSummary, null, 2)}`,
-            abortSignal: AbortSignal.timeout(30_000),
-        })
+${JSON.stringify(ledgerSummary, null, 2)}`
+
+    const doCall = (model: import('../providers/registry.js').AnyLanguageModel) => generateText({
+        model,
+        system: 'You are an AI operations analyst. Given task performance data, identify patterns that an AI agent could use to improve. Focus heavily on identifying when a repetitive workflow needs a Skill, an ad-hoc or dangerous boundary crossing needs a deterministic extension, or when context saturation/multi-modal needs call for a specialized Agent.',
+        prompt: promptPayload,
+        abortSignal: AbortSignal.timeout(30_000),
+    })
+
+    let proposals: ImprovementProposal[] = []
+    try {
+        const { routeAndCall } = await import('../providers/router-v2/index.js')
+        let textResult: Awaited<ReturnType<typeof doCall>> | null = null
+        if (aiSettings) {
+            try {
+                textResult = await routeAndCall({ workspaceId, taskType: 'summarization', settings: aiSettings, doCall })
+            } catch (err) {
+                logger.warn({ err, workspaceId }, 'self-improvement: routeAndCall failed — env fallback')
+            }
+        }
+        if (!textResult) {
+            textResult = await doCall(resolveModelFromEnv('claude-haiku-4-5'))
+        }
         const cleaned = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
         proposals = ProposalsSchema.parse(JSON.parse(cleaned)).proposals
     } catch (err) {

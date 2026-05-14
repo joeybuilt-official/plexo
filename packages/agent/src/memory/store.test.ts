@@ -18,6 +18,9 @@ vi.mock('@plexo/db', async () => {
         chain.from = ret
         chain.where = vi.fn(() => ({
             orderBy: vi.fn(() => ({ limit: vi.fn(async () => [] as unknown[]) })),
+            // storeMemory's workspace-existence check is .where(...).limit(1)
+            // without an orderBy. Return a non-empty row so the write path proceeds.
+            limit: vi.fn(async () => [{ id: 'ws-1' }]),
         }))
         chain.orderBy = ret
         chain.limit = vi.fn(async () => [])
@@ -51,6 +54,9 @@ vi.mock('@plexo/db', async () => {
             tier: 'tier',
             namespace: 'namespace',
             createdAt: 'createdAt',
+        },
+        workspaces: {
+            id: 'workspaces.id',
         },
     }
 })
@@ -231,8 +237,11 @@ describe('memory/store', () => {
     })
 
     describe('recordTaskMemory', () => {
-        it('forwards structured content to storeMemory', async () => {
+        // ADR 0017: recordTaskMemory is intentionally a no-op since 2026-05-13.
+        // No insert is performed; only a debug log line fires.
+        it('is a no-op per ADR 0017 — does not insert a memory row', async () => {
             const { recordTaskMemory } = await import('./store.js')
+            mockInsertValues.mockClear()
             await recordTaskMemory({
                 workspaceId: 'ws-1',
                 taskId: 't-1',
@@ -241,14 +250,7 @@ describe('memory/store', () => {
                 toolsUsed: ['read_file', 'write_file'],
                 qualityScore: 0.9,
             })
-            const call = mockInsertValues.mock.calls.at(-1) as unknown as any[] | undefined
-            expect(call?.[0]).toEqual(
-                expect.objectContaining({
-                    type: 'task',
-                    content: expect.stringContaining('Fix the bug'),
-                    metadata: expect.objectContaining({ taskId: 't-1', outcome: 'success' }),
-                }),
-            )
+            expect(mockInsertValues).not.toHaveBeenCalled()
         })
     })
 

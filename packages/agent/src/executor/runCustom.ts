@@ -12,7 +12,8 @@
 
 import { generateText, tool, stepCountIs, jsonSchema, type Tool } from 'ai'
 import pino from 'pino'
-import { resolveModel, type WorkspaceAISettings } from '../providers/registry.js'
+import { type WorkspaceAISettings } from '../providers/registry.js'
+import { routeAndCall } from '../providers/router-v2/index.js'
 import { searchMemory } from '../memory/store.js'
 
 const logger = pino({ name: 'executor/runCustom' })
@@ -165,14 +166,17 @@ export async function executeCustomTask(opts: ExecuteCustomTaskOpts): Promise<Cu
         })
     }
 
-    const { model } = await resolveModel('conversation', opts.aiSettings, opts.workspaceId)
-
-    const result = await generateText({
-        model,
-        system: opts.systemPrompt,
-        prompt: opts.input,
-        tools: aiTools,
-        stopWhen: stepCountIs(maxSteps),
+    const result = await routeAndCall({
+        workspaceId: opts.workspaceId,
+        taskType: 'conversation',
+        settings: opts.aiSettings,
+        doCall: (model) => generateText({
+            model,
+            system: opts.systemPrompt,
+            prompt: opts.input,
+            tools: aiTools,
+            stopWhen: stepCountIs(maxSteps),
+        }),
     })
 
     const truncated = (result.steps?.length ?? 0) >= maxSteps && !result.finishReason

@@ -24,11 +24,18 @@ import type { Server } from 'node:http'
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 vi.mock('@plexo/db', () => {
+    // loadLatestSessionStates() awaits the builder directly after .where(...) —
+    // no .limit() terminator. Make the builder thenable so `await builder`
+    // resolves to an empty array (no paired sessions in fuzz tests).
+    const emptyResult = (): Promise<unknown[]> => Promise.resolve([])
     const builder: any = {
         select: vi.fn(() => builder),
         from: vi.fn(() => builder),
         where: vi.fn(() => builder),
-        limit: vi.fn(async () => []),
+        orderBy: vi.fn(() => builder),
+        limit: vi.fn(() => emptyResult()),
+        then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) =>
+            emptyResult().then(res, rej),
     }
     const insertBuilder: any = {
         values: vi.fn(() => insertBuilder),
@@ -49,8 +56,10 @@ vi.mock('@plexo/db', () => {
             delete: vi.fn(() => deleteBuilder),
         },
         channels: { id: 'id', workspaceId: 'workspace_id', type: 'type', name: 'name', config: 'config', enabled: 'enabled' },
+        pairedSessions: { channelId: 'channel_id', state: 'state', stateChangedAt: 'state_changed_at', workspaceId: 'workspace_id' },
         eq: vi.fn(),
         and: vi.fn(),
+        desc: vi.fn(),
     }
 })
 

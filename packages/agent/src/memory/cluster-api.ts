@@ -478,28 +478,14 @@ export async function topicLabel(input: TopicLabelInput): Promise<TopicLabelResu
     const workspaceId = input.workspaceId ?? SYSTEM_WORKSPACE_ID
 
     try {
-        const { callModel, CallModelError } = await import('../providers/call-model.js')
-        const { resolveModel, resolveModelFromEnv } = await import('../providers/registry.js')
+        const { callModel } = await import('../providers/call-model.js')
+        const { resolveModelFromEnv } = await import('../providers/registry.js')
         const { loadSettingsFromInstances } = await import('../providers/settings-from-instances.js')
+        const { routeAndCall } = await import('../providers/router-v2/index.js')
 
         let settings = input.aiSettings
         if (settings === undefined) {
             try { settings = await loadSettingsFromInstances(workspaceId) ?? null } catch { settings = null }
-        }
-        let model: Awaited<ReturnType<typeof resolveModel>>['model'] | null = null
-        let providerKey = 'env'
-        if (settings) {
-            try {
-                const r = await resolveModel('summarization', settings, workspaceId)
-                model = r.model
-                providerKey = r.meta.provider
-            } catch (err) { logger.warn({ err, workspaceId }, 'topicLabel: resolveModel failed') }
-        }
-        if (!model) {
-            try { model = resolveModelFromEnv() } catch (err) {
-                logger.warn({ err, workspaceId }, 'topicLabel: env resolve failed — c-TF-IDF fallback')
-                return { label: ctfidfLabel, summary: '', source: 'ctfidf' }
-            }
         }
 
         const cleaned = contents.slice(0, 3).map(e => e.replace(/\s+/g, ' ').trim().slice(0, 220))
@@ -510,9 +496,9 @@ export async function topicLabel(input: TopicLabelInput): Promise<TopicLabelResu
         const system = 'You name clusters of saved items. Output JSON only: {label, why}. Label ≤ 36 chars, noun phrase, no quotes, no period, English even if items are not.'
         const user = `These ${N} items cluster together. Top keyphrases: [${keyBlock}]. Exemplars:\n${exemplarBlock}\nName the cluster.`
 
-        const result = await callModel({
-            model: model!,
-            provider: providerKey,
+        const doCall = (model: Parameters<typeof callModel>[0]['model']) => callModel({
+            model,
+            provider: 'router-v2',
             system,
             messages: [{ role: 'user', content: user }],
             maxTokens: 200,
@@ -520,6 +506,24 @@ export async function topicLabel(input: TopicLabelInput): Promise<TopicLabelResu
             schemaName: 'cluster_label',
             schemaDescription: 'Short English noun phrase + one-sentence rationale.',
         })
+
+        let result: Awaited<ReturnType<typeof doCall>> | null = null
+        if (settings) {
+            try {
+                result = await routeAndCall({ workspaceId, taskType: 'summarization', settings, doCall })
+            } catch (err) {
+                logger.warn({ err, workspaceId }, 'topicLabel: routeAndCall failed — env fallback')
+            }
+        }
+        if (!result) {
+            let envModel: Parameters<typeof callModel>[0]['model']
+            try { envModel = resolveModelFromEnv() } catch (err) {
+                logger.warn({ err, workspaceId }, 'topicLabel: env resolve failed — c-TF-IDF fallback')
+                return { label: ctfidfLabel, summary: '', source: 'ctfidf' }
+            }
+            result = await doCall(envModel)
+        }
+
         const obj = (result as { object?: { label: string; why: string } }).object
         if (!obj) return { label: ctfidfLabel, summary: '', source: 'ctfidf' }
         const label = (obj.label ?? '').trim().replace(/^["'`]+|["'`.]+$/g, '').slice(0, 36).trim()

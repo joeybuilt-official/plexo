@@ -51,30 +51,21 @@ export async function extractTurn(params: {
 
     try {
         const { callModel } = await import('../providers/call-model.js')
-        const { resolveModel, resolveModelFromEnv } = await import('../providers/registry.js')
+        const { resolveModelFromEnv } = await import('../providers/registry.js')
         const { loadSettingsFromInstances } = await import('../providers/settings-from-instances.js')
+        const { routeAndCall } = await import('../providers/router-v2/index.js')
         const { embed } = await import('./store.js')
 
-        let model: ReturnType<typeof resolveModelFromEnv>
-        let provider = 'env-fallback'
         let aiSettings: Awaited<ReturnType<typeof loadSettingsFromInstances>> = null
-
         try {
             aiSettings = await loadSettingsFromInstances(workspaceId)
-            if (aiSettings) {
-                const resolved = await resolveModel('summarization', aiSettings, workspaceId)
-                model = resolved.model
-                provider = resolved.meta.provider
-            } else {
-                model = resolveModelFromEnv()
-            }
         } catch {
-            model = resolveModelFromEnv()
+            aiSettings = null
         }
 
-        const { object: parsed } = await callModel({
+        const doCall = (model: Parameters<typeof callModel>[0]['model']) => callModel({
             model,
-            provider,
+            provider: 'router-v2',
             system: EXTRACT_SYSTEM,
             messages: [{
                 role: 'user',
@@ -85,6 +76,19 @@ export async function extractTurn(params: {
             schemaName: 'Facts',
             schemaDescription: 'Durable facts extracted from a conversation turn.',
         })
+
+        let extracted: Awaited<ReturnType<typeof doCall>> | null = null
+        if (aiSettings) {
+            try {
+                extracted = await routeAndCall({ workspaceId, taskType: 'summarization', settings: aiSettings, doCall })
+            } catch (err) {
+                logger.warn({ err, workspaceId }, 'extract-worker: routeAndCall failed — env fallback')
+            }
+        }
+        if (!extracted) {
+            extracted = await doCall(resolveModelFromEnv())
+        }
+        const { object: parsed } = extracted
 
         if (!parsed.facts.length) {
             emitMemoryExtraction({ workspaceId, factsExtracted: 0, factsWritten: 0, source, sessionId })

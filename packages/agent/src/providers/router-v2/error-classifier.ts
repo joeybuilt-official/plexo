@@ -16,6 +16,7 @@ export type ErrorClass =
     | 'transient-5xx'
     | 'network'
     | 'quota'
+    | 'parse-malformed'
     | 'unknown'
 
 export type SuggestedAction =
@@ -82,7 +83,7 @@ export function classifyError(err: unknown): Classification {
     }
 
     // Quota — billing or hard cap. Surface, do not retry same; advance.
-    if (msg.includes('quota') || msg.includes('insufficient_quota') || msg.includes('billing')) {
+    if (msg.includes('quota') || msg.includes('insufficient_quota') || msg.includes('billing') || msg.includes('credit balance') || msg.includes('402')) {
         return { class: 'quota', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
 
@@ -147,6 +148,19 @@ export function classifyError(err: unknown): Classification {
         msg.includes('responsibleai')
     ) {
         return { class: 'content-policy', shouldFallback: true, suggestedAction: 'fallback-next' }
+    }
+
+    // Malformed output — model couldn't emit valid structured output. Advance to
+    // a JSON-capable model rather than permanently failing the request.
+    if (
+        msg.includes('call_model_parse') ||
+        msg.includes('json parsing failed') ||
+        msg.includes('no object generated') ||
+        msg.includes('json_schema') ||
+        msg.includes('response format') ||
+        msg.includes('structured')
+    ) {
+        return { class: 'parse-malformed', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
 
     // Anything else — caller error or model produced bad output; do not advance.

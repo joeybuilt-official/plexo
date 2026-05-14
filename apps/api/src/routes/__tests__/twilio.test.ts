@@ -108,6 +108,16 @@ vi.mock('../../logger.js', () => ({
     logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }))
 
+// _resetTwilioDedupForTests probes redis-client, which tries to connect to
+// localhost:6379 in this test env (no Redis available) — would hang the
+// hook. Mock it to report unavailable so the helper falls back to clearing
+// the in-memory dedup set only.
+vi.mock('../../redis-client.js', () => ({
+    isRedisAvailable: vi.fn(() => false),
+    getRedis: vi.fn(async () => { throw new Error('redis disabled in tests') }),
+    markRedisDown: vi.fn(),
+}))
+
 // ── Server bootstrap ───────────────────────────────────────────────────────
 
 let server: Server | null = null
