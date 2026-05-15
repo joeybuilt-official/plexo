@@ -81,7 +81,13 @@ jobs:
         env:
           SERVICES: ${{ steps.changes.outputs.services }}
         run: |
-          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" "bash -s -- $SERVICES" <<'REMOTE'
-          cd $COMPOSE_DIR
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps $@ 2>&1
-          REMOTE
+          # All vars are expanded on the runner side before SSH sends the
+          # command string. The previous `<<'REMOTE'` heredoc form sent
+          # $COMPOSE_DIR literally; non-interactive SSH sessions don't load
+          # the user's shell profile, so the remote bash saw it as empty and
+          # `cd ""` silently dropped to $HOME — the compose files weren't
+          # there → docker compose failed within seconds, with no useful log.
+          # `set -ex` makes each remote command + its expansion visible in the
+          # Actions log so future failures surface their real cause.
+          ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            "set -ex; cd '$COMPOSE_DIR' && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps $SERVICES 2>&1"
