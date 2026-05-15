@@ -307,12 +307,36 @@ services:
   # one Cypher graph per workspace. Replaces Kuzu (single-instance
   # filesystem-locked binding). SSPL license is acceptable here per
   # ADR 0010 §Pre-mortem: server-side only, never shipped.
+  #
+  # Persistence (ADR 0030):
+  #   --save "" clears any image-baked defaults; then three explicit
+  #   tiers ensure BGSAVE fires on a predictable cadence regardless of
+  #   write volume:
+  #     3600 1      → ≥1 write in the last hour          (low-traffic safety)
+  #     300 100     → ≥100 writes in 5 min               (normal traffic)
+  #     60 10000    → ≥10000 writes in 60s               (burst)
+  #   The previous policy ("60 1000" alone) silently disabled hourly
+  #   snapshots: at plexo's per-workspace-locked write rate, 1000 writes
+  #   in 60s never happened, so LASTSAVE drifted past the 25h alert
+  #   threshold. The ops/falkordb-backup.cron host cron (operator-installed,
+  #   non-guaranteed) still owns daily off-host rotation; these in-process
+  #   save points are the always-on safety net.
   falkordb:
     profiles: ["graphiti"]
     image: falkordb/falkordb:v4.18.6
     restart: unless-stopped
     logging: *default-logging
-    command: ["--save", "60 1000", "--appendonly", "yes"]
+    command:
+      - "--save"
+      - ""
+      - "--save"
+      - "3600 1"
+      - "--save"
+      - "300 100"
+      - "--save"
+      - "60 10000"
+      - "--appendonly"
+      - "yes"
     volumes:
       - falkordb_data:/data
     # No host-port exposure; sidecar reaches it on the compose-internal

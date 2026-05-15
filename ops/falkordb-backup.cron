@@ -2,6 +2,13 @@
 # Phase G nightly RDB snapshot. Operator installs this file on the VPS by
 # copying it to /etc/cron.d/falkordb-backup. ADR 0030.
 #
+# This cron is now a SECONDARY safety net. The falkordb container's
+# in-process --save tiers in docker-compose.yml (3600/1, 300/100, 60/10000)
+# guarantee BGSAVE fires hourly when there is any write traffic, so the
+# host-side `falkordb-backup-stale` alert no longer relies on this cron
+# being installed. What this cron uniquely provides is host-side dump.rdb
+# rotation under /var/backups/falkordb/ and the weekly off-host S3 upload.
+#
 # Schedule:
 #   - Daily snapshot at 03:30 UTC (low-traffic window)
 #   - Weekly off-host upload Sunday 04:00 UTC (after the daily completes)
