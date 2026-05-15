@@ -60,34 +60,62 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
+          set -euo pipefail
+          if [ -z "${SSH_KEY:-}" ]; then
+            echo "::error::secrets.VPS_SSH_KEY is empty or unset"
+            exit 1
+          fi
+          if [ -z "${VPS_HOST:-}" ]; then
+            echo "::error::secrets.VPS_HOST is empty or unset"
+            exit 1
+          fi
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # Drop the `2>/dev/null` so a DNS or port-22 problem surfaces here
+          # rather than as a silent fail in rsync/ssh downstream.
+          echo "==> ssh-keyscan $VPS_HOST"
+          ssh-keyscan -T 10 -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          if ! grep -q . ~/.ssh/known_hosts; then
+            echo "::error::ssh-keyscan produced no host keys for $VPS_HOST — VPS may be unreachable"
+            exit 1
+          fi
+
+      - name: Verify VPS reachable
+        if: steps.changes.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+              -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+              'echo "==> reachable as $(whoami)@$(hostname); pwd=$(pwd); free disk:"; df -h /opt /var 2>/dev/null | head -6'
 
       - name: Sync code to VPS
         if: steps.changes.outputs.skip != 'true'
         run: |
-          rsync -azP --delete \
+          set -euo pipefail
+          rsync -avzP --delete \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='.next' \
             --exclude='.env*' \
-            -e "ssh -i ~/.ssh/deploy_key" \
-            ./ "$VPS_USER@$VPS_HOST:$VPS_REPO/"
+            -e "ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -i ~/.ssh/deploy_key" \
+            ./ "$VPS_USER@$VPS_HOST:$VPS_REPO/" \
+          | tail -200
 
       - name: Rebuild services
         if: steps.changes.outputs.skip != 'true'
         env:
           SERVICES: ${{ steps.changes.outputs.services }}
         run: |
-          # All vars are expanded on the runner side before SSH sends the
-          # command string. The previous `<<'REMOTE'` heredoc form sent
-          # $COMPOSE_DIR literally; non-interactive SSH sessions don't load
-          # the user's shell profile, so the remote bash saw it as empty and
-          # `cd ""` silently dropped to $HOME — the compose files weren't
-          # there → docker compose failed within seconds, with no useful log.
-          # `set -ex` makes each remote command + its expansion visible in the
-          # Actions log so future failures surface their real cause.
-          ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+          set -euo pipefail
+          # All vars expand on the runner side before SSH sends the command
+          # string. The previous `<<'REMOTE'` heredoc form sent $COMPOSE_DIR
+          # literally; non-interactive SSH sessions don't load the user's
+          # shell profile, so the remote bash saw it as empty and `cd ""`
+          # silently dropped to $HOME — the compose files weren't there →
+          # docker compose failed within seconds with no useful log.
+          # `set -ex` makes each remote command + its expansion visible in
+          # the Actions log so future failures surface their real cause.
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+              -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             "set -ex; cd '$COMPOSE_DIR' && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps $SERVICES 2>&1"
