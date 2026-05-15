@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
+//
+// Deploy marker: db3b95b (Phase 4e-3) — first redeploy after
+// .github/workflows/deploy.yml COMPOSE_DIR heredoc fix. Safe to remove
+// once a subsequent code-bearing commit lands on main.
 
 import { config as dotenvConfig } from 'dotenv'
 import { resolve, dirname } from 'path'
