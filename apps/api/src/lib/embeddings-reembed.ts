@@ -4,8 +4,8 @@
 /**
  * Re-embed batch helper — Phase 1 of the intelligence overhaul.
  *
- * Walks `memory_entries` (and optionally `scl_concept_graphs`) for a workspace
- * and re-generates the embedding column under a new provider/model. Used
+ * Walks `memory_entries` for a workspace and re-generates the embedding
+ * column under a new provider/model. Used
  * when a workspace switches embedding provider or model in the Settings →
  * Intelligence → Embeddings UI.
  *
@@ -41,8 +41,6 @@ export interface ReembedParams {
     sinceCreatedAt?: string | null
     /** Batch size. Default 100. */
     batchSize?: number
-    /** Whether to also re-embed `scl_concept_graphs`. Default true. */
-    includeScl?: boolean
 }
 
 export interface ReembedJobReport {
@@ -55,10 +53,6 @@ export interface ReembedJobReport {
     rowsReembedded: number
     rowsSkipped: number
     rowsErrored: number
-    sclScanned: number
-    sclReembedded: number
-    sclSkipped: number
-    sclErrored: number
     targetProvider: string
     targetModel: string
     targetDimensions: number
@@ -71,13 +65,6 @@ interface MemoryRow {
     content: string
     metadata: Record<string, unknown> | null
     created_at: Date
-    [key: string]: unknown
-}
-
-interface SclRow {
-    id: string
-    domain_region: string | null
-    graph_json: Record<string, unknown> | null
     [key: string]: unknown
 }
 
@@ -126,10 +113,6 @@ export function startReembedJob(params: ReembedParams): ReembedJobReport {
         rowsReembedded: 0,
         rowsSkipped: 0,
         rowsErrored: 0,
-        sclScanned: 0,
-        sclReembedded: 0,
-        sclSkipped: 0,
-        sclErrored: 0,
         targetProvider: params.adapter.providerId,
         targetModel: params.adapter.model,
         targetDimensions: params.adapter.dimensions,
@@ -166,10 +149,6 @@ export async function runReembedJob(jobId: string, params: ReembedParams): Promi
         rowsReembedded: 0,
         rowsSkipped: 0,
         rowsErrored: 0,
-        sclScanned: 0,
-        sclReembedded: 0,
-        sclSkipped: 0,
-        sclErrored: 0,
         targetProvider: params.adapter.providerId,
         targetModel: params.adapter.model,
         targetDimensions: params.adapter.dimensions,
@@ -236,41 +215,6 @@ export async function runReembedJob(jobId: string, params: ReembedParams): Promi
             if (rows.length < batchSize) break
         }
 
-        // ── SCL concept graphs (optional) ────────────────────────────────
-        if (params.includeScl !== false) {
-            const sclRows = await fetchSclRows(params.workspaceId)
-            for (const row of sclRows) {
-                report.sclScanned++
-                const graph = (row.graph_json ?? {}) as Record<string, unknown>
-                const lineage = (graph.embedding_lineage ?? {}) as Record<string, unknown>
-                if (lineage.provider === target.provider && lineage.model === target.model) {
-                    report.sclSkipped++
-                    continue
-                }
-                try {
-                    const newGraph = {
-                        ...graph,
-                        embedding_lineage: {
-                            provider: target.provider,
-                            model: target.model,
-                            dimensions: params.adapter.dimensions,
-                            reembedded_at: new Date().toISOString(),
-                        },
-                    }
-                    await db.execute(sql`
-                        UPDATE scl_concept_graphs
-                        SET graph_json = ${JSON.stringify(newGraph)}::jsonb,
-                            updated_at = NOW()
-                        WHERE id = ${row.id}::uuid
-                    `)
-                    report.sclReembedded++
-                } catch (err) {
-                    report.sclErrored++
-                    logger.warn({ err, rowId: row.id }, 'SCL re-embed row failed — skipping')
-                }
-            }
-        }
-
         report.status = 'completed'
         report.finishedAt = new Date().toISOString()
         await persistReembedReport(params.workspaceId, report)
@@ -295,31 +239,23 @@ export async function runReembedJob(jobId: string, params: ReembedParams): Promi
 // ── DB helpers (overridable for tests) ─────────────────────────────────────
 
 let memoryFetcher: (workspaceId: string, since: Date | null, limit: number) => Promise<MemoryRow[]> = defaultMemoryFetcher
-let sclFetcher: (workspaceId: string) => Promise<SclRow[]> = defaultSclFetcher
 let reportPersister: (workspaceId: string, report: ReembedJobReport) => Promise<void> = defaultReportPersister
 
 export function _setReembedDeps(deps: {
     memoryFetcher?: typeof defaultMemoryFetcher
-    sclFetcher?: typeof defaultSclFetcher
     reportPersister?: typeof defaultReportPersister
 }): void {
     if (deps.memoryFetcher) memoryFetcher = deps.memoryFetcher
-    if (deps.sclFetcher) sclFetcher = deps.sclFetcher
     if (deps.reportPersister) reportPersister = deps.reportPersister
 }
 
 export function _resetReembedDeps(): void {
     memoryFetcher = defaultMemoryFetcher
-    sclFetcher = defaultSclFetcher
     reportPersister = defaultReportPersister
 }
 
 async function fetchMemoryBatch(workspaceId: string, since: Date | null, limit: number): Promise<MemoryRow[]> {
     return memoryFetcher(workspaceId, since, limit)
-}
-
-async function fetchSclRows(workspaceId: string): Promise<SclRow[]> {
-    return sclFetcher(workspaceId)
 }
 
 async function persistReembedReport(workspaceId: string, report: ReembedJobReport): Promise<void> {
@@ -344,15 +280,6 @@ async function defaultMemoryFetcher(workspaceId: string, since: Date | null, lim
             LIMIT ${limit}
         `)
     return rows as unknown as MemoryRow[]
-}
-
-async function defaultSclFetcher(workspaceId: string): Promise<SclRow[]> {
-    const rows = await db.execute<SclRow>(sql`
-        SELECT id, domain_region, graph_json
-        FROM scl_concept_graphs
-        WHERE workspace_id = ${workspaceId}::uuid
-    `)
-    return rows as unknown as SclRow[]
 }
 
 async function defaultReportPersister(workspaceId: string, report: ReembedJobReport): Promise<void> {

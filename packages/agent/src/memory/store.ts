@@ -295,10 +295,10 @@ export async function storeMemory(params: {
         logger.error({ err, id }, 'Failed to update shorthand')
     }
 
-    // Embedding floor (Phase 1): pattern/note rows MUST land with an
-    // embedding so clusterMemory + suggest never see nulls. For other
-    // types we keep the legacy fire-and-forget path so non-knowledge
-    // hot-path writes (task outcomes, incidents) stay snappy.
+    // Embedding floor: pattern/note rows MUST land with an embedding so
+    // semantic search never sees nulls. For other types we keep the legacy
+    // fire-and-forget path so non-knowledge hot-path writes (task outcomes,
+    // incidents) stay snappy.
     const mustAwaitEmbedding = type === 'pattern' || (type as string) === 'note'
     if (mustAwaitEmbedding) {
         try {
