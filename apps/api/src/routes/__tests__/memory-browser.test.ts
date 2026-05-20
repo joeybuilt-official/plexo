@@ -68,18 +68,6 @@ vi.mock('@plexo/db', () => {
     }
 })
 
-vi.mock('@plexo/agent/memory/streaming-touch', () => ({
-    streamingTouchAfterStore: vi.fn(),
-}))
-
-vi.mock('@plexo/agent/memory/scl', () => ({
-    snapshotThemeHistory: vi.fn(),
-}))
-
-vi.mock('@plexo/agent/memory/promote', () => ({
-    promoteSuggestion: vi.fn(),
-}))
-
 vi.mock('@plexo/agent/memory/store', () => ({
     searchMemory: vi.fn(async () => ctl.semanticResults),
 }))

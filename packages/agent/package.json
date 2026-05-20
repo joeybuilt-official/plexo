@@ -91,16 +91,8 @@
     "./channels/gmail-send": "./src/channels/gmail-send.ts",
     "./channels/outbound-attachments-port": "./src/channels/outbound-attachments-port.ts",
     "./tool-set-cache": "./src/tool-set-cache.ts",
-    "./memory/cluster": "./src/memory/cluster.ts",
-    "./memory/suggest": "./src/memory/suggest.ts",
-    "./memory/knn": "./src/memory/knn.ts",
     "./memory/embeddings": "./src/memory/embeddings.ts",
-    "./memory/cluster-api": "./src/memory/cluster-api.ts",
-    "./memory/promote": "./src/memory/promote.ts",
-    "./embeddings/xenova": "./src/embeddings/xenova-adapter.ts",
-    "./memory/scl": "./src/memory/scl.ts",
-    "./memory/streaming-touch": "./src/memory/streaming-touch.ts",
-    "./memory/divergence": "./src/memory/divergence.ts"
+    "./embeddings/xenova": "./src/embeddings/xenova-adapter.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

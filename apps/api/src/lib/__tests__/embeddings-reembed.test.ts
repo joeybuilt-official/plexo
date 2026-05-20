@@ -3,8 +3,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-// Stub @plexo/db so the helper's UPDATE memory_entries / scl_concept_graphs
-// statements become no-ops. The test exercises the loop logic, not the SQL.
+// Stub @plexo/db so the helper's UPDATE memory_entries statements become
+// no-ops. The test exercises the loop logic, not the SQL.
 vi.mock('@plexo/db', () => ({
     db: {
         execute: vi.fn(async () => undefined),
@@ -55,14 +55,12 @@ interface FakeRow {
 }
 
 let memoryStore: FakeRow[] = []
-let sclStore: Array<{ id: string; domain_region: string | null; graph_json: Record<string, unknown> | null }> = []
 let persisted: { workspaceId: string; report: ReembedJobReport } | null = null
 
 beforeEach(() => {
     _resetReembedDeps()
     _resetReembedRegistry()
     memoryStore = []
-    sclStore = []
     persisted = null
     _setReembedDeps({
         memoryFetcher: async (_ws, since, limit) => {
@@ -74,7 +72,6 @@ beforeEach(() => {
                 .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
                 .slice(0, limit) as any
         },
-        sclFetcher: async () => sclStore as any,
         reportPersister: async (workspaceId, report) => {
             persisted = { workspaceId, report: { ...report } }
         },
@@ -155,21 +152,6 @@ describe('runReembedJob', () => {
         // Only rows c and d are after the checkpoint
         expect(report.rowsScanned).toBe(2)
         expect(report.rowsReembedded).toBe(2)
-    })
-
-    it('also re-tags SCL graph_json when includeScl is true', async () => {
-        memoryStore = [row('a', 1)]
-        sclStore = [
-            { id: 's1', domain_region: 'core', graph_json: {} },
-            { id: 's2', domain_region: 'core', graph_json: { embedding_lineage: { provider: 'openai', model: 'text-embedding-3-small' } } },
-        ]
-        const adapter = makeAdapter({ providerId: 'openai', model: 'text-embedding-3-small' })
-
-        const report = await runReembedJob('job-6', { workspaceId: 'ws-1', adapter, includeScl: true })
-
-        expect(report.sclScanned).toBe(2)
-        expect(report.sclReembedded).toBe(1)
-        expect(report.sclSkipped).toBe(1)
     })
 
     it('persists the final report via the configured persister', async () => {

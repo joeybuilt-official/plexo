@@ -1677,20 +1677,6 @@ export const inferenceLogs = pgTable('inference_logs', {
     index('inference_logs_model_idx').on(table.model),
 ])
 
-export const sclConceptGraphs = pgTable('scl_concept_graphs', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    sourceLogId: uuid('source_log_id').references(() => inferenceLogs.id, { onDelete: 'set null' }),
-    workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'set null' }),
-    domainRegion: text('domain_region'),
-    graphJson: jsonb('graph_json').default({}),
-    mindsetObject: jsonb('mindset_object'),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-}, (table: any) => [
-    index('idx_scl_concept_graphs_domain').on(table.domainRegion),
-    index('idx_scl_concept_graphs_workspace').on(table.workspaceId),
-])
-
 // ── Model Foundry ────────────────────────────────────────────────────────────
 
 export const foundryModels = pgTable('foundry_models', {
@@ -1953,107 +1939,8 @@ export type EntityLink = typeof entityLinks.$inferSelect
 export type NewEntityLink = typeof entityLinks.$inferInsert
 
 
-// ── Synthesis (Phase α) ─────────────────────────────────────────
-// Cluster→theme registry written by /api/v1/memory/cluster.
-// `centroid` is a pgvector(384) column; populated via raw SQL since
-// drizzle-orm does not yet have a native vector column type.
-export const memoryThemes = pgTable('memory_themes', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    workspaceId: uuid('workspace_id')
-        .notNull()
-        .references(() => workspaces.id, { onDelete: 'cascade' }),
-    label: text('label').notNull(),
-    memberIds: uuid('member_ids').array().notNull(),
-    // centroid: vector(384) — managed via raw SQL in cluster.ts
-    size: integer('size').notNull(),
-    growth14d: integer('growth_14d').notNull().default(0),
-    coherence: real('coherence').notNull(),
-    status: text('status').notNull().default('pending'),
-    lastMemberAt: timestamp('last_member_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-    // Phase 1 (0096) — 3-level hierarchy + stable IDs.
-    // level: 0=region (γ=0.6), 1=theme (γ=1.0), 2=subtheme (γ=1.6)
-    parentId: uuid('parent_id'),
-    level: smallint('level').notNull().default(1),
-    stableId: text('stable_id'),
-    // is_scl flips true in Phase 3 once the SCL classifier marks a theme important.
-    isScl: boolean('is_scl').notNull().default(false),
-    exemplarIds: uuid('exemplar_ids').array(),
-    why: text('why'),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table: any) => [
-    index('memory_themes_workspace_idx').on(table.workspaceId),
-    index('memory_themes_workspace_status_idx').on(table.workspaceId, table.status),
-    index('memory_themes_parent_idx').on(table.parentId),
-    index('memory_themes_level_idx').on(table.workspaceId, table.level),
-    index('memory_themes_stable_idx').on(table.workspaceId, table.stableId),
-])
-
-export type MemoryTheme = typeof memoryThemes.$inferSelect
-export type NewMemoryTheme = typeof memoryThemes.$inferInsert
-
-// kNN edges between memory_entries — precomputed cosine pairs over the
-// HNSW index. Used by Leiden clustering and by link-suggestion generation
-// so we never re-compute the O(n²) pairwise scan.
-export const memoryKnnEdges = pgTable('memory_knn_edges', {
-    workspaceId: uuid('workspace_id')
-        .notNull()
-        .references(() => workspaces.id, { onDelete: 'cascade' }),
-    aId: uuid('a_id').notNull(),
-    bId: uuid('b_id').notNull(),
-    weight: real('weight').notNull(),
-    computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table: any) => [
-    index('memory_knn_edges_a_idx').on(table.workspaceId, table.aId),
-    primaryKey({ columns: [table.workspaceId, table.aId, table.bId] }),
-])
-
-export type MemoryKnnEdge = typeof memoryKnnEdges.$inferSelect
-export type NewMemoryKnnEdge = typeof memoryKnnEdges.$inferInsert
-
-// One row per cluster-rebuild run. Used by the forest endpoint to scope
-// "latest run" queries and by ops to track build cadence + cost.
-export const memoryThemeRuns = pgTable('memory_theme_runs', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    workspaceId: uuid('workspace_id')
-        .notNull()
-        .references(() => workspaces.id, { onDelete: 'cascade' }),
-    ranAt: timestamp('ran_at', { withTimezone: true }).notNull().defaultNow(),
-    nEntries: integer('n_entries').notNull(),
-    nThemes: integer('n_themes').notNull(),
-    nSubthemes: integer('n_subthemes').notNull(),
-    durationMs: integer('duration_ms').notNull(),
-    algoVersion: text('algo_version').notNull(),
-})
-
-export type MemoryThemeRun = typeof memoryThemeRuns.$inferSelect
-export type NewMemoryThemeRun = typeof memoryThemeRuns.$inferInsert
-
-// One inbox table for all system-driven suggestions across every Joeybuilt surface.
-// Kinds: link.note_to_note, link.bookmark_to_note, theme.page_draft, archive.stale_bookmark,
-//        cross_app.task_seed, cross_app.asset_project, cross_app.financial_pattern,
-//        journal.prompt, chat.followup.
-export const synthesisSuggestions = pgTable('synthesis_suggestions', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    workspaceId: uuid('workspace_id')
-        .notNull()
-        .references(() => workspaces.id, { onDelete: 'cascade' }),
-    kind: text('kind').notNull(),
-    payload: jsonb('payload').notNull(),
-    score: real('score').notNull(),
-    source: text('source').notNull(),
-    status: text('status').notNull().default('pending'),
-    surfacedAt: timestamp('surfaced_at', { withTimezone: true }),
-    dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
-    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
-    dedupeKey: text('dedupe_key').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-}, (table: any) => [
-    index('synthesis_suggestions_workspace_kind_status_score_idx')
-        .on(table.workspaceId, table.kind, table.status, table.score),
-    index('synthesis_suggestions_workspace_status_idx').on(table.workspaceId, table.status),
-    uniqueIndex('synthesis_suggestions_workspace_dedupe_uq').on(table.workspaceId, table.dedupeKey),
-])
-
-export type SynthesisSuggestion = typeof synthesisSuggestions.$inferSelect
-export type NewSynthesisSuggestion = typeof synthesisSuggestions.$inferInsert
+// ── Synthesis tables (memory_themes, memory_knn_edges, memory_theme_runs,
+//    synthesis_suggestions, memory_theme_history, scl_concept_graphs)
+//    were removed in 2026-05-20 alongside the SCL teardown. Graphiti is the
+//    canonical structure layer. The Drizzle drop migration is 0118 in
+//    packages/db/drizzle/.

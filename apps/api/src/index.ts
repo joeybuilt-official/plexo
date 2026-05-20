@@ -49,8 +49,7 @@ import { twilioRouter } from './routes/twilio.js'
 import { discordRouter } from './routes/discord.js'
 import { owdRouter } from './routes/approvals.js'
 import { sprintRunnerRouter } from './routes/sprint-runner.js'
-import { memoryRouter, synthesisRouter, themesRouter } from './routes/memory.js'
-import { memoryPaxRouter } from './routes/memory-pax.js'
+import { memoryRouter } from './routes/memory.js'
 import { connectionsRouter } from './routes/connections.js'
 import { workspacesRouter } from './routes/workspaces.js'
 import { apiKeysRouter } from './routes/api-keys.js'
@@ -158,7 +157,6 @@ import { requireSuperAdmin } from './middleware/super-admin.js'
 import { requireServiceKey } from './middleware/service-key-auth.js'
 import { adminRouter } from './routes/admin.js'
 import { adminTasksRouter } from './routes/admin/tasks.js'
-import { adminDivergenceRouter } from './routes/admin/divergence.js'
 import ollamaAdminRouter from './routes/ollama-admin.js'
 import { providerInstancesRouter } from './routes/provider-instances.js'
 import { embeddingsRouter } from './routes/embeddings.js'
@@ -327,13 +325,7 @@ v1.use('/sprints', sprintsRouter)
 v1.use('/sprints', sprintRunnerRouter)
 v1.use('/dashboard', requireWorkspaceMember('workspaceId'), dashboardRouter)
 v1.use('/approvals', owdRouter)
-// Service-key-gated PAX endpoints under /memory must be registered BEFORE
-// the workspace-gated memoryRouter so that requireWorkspaceMember doesn't
-// 401 service-key callers (Levio/Nexalog/Fonto) that have no req.user.
-v1.use('/memory', memoryPaxRouter) // service-key gated; covers /memory/embeddings + /memory/cluster/{compute,label}
 v1.use('/memory', requireWorkspaceMember('workspaceId'), memoryRouter)
-v1.use('/synthesis', synthesisRouter) // service-key auth handled inside the router
-v1.use('/themes', themesRouter) // service-key auth handled inside the router (Phase 1: /forest)
 v1.use('/connections', connectionsRouter) // some endpoints have no workspaceId (registry); per-handler checks
 v1.use('/connections/gmessages', connectionsGmessagesRouter) // ADR-0005: pairing lifecycle, NOT subscription
 // ADR 0013 §D9 — draft attachments. Mounted BEFORE conversationsRouter so
@@ -366,7 +358,6 @@ v1.use('/billing', billingRouter)
 // matches the more specific prefix first; auth model differs from the
 // super-admin Command Center router below).
 v1.use('/admin/tasks', requireServiceKey, adminTasksRouter)
-v1.use('/admin/divergence', requireServiceKey, adminDivergenceRouter)
 // Admin routes — super-admin only (Command Center)
 v1.use('/admin', requireSuperAdmin, adminRouter)
 v1.use('/admin/ollama', requireSuperAdmin, ollamaAdminRouter)

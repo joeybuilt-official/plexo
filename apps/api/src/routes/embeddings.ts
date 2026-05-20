@@ -251,10 +251,9 @@ router.post('/:workspaceId/reembed', async (req: any, res: any) => {
     const workspaceId = getWorkspaceId(req)
     if (!workspaceId) return res.status(400).json({ error: 'workspaceId required' })
 
-    const { sinceCreatedAt, batchSize, includeScl } = (req.body ?? {}) as {
+    const { sinceCreatedAt, batchSize } = (req.body ?? {}) as {
         sinceCreatedAt?: string
         batchSize?: number
-        includeScl?: boolean
     }
 
     try {
@@ -273,7 +272,6 @@ router.post('/:workspaceId/reembed', async (req: any, res: any) => {
             adapter: resolution.adapter,
             sinceCreatedAt: sinceCreatedAt ?? null,
             batchSize: batchSize ?? 100,
-            includeScl: includeScl ?? true,
         })
 
         // Persist the in-progress jobId on the workspace so the UI shows

@@ -88,12 +88,9 @@ export async function defaultAgents(): Promise<Agent[]> {
     const all = await Promise.all([
         import('./embedder-health.js').then(m => m.embedderHealth),
         import('./bridge-auth.js').then(m => m.bridgeAuth),
-        import('./cluster-coverage.js').then(m => m.clusterCoverage),
         import('./cron-late.js').then(m => m.cronLate),
-        import('./synthesis-suggestions-stale.js').then(m => m.synthesisSuggestionsStale),
         import('./db-migration-drift.js').then(m => m.dbMigrationDrift),
         import('./route-error-rate.js').then(m => m.routeErrorRate),
-        import('./memory-coherence-low.js').then(m => m.memoryCoherenceLow),
         import('./karakeep-ingest-stalled.js').then(m => m.karakeepIngestStalled),
         import('./disk-fill.js').then(m => m.diskFill),
     ])

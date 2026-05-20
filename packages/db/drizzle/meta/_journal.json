@@ -827,6 +827,13 @@
       "when": 1779242460000,
       "tag": "0117_gmessages_phase2_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1779717600000,
+      "tag": "0118_drop_scl_synthesis_tables",
+      "breakpoints": true
     }
   ]
 }

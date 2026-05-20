@@ -16,8 +16,7 @@
  * The model is the e5 family which expects an instruction prefix:
  *   passages → "passage: <text>"
  *   queries  → "query: <text>"
- * We always use "passage:" because storeMemory and clusterMemory
- * are passage-side. Search-side queries embed via the same call —
+ * We always use "passage:" because storeMemory is passage-side. Search-side queries embed via the same call —
  * for now the asymmetry is small enough not to matter; if recall
  * sags later, add a `kind: 'query'|'passage'` flag.
  */
