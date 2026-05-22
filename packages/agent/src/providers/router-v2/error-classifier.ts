@@ -83,7 +83,19 @@ export function classifyError(err: unknown): Classification {
     }
 
     // Quota — billing or hard cap. Surface, do not retry same; advance.
-    if (msg.includes('quota') || msg.includes('insufficient_quota') || msg.includes('billing') || msg.includes('credit balance') || msg.includes('402')) {
+    // 'insufficient balance' matches DeepSeek's exact wording when an account
+    // runs out of credits ("AI_APICallError: Insufficient Balance" at HTTP 402).
+    // Without this match the error fell through to 'unknown' (shouldFallback=false),
+    // which short-circuited the cascade and stuck production for ~6 days.
+    if (
+        msg.includes('quota') ||
+        msg.includes('insufficient_quota') ||
+        msg.includes('insufficient balance') ||
+        msg.includes('insufficient_balance') ||
+        msg.includes('billing') ||
+        msg.includes('credit balance') ||
+        msg.includes('402')
+    ) {
         return { class: 'quota', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
 
