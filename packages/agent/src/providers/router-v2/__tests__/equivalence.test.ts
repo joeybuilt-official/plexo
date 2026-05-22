@@ -364,6 +364,8 @@ describe('router-v2 error-classifier', () => {
         ['ENOTFOUND api.example.com', 'network'],
         ['ECONNREFUSED', 'network'],
         ['insufficient_quota: billing required', 'quota'],
+        ['Insufficient Balance', 'quota'],
+        ['Insufficient Balance: Insufficient Balance', 'quota'],
         ['some unrelated bug', 'unknown'],
     ]
 
