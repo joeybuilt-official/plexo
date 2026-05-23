@@ -1,5 +1,56 @@
 # @joeybuilt/plexo-sdk — changelog
 
+## 1.4.0 — 2026-05-23 — **PEX 0.4.0 spec freeze**
+
+This release marks the **freeze of the PEX 0.4.0 manifest surface**. Sprint A′
+closure event per [ADR 0033](../../adr/0033-no-new-packages-until-a-prime-closes.md).
+
+### Frozen surfaces
+
+- **Manifest schema** — `ExtensionManifest` shape locked. Fields are
+  additive-only until a `0.5.0` major; breaking changes require a new
+  spec version + migration window.
+- **Extension subtypes** — `'skill' | 'channel' | 'tool' | 'connector'`
+  locked. `agent` manifest type also locked. No new top-level subtypes
+  until 0.5.0.
+- **Capability tokens** — current `CapabilityToken` union locked.
+  Additions are permitted; renames or removals are breaking.
+- **SDK runtime surface** — `PlexoSDK` interface (`storage`, `events`,
+  `secrets`, `tools`, `escalation`) locked. Implementations may add
+  fields; existing fields stay shape-stable.
+- **SKILL.md frontmatter** — both the standard (`name`, `description`,
+  `invocation`, `globs`, ...) and Plexo extensions (`runtime: plexo`,
+  `capabilities`, `resource_limits`, ...) are frozen. New optional
+  fields are permitted; renames/removals are breaking.
+
+### Breakage policy
+
+- **Additive changes** (new optional fields, new tokens, new optional
+  SDK methods) — minor version bump (1.4.x → 1.5.0). No host migration
+  required.
+- **Renames or removals** — major version bump (1.x.x → 2.0.0) with a
+  spec version bump (PEX 0.4.0 → PEX 0.5.0). Host must support both
+  manifest versions for one minor cycle before removing the old shape.
+- **Behavioral changes within a frozen API** — minor bump with a
+  prominent CHANGELOG entry. Behavior changes that risk silent breakage
+  for installed extensions require a deprecation cycle (≥1 minor of
+  warn-only behavior before enforcement).
+
+### What this enables
+
+- Third-party extension authors can target PEX 0.4.0 with confidence.
+- Plexo hosts can claim "PEX 0.4.0 Standard" host-compliance.
+- SDK consumers (Levio, Fylo, Nexalog, Helm) get a stable target for
+  their integration code.
+
+### What's still in flight (post-freeze, does not block the spec)
+
+- `extensions/core/fylo-bridge` — synthesis subscriber landed, full
+  PEX tool surface (account list, transaction search) waits on Fylo
+  implementing `/api/plexo/data`. Bridge-side scaffold tracks the
+  levio-bridge shape; tracked separately, not a spec issue.
+- ADR 0033 closure addendum — see [adr/0033-...](../../adr/0033-no-new-packages-until-a-prime-closes.md) for the lifted-gate note.
+
 ## 1.3.0 — 2026-05-12
 
 ### Added — `agents.runCustom` (EP1 + EP2 per Frame Forge ADR 0035)
