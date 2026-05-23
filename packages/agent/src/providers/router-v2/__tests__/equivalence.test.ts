@@ -114,15 +114,18 @@ describe('router-v2 feature flag', () => {
 // Manifest
 
 describe('router-v2 manifest', () => {
-    it('has 9 task types; 6 in-scope tasks have all 6 providers, 3 out-of-scope retain 5', () => {
+    it('has 9 task types; 7 carry all 6 providers, 2 retain 5', () => {
         const taskTypes = Object.keys(MANIFEST)
         expect(taskTypes).toHaveLength(9)
-        const inScope = ['planning', 'extraction', 'classification', 'conversation', 'judging', 'summarization']
-        for (const t of inScope) {
+        // codeGeneration joined the 6-provider rows in 2026-05-23 when
+        // ollama_cloud was added at prior=3 so credit-exhausted workspaces
+        // (no anthropic/deepseek) can still route past the Q2-hybrid bar.
+        const sixProvider = ['planning', 'extraction', 'classification', 'conversation', 'judging', 'summarization', 'codeGeneration']
+        for (const t of sixProvider) {
             expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(6)
         }
-        const outOfScope = ['codeGeneration', 'verification', 'logAnalysis']
-        for (const t of outOfScope) {
+        const fiveProvider = ['verification', 'logAnalysis']
+        for (const t of fiveProvider) {
             expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(5)
         }
     })
@@ -142,16 +145,21 @@ describe('router-v2 manifest', () => {
         }
     })
 
-    it('6 in-scope task types each have ollama_cloud as the lowest-priorScore option', () => {
-        const inScope = ['planning', 'extraction', 'classification', 'conversation', 'judging', 'summarization'] as const
-        for (const tt of inScope) {
+    it('every 6-provider row carries an ollama_cloud entry (managed-pool floor coverage)', () => {
+        // Pre-2026-05-23 invariant was "ollama_cloud is always the lowest
+        // priorScore in any in-scope row." That held while ollama_cloud's
+        // default class was gpt-oss:20b-cloud and premium providers were
+        // assumed always-available. Once credit-exhausted workspaces became
+        // common (Personal + Koforje both running mistral-large-3:675b on
+        // ollama_cloud as primary), planning + codeGeneration moved
+        // ollama_cloud to prior=3 so the Q2-hybrid bar doesn't hard-fail.
+        // The remaining invariant: ollama_cloud must be present in every
+        // 6-provider row so a workspace with only ollama_cloud configured
+        // always has at least one scoreable candidate.
+        const sixProvider = ['planning', 'extraction', 'classification', 'conversation', 'judging', 'summarization', 'codeGeneration'] as const
+        for (const tt of sixProvider) {
             const row = MANIFEST[tt]
-            const oc = row.ollama_cloud
-            expect(oc, `ollama_cloud missing for ${tt}`).toBeDefined()
-            const others = (Object.entries(row) as [string, { priorScore: number }][])
-                .filter(([k]) => k !== 'ollama_cloud')
-                .map(([, e]) => e.priorScore)
-            expect(Math.min(...others)).toBeGreaterThanOrEqual(oc!.priorScore)
+            expect(row.ollama_cloud, `ollama_cloud missing for ${tt}`).toBeDefined()
         }
     })
 
