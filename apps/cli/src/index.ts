@@ -20,6 +20,7 @@ import { registerLogs } from './commands/logs.js'
 import { registerStatus } from './commands/status.js'
 import { registerConfig } from './commands/config.js'
 import { registerPax } from './commands/pax.js'
+import { registerDoctor } from './commands/doctor.js'
 
 const program = new Command()
     .name('plexo')
@@ -40,6 +41,7 @@ registerLogs(program)
 registerStatus(program)
 registerConfig(program)
 registerPax(program)
+registerDoctor(program)
 
 // Global error handler
 program.hook('postAction', () => {
