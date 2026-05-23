@@ -51,7 +51,6 @@ vi.mock('@ai-sdk/openai-compatible', () => ({ createOpenAICompatible: vi.fn(() =
 vi.mock('@openrouter/ai-sdk-provider', () => ({ createOpenRouter: vi.fn(() => () => stubModel) }))
 
 import {
-    withFallback,
     _resetProviderBreakerForTest,
     type WorkspaceAISettings,
     type ProviderKey,
@@ -416,10 +415,13 @@ describe('router-v2 error-classifier', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // routeAndCall happy path / cascade / equivalence
 
-describe('routeAndCall vs withFallback — equivalence', () => {
-    it('happy path: primary succeeds → both return identical result', async () => {
-        _setRouterV2EnabledForTest(false)
-        const legacy = await withFallback(baseSettings(), 'conversation', async () => 'ok')
+describe('routeAndCall behavior (post-withFallback retirement)', () => {
+    // Pre-L3.4j (2026-05-23) this block tested routeAndCall ↔ withFallback
+    // equivalence. withFallback is now retired; the equivalence half of each
+    // test was deleted, leaving only the routeAndCall assertions that
+    // exercise the new cascade-aware behavior.
+
+    it('happy path: primary succeeds → returns the result', async () => {
         _setRouterV2EnabledForTest(true)
         const routed = await routeAndCall({
             workspaceId: 'ws-1',
@@ -427,11 +429,10 @@ describe('routeAndCall vs withFallback — equivalence', () => {
             settings: baseSettings(),
             doCall: async () => 'ok',
         })
-        expect(legacy).toBe('ok')
         expect(routed).toBe('ok')
     })
 
-    it('rate-limit on first chosen → both succeed via fallback', async () => {
+    it('rate-limit on first chosen → succeeds via cascade', async () => {
         let calls = 0
         const fn = vi.fn(async () => {
             calls++
@@ -439,13 +440,7 @@ describe('routeAndCall vs withFallback — equivalence', () => {
             return 'ok'
         })
 
-        _setRouterV2EnabledForTest(false)
-        calls = 0
-        const legacy = await withFallback(baseSettings(), 'conversation', fn, { workspaceId: 'wsA' })
-        expect(legacy).toBe('ok')
-
         _setRouterV2EnabledForTest(true)
-        calls = 0
         const routed = await routeAndCall({
             workspaceId: 'wsB',
             taskType: 'conversation',
@@ -455,14 +450,10 @@ describe('routeAndCall vs withFallback — equivalence', () => {
         expect(routed).toBe('ok')
     })
 
-    it('all providers fail with retryable errors → both throw cascade-exhausted', async () => {
+    it('all providers fail with retryable errors → throws cascade-exhausted', async () => {
         const fn = vi.fn(async () => {
             throw new Error('503 service unavailable')
         })
-
-        _setRouterV2EnabledForTest(false)
-        await expect(withFallback(baseSettings(), 'conversation', fn, { workspaceId: 'wsA' }))
-            .rejects.toThrow(/503|service unavailable/)
 
         _setRouterV2EnabledForTest(true)
         _resetStatsForTest()
@@ -488,12 +479,6 @@ describe('routeAndCall vs withFallback — equivalence', () => {
             doCall: fn,
         })).rejects.toThrow(/schema validation|required field/)
         expect(fn).toHaveBeenCalledTimes(1)
-    })
-
-    it('feature-flag gate inside withFallback: flag on routes through router-v2', async () => {
-        _setRouterV2EnabledForTest(true)
-        const got = await withFallback(baseSettings(), 'conversation', async () => 'gated', { workspaceId: 'wsZ' })
-        expect(got).toBe('gated')
     })
 
     it('high-stakes + only low-quality providers → throws RouterV2NoCandidateError', async () => {

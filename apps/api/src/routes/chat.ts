@@ -24,8 +24,8 @@ import { trackDelivery } from '../delivery-tracker.js'
 import { pushTask } from '@plexo/queue'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { generateText, streamText, stepCountIs } from 'ai'
-// TODO(router-v2 Phase 4): migrate withFallback() call sites in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
-import { withFallback, PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/providers/registry'
+import { PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/providers/registry'
+import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } from '@plexo/agent/providers/vision'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { runSprint } from '@plexo/agent/sprint/runner'
@@ -541,15 +541,18 @@ chatRouter.post('/message', async (req, res) => {
                 // `summarization` tier instead — every provider's default
                 // model at that tier is a fast chat model, never a reasoner.
                 const fastTier = deepseekIsPrimary ? 'classification' : 'summarization'
-                const fastResult = await withFallback(pinnedSettings, fastTier, async (model) =>
-                    generateText({
+                const fastResult = await routeAndCall({
+                    workspaceId,
+                    taskType: fastTier,
+                    settings: pinnedSettings,
+                    doCall: async (model) => generateText({
                         model,
                         system: fastSystem,
                         messages: [{ role: 'user', content: trimmedMsg }],
                         abortSignal: AbortSignal.timeout(8_000),
                     }),
-                    fallbackOpts(workspaceId),
-                )
+                    opts: fallbackOpts(workspaceId),
+                })
                 const replyText = (fastResult.text ?? '').trim()
                 if (replyText) {
                     const fastDuration = Date.now() - fastStart
@@ -702,15 +705,18 @@ chatRouter.post('/message', async (req, res) => {
                         { role: 'user' as const, content: trimmedMsg }
                     ] as any[]
 
-                    const classifyResult = await withFallback(aiSettings, 'classification', async (model) =>
-                        generateText({
+                    const classifyResult = await routeAndCall({
+                        workspaceId,
+                        taskType: 'classification',
+                        settings: aiSettings,
+                        doCall: async (model) => generateText({
                             model,
                             system: WEBCHAT_CLASSIFY_SYSTEM,
                             messages: classifyMessages,
                             abortSignal: AbortSignal.timeout(10_000),
                         }),
-                        fallbackOpts(workspaceId),
-                    )
+                        opts: fallbackOpts(workspaceId),
+                    })
                     const text = classifyResult.text?.trim() ?? ''
                     const upperText = text.toUpperCase()
                     const parts = text.split(/\s+/)
@@ -919,7 +925,13 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
 
                         const result = visionFallbackModel
                             ? await streamFn(visionFallbackModel.model)
-                            : await withFallback(aiSettings, 'conversation', streamFn, fallbackOpts(workspaceId))
+                            : await routeAndCall({
+                                workspaceId,
+                                taskType: 'conversation',
+                                settings: aiSettings,
+                                doCall: streamFn,
+                                opts: fallbackOpts(workspaceId),
+                            })
 
                         fullText = result.text
 
@@ -927,16 +939,19 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             // Single retry before giving up — matches the retry logic in channel-ai.ts chatWithAI.
                             logger.warn({ workspaceId }, 'Webchat SSE: empty response — attempting single retry')
                             try {
-                                const retryResult = await withFallback(aiSettings, 'conversation', async (model) =>
-                                    generateText({
+                                const retryResult = await routeAndCall({
+                                    workspaceId,
+                                    taskType: 'conversation',
+                                    settings: aiSettings,
+                                    doCall: async (model) => generateText({
                                         model,
                                         system: systemPrompt,
                                         messages: streamMessages,
                                         tools: chatTools as any,
                                         abortSignal: AbortSignal.timeout(120_000),
                                     }),
-                                    fallbackOpts(workspaceId),
-                                )
+                                    opts: fallbackOpts(workspaceId),
+                                })
                                 const retryText = (retryResult.text ?? '').trim()
                                 if (retryText) {
                                     fullText = retryText
@@ -1041,7 +1056,13 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
 
                     const result = visionFallbackModel
                         ? await streamFn(visionFallbackModel.model)
-                        : await withFallback(aiSettings, 'summarization', streamFn, fallbackOpts(workspaceId))
+                        : await routeAndCall({
+                            workspaceId,
+                            taskType: 'summarization',
+                            settings: aiSettings,
+                            doCall: streamFn,
+                            opts: fallbackOpts(workspaceId),
+                        })
 
                     let replyText = result.text
 
@@ -1122,8 +1143,11 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
             // Synthesize a clean task description from conversation context
             let cleanDescription = trimmedMsg
             try {
-                const synth = await withFallback(aiSettings, 'summarization', async (model) =>
-                    generateText({
+                const synth = await routeAndCall({
+                    workspaceId,
+                    taskType: 'summarization',
+                    settings: aiSettings,
+                    doCall: async (model) => generateText({
                         model,
                         system: 'You are a task description synthesizer. Given a conversation, output a single clear, specific, third-person task description in one sentence (max 150 chars) that captures what the user wants the agent to accomplish. No preamble, no quotes, just the description.',
                         messages: [
@@ -1132,8 +1156,8 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         ],
                         abortSignal: AbortSignal.timeout(8_000),
                     }),
-                    fallbackOpts(workspaceId),
-                )
+                    opts: fallbackOpts(workspaceId),
+                })
                 if (synth.text?.trim()) cleanDescription = synth.text.trim().replace(/^"|"$/g, '')
             } catch { /* use raw message as fallback */ }
 

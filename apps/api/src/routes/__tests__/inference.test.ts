@@ -36,18 +36,14 @@ vi.mock('@plexo/agent/providers/call-model', () => ({
 vi.mock('@plexo/agent/providers/registry', () => ({
     resolveModel: vi.fn(),
     resolveModelFromEnv: vi.fn(() => ({ __mock: 'env-model' })),
-    // Default passthrough: invoke the doCall fn with a stub model so
-    // tests that only care about callModel mocking don't need to wire
-    // a withFallback mock per case. Individual tests override as needed.
-    withFallback: vi.fn(async (_settings, _taskType, fn) => fn({ __mock: 'wf-model', provider: 'mock' } as never)),
 }))
 
-// inference.ts also imports router-v2's `routeAndCall` + `isRouterV2Enabled`
-// (Phase 3 wiring). Default flag-off so these tests stay on the legacy path.
+// Default passthrough: invoke the doCall fn with a stub model so tests that
+// only care about callModel mocking don't need to wire a routeAndCall mock
+// per case. Individual tests override as needed.
 vi.mock('@plexo/agent/providers/router-v2', () => ({
-    routeAndCall: vi.fn(),
-    isRouterV2Enabled: vi.fn(() => false),
-    isRouterV2ShadowEnabled: vi.fn(() => false),
+    routeAndCall: vi.fn(async (input: { doCall: (m: unknown) => Promise<unknown> }) =>
+        input.doCall({ __mock: 'wf-model', provider: 'mock' } as never)),
 }))
 
 vi.mock('@plexo/agent/providers/settings-from-instances', () => ({
@@ -56,7 +52,8 @@ vi.mock('@plexo/agent/providers/settings-from-instances', () => ({
 
 const { embed } = await import('@plexo/agent/memory/store')
 const { callModel } = await import('@plexo/agent/providers/call-model')
-const { resolveModel, withFallback } = await import('@plexo/agent/providers/registry')
+const { resolveModel } = await import('@plexo/agent/providers/registry')
+const { routeAndCall } = await import('@plexo/agent/providers/router-v2')
 const { loadSettingsFromInstances } = await import('@plexo/agent/providers/settings-from-instances')
 const { inferenceRouter } = await import('../inference.js')
 
@@ -319,13 +316,13 @@ describe('POST /api/inference/v1/chat/completions', () => {
     })
 
     it('uses workspace-resolved model when settings exist; falls through to env otherwise', async () => {
-        // Post-cutover: inference.ts dispatches via withFallback (registry.ts)
+        // Post-L3.4j: inference.ts dispatches via routeAndCall (router-v2)
         // rather than calling resolveModel directly. The workspace's model
-        // selection happens inside withFallback's chain walk.
+        // selection happens inside routeAndCall's selector → cascade.
         const aiSettings = { fakeSettings: true }
         vi.mocked(loadSettingsFromInstances).mockResolvedValueOnce(aiSettings as never)
-        vi.mocked(withFallback).mockImplementationOnce(
-            async (_settings, _taskType, fn) => fn({ __mock: 'workspace-model', provider: 'openai' } as never),
+        vi.mocked(routeAndCall).mockImplementationOnce(
+            async (input) => input.doCall({ __mock: 'workspace-model', provider: 'openai' } as never),
         )
         vi.mocked(callModel).mockResolvedValueOnce({
             text: 'ok', inputTokens: 1, outputTokens: 1, latencyMs: 10, model: 'gpt-4o', attempts: 1,
@@ -338,12 +335,12 @@ describe('POST /api/inference/v1/chat/completions', () => {
             body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
         })
         expect(res.status).toBe(200)
-        expect(withFallback).toHaveBeenCalledWith(
-            aiSettings,
-            'summarization',
-            expect.any(Function),
-            expect.objectContaining({ workspaceId: VALID_WORKSPACE }),
-        )
+        expect(routeAndCall).toHaveBeenCalledWith(expect.objectContaining({
+            workspaceId: VALID_WORKSPACE,
+            taskType: 'summarization',
+            settings: aiSettings,
+            doCall: expect.any(Function),
+        }))
         const opts = vi.mocked(callModel).mock.calls[0]![0]!
         expect((opts.model as { __mock: string }).__mock).toBe('workspace-model')
         expect(opts.provider).toBe('openai')
@@ -352,8 +349,8 @@ describe('POST /api/inference/v1/chat/completions', () => {
     it('routes json_schema requests through the extraction task type (Phase 3b follow-up)', async () => {
         const aiSettings = { fakeSettings: true }
         vi.mocked(loadSettingsFromInstances).mockResolvedValueOnce(aiSettings as never)
-        vi.mocked(withFallback).mockImplementationOnce(
-            async (_settings, _taskType, fn) => fn({ __mock: 'extraction-model', provider: 'ollama_cloud' } as never),
+        vi.mocked(routeAndCall).mockImplementationOnce(
+            async (input) => input.doCall({ __mock: 'extraction-model', provider: 'ollama_cloud' } as never),
         )
         vi.mocked(callModel).mockResolvedValueOnce({
             object: { facts: [] }, text: '', repairUsed: false, inputTokens: 1, outputTokens: 1, latencyMs: 10, model: 'gpt-oss:120b', attempts: 1,
@@ -366,12 +363,12 @@ describe('POST /api/inference/v1/chat/completions', () => {
             body: JSON.stringify(chatBody()),
         })
         expect(res.status).toBe(200)
-        expect(withFallback).toHaveBeenCalledWith(
-            aiSettings,
-            'extraction',
-            expect.any(Function),
-            expect.objectContaining({ workspaceId: VALID_WORKSPACE }),
-        )
+        expect(routeAndCall).toHaveBeenCalledWith(expect.objectContaining({
+            workspaceId: VALID_WORKSPACE,
+            taskType: 'extraction',
+            settings: aiSettings,
+            doCall: expect.any(Function),
+        }))
     })
 
     it('rejects requests with tools (501 — Phase 3b scope)', async () => {

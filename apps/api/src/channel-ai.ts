@@ -10,8 +10,8 @@
 
 import { generateText, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
-// TODO(router-v2 Phase 4): migrate withFallback() call sites in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
-import { withFallback, PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/providers/registry'
+import { PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/providers/registry'
+import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } from '@plexo/agent/providers/vision'
 import { enforceSmallestAction, forceConversationOverrideWithContext, isObviousTaskRequest } from '@plexo/agent/principles'
 import { emitClassifierDecision } from './analytics/events.js'
@@ -774,8 +774,11 @@ export async function chatWithAI(
                     visionFailureReason = `Vision provider ${providerLabel} failed: ${errMsg.slice(0, 120)}`
                 }
                 logger.warn({ err: visionErr, workspaceId, fallbackModel: visionFallbackModelId, reason: visionFailureReason }, 'channel-ai: vision fallback failed — degrading to primary without images')
-                result = await withFallback(aiSettings, 'conversation', async (model) =>
-                    generateText({
+                result = await routeAndCall({
+                    workspaceId,
+                    taskType: 'conversation',
+                    settings: aiSettings,
+                    doCall: async (model) => generateText({
                         model,
                         system: finalSystem,
                         messages: buildMessages(false),
@@ -783,12 +786,15 @@ export async function chatWithAI(
                         stopWhen: stepCountIs(5),
                         abortSignal: AbortSignal.timeout(timeoutMs),
                     }),
-                    fallbackOpts,
-                )
+                    opts: fallbackOpts,
+                })
             }
         } else {
-            result = await withFallback(aiSettings, 'conversation', async (model) =>
-                generateText({
+            result = await routeAndCall({
+                workspaceId,
+                taskType: 'conversation',
+                settings: aiSettings,
+                doCall: async (model) => generateText({
                     model,
                     system: finalSystem,
                     messages: buildMessages(supportsVision),
@@ -796,8 +802,8 @@ export async function chatWithAI(
                     stopWhen: stepCountIs(5),
                     abortSignal: AbortSignal.timeout(timeoutMs),
                 }),
-                fallbackOpts,
-            )
+                opts: fallbackOpts,
+            })
         }
 
         let cleaned = stripDisclaimers(result.text ?? null)
@@ -822,8 +828,11 @@ export async function chatWithAI(
         if (!cleaned || !cleaned.trim()) {
             logger.warn({ workspaceId }, 'channel-ai: model returned empty text — attempting retry')
             try {
-                const retryResult = await withFallback(aiSettings, 'conversation', async (model) =>
-                    generateText({
+                const retryResult = await routeAndCall({
+                    workspaceId,
+                    taskType: 'conversation',
+                    settings: aiSettings,
+                    doCall: async (model) => generateText({
                         model,
                         system: finalSystem,
                         messages: buildMessages(supportsVision),
@@ -831,8 +840,8 @@ export async function chatWithAI(
                         stopWhen: stepCountIs(5),
                         abortSignal: AbortSignal.timeout(timeoutMs),
                     }),
-                    fallbackOpts,
-                )
+                    opts: fallbackOpts,
+                })
                 cleaned = stripDisclaimers(retryResult.text ?? null)
             } catch (retryErr) {
                 logger.warn({ err: retryErr, workspaceId }, 'channel-ai: empty-response retry also failed')
@@ -1180,8 +1189,11 @@ export async function classifyIntent(
     const classifyMessages = trimmedHistory.map((m) => ({ role: m.role, content: m.content }))
 
     try {
-        const result = await withFallback(aiSettings, 'classification', async (model) =>
-            generateText({
+        const result = await routeAndCall({
+            workspaceId,
+            taskType: 'classification',
+            settings: aiSettings,
+            doCall: async (model) => generateText({
                 model,
                 system: CHANNEL_CLASSIFY_SYSTEM,
                 messages: classifyMessages,
@@ -1190,8 +1202,7 @@ export async function classifyIntent(
                 // Max output is small: {"classification":"...","confidence":0.95}
                 abortSignal: AbortSignal.timeout(5_000),
             }),
-            { workspaceId },
-        )
+        })
         const resText = result.text?.trim() ?? ''
         const parsed = parseClassifierResponse(resText, workspaceId)
         if (!parsed) {

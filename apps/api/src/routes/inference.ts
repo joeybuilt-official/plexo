@@ -29,14 +29,8 @@ import { jsonSchemaToZod, type JSONSchema } from './json-schema-to-zod.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { embed } from '@plexo/agent/memory/store'
 import { callModel, CallModelError } from '@plexo/agent/providers/call-model'
-import { resolveModelFromEnv, withFallback, type FallbackOptions } from '@plexo/agent/providers/registry'
-import {
-    isRouterV2Enabled,
-    isRouterV2ShadowEnabled,
-    routeAndCall,
-    runShadowCompare,
-    type ShadowPrimaryOutcome,
-} from '@plexo/agent/providers/router-v2'
+import { resolveModelFromEnv, type FallbackOptions } from '@plexo/agent/providers/registry'
+import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 
 const logger = pino({ name: 'inference-routes' })
@@ -275,14 +269,9 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
     try {
         let result: Awaited<ReturnType<typeof doCall>>
         if (aiSettings) {
-            // Walk the workspace's full provider chain — primary first, then
-            // each fallback in preference_order. Billing/quota/auth/rate-limit
-            // failures advance to the next provider automatically.
-            //
-            // Phase 3 (ADR 0012): when ROUTER_V2_ENABLED=true, dispatch via
-            // router-v2's task-routed selector directly instead of going
-            // through withFallback's compatibility gate. Both paths share the
-            // same callable shape; equivalence is HTTP-level tested.
+            // Walk the workspace's full provider chain via router-v2's
+            // task-routed selector. Billing/quota/auth/rate-limit failures
+            // advance to the next provider automatically.
             const dispatch = async (model: import('ai').LanguageModel): Promise<Awaited<ReturnType<typeof doCall>>> => {
                 const provider = (model as { provider?: string }).provider ?? 'unknown'
                 return doCall(model, provider)
@@ -293,74 +282,13 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
                     logger.warn({ event: 'inference.chat.fallback', ...info }, 'inference.chat: primary provider failed; served by fallback')
                 },
             }
-            if (isRouterV2Enabled()) {
-                result = await routeAndCall({
-                    workspaceId,
-                    taskType,
-                    settings: aiSettings,
-                    doCall: dispatch,
-                    opts: fallbackOpts,
-                })
-            } else {
-                // Phase 3 item 4: shadow-mode equivalence harness. When
-                // ROUTER_V2_SHADOW=true (and ROUTER_V2_ENABLED=false), serve
-                // the user from withFallback and concurrently run routeAndCall
-                // as a no-op observer that emits `model.routed.shadow_compare`.
-                // Shadow MUST NOT block the request and MUST NOT surface errors.
-                const shadowOn = isRouterV2ShadowEnabled()
-                const primaryStart = Date.now()
-                let primaryOutcome: ShadowPrimaryOutcome | null = null
-                let primaryResult: Awaited<ReturnType<typeof doCall>> | undefined
-                let primaryError: unknown = null
-                try {
-                    primaryResult = await withFallback(aiSettings, taskType, dispatch, fallbackOpts)
-                } catch (e) {
-                    primaryError = e
-                }
-                const primaryLatency = Date.now() - primaryStart
-                if (primaryError) {
-                    primaryOutcome = {
-                        provider: 'unknown',
-                        model: undefined,
-                        status: 'error',
-                        latencyMs: primaryLatency,
-                        errorClass: primaryError instanceof Error
-                            ? ((primaryError as { code?: unknown }).code as string | undefined) ?? primaryError.name
-                            : 'unknown',
-                    }
-                } else {
-                    primaryOutcome = {
-                        provider: 'unknown',
-                        model: primaryResult?.model,
-                        status: 'ok',
-                        latencyMs: primaryLatency,
-                        resultKeys: primaryResult ? Object.keys(primaryResult).sort() : [],
-                    }
-                }
-
-                if (shadowOn && primaryOutcome) {
-                    // Fire-and-forget; never await in the request path.
-                    void runShadowCompare({
-                        workspaceId,
-                        taskType,
-                        primary: primaryOutcome,
-                        runShadow: () => routeAndCall({
-                            workspaceId,
-                            taskType,
-                            settings: aiSettings,
-                            doCall: dispatch,
-                            opts: fallbackOpts,
-                        }),
-                        extractRouted: (r) => ({ provider: undefined, model: (r as { model?: string }).model }),
-                    }).catch((err) => {
-                        // Defense-in-depth — runShadowCompare swallows internally.
-                        logger.warn({ err, workspaceId }, 'inference.chat: shadow harness threw unexpectedly')
-                    })
-                }
-
-                if (primaryError) throw primaryError
-                result = primaryResult as Awaited<ReturnType<typeof doCall>>
-            }
+            result = await routeAndCall({
+                workspaceId,
+                taskType,
+                settings: aiSettings,
+                doCall: dispatch,
+                opts: fallbackOpts,
+            })
         } else {
             // No workspace settings — env-var fallback path (dev / self-host)
             try {
