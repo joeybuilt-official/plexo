@@ -11,6 +11,7 @@ import { markTaskFailed } from '@plexo/agent/tasks/terminal-fail'
 import { FailureReason, type TaskCompletedPayload, type EscalationSummary } from '@plexo/agent/tasks/types'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
+import { storeMemory } from '@plexo/agent/memory/store'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import { emitToWorkspace } from './sse-emitter.js'
 import { channelSupportsConfirmation } from './channel-delivery.js'
@@ -1289,6 +1290,52 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             eventBus.publish(TOPICS.TASK_COMPLETED, completedPayload)
         } catch (publishErr) {
             logger.warn({ err: publishErr, taskId: task.id }, 'TASK_COMPLETED publish failed — non-fatal')
+        }
+
+        // ── Task-completion memory write (L2 memory-write architecture, 2026-05-23) ──
+        // Pre-L2 fix: extractConversationMemory only fired inside the
+        // intent==='CONVERSATION' branch of channel adapters, so the
+        // bulk of production traffic (task paths) wrote zero memory.
+        // This hook captures every completed task as a 'task' memory
+        // entry — type matches MemoryType ('task'|'incident'|'session'|
+        // 'pattern'). storeMemory mirrors to Graphiti when
+        // MEMORY_WRITE_BACKEND=graphiti (current prod setting). Fire-
+        // and-forget; never blocks lifecycle.
+        if (taskWorkspaceId) {
+            try {
+                const taskCtxForMemory = task.context as Record<string, unknown> | null | undefined
+                const descriptionForMemory = (taskCtxForMemory?.description as string)
+                    ?? (taskCtxForMemory?.message as string)
+                    ?? task.type
+                const outcomeForMemory = result.ok ? 'success' : 'partial'
+                const summaryForMemory = result.outcomeSummary?.slice(0, 2000) ?? ''
+                const memoryType = result.ok ? 'task' as const : 'incident' as const
+                const memoryContent = summaryForMemory
+                    ? `Task: ${descriptionForMemory}\nOutcome: ${outcomeForMemory}\n${summaryForMemory}`
+                    : `Task: ${descriptionForMemory}\nOutcome: ${outcomeForMemory}`
+                const toolsUsedForMemory = [...new Set(
+                    (result.steps ?? []).flatMap(s => (s.toolCalls ?? []).map(tc => tc.tool))
+                )]
+                void storeMemory({
+                    workspaceId: taskWorkspaceId,
+                    type: memoryType,
+                    content: memoryContent,
+                    metadata: {
+                        taskId: task.id,
+                        taskType: task.type,
+                        outcome: outcomeForMemory,
+                        qualityScore: result.qualityScore,
+                        durationMs: Date.now() - taskStartMs,
+                        toolsUsed: toolsUsedForMemory,
+                        costUsd: result.totalCostUsd,
+                        parentTaskId: task.parentId ?? null,
+                    },
+                }).catch((err) => {
+                    logger.warn({ err, taskId: task.id, workspaceId: taskWorkspaceId }, 'task-completion memory write failed — non-fatal')
+                })
+            } catch (memoryErr) {
+                logger.warn({ err: memoryErr, taskId: task.id }, 'task-completion memory build failed — non-fatal')
+            }
         }
 
         // ── Post-task reflection (non-fatal) ──────────────────────────────────
