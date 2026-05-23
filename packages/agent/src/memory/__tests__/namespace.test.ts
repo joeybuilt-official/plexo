@@ -94,10 +94,13 @@ vi.mock('../../embeddings/router.js', async () => ({
     })),
 }))
 
+vi.mock('../../providers/router-v2/index.js', async () => ({
+    routeAndCall: vi.fn(async (input: { doCall: (m: unknown) => Promise<string> }) =>
+        input.doCall('mock-model')),
+}))
+
 vi.mock('../../providers/registry.js', async () => ({
-    withFallback: vi.fn(
-        async (_settings: unknown, _task: string, fn: (m: unknown) => Promise<string>) => fn('mock-model'),
-    ),
+    // L3.4j: withFallback retired. Empty mock for any lingering registry imports.
 }))
 
 vi.mock('redis', async () => ({

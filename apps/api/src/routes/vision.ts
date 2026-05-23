@@ -24,8 +24,8 @@ import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { findVisionCapableModel, modelSupportsVision } from '@plexo/agent/providers/vision'
-// TODO(router-v2 Phase 4): migrate withFallback() call site in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
-import { PROVIDER_DEFAULT_MODELS, withFallback } from '@plexo/agent/providers/registry'
+import { PROVIDER_DEFAULT_MODELS } from '@plexo/agent/providers/registry'
+import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import { logger } from '../logger.js'
 
 export const visionRouter: RouterType = Router()
@@ -123,9 +123,9 @@ visionRouter.post('/ocr', requireServiceKey, async (req, res) => {
             return
         }
 
-        // Build a single-shot vision request via withFallback. The fallback layer
-        // honours the workspace's provider chain; we narrow tasktype to 'summarization'
-        // since OCR is a one-shot text-out call.
+        // Build a single-shot vision request via router-v2. The selector
+        // honours the workspace's provider chain; we narrow tasktype to
+        // 'summarization' since OCR is a one-shot text-out call.
         const messages = [
             {
                 role: 'user' as const,
@@ -136,18 +136,18 @@ visionRouter.post('/ocr', requireServiceKey, async (req, res) => {
             },
         ]
 
-        const result = await withFallback(
-            aiSettings,
-            'summarization',
-            (model) => generateText({
+        const result = await routeAndCall({
+            workspaceId,
+            taskType: 'summarization',
+            settings: aiSettings,
+            doCall: (model) => generateText({
                 model,
                 system: OCR_SYSTEM_PROMPT,
                 messages,
                 maxOutputTokens: MAX_OCR_OUTPUT_TOKENS,
                 abortSignal: AbortSignal.timeout(45_000),
             }),
-            { workspaceId },
-        )
+        })
 
         const raw = (result.text ?? '').trim()
         const noText = raw === 'NO_TEXT_FOUND' || raw === ''

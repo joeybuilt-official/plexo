@@ -14,9 +14,6 @@ vi.mock('ai', async () => ({
 }))
 
 vi.mock('@plexo/agent/providers/registry', async () => ({
-    withFallback: vi.fn(async (_settings: unknown, _task: string, fn: (m: unknown) => Promise<unknown>) => {
-        return fn('mock-model')
-    }),
     PROVIDER_DEFAULT_MODELS: {
         anthropic: 'claude-haiku',
         openai: 'gpt-4o-mini',
@@ -25,6 +22,12 @@ vi.mock('@plexo/agent/providers/registry', async () => ({
         deepseek: 'deepseek-chat',
     },
     buildModel: vi.fn(() => 'mock-model'),
+}))
+
+vi.mock('@plexo/agent/providers/router-v2', async () => ({
+    routeAndCall: vi.fn(async (input: { doCall: (m: unknown) => Promise<unknown> }) => {
+        return input.doCall('mock-model')
+    }),
 }))
 
 vi.mock('@plexo/agent/providers/vision', async () => ({
@@ -466,9 +469,9 @@ describe('chatWithAI', () => {
         expect(result.error).toMatch(/not configured|Settings/i)
     })
 
-    it('translates errors from withFallback failures', async () => {
-        const registry = await import('@plexo/agent/providers/registry')
-        ;(registry.withFallback as any).mockRejectedValueOnce(new Error('429 rate limit'))
+    it('translates errors from routeAndCall failures', async () => {
+        const routerV2 = await import('@plexo/agent/providers/router-v2')
+        ;(routerV2.routeAndCall as any).mockRejectedValueOnce(new Error('429 rate limit'))
 
         const { chatWithAI } = await import('./channel-ai.js')
         const result = await chatWithAI('ws-1', [{ role: 'user', content: 'hi' }])

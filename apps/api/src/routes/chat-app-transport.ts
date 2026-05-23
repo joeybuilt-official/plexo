@@ -20,8 +20,7 @@ import { workspaces } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 import { generateText } from 'ai'
-// TODO(router-v2 Phase 4): migrate withFallback() call sites in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
-import { withFallback } from '@plexo/agent/providers/registry'
+import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import {
     recordConversation,
@@ -254,15 +253,18 @@ chatAppTransportRouter.post('/app-message', requireServiceKeyOrSession, async (r
                     }
 
                     let fullText = ''
-                    const result = await withFallback(aiSettings, 'conversation', async (model) =>
-                        streamText({
+                    const result = await routeAndCall({
+                        workspaceId,
+                        taskType: 'conversation',
+                        settings: aiSettings,
+                        doCall: async (model) => streamText({
                             model,
                             system: systemPrompt,
                             messages,
                             abortSignal: AbortSignal.timeout(120_000),
                         }),
-                        fallbackOpts(workspaceId),
-                    )
+                        opts: fallbackOpts(workspaceId),
+                    })
 
                     for await (const chunk of result.textStream) {
                         fullText += chunk
@@ -306,15 +308,18 @@ chatAppTransportRouter.post('/app-message', requireServiceKeyOrSession, async (r
             }
 
             // Non-streaming path
-            const aiResult2 = await withFallback(aiSettings, 'conversation', async (model) =>
-                generateText({
+            const aiResult2 = await routeAndCall({
+                workspaceId,
+                taskType: 'conversation',
+                settings: aiSettings,
+                doCall: async (model) => generateText({
                     model,
                     system: systemPrompt,
                     messages,
                     abortSignal: AbortSignal.timeout(120_000),
                 }),
-                fallbackOpts(workspaceId),
-            )
+                opts: fallbackOpts(workspaceId),
+            })
 
             const replyText = (aiResult2.text ?? '').trim()
 

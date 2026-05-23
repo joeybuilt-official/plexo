@@ -24,8 +24,7 @@ import { Router, type Router as RouterType } from 'express'
 import { generateText } from 'ai'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { loadDecryptedAIProviders } from './ai-provider-creds.js'
-// TODO(router-v2 Phase 4): migrate withFallback() call site in this file to routeAndCall from '@plexo/agent/providers/router-v2'.
-import { withFallback } from '@plexo/agent/providers/registry'
+import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
@@ -78,12 +77,12 @@ aiCompleteRouter.post('/complete', requireServiceKey, async (req, res) => {
             ? [{ role: 'system' as const, content: systemPrompt }, ...messages]
             : messages
 
-        const result = await withFallback(
-            aiSettings,
+        const result = await routeAndCall({
+            workspaceId,
             taskType,
-            (model) => generateText({ model, messages: allMessages, abortSignal: AbortSignal.timeout(30_000) }),
-            { workspaceId }
-        )
+            settings: aiSettings,
+            doCall: (model) => generateText({ model, messages: allMessages, abortSignal: AbortSignal.timeout(30_000) }),
+        })
 
         res.json({ text: result.text })
     } catch (err) {

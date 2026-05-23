@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { db, sql, eq, and } from '@plexo/db'
 import { tasks, taskSteps, artifacts, artifactVersions, installedConnections, WORK_KINDS, inferKind, kindToLegacyType, type WorkKind } from '@plexo/db'
 import { ulid } from 'ulid'
-import { withFallback, buildModel, PROVIDER_DEFAULT_MODELS } from '../providers/registry.js'
+import { buildModel, PROVIDER_DEFAULT_MODELS } from '../providers/registry.js'
 import { routeAndBuild, routeAndCall, RouterV2CallError } from '../providers/router-v2/index.js'
 import type { ResolvedModelMeta } from '../providers/router.js'
 import { modelSupportsVision, findVisionCapableModel } from '../providers/vision.js'
@@ -1332,15 +1332,19 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         taskType: taskTier,
         settings: effectiveSettings,
     }).catch(async (err) => {
-        // Router failure (e.g. empty models_knowledge table) — fall back to BYOK.
-        // This withFallback call resolves a usable AnyLanguageModel from the
-        // workspace's provider chain when the router itself can't pick one.
-        // The actual generateText step further down is ALSO wrapped in
-        // withFallback (see ~line 1745) — that's where 402 / 5xx / 429 from
-        // the resolved provider triggers chain advancement during execution.
+        // Router failure (e.g. empty models_knowledge table) — fall back to
+        // BYOK via routeAndCall's own selector + cascade. The actual
+        // generateText step further down is ALSO wrapped via routeAndCall
+        // (~line 1745) — that's where 402 / 5xx / 429 from the resolved
+        // provider triggers chain advancement during execution.
         routingFallbackUsed = true
         routingFallbackReason = err instanceof Error ? err.message : String(err)
-        const fallbackModel = await withFallback(settings, taskTier, async (m) => m)
+        const fallbackModel = await routeAndCall({
+            workspaceId: ctx.workspaceId,
+            taskType: taskTier,
+            settings,
+            doCall: async (m) => m,
+        })
         return { model: fallbackModel, meta: { id: 'unknown', provider: settings.primaryProvider as import('../providers/registry.js').ProviderKey, mode: 'byok' as import('../providers/router.js').InferenceMode, costPerMIn: 3, costPerMOut: 15 } }
     }))
 

@@ -688,105 +688,27 @@ export class ProviderResolutionError extends Error {
 
 
 
-/**
- * In-memory tracker for providers with confirmed auth failures (401/403).
- * Key: "workspaceId:providerKey", Value: timestamp when the failure was recorded.
- * Stale keys are skipped in the fallback chain for STALE_KEY_TTL_MS to avoid
- * repeated failed calls. The TTL auto-expires so if a user fixes the key,
- * the provider re-enters the chain automatically.
- */
-const staleKeyCache = new Map<string, number>()
-const STALE_KEY_TTL_MS = 10 * 60 * 1000 // 10 minutes
+// Stale-key and circuit-breaker state used to live here, attached to the
+// legacy `withFallback` chain walk. Router-v2 replaced that with
+// `auth-events.ts` (consecutive-failure tracking + telemetry) and
+// per-class cooldown in `router-v2/index.ts`. The exports below remain
+// as no-op stubs so external callers (ai-provider-creds, tests) keep
+// compiling; future PR can wire ai-provider-creds to
+// `auth-events.recordAuthSuccess` when a user updates an API key.
 
-/** Check whether a provider has a known-stale API key. */
-function isKeyStale(workspaceId: string, providerKey: string): boolean {
-    const key = `${workspaceId}:${providerKey}`
-    const ts = staleKeyCache.get(key)
-    if (!ts) return false
-    if (Date.now() - ts > STALE_KEY_TTL_MS) { staleKeyCache.delete(key); return false }
-    return true
+/** @deprecated since router-v2 cutover (L3.4j 2026-05-23). No-op. */
+export function clearStaleKey(_workspaceId: string, _providerKey: string): void {
+    /* no-op — router-v2/auth-events tracks failures now */
 }
 
-/** Mark a provider's API key as stale. */
-function markKeyStale(workspaceId: string, providerKey: string): void {
-    staleKeyCache.set(`${workspaceId}:${providerKey}`, Date.now())
+/** @deprecated since router-v2 cutover (L3.4j 2026-05-23). No-op. */
+export function clearProviderBreaker(_providerKey: string): void {
+    /* no-op — router-v2 cooldown is per-(workspace, provider, model, taskType), self-expiring */
 }
 
-/** Clear a provider's stale-key status (e.g. after user updates the key). */
-export function clearStaleKey(workspaceId: string, providerKey: string): void {
-    staleKeyCache.delete(`${workspaceId}:${providerKey}`)
-    clearProviderBreakerForProvider(providerKey)
-}
-
-// Incident: cron paths call withFallback() without workspaceId, bypassing the
-// wsId-scoped staleKeyCache and hammering invalid keys (>500 auth fails / 30 min).
-interface BreakerEntry {
-    consecutiveAuthFailures: number
-    firstFailureAt: number
-    trippedUntil: number
-}
-const providerBreaker = new Map<string, BreakerEntry>()
-const BREAKER_FAIL_THRESHOLD = 3
-const BREAKER_FAIL_WINDOW_MS = 5 * 60 * 1000
-const BREAKER_COOLDOWN_MS = 15 * 60 * 1000
-
-function breakerKey(providerKey: string, apiKey: string | undefined): string {
-    const h = apiKey ? createHash('sha256').update(apiKey).digest('hex').slice(0, 8) : 'no-key'
-    return `${providerKey}:${h}`
-}
-
-function isBreakerTripped(providerKey: string, apiKey: string | undefined): boolean {
-    const e = providerBreaker.get(breakerKey(providerKey, apiKey))
-    if (!e || e.trippedUntil === 0) return false
-    if (Date.now() >= e.trippedUntil) {
-        providerBreaker.delete(breakerKey(providerKey, apiKey))
-        return false
-    }
-    return true
-}
-
-function recordBreakerAuthFailure(providerKey: string, apiKey: string | undefined, errMsg: string): boolean {
-    const k = breakerKey(providerKey, apiKey)
-    const now = Date.now()
-    const prev = providerBreaker.get(k)
-    const e: BreakerEntry = !prev || now - prev.firstFailureAt > BREAKER_FAIL_WINDOW_MS
-        ? { consecutiveAuthFailures: 1, firstFailureAt: now, trippedUntil: 0 }
-        : { ...prev, consecutiveAuthFailures: prev.consecutiveAuthFailures + 1 }
-    if (e.consecutiveAuthFailures >= BREAKER_FAIL_THRESHOLD && e.trippedUntil === 0) {
-        e.trippedUntil = now + BREAKER_COOLDOWN_MS
-        providerBreaker.set(k, e)
-        console.info(JSON.stringify({
-            event: 'provider.circuit_open',
-            provider: providerKey,
-            keyHash: k.split(':')[1],
-            consecutiveAuthFailures: e.consecutiveAuthFailures,
-            cooldownMs: BREAKER_COOLDOWN_MS,
-            lastError: errMsg.slice(0, 200),
-        }))
-        return true
-    }
-    providerBreaker.set(k, e)
-    return false
-}
-
-function recordBreakerSuccess(providerKey: string, apiKey: string | undefined): void {
-    providerBreaker.delete(breakerKey(providerKey, apiKey))
-}
-
-function clearProviderBreakerForProvider(providerKey: string): void {
-    for (const k of providerBreaker.keys()) {
-        if (k.startsWith(`${providerKey}:`)) providerBreaker.delete(k)
-    }
-}
-
-/** Clear all circuit-breaker state for a provider (e.g. after key rotation). */
-export function clearProviderBreaker(providerKey: string): void {
-    clearProviderBreakerForProvider(providerKey)
-}
-
-/** Test-only: reset all breaker state. */
+/** @deprecated since router-v2 cutover (L3.4j 2026-05-23). No-op. Use `router-v2/auth-events._resetForTest()` instead. */
 export function _resetProviderBreakerForTest(): void {
-    providerBreaker.clear()
+    /* no-op */
 }
 
 export interface FallbackOptions {
@@ -802,234 +724,11 @@ export interface FallbackOptions {
     onFallbackEngaged?: (info: { workspaceId?: string; taskType: TaskType; primary: string; used: string; skipped: string[]; lastError: string }) => void
 }
 
-/**
- * Fallback chain wrapper.
- * Tries primary, then each provider in fallbackChain in order.
- * Only retries on provider-level errors (rate limit, timeout, 5xx).
- * Application-level errors (bad schema, cancelled task) propagate immediately.
- *
- * Providers with known-stale API keys are automatically skipped and the caller
- * is notified via opts.onAuthFailure so the user can be informed.
- */
-export async function withFallback<T>(
-    settings: WorkspaceAISettings,
-    taskType: TaskType,
-    fn: (model: AnyLanguageModel) => Promise<T>,
-    opts?: FallbackOptions,
-): Promise<T> {
-    // Phase 2 feature flag: when ROUTER_V2_ENABLED, delegate to the new
-    // task-routed selector. On any INTERNAL error from router-v2 (not from
-    // the call itself), fall back to the legacy walk below — defense in depth.
-    //
-    // ADR 0012 + plan.md Phase 2. Phase 4 migrates call sites to import
-    // `routeAndCall` directly; this gate is the transitional bridge.
-    // TODO(Phase 4): migrate 7 call sites of withFallback to call routeAndCall directly.
-    try {
-        const { isRouterV2Enabled, routeAndCall, RouterV2NoCandidateError, RouterV2CallError } =
-            await import('./router-v2/index.js')
-        if (isRouterV2Enabled()) {
-            try {
-                return await routeAndCall({
-                    workspaceId: opts?.workspaceId,
-                    taskType,
-                    settings,
-                    doCall: fn,
-                    opts,
-                })
-            } catch (err) {
-                // User-visible call error router-v2 decided not to retry → unwrap + propagate.
-                if (err instanceof RouterV2CallError) throw err.cause
-                // Q2 hybrid / no-candidate-available → propagate.
-                if (err instanceof RouterV2NoCandidateError) throw err
-                // Cascade exhausted → propagate; do not double-cascade.
-                if (err instanceof Error && err.name === 'RouterV2CascadeExhausted') throw err
-                // Anything else = internal selector/manifest bug → legacy path (defense in depth).
-            }
-        }
-    } catch (err) {
-        // Dynamic-import failure or unexpected throw at the gate — preserve
-        // router-v2's typed errors; fall through for unknown failures.
-        if (err instanceof Error && (
-            err.name === 'RouterV2NoCandidateError' ||
-            err.name === 'RouterV2CascadeExhausted' ||
-            err.name === 'RouterV2CallError'
-        )) {
-            throw err
-        }
-        // Also pass through the original cause when router-v2 wrapped a user error.
-        const anyErr = err as { name?: string; cause?: unknown }
-        if (anyErr && anyErr.cause && anyErr.name === 'RouterV2CallError') {
-            throw anyErr.cause
-        }
-    }
-
-    const chain = [settings.primaryProvider, ...settings.fallbackChain]
-    const wsId = opts?.workspaceId
-    let lastError: unknown
-    const skipped: string[] = []
-
-    for (const providerKey of chain) {
-        const config = settings.providers[providerKey]
-        if (!config) continue
-
-        // Skip providers with known-stale keys (auto-expires after TTL)
-        if (wsId && isKeyStale(wsId, providerKey)) { skipped.push(providerKey); continue }
-
-        if (isBreakerTripped(providerKey, config.apiKey)) {
-            lastError = new Error(`provider ${providerKey} circuit-open — rotate API key`)
-            skipped.push(providerKey)
-            continue
-        }
-
-        try {
-            const model = buildModel(providerKey, config, taskType, settings)
-            const result = await fn(model)
-            recordBreakerSuccess(providerKey, config.apiKey)
-            if (providerKey !== settings.primaryProvider) {
-                const info = {
-                    workspaceId: wsId,
-                    taskType,
-                    primary: settings.primaryProvider,
-                    used: providerKey,
-                    skipped,
-                    lastError: lastError instanceof Error ? lastError.message.slice(0, 200) : String(lastError ?? ''),
-                }
-                console.info(JSON.stringify({ event: 'provider.fallback_engaged', ...info }))
-                try { opts?.onFallbackEngaged?.(info) } catch { /* notification is best-effort */ }
-            }
-            return result
-        } catch (err) {
-            lastError = err
-
-            // Auth failure: mark provider as stale and notify caller
-            if (err instanceof Error && isAuthError(err)) {
-                if (wsId) markKeyStale(wsId, providerKey)
-                recordBreakerAuthFailure(providerKey, config.apiKey, err.message)
-                opts?.onAuthFailure?.(providerKey, err.message)
-            }
-
-            // Self-calibration logic: Penalize reliability on logic/parse errors
-            // FUN-024: Use the actual resolved model ID (same resolution logic as buildModel),
-            // not config.model which is the user-configured override and may be undefined.
-            if (err instanceof Error) {
-                const msg = err.message.toLowerCase()
-                if (msg.includes('logicerror') || msg.includes('jsonparseerror') || msg.includes('typevalidationerror')) {
-                    const validModel = (id: string | undefined) =>
-                        id && id.trim() !== '' && id !== 'default' && id !== 'placeholder' ? id : undefined
-                    const resolvedModelId =
-                        validModel(settings.modelOverrides?.[taskType]) ??
-                        validModel(config.model) ??
-                        PROVIDER_DEFAULT_MODELS[providerKey] ??
-                        DEFAULT_MODEL_ROUTING[taskType]
-                    if (resolvedModelId) {
-                        try {
-                            await db.update(modelsKnowledge)
-                                .set({ reliabilityScore: sql`GREATEST(0, ${modelsKnowledge.reliabilityScore} - 0.05)` })
-                                .where(eq(modelsKnowledge.modelId, resolvedModelId))
-                        } catch (dbErr) {
-                            // Non-fatal: calibration is best-effort
-                        }
-                    }
-                }
-            }
-
-            if (!isRetryableProviderError(err)) throw err
-
-            // This provider failed retryably — record and advance to the next one
-            skipped.push(providerKey)
-
-            // Backoff on rate-limit (429) before trying next provider
-            if (err instanceof Error && isRateLimitError(err)) {
-                const retryAfter = parseRetryAfterMs(err) || 2000
-                await new Promise(r => setTimeout(r, Math.min(retryAfter, 5000)))
-            }
-        }
-    }
-    throw lastError
-}
-
-/** Detect rate-limit specific errors (429, "rate limit"). */
-function isRateLimitError(err: Error): boolean {
-    const msg = err.message.toLowerCase()
-    return msg.includes('rate limit') || msg.includes('429') || msg.includes('too many requests')
-}
-
-/** Try to extract Retry-After from the error message (providers sometimes embed it). */
-function parseRetryAfterMs(err: Error): number | null {
-    // Some providers include "retry after Xs" or "retry-after: X" in the error message
-    const match = err.message.match(/retry[- ]after[:\s]*(\d+(?:\.\d+)?)/i)
-    if (!match) return null
-    const value = parseFloat(match[1]!)
-    // If value < 100, assume seconds; otherwise already in ms
-    return value < 100 ? value * 1000 : value
-}
-
-/** Detect auth-specific errors (invalid key, expired token, forbidden). */
-function isAuthError(err: Error): boolean {
-    const msg = err.message.toLowerCase()
-    return msg.includes('invalid api key') || msg.includes('invalid_api_key') ||
-        msg.includes('incorrect api key') || msg.includes('unauthorized') ||
-        msg.includes('authentication failed') ||
-        msg.includes('401') || msg.includes('403') || msg.includes('forbidden')
-}
-
-function isRetryableProviderError(err: unknown): boolean {
-    if (!(err instanceof Error)) return false
-    const msg = err.message.toLowerCase()
-    return (
-        msg.includes('rate limit') ||
-        msg.includes('timeout') ||
-        msg.includes('503') ||
-        msg.includes('529') ||
-        msg.includes('overloaded') ||
-        msg.includes('too many requests') ||
-        msg.includes('typevalidationerror') ||
-        msg.includes('jsonparseerror') ||
-        msg.includes('logicerror') ||
-        // Auth failures from stale/invalid keys — fall through to next provider
-        msg.includes('401') ||
-        msg.includes('403') ||
-        msg.includes('forbidden') ||
-        msg.includes('invalid api key') ||
-        msg.includes('unauthorized') ||
-        msg.includes('authentication failed') ||
-        msg.includes('invalid_api_key') ||
-        // Infrastructure errors — reverse proxy rejections, method not allowed
-        msg.includes('405') ||
-        msg.includes('method not allowed') ||
-        msg.includes('502') ||
-        msg.includes('bad gateway') ||
-        // Network connectivity — provider endpoint is unreachable or DNS fails.
-        // Must fall through to the next provider in the chain, not abort.
-        msg.includes('enotfound') ||
-        msg.includes('ehostunreach') ||
-        msg.includes('econnrefused') ||
-        msg.includes('econnreset') ||
-        msg.includes('cannot connect') ||
-        msg.includes('fetch failed') ||
-        msg.includes('network error') ||
-        // Billing / quota exhaustion — same provider can't process the request
-        // until the operator tops up; advancing to the next provider in the
-        // chain is the only way through without user intervention.
-        msg.includes('credit balance') ||
-        msg.includes('insufficient_quota') ||
-        msg.includes('insufficient quota') ||
-        msg.includes('billing') ||
-        msg.includes('quota exceeded') ||
-        msg.includes('payment required') ||
-        msg.includes('402') ||
-        // Model-not-available errors — provider's catalog doesn't include the
-        // workspace's selected_model (often happens when a provider deprecates
-        // a model or the operator's config drifts from the provider's roster).
-        // Skip to the next provider in the chain instead of hard-failing.
-        msg.includes('404') ||
-        msg.includes('not found') ||
-        msg.includes('model not found') ||
-        msg.includes('model_not_found') ||
-        msg.includes('does not exist') ||
-        msg.includes('unknown model')
-    )
-}
+// withFallback() retired 2026-05-23 (L3.4j). All callers now use
+// routeAndCall() from './router-v2/index.js' directly. Error classification
+// + cooldown logic moved into 'router-v2/error-classifier.ts' (classes:
+// rate-limit, transient-5xx, network, auth, quota, context-window,
+// content-policy, parse-malformed).
 
 // ── Default smoke-test model IDs per provider ─────────────────────────────────
 

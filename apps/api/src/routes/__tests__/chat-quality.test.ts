@@ -90,10 +90,13 @@ vi.mock('@plexo/queue', () => ({
 }))
 
 vi.mock('@plexo/agent/providers/registry', () => ({
-    withFallback: async (_s: unknown, _t: unknown, fn: (m: unknown) => Promise<unknown>) =>
-        fn({ id: 'mock-model' }),
     PROVIDER_DEFAULT_MODELS: { anthropic: 'claude-haiku-4-5' },
     buildModel: vi.fn(),
+}))
+
+vi.mock('@plexo/agent/providers/router-v2', () => ({
+    routeAndCall: async (input: { doCall: (m: unknown) => Promise<unknown> }) =>
+        input.doCall({ id: 'mock-model' }),
 }))
 
 vi.mock('@plexo/agent/providers/vision', () => ({
