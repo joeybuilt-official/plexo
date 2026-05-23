@@ -122,7 +122,7 @@ export const MANIFEST: ManifestTable = {
         openai: { priorScore: 4, capabilities: [...BASE, 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
         google: { priorScore: 4, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
         deepseek: { priorScore: 3, capabilities: [...BASE], quirks: ['deepseek-slow-on-long-prompts'], lastValidatedAt: '2026-05-13' },
-        groq: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-23' },
         ollama_cloud: { priorScore: 2, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit', 'ollama-cloud-cold-start-latency'], lastValidatedAt: '2026-05-13' },
     },
     codeGeneration: {
@@ -130,7 +130,7 @@ export const MANIFEST: ManifestTable = {
         openai: { priorScore: 4, capabilities: [...BASE, 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
         deepseek: { priorScore: 4, capabilities: [...BASE], quirks: ['deepseek-slow-on-long-prompts'], lastValidatedAt: '2026-05-13' },
         google: { priorScore: 3, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
-        groq: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-23' },
     },
     verification: {
         anthropic: { priorScore: 5, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
