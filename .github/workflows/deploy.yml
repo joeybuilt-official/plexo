@@ -24,16 +24,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 10
 
       - name: Detect changed services
         id: changes
         run: |
           SERVICES=""
+          NO_BUILD_SERVICES=""
           # Manual trigger or failed diff → rebuild all
           CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "all")
+          # Compose-spec changes apply to image-only services (e.g. falkordb)
+          # that the per-commit filter never lists. The narrow HEAD~1..HEAD
+          # diff would miss a compose change that landed in a previous
+          # commit but never got picked up (because that commit also had no
+          # service-source changes). Widen the window for compose detection
+          # so a pending spec change is still applied on the next deploy.
+          # `docker compose up -d --no-deps` is idempotent — repeat runs
+          # against an unchanged spec are no-ops, so a wider window is safe.
+          COMPOSE_CHANGED=$(git diff --name-only HEAD~5 HEAD 2>/dev/null \
+            || git diff --name-only HEAD~1 HEAD 2>/dev/null \
+            || echo "all")
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             CHANGED="all"
+            COMPOSE_CHANGED="all"
           fi
 
           if echo "$CHANGED" | grep -qE '^(apps/api|packages/|docker/Dockerfile\.api)' || [ "$CHANGED" = "all" ]; then
@@ -44,16 +57,25 @@ jobs:
             SERVICES="$SERVICES plexo-saas"
           fi
 
+          # Image-only services that need recreation on compose-spec drift
+          # (no `--build` — these aren't built from this repo).
+          if echo "$COMPOSE_CHANGED" | grep -qE '^docker-compose(\.prod)?\.yml$' || [ "$COMPOSE_CHANGED" = "all" ]; then
+            NO_BUILD_SERVICES="falkordb"
+          fi
+
           SERVICES=$(echo "$SERVICES" | xargs)
-          if [ -z "$SERVICES" ]; then
-            echo "No services to rebuild"
+          NO_BUILD_SERVICES=$(echo "$NO_BUILD_SERVICES" | xargs)
+          if [ -z "$SERVICES" ] && [ -z "$NO_BUILD_SERVICES" ]; then
+            echo "No services to rebuild or recreate"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
           echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
+          echo "no_build_services=$NO_BUILD_SERVICES" >> "$GITHUB_OUTPUT"
           echo "Rebuilding: ${SERVICES:-none}"
+          echo "Recreating (no build): ${NO_BUILD_SERVICES:-none}"
 
       - name: Setup SSH
         if: steps.changes.outputs.skip != 'true'
@@ -103,7 +125,7 @@ jobs:
           | tail -200
 
       - name: Rebuild services
-        if: steps.changes.outputs.skip != 'true'
+        if: steps.changes.outputs.skip != 'true' && steps.changes.outputs.services != ''
         env:
           SERVICES: ${{ steps.changes.outputs.services }}
         run: |
@@ -119,3 +141,19 @@ jobs:
           ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
               -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             "set -ex; cd '$COMPOSE_DIR' && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps $SERVICES 2>&1"
+
+      - name: Recreate image-only services (no build)
+        if: steps.changes.outputs.skip != 'true' && steps.changes.outputs.no_build_services != ''
+        env:
+          NO_BUILD_SERVICES: ${{ steps.changes.outputs.no_build_services }}
+        run: |
+          set -euo pipefail
+          # `up -d --no-deps` recreates only if the container spec drifted
+          # from the image-baked config (e.g. when docker-compose.yml's
+          # `command:` or env changed). For image-only services like
+          # falkordb there is no `--build` to do; the new compose file
+          # already landed via rsync, so this is the step that makes the
+          # spec actually take effect inside the running container.
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+              -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            "set -ex; cd '$COMPOSE_DIR' && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps $NO_BUILD_SERVICES 2>&1"
