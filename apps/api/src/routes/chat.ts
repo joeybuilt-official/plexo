@@ -140,8 +140,25 @@ interface ClassifiedError {
 
 function classifyAIError(err: unknown): ClassifiedError {
     const raw = err instanceof Error ? err.message : String(err)
+    const errName = err instanceof Error ? err.name : ''
     const lower = raw.toLowerCase()
     const technical = raw.slice(0, 300)
+
+    // Router-v2 typed errors — surfaced from routeAndCall when the selector
+    // can't find a candidate that meets the quality bar, or the cascade
+    // exhausts.
+    if (errName === 'RouterV2NoCandidateError') {
+        if (lower.includes('high-stakes') || lower.includes('quality bar') || lower.includes('operator action')) {
+            return { type: 'no_quality_provider', message: 'No high-quality provider available for this task. Add an OpenAI, Anthropic, or DeepSeek key in Settings → AI Providers, or top up an existing provider that ran out of credit.', fixUrl: '/settings/ai-providers', fixLabel: 'Add or top up provider', technical }
+        }
+        return { type: 'no_provider', message: 'No AI provider is configured for this workspace task type. Add one in Settings → AI Providers.', fixUrl: '/settings/ai-providers', fixLabel: 'Configure AI provider', technical }
+    }
+    if (errName === 'RouterV2CascadeExhausted') {
+        return { type: 'cascade_exhausted', message: "Every provider in this workspace's chain failed in a row. Try again in a moment, or add a fresh provider in Settings.", fixUrl: '/settings/ai-providers', fixLabel: 'Add another provider', technical }
+    }
+    if (errName === 'RouterV2CallError' || lower.includes('parse-malformed') || (lower.includes('no object generated') && lower.includes('json'))) {
+        return { type: 'parse_malformed', message: "The model returned malformed output and there's no fallback provider to retry on. Add a second provider in Settings so this task can retry on a different model.", fixUrl: '/settings/ai-providers', fixLabel: 'Add fallback provider', technical }
+    }
 
     if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('invalid api key') || lower.includes('invalid_api_key') || lower.includes('authentication failed')) {
         return { type: 'invalid_api_key', message: 'Your API key was rejected. It may be wrong, expired, or for a different provider.', fixUrl: '/settings/ai-providers', fixLabel: 'Update API key', technical }
@@ -1229,7 +1246,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/message failed')
         trackEvent('channel.error', 'error', { channel: 'webchat', error: 'message_handler_failed' })
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to queue message' } })
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: "Couldn't queue your message. Try again — if it keeps happening, check Settings → AI Providers." } })
     }
     }) // end withSessionLock
 })
@@ -1415,7 +1432,7 @@ chatRouter.post('/execute-action', async (req, res) => {
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/execute-action failed')
         trackEvent('channel.error', 'error', { channel: 'webchat', error: 'execute_action_failed' })
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to execute action' } })
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: "Couldn't create the task. If this persists, check workspace quota and provider status in Settings." } })
     }
 })
 
