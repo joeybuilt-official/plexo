@@ -225,23 +225,31 @@ describe('router-v2 selector', () => {
 
     it('Q2 hybrid: planning + only low-quality providers → requireOperatorAction', () => {
         // Construct an "all low quality" candidate set by monkey-patching the
-        // manifest for the test. groq alone for planning has priorScore=2.
-        const settings = baseSettings({
-            primaryProvider: 'groq',
-            fallbackChain: [],
-            providers: {
-                groq: { provider: 'groq', apiKey: 'gsk_test', model: 'llama-3.3-70b', enabled: true },
-            },
-        })
-        const r = selectModel({
-            workspaceId: 'ws-1',
-            taskType: 'planning',
-            availableProviders: [{ provider: 'groq', config: settings.providers.groq! }],
-            settings,
-        })
-        expect(r.chosen).toBeNull()
-        expect(r.requireOperatorAction).toBe(true)
-        expect(r.rationale).toContain('high-stakes')
+        // manifest for the test. (Production manifest gives groq/planning
+        // priorScore=3 — at the bar — so we mutate it down to 2 to exercise
+        // the Q2 path. Same pattern as the summarization test below.)
+        const orig = MANIFEST.planning.groq!.priorScore
+        ;(MANIFEST.planning.groq as any).priorScore = 2
+        try {
+            const settings = baseSettings({
+                primaryProvider: 'groq',
+                fallbackChain: [],
+                providers: {
+                    groq: { provider: 'groq', apiKey: 'gsk_test', model: 'llama-3.3-70b', enabled: true },
+                },
+            })
+            const r = selectModel({
+                workspaceId: 'ws-1',
+                taskType: 'planning',
+                availableProviders: [{ provider: 'groq', config: settings.providers.groq! }],
+                settings,
+            })
+            expect(r.chosen).toBeNull()
+            expect(r.requireOperatorAction).toBe(true)
+            expect(r.rationale).toContain('high-stakes')
+        } finally {
+            ;(MANIFEST.planning.groq as any).priorScore = orig
+        }
     })
 
     it('Q2 hybrid: summarization + only low-quality providers → routes through anyway', () => {
@@ -481,20 +489,30 @@ describe('routeAndCall vs withFallback — equivalence', () => {
     })
 
     it('high-stakes + only low-quality providers → throws RouterV2NoCandidateError', async () => {
+        // Production manifest puts groq/planning at priorScore=3 — at the
+        // Q2 hybrid bar — so we mutate it down to 2 here to exercise the
+        // RouterV2NoCandidateError path. Same pattern as the selector-level
+        // Q2 hybrid test earlier in the file.
         _setRouterV2EnabledForTest(true)
-        const settings = baseSettings({
-            primaryProvider: 'groq',
-            fallbackChain: [],
-            providers: {
-                groq: { provider: 'groq', apiKey: 'gsk_test', model: 'llama-3.3-70b', enabled: true },
-            },
-        })
-        await expect(routeAndCall({
-            workspaceId: 'wsLow',
-            taskType: 'planning',
-            settings,
-            doCall: async () => 'never',
-        })).rejects.toBeInstanceOf(RouterV2NoCandidateError)
+        const orig = MANIFEST.planning.groq!.priorScore
+        ;(MANIFEST.planning.groq as any).priorScore = 2
+        try {
+            const settings = baseSettings({
+                primaryProvider: 'groq',
+                fallbackChain: [],
+                providers: {
+                    groq: { provider: 'groq', apiKey: 'gsk_test', model: 'llama-3.3-70b', enabled: true },
+                },
+            })
+            await expect(routeAndCall({
+                workspaceId: 'wsLow',
+                taskType: 'planning',
+                settings,
+                doCall: async () => 'never',
+            })).rejects.toBeInstanceOf(RouterV2NoCandidateError)
+        } finally {
+            ;(MANIFEST.planning.groq as any).priorScore = orig
+        }
     })
 
     it('all candidates have no manifest entry → throws RouterV2NoCandidateError (no operator action)', async () => {
