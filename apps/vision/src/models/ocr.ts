@@ -30,7 +30,13 @@ const logger = childLogger('ocr')
 
 export const OCR_MODEL_ID = 'qwen2.5vl:7b'
 
-const OCR_TIMEOUT_MS = 60_000
+// Qwen2.5-VL 7B on CPU regularly takes 60–180 s/image and the 3B variant
+// 20–40 s; the earlier 60 s cap aborted nearly every 7B call on the server. Cap
+// at 5 min so a wedged Ollama process eventually fails the call but real
+// cold-cache runs and high-detail prompts don't trip the abort. Fonto's
+// own OCR_TIMEOUT_MS is also bumped to 300 s; this envelope just guards
+// against Ollama hanging indefinitely on the upstream side.
+const OCR_TIMEOUT_MS = 300_000
 const OCR_PROMPT =
     'Extract all visible text from this image, preserving line breaks exactly as they appear. ' +
     'Output ONLY the extracted text — no preamble, no explanation, no markdown. ' +
