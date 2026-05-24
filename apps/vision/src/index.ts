@@ -33,6 +33,7 @@ import { requireServiceKey } from './lib/auth.js'
 import { metaRouter } from './routes/meta.js'
 import { clipRouter } from './routes/clip.js'
 import { facesRouter } from './routes/faces.js'
+import { facesV1Router } from './routes/faces-v1.js'
 import { ocrRouter } from './routes/ocr.js'
 
 const PORT = parseInt(process.env.PORT ?? '7000', 10)
@@ -52,6 +53,12 @@ app.use('/vision', metaRouter)
 app.use('/vision/clip', requireServiceKey, clipRouter)
 app.use('/vision/faces', requireServiceKey, facesRouter)
 app.use('/vision/ocr', requireServiceKey, ocrRouter)
+
+// Fonto-facing combined detect+embed endpoint. The route prefix is
+// `/v1/faces/...` (not `/vision/faces/...`) — Fonto's
+// `lib/processing/detectFaces.ts` hits this path directly. Same auth
+// gate as the granular routes above.
+app.use('/v1/faces', requireServiceKey, facesV1Router)
 
 app.listen(PORT, '0.0.0.0', () => {
     rootLogger.info({ port: PORT }, 'Plexo vision service listening')

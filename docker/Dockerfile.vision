@@ -11,7 +11,14 @@
 # service downloads + SHA-256 verifies them on first request into
 # MODEL_CACHE_DIR (default /home/plexo/.plexo/vision/models).
 
-FROM node:22-alpine AS base
+# Deps stage runs on the same glibc base as runtime so prebuilt native
+# modules (sharp, onnxruntime-node) link against the right libc. Earlier
+# revisions used node:22-alpine here and copied node_modules across — that
+# silently shipped musl-linked sharp binaries to the Debian runtime and
+# crashed on first import.
+FROM node:22-slim AS base
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # ── Install deps ──────────────────────────────────────────────────────

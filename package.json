@@ -9,12 +9,15 @@
       "core-js",
       "isolated-vm",
       "onnxruntime-node",
-      "protobufjs"
+      "protobufjs",
+      "sharp"
     ],
     "overrides": {
       "tar": ">=7.5.7",
       "path-to-regexp": ">=8.0.0",
-      "fast-xml-parser": ">=4.4.1"
+      "fast-xml-parser": ">=4.4.1",
+      "onnxruntime-node": "1.24.3",
+      "onnxruntime-common": "1.24.3"
     }
   },
   "engines": {
