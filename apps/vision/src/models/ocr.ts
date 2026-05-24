@@ -24,11 +24,45 @@
  * round-trip preserves the original layout intent.
  */
 
+import sharp from 'sharp'
 import { childLogger } from '../lib/logger.js'
+import { decodeBase64Input } from '../lib/image.js'
 
 const logger = childLogger('ocr')
 
 export const OCR_MODEL_ID = 'qwen2.5vl:7b'
+
+// Qwen2.5-VL's vision encoder tiles the input image into a fixed patch
+// grid; running it against a 3000×4000 phone photo doesn't yield more
+// useful signal than a 1024×1024 downscaled version, and CPU inference
+// scales linearly with input pixel count. Cap the long edge at 1024 px
+// before sending to Ollama: the 3 OCR failures seen on the first prod
+// backfill were timeouts on 1080+ px previews. JPEG q85 keeps the payload
+// small without softening text edges enough to hurt recognition.
+const OCR_INPUT_MAX_EDGE = 1024
+const OCR_INPUT_JPEG_QUALITY = 85
+
+async function downsizeForOcr(base64: string): Promise<string> {
+    const bytes = decodeBase64Input(base64)
+    const meta = await sharp(bytes, { failOn: 'error' }).metadata()
+    const w = meta.width ?? 0
+    const h = meta.height ?? 0
+    if (w <= OCR_INPUT_MAX_EDGE && h <= OCR_INPUT_MAX_EDGE) {
+        // Already small enough — pass through unchanged. Saves a sharp
+        // round-trip + re-encode for screenshots / thumbnails / tiny
+        // uploads.
+        return base64
+    }
+    const resized = await sharp(bytes)
+        .removeAlpha()
+        .resize(OCR_INPUT_MAX_EDGE, OCR_INPUT_MAX_EDGE, {
+            fit: 'inside',
+            withoutEnlargement: true,
+        })
+        .jpeg({ quality: OCR_INPUT_JPEG_QUALITY })
+        .toBuffer()
+    return resized.toString('base64')
+}
 
 // Qwen2.5-VL 7B on CPU regularly takes 60–180 s/image and the 3B variant
 // 20–40 s; the earlier 60 s cap aborted nearly every 7B call on the host. Cap
@@ -95,6 +129,10 @@ async function loadEngine(): Promise<OcrEngine> {
             modelId,
             async recognize(image, _lang) {
                 const t0 = performance.now()
+                // Downsize before serializing — measured ~3-4× faster on
+                // 2-4 MP camera previews. The metadata read+resize cost
+                // is ~50 ms vs minutes saved on the VLM side.
+                const downsized = await downsizeForOcr(image)
                 const controller = new AbortController()
                 const timer = setTimeout(() => controller.abort(), OCR_TIMEOUT_MS)
                 try {
@@ -106,11 +144,28 @@ async function loadEngine(): Promise<OcrEngine> {
                             body: JSON.stringify({
                                 model: modelId,
                                 prompt: OCR_PROMPT,
-                                images: [image],
+                                images: [downsized],
                                 stream: false,
-                                // Low temperature: OCR is a deterministic
-                                // transcription task, not generation.
-                                options: { temperature: 0 },
+                                // keep_alive 30 m so subsequent calls in
+                                // a backfill don't pay the 30-60 s warm
+                                // load on each invocation.
+                                keep_alive: '30m',
+                                options: {
+                                    // OCR is a deterministic
+                                    // transcription task, not generation.
+                                    temperature: 0,
+                                    // Cap context at 4096. Ollama's
+                                    // default is 32 k, which inflates the
+                                    // KV-cache to ~10 GB and forces a
+                                    // CPU fallback even on 12 GB GPUs.
+                                    // The OCR prompt is ~150 tokens and
+                                    // we cap responses well under 2 k —
+                                    // 4 k is more than enough headroom
+                                    // and lets the 7B model fit fully on
+                                    // a single RTX 3060.
+                                    num_ctx: 4096,
+                                    num_predict: 2048,
+                                },
                             }),
                             signal: controller.signal,
                         },
