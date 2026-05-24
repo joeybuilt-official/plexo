@@ -5,8 +5,7 @@
  * Router v2 — public entry point.
  *
  * `routeAndCall<T>({ workspaceId, taskType, settings, doCall, opts? })`
- * is shape-equivalent to `withFallback` so callers can swap behind the
- * ROUTER_V2_ENABLED feature flag without API churn.
+ * is the only path callers use to invoke a provider model with cascade.
  *
  * Internal flow:
  *   1. Build candidate list from settings.providers.
@@ -15,9 +14,6 @@
  *   4. Call chosen; on retryable error → classify → recordCooldown +
  *      recordCall, then re-select with that candidate excluded, retry once.
  *   5. If still failing → throw with `router-v2 cascade exhausted`.
- *
- * Feature-flag gate lives in `registry.withFallback`; this module is the
- * implementation invoked when ROUTER_V2_ENABLED=true.
  */
 
 import {
@@ -41,7 +37,6 @@ export * from './selector.js'
 export * from './error-classifier.js'
 export * from './stats.js'
 export * from './telemetry.js'
-export * from './shadow.js'
 export * from './auth-events.js'
 export * from './quality-warnings.js'
 
@@ -72,9 +67,8 @@ export class RouterV2CascadeExhausted extends Error {
 
 /**
  * Marker class wrapping a user-thrown error that the router classified as
- * non-fallback. Used so the feature-flag gate in `withFallback` can
- * distinguish "router-v2 internal failure → fall through to legacy walk"
- * from "user's doCall threw something we shouldn't retry → propagate".
+ * non-fallback. Callers can unwrap `err.cause` to get the original error
+ * (notably for AbortError/TimeoutError retry logic at the call site).
  */
 export class RouterV2CallError extends Error {
     readonly code = 'ROUTER_V2_CALL_ERROR'
@@ -316,15 +310,3 @@ export async function routeAndBuild(input: {
     }
 }
 
-/** Process-boot env-var read. Reads ONCE per import — set before module load. */
-export const ROUTER_V2_ENABLED: boolean =
-    (process.env.ROUTER_V2_ENABLED ?? '').toLowerCase() === 'true' ||
-    process.env.ROUTER_V2_ENABLED === '1'
-
-/** Test-only override — flips the gate at runtime. */
-let _testGateOverride: boolean | null = null
-export function _setRouterV2EnabledForTest(v: boolean | null): void { _testGateOverride = v }
-export function isRouterV2Enabled(): boolean {
-    if (_testGateOverride !== null) return _testGateOverride
-    return ROUTER_V2_ENABLED
-}
