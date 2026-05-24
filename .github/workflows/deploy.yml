@@ -157,3 +157,46 @@ jobs:
           ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
               -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
             "set -ex; cd '$COMPOSE_DIR' && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps $NO_BUILD_SERVICES 2>&1"
+
+      - name: Install/refresh falkordb backup cron
+        if: steps.changes.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          # ops/falkordb-backup.cron is the host-side daily snapshot +
+          # weekly S3 upload (ADR 0030). The committed file hardcodes
+          # `/opt/joeybuilt/plexo` as a sensible default for operator
+          # reference; we template VPS_REPO in on install so the script
+          # path matches whatever the deploy actually uses.
+          # AWS_S3_BACKUP_BUCKET + AWS_* still need to be set by the
+          # operator in /etc/default/falkordb-backup for the Sunday
+          # off-host upload line to do anything; the daily local-rotation
+          # line works without them.
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+              -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            "set -ex; sed 's|/opt/joeybuilt/plexo|$VPS_REPO|g' '$VPS_REPO/ops/falkordb-backup.cron' > /etc/cron.d/falkordb-backup && chmod 644 /etc/cron.d/falkordb-backup && mkdir -p /var/backups/falkordb && touch /var/log/falkordb-backup.log"
+
+      - name: Verify falkordb config + freshness
+        if: steps.changes.outputs.skip != 'true' && contains(steps.changes.outputs.no_build_services, 'falkordb')
+        run: |
+          set -euo pipefail
+          # Self-check on every falkordb recreate: confirm the new --save
+          # tiers are actually in the running container's Cmd, and log
+          # LASTSAVE so future regressions are visible in the Actions log
+          # instead of waiting for the host-side backup-absent-alert to fire.
+          # Doesn't fail the deploy — LASTSAVE may be stale immediately after
+          # recreate; the in-process 3600/1 tier picks up on the next write.
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+              -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            'set -ex
+             sleep 5
+             echo "==> falkordb container Cmd:"
+             docker inspect service --format "{{ .Config.Cmd }}"
+             echo "==> LASTSAVE (epoch) / age:"
+             LASTSAVE=$(docker exec service redis-cli LASTSAVE)
+             NOW=$(date +%s)
+             AGE=$(( NOW - LASTSAVE ))
+             AGE_H=$(( AGE / 3600 ))
+             echo "lastsave=$LASTSAVE  now=$NOW  age=${AGE}s (${AGE_H}h)"
+             if [ "$AGE_H" -gt 25 ]; then
+               echo "::warning::LASTSAVE is ${AGE_H}h old (>25h). Expected — container was just recreated; next write should trigger BGSAVE via the 3600/1 tier within the hour."
+             fi'
