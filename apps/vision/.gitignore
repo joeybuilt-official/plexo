@@ -1,0 +1,11 @@
+# ONNX model weights (downloaded at first run, never tracked in git)
+models/**/*.onnx
+models/**/*.json
+models/**/*.txt
+models/**/*.bin
+!models/README.md
+!models/.gitkeep
+
+# Build artifacts
+dist/
+tsconfig.tsbuildinfo

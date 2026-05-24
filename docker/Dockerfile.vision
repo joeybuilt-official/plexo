@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Joeybuilt LLC
+#
+# Plexo Vision service — ONNX Runtime-backed CLIP / faces / OCR.
+#
+# Pattern mirrors docker/Dockerfile.embeddings: pnpm install in Alpine,
+# then a Debian-slim runtime stage because onnxruntime-node links against
+# glibc + libstdc++ that Alpine's musl can't satisfy.
+#
+# Model weights are NOT baked in (~600 MB for the full bundle) — the
+# service downloads + SHA-256 verifies them on first request into
+# MODEL_CACHE_DIR (default /home/plexo/.plexo/vision/models).
+
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# ── Install deps ──────────────────────────────────────────────────────
+FROM base AS deps
+WORKDIR /app
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/vision/package.json apps/vision/
+
+RUN pnpm install --frozen-lockfile --filter @plexo/vision...
+
+# ── Runtime ───────────────────────────────────────────────────────────
+FROM node:22-slim AS runner
+WORKDIR /app
+
+# onnxruntime-node + sharp both want glibc. wget is for the container
+# healthcheck (the embeddings image uses node -e instead; we go with wget
+# for simpler debugging from a shell).
+RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system --gid 1001 plexo && \
+    useradd --system --uid 1001 --gid plexo --create-home plexo
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/vision/node_modules ./apps/vision/node_modules
+
+# Root manifests (pnpm workspace resolution at runtime).
+COPY package.json pnpm-workspace.yaml ./
+COPY tsconfig.base.json ./
+
+COPY apps/vision ./apps/vision
+
+# Writable cache for models downloaded on first request.
+RUN mkdir -p /home/plexo/.plexo/vision/models && \
+    chown -R plexo:plexo /app /home/plexo/.plexo
+
+USER plexo
+EXPOSE 7000
+
+ENV PORT=7000
+ENV MODEL_CACHE_DIR=/home/plexo/.plexo/vision/models
+ENV NODE_ENV=production
+
+# Run via tsx to match apps/embeddings (no separate build step in the image).
+CMD ["node", "--max-old-space-size=2048", "/app/apps/vision/node_modules/tsx/dist/cli.mjs", "apps/vision/src/index.ts"]
