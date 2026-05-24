@@ -2,13 +2,14 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Router v2 — equivalence tests.
+ * Router v2 — behavioral tests.
  *
- * Verifies that for a given WorkspaceAISettings, `routeAndCall` (flag on) and
- * `withFallback` (flag off) produce equivalent outcomes (happy path, each
- * retryable error class, all-fail cascade exhaustion).
+ * Originally an equivalence suite against the legacy `withFallback` (gate-on
+ * vs gate-off). withFallback was retired in L3.4j (2026-05-23); these tests
+ * are kept as the canonical behavioral spec for `routeAndCall`.
  *
- * Also verifies:
+ * Covers:
+ *   - happy path + each retryable error class + all-fail cascade exhaustion
  *   - selector p95 < 50ms (benchmark)
  *   - Q2 hybrid block on high-stakes + all-low-quality
  *   - Q2 hybrid pass-through on summarization + all-low-quality
@@ -58,8 +59,6 @@ import {
 import {
     routeAndCall,
     selectModel,
-    isRouterV2Enabled,
-    _setRouterV2EnabledForTest,
     _resetStatsForTest,
     recordCall,
     RouterV2NoCandidateError,
@@ -85,28 +84,11 @@ const baseSettings = (overrides: Partial<WorkspaceAISettings> = {}): WorkspaceAI
 beforeEach(async () => {
     _resetProviderBreakerForTest()
     _resetStatsForTest()
-    _setRouterV2EnabledForTest(null)
     _drainOpsEventQueueForTest()
     const { _resetAuthEventsForTest } = await import('../auth-events.js')
     const { _resetQualityWarningsForTest } = await import('../quality-warnings.js')
     _resetAuthEventsForTest()
     _resetQualityWarningsForTest()
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Feature flag
-
-describe('router-v2 feature flag', () => {
-    it('is gated on env var (default off)', () => {
-        // Default state — env may or may not set it; test override is null.
-        const before = isRouterV2Enabled()
-        _setRouterV2EnabledForTest(true)
-        expect(isRouterV2Enabled()).toBe(true)
-        _setRouterV2EnabledForTest(false)
-        expect(isRouterV2Enabled()).toBe(false)
-        _setRouterV2EnabledForTest(null)
-        expect(isRouterV2Enabled()).toBe(before)
-    })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -422,7 +404,6 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
     // exercise the new cascade-aware behavior.
 
     it('happy path: primary succeeds → returns the result', async () => {
-        _setRouterV2EnabledForTest(true)
         const routed = await routeAndCall({
             workspaceId: 'ws-1',
             taskType: 'conversation',
@@ -440,7 +421,6 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
             return 'ok'
         })
 
-        _setRouterV2EnabledForTest(true)
         const routed = await routeAndCall({
             workspaceId: 'wsB',
             taskType: 'conversation',
@@ -455,7 +435,6 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
             throw new Error('503 service unavailable')
         })
 
-        _setRouterV2EnabledForTest(true)
         _resetStatsForTest()
         await expect(routeAndCall({
             workspaceId: 'wsB',
@@ -471,7 +450,6 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
             throw new Error('schema validation: required field "id" missing in tool output')
         })
 
-        _setRouterV2EnabledForTest(true)
         await expect(routeAndCall({
             workspaceId: 'wsX',
             taskType: 'conversation',
@@ -486,7 +464,6 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
         // Q2 hybrid bar — so we mutate it down to 2 here to exercise the
         // RouterV2NoCandidateError path. Same pattern as the selector-level
         // Q2 hybrid test earlier in the file.
-        _setRouterV2EnabledForTest(true)
         const orig = MANIFEST.planning.groq!.priorScore
         ;(MANIFEST.planning.groq as any).priorScore = 2
         try {
@@ -509,7 +486,6 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
     })
 
     it('all candidates have no manifest entry → throws RouterV2NoCandidateError (no operator action)', async () => {
-        _setRouterV2EnabledForTest(true)
         const settings: WorkspaceAISettings = {
             primaryProvider: 'custom_xyz' as ProviderKey,
             fallbackChain: [],
@@ -536,7 +512,6 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
 
 describe('router-v2 stats workspace isolation', () => {
     it('one workspace failing does not poison another workspace selection', async () => {
-        _setRouterV2EnabledForTest(true)
         _resetStatsForTest()
 
         // Broken workspace: every call to anthropic 503's, cascade picks openai.

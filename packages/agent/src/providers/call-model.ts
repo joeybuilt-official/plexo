@@ -122,9 +122,10 @@ export interface CallModelOpts<T = unknown> {
      * tried with N=2 (native generateObject → generateText repair) before
      * advancing. Default empty: throw the parse error after repair fails.
      *
-     * Note: cross-provider fallback for callers that go through
-     * `withFallback` is handled at THAT layer — this option is for direct
-     * `callModel({ schema })` callers that want their own per-call chain.
+     * Note: cross-provider cascade for callers that go through
+     * `routeAndCall` (`providers/router-v2/index.ts`) is handled at THAT
+     * layer — this option is for direct `callModel({ schema })` callers
+     * that want their own per-call chain.
      */
     fallbackChain?: AnyLanguageModel[]
 }
