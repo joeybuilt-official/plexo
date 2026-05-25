@@ -166,13 +166,6 @@ export class CohereEmbeddingAdapter implements EmbeddingAdapter {
 
 // ── Ollama (local) ──────────────────────────────────────────────────────────
 
-/**
- * Default LLM model to unload before embedding. On CPU-only hosts Ollama
- * can't hold both a chat model and an embedding model in RAM simultaneously.
- * Override via OLLAMA_LLM_MODEL env var if using a different chat model.
- */
-const OLLAMA_LLM_MODEL = process.env.OLLAMA_LLM_MODEL ?? 'llama3.2'
-
 export class OllamaEmbeddingAdapter implements EmbeddingAdapter {
     readonly providerId: string
     readonly model: string
@@ -186,29 +179,8 @@ export class OllamaEmbeddingAdapter implements EmbeddingAdapter {
         this.providerId = providerId
     }
 
-    /**
-     * Unload the active LLM model so Ollama has enough RAM to load the
-     * embedding model. Uses keep_alive: 0 on a no-op generate call which
-     * tells Ollama to immediately evict the model from memory.
-     */
-    private async unloadLLM(): Promise<void> {
-        try {
-            await fetch(`${this.baseUrl}/api/generate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: OLLAMA_LLM_MODEL, keep_alive: 0 }),
-                signal: AbortSignal.timeout(10_000),
-            })
-        } catch {
-            // Best-effort — if the LLM isn't loaded this will 404/fail, which is fine.
-        }
-    }
-
     async embed(text: string): Promise<number[]> {
         if (!text.trim()) throw new Error('Cannot embed empty text')
-
-        // On CPU-only hosts, unload the LLM first to free RAM for the embedding model.
-        await this.unloadLLM()
 
         const url = `${this.baseUrl}/api/embed`
         const body = JSON.stringify({
