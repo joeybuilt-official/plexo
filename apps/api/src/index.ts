@@ -121,6 +121,7 @@ setOutboundAttachmentsHandler({
 
 import { debugRouter } from './routes/debug.js'
 import { aiCompleteRouter } from './routes/ai-complete.js'
+import { externalTasksRouter } from './routes/external-tasks.js'
 import { aiMediaRouter } from './routes/ai-media.js'
 import { chatRouter } from './routes/chat.js'
 import { chatAppTransportRouter } from './routes/chat-app-transport.js'
@@ -365,6 +366,9 @@ v1.use('/admin/ollama', requireSuperAdmin, ollamaAdminRouter)
 v1.use('/debug', requireSuperAdmin, debugRouter)
 v1.use('/ai', aiCompleteRouter)
 v1.use('/ai', aiMediaRouter)
+// External app AI task dispatch (Fylo etc.); service-key auth + workspace creds.
+// Co-located under /ai/ to avoid clash with internal /tasks router above.
+v1.use('/ai/tasks', jsonDefault, externalTasksRouter)
 v1.use('/chat', chatRouter) // per-handler workspace check
 v1.use('/chat', jsonDefault, chatAppTransportRouter) // Levio-Pex app transport (service key auth)
 v1.use('/message-deliveries', messageDeliveriesRouter)
