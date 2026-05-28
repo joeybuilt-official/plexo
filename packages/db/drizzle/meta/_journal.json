@@ -834,6 +834,13 @@
       "when": 1779717600000,
       "tag": "0118_drop_scl_synthesis_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1779974939256,
+      "tag": "0119_models_knowledge_restore_pk",
+      "breakpoints": true
     }
   ]
 }
