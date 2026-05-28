@@ -113,7 +113,9 @@ export async function proposePromptImprovements(params: {
     const lowQuality = samples.filter((s) => (s.qualityScore ?? 1) < 0.7 || s.calibration === 'over')
     const highQuality = samples.filter((s) => (s.qualityScore ?? 0) >= 0.8)
 
-    const model = resolveModelFromEnv('claude-haiku-4-5')
+    // No hard-coded provider: resolveModelFromEnv picks the model from whichever
+    // provider the user has authenticated (env), defaulting via DEFAULT_MODEL_ROUTING.
+    const model = resolveModelFromEnv()
 
     let patches: PromptPatch[] = []
     try {
