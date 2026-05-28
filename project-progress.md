@@ -1,5 +1,7 @@
 # Project System Progress
 
+> **CLOSED 2026-05-28.** All phase-status boxes (0–7++) ticked; no outstanding follow-ups. Doc preserved as the session log.
+
 Last updated: 2026-05-03
 Current phase: 7 closed + Phase 7+ follow-ups landed + Phase 7++ panel-driven follow-ups landed (5 commits this session)
 Last commit: a5f021f (Phase 7++ — worker-slot release planner-gate, flag-gated)
