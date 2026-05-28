@@ -33,28 +33,37 @@ import { emitMemoryWriteBackend } from '../analytics/memory-events.js'
 
 const logger = pino({ name: 'memory-write-backend' })
 
-export type WriteBackend = 'graphiti' | 'dual' | 'postgres'
-
-const VALID_BACKENDS: ReadonlySet<WriteBackend> = new Set(['graphiti', 'dual', 'postgres'])
+export type WriteBackend = 'graphiti'
 
 let _client: GraphitiClient | null = null
 let _clientWarned = false
 
+/**
+ * Phase 5 closure (2026-05-28): single-write path. `postgres` and `dual`
+ * modes were retired with the operator-authorized rollout — Graphiti on
+ * FalkorDB is the only supported memory write backend. Setting
+ * MEMORY_WRITE_BACKEND to anything else hard-fails in production and warns
+ * (then forces 'graphiti') in dev/test.
+ */
 export function getWriteBackend(): WriteBackend {
-    const raw = (process.env.MEMORY_WRITE_BACKEND ?? 'postgres').toLowerCase() as WriteBackend
-    if (!VALID_BACKENDS.has(raw)) {
-        logger.warn({ raw }, 'invalid MEMORY_WRITE_BACKEND; defaulting to postgres')
-        return 'postgres'
+    const raw = (process.env.MEMORY_WRITE_BACKEND ?? 'graphiti').toLowerCase()
+    if (raw !== 'graphiti') {
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error(
+                `Phase 5 closure: MEMORY_WRITE_BACKEND=${raw} is no longer supported. Set MEMORY_WRITE_BACKEND=graphiti or unset.`,
+            )
+        }
+        logger.warn({ raw }, 'Phase 5 closure: only graphiti backend is supported; forcing graphiti')
     }
-    return raw
+    return 'graphiti'
 }
 
-export function shouldWritePostgres(backend: WriteBackend = getWriteBackend()): boolean {
-    return backend === 'postgres' || backend === 'dual'
+export function shouldWritePostgres(_backend: WriteBackend = getWriteBackend()): boolean {
+    return false
 }
 
-export function shouldMirrorGraphiti(backend: WriteBackend = getWriteBackend()): boolean {
-    return backend === 'graphiti' || backend === 'dual'
+export function shouldMirrorGraphiti(_backend: WriteBackend = getWriteBackend()): boolean {
+    return true
 }
 
 function getClient(): GraphitiClient | null {
