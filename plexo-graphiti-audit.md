@@ -1,5 +1,7 @@
 # Plexo Memory Layer — Graphiti Migration Audit (Phase 0)
 
+> **DECISION ACTED 2026-05-12.** Operator approved the audit recommendation; Graphiti adoption shipped via ADRs 0010 + 0015 (FalkorDB rather than Kuzu as the underlying graph). Cutover live 2026-05-12. Audit content below is preserved as the read-only decision basis.
+
 **Status:** Read-only audit. Recommendation only. Final go/no-go on operator.
 **Date:** 2026-05-09
 **Repo target:** `/home/dustin/dev/joeybuilt/plexo` (branch `main`)

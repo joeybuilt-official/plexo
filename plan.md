@@ -1,5 +1,7 @@
 # Plexo task-routed best-model selector — master plan
 
+> **CLOSED 2026-05-28.** Router-v2 cutover live in prod since 2026-05-23 (`ROUTER_V2_ENABLED=true`, commits `55ab1cf3` + the `0224f7a` withFallback retirement + PR #47 `6018019` cleanup). `withFallback()` retired. Sprint A′ closure addendum (`adr/0033`) confirmed the post-cutover stack stable. This plan's Phases 4–7 were folded into the post-cutover-stabilization Phase 4 ledger; see `post-cutover-stabilization/plan.md` §13 + Session 6/7/8 entries.
+
 **Goal:** Replace `withFallback()` with a task-routed best-model selector that picks the best installed model per task using a hand-curated quality manifest refined by rolling operational stats, cascades silently on error-class-aware failure, and emits decision telemetry as its primary product.
 
 **Owner:** operator + Claude Code.
