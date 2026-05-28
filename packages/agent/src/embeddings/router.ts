@@ -395,8 +395,12 @@ export async function resolveEmbeddingAdapterAsync(
                 }
             }
 
+            // No hard-coded provider default: fall back to the first provider the
+            // user has actually configured a credential for, not anthropic.
+            const configuredPrimary = (arbiter.primaryProvider as ProviderKey | undefined)
+                ?? (Object.keys(providers)[0] as ProviderKey | undefined)
             const dbSettings: WorkspaceAISettings = {
-                primaryProvider: (arbiter.primaryProvider ?? 'anthropic') as ProviderKey,
+                primaryProvider: configuredPrimary as ProviderKey,
                 fallbackChain: ((arbiter.fallbackChain ?? []) as string[]) as ProviderKey[],
                 providers,
             }
