@@ -46,6 +46,13 @@ except ImportError as e:
 HOST = os.environ.get("FALKORDB_HOST", "falkordb")
 PORT = int(os.environ.get("FALKORDB_PORT", "6379"))
 
+# Graphs the sidecar creates for its own infrastructure — not user data, so
+# unregistered labels here MUST NOT count against the Phase F "7 nights
+# zero unregistered" gate. Currently: the BGSAVE probe graph (commit
+# `f8cc188`, ADR 0030 Addendum) which holds a synthetic `Probe` node so
+# `BGSAVE` has something to flush in the in-process RDB tiers.
+SYSTEM_GRAPHS: frozenset[str] = frozenset({"plexo-bgsave-probe"})
+
 
 def _infer_app_from_graph_name(graph_name: str) -> str:
     """FalkorDB graph names follow either:
@@ -70,6 +77,11 @@ def main() -> int:
     print("graph\tapp\tlabel\tcount\tunregistered", file=sys.stderr)
     total_unregistered = 0
     for graph_name in sorted(graph_names):
+        if graph_name in SYSTEM_GRAPHS:
+            # Still emit a row for visibility, but mark `system` so the
+            # Phase F gate-script can filter without false-positives.
+            print(f"{graph_name}\t-\t-\t-\tsystem", file=sys.stderr)
+            continue
         app = _infer_app_from_graph_name(graph_name)
         registered = set(schema_registry.registered_labels(app))
         graph = client.select_graph(graph_name)
