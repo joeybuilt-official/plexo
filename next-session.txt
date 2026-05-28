@@ -1,12 +1,1 @@
-Resume Plexo /phased-plan at /workspace/plexo. Read /workspace/plexo/PLAN.md.
-
-Continuing: operator-decision gate. Session closed at ~45% context.
-
-This session completed:
-- Stale-claim audit: Phase O + Phase P both shipped 2026-05-05 (a931dd1), removed from operator-decision list. Phase H/G items closed.
-- NAS health verified: FalkorDB BGSAVE OK, permission-reconcile 3/3 clean, cardinality-watch healthy.
-- Clamd sidecar found MISSING from NAS compose — documented in PLAN.md §2 with fix snippet.
-- ADR 0034 §10 pre-annotated with current-state notes for all 7 memory refresh entries.
-- 6 doc commits ahead of origin/main — push to origin before any NAS pull/rebuild.
-
-Next: operator must make decision D (Phase 7 hidden-capability picks). Once 2-3 are selected, proceed immediately — all have backend ready, implementation is frontend/caller wiring only. Then apply clamd compose snippet on the host if operator approves.
+Resume Plexo /phased-plan at /workspace/plexo. Read /workspace/plexo/plan.md + /workspace/plexo/checklist.md + /workspace/plexo/adr/0035-phase7-hidden-capabilities.md. Plan approved by operator; no code landed yet. Start Phase 1: add `criticalPath: string[] | null` to GET /api/sprints/:id in apps/api/src/routes/sprints.ts:138 (call criticalPathToCompletion from packages/agent/src/planner/cypher-waves.ts:190, gate on FALKORDB_PLANNER_WAVES=true), then add Telegram /criticalpath command after telegram.ts:715.
