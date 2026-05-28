@@ -31,6 +31,10 @@ TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 OUT="$(mktemp)"
 trap 'rm -f "${OUT}"' EXIT
 
+# /app/scripts isn't part of the prod image; make sure it exists each run so
+# this works on a freshly-recreated container too.
+docker exec "${CONTAINER}" mkdir -p /app/scripts 2>/dev/null || true
+
 if ! docker cp "${SRC_ROOT}/${SCRIPT}" "${CONTAINER}:/app/${SCRIPT}" 2>&1; then
     {
         echo "==> ${TS}"
