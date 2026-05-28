@@ -61,7 +61,7 @@
  */
 
 import { db, sql } from '@plexo/db'
-import { GraphitiClient } from '@plexo/graphiti-bridge'
+import { GraphitiClient, type TripletCreate } from '@plexo/graphiti-bridge'
 
 const SIDECAR_URL = process.env.PLEXO_GRAPHITI_SIDECAR_URL
 const SERVICE_KEY = process.env.PLEXO_SERVICE_KEY
@@ -71,6 +71,12 @@ if (!SIDECAR_URL || !SERVICE_KEY) {
     console.error('FAIL: PLEXO_GRAPHITI_SIDECAR_URL + PLEXO_SERVICE_KEY env vars required')
     process.exit(2)
 }
+
+// When true, rows with a known triple (subject/predicate/object) are routed
+// through addTriplet (/v1/triplets) instead of addEpisode, bypassing LLM
+// extraction. Rows without a triple still fall back to addEpisode.
+// Only enable after verifying /v1/triplets is live on the target sidecar.
+const tripletFastPath = process.env.PLEXO_TRIPLET_FAST_PATH === 'true'
 
 const dryRun = process.argv.includes('--dry-run')
 const allWorkspaces = process.argv.includes('--all')
@@ -225,6 +231,21 @@ async function listWorkspaces(): Promise<string[]> {
     return rows.map((row) => row.workspace_id)
 }
 
+function rowToTriplet(row: MemoryRow): TripletCreate | null {
+    if (!row.subject || !row.predicate || !row.object) return null
+    return {
+        workspaceId: row.workspace_id,
+        subject: row.subject,
+        predicate: row.predicate,
+        object: row.object,
+        sourceMetadata: {
+            plexo_memory_id: row.id,
+            orig_type: row.type,
+            namespace: row.namespace,
+        },
+    }
+}
+
 function rowToEpisode(row: MemoryRow) {
     const triple = row.subject && row.predicate && row.object
         ? { subject: row.subject, predicate: row.predicate, object: row.object }
@@ -282,7 +303,10 @@ async function migrateWorkspace(workspaceId: string): Promise<{ migrated: number
                     if (limit > 0 && processedThisRun >= limit) break
                     continue
                 }
-                const result = await client.addEpisode(rowToEpisode(row))
+                const triplet = tripletFastPath ? rowToTriplet(row) : null
+                const result = triplet
+                    ? await client.addTriplet(triplet)
+                    : await client.addEpisode(rowToEpisode(row))
                 if (result) {
                     failedSet.delete(row.id)
                     totalMigrated++
@@ -333,7 +357,10 @@ async function migrateWorkspace(workspaceId: string): Promise<{ migrated: number
                 continue
             }
             const t0 = Date.now()
-            const result = await client.addEpisode(rowToEpisode(row))
+            const triplet = tripletFastPath ? rowToTriplet(row) : null
+            const result = triplet
+                ? await client.addTriplet(triplet)
+                : await client.addEpisode(rowToEpisode(row))
             const elapsedMs = Date.now() - t0
             if (!result) {
                 perBatchErr++
@@ -343,7 +370,10 @@ async function migrateWorkspace(workspaceId: string): Promise<{ migrated: number
             } else {
                 perBatchOk++
                 totalMigrated++
-                console.log(`  ${workspaceId} row ${processedThisRun + 1}: ok ${row.id} (${elapsedMs}ms) facts=${result.extractedFactsCount} nodes=${result.extractedNodesCount}`)
+                const detail = 'extractedFactsCount' in result
+                    ? `facts=${result.extractedFactsCount} nodes=${result.extractedNodesCount}`
+                    : `triplet=ok`
+                console.log(`  ${workspaceId} row ${processedThisRun + 1}: ok ${row.id} (${elapsedMs}ms) ${detail}`)
             }
             // Cursor advances always — failures are tracked in failedSet for
             // durable retry via --retry-failed.

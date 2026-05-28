@@ -714,6 +714,67 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         return
     }
 
+    if (text.startsWith('/criticalpath')) {
+        const sprintId = text.slice('/criticalpath'.length).trim()
+        if (!sprintId) {
+            await sendMessage(token, chatId, 'Usage: /criticalpath <sprint-id>', { workspaceId })
+            return
+        }
+        try {
+            const [sprint] = await db.select({ id: sprints.id, workspaceId: sprints.workspaceId })
+                .from(sprints).where(eq(sprints.id, sprintId)).limit(1)
+            if (!sprint) {
+                await sendMessage(token, chatId, `Sprint \`${sprintId}\` not found.`, { workspaceId })
+                return
+            }
+            const { criticalPathToCompletion } = await import('@plexo/agent/planner/cypher-waves')
+            const chain = await criticalPathToCompletion(sprint.workspaceId, sprintId)
+            if (!chain || chain.length === 0) {
+                await sendMessage(token, chatId, 'No critical path found for that sprint (no task graph in FalkorDB, or sprint has no dependencies).', { workspaceId })
+                return
+            }
+            const lines = chain.map((t, i) => `${i + 1}. [${t.status}] ${t.description}`)
+            await sendMessage(token, chatId, `*Critical path for sprint ${sprintId}:*\n\n${lines.join('\n')}`, { workspaceId })
+        } catch (err) {
+            logger.error({ err, sprintId }, 'telegram: /criticalpath failed')
+            await sendMessage(token, chatId, 'Failed to compute critical path.', { workspaceId })
+        }
+        return
+    }
+
+    if (text === '/memoryheatmap') {
+        try {
+            const rows = await db.execute<{
+                tier: string
+                confidence_band: string
+                count: number
+                last_decay_at: string | null
+            }>(sql`
+                SELECT tier, confidence_band, count, last_decay_at
+                FROM memory_tier_stats
+                WHERE workspace_id = ${workspaceId}::uuid
+                ORDER BY tier, confidence_band
+            `)
+            const buckets = Array.from(rows)
+            if (buckets.length === 0) {
+                await sendMessage(token, chatId, 'No heatmap data yet — the decay cron has not run for this workspace.', { workspaceId })
+                return
+            }
+            const lastUpdated = buckets.reduce<string | null>((acc, r) => {
+                if (!r.last_decay_at) return acc
+                if (!acc || r.last_decay_at > acc) return r.last_decay_at
+                return acc
+            }, null)
+            const lines = buckets.map(b => `  ${b.tier} / ${b.confidence_band}%: ${b.count}`)
+            const header = lastUpdated ? `*Memory confidence heatmap* (last decay: ${new Date(lastUpdated).toUTCString()})` : '*Memory confidence heatmap*'
+            await sendMessage(token, chatId, `${header}\n\n${lines.join('\n')}`, { workspaceId })
+        } catch (err) {
+            logger.error({ err, workspaceId }, 'telegram: /memoryheatmap failed')
+            await sendMessage(token, chatId, 'Failed to fetch heatmap.', { workspaceId })
+        }
+        return
+    }
+
     // ── Phase 4: CONFIRM / CANCEL routing for awaiting_confirmation tasks ────
     // Only short-circuits when the workspace actually has an awaiting_approval
     // task whose channelRef matches this chat. A casual "yes" with no pending

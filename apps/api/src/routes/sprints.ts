@@ -8,6 +8,7 @@ import { logger } from '../logger.js'
 import { ulid } from 'ulid'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
+import { criticalPathToCompletion } from '@plexo/agent/planner/cypher-waves'
 
 export const sprintsRouter: RouterType = Router()
 
@@ -163,7 +164,12 @@ sprintsRouter.get('/:id', async (req, res) => {
             .where(eq(tasks.project, id))
             .orderBy(desc(tasks.createdAt))
             .limit(200)
-        res.json({ sprint, tasks: sprintTasks })
+        let criticalPath: string[] | null = null
+        if (process.env.FALKORDB_PLANNER_WAVES === 'true') {
+            const chain = await criticalPathToCompletion(sprint.workspaceId, id)
+            criticalPath = chain ? chain.map((t) => t.id) : null
+        }
+        res.json({ sprint, tasks: sprintTasks, criticalPath })
     } catch (err) {
         logger.error({ err }, 'GET /api/sprints/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch sprint' } })

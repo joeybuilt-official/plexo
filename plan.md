@@ -27,7 +27,7 @@ Wire all 5 Phase 7 hidden capabilities into their respective API/CLI/Telegram su
 - **Deps:** none
 - **Subagents:** none (2 files)
 - **Exit:** `GET /api/sprints/:id` returns `criticalPath` field when `FALKORDB_PLANNER_WAVES=true`; `null` otherwise. Telegram `/criticalpath` command dispatches correctly.
-- **Status:** pending
+- **Status:** done
 
 ### Phase 2 — Memory-tier badge (confidence field)
 - **Scope:**
@@ -38,7 +38,7 @@ Wire all 5 Phase 7 hidden capabilities into their respective API/CLI/Telegram su
 - **Deps:** none
 - **Subagents:** none (2 files)
 - **Exit:** `GET /api/memory/entries` response includes `confidence` field. TypeScript compiles clean.
-- **Status:** pending
+- **Status:** done
 
 ### Phase 3 — Multi-graph cypher CLI
 - **Scope:**
@@ -49,7 +49,7 @@ Wire all 5 Phase 7 hidden capabilities into their respective API/CLI/Telegram su
 - **Deps:** none
 - **Subagents:** none (1 file)
 - **Exit:** `npx ts-node ops/cypher-cli.ts --graph plexo:test --cypher "MATCH (n) RETURN count(n)"` executes and returns results. Write query is rejected with clear error.
-- **Status:** pending
+- **Status:** done
 
 ### Phase 4 — Confidence-decay heatmap
 - **Scope:**
@@ -60,7 +60,7 @@ Wire all 5 Phase 7 hidden capabilities into their respective API/CLI/Telegram su
 - **Deps:** none (migration is new table; no lock on existing)
 - **Subagents:** none
 - **Exit:** Migration applies clean. `GET /api/memory/heatmap` returns bucket data. Telegram `/memoryheatmap` command sends a formatted reply.
-- **Status:** pending
+- **Status:** done
 
 ### Phase 5 — Triplet fast-path adoption
 - **Scope:**
@@ -71,7 +71,7 @@ Wire all 5 Phase 7 hidden capabilities into their respective API/CLI/Telegram su
 - **Deps:** none
 - **Subagents:** none (2 files)
 - **Exit:** `addTriplet` method exists in graphiti-bridge, TypeScript compiles, corpus migration script respects `PLEXO_TRIPLET_FAST_PATH=true`.
-- **Status:** pending
+- **Status:** done
 
 ---
 

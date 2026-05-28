@@ -80,6 +80,25 @@ export interface CypherResponse {
     rows: unknown[][]
 }
 
+/**
+ * Direct triplet (subject–predicate–object) write to the sidecar's /v1/triplets
+ * endpoint. Bypasses add_episode's LLM extraction round — use only for
+ * non-conversational bulk writes where the triple is already known.
+ * Gate callers behind PLEXO_TRIPLET_FAST_PATH=true.
+ */
+export interface TripletCreate {
+    workspaceId: string
+    subject: string
+    predicate: string
+    object: string
+    sourceMetadata?: Record<string, unknown>
+}
+
+export interface TripletResult {
+    ok: boolean
+    tripletId?: string | null
+}
+
 const APP_ID_DEFAULT = 'plexo-api'
 
 function sign(serviceKey: string, body: string): { sig: string; ts: string } {
@@ -144,6 +163,21 @@ export class GraphitiClient {
             params: req.params ?? {},
         })
         return this.postSigned<CypherResponse>('/v1/graph/cypher', body)
+    }
+
+    /**
+     * Fast-path triplet write — posts directly to /v1/triplets, skipping
+     * add_episode's LLM extraction. Gate callers behind PLEXO_TRIPLET_FAST_PATH=true.
+     */
+    async addTriplet(req: TripletCreate): Promise<TripletResult | null> {
+        const body = JSON.stringify({
+            workspace_id: req.workspaceId,
+            subject: req.subject,
+            predicate: req.predicate,
+            object: req.object,
+            source_metadata: req.sourceMetadata ?? {},
+        })
+        return this.postSigned<TripletResult>('/v1/triplets', body)
     }
 
     /** Phase 3c: hybrid-search query against the workspace's Graphiti store. */

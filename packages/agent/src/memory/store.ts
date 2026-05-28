@@ -41,6 +41,7 @@ export interface MemoryEntry {
     shorthand?: string
     metadata: Record<string, unknown>
     tier: MemoryTier
+    confidence: number | null
     /** Phase 10 — per-agent memory slice. See namespace.ts. */
     namespace: string
     createdAt: Date
@@ -427,11 +428,12 @@ export async function searchMemory(params: {
             metadata: Record<string, unknown>
             shorthand: string | null
             tier: string
+            confidence: number | null
             namespace: string
             created_at: Date
             similarity: number
         }>(sql`
-      SELECT id, workspace_id, type, content, shorthand, metadata, tier, namespace, created_at,
+      SELECT id, workspace_id, type, content, shorthand, metadata, tier, confidence, namespace, created_at,
              1 - (embedding <=> ${vecStr}::vector) AS similarity
       FROM memory_entries
       WHERE workspace_id = ${workspaceId}::uuid
@@ -453,6 +455,7 @@ export async function searchMemory(params: {
             shorthand: r.shorthand ?? undefined,
             metadata: r.metadata,
             tier: (r.tier ?? 'active') as MemoryTier,
+            confidence: r.confidence ?? null,
             namespace: r.namespace ?? DEFAULT_NAMESPACE,
             createdAt: r.created_at,
             similarity: r.similarity,
@@ -486,6 +489,7 @@ export async function searchMemory(params: {
             shorthand: r.shorthand ?? undefined,
             metadata: r.metadata as Record<string, unknown>,
             tier: (r.tier ?? 'active') as MemoryTier,
+            confidence: r.confidence ?? null,
             namespace: (r as { namespace?: string }).namespace ?? DEFAULT_NAMESPACE,
             createdAt: r.createdAt,
             similarity: 0.5, // unknown without vector
