@@ -204,6 +204,30 @@ export async function decayConfidence(): Promise<void> {
         decayed = (result as { rowCount?: number }).rowCount ?? 0
         logger.info({ decayed, factor: CONFIDENCE_DECAY_FACTOR, floor: CONFIDENCE_FLOOR }, 'decay-confidence: complete')
         emitMemoryConfidenceDecay({ decayedCount: decayed, factor: CONFIDENCE_DECAY_FACTOR, floor: CONFIDENCE_FLOOR })
+
+        // Materialize confidence-band distribution into memory_tier_stats so the
+        // heatmap endpoint is O(1) per workspace rather than a full table scan.
+        await db.execute(sql`
+            INSERT INTO memory_tier_stats (workspace_id, tier, confidence_band, count, last_decay_at)
+            SELECT
+                workspace_id,
+                tier,
+                CASE
+                    WHEN confidence < 0.2 THEN '0-20'
+                    WHEN confidence < 0.4 THEN '20-40'
+                    WHEN confidence < 0.6 THEN '40-60'
+                    WHEN confidence < 0.8 THEN '60-80'
+                    ELSE '80-100'
+                END AS confidence_band,
+                COUNT(*)::int AS count,
+                NOW() AS last_decay_at
+            FROM memory_entries
+            WHERE superseded_by IS NULL
+            GROUP BY workspace_id, tier, confidence_band
+            ON CONFLICT (workspace_id, tier, confidence_band)
+            DO UPDATE SET count = EXCLUDED.count, last_decay_at = EXCLUDED.last_decay_at
+        `)
+        logger.info('decay-confidence: memory_tier_stats upserted')
     } catch (err) {
         logger.error({ err }, 'decay-confidence: failed')
         throw err

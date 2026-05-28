@@ -73,6 +73,7 @@ memoryRouter.get('/entries', async (req, res) => {
                 content: r.content,
                 shorthand: r.shorthand ?? null,
                 tier: r.tier,
+                confidence: r.confidence ?? null,
                 namespace: r.namespace,
                 metadata: r.metadata,
                 created_at: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
@@ -92,7 +93,7 @@ memoryRouter.get('/entries', async (req, res) => {
         const off = parseInt(offset ?? '0', 10)
 
         let query = sql`
-            SELECT id, type, content, shorthand, metadata, tier, namespace, created_at
+            SELECT id, type, content, shorthand, metadata, tier, confidence, namespace, created_at
             FROM memory_entries
             WHERE workspace_id = ${workspaceId}::uuid
         `
@@ -824,5 +825,38 @@ memoryRouter.patch('/eviction', async (req, res) => {
     } catch (err) {
         logger.error({ err, workspaceId }, 'Memory eviction update failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update eviction settings' } })
+    }
+})
+
+// ── GET /api/memory/heatmap ───────────────────────────────────────────────────
+
+memoryRouter.get('/heatmap', async (req, res) => {
+    const { workspaceId } = req.query as Record<string, string>
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID workspaceId required' } })
+        return
+    }
+    try {
+        const rows = await db.execute<{
+            tier: string
+            confidence_band: string
+            count: number
+            last_decay_at: string | null
+        }>(sql`
+            SELECT tier, confidence_band, count, last_decay_at
+            FROM memory_tier_stats
+            WHERE workspace_id = ${workspaceId}::uuid
+            ORDER BY tier, confidence_band
+        `)
+        const buckets = Array.from(rows)
+        const lastUpdated = buckets.reduce<string | null>((acc, r) => {
+            if (!r.last_decay_at) return acc
+            if (!acc || r.last_decay_at > acc) return r.last_decay_at
+            return acc
+        }, null)
+        res.json({ buckets, lastUpdated })
+    } catch (err) {
+        logger.error({ err }, 'GET /api/memory/heatmap failed')
+        res.status(500).json({ error: { code: 'HEATMAP_FAILED', message: 'Failed to fetch heatmap' } })
     }
 })
