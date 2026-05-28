@@ -62,10 +62,16 @@ cp "${BACKUP}" "${TMPDIR_HOST}/dump.rdb"
 chmod 644 "${TMPDIR_HOST}/dump.rdb"
 
 log "starting drill container ${NAME} on port ${PORT}"
+# FalkorDB image canonical data dir is /var/lib/falkordb/data; /data is a
+# symlink. Mounting on the symlink masks it and FalkorDB then looks at an
+# empty canonical path, silently ignoring the staged dump.rdb (verified
+# 2026-05-28 against falkordb:v4.18.6 — drill found 0 graphs when mounted
+# on /data, finds the expected workspace graphs when mounted on the
+# canonical path). Mount on the canonical path instead.
 docker run -d \
   --name "${NAME}" \
   -p "${PORT}:6379" \
-  -v "${TMPDIR_HOST}:/data" \
+  -v "${TMPDIR_HOST}:/var/lib/falkordb/data" \
   "${IMAGE}" >/dev/null
 
 # Wait for redis to load the rdb. Big dumps take a while; cap at 5 min.
