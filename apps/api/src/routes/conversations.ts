@@ -193,11 +193,15 @@ conversationsRouter.get('/', async (req, res) => {
                         (cursorTs ? 'WHERE msg.created_at < $cursor_ts ' : '') +
                         'WITH session, collect(msg) AS msgs ' +
                         'WITH session, msgs, ' +
+                        // ADR-0021 §74: tied created_at picks deterministically by id (lexicographic ULID),
+                        // matching SQL ROW_NUMBER tiebreaker behaviour via the conversations PK index.
                         '     reduce(latest = msgs[0], m IN msgs | ' +
-                        '       CASE WHEN m.created_at > latest.created_at THEN m ELSE latest END) AS latest, ' +
+                        '       CASE WHEN m.created_at > latest.created_at ' +
+                        '              OR (m.created_at = latest.created_at AND m.id > latest.id) ' +
+                        '            THEN m ELSE latest END) AS latest, ' +
                         '     size(msgs) AS turn_count ' +
                         'RETURN latest AS msg, turn_count ' +
-                        'ORDER BY latest.created_at DESC ' +
+                        'ORDER BY latest.created_at DESC, latest.id DESC ' +
                         'LIMIT $lim',
                     params: { lim, ...(cursorTs ? { cursor_ts: cursorTs } : {}) },
                 })
@@ -222,17 +226,19 @@ conversationsRouter.get('/', async (req, res) => {
                     SELECT * FROM conversations
                     WHERE workspace_id = ${workspaceId}
                     ${cursor ? sql`AND created_at < (SELECT created_at FROM conversations WHERE id = ${cursor})` : sql``}
-                    ORDER BY created_at DESC
+                    ORDER BY created_at DESC, id DESC
                     LIMIT 500
                 ),
                 ranked AS (
                     SELECT *,
-                           ROW_NUMBER() OVER (PARTITION BY COALESCE(session_id, id) ORDER BY created_at DESC) AS rn,
+                           -- ADR-0021 §74: explicit id DESC tiebreaker so SQL parity-matches the cypher
+                           -- reduce()-fallback path under tied created_at.
+                           ROW_NUMBER() OVER (PARTITION BY COALESCE(session_id, id) ORDER BY created_at DESC, id DESC) AS rn,
                            COUNT(*) OVER (PARTITION BY COALESCE(session_id, id)) AS turn_count
                     FROM bounded
                 )
                 SELECT * FROM ranked WHERE rn = 1
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, id DESC
                 LIMIT ${lim}
             `)
             // Raw execute returns snake_case columns. Map them to camelCase to match the frontend ConversationItem type.
