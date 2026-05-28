@@ -5,6 +5,13 @@ time-gated or env-side and cannot be automated from the codebase. The
 list is the canonical source — `next-session.txt` is a thin pointer
 to it, not a duplicate copy.
 
+> **2026-05-28 NAS migration.** All three OVH VPSes were decommissioned.
+> Deploy target is now **NAS** (`ssh <server>`). Compose at
+> `/data/appdata/appdata/`. All `ssh root@203.0.113.10`
+> references below are stale; substitute `ssh <server>`. All `docker compose`
+> invocations from NAS must specify both compose files:
+> `docker compose -f docker-compose.yml -f docker-compose.prod.yml`.
+
 ## Deploy / health verification
 
 - **Trigger auto-deploy daemon rebuild of graphiti-sidecar.** Required
@@ -31,8 +38,9 @@ to it, not a duplicate copy.
      should report `{clean:true}` on first run.
   4. Install the cron:
      ```
-     0 6 * * * tsx /opt/joeybuilt/plexo/scripts/reconcile-permission-graph.ts \
-       >> /var/log/plexo-permission-reconcile.log 2>&1
+     0 6 * * * tsx /data/appdata/appdata/source/plexo/scripts/reconcile-permission-graph.ts \
+       >> /data/appdata/appdata/data/permission-reconcile.log 2>&1
+     # Note: this cron is already installed on the host as /etc/cron.d/permission-reconcile
      ```
   After 30 consecutive zero-diff days, read-path cutover is unblocked
   (separate cutover ADR per ADR 0022 §line 50).
@@ -73,11 +81,11 @@ Preserved here so the smoke script stops getting copy-pasted into
 every handoff.
 
 ```sh
-ssh root@203.0.113.10
-# if daemon hasn't rebuilt sidecar:
-cd /opt/joeybuilt/platform && docker compose \
+ssh <server>  # was: ssh root@203.0.113.10 (VPS decommissioned 2026-05-28)
+# if sidecar needs rebuild:
+cd /data/appdata/appdata && docker compose \
   -f docker-compose.yml \
-  -f /opt/joeybuilt/plexo/infra/docker-compose.yml \
+  -f docker-compose.prod.yml \
   up -d --no-deps --build graphiti-sidecar
 
 # HMAC smoke:
