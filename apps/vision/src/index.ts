@@ -35,6 +35,7 @@ import { clipRouter } from './routes/clip.js'
 import { facesRouter } from './routes/faces.js'
 import { facesV1Router } from './routes/faces-v1.js'
 import { ocrRouter } from './routes/ocr.js'
+import { labelRouter } from './routes/label.js'
 
 const PORT = parseInt(process.env.PORT ?? '7000', 10)
 
@@ -53,6 +54,7 @@ app.use('/vision', metaRouter)
 app.use('/vision/clip', requireServiceKey, clipRouter)
 app.use('/vision/faces', requireServiceKey, facesRouter)
 app.use('/vision/ocr', requireServiceKey, ocrRouter)
+app.use('/vision/label', requireServiceKey, labelRouter)
 
 // Fonto-facing combined detect+embed endpoint. The route prefix is
 // `/v1/faces/...` (not `/vision/faces/...`) — Fonto's

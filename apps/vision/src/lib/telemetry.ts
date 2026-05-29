@@ -24,6 +24,7 @@ export type VisionTask =
     | 'faces-detect'
     | 'faces-embed'
     | 'ocr'
+    | 'label'
 
 interface InferenceRecord {
     task: VisionTask
@@ -90,7 +91,7 @@ export interface TaskMetrics {
 }
 
 export function summarize(): Record<VisionTask, TaskMetrics> {
-    const tasks: VisionTask[] = ['clip-image', 'clip-text', 'faces-detect', 'faces-embed', 'ocr']
+    const tasks: VisionTask[] = ['clip-image', 'clip-text', 'faces-detect', 'faces-embed', 'ocr', 'label']
     const out = {} as Record<VisionTask, TaskMetrics>
     for (const task of tasks) {
         const durations = buffer
