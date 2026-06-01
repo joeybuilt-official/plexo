@@ -146,21 +146,25 @@ let server: Server | null = null
 let baseUrl: string
 const TASK_ID = 'task-abc-123'
 
-beforeEach(async () => {
+// Server started once per file in beforeAll (longer timeout than beforeEach).
+// Using beforeEach with if(!server) was causing 10s test timeout under full-suite
+// ordering because the 'listening' wait was charged against the first test.
+beforeAll(async () => {
+    const { tasksRouter } = await import('../tasks.js')
+    const app = express()
+    app.use(express.json())
+    app.use('/api/v1/tasks', tasksRouter)
+    const created = app.listen(0)
+    server = created
+    await new Promise<void>((resolve) => created.once('listening', () => resolve()))
+    const addr = created.address() as AddressInfo
+    baseUrl = `http://127.0.0.1:${addr.port}`
+}, 30_000)
+
+beforeEach(() => {
     ctl.stepRows = []
     ctl.taskWorkspaceId = 'ws-1'
     ctl.allowWorkspaceAccess = true
-    if (!server) {
-        const { tasksRouter } = await import('../tasks.js')
-        const app = express()
-        app.use(express.json())
-        app.use('/api/v1/tasks', tasksRouter)
-        const created = app.listen(0)
-        server = created
-        await new Promise<void>((resolve) => created.once('listening', () => resolve()))
-        const addr = created.address() as AddressInfo
-        baseUrl = `http://127.0.0.1:${addr.port}`
-    }
 })
 
 afterAll(() => { if (server) server.close() })
