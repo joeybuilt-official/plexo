@@ -775,6 +775,36 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         return
     }
 
+    // ── Distillation revision approval ────────────────────────────────────────
+    // "approve <uuid>" or "reject <uuid>" — handles prompt_revisions votes.
+    {
+        const revisionMatch = /^(approve|reject)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(text)
+        if (revisionMatch) {
+            const action = revisionMatch[1]!.toLowerCase() as 'approve' | 'reject'
+            const revisionId = revisionMatch[2]!.toLowerCase()
+            const reviewedBy = `telegram:${msg.from.id}`
+            const { applyRevision, rejectRevision } = await import('../cron/distill-retro.js')
+            if (action === 'approve') {
+                const result = await applyRevision(revisionId, reviewedBy)
+                if (result.ok) {
+                    await sendMessage(token, chatId, '✅ Revision applied — prompt updated.', { workspaceId })
+                } else if (result.error === 'prompt_changed_stale') {
+                    await sendMessage(token, chatId, '⚠️ Revision rejected — the prompt was edited after this diff was generated. Generate a new revision.', { workspaceId })
+                } else {
+                    await sendMessage(token, chatId, `❌ Could not apply revision: ${result.error}`, { workspaceId })
+                }
+            } else {
+                const result = await rejectRevision(revisionId, reviewedBy)
+                if (result.ok) {
+                    await sendMessage(token, chatId, '🚫 Revision rejected.', { workspaceId })
+                } else {
+                    await sendMessage(token, chatId, `❌ Could not reject revision: ${result.error}`, { workspaceId })
+                }
+            }
+            return
+        }
+    }
+
     // ── Phase 4: CONFIRM / CANCEL routing for awaiting_confirmation tasks ────
     // Only short-circuits when the workspace actually has an awaiting_approval
     // task whose channelRef matches this chat. A casual "yes" with no pending
