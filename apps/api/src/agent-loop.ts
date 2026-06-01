@@ -418,6 +418,9 @@ async function syncSprintTaskBlocked(task: typeof tasks.$inferSelect, reason: st
     await syncSprintTaskStatus(task, 'failed', `Blocked: ${reason}`)
 }
 
+// Exported for integration testing only.
+export { buildTaskContext as processTaskForTesting }
+
 async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> {
     const taskStartMs = Date.now()
 
@@ -1453,6 +1456,18 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         _progressStopper.stop?.()
         _progressStopper.stop = null
 
+        // Phase C: outcome capture — non-fatal, gated behind OUTCOME_CAPTURE_ENABLED flag.
+        {
+            const { recordOutcome, buildOutcomePayload } = await import('./outcome-capture.js')
+            void recordOutcome(buildOutcomePayload({
+                taskId: task.id,
+                taskSource: task.source,
+                context: task.context as Record<string, unknown> | null,
+                outcomeSummary: result.outcomeSummary,
+                automatedOutcome: 'complete',
+            })).catch(() => { /* non-fatal */ })
+        }
+
         // Persistent channel delivery — delivers results to originating channel (Telegram, etc.)
         // This is the DB-backed delivery path that survives process restarts.
         const originCtx = (task.context as Record<string, unknown>) ?? {}
@@ -1595,6 +1610,21 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             provider: ctx.activeProvider,
             stepCount: 0,
         })
+
+        // Phase C: outcome capture on failed path — gated behind OUTCOME_CAPTURE_ENABLED.
+        {
+            const { recordOutcome, buildOutcomePayload } = await import('./outcome-capture.js')
+            const failedOutcome = errCode === 'COST_CEILING' ? 'cost_ceiling' as const
+                : errCode === 'NO_CREDENTIAL' ? 'no_credential' as const
+                : 'failed' as const
+            void recordOutcome(buildOutcomePayload({
+                taskId: task.id,
+                taskSource: task.source,
+                context: task.context as Record<string, unknown> | null,
+                outcomeSummary: message.slice(0, 2000),
+                automatedOutcome: failedOutcome,
+            })).catch(() => { /* non-fatal */ })
+        }
 
         // ── Backfill conversation record on failure ───────────────────────
         try {

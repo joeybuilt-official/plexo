@@ -4,98 +4,108 @@
 /**
  * Outcome capture — writes one row per terminal task to outcome_records.
  *
- * REQUIRES migration 0122_outcome_records before this module is wired in.
- * Until the migration is applied, do NOT import this from agent-loop.ts.
+ * REQUIRES migration 0122_outcome_records before activating.
+ * All writes are behind OUTCOME_CAPTURE_ENABLED guard — set to true after
+ * migration is applied and schema.ts is updated with the outcomeRecords table.
  *
- * Schema: outcome_records(id, routine_id, task_id, trigger, ground_truth, summary, ts)
- * Ground-truth flow:
- *   executor → writes row with ground_truth = NULL
- *   Telegram reply handler → UPDATE outcome_records SET ground_truth = ? WHERE task_id = ?
+ * Schema (revised, two-column signal model):
+ *   outcome_records(id, routine_id, task_id?, trigger,
+ *                   automated_outcome TEXT CHECK(...),
+ *                   human_verdict TEXT CHECK('accept'|'reject'),
+ *                   summary, ts)
+ *
+ * Signal flow:
+ *   executor terminal → recordOutcome() sets automated_outcome
+ *   Telegram reply → inject → recordHumanVerdict() sets human_verdict
+ *   The two columns are independent — no overwrite risk.
  */
 
 import { logger } from './logger.js'
 
-export type OutcomeGroundTruth =
-    | 'test_pass'
-    | 'pr_merged'
-    | 'pr_reverted'
-    | 'human_accept'
-    | 'human_reject'
+// Flip to true after migration 0122 is applied + schema.ts has outcomeRecords.
+const OUTCOME_CAPTURE_ENABLED = false
+
+export type AutomatedOutcome =
+    | 'complete'
+    | 'failed'
+    | 'cost_ceiling'
+    | 'no_credential'
+    | 'cancelled'
+
+export type HumanVerdict = 'accept' | 'reject'
 
 export interface OutcomePayload {
     taskId: string
     routineId?: string
     trigger: string
+    automatedOutcome: AutomatedOutcome
     summary?: string
-    groundTruth?: OutcomeGroundTruth
 }
 
 /**
- * Write an outcome row on task terminal state.
- * Call from agent-loop.ts on both 'complete' and 'failed' paths.
+ * Write an outcome row when a task reaches a terminal state.
+ * Call from agent-loop.ts on complete AND failed paths.
  * Non-fatal: any error is logged and swallowed.
- *
- * NOTE: requires migration 0122 to be applied first.
- * Uncomment the db import and enable this once the table exists.
  */
 export async function recordOutcome(payload: OutcomePayload): Promise<void> {
+    if (!OUTCOME_CAPTURE_ENABLED) {
+        logger.debug({ taskId: payload.taskId, automatedOutcome: payload.automatedOutcome }, 'outcome-capture: disabled (migration 0122 not applied)')
+        return
+    }
     try {
-        // ── Stubbed until migration 0122 is applied ───────────────────────
-        // Uncomment and add `outcome_records` to @plexo/db exports after migration:
-        //
-        // const { db } = await import('@plexo/db')
-        // const { outcomeRecords } = await import('@plexo/db')
-        // await db.insert(outcomeRecords).values({
-        //     taskId: payload.taskId,
-        //     routineId: payload.routineId ?? null,
-        //     trigger: payload.trigger,
-        //     summary: payload.summary?.slice(0, 2000) ?? null,
-        //     groundTruth: payload.groundTruth ?? null,
-        // })
-        logger.debug({ taskId: payload.taskId, trigger: payload.trigger }, 'outcome-capture: stub (migration 0122 not yet applied)')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { db, outcomeRecords } = await import('@plexo/db') as any
+        await db.insert(outcomeRecords).values({
+            taskId: payload.taskId,
+            routineId: payload.routineId ?? null,
+            trigger: payload.trigger,
+            automatedOutcome: payload.automatedOutcome,
+            summary: payload.summary?.slice(0, 2000) ?? null,
+        })
     } catch (err) {
         logger.warn({ err, taskId: payload.taskId }, 'outcome-capture: write failed — non-fatal')
     }
 }
 
 /**
- * Record a human signal (accept/reject) arriving via Telegram reply.
- * Called by the inject handler when a reply to a routine-task message is received.
- *
- * NOTE: requires migration 0122.
+ * Record a human verdict arriving via Telegram reply → inject path.
+ * Updates human_verdict on the existing row — does NOT touch automated_outcome.
  */
-export async function recordHumanSignal(
+export async function recordHumanVerdict(
     taskId: string,
-    signal: 'human_accept' | 'human_reject',
+    verdict: HumanVerdict,
 ): Promise<void> {
+    if (!OUTCOME_CAPTURE_ENABLED) {
+        logger.debug({ taskId, verdict }, 'outcome-capture: disabled (migration 0122 not applied)')
+        return
+    }
     try {
-        // const { db, eq } = await import('@plexo/db')
-        // const { outcomeRecords } = await import('@plexo/db')
-        // await db.update(outcomeRecords)
-        //     .set({ groundTruth: signal })
-        //     .where(eq(outcomeRecords.taskId, taskId))
-        logger.debug({ taskId, signal }, 'outcome-capture: human signal stub (migration 0122 not yet applied)')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { db, eq, outcomeRecords } = await import('@plexo/db') as any
+        await db.update(outcomeRecords)
+            .set({ humanVerdict: verdict })
+            .where(eq(outcomeRecords.taskId, taskId))
     } catch (err) {
-        logger.warn({ err, taskId, signal }, 'outcome-capture: human signal write failed — non-fatal')
+        logger.warn({ err, taskId, verdict }, 'outcome-capture: verdict write failed — non-fatal')
     }
 }
 
 /**
- * Build the outcome payload from agent-loop context — pure, testable.
+ * Build the outcome payload — pure, testable, no DB access.
  */
 export function buildOutcomePayload(opts: {
     taskId: string
     taskSource: string | null | undefined
     context: Record<string, unknown> | null | undefined
     outcomeSummary: string | undefined
-    groundTruth?: OutcomeGroundTruth
+    automatedOutcome: AutomatedOutcome
 }): OutcomePayload {
     const cronJobId = opts.context?.cronJobId as string | undefined
     return {
         taskId: opts.taskId,
         routineId: cronJobId,
         trigger: opts.taskSource ?? 'unknown',
+        automatedOutcome: opts.automatedOutcome,
         summary: opts.outcomeSummary?.slice(0, 2000),
-        groundTruth: opts.groundTruth,
     }
 }

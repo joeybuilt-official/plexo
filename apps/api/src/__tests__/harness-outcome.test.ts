@@ -21,12 +21,13 @@ describe('buildOutcomePayload', () => {
             taskSource: 'cron',
             context: { cronJobId: ROUTINE_ID },
             outcomeSummary: 'Checked 3 PRs, no action needed.',
+            automatedOutcome: 'complete',
         })
         expect(p.routineId).toBe(ROUTINE_ID)
         expect(p.trigger).toBe('cron')
         expect(p.taskId).toBe(TASK_ID)
         expect(p.summary).toBe('Checked 3 PRs, no action needed.')
-        expect(p.groundTruth).toBeUndefined()
+        expect(p.automatedOutcome).toBe('complete')
     })
 
     it('standalone user task → no routineId', () => {
@@ -35,6 +36,7 @@ describe('buildOutcomePayload', () => {
             taskSource: 'user',
             context: {},
             outcomeSummary: 'Done.',
+            automatedOutcome: 'complete',
         })
         expect(p.routineId).toBeUndefined()
         expect(p.trigger).toBe('user')
@@ -47,6 +49,7 @@ describe('buildOutcomePayload', () => {
             taskSource: 'cron',
             context: null,
             outcomeSummary: long,
+            automatedOutcome: 'complete',
         })
         expect(p.summary?.length).toBe(2000)
     })
@@ -57,19 +60,20 @@ describe('buildOutcomePayload', () => {
             taskSource: 'github',
             context: null,
             outcomeSummary: undefined,
+            automatedOutcome: 'failed',
         })
         expect(p.summary).toBeUndefined()
     })
 
-    it('ground_truth forwarded when provided', () => {
+    it('automatedOutcome forwarded', () => {
         const p = buildOutcomePayload({
             taskId: TASK_ID,
             taskSource: 'telegram',
             context: {},
             outcomeSummary: 'Done.',
-            groundTruth: 'human_accept',
+            automatedOutcome: 'cost_ceiling',
         })
-        expect(p.groundTruth).toBe('human_accept')
+        expect(p.automatedOutcome).toBe('cost_ceiling')
     })
 
     it('null/undefined source → trigger="unknown"', () => {
@@ -78,6 +82,7 @@ describe('buildOutcomePayload', () => {
             taskSource: null,
             context: {},
             outcomeSummary: '',
+            automatedOutcome: 'complete',
         })
         expect(p.trigger).toBe('unknown')
     })
