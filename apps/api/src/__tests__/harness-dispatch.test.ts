@@ -115,44 +115,44 @@ describe('cron-dispatch — harness fields in task context', () => {
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
         expect(ctl.pushCalls).toHaveLength(1)
-        expect(ctl.pushCalls[0].context.userMessage).toBe('Summarise open PRs.')
+        expect(ctl.pushCalls[0]!.context.userMessage).toBe('Summarise open PRs.')
     })
 
     it('forwards repoUrl + branchRef when repoUrl is set', async () => {
         ctl.dueJobs = [makeJob({ repoUrl: 'joeybuilt/plexo', repo_url: 'joeybuilt/plexo', branchRef: 'develop', branch_ref: 'develop' })]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        expect(ctl.pushCalls[0].context.repoUrl).toBe('joeybuilt/plexo')
-        expect(ctl.pushCalls[0].context.branchRef).toBe('develop')
+        expect(ctl.pushCalls[0]!.context.repoUrl).toBe('joeybuilt/plexo')
+        expect(ctl.pushCalls[0]!.context.branchRef).toBe('develop')
     })
 
     it('omits repo fields when repoUrl is null', async () => {
         ctl.dueJobs = [makeJob()]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        expect(ctl.pushCalls[0].context.repoUrl).toBeUndefined()
-        expect(ctl.pushCalls[0].context.branchRef).toBeUndefined()
+        expect(ctl.pushCalls[0]!.context.repoUrl).toBeUndefined()
+        expect(ctl.pushCalls[0]!.context.branchRef).toBeUndefined()
     })
 
     it('forwards connectorIds when non-empty', async () => {
         ctl.dueJobs = [makeJob({ connectorIds: [CONN_A, CONN_B], connector_ids: [CONN_A, CONN_B] })]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        expect(ctl.pushCalls[0].context.connectorIds).toEqual([CONN_A, CONN_B])
+        expect(ctl.pushCalls[0]!.context.connectorIds).toEqual([CONN_A, CONN_B])
     })
 
     it('omits connectorIds from context when empty array', async () => {
         ctl.dueJobs = [makeJob()]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        expect(ctl.pushCalls[0].context.connectorIds).toBeUndefined()
+        expect(ctl.pushCalls[0]!.context.connectorIds).toBeUndefined()
     })
 
     it('notifyChannel telegram:<chatId> → channel + chatId in context', async () => {
         ctl.dueJobs = [makeJob({ notifyChannel: 'telegram:987654321', notify_channel: 'telegram:987654321' })]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        const ctx = ctl.pushCalls[0].context
+        const ctx = ctl.pushCalls[0]!.context
         expect(ctx.notifyChannel).toBe('telegram:987654321')
         expect(ctx.channel).toBe('telegram')
         expect(ctx.chatId).toBe('987654321')
@@ -162,7 +162,7 @@ describe('cron-dispatch — harness fields in task context', () => {
         ctl.dueJobs = [makeJob({ notifyChannel: 'telegram', notify_channel: 'telegram' })]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        const ctx = ctl.pushCalls[0].context
+        const ctx = ctl.pushCalls[0]!.context
         expect(ctx.notifyChannel).toBe('telegram')
         expect(ctx.channel).toBeUndefined()
         expect(ctx.chatId).toBeUndefined()
@@ -182,7 +182,7 @@ describe('cron-dispatch — harness fields in task context', () => {
         })]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        const call = ctl.pushCalls[0]
+        const call = ctl.pushCalls[0]!
         expect(call.source).toBe('cron')
         const ctx = call.context
         expect(ctx.userMessage).toBe('Daily PR sweep.')
@@ -198,6 +198,6 @@ describe('cron-dispatch — harness fields in task context', () => {
         ctl.dueJobs = [makeJob()]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        expect(ctl.pushCalls[0].source).toBe('cron')
+        expect(ctl.pushCalls[0]!.source).toBe('cron')
     })
 })
