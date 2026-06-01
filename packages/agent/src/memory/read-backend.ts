@@ -122,5 +122,6 @@ function mapEdgeToResult(edge: SearchResultEdge, workspaceId: string, rank: numb
         namespace: DEFAULT_NAMESPACE,
         createdAt: edge.created_at ? new Date(edge.created_at) : new Date(),
         similarity,
+        confidence: null,
     }
 }

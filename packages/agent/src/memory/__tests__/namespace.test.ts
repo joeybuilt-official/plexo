@@ -107,6 +107,17 @@ vi.mock('redis', async () => ({
     createClient: vi.fn(() => { throw new Error('redis disabled in tests') }),
 }))
 
+// Phase 5 closure: shouldWritePostgres is always false in production.
+// Force postgres path so these tests exercise the insert logic.
+vi.mock('../write-backend.js', () => ({
+    getWriteBackend: () => 'graphiti',
+    shouldWritePostgres: () => true,
+    shouldMirrorGraphiti: () => false,
+    mirrorToGraphiti: vi.fn(async () => ({ ok: true, episodeId: null, extractedFactsCount: 0, extractedNodesCount: 0, latencyMs: 0 })),
+    resetWriteBackendForTest: vi.fn(),
+    setWriteBackendClientForTest: vi.fn(),
+}))
+
 // ── Pure helper tests ───────────────────────────────────────────────────────
 
 describe('memory/namespace helpers', () => {

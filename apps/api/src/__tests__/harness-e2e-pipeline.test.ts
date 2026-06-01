@@ -119,12 +119,12 @@ describe('E2E pipeline — cron-dispatch → queue context', () => {
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
 
-        const ctx = ctl.pushCalls[0].context
+        const ctx = ctl.pushCalls[0]!.context
 
         // Dispatch fires
         expect(ctl.pushCalls).toHaveLength(1)
-        expect(ctl.pushCalls[0].source).toBe('cron')
-        expect(ctl.pushCalls[0].workspaceId).toBe(WS_ID)
+        expect(ctl.pushCalls[0]!.source).toBe('cron')
+        expect(ctl.pushCalls[0]!.workspaceId).toBe(WS_ID)
 
         // Repo clone context
         expect(ctx.repoUrl).toBe('joeybuilt/plexo')
@@ -149,7 +149,7 @@ describe('E2E pipeline — cron-dispatch → queue context', () => {
         ctl.dueJobs = [makeJob()]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        const ctx = ctl.pushCalls[0].context
+        const ctx = ctl.pushCalls[0]!.context
         expect(ctx.repoUrl).toBeUndefined()
         expect(ctx.branchRef).toBeUndefined()
     })
@@ -212,7 +212,7 @@ describe('E2E pipeline — Telegram delivery gate', () => {
         ctl.dueJobs = [makeJob({ notifyChannel: 'telegram:123456789', notify_channel: 'telegram:123456789' })]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        const ctx = ctl.pushCalls[0].context
+        const ctx = ctl.pushCalls[0]!.context
         expect(shouldDeliver(ctx)).toBe(true)
         expect(ctx.channel).toBe('telegram')
         expect(ctx.chatId).toBe('123456789')
@@ -222,7 +222,7 @@ describe('E2E pipeline — Telegram delivery gate', () => {
         ctl.dueJobs = [makeJob()]
         const { dispatchDueJobs } = await import('../cron-dispatch.js')
         await dispatchDueJobs()
-        const ctx = ctl.pushCalls[0].context
+        const ctx = ctl.pushCalls[0]!.context
         expect(shouldDeliver(ctx)).toBe(false)
     })
 })
