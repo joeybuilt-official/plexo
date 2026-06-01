@@ -1192,9 +1192,11 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     // so the cache busts immediately when the user adds/removes tools.
     // When ctx.connectorIds is set (routine with connector allowlist), use a
     // scoped cache key so different scoping configs don't pollute each other.
-    const connectorScopeKey = ctx.connectorIds && ctx.connectorIds.length > 0
-        ? `:scoped:${[...ctx.connectorIds].sort().join(',')}`
-        : ''
+    const connectorScopeKey = ctx.connectorIds === undefined
+        ? ''                                                               // allow-all (interactive)
+        : ctx.connectorIds.length === 0
+            ? ':deny-all'                                                  // automated, no allowlist → no connectors
+            : `:scoped:${[...ctx.connectorIds].sort().join(',')}`          // explicit allowlist
     const connectionToolsRaw = await getCachedToolSet(
         `connections:${ctx.workspaceId}${connectorScopeKey}`,
         () => loadConnectionTools(ctx.workspaceId, ctx.connectorIds),

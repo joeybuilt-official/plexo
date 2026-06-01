@@ -12,6 +12,7 @@ export default defineConfig({
             '@plexo/agent/executor/step-builder': resolve(root, 'packages/agent/src/executor/step-builder.ts'),
             '@plexo/agent/executor': resolve(root, 'packages/agent/src/executor/index.ts'),
             '@plexo/agent/prompts/build-system-prompt': resolve(root, 'packages/agent/src/prompts/build-system-prompt.ts'),
+            '@plexo/agent/providers/router-v2': resolve(root, 'packages/agent/src/providers/router-v2/index.ts'),
             '@plexo/agent/providers/registry': resolve(root, 'packages/agent/src/providers/registry.ts'),
             '@plexo/agent/providers/chain-resolver': resolve(root, 'packages/agent/src/providers/chain-resolver.ts'),
             '@plexo/agent/providers/knowledge': resolve(root, 'packages/agent/src/providers/knowledge.ts'),

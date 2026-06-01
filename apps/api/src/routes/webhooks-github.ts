@@ -14,8 +14,8 @@ import { Router, type Router as RouterType } from 'express'
 import express from 'express'
 import * as crypto from 'crypto'
 import { timingSafeEqual } from 'crypto'
-import { db, eq } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import { db, eq, and } from '@plexo/db'
+import { workspaces, installedConnections } from '@plexo/db'
 import { push } from '@plexo/queue'
 import { logger } from '../logger.js'
 
@@ -99,8 +99,38 @@ githubWebhooksRouter.post(
                 const prNumber = pr?.number as number | undefined
                 const prTitle = pr?.title as string | undefined
                 const prUrl = pr?.html_url as string | undefined
-                const userMessage = `PR #${prNumber} ${action}: ${prTitle}`
-                context = { githubEvent: 'pull_request', action, repo, prNumber, prTitle, prUrl, userMessage }
+                // Phase D critic: opened/synchronize → fetch GitHub connector for the workspace
+                // so agent-loop's fail-closed gate (cron/github → deny-all) grants access.
+                const isCriticEvent = action === 'opened' || action === 'synchronize'
+                let criticConnectorIds: string[] | undefined
+                if (isCriticEvent) {
+                    try {
+                        const connRows = await db
+                            .select({ id: installedConnections.id })
+                            .from(installedConnections)
+                            .where(and(
+                                eq(installedConnections.workspaceId, workspaceId),
+                                eq(installedConnections.registryId, 'github'),
+                                eq(installedConnections.status, 'active'),
+                            ))
+                        criticConnectorIds = connRows.map(r => r.id)
+                    } catch {
+                        // non-fatal — task will be dispatched but with deny-all connectors
+                    }
+                }
+                const userMessage = isCriticEvent
+                    ? `Review PR #${prNumber} for correctness and style. Fetch the diff with github__get_pr_files, identify issues, then post a review with github__create_pr_review. PR: ${prTitle} (${prUrl})`
+                    : `PR #${prNumber} ${action}: ${prTitle}`
+                context = {
+                    githubEvent: 'pull_request',
+                    action,
+                    repo,
+                    prNumber,
+                    prTitle,
+                    prUrl,
+                    userMessage,
+                    ...(criticConnectorIds ? { connectorIds: criticConnectorIds } : {}),
+                }
                 break
             }
 
