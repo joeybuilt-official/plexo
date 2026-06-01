@@ -75,5 +75,16 @@ taskInjectRouter.post('/:id/inject', async (req, res) => {
 
     logger.info({ taskId: id, stepNumber: inserted.stepNumber }, 'injected user message')
 
+    // Phase H: if message is a verdict signal (✓/✗ or accept/reject), record human_verdict.
+    // Non-fatal — outcome capture is gated behind OUTCOME_CAPTURE_ENABLED in outcome-capture.ts.
+    const trimmed = message.trim().toLowerCase()
+    if (trimmed === '✓' || trimmed === 'accept' || trimmed === 'yes') {
+        const { recordHumanVerdict } = await import('../outcome-capture.js')
+        void recordHumanVerdict(id, 'accept').catch(() => { /* non-fatal */ })
+    } else if (trimmed === '✗' || trimmed === 'reject' || trimmed === 'no') {
+        const { recordHumanVerdict } = await import('../outcome-capture.js')
+        void recordHumanVerdict(id, 'reject').catch(() => { /* non-fatal */ })
+    }
+
     res.status(202).json({ status: 'queued', stepNumber: inserted.stepNumber })
 })

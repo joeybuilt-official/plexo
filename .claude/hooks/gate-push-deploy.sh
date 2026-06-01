@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gate: block git push and deploy commands unless PLEXO_DEPLOY_UNLOCK=1
+# Gate: block git push/force-push/merge/release and deploy commands unless PLEXO_DEPLOY_UNLOCK=1
 # Claude Code PreToolUse hook — reads JSON from stdin.
 # Output {"action":"block","message":"..."} to block the tool call.
 
@@ -14,28 +14,40 @@ fi
 
 UNLOCKED="${PLEXO_DEPLOY_UNLOCK:-0}"
 
-# Block git push (any form)
-if echo "$COMMAND" | grep -qE '^\s*git\s+push'; then
-    if [[ "$UNLOCKED" != "1" ]]; then
-        echo '{"action":"block","message":"GATE: git push blocked. Set PLEXO_DEPLOY_UNLOCK=1 in this session to unlock. This gate exists because push was bypassed twice during harness sessions."}'
-        exit 0
-    fi
+block() {
+    echo "{\"action\":\"block\",\"message\":\"GATE: $1 Unlock: set PLEXO_DEPLOY_UNLOCK=1 in this session.\"}"
+    exit 0
+}
+
+# ── git push (any form, including -f/--force and -C <dir> push) ───────────────
+# Matches: git push, git -C /path push, git push -f, git push --force
+if echo "$COMMAND" | grep -qE '(^|\s)git(\s+-C\s+\S+)?\s+push'; then
+    [[ "$UNLOCKED" != "1" ]] && block "git push blocked (push was bypassed twice in prior harness sessions)."
 fi
 
-# Block docker compose up (any container — deploy = up)
+# ── gh pr merge ───────────────────────────────────────────────────────────────
+if echo "$COMMAND" | grep -qE '(^|\s)gh\s+pr\s+merge'; then
+    [[ "$UNLOCKED" != "1" ]] && block "gh pr merge blocked."
+fi
+
+# ── gh release (create/upload/publish) ───────────────────────────────────────
+if echo "$COMMAND" | grep -qE '(^|\s)gh\s+release\s+(create|upload|publish)'; then
+    [[ "$UNLOCKED" != "1" ]] && block "gh release blocked."
+fi
+
+# ── curl/wget deploy-via-webhook (Coolify, generic webhook deploy endpoints) ──
+if echo "$COMMAND" | grep -qiE '(curl|wget).*(/deploy|/webhook|coolify|/api/v1/deploy)'; then
+    [[ "$UNLOCKED" != "1" ]] && block "curl/webhook deploy blocked."
+fi
+
+# ── docker compose up (any container) ────────────────────────────────────────
 if echo "$COMMAND" | grep -qE 'docker\s+compose.*\bup\b'; then
-    if [[ "$UNLOCKED" != "1" ]]; then
-        echo '{"action":"block","message":"GATE: docker compose up blocked. Set PLEXO_DEPLOY_UNLOCK=1 in this session to unlock."}'
-        exit 0
-    fi
+    [[ "$UNLOCKED" != "1" ]] && block "docker compose up blocked."
 fi
 
-# Block ssh <server> ... docker compose up/restart
+# ── ssh <server> ... docker compose up/restart ───────────────────────────────────
 if echo "$COMMAND" | grep -qE 'ssh.*hive.*docker.*compose.*(up|restart)'; then
-    if [[ "$UNLOCKED" != "1" ]]; then
-        echo '{"action":"block","message":"GATE: remote deploy via ssh blocked. Set PLEXO_DEPLOY_UNLOCK=1 to unlock."}'
-        exit 0
-    fi
+    [[ "$UNLOCKED" != "1" ]] && block "remote deploy via ssh blocked."
 fi
 
 exit 0
