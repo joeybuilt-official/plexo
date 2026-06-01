@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push*)",
+      "Bash(git push --force*)",
+      "Bash(docker compose up*plexo*)",
+      "Bash(docker compose -f*up*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/workspace/plexo/.claude/hooks/gate-push-deploy.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

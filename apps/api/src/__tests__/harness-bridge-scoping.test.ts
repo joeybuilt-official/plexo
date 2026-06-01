@@ -113,7 +113,7 @@ describe('loadConnectionTools — connector allowlist (allowedIds)', () => {
         )
     })
 
-    it('empty allowedIds → inArray NOT called (allow-all, backwards-compat)', async () => {
+    it('empty allowedIds → inArray NOT called (deny-all early-return before DB)', async () => {
         const { inArray } = await import('@plexo/db')
         const { loadConnectionTools } = await import('@plexo/agent/connections/bridge')
         await loadConnectionTools(WS_ID, [])
@@ -166,20 +166,23 @@ describe('connectorIds extraction from task.context', () => {
 // Test suite 3: executor cache key isolation
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('executor cache key — scoped vs unscoped', () => {
+describe('executor cache key — three-state scoping (Phase B)', () => {
+    // Mirrors executor/index.ts connectorScopeKey logic exactly.
     function buildKey(workspaceId: string, connectorIds: string[] | undefined): string {
-        const scope = connectorIds && connectorIds.length > 0
-            ? `:scoped:${[...connectorIds].sort().join(',')}`
-            : ''
+        const scope = connectorIds === undefined
+            ? ''                                                           // allow-all (interactive)
+            : connectorIds.length === 0
+                ? ':deny-all'                                              // automated, no allowlist
+                : `:scoped:${[...connectorIds].sort().join(',')}`          // explicit allowlist
         return `connections:${workspaceId}${scope}`
     }
 
-    it('no connectorIds → bare workspace key', () => {
+    it('undefined (allow-all) → bare workspace key', () => {
         expect(buildKey(WS_ID, undefined)).toBe(`connections:${WS_ID}`)
     })
 
-    it('empty connectorIds → bare key (same as unscoped)', () => {
-        expect(buildKey(WS_ID, [])).toBe(`connections:${WS_ID}`)
+    it('[] (deny-all) → :deny-all key', () => {
+        expect(buildKey(WS_ID, [])).toBe(`connections:${WS_ID}:deny-all`)
     })
 
     it('non-empty connectorIds → scoped key', () => {
@@ -194,7 +197,11 @@ describe('executor cache key — scoped vs unscoped', () => {
         expect(buildKey(WS_ID, [CONN_A, CONN_B])).toBe(buildKey(WS_ID, [CONN_B, CONN_A]))
     })
 
-    it('scoped and unscoped are different keys (no cross-contamination)', () => {
+    it('deny-all ≠ allow-all (no cross-contamination)', () => {
+        expect(buildKey(WS_ID, [])).not.toBe(buildKey(WS_ID, undefined))
+    })
+
+    it('scoped ≠ allow-all', () => {
         expect(buildKey(WS_ID, [CONN_A])).not.toBe(buildKey(WS_ID, undefined))
     })
 })

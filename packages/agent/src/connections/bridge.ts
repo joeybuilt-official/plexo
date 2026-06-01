@@ -278,6 +278,49 @@ const GITHUB_TOOLS: ToolFactory = (creds) => {
                 return `Committed ${path} -> ${d.commit.sha.slice(0, 7)} on ${branch}`
             },
         }),
+        github__get_pr_files: tool({
+            description: 'List files changed in a pull request with their diffs (patches). Use before posting a PR review.',
+            inputSchema: z.object({
+                owner: z.string().describe('Repository owner (user or org)'),
+                repo: z.string().describe('Repository name'),
+                pull_number: z.number().describe('Pull request number'),
+            }),
+            execute: async ({ owner, repo, pull_number }) => {
+                const res = await fetch(
+                    `${apiBase}/repos/${owner}/${repo}/pulls/${pull_number}/files?per_page=50`,
+                    { headers, signal: AbortSignal.timeout(15_000) },
+                )
+                if (!res.ok) return `GitHub error ${res.status}: ${res.statusText}`
+                const files = await res.json() as Array<{ filename: string; status: string; additions: number; deletions: number; patch?: string }>
+                return files.map(f =>
+                    `${f.status.toUpperCase()} ${f.filename} (+${f.additions}/-${f.deletions})\n${f.patch?.slice(0, 1000) ?? '(binary or too large)'}`
+                ).join('\n---\n') || 'No files changed.'
+            },
+        }),
+        github__create_pr_review: tool({
+            description: 'Post a review on a pull request. Use COMMENT to add feedback without approving or requesting changes.',
+            inputSchema: z.object({
+                owner: z.string().describe('Repository owner (user or org)'),
+                repo: z.string().describe('Repository name'),
+                pull_number: z.number().describe('Pull request number'),
+                body: z.string().describe('Review body text (markdown). Summarise your findings.'),
+                event: z.enum(['COMMENT', 'APPROVE', 'REQUEST_CHANGES']).default('COMMENT').describe('Review action'),
+            }),
+            execute: async ({ owner, repo, pull_number, body, event }) => {
+                const res = await fetch(`${apiBase}/repos/${owner}/${repo}/pulls/${pull_number}/reviews`, {
+                    method: 'POST',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ body, event }),
+                    signal: AbortSignal.timeout(10_000),
+                })
+                if (!res.ok) {
+                    const err = await res.text()
+                    return `GitHub error ${res.status}: ${err.slice(0, 200)}`
+                }
+                const d = await res.json() as { id: number; state: string }
+                return `Review #${d.id} submitted (${d.state}) on PR #${pull_number}`
+            },
+        }),
     }
 }
 
@@ -832,6 +875,13 @@ async function maybeRefreshGoogleToken(
  *   active workspace connections are loaded (current default behavior).
  */
 export async function loadConnectionTools(workspaceId: string, allowedIds?: string[]): Promise<ToolSet> {
+    // Explicit empty allowlist = deny-all: no connections loaded.
+    // Automated sources (cron, github) use this to fail-closed when no connector
+    // scope is configured. Interactive tasks pass undefined to allow-all.
+    if (allowedIds !== undefined && allowedIds.length === 0) {
+        return {}
+    }
+
     try {
         // Read workspace settings for read-only mode flag (Phase 9).
         // On any error reading the workspace, default to NOT-read-only so

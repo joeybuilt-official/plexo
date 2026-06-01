@@ -747,11 +747,16 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         // Live event streaming to SSE clients — enabled for all tasks (Phase 2)
         emitStepEvent: (event) => emitToWorkspace(taskWorkspaceId ?? '', event as unknown as import('./sse-emitter.js').AgentEvent),
         // Connector allowlist: restrict MCP tools to listed installed_connections.id values.
-        // Only set when context.connectorIds is a non-empty array — cron-dispatch populates
-        // this from the routine's connector_ids column when it has entries.
+        // Fail-closed: automated sources (cron, github) default to [] (deny-all) when no
+        // connector scope is configured. Interactive tasks remain allow-all (undefined).
         connectorIds: (() => {
+            const AUTOMATED_SOURCES = new Set(['cron', 'github'])
             const ids = (task.context as Record<string, unknown> | null)?.connectorIds
-            return Array.isArray(ids) && ids.length > 0 ? ids as string[] : undefined
+            const fromContext = Array.isArray(ids) && ids.length > 0 ? ids as string[] : undefined
+            if (fromContext === undefined && AUTOMATED_SOURCES.has(task.source ?? '')) {
+                return []  // empty array → deny-all in bridge.ts
+            }
+            return fromContext
         })(),
         // FUN-014: checkpoint resume from a prior task's steps
         resumeFromTaskId: (task.context as Record<string, unknown> | null)?.resumeFromTaskId as string | undefined,

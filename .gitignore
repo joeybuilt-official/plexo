@@ -55,9 +55,11 @@ playwright-report/
 test-results/
 caddy.json
 
-# Tool-specific artifacts — local config, worktrees, settings stay ignored; skills are committed
+# Tool-specific artifacts — worktrees and session state stay ignored; gate config is committed
 .claude/*
 !.claude/skills/
+!.claude/settings.json
+!.claude/hooks/
 .cache/
 tmp/
 *.log
