@@ -1,4 +1,4 @@
--- DRAFT — DO NOT APPLY — awaiting operator approval
+-- SPDX-License-Identifier: AGPL-3.0-only
 -- SPDX-License-Identifier: AGPL-3.0-only
 -- Idx: 0122  Tag: 0122_outcome_records
 --

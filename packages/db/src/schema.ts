@@ -1943,6 +1943,30 @@ export const entityLinks = pgTable('entity_links', {
 export type EntityLink = typeof entityLinks.$inferSelect
 export type NewEntityLink = typeof entityLinks.$inferInsert
 
+// ── Outcome records (migration 0122) ────────────────────────────────────────
+// One row per terminal task. Two independent signal columns:
+//   automated_outcome — written by executor on complete/failed/etc paths
+//   human_verdict     — written when human replies via Telegram (accept/reject)
+// task_id ON DELETE SET NULL so pruning tasks keeps the learning signal.
+
+export const outcomeRecords = pgTable('outcome_records', {
+    id:               uuid('id').defaultRandom().primaryKey(),
+    routineId:        uuid('routine_id').references(() => cronJobs.id, { onDelete: 'set null' }),
+    taskId:           text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+    trigger:          text('trigger').notNull(),
+    automatedOutcome: text('automated_outcome'),
+    humanVerdict:     text('human_verdict'),
+    summary:          text('summary'),
+    ts:               timestamp('ts', { withTimezone: true }).defaultNow().notNull(),
+}, (table: any) => [
+    index('outcome_records_routine_idx').on(table.routineId).where(sql`${table.routineId} IS NOT NULL`),
+    index('outcome_records_task_idx').on(table.taskId).where(sql`${table.taskId} IS NOT NULL`),
+    index('outcome_records_pending_verdict_idx').on(table.ts).where(sql`${table.humanVerdict} IS NULL AND ${table.automatedOutcome} = 'complete'`),
+    index('outcome_records_failed_idx').on(table.ts).where(sql`${table.automatedOutcome} = 'failed'`),
+])
+
+export type OutcomeRecord = typeof outcomeRecords.$inferSelect
+export type NewOutcomeRecord = typeof outcomeRecords.$inferInsert
 
 // ── Synthesis tables (memory_themes, memory_knn_edges, memory_theme_runs,
 //    synthesis_suggestions, memory_theme_history, scl_concept_graphs)

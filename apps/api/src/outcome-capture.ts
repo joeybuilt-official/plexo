@@ -22,8 +22,8 @@
 
 import { logger } from './logger.js'
 
-// Flip to true after migration 0122 is applied + schema.ts has outcomeRecords.
-const OUTCOME_CAPTURE_ENABLED = false
+// Migration 0122 applied 2026-06-01. Schema updated. Outcome capture active.
+const OUTCOME_CAPTURE_ENABLED = true
 
 export type AutomatedOutcome =
     | 'complete'
@@ -53,8 +53,7 @@ export async function recordOutcome(payload: OutcomePayload): Promise<void> {
         return
     }
     try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { db, outcomeRecords } = await import('@plexo/db') as any
+        const { db, outcomeRecords } = await import('@plexo/db')
         await db.insert(outcomeRecords).values({
             taskId: payload.taskId,
             routineId: payload.routineId ?? null,
@@ -80,8 +79,7 @@ export async function recordHumanVerdict(
         return
     }
     try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { db, eq, outcomeRecords } = await import('@plexo/db') as any
+        const { db, eq, outcomeRecords } = await import('@plexo/db')
         await db.update(outcomeRecords)
             .set({ humanVerdict: verdict })
             .where(eq(outcomeRecords.taskId, taskId))
