@@ -5,7 +5,7 @@
  * Orchestrator fan-out — parent task spawns N independent child tasks,
  * waits for all to reach a terminal state, then aggregates to one outcome.
  *
- * REQUIRES migration 0124_fanout_fields before activating.
+ * Migration 0124 applied — fanout_depth + fanout_total are proper columns.
  * All dispatch logic is behind FANOUT_ENABLED=false.
  *
  * Design decisions:
@@ -19,11 +19,6 @@
  *   Connector inheritance  — children get parent connectorIds or a NARROWER subset.
  *                            Broader scope is rejected at dispatch time.
  *                            parent [] → children []: deny-all preserved.
- *
- * Fan-out depth is stored in task context as _fanoutDepth (integer) until
- * migration 0124 is applied and schema.ts adds fanout_depth + fanout_total
- * as proper columns. The FANOUT_ENABLED gate prevents live execution until
- * then. When migration lands, context fields become column reads.
  *
  * Join detection: poll via checkFanoutJoin(). The caller (agent-loop) polls
  * until all children terminal, then calls resolveParent() to complete the parent.
@@ -118,6 +113,7 @@ export async function spawnFanout(opts: FanoutOpts): Promise<FanoutResult> {
         source:        tasks.source,
         context:       tasks.context,
         costCeilingUsd: tasks.costCeilingUsd,
+        fanoutDepth:   tasks.fanoutDepth,
     }).from(tasks).where(eq(tasks.id, opts.parentTaskId)).limit(1)
 
     if (!parent) {
@@ -126,8 +122,8 @@ export async function spawnFanout(opts: FanoutOpts): Promise<FanoutResult> {
 
     const ctx = parent.context as Record<string, unknown>
 
-    // 2. Depth check — blocks grandchildren
-    const parentDepth = typeof ctx._fanoutDepth === 'number' ? ctx._fanoutDepth : 0
+    // 2. Depth check — blocks grandchildren (reads column, not context)
+    const parentDepth = parent.fanoutDepth
     if (parentDepth >= MAX_FANOUT_DEPTH) {
         return {
             skipped: true,
@@ -186,11 +182,16 @@ export async function spawnFanout(opts: FanoutOpts): Promise<FanoutResult> {
         }
     }
 
-    // 7. Record fanout_total on parent context (used by join readiness check)
+    // 7. Record fanoutTotal column + set fanoutDepth on each child (column, not context)
     if (childTaskIds.length > 0) {
         await db.update(tasks)
-            .set({ context: { ...ctx, _fanoutTotal: childTaskIds.length } })
+            .set({ fanoutTotal: childTaskIds.length })
             .where(eq(tasks.id, opts.parentTaskId))
+        for (const childId of childTaskIds) {
+            await db.update(tasks)
+                .set({ fanoutDepth: childDepth })
+                .where(eq(tasks.id, childId))
+        }
     }
 
     logger.info({ parentTaskId: opts.parentTaskId, childCount: childTaskIds.length, depth: childDepth }, 'fanout: children spawned')
