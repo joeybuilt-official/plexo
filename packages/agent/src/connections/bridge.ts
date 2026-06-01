@@ -16,7 +16,7 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import pino from 'pino'
-import { db, eq, and } from '@plexo/db'
+import { db, eq, and, inArray } from '@plexo/db'
 
 const logger = pino({ name: 'connections:bridge' })
 import { installedConnections, workspaces, extensions } from '@plexo/db'
@@ -823,7 +823,15 @@ async function maybeRefreshGoogleToken(
 
 // ── Bridge: load workspace connections → AI SDK tools ────────────────────────
 
-export async function loadConnectionTools(workspaceId: string): Promise<ToolSet> {
+/**
+ * Load active connection tools for a workspace.
+ *
+ * @param allowedIds - When non-empty, restrict to connections whose `id` is in
+ *   this list. Connections not in the list are not loaded — their tools are
+ *   completely unreachable, not merely hidden. When undefined or empty, all
+ *   active workspace connections are loaded (current default behavior).
+ */
+export async function loadConnectionTools(workspaceId: string, allowedIds?: string[]): Promise<ToolSet> {
     try {
         // Read workspace settings for read-only mode flag (Phase 9).
         // On any error reading the workspace, default to NOT-read-only so
@@ -851,6 +859,12 @@ export async function loadConnectionTools(workspaceId: string): Promise<ToolSet>
             .where(and(
                 eq(installedConnections.workspaceId, workspaceId),
                 eq(installedConnections.status, 'active'),
+                // Connector allowlist: when non-empty, restrict to listed IDs only.
+                // Non-listed connections are excluded from the query — their tools
+                // are completely unreachable, not just absent from the prompt.
+                allowedIds && allowedIds.length > 0
+                    ? inArray(installedConnections.id, allowedIds)
+                    : undefined,
             ))
 
         const merged: ToolSet = {}

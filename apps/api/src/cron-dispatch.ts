@@ -82,6 +82,11 @@ export async function dispatchDueJobs(): Promise<void> {
         const workspaceId: string = r.workspaceId ?? r.workspace_id
         const taskType: string = r.taskType ?? r.task_type ?? 'general'
         const taskContext: Record<string, unknown> = r.taskContext ?? r.task_context ?? {}
+        const prompt: string | null        = r.prompt        ?? null
+        const repoUrl: string | null       = r.repoUrl       ?? r.repo_url        ?? null
+        const branchRef: string            = r.branchRef     ?? r.branch_ref      ?? 'main'
+        const connectorIds: string[]       = r.connectorIds  ?? r.connector_ids   ?? []
+        const notifyChannel: string | null = r.notifyChannel ?? r.notify_channel  ?? null
         const prevFailures: number = r.consecutiveFailures ?? r.consecutive_failures ?? 0
         const schedule: string | null = r.schedule ?? null
 
@@ -164,6 +169,13 @@ export async function dispatchDueJobs(): Promise<void> {
                         cronJobId: job.id,
                         cronJobName: job.name,
                         firedAt: now.toISOString(),
+                        ...(prompt ? { userMessage: prompt } : {}),
+                        ...(repoUrl ? { repoUrl, branchRef } : {}),
+                        ...(connectorIds.length > 0 ? { connectorIds } : {}),
+                        ...(notifyChannel ? (() => {
+                            const [ch, chatId] = notifyChannel.split(':', 2)
+                            return { notifyChannel, ...(chatId ? { channel: ch, chatId } : {}) }
+                        })() : {}),
                     },
                 })
                 logger.info({ jobId: job.id, name: job.name, workspaceId }, 'cron-dispatch: job fired')

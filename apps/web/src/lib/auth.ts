@@ -4,7 +4,7 @@
 /**
  * Better Auth — shared service instance
  *
- * Replaces the previous Supabase Auth setup.  All Joeybuilt apps point at
+ * Shared Better Auth identity layer.  All Joeybuilt apps point at
  * the same `auth` schema inside the shared Postgres database, giving every
  * service a single user-identity source of truth.
  *

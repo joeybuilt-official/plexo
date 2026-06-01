@@ -1190,9 +1190,14 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     // Phase X — cache the hot loaders per workspace for TOOL_SET_TTL_MS.
     // Extensions / connections routes call invalidateToolSet() on mutation
     // so the cache busts immediately when the user adds/removes tools.
+    // When ctx.connectorIds is set (routine with connector allowlist), use a
+    // scoped cache key so different scoping configs don't pollute each other.
+    const connectorScopeKey = ctx.connectorIds && ctx.connectorIds.length > 0
+        ? `:scoped:${[...ctx.connectorIds].sort().join(',')}`
+        : ''
     const connectionToolsRaw = await getCachedToolSet(
-        `connections:${ctx.workspaceId}`,
-        () => loadConnectionTools(ctx.workspaceId),
+        `connections:${ctx.workspaceId}${connectorScopeKey}`,
+        () => loadConnectionTools(ctx.workspaceId, ctx.connectorIds),
     )
     // L5b (ADR 0006 §D5): wrap each outbound connection tool with an
     // executor-side approval guard. Plan.oneWayDoors[] coverage is checked

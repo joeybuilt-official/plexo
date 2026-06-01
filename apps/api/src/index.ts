@@ -78,6 +78,9 @@ import { clarificationRouter } from './routes/clarification.js'
 // External error webhooks removed — analytics uses native relay
 import { a2aRouter, wellKnownAgentHandler } from './routes/a2a.js'
 import { webhooksRouter } from './routes/webhooks.js'
+import { githubWebhooksRouter } from './routes/webhooks-github.js'
+import { taskStreamRouter } from './routes/task-stream.js'
+import { taskInjectRouter } from './routes/task-inject.js'
 import { sharesRouter, publicShareRouter } from './routes/shares.js'
 import { terminateAll } from '@plexo/agent/persistent-pool'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
@@ -283,6 +286,7 @@ v1.use('/sse', sseRouter) // performs its own auth + workspace check
 v1.use('/auth', authLimiter, jsonDefault, authRouter)
 v1.use('/auth/handoff', jsonDefault, handoffRouter) // `/generate` has its own requireAuth
 v1.use('/oauth', jsonDefault, oauthRouter)
+v1.use('/webhooks/github', webhookLimiter, githubWebhooksRouter) // GitHub App webhook — raw body, X-Hub-Signature-256
 v1.use('/webhooks', webhookLimiter, jsonSmall, webhooksRouter) // per-workspace HMAC + 256 KB cap
 v1.use('/channels/telegram', webhookLimiter, jsonMedium, telegramRouter) // X-Telegram-Bot-Api-Secret-Token, 2 MB
 v1.use('/channels/slack', webhookLimiter, jsonDefault, slackRouter) // X-Slack-Signature
@@ -320,6 +324,8 @@ v1.use('/agents', agentsRunCustomRouter)
 
 // Workspace-scoped (CRUD over workspace-owned data)
 v1.use('/tasks', (req, res, next) => req.method === 'POST' ? taskCreationLimiter(req, res, next) : next(), workspaceRateLimit, tasksRouter)
+v1.use('/tasks', taskStreamRouter) // SSE step-tail: GET /tasks/:id/steps/stream
+v1.use('/tasks', taskInjectRouter) // mid-run inject: POST /tasks/:id/inject
 v1.use('/tasks/:taskId/clarification', clarificationRouter)
 v1.use('/parallel', parallelRouter)
 v1.use('/sprints', sprintsRouter)

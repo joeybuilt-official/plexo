@@ -139,15 +139,13 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       ENABLE_SPRINT_CODING_TASKS: ${ENABLE_SPRINT_CODING_TASKS:-false}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
-      # Better Auth — shared identity layer (replaces Supabase)
+      # Better Auth — shared identity layer
       AUTH_PROVIDER: better-auth
       AUTH_DATABASE_URL: ${AUTH_DATABASE_URL}
       AUTH_SECRET: ${AUTH_SECRET}
       # Analytics relay — Command Engine ingest
       ANALYTICS_RELAY_URL: ${ANALYTICS_RELAY_URL:-}
       ANALYTICS_RELAY_KEY: ${ANALYTICS_RELAY_KEY:-}
-      # Supabase JWT still accepted during transition (optional — remove after full migration)
-      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
       PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-}
       LEVIO_PUBLIC_URL: ${LEVIO_PUBLIC_URL:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
