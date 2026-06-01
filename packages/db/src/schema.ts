@@ -1968,6 +1968,29 @@ export const outcomeRecords = pgTable('outcome_records', {
 export type OutcomeRecord = typeof outcomeRecords.$inferSelect
 export type NewOutcomeRecord = typeof outcomeRecords.$inferInsert
 
+export const promptRevisions = pgTable('prompt_revisions', {
+    id:               uuid('id').defaultRandom().primaryKey(),
+    routineId:        uuid('routine_id').notNull().references(() => cronJobs.id, { onDelete: 'cascade' }),
+    version:          integer('version').notNull(),
+    basePromptHash:   text('base_prompt_hash').notNull(),
+    proposedDiff:     text('proposed_diff').notNull(),
+    rationale:        text('rationale').notNull(),
+    sourceOutcomeIds: uuid('source_outcome_ids').array().notNull().default(sql`'{}'::uuid[]`),
+    status:           text('status').notNull().default('pending'),
+    reviewedBy:       text('reviewed_by'),
+    reviewedAt:       timestamp('reviewed_at', { withTimezone: true }),
+    appliedAt:        timestamp('applied_at', { withTimezone: true }),
+    expiresAt:        timestamp('expires_at', { withTimezone: true }).notNull().default(sql`NOW() + INTERVAL '7 days'`),
+    ts:               timestamp('ts', { withTimezone: true }).defaultNow().notNull(),
+}, (table: any) => [
+    uniqueIndex('prompt_revisions_routine_version_idx').on(table.routineId, table.version),
+    index('prompt_revisions_pending_idx').on(table.routineId, table.expiresAt).where(sql`${table.status} = 'pending'`),
+    index('prompt_revisions_routine_ts_idx').on(table.routineId, table.ts),
+])
+
+export type PromptRevision = typeof promptRevisions.$inferSelect
+export type NewPromptRevision = typeof promptRevisions.$inferInsert
+
 // ── Synthesis tables (memory_themes, memory_knn_edges, memory_theme_runs,
 //    synthesis_suggestions, memory_theme_history, scl_concept_graphs)
 //    were removed in 2026-05-20 alongside the SCL teardown. Graphiti is the
