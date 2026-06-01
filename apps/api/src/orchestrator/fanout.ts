@@ -26,7 +26,9 @@
 
 import { logger } from '../logger.js'
 
-export const FANOUT_ENABLED = false
+// true by default — emergency kill-switch: set FANOUT_ENABLED=false in container env.
+// Reads env at module load; vi.resetModules() + process.env allows test override.
+export const FANOUT_ENABLED = process.env.FANOUT_ENABLED !== 'false'
 
 export const MAX_FANOUT_CHILDREN = 20
 export const MAX_FANOUT_DEPTH = 1
