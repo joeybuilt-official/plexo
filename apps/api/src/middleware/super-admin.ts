@@ -4,8 +4,8 @@
 /**
  * Super-Admin Gate Middleware
  *
- * Requires a valid Supabase JWT user with `isSuperAdmin = true`.
- * Must be stacked AFTER requireSupabaseAuth middleware.
+ * Requires an authenticated user with `isSuperAdmin = true`.
+ * Must be stacked AFTER the auth middleware that populates `req.user`.
  */
 
 import type { Request, Response, NextFunction } from 'express'

@@ -647,6 +647,11 @@ export const cronJobs = pgTable('cron_jobs', {
     lastRunAt: timestamp('last_run_at', { mode: 'date' }),
     lastRunStatus: cronRunStatusEnum('last_run_status'),
     consecutiveFailures: integer('consecutive_failures').default(0).notNull(),
+    prompt: text('prompt'),
+    repoUrl: text('repo_url'),
+    branchRef: text('branch_ref').notNull().default('main'),
+    connectorIds: text('connector_ids').array().notNull().default([]),
+    notifyChannel: text('notify_channel'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 })
 

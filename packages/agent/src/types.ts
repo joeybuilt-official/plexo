@@ -536,6 +536,26 @@ export interface ExecutionContext {
     /** Source channel that submitted this task — used to mark external-channel tasks as untrusted input. */
     taskSource?: TaskSource
     /**
+     * Connector allowlist for this task run.
+     * When non-empty, only connections whose `installed_connections.id` appears
+     * in this list will have their tools loaded. Connections outside the list
+     * are excluded at the DB query level — their tools are completely unreachable.
+     * When undefined (or empty), all active workspace connections are loaded.
+     * Set from task.context.connectorIds (populated by cron-dispatch for routines
+     * that have connector_ids configured).
+     *
+     * ⚠ SECURITY DECISION — empty-list behaviour:
+     *   undefined  → allow all (default, backwards-compatible)
+     *   ['id',…]   → allowlist: only listed connectors
+     *   []         → treated as undefined (allow all) — an explicit empty list
+     *               in context means "no restriction was specified", not "deny all".
+     *               Rationale: cron-dispatch already omits connectorIds from context
+     *               when the DB column is empty, so [] in context is unexpected.
+     *               If future callers need "deny all connectors", use a sentinel
+     *               value rather than [].
+     */
+    connectorIds?: string[]
+    /**
      * FUN-014: Checkpoint resume — original task ID to rebuild message history from.
      * Set by the retry handler when re-queuing a blocked/failed task that has
      * persisted step states. The executor uses this to call buildResumeMessages()

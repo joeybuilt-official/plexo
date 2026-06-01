@@ -28,7 +28,6 @@ export const SERVICE_MAP: Array<{ match: RegExp; id: string; name: string; categ
     { match: /gitlab/i,        id: 'gitlab',         name: 'GitLab',        category: 'development' },
     { match: /jira/i,          id: 'jira',           name: 'Jira',          category: 'project-management' },
     { match: /vercel/i,        id: 'vercel',         name: 'Vercel',        category: 'devops' },
-    { match: /supabase/i,      id: 'supabase',       name: 'Supabase',      category: 'database' },
     { match: /planetscale/i,   id: 'planetscale',    name: 'PlanetScale',   category: 'database' },
     { match: /render/i,        id: 'render',         name: 'Render',        category: 'devops' },
     { match: /fly\.io/i,       id: 'flyio',          name: 'Fly.io',        category: 'devops' },
@@ -94,7 +93,6 @@ const SERVICE_NAME_MAP: Array<{ match: RegExp; id: string; name: string; categor
     { match: /posthog/i,      id: 'posthog',     name: 'PostHog',     category: 'analytics',       apiUrl: 'https://app.posthog.com' },
     { match: /airtable/i,     id: 'airtable',    name: 'Airtable',    category: 'database',        apiUrl: 'https://api.airtable.com' },
     { match: /hubspot/i,      id: 'hubspot',     name: 'HubSpot',     category: 'crm',             apiUrl: 'https://api.hubapi.com' },
-    { match: /supabase/i,     id: 'supabase',    name: 'Supabase',    category: 'database',        apiUrl: 'https://app.supabase.com' },
     { match: /vercel/i,       id: 'vercel',      name: 'Vercel',      category: 'devops',          apiUrl: 'https://api.vercel.com' },
 ]
 

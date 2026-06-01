@@ -47,6 +47,7 @@ import {
     Server,
     GitBranch,
     Activity,
+    Calendar,
 } from 'lucide-react'
 import { ArrowUpCircle } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
@@ -95,6 +96,7 @@ const NAV_WORK_GROUP = {
         { label: 'Approvals', href: '/app/approvals', icon: ShieldAlert },
         { label: 'Escalations', href: '/app/escalations', icon: AlertTriangle },
         { label: 'Memory', href: '/app/memory', icon: Brain },
+        { label: 'Routines', href: '/routines', icon: Calendar },
     ] as NavItem[],
 }
 const NAV_WORK = NAV_WORK_GROUP.items
@@ -151,7 +153,8 @@ function sectionForPath(pathname: string): SectionId | null {
         pathname === '/app/approvals' || pathname.startsWith('/app/approvals/') ||
         pathname === '/app/escalations' || pathname.startsWith('/app/escalations/') ||
         pathname === '/app/memory' || pathname.startsWith('/app/memory/') ||
-        pathname === '/insights' || pathname.startsWith('/insights/')
+        pathname === '/insights' || pathname.startsWith('/insights/') ||
+        pathname === '/routines' || pathname.startsWith('/routines/')
     ) return 'work'
     if (
         // AI Models entry now points at /app/settings/intelligence (UX-016)

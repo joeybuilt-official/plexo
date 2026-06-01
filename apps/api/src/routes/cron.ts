@@ -350,13 +350,18 @@ cronRouter.get('/', async (req, res) => {
 // ── POST /api/cron ────────────────────────────────────────────────────────────
 
 cronRouter.post('/', async (req, res) => {
-    const { workspaceId, name, schedule, scheduleAt, taskType, taskContext } = req.body as {
+    const { workspaceId, name, schedule, scheduleAt, taskType, taskContext, prompt, repoUrl, branchRef, connectorIds, notifyChannel } = req.body as {
         workspaceId?: string
         name?: string
         schedule?: string
         scheduleAt?: string
         taskType?: string
         taskContext?: Record<string, unknown>
+        prompt?: string
+        repoUrl?: string
+        branchRef?: string
+        connectorIds?: string[]
+        notifyChannel?: string
     }
 
     if (!workspaceId || !UUID_RE.test(workspaceId) || !name) {
@@ -480,6 +485,11 @@ cronRouter.post('/', async (req, res) => {
             enabled: true,
             taskType: resolvedTaskType,
             taskContext: resolvedTaskContext,
+            prompt: prompt ?? null,
+            repoUrl: repoUrl ?? null,
+            branchRef: branchRef ?? 'main',
+            connectorIds: connectorIds ?? [],
+            notifyChannel: notifyChannel ?? null,
         }).returning()
         logger.info({ workspaceId, name, schedule: resolvedSchedule, scheduleAt: resolvedNextRunAt?.toISOString(), taskType: resolvedTaskType }, 'Schedule created')
         trackEvent('cron.created', 'info', { workspaceId, name, schedule: resolvedSchedule, taskType: resolvedTaskType })
@@ -498,7 +508,7 @@ cronRouter.patch('/:id', async (req, res) => {
         res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
         return
     }
-    const { workspaceId, enabled, schedule, scheduleAt, name, taskType, taskContext } = req.body as {
+    const { workspaceId, enabled, schedule, scheduleAt, name, taskType, taskContext, prompt, repoUrl, branchRef, connectorIds, notifyChannel } = req.body as {
         workspaceId?: string
         enabled?: boolean
         schedule?: string | null
@@ -506,6 +516,11 @@ cronRouter.patch('/:id', async (req, res) => {
         name?: string
         taskType?: string
         taskContext?: Record<string, unknown>
+        prompt?: string | null
+        repoUrl?: string | null
+        branchRef?: string
+        connectorIds?: string[]
+        notifyChannel?: string | null
     }
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
@@ -597,6 +612,11 @@ cronRouter.patch('/:id', async (req, res) => {
     if (name !== undefined) update.name = name
     if (taskType !== undefined) update.taskType = taskType
     if (resolvedTaskContext !== undefined) update.taskContext = resolvedTaskContext
+    if (prompt !== undefined) update.prompt = prompt
+    if (repoUrl !== undefined) update.repoUrl = repoUrl
+    if (branchRef !== undefined) update.branchRef = branchRef
+    if (connectorIds !== undefined) update.connectorIds = connectorIds
+    if (notifyChannel !== undefined) update.notifyChannel = notifyChannel
 
     if (hasSchedule) {
         if (!isValidCron(schedule!)) {

@@ -4,7 +4,7 @@
 /**
  * GET /auth/handshake — Cross-app session establishment
  *
- * Previously accepted a Supabase JWT from a sibling Joeybuilt app.
+ * Previously accepted a JWT from a sibling Joeybuilt app.
  * Now that all apps share the same Better Auth schema, a valid Better Auth
  * session cookie is sufficient — if the browser is already signed in to
  * the shared auth DB, they are automatically signed in here too.

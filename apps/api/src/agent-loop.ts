@@ -594,13 +594,13 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         } catch { /* non-fatal */ }
     }
 
-    // ── Sprint coding context: clone repo to temp dir for coding tasks ──────────
-    // task.context is set by the sprint runner with { repo, branch, workspaceId, ... }
-    // We clone here (agent-loop level) so the executor has a real working dir.
-    if (task.type === 'coding') {
+    // ── Sprint/routine repo context: clone repo to temp dir ─────────────────────
+    // Coding tasks: { repo, branch } set by sprint runner.
+    // Cron-triggered tasks: { repoUrl, branchRef } set by cron-dispatch bridge.
+    {
         const taskCtx = task.context as Record<string, unknown> | null | undefined
-        const repo = taskCtx?.repo as string | undefined
-        const branch = taskCtx?.branch as string | undefined
+        const repo = (taskCtx?.repo ?? taskCtx?.repoUrl) as string | undefined
+        const branch = (taskCtx?.branch ?? taskCtx?.branchRef) as string | undefined
         const ctxWorkspaceId = (taskCtx?.workspaceId as string | undefined) ?? taskWorkspaceId
 
         if (repo && branch) {
@@ -631,8 +631,6 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 // Register for Code Mode file tree + SSE
                 registerCodeContext(task.id, taskWorkspaceId ?? '', workDir)
             } catch (cloneErr) {
-                // Non-fatal: executor falls back to process.cwd() which is wrong but at least
-                // the task proceeds. The system prompt will tell the agent to clone manually.
                 logger.warn({ taskId: task.id, err: cloneErr }, 'Sprint repo clone failed — executor will work without pre-cloned dir')
             }
         }
@@ -748,6 +746,13 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         tavilyApiKey,
         // Live event streaming to SSE clients — enabled for all tasks (Phase 2)
         emitStepEvent: (event) => emitToWorkspace(taskWorkspaceId ?? '', event as unknown as import('./sse-emitter.js').AgentEvent),
+        // Connector allowlist: restrict MCP tools to listed installed_connections.id values.
+        // Only set when context.connectorIds is a non-empty array — cron-dispatch populates
+        // this from the routine's connector_ids column when it has entries.
+        connectorIds: (() => {
+            const ids = (task.context as Record<string, unknown> | null)?.connectorIds
+            return Array.isArray(ids) && ids.length > 0 ? ids as string[] : undefined
+        })(),
         // FUN-014: checkpoint resume from a prior task's steps
         resumeFromTaskId: (task.context as Record<string, unknown> | null)?.resumeFromTaskId as string | undefined,
         // L5b (ADR 0006 §D5): metric callback for executor-side approval guard.
