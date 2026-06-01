@@ -2,22 +2,26 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Orchestrator fan-out — unit tests
+ * Orchestrator fan-out — unit + integration tests
  *
  * Tests:
- *   1. FANOUT_ENABLED=false → spawnFanout returns skipped
- *   2. Dispatch: parent spawns N children with correct parentId + connectorIds
- *   3. Depth cap: child (depth=1) cannot fan-out → grandchild blocked
- *   4. Join all-success: all children complete → ready=true, aggregated summary
- *   5. Join one-failed: proceed_with_successes → still ready, failure in digest
- *   6. Connector scope: child cannot exceed parent scope (scope_violation)
- *   7. resolveChildConnectors: full coverage of scope rules
+ *   1. Gate: FANOUT_ENABLED=false (env not set) → spawnFanout skipped
+ *   2. resolveChildConnectors: full scope rule coverage (pure)
+ *   3. Depth cap constants
+ *   4. Depth cap — live dispatch (FANOUT_ENABLED=true via env):
+ *      a. fanoutDepth=1 → skipped:true, ZERO pushes, ZERO DB updates (grandchild blocked)
+ *      b. fanoutDepth=0 → children spawned normally
+ *   5. Integration run: spawn (depth=0, 2 children) → grandchild blocked → join aggregates
+ *   6. Join all-success / one-failed (pure math)
+ *   7. Connector scope security boundary (pure)
  *
  * DB and queue are fully stubbed. No network calls.
+ * FANOUT_ENABLED reads from process.env.FANOUT_ENABLED at module load, so
+ * vi.resetModules() + setting the env var before dynamic import controls the flag.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { resolveChildConnectors, MAX_FANOUT_CHILDREN, MAX_FANOUT_DEPTH, type ChildOutcome } from '../fanout.js'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_FANOUT_CHILDREN, MAX_FANOUT_DEPTH, resolveChildConnectors, type ChildOutcome } from '../fanout.js'
 
 // ── Test constants ────────────────────────────────────────────────────────────
 
@@ -29,7 +33,6 @@ const CONNECTOR_A = 'conn-aaaa-0001'
 const CONNECTOR_B = 'conn-bbbb-0002'
 
 // ── DB stub ───────────────────────────────────────────────────────────────────
-// Mutable per-test state
 
 type DBState = {
     parent: {
@@ -38,6 +41,7 @@ type DBState = {
         source: string
         context: Record<string, unknown>
         costCeilingUsd: number | null
+        fanoutDepth: number
     } | null
     children: Array<{
         id: string
@@ -50,6 +54,7 @@ type DBState = {
         parentId: string
     }>
     updatedContext: Record<string, unknown> | null
+    updates: Array<Record<string, unknown>>   // all db.update().set() calls
     pushedChildren: Array<Record<string, unknown>>
 }
 
@@ -61,11 +66,13 @@ function resetState(overrides: Partial<DBState> = {}) {
             id: PARENT_ID,
             workspaceId: WORKSPACE,
             source: 'cron',
-            context: { connectorIds: [CONNECTOR_A], _fanoutDepth: 0 },
+            context: { connectorIds: [CONNECTOR_A] },
             costCeilingUsd: 2.00,
+            fanoutDepth: 0,
         },
         children: [],
         updatedContext: null,
+        updates: [],
         pushedChildren: [],
         ...overrides,
     }
@@ -79,23 +86,35 @@ vi.mock('@plexo/db', () => {
         outcomeSummary: 'outcomeSummary', failureReason: 'failureReason',
         tokensIn: 'tokensIn', tokensOut: 'tokensOut', costUsd: 'costUsd',
         status: 'status', parentId: 'parentId',
+        fanoutDepth: 'fanoutDepth', fanoutTotal: 'fanoutTotal',
     })
 
     return {
         db: {
             select: vi.fn(() => ({
                 from: vi.fn(() => ({
-                    where: vi.fn(() => ({
-                        limit: vi.fn(async () => _state.parent ? [_state.parent] : []),
-                    })),
+                    where: vi.fn((condition: { col: unknown }) => {
+                        // Distinguish children query (parentId col) from parent lookup (id col)
+                        const isChildrenQuery = condition && (condition as { col: unknown }).col === 'parentId'
+                        const rows = isChildrenQuery
+                            ? _state.children
+                            : (_state.parent ? [_state.parent] : [])
+                        return {
+                            limit: vi.fn(async (n: number) => rows.slice(0, n)),
+                            // Thenable: supports direct await (checkFanoutJoin children query)
+                            then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+                                Promise.resolve(rows).then(resolve, reject),
+                            catch: (handler: (e: unknown) => unknown) =>
+                                Promise.resolve(rows).catch(handler),
+                        }
+                    }),
                 })),
             })),
             update: vi.fn(() => ({
                 set: vi.fn((ctx: Record<string, unknown>) => {
+                    _state.updates.push(ctx)
                     _state.updatedContext = ctx
-                    return {
-                        where: vi.fn(async () => { /* noop */ }),
-                    }
+                    return { where: vi.fn(async () => {}) }
                 }),
             })),
         },
@@ -111,10 +130,16 @@ vi.mock('@plexo/queue', () => ({
     }),
 }))
 
-// ── Tests: FANOUT_ENABLED gate ────────────────────────────────────────────────
+// ── Tests: FANOUT_ENABLED kill-switch (env=false) ────────────────────────────
+// FANOUT_ENABLED is true by default; these tests simulate the emergency kill-switch.
 
-describe('fanout — FANOUT_ENABLED=false gate', () => {
-    beforeEach(() => { vi.resetModules(); resetState() })
+describe('fanout — FANOUT_ENABLED kill-switch (FANOUT_ENABLED=false env)', () => {
+    beforeEach(() => {
+        process.env.FANOUT_ENABLED = 'false'
+        vi.resetModules()
+        resetState()
+    })
+    afterEach(() => { delete process.env.FANOUT_ENABLED })
 
     it('spawnFanout returns skipped when FANOUT_ENABLED=false', async () => {
         const { spawnFanout } = await import('../fanout.js')
@@ -175,35 +200,9 @@ describe('resolveChildConnectors', () => {
     })
 })
 
-// ── Tests: depth cap ──────────────────────────────────────────────────────────
+// ── Tests: depth cap constants ────────────────────────────────────────────────
 
-describe('fanout — depth cap', () => {
-    beforeEach(() => { vi.resetModules(); resetState() })
-
-    it('grandchild spawn is blocked when parent depth = MAX_FANOUT_DEPTH', async () => {
-        // Simulate a child task trying to fan-out (its context has _fanoutDepth=1)
-        resetState({
-            parent: {
-                id: PARENT_ID,
-                workspaceId: WORKSPACE,
-                source: 'cron',
-                context: { _fanoutDepth: MAX_FANOUT_DEPTH, connectorIds: [CONNECTOR_A] },
-                costCeilingUsd: null,
-            },
-        })
-        const { spawnFanout } = await import('../fanout.js')
-        const result = await spawnFanout({
-            parentTaskId: PARENT_ID,
-            children: [{ userMessage: 'grandchild — should be blocked' }],
-        })
-        // FANOUT_ENABLED=false fires first — depth check is the SECOND guard.
-        // With the gate off, skipped=true with FANOUT_ENABLED reason.
-        // We verify the gate is the outermost guard.
-        expect(result.skipped).toBe(true)
-        // Depth guard logic is tested via the constant + the context pattern
-        expect(MAX_FANOUT_DEPTH).toBe(1)
-    })
-
+describe('fanout — depth cap constants', () => {
     it('MAX_FANOUT_DEPTH is 1 (no grandchildren by design)', () => {
         expect(MAX_FANOUT_DEPTH).toBe(1)
     })
@@ -214,11 +213,170 @@ describe('fanout — depth cap', () => {
     })
 })
 
+// ── Tests: depth cap — live dispatch (FANOUT_ENABLED=true) ───────────────────
+//
+// These tests exercise the actual spawnFanout dispatch path by setting
+// process.env.FANOUT_ENABLED='true' before vi.resetModules() forces a fresh
+// module evaluation. Both assertions are required for the fork-bomb guard proof.
+
+describe('fanout — depth cap (FANOUT_ENABLED=true, live dispatch)', () => {
+    beforeEach(() => {
+        vi.resetModules()
+        resetState()
+    })
+
+    it('task at fanoutDepth=1 → skipped:true, ZERO rows written (grandchild blocked)', async () => {
+        resetState({
+            parent: {
+                id: PARENT_ID,
+                workspaceId: WORKSPACE,
+                source: 'cron',
+                context: { connectorIds: [CONNECTOR_A] },
+                costCeilingUsd: null,
+                fanoutDepth: MAX_FANOUT_DEPTH,  // 1 — at cap, must be blocked
+            },
+        })
+        const { spawnFanout } = await import('../fanout.js')
+
+        const result = await spawnFanout({
+            parentTaskId: PARENT_ID,
+            children: [{ userMessage: 'grandchild — must not spawn' }],
+        })
+
+        // ASSERTION 1: returns skipped with depth reason
+        expect(result.skipped).toBe(true)
+        expect(result.skipReason).toContain('depth_cap_exceeded')
+        expect(result.skipReason).toContain('parent depth=1')
+
+        // ASSERTION 2: absolutely zero rows written — no queue push, no DB update
+        expect(_state.pushedChildren).toHaveLength(0)
+        expect(_state.updates).toHaveLength(0)
+    })
+
+    it('task at fanoutDepth=0 → children spawned normally', async () => {
+        // Default state has fanoutDepth=0
+        const { spawnFanout } = await import('../fanout.js')
+
+        const result = await spawnFanout({
+            parentTaskId: PARENT_ID,
+            children: [{ userMessage: 'child A' }],
+        })
+
+        expect(result.skipped).toBe(false)
+        expect(result.childTaskIds).toHaveLength(1)
+        expect(result.childCount).toBe(1)
+        expect(_state.pushedChildren).toHaveLength(1)
+        expect(_state.pushedChildren[0]?.parentId).toBe(PARENT_ID)
+    })
+})
+
+// ── Tests: integration run ────────────────────────────────────────────────────
+//
+// Phase 3 observed run: parent (depth=0) spawns 2 children, grandchild is blocked,
+// children complete, join aggregates. Covers the full path end-to-end with stubs.
+
+describe('fanout — integration run (FANOUT_ENABLED=true, 2 children, depth=0)', () => {
+    beforeEach(() => {
+        vi.resetModules()
+        resetState({
+            parent: {
+                id: PARENT_ID,
+                workspaceId: WORKSPACE,
+                source: 'cron',
+                context: { connectorIds: [CONNECTOR_A] },
+                costCeilingUsd: 1.00,
+                fanoutDepth: 0,
+            },
+        })
+    })
+
+    it('spawn 2 children; connector scope ⊆ parent; cost ceiling ÷ N; grandchild blocked; join aggregates', async () => {
+        const { spawnFanout, checkFanoutJoin } = await import('../fanout.js')
+
+        // ── Step 1: parent (depth=0) spawns 2 children ─────────────────────────
+        const spawnResult = await spawnFanout({
+            parentTaskId: PARENT_ID,
+            children: [
+                { userMessage: 'child A — check repo A', connectorIds: [CONNECTOR_A] },
+                { userMessage: 'child B — check repo B', connectorIds: [CONNECTOR_A] },
+            ],
+        })
+
+        expect(spawnResult.skipped).toBe(false)
+        expect(spawnResult.childTaskIds).toHaveLength(2)
+        expect(spawnResult.childCount).toBe(2)
+
+        // Connector scope ⊆ parent [CONNECTOR_A]
+        for (const child of _state.pushedChildren) {
+            expect((child.context as Record<string, unknown>).connectorIds).toEqual([CONNECTOR_A])
+            expect(child.parentId).toBe(PARENT_ID)
+        }
+
+        // Per-child cost ceiling: 1.00 / 2 = 0.50 ≥ MIN_CHILD_CEILING ($0.10)
+        expect(_state.pushedChildren[0]?.costCeilingUsd as number).toBeCloseTo(0.50)
+        expect(_state.pushedChildren[1]?.costCeilingUsd as number).toBeCloseTo(0.50)
+
+        // fanoutTotal column written to parent
+        const parentUpdate = _state.updates.find((u) => 'fanoutTotal' in u)
+        expect(parentUpdate).toMatchObject({ fanoutTotal: 2 })
+
+        // fanoutDepth column set to 1 for each child (2 updates)
+        const depthUpdates = _state.updates.filter((u) => 'fanoutDepth' in u)
+        expect(depthUpdates).toHaveLength(2)
+        expect(depthUpdates.every((u) => u.fanoutDepth === 1)).toBe(true)
+
+        // ── Step 2: child (fanoutDepth=1) tries to fan-out → blocked ───────────
+        resetState({
+            parent: {
+                id: CHILD_ID_1,
+                workspaceId: WORKSPACE,
+                source: 'cron',
+                context: { connectorIds: [CONNECTOR_A] },
+                costCeilingUsd: null,
+                fanoutDepth: 1,  // child is at MAX_FANOUT_DEPTH — no grandchildren
+            },
+        })
+
+        const grandchildResult = await spawnFanout({
+            parentTaskId: CHILD_ID_1,
+            children: [{ userMessage: 'grandchild — must not spawn' }],
+        })
+
+        expect(grandchildResult.skipped).toBe(true)
+        expect(grandchildResult.skipReason).toContain('depth_cap_exceeded')
+        expect(_state.pushedChildren).toHaveLength(0)  // zero new pushes after state reset
+
+        // ── Step 3: set both children terminal → join aggregates ────────────────
+        _state.children = [
+            {
+                id: CHILD_ID_1, status: 'complete',
+                outcomeSummary: 'Checked 3 PRs', failureReason: null,
+                tokensIn: 100, tokensOut: 200, costUsd: 0.01, parentId: PARENT_ID,
+            },
+            {
+                id: CHILD_ID_2, status: 'complete',
+                outcomeSummary: 'No issues found', failureReason: null,
+                tokensIn: 80, tokensOut: 150, costUsd: 0.008, parentId: PARENT_ID,
+            },
+        ]
+
+        const joinResult = await checkFanoutJoin(PARENT_ID)
+
+        expect(joinResult.ready).toBe(true)
+        expect(joinResult.nTotal).toBe(2)
+        expect(joinResult.nComplete).toBe(2)
+        expect(joinResult.nFailed).toBe(0)
+        expect(joinResult.nCancelled).toBe(0)
+        expect(joinResult.totalCostUsd).toBeCloseTo(0.018)
+        expect(joinResult.aggregateSummary).toContain('2/2 subtasks succeeded')
+        expect(joinResult.aggregateSummary).toContain('Checked 3 PRs')
+    })
+})
+
 // ── Tests: join all-success ────────────────────────────────────────────────────
 
 describe('fanout join — all-success', () => {
     it('aggregates correctly when all children complete', () => {
-        // Test the pure aggregation logic that checkFanoutJoin uses internally
         const children: ChildOutcome[] = [
             { taskId: CHILD_ID_1, status: 'complete', outcomeSummary: 'Checked 3 PRs', failureReason: null, tokensIn: 100, tokensOut: 200, costUsd: 0.01 },
             { taskId: CHILD_ID_2, status: 'complete', outcomeSummary: 'No issues found', failureReason: null, tokensIn: 80,  tokensOut: 150, costUsd: 0.008 },
@@ -246,7 +404,6 @@ describe('fanout join — one-failed (proceed_with_successes)', () => {
             { taskId: CHILD_ID_1, status: 'complete', outcomeSummary: 'Checked PRs', failureReason: null, tokensIn: 100, tokensOut: 200, costUsd: 0.01 },
             { taskId: CHILD_ID_2, status: 'failed',   outcomeSummary: null, failureReason: 'no_credential', tokensIn: 0,   tokensOut: 0,   costUsd: 0 },
         ]
-        // All children terminal — join should fire
         const TERMINAL = new Set(['complete', 'failed', 'cancelled'])
         const allTerminal = children.every(c => TERMINAL.has(c.status))
         expect(allTerminal).toBe(true)
@@ -256,7 +413,6 @@ describe('fanout join — one-failed (proceed_with_successes)', () => {
         expect(nComplete).toBe(1)
         expect(nFailed).toBe(1)
 
-        // Proceed-with-successes: parent completes (not fails) despite child failure
         const failureLines = children
             .filter(c => c.status !== 'complete')
             .map(c => `[${c.taskId.slice(-6)}] ${c.status}: ${c.failureReason ?? c.outcomeSummary ?? 'no detail'}`)
