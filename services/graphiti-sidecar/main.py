@@ -55,6 +55,11 @@ from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
 from graphiti_core.llm_client.config import LLMConfig
 from graphiti_core.nodes import EntityNode, EpisodeType
 
+# Escape hyphenated-UUID group_ids in the vendored graphiti-core RediSearch
+# fulltext query (graphiti-core==0.29.0). Without this, /v1/search 500s on every
+# hyphenated workspace UUID. Import for side effect (patches at import time).
+import redisearch_groupid_patch  # noqa: F401
+
 import schema_registry
 
 logger = logging.getLogger("plexo-graphiti")
