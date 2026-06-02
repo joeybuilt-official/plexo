@@ -17,6 +17,7 @@ import { CancelButton } from './_cancel-button'
 import { ApprovalActions } from './_approval-actions'
 import { BlockedActions } from './_blocked-actions'
 import { StepRow } from './_step-row'
+import { LiveSteps } from './_live-steps'
 import { RawStepsPanel } from './_raw-steps-panel'
 import { LifecycleTimeline, type LifecycleEvent } from './_lifecycle-timeline'
 import { VerifySection } from './_verify-section'
@@ -262,13 +263,16 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                     <p className="text-sm text-text-primary leading-relaxed">{task.outcomeSummary}</p>
                 </div>
             ) : task.status === 'running' || task.status === 'claimed' ? (
-                <div
-                    className="rounded-sm border border-azure/20 bg-azure/5 p-4 flex items-center gap-3"
-                    role="status"
-                    aria-live="polite"
-                >
-                    <Loader2 className="h-4 w-4 text-azure animate-spin shrink-0" aria-hidden="true" />
-                    <p className="text-sm text-text-secondary">Agent is working on this task…</p>
+                <div className="flex flex-col gap-3">
+                    <div
+                        className="rounded-sm border border-azure/20 bg-azure/5 p-4 flex items-center gap-3"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <Loader2 className="h-4 w-4 text-azure animate-spin shrink-0" aria-hidden="true" />
+                        <p className="text-sm text-text-secondary">Agent is working on this task…</p>
+                    </div>
+                    <LiveSteps taskId={task.id} workspaceId={task.workspaceId} />
                 </div>
             ) : null}
 
