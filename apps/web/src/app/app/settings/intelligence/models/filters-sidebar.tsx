@@ -29,7 +29,7 @@ interface FiltersSidebarProps {
     onChange: (next: CatalogFilters) => void
 }
 
-const PROVIDERS = ['', 'anthropic', 'openai', 'google', 'mistral', 'groq', 'deepseek', 'together', 'fireworks', 'cerebras', 'cohere', 'openrouter', 'xai']
+const PROVIDERS = ['', 'anthropic', 'anthropic_subscription', 'openai', 'google', 'mistral', 'groq', 'deepseek', 'together', 'fireworks', 'cerebras', 'cohere', 'openrouter', 'xai']
 const CAPABILITIES = [
     { value: '', label: 'Any capability' },
     { value: 'tools', label: 'Tools' },
