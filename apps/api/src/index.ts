@@ -82,6 +82,7 @@ import { a2aRouter, wellKnownAgentHandler } from './routes/a2a.js'
 import { webhooksRouter } from './routes/webhooks.js'
 import { githubWebhooksRouter } from './routes/webhooks-github.js'
 import { taskStreamRouter } from './routes/task-stream.js'
+import { agentsActiveStreamRouter } from './routes/agents-active-stream.js'
 import { taskInjectRouter } from './routes/task-inject.js'
 import { sharesRouter, publicShareRouter } from './routes/shares.js'
 import { terminateAll } from '@plexo/agent/persistent-pool'
@@ -323,6 +324,7 @@ v1.use(jsonDefault)
 // External app agent dispatch (service-key auth via requireAuth above)
 v1.use('/agents', agentsRunRouter)
 v1.use('/agents', agentsRunCustomRouter)
+v1.use('/agents', agentsActiveStreamRouter) // SSE workspace active-agents feed: GET /agents/active/stream
 
 // Workspace-scoped (CRUD over workspace-owned data)
 v1.use('/tasks', (req, res, next) => req.method === 'POST' ? taskCreationLimiter(req, res, next) : next(), workspaceRateLimit, tasksRouter)
