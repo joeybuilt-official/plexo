@@ -757,6 +757,7 @@ const DEFAULT_TEST_MODELS: Partial<Record<string, string>> = {
     // Some fail if user has "Model Training" disabled in OR privacy settings.
     openrouter: 'deepseek/deepseek-chat-v3-0324:free',
     anthropic: 'claude-haiku-4-5',
+    anthropic_subscription: 'claude-haiku-4-5',
     openai: 'gpt-4o-mini',
     google: 'gemini-2.5-flash',
     mistral: 'mistral-small-latest',

@@ -22,7 +22,7 @@ export const keySharesRouter: RouterType = Router({ mergeParams: true })
 
 const ULID_RE = /^[0-9A-Z]{26}$/
 
-const VALID_PROVIDERS = ['openai', 'anthropic', 'openrouter', 'google', 'groq', 'mistral', 'deepseek', 'xai', 'ollama', 'ollama_cloud']
+const VALID_PROVIDERS = ['openai', 'anthropic', 'anthropic_subscription', 'openrouter', 'google', 'groq', 'mistral', 'deepseek', 'xai', 'ollama', 'ollama_cloud']
 
 // ── GET /api/v1/workspaces/:id/key-shares ─────────────────────────────────────
 // Returns shares where this workspace is the source (lending) or target (borrowing).

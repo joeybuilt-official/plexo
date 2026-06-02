@@ -47,6 +47,7 @@ export interface DiscoverCredentials {
 export const FALLBACK_MODELS: Record<string, string[]> = {
     openai: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini'],
     anthropic: ['claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
+    anthropic_subscription: ['claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
     google: ['gemini-2.5-flash', 'gemini-2.5-pro'],
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'],
     cerebras: ['llama3.1-8b', 'qwen-3-235b-a22b-instruct-2507', 'gpt-oss-120b', 'zai-glm-4.7'],
@@ -273,6 +274,10 @@ export async function discoverModels(
 
             case 'anthropic':
                 return discoverAnthropic(apiKey)
+            case 'anthropic_subscription':
+                // Subscription OAuth tokens cannot list models via /v1/models
+                // (that path is x-api-key only). Use the static Claude catalog.
+                return fallback('anthropic_subscription', 'OAuth subscription — using static catalog')
             case 'google':
                 return discoverGoogle(apiKey)
 

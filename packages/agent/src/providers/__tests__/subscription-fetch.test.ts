@@ -19,6 +19,7 @@ import {
 } from '../subscription-fetch'
 import { classifyError } from '../router-v2/error-classifier'
 import { buildModel, isBuiltinProviderKey, type WorkspaceAISettings } from '../registry'
+import { discoverModels } from '../discover-models'
 
 const FAKE = 'sk-ant-oat00-FAKEFAKEFAKEFAKEFAKEFAKEFAKE00'
 
@@ -172,6 +173,17 @@ describe('registry wiring', () => {
             expect(() => buildModel('anthropic_subscription', { provider: 'anthropic_subscription' }, 'planning', settings)).toThrow(/OAuth token/)
         } finally {
             if (prev !== undefined) process.env.CLAUDE_CODE_OAUTH_TOKEN = prev
+        }
+    })
+})
+
+describe('BYOK discovery wiring', () => {
+    it('returns the static Claude catalog without a network call (oat cannot list models)', async () => {
+        const r = await discoverModels('anthropic_subscription', {})
+        expect(r.ok).toBe(false)
+        if (!r.ok) {
+            expect(r.fallbackModels).toContain('claude-sonnet-4-5')
+            expect(r.fallbackModels.length).toBeGreaterThan(0)
         }
     })
 })
