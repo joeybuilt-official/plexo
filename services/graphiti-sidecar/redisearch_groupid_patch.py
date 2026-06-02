@@ -1,31 +1,34 @@
 """RediSearch group_id escape patch for graphiti-core==0.29.0 (PINNED).
 
 WHY
-    graphiti_core.driver.falkordb.operations.search_ops._build_falkor_fulltext_query
-    injects the raw group_id (a hyphenated workspace UUID) into a RediSearch fulltext
-    query. RediSearch parses '-' as a negation operator -> "RediSearch: Syntax error
-    ... near <uuid8>" -> every /v1/search returns 500 -> ALL Graphiti recall (lessons
-    + memory) is dead. (Prod log: /v1/search 24x 200 vs 539x 500.)
+    graphiti-core builds a RediSearch fulltext query that injects the raw,
+    hyphenated workspace-UUID group_id into the query string. RediSearch parses
+    '-' as a negation operator -> "RediSearch: Syntax error ... near <uuid8>" ->
+    every /v1/search 500s -> ALL Graphiti recall (lessons + memory) is dead.
+    (Prod log: /v1/search 24x 200 vs 539x 500.)
 
 WHAT
-    Wrap _build_falkor_fulltext_query so group_ids are backslash-escaped ONLY when
-    building the RediSearch query string. The callers (node_fulltext_search /
-    edge_fulltext_search) keep passing the RAW group_ids to the cypher
-    `n.group_id IN $group_ids` param — param binding is safe and REQUIRES the raw
-    value (escaping it returns 0 hits; proven empirically against FalkorDB).
+    graphiti-core 0.29.0 has TWO fulltext-query builders, both with the same
+    unescaped bug. The RUNTIME path is FalkorDriver.build_fulltext_query
+    (search_utils.fulltext_query -> driver.build_fulltext_query); the other,
+    search_ops._build_falkor_fulltext_query, is patched defensively. Both are
+    wrapped to backslash-escape '-'/'\' in group_ids ONLY for the fulltext
+    query string. Callers keep passing RAW group_ids to the cypher
+    `group_id IN $group_ids` param, which is param-bound and REQUIRES the raw
+    value (escaping it returns 0 hits; verified empirically against FalkorDB).
 
 CLOBBER RISK  (see services/graphiti-sidecar/requirements.txt pin)
-    This reaches into vendored graphiti_core internals. It is valid ONLY for
-    graphiti-core==0.29.0. If the pin is bumped this module asserts the target still
-    exists and logs the running version loudly so the change cannot land silently.
-    Upstream fix + version bump tracked under Phase 11; remove this module when the
-    fix lands upstream.
+    Reaches into vendored graphiti_core internals; valid ONLY for
+    graphiti-core==0.29.0. Asserts both targets exist and logs the running
+    version loudly so a bump cannot land silently. Upstream PR + bump tracked
+    under Phase 11; remove this module when the fix lands upstream.
 """
 
 import logging
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
+from graphiti_core.driver import falkordb_driver as _fd
 from graphiti_core.driver.falkordb.operations import search_ops as _so
 
 logger = logging.getLogger("plexo-graphiti")
@@ -36,11 +39,18 @@ try:
 except PackageNotFoundError:
     _actual_version = "unknown"
 
-if not hasattr(_so, "_build_falkor_fulltext_query"):
+_missing = [
+    name
+    for name, present in (
+        ("FalkorDriver.build_fulltext_query", hasattr(_fd.FalkorDriver, "build_fulltext_query")),
+        ("search_ops._build_falkor_fulltext_query", hasattr(_so, "_build_falkor_fulltext_query")),
+    )
+    if not present
+]
+if _missing:
     raise RuntimeError(
-        "redisearch_groupid_patch: search_ops._build_falkor_fulltext_query is missing "
-        f"(graphiti-core=={_actual_version}). Vendored internals changed — re-validate "
-        "the group_id escape fix BEFORE deploy."
+        f"redisearch_groupid_patch: vendored target(s) missing {_missing} "
+        f"(graphiti-core=={_actual_version}). Internals changed — re-validate BEFORE deploy."
     )
 
 if _actual_version != _EXPECTED_VERSION:
@@ -51,24 +61,51 @@ if _actual_version != _EXPECTED_VERSION:
         _EXPECTED_VERSION,
     )
 
-_orig_build_falkor_fulltext_query = _so._build_falkor_fulltext_query
-
 
 def _escape_group_id(value: str) -> str:
     # validate_group_id() restricts group_ids to [A-Za-z0-9_-]; only '-' (and a
-    # defensive '\') are RediSearch-special. Backslash-escape so the fulltext query
-    # parses instead of reading '-' as a negation operator.
+    # defensive '\') are RediSearch-special. Backslash-escape so the fulltext
+    # query parses instead of reading '-' as a negation operator.
     return value.replace("\\", "\\\\").replace("-", "\\-")
 
 
-def _patched_build_falkor_fulltext_query(query, group_ids=None, max_query_length=_so.MAX_QUERY_LENGTH):
-    safe_group_ids = [_escape_group_id(g) for g in group_ids] if group_ids else group_ids
-    return _orig_build_falkor_fulltext_query(query, safe_group_ids, max_query_length)
+def _escape_in_query(built: str, group_ids) -> str:
+    # POST-process: the builders run validate_group_id() (which rejects '\'),
+    # so we cannot pre-escape the inputs. Instead let the builder run with RAW
+    # group_ids, then escape each group_id value inside the returned RediSearch
+    # string. Only the quoted group_id token (`"<uuid>"`) is rewritten; the
+    # query-text portion never contains the UUID so it is untouched.
+    if not built or not group_ids:
+        return built
+    for gid in group_ids:
+        built = built.replace(f'"{gid}"', f'"{_escape_group_id(gid)}"')
+    return built
 
 
-if getattr(_so._build_falkor_fulltext_query, "__name__", "") != "_patched_build_falkor_fulltext_query":
-    _so._build_falkor_fulltext_query = _patched_build_falkor_fulltext_query
-    logger.info(
-        "redisearch_groupid_patch: applied (graphiti-core==%s) — group_id escaped for RediSearch fulltext",
-        _actual_version,
-    )
+# --- primary: the RUNTIME builder (FalkorDriver.build_fulltext_query) ---
+_orig_driver_build = _fd.FalkorDriver.build_fulltext_query
+
+
+def _patched_driver_build(self, query, group_ids=None, max_query_length=128):
+    return _escape_in_query(_orig_driver_build(self, query, group_ids, max_query_length), group_ids)
+
+
+if getattr(_fd.FalkorDriver.build_fulltext_query, "__name__", "") != "_patched_driver_build":
+    _fd.FalkorDriver.build_fulltext_query = _patched_driver_build
+
+# --- defensive: the module-level builder (search_ops._build_falkor_fulltext_query) ---
+_orig_so_build = _so._build_falkor_fulltext_query
+
+
+def _patched_so_build(query, group_ids=None, max_query_length=_so.MAX_QUERY_LENGTH):
+    return _escape_in_query(_orig_so_build(query, group_ids, max_query_length), group_ids)
+
+
+if getattr(_so._build_falkor_fulltext_query, "__name__", "") != "_patched_so_build":
+    _so._build_falkor_fulltext_query = _patched_so_build
+
+logger.info(
+    "redisearch_groupid_patch: applied to FalkorDriver.build_fulltext_query + "
+    "search_ops._build_falkor_fulltext_query (graphiti-core==%s)",
+    _actual_version,
+)
