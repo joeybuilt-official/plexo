@@ -6,16 +6,17 @@
  *
  * POST /api/v1/revisions/:id/decision   body: { choice: 'approve'|'reject', actor? }
  *
- * The canonical endpoint every channel's parse() (and the web revision-review
- * UI) lands on. Builds a DecisionIntent and routes it through the shared
- * applyDecision handler. Concrete /revisions route to start; a /tasks/:id/
- * decision verdict variant can reuse applyDecision unchanged.
+ * The canonical endpoint every channel's parse() lands on. The web POST body is
+ * itself run through webAdapter.parse() (web is a first-class channel, not a
+ * special case), then routed through the shared applyDecision handler. Concrete
+ * /revisions route to start; a /tasks/:id/decision verdict variant can reuse
+ * applyDecision unchanged.
  */
 
 import { Router, type Router as ExpressRouter } from 'express'
 import { db, and, eq, inArray, promptRevisions, cronJobs, outcomeRecords } from '@plexo/db'
 import { applyDecision, defaultDecisionHandlers } from '../channels/decision.js'
-import type { DecisionChoice } from '../channels/types.js'
+import { webAdapter } from '../channels/adapters/web-adapter.js'
 import { logger } from '../logger.js'
 
 // ── Read model for the revision-review UI (first consumer of the seam) ───────
@@ -56,20 +57,25 @@ export const revisionDecisionRouter: ExpressRouter = Router()
 revisionDecisionRouter.post('/:id/decision', async (req, res) => {
     const revisionId = req.params.id
     const body = (req.body ?? {}) as { choice?: string; actor?: string }
-    const choice = body.choice
 
-    if (choice !== 'approve' && choice !== 'reject') {
+    // Web is a first-class channel: the POST body is parsed by the SAME
+    // webAdapter.parse() seam every other channel uses. targetType/targetId are
+    // fixed by the route; choice/actor come from the body.
+    const intent = webAdapter.parse({
+        targetType: 'revision',
+        targetId: revisionId,
+        choice: body.choice,
+        actor: body.actor ?? req.user?.email,
+    })
+
+    if (!intent || intent.kind !== 'decision') {
         res.status(400).json({ error: { code: 'INVALID_CHOICE', message: "choice must be 'approve' or 'reject'" } })
         return
     }
 
-    const actor = body.actor ?? req.user?.email ?? 'web'
-
     try {
-        const result = await applyDecision(
-            { targetType: 'revision', targetId: revisionId, choice: choice as DecisionChoice, actor },
-            defaultDecisionHandlers,
-        )
+        const { kind: _kind, ...decision } = intent
+        const result = await applyDecision(decision, defaultDecisionHandlers)
         // ok=false here is a domain rejection (stale prompt, not pending, …) → 409.
         res.status(result.ok ? 200 : 409).json(result)
     } catch (err) {
