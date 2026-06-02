@@ -168,3 +168,58 @@ export async function mirrorToGraphiti(args: MirrorMemoryArgs): Promise<MirrorRe
     })
     return { ok: true, episodeId: res.episodeId, extractedFactsCount: res.extractedFactsCount, extractedNodesCount: res.extractedNodesCount, latencyMs }
 }
+
+export interface InvalidateLessonResult {
+    ok: boolean
+    deleted: number
+    skipped?: boolean
+}
+
+/**
+ * Physically delete all RELATES_TO edges belonging to a lesson episode.
+ * Called by the lessons.graphiti.invalidate Inngest job when a revision is
+ * rejected. Physical deletion is used because the graphiti sidecar's
+ * /v1/search does not filter by invalid_at by default (Phase 0 finding).
+ *
+ * Idempotent — safe to call multiple times; a missing episode returns
+ * {ok: true, deleted: 0, skipped: true}.
+ */
+export async function invalidateGraphitiLesson(workspaceId: string, revisionId: string): Promise<InvalidateLessonResult> {
+    const client = getClient()
+    if (!client) {
+        logger.warn({ workspaceId, revisionId }, 'graphiti bridge not configured; lesson invalidation skipped')
+        return { ok: true, deleted: 0, skipped: true }
+    }
+
+    const lessonName = `lesson:${revisionId}`
+
+    const episodeRes = await client.cypher({
+        workspaceId,
+        cypher: 'MATCH (ep:Episodic) WHERE ep.name = $name RETURN ep.uuid LIMIT 1',
+        params: { name: lessonName },
+    })
+    const epUuid = episodeRes?.rows?.[0]?.[0] as string | undefined
+    if (!epUuid) {
+        logger.info({ workspaceId, revisionId, lessonName }, 'lesson invalidate: episode not found (write may have been skipped or gate was off)')
+        return { ok: true, deleted: 0, skipped: true }
+    }
+
+    // Count first so we can log a meaningful number — DELETE cannot return count(r)
+    const countRes = await client.cypher({
+        workspaceId,
+        cypher: 'MATCH (a)-[r:RELATES_TO]->(b) WHERE $ep_id IN r.episodes RETURN count(r) AS n',
+        params: { ep_id: epUuid },
+    })
+    const deleted = (countRes?.rows?.[0]?.[0] as number) ?? 0
+
+    if (deleted > 0) {
+        await client.cypher({
+            workspaceId,
+            cypher: 'MATCH (a)-[r:RELATES_TO]->(b) WHERE $ep_id IN r.episodes DELETE r',
+            params: { ep_id: epUuid },
+        })
+    }
+
+    logger.info({ workspaceId, revisionId, epUuid, deleted }, 'lesson invalidate: edges deleted')
+    return { ok: true, deleted }
+}

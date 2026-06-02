@@ -78,6 +78,15 @@ export interface GraphitiSearchOpts {
     workspaceId: string
     queryText: string
     limit: number
+    /**
+     * Episode UUIDs that belong to lesson facts. When provided with
+     * `lessonCap`, edges whose `episodes` overlap this set are capped.
+     * Callers source this list from `prompt_revisions.graphiti_episode_id`.
+     * Pass empty / omit to disable cap (all results returned as-is).
+     */
+    lessonEpisodeIds?: string[]
+    /** Max lesson edges per query. Enforced only when `lessonEpisodeIds` is non-empty. */
+    lessonCap?: number
 }
 
 /**
@@ -94,8 +103,30 @@ export async function readFromGraphiti(opts: GraphitiSearchOpts): Promise<Memory
         logger.warn({ workspaceId: opts.workspaceId }, 'memory.read.graphiti: bridge.search returned null')
         return null
     }
-    const total = res.results.length
-    return res.results.map((edge, idx) => mapEdgeToResult(edge, opts.workspaceId, idx, total))
+    const edges = applyLessonCap(res.results, opts.lessonEpisodeIds, opts.lessonCap)
+    const total = edges.length
+    return edges.map((edge, idx) => mapEdgeToResult(edge, opts.workspaceId, idx, total))
+}
+
+/**
+ * Cap lesson-tagged edges so they don't crowd out regular facts.
+ * An edge is a "lesson" when its `episodes` list overlaps the provided
+ * set of lesson episode IDs. Non-lesson edges are always kept.
+ */
+function applyLessonCap(
+    edges: SearchResultEdge[],
+    lessonEpisodeIds: string[] | undefined,
+    lessonCap: number | undefined,
+): SearchResultEdge[] {
+    if (!lessonEpisodeIds?.length || lessonCap == null) return edges
+    const lessonSet = new Set(lessonEpisodeIds)
+    let lessonCount = 0
+    return edges.filter(edge => {
+        const isLesson = edge.episodes?.some(ep => lessonSet.has(ep)) ?? false
+        if (!isLesson) return true
+        lessonCount++
+        return lessonCount <= lessonCap
+    })
 }
 
 function mapEdgeToResult(edge: SearchResultEdge, workspaceId: string, rank: number, total: number): MemorySearchResult {

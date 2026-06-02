@@ -112,4 +112,89 @@ describe('readFromGraphiti', () => {
         await readFromGraphiti({ workspaceId: WS, queryText: 'q', limit: 25 })
         expect(captured!.numResults).toBe(25)
     })
+
+    // ── Phase 2: lesson cap ──────────────────────────────────────────────────
+
+    const makeEdge = (uuid: string, episodes?: string[]) => ({
+        uuid,
+        fact: `fact ${uuid}`,
+        source_node_uuid: null,
+        target_node_uuid: null,
+        valid_at: null,
+        invalid_at: null,
+        created_at: null,
+        episodes,
+    })
+
+    it('no regression: all edges returned when lessonEpisodeIds not provided', async () => {
+        const edges = [makeEdge('e1', ['ep-lesson']), makeEdge('e2', ['ep-other'])]
+        const fake = { search: async () => ({ results: edges }) } as unknown as GraphitiClient
+        setReadBackendClientForTest(fake)
+
+        const r = await readFromGraphiti({ workspaceId: WS, queryText: 'q', limit: 10 })
+        expect(r).toHaveLength(2)
+    })
+
+    it('no regression: all edges returned when lessonEpisodeIds is empty', async () => {
+        const edges = [makeEdge('e1', ['ep-lesson']), makeEdge('e2')]
+        const fake = { search: async () => ({ results: edges }) } as unknown as GraphitiClient
+        setReadBackendClientForTest(fake)
+
+        const r = await readFromGraphiti({
+            workspaceId: WS, queryText: 'q', limit: 10,
+            lessonEpisodeIds: [],
+            lessonCap: 1,
+        })
+        expect(r).toHaveLength(2)
+    })
+
+    it('caps lesson edges when lessonEpisodeIds + lessonCap provided', async () => {
+        const edges = [
+            makeEdge('lesson-1', ['ep-lesson']),
+            makeEdge('lesson-2', ['ep-lesson']),
+            makeEdge('lesson-3', ['ep-lesson']),
+            makeEdge('regular-1', ['ep-other']),
+        ]
+        const fake = { search: async () => ({ results: edges }) } as unknown as GraphitiClient
+        setReadBackendClientForTest(fake)
+
+        const r = await readFromGraphiti({
+            workspaceId: WS, queryText: 'q', limit: 10,
+            lessonEpisodeIds: ['ep-lesson'],
+            lessonCap: 2,
+        })
+        // 2 lessons + 1 regular = 3 total; lesson-3 dropped
+        expect(r).toHaveLength(3)
+        const ids = r!.map(x => x.id)
+        expect(ids).toContain('lesson-1')
+        expect(ids).toContain('lesson-2')
+        expect(ids).not.toContain('lesson-3')
+        expect(ids).toContain('regular-1')
+    })
+
+    it('non-lesson edges always pass through regardless of cap', async () => {
+        const edges = Array.from({ length: 10 }, (_, i) => makeEdge(`regular-${i}`, ['ep-regular']))
+        const fake = { search: async () => ({ results: edges }) } as unknown as GraphitiClient
+        setReadBackendClientForTest(fake)
+
+        const r = await readFromGraphiti({
+            workspaceId: WS, queryText: 'q', limit: 10,
+            lessonEpisodeIds: ['ep-lesson'],
+            lessonCap: 1,
+        })
+        expect(r).toHaveLength(10)
+    })
+
+    it('edges with no episodes field treated as non-lesson', async () => {
+        const edges = [makeEdge('e1'), makeEdge('e2'), makeEdge('e3')]
+        const fake = { search: async () => ({ results: edges }) } as unknown as GraphitiClient
+        setReadBackendClientForTest(fake)
+
+        const r = await readFromGraphiti({
+            workspaceId: WS, queryText: 'q', limit: 10,
+            lessonEpisodeIds: ['ep-lesson'],
+            lessonCap: 0,
+        })
+        expect(r).toHaveLength(3)
+    })
 })

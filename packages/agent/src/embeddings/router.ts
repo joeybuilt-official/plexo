@@ -35,11 +35,15 @@ import {
 } from './adapters.js'
 import { XenovaEmbeddingAdapter } from './xenova-adapter.js'
 
-// Phase 1 — Xenova/multilingual-e5-small is the locked default embedder
-// (384-d, multilingual, pure-JS ONNX). Set XENOVA_EMBEDDER=0 to fall
-// back to the prior resolution chain (gateway → workspace → env → ollama).
+// Xenova is opt-IN. Set XENOVA_EMBEDDER=1 to force the in-process ONNX
+// adapter; otherwise the resolver prefers the bundled gateway (EMBEDDINGS_URL),
+// workspace-configured providers, or env-var providers. The opt-out default
+// caused silent embed() failures whenever the ONNX backend was missing —
+// a container without the var fell through to a broken adapter and 502'd.
+// Gateway-first is the safer default; Xenova stays available for ops that
+// explicitly want zero-dependency inference.
 function isXenovaEnabled(): boolean {
-    return process.env.XENOVA_EMBEDDER !== '0'
+    return process.env.XENOVA_EMBEDDER === '1'
 }
 
 function buildXenovaResolution(workspaceId: string): EmbeddingRouterResult {

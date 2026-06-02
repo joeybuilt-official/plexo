@@ -204,7 +204,7 @@ export async function applyRevision(revisionId: string, reviewedBy: string): Pro
     if (revision.status !== 'pending') return { ok: false, error: `revision_not_pending (${revision.status})` }
 
     // Stomp check — abort if prompt changed since diff was generated
-    const [routine] = await db.select({ prompt: cronJobs.prompt })
+    const [routine] = await db.select({ prompt: cronJobs.prompt, workspaceId: cronJobs.workspaceId })
         .from(cronJobs).where(eq(cronJobs.id, revision.routineId)).limit(1)
     if (!routine) return { ok: false, error: 'routine_not_found' }
 
@@ -225,6 +225,23 @@ export async function applyRevision(revisionId: string, reviewedBy: string): Pro
     }).where(eq(promptRevisions.id, revisionId))
 
     logger.info({ revisionId, routineId: revision.routineId, version: revision.version }, 'distill-retro: revision applied')
+
+    // Async lesson write — fire and forget; approval path must not await Graphiti
+    const { inngest } = await import('@plexo/queue/inngest')
+    void inngest.send({
+        name: 'lessons.graphiti.write',
+        data: {
+            workspaceId:      routine.workspaceId,
+            routineId:        revision.routineId,
+            revisionId,
+            version:          revision.version,
+            content:          revision.proposedDiff,
+            rationale:        revision.rationale,
+            sourceOutcomeIds: revision.sourceOutcomeIds ?? [],
+            reviewedBy,
+        },
+    })
+
     return { ok: true }
 }
 
@@ -232,12 +249,15 @@ export async function applyRevision(revisionId: string, reviewedBy: string): Pro
  * Reject a revision — marks it as rejected, no DB changes to cron_jobs.
  */
 export async function rejectRevision(revisionId: string, reviewedBy: string): Promise<{ ok: boolean; error?: string }> {
-    const { db, eq, promptRevisions } = await import('@plexo/db')
+    const { db, eq, promptRevisions, cronJobs } = await import('@plexo/db')
 
-    const [revision] = await db.select({ status: promptRevisions.status })
+    const [revision] = await db.select({ status: promptRevisions.status, routineId: promptRevisions.routineId })
         .from(promptRevisions).where(eq(promptRevisions.id, revisionId)).limit(1)
     if (!revision) return { ok: false, error: 'revision_not_found' }
     if (revision.status !== 'pending') return { ok: false, error: `revision_not_pending (${revision.status})` }
+
+    const [routine] = await db.select({ workspaceId: cronJobs.workspaceId })
+        .from(cronJobs).where(eq(cronJobs.id, revision.routineId)).limit(1)
 
     await db.update(promptRevisions).set({
         status:     'rejected',
@@ -246,6 +266,16 @@ export async function rejectRevision(revisionId: string, reviewedBy: string): Pr
     }).where(eq(promptRevisions.id, revisionId))
 
     logger.info({ revisionId }, 'distill-retro: revision rejected')
+
+    // Async lesson invalidation — fire and forget
+    if (routine?.workspaceId) {
+        const { inngest } = await import('@plexo/queue/inngest')
+        void inngest.send({
+            name: 'lessons.graphiti.invalidate',
+            data: { workspaceId: routine.workspaceId, revisionId, reviewedBy },
+        })
+    }
+
     return { ok: true }
 }
 

@@ -63,6 +63,8 @@ export interface SearchResultEdge {
     valid_at: string | null
     invalid_at: string | null
     created_at: string | null
+    /** Episode UUIDs this edge was extracted from. Present when the Graphiti sidecar includes it. */
+    episodes?: string[]
 }
 
 export interface SearchResult {
