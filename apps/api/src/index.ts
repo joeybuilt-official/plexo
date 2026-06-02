@@ -84,6 +84,7 @@ import { githubWebhooksRouter } from './routes/webhooks-github.js'
 import { taskStreamRouter } from './routes/task-stream.js'
 import { agentsActiveStreamRouter } from './routes/agents-active-stream.js'
 import { revisionDecisionRouter } from './routes/revision-decision.js'
+import { outcomesRouter } from './routes/outcomes.js'
 import { registerChannelAdapters } from './channels/register.js'
 import { taskInjectRouter } from './routes/task-inject.js'
 import { sharesRouter, publicShareRouter } from './routes/shares.js'
@@ -335,6 +336,7 @@ v1.use('/agents', agentsActiveStreamRouter) // SSE workspace active-agents feed:
 v1.use('/tasks', (req, res, next) => req.method === 'POST' ? taskCreationLimiter(req, res, next) : next(), workspaceRateLimit, tasksRouter)
 v1.use('/tasks', taskStreamRouter) // SSE step-tail: GET /tasks/:id/steps/stream
 v1.use('/revisions', jsonDefault, revisionDecisionRouter) // canonical decision seam: POST /revisions/:id/decision
+v1.use('/outcomes', outcomesRouter) // outcomes/learning read view: GET /outcomes?workspaceId=
 v1.use('/tasks', taskInjectRouter) // mid-run inject: POST /tasks/:id/inject
 v1.use('/tasks/:taskId/clarification', clarificationRouter)
 v1.use('/parallel', parallelRouter)
