@@ -27,3 +27,15 @@ gate; do not commit UI work to main directly).
 - Design skill `/mnt/skills/public/frontend-design/SKILL.md` absent in this env — built on existing `@plexo/ui` (custom CVA). Web alias is `@web/*` (not `@/*`).
 - Next: revision review/approve UI (today Telegram-only) + outcomes/learning view (verdicts, disagreements, lessons), per HANDOFF.
 - Slice-1 enhancement available: `task_steps` rows carry `model`/`tokensIn`/`tokensOut`; `LiveSteps` currently maps `model:null` — could surface them.
+
+## Channel-agnostic interaction layer (branch plexo-ui) — per docs/channel-interaction-layer-design.md
+
+**Phase A — skeleton (commit e6c63d8).** Unified decision intent `{targetType,targetId,choice,actor}` (locked dec 1); `ChannelRegistry`+`ChannelAdapter`; `applyDecision()` routes by `targetType` (revision→applyRevision/rejectRevision, task→recordHumanVerdict, approve→accept); generic seam `POST /api/v1/revisions/:id/decision`. 8 tests. Confirmed NO semantic blocker first (handler signatures/returns compatible).
+
+**Phase B — Telegram→adapter + web + legacy (commit df5b6a8).** `telegram-adapter.parse()` turns "approve|reject <uuid>" into a decision intent; `telegram.ts` now routes through the SHARED `applyDecision` (de-dup — no more inline `applyRevision` import). `web-adapter`: send=emit to workspace SSE topic, parse=web POST. `legacy-adapter.makeLegacyAdapter()` wraps slack/discord/twilio/gmail (send delegates to `deliverToOriginChannel`, parse no-op) — 770-line dispatcher untouched. `register.ts` registers all 6 at startup. **All 5 outbound still send** (legacy delegate to same fn). 17 channel tests + 56 telegram/delivery regression green.
+
+**Phase C — revision-review UI, FIRST consumer (this commit).** Backend `GET /api/v1/revisions/pending?workspaceId=` (join promptRevisions→cronJobs, resolve `sourceOutcomeIds`→outcomeRecords) + pure `buildRevisionView` (3 tests). UI `app/app/revisions/page.tsx` (`/app/revisions`): per pending revision shows rationale + proposed diff + source outcomes, Approve/Reject → **POST to the same `/revisions/:id/decision` seam Telegram uses**. Plain copy ("routine updates", no embedding/vector).
+
+**Gate (each phase):** tsc (api+web) clean · `@plexo/api`+`@plexo/web` build green · tests green. **NOT deployed** (batch the apps/web + plexo-api redeploy). No migration needed (all builds on existing tables).
+
+**Open (escalated in design doc, deferred):** native outbound migration of the 4 legacy channels; de-dup of the Slack verdict path (`slack.ts:420`); optional `/tasks/:id/decision` verdict endpoint variant.
