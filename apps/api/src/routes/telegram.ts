@@ -32,6 +32,7 @@ import { timingSafeStringEqual } from '../lib/timing-safe-equal.js'
 import { pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
+import { telegramAdapter } from '../channels/adapters/telegram-adapter.js'
 import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
 import { db, eq, sql } from '@plexo/db'
 import { channels, sprints } from '@plexo/db'
@@ -778,14 +779,14 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     // ── Distillation revision approval ────────────────────────────────────────
     // "approve <uuid>" or "reject <uuid>" — handles prompt_revisions votes.
     {
-        const revisionMatch = /^(approve|reject)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(text)
-        if (revisionMatch) {
-            const action = revisionMatch[1]!.toLowerCase() as 'approve' | 'reject'
-            const revisionId = revisionMatch[2]!.toLowerCase()
-            const reviewedBy = `telegram:${msg.from.id}`
-            const { applyRevision, rejectRevision } = await import('../cron/distill-retro.js')
-            if (action === 'approve') {
-                const result = await applyRevision(revisionId, reviewedBy)
+        // Parse via the Telegram adapter → route through the SHARED decision
+        // handler (the same applyDecision seam the generic
+        // /revisions/:id/decision endpoint uses). De-dups the approval path.
+        const intent = telegramAdapter.parse({ text, fromId: msg.from.id })
+        if (intent && intent.kind === 'decision') {
+            const { applyDecision, defaultDecisionHandlers } = await import('../channels/decision.js')
+            const result = await applyDecision(intent, defaultDecisionHandlers)
+            if (intent.choice === 'approve') {
                 if (result.ok) {
                     await sendMessage(token, chatId, '✅ Revision applied — prompt updated.', { workspaceId })
                 } else if (result.error === 'prompt_changed_stale') {
@@ -794,7 +795,6 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                     await sendMessage(token, chatId, `❌ Could not apply revision: ${result.error}`, { workspaceId })
                 }
             } else {
-                const result = await rejectRevision(revisionId, reviewedBy)
                 if (result.ok) {
                     await sendMessage(token, chatId, '🚫 Revision rejected.', { workspaceId })
                 } else {
