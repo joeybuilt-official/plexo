@@ -16,7 +16,7 @@
  * chain is intercepted by a stateful fake builder.
  */
 
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'

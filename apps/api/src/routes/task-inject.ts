@@ -14,12 +14,12 @@
  * stepSpec: { role: 'user', content: message }
  */
 
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import { db, eq, and, desc } from '@plexo/db'
 import { taskSteps, tasks } from '@plexo/db'
 import { logger } from '../logger.js'
 
-export const taskInjectRouter = Router()
+export const taskInjectRouter: ExpressRouter = Router()
 
 taskInjectRouter.post('/:id/inject', async (req, res) => {
     const { id } = req.params

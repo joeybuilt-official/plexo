@@ -25,6 +25,8 @@ import { channelsGmessagesRouter } from './routes/channels-gmessages.js'
 import { connectionsGmessagesRouter } from './routes/connections-gmessages.js'
 import { createInngestExpressHandler } from '@plexo/queue/inngest-express'
 import { extractTurnFn } from '@plexo/agent/memory/inngest/extract-turn-fn'
+import { lessonsWriteFn } from '@plexo/agent/memory/inngest/lessons-write-fn'
+import { lessonsInvalidateFn } from '@plexo/agent/memory/inngest/lessons-invalidate-fn'
 import { inferenceRouter } from './routes/inference.js'
 import { graphRouter } from './routes/graph.js'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
@@ -481,7 +483,7 @@ app.use('/api/plexo/channels', jsonDefault, channelsSubscriptionRouter)
 // POSTs back to invoke them when crons fire. ADR-0006: Plexo and Levio
 // share the Inngest substrate.
 // Inngest payloads carry event data + step state per fn invocation.
-app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn]))
+app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn, lessonsWriteFn, lessonsInvalidateFn]))
 
 // Inference shim — exposes Plexo's per-workspace LLM provider router as an
 // OpenAI-compatible endpoint for the Graphiti Python sidecar (ADR 0011).

@@ -1984,10 +1984,13 @@ export const promptRevisions = pgTable('prompt_revisions', {
     appliedAt:        timestamp('applied_at', { withTimezone: true }),
     expiresAt:        timestamp('expires_at', { withTimezone: true }).notNull().default(sql`NOW() + INTERVAL '7 days'`),
     ts:               timestamp('ts', { withTimezone: true }).defaultNow().notNull(),
+    graphitiEpisodeId:     text('graphiti_episode_id'),
+    graphitiInvalidatedAt: timestamp('graphiti_invalidated_at', { withTimezone: true }),
 }, (table: any) => [
     uniqueIndex('prompt_revisions_routine_version_idx').on(table.routineId, table.version),
     index('prompt_revisions_pending_idx').on(table.routineId, table.expiresAt).where(sql`${table.status} = 'pending'`),
     index('prompt_revisions_routine_ts_idx').on(table.routineId, table.ts),
+    index('prompt_revisions_graphiti_ep_idx').on(table.graphitiEpisodeId).where(sql`${table.graphitiEpisodeId} IS NOT NULL`),
 ])
 
 export type PromptRevision = typeof promptRevisions.$inferSelect

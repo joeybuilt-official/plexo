@@ -16,12 +16,12 @@
  * Keepalive: ': ping' comment every 15 s
  */
 
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import { db, eq, and, gte } from '@plexo/db'
 import { taskSteps, tasks } from '@plexo/db'
 import { logger } from '../logger.js'
 
-export const taskStreamRouter = Router()
+export const taskStreamRouter: ExpressRouter = Router()
 
 const TERMINAL_STATUSES = new Set(['complete', 'failed', 'cancelled'])
 
