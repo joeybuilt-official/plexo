@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
+import { buildSubscriptionFetch, resolveSubscriptionToken } from './subscription-fetch'
 import { db, eq, sql } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
 import { openai, createOpenAI } from '@ai-sdk/openai'
@@ -208,6 +209,7 @@ function ollamaCloudResilientFetch(): typeof globalThis.fetch {
 export const BUILTIN_PROVIDER_KEYS = [
     'openrouter',
     'anthropic',
+    'anthropic_subscription',
     'openai',
     'google',
     'mistral',
@@ -340,6 +342,7 @@ export type AnyLanguageModel = any
 export const PROVIDER_DEFAULT_MODELS: Partial<Record<string, string>> = {
     openai: 'gpt-4o',
     anthropic: 'claude-sonnet-4-6',
+    anthropic_subscription: 'claude-sonnet-4-5',
     google: 'gemini-2.5-flash',
     mistral: 'mistral-large-latest',
     groq: 'llama-3.3-70b-versatile',
@@ -426,6 +429,17 @@ export function buildModel(
             const provider = config.apiKey
                 ? createAnthropic({ apiKey: config.apiKey, fetch: buildAnthropicFetch() as any })
                 : anthropic
+            return provider(modelId)
+        }
+        case 'anthropic_subscription': {
+            // Claude Max subscription via OAuth token. Coexists with the
+            // API-key `anthropic` path above and never replaces it. The token
+            // is sourced from config/env, never logged, and is applied only in
+            // the subscription fetch wrapper.
+            const token = resolveSubscriptionToken(config.apiKey)
+            const provider = getCachedProvider('anthropic_subscription', token, () =>
+                createAnthropic({ apiKey: token, fetch: buildSubscriptionFetch(token) as any }),
+            )
             return provider(modelId)
         }
         case 'openai': {
@@ -798,6 +812,12 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
                 ? createAnthropic({ apiKey })
                 : anthropic
             return provider(modelId)
+        }
+        case 'anthropic_subscription': {
+            const token = resolveSubscriptionToken(apiKey)
+            return getCachedProvider('anthropic_subscription', token, () =>
+                createAnthropic({ apiKey: token, fetch: buildSubscriptionFetch(token) as any }),
+            )(modelId)
         }
         case 'openai': {
             const oa = apiKey ? createOpenAI({ apiKey }) : openai

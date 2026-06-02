@@ -74,6 +74,7 @@ export function classifyError(err: unknown): Classification {
         msg.includes('incorrect api key') ||
         msg.includes('unauthorized') ||
         msg.includes('authentication failed') ||
+        msg.includes('authentication_error') ||
         msg.includes('401') ||
         msg.includes('403') ||
         msg.includes('forbidden')
