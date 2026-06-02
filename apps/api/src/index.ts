@@ -84,6 +84,7 @@ import { githubWebhooksRouter } from './routes/webhooks-github.js'
 import { taskStreamRouter } from './routes/task-stream.js'
 import { agentsActiveStreamRouter } from './routes/agents-active-stream.js'
 import { revisionDecisionRouter } from './routes/revision-decision.js'
+import { registerChannelAdapters } from './channels/register.js'
 import { taskInjectRouter } from './routes/task-inject.js'
 import { sharesRouter, publicShareRouter } from './routes/shares.js'
 import { terminateAll } from '@plexo/agent/persistent-pool'
@@ -275,6 +276,9 @@ app.use('/health', healthRouter)
 app.use('/metrics', metricsRouter)
 
 
+
+// Register channel adapters (web, telegram, legacy slack/discord/twilio/gmail).
+registerChannelAdapters()
 
 // Build a v1 sub-router so we can mount once at both prefixes
 const v1 = express.Router()
