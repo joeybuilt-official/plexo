@@ -3,11 +3,69 @@
 
 import 'dotenv/config'
 import path from 'node:path'
-import { readdirSync, readFileSync } from 'fs'
+import os from 'node:os'
+import { readdirSync, readFileSync, mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'fs'
 
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+
+interface JournalEntry { idx: number; when: number; tag: string }
+
+/**
+ * Apply migrations with a COMMIT BOUNDARY after the last enum-extending
+ * migration, instead of drizzle's default single-transaction-for-the-whole-batch.
+ *
+ * Why: Postgres forbids using a newly ALTER TYPE … ADD VALUE'd enum value in the
+ * same transaction that added it (error 55P04). The schema already splits the
+ * add (0116_gmessages_phase2) from the use (0117_…_schema seed) into separate
+ * migration files — which works on incremental prod deploys (separate runs) but
+ * NOT on a fresh DB, where drizzle batches every pending migration into one
+ * transaction and the add+use collide.
+ *
+ * Fix: run drizzle's migrator in two passes. Pass 1 targets a temp folder whose
+ * journal stops at the last enum-add migration, so those ADD VALUEs commit. Pass
+ * 2 runs the full folder; drizzle's MAX(created_at) skip-threshold means it only
+ * applies what pass 1 left, now in a fresh transaction where the values are
+ * already committed. On a DB that has already applied through the boundary
+ * (prod, incremental) pass 1 is a no-op, so re-apply behaviour for later
+ * migrations is unchanged from drizzle's default.
+ */
+async function migrateWithEnumCommitBoundary(
+    db: PostgresJsDatabase<Record<string, never>>,
+    migrationsFolder: string,
+): Promise<void> {
+    // Resolve to absolute so temp-folder symlinks (below) point at real files
+    // regardless of cwd — a relative symlink target resolves against the link's
+    // own directory (the temp dir), not the process cwd.
+    const absFolder = path.resolve(migrationsFolder)
+    const journalPath = path.join(absFolder, 'meta', '_journal.json')
+    const journal = JSON.parse(readFileSync(journalPath, 'utf-8')) as { entries: JournalEntry[] }
+    const entries = journal.entries
+
+    let lastEnumAddIdx = -1
+    for (let i = 0; i < entries.length; i++) {
+        const sqlText = readFileSync(path.join(absFolder, `${entries[i]!.tag}.sql`), 'utf-8')
+        if (/ALTER\s+TYPE[\s\S]*?ADD\s+VALUE/i.test(sqlText)) lastEnumAddIdx = i
+    }
+
+    // Only need a boundary when there are migrations AFTER the last enum-add.
+    if (lastEnumAddIdx >= 0 && lastEnumAddIdx < entries.length - 1) {
+        const tmp = mkdtempSync(path.join(os.tmpdir(), 'plexo-migrate-'))
+        mkdirSync(path.join(tmp, 'meta'), { recursive: true })
+        const subset = { ...journal, entries: entries.slice(0, lastEnumAddIdx + 1) }
+        writeFileSync(path.join(tmp, 'meta', '_journal.json'), JSON.stringify(subset))
+        for (const e of subset.entries) {
+            symlinkSync(path.join(absFolder, `${e.tag}.sql`), path.join(tmp, `${e.tag}.sql`))
+        }
+        console.log(`[migrate] phase 1/2 — committing through enum-add boundary ${entries[lastEnumAddIdx]!.tag}`)
+        await migrate(db, { migrationsFolder: tmp })
+    }
+
+    console.log(`[migrate] applying full migration set`)
+    await migrate(db, { migrationsFolder })
+}
 
 // Hard timeout: exit 1 if migrations don't complete within this window.
 // Prevents indefinite hangs on locked DB, wrong credentials, or corrupt state.
@@ -185,8 +243,10 @@ async function runMigrations() {
                 process.exit(1)
             }
 
-            // The migrate() call is the one that actually establishes the connection
-            await migrate(db, { migrationsFolder })
+            // The migrate() call is the one that actually establishes the connection.
+            // Two-pass (enum commit boundary) so fresh DBs don't hit Postgres 55P04
+            // on the 0116 ADD VALUE / 0117 use split; no-op extra pass on prod.
+            await migrateWithEnumCommitBoundary(db, migrationsFolder)
 
             const elapsed = ((Date.now() - start) / 1000).toFixed(1)
             console.log(`[migrate] Complete in ${elapsed}s`)

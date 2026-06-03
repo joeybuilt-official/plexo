@@ -3,7 +3,7 @@
 -- Migration 0123 — prompt_revisions table for distillation retro agent
 -- REQUIRES: cron_jobs (0001+), outcome_records (0122)
 
-CREATE TABLE prompt_revisions (
+CREATE TABLE IF NOT EXISTS prompt_revisions (
     id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     routine_id          UUID        NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
     version             INTEGER     NOT NULL,
@@ -20,12 +20,12 @@ CREATE TABLE prompt_revisions (
     ts                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX prompt_revisions_routine_version_idx
+CREATE UNIQUE INDEX IF NOT EXISTS prompt_revisions_routine_version_idx
     ON prompt_revisions (routine_id, version);
 
-CREATE INDEX prompt_revisions_pending_idx
+CREATE INDEX IF NOT EXISTS prompt_revisions_pending_idx
     ON prompt_revisions (routine_id, expires_at)
     WHERE status = 'pending';
 
-CREATE INDEX prompt_revisions_routine_ts_idx
+CREATE INDEX IF NOT EXISTS prompt_revisions_routine_ts_idx
     ON prompt_revisions (routine_id, ts DESC);

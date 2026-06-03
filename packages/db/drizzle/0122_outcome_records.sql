@@ -48,23 +48,23 @@ CREATE TABLE IF NOT EXISTS outcome_records (
 );
 
 -- Lookup: all outcomes for a routine (learning distillation agent).
-CREATE INDEX outcome_records_routine_idx
+CREATE INDEX IF NOT EXISTS outcome_records_routine_idx
     ON outcome_records(routine_id)
     WHERE routine_id IS NOT NULL;
 
 -- Lookup: outcome by task_id (Telegram reply handler needs this).
 -- Not UNIQUE — task_id is nullable and can match NULL multiple times in PG,
 -- so uniqueness is enforced at application level (insert-if-not-exists).
-CREATE INDEX outcome_records_task_idx
+CREATE INDEX IF NOT EXISTS outcome_records_task_idx
     ON outcome_records(task_id)
     WHERE task_id IS NOT NULL;
 
 -- Lookup: rows awaiting human verdict (signal ingestion queue).
-CREATE INDEX outcome_records_pending_verdict_idx
+CREATE INDEX IF NOT EXISTS outcome_records_pending_verdict_idx
     ON outcome_records(ts DESC)
     WHERE human_verdict IS NULL AND automated_outcome = 'complete';
 
 -- Lookup: failed tasks for the distillation agent to learn from.
-CREATE INDEX outcome_records_failed_idx
+CREATE INDEX IF NOT EXISTS outcome_records_failed_idx
     ON outcome_records(ts DESC)
     WHERE automated_outcome = 'failed';
