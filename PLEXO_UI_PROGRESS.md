@@ -69,3 +69,29 @@ gate; do not commit UI work to main directly).
 **Reconcile.** `test:all` with stack up: turbo 2550 passed (agent 1226 · api 1277/3-skip · sdk 32 · mcp 9 · graphiti-bridge 6) + unit 56 = **2606 env-independent, identical to prior — no regression**, now flake-stable. Integration newly executes for real: **+84 passing tests** (previously 0 could run). The only remaining red is the 3 environmental bootstrap gaps above. **Nothing real surfaced. NO merge / NO deploy / NO migration.**
 
 **Gate:** tsc (api+web) clean · `@plexo/api` emit + `@plexo/web` `next build` exit 0 · turbo 9/9 · unit 56 · integration 84 pass / 0 assertion-fail. Commit = flake fix only (2 test files). Branch pushed, not deployed.
+
+## Journal-reconcile 0122/0123/0125 + fresh-DB 55P04 fix (branch plexo-ui) — NO merge/deploy/migration
+
+Scope authorized: **0122/0123/0125 only**; DRAFT_0124 stays gated. Prod read-only.
+
+**Prod schema (read-only check first).** `postgres/plexo` ALREADY has `outcome_records`, `prompt_revisions`, both graphiti cols, AND `tasks.fanout_depth` — all four orphans were applied **out-of-band** (incl. the "gated" DRAFT_0124). Prod's drizzle ledger maxes at `created_at=1779320010000` (≈0117); **0118–0125 are in the prod schema but NOT in the ledger** (applied outside drizzle).
+
+**Changes (4 files):**
+- `0122_outcome_records.sql` — 4 indexes → `CREATE INDEX IF NOT EXISTS` (table was already `IF NOT EXISTS`).
+- `0123_prompt_revisions.sql` — `CREATE TABLE`→`IF NOT EXISTS` + 3 indexes `IF NOT EXISTS`. (0125 was already idempotent.)
+- `meta/_journal.json` — appended entries idx 122/123/124 for tags `0122/0123/0125` with ascending `when` past 0121 (so any DB at ≥0121 applies them). DRAFT_0124 intentionally left orphaned (the migrate orphan-warning now lists only it).
+- `src/migrate.ts` — **two-phase enum commit boundary** replaces the single `migrate()` call. Pass 1 migrates a temp folder whose journal stops at the last `ALTER TYPE … ADD VALUE` migration (0116) so those values commit; pass 2 runs the full folder. drizzle's `MAX(created_at)` skip-threshold makes pass 1 a no-op on any DB already past the boundary (prod/incremental) → **prod re-apply behaviour for 0118–0125 is unchanged** (still drizzle's batch).
+
+**Re-prove (a) — fresh DB → journaled `src/migrate.ts` → integration.** Migrate clean: **125/125, no 55P04** (phase1 through 0116, phase2 the rest). Schema: `outcome_records`/`prompt_revisions`/graphiti present; `tasks.fanout_depth` ABSENT (gated). Integration: **38 passed / 46 failed / 44 skipped — all 46 failures are the single `column "fanout_depth" does not exist`.** ZERO outcome/revision/table errors → the scope fix is correct. The 46 are 100% the gated-fanout coupling (`schema.ts:317` declares `fanoutDepth` notNull, so every full-row `tasks` select needs the column).
+
+**Re-prove (b) — pg_dump --schema-only of prod (pg17) + prod ledger rows → ephemeral → journaled migrate → integration.** Migrate clean: applies 0118–0125 on prod-shaped schema with **no "already exists"** (0118 DROP and 0119–0121 are idempotent; 0122/0123/0125 idempotent by the edits). Integration: **49 passed / 68 failed.** ZERO fanout/outcome/revision errors. The 68 are a **different pre-existing divergence**: prod's `public.users` is **better-auth-shaped** (`id text`, camelCase `createdAt`/`emailVerified`, `banned/banReason/banExpires`) while the drizzle migrations define a snake_case `users` (`id uuid`, `created_at`, `is_super_admin`). 61× `column "created_at" of relation "users" does not exist` + `operator does not exist: uuid = text` on `auth."user"`. The integration suite models the drizzle shape; prod's auth tables are better-auth-managed → drift. **Orthogonal to this scope and to plexo-ui.**
+
+**Neither re-prove reproduces the literal 84**, but for non-orthogonal reasons, both confirming the scope work: (a) is blocked only by the gated `fanout_depth`; (b) is blocked only by pre-existing prod auth-schema drift. In BOTH, the 0122/0123/0125 reconcile + 55P04 fix apply cleanly with zero scope-related failures.
+
+**Step 4 — fan-out reachability.** `spawnFanout` in `apps/api/src/orchestrator/fanout.ts` is **imported by nothing** — the fan-out dispatch logic is dormant/dead at runtime. BUT `tasks.fanoutDepth`/`fanoutTotal` are declared in `schema.ts:317-318`, so the drizzle ORM emits those columns on **every full-row `tasks` select** regardless of the dormant feature → a DB without DRAFT_0124 cannot serve task queries (the 46 in (a)). So the column is effectively **required by the ORM**, not by the (dead) feature. Reported, NOT journaled. Operator options: (i) journal DRAFT_0124, or (ii) drop `fanoutDepth/fanoutTotal` from `schema.ts` until the feature ships.
+
+**Ledger backfill (named, NOT applied to prod).** On prod's next migrate, 0118–0125 (when > ledger max 1779320010000) re-apply (idempotent now) and insert 8 ledger rows; OR backfill `drizzle.__drizzle_migrations` with rows for 0118/0119/0120/0121/0122/0123/0125 (created_at = each journal `when`) to skip the re-apply. Either is safe; not executed (prod read-only).
+
+**Note:** the deploy path is `src/migrate.ts` (compose `migrate.sh`), which is fixed. Stock `drizzle-kit migrate` (not the deploy path) still has the single-batch 55P04 on a fresh DB — out of scope to fork.
+
+**Gate:** tsc (api+web+db) clean · both builds green · migrate clean on fresh AND prod-shaped DB. Changes = 3 migration/journal files + migrate.ts runner. **NO merge / NO deploy / NO prod write.**

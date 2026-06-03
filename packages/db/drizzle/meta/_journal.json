@@ -855,6 +855,27 @@
       "when": 1780329600000,
       "tag": "0121_routine_harness_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1780416000000,
+      "tag": "0122_outcome_records",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1780502400000,
+      "tag": "0123_prompt_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1780588800000,
+      "tag": "0125_lessons_graphiti_tracking",
+      "breakpoints": true
     }
   ]
 }
