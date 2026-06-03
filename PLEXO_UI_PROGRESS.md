@@ -95,3 +95,23 @@ Scope authorized: **0122/0123/0125 only**; DRAFT_0124 stays gated. Prod read-onl
 **Note:** the deploy path is `src/migrate.ts` (compose `migrate.sh`), which is fixed. Stock `drizzle-kit migrate` (not the deploy path) still has the single-batch 55P04 on a fresh DB — out of scope to fork.
 
 **Gate:** tsc (api+web+db) clean · both builds green · migrate clean on fresh AND prod-shaped DB. Changes = 3 migration/journal files + migrate.ts runner. **NO merge / NO deploy / NO prod write.**
+
+## schema.ts fanout reconcile → merge-ready (branch plexo-ui) — NO merge/deploy/prod-write
+
+**A — DROP fanout from the ORM.** `tasks.fanoutDepth`/`fanoutTotal` (`schema.ts:317-318`) made the ORM emit those columns on every full-row `tasks` select, so a fresh journaled DB (without the gated DRAFT_0124) couldn't serve task queries. The fan-out feature is **dead at runtime**: `apps/api/src/orchestrator/fanout.ts` (`spawnFanout`/`checkFanoutJoin`) is imported by **nothing** but its own test. Removed the two column decls from `schema.ts` and deleted the dead module + `orchestrator/__tests__/fanout.test.ts` (git history preserves it for when DRAFT_0124 ships). DRAFT_0124 still gated/untouched. tsc api+web+db clean.
+
+**B — re-prove (journaled `migrate.ts` path).**
+- **(a) fresh DB → migrate.ts → integration:** migrate clean (125/125, no 55P04); `fanout_depth` absent, outcome/revision tables present. Integration **84 passed / 0 assertion failures / 44 skipped** — **the 46 fanout failures are GONE.** Back to the original 84; the 9 failed files are the same 3 pre-existing environmental clusters (auth-mirror `emailVerified`, Graphiti sidecar URL unset, storage tsconfig).
+- **(b) `pg_dump --schema-only` of REAL prod (`docker exec postgres pg_dump -U postgres -d plexo --schema-only --no-owner --no-privileges`) + prod ledger → pg17 ephemeral → migrate.ts → integration:** migrate clean (applies 0118–0125, no "already exists"). Integration **49 passed / 68 failed** — **0 fanout/outcome/revision errors.** The 68 are the pre-existing prod **auth-schema drift**, segregated below — expected, NOT regressions.
+
+**Auth-drift (pre-existing, identical on main AND plexo-ui — NOT this work).** `schema.ts:210` models `users` as the **Better-Auth/FDW shape** (`id uuid`, camelCase `emailVerified`/`createdAt`/`updatedAt`, `banned/banReason/banExpires`; comment: "FDW maps to auth.user.id … Phase J reconciled text→uuid"). But the drizzle **migrations** create a snake_case `public.users` (`email_verified`/`created_at`/`is_super_admin`). So: prod (camelCase, matches schema.ts) vs fresh-migrated (snake, matches migrations) diverge, and the integration suite trips on whichever half it lands on — (a) fresh: 6 files on `emailVerified`; (b) prod-dump: 61× `created_at` + `uuid = text`. The `schema.ts` `users` def is **byte-identical on main and plexo-ui** (my diff touches only the 2 fanout lines), so this drift is orthogonal to plexo-ui.
+
+**C — main divergence (read-only).** `origin/main` HEAD `b13cc88` **IS the merge-base** → `plexo-ui..origin/main` = **0 commits**. plexo-ui is a strict superset.
+- Commits main has that plexo-ui lacks: **none**.
+- main journal: 122 entries, last `0121` → journals 0118–0121 (yes) but **NOT 0122/0123/0125** (plexo-ui adds them as new idx 122/123/124). No "same tag / different snapshot" collision; plexo-ui adds **no snapshot files** (`meta/` snapshots stopped at 0023 repo-wide).
+- Better-Auth `users` defined in drizzle on main: **YES** (`schema.ts:210`, the FDW/camelCase table) — same on plexo-ui.
+- Files: plexo-ui adds/modifies ~30 (channel layer, revisions, outcomes, agents-live, migrate reconcile, this fanout drop); main has **no divergent edits** since merge-base.
+
+**D — VERDICT.** **Clean fast-forward.** No conflicts in `_journal.json`, `meta/` snapshots, `schema.ts`, or `migrate.ts` (main hasn't moved past merge-base; plexo-ui only adds/edits forward). Deleting `orchestrator/fanout.ts`+test and editing `schema.ts` stay conflict-free for the same reason.
+
+**Gate:** tsc api+web+db clean · both builds exit 0 · (a) 84 pass / 0 assertion-fail · (b) 0 scope failures (68 are pre-existing auth-drift). Commit = fanout drop (schema.ts + deleted dead module/test). **NO merge / NO deploy / NO prod write.**

@@ -314,8 +314,6 @@ export const tasks = pgTable('tasks', {
     // deleting a sprint doesn't cascade-delete the task history.
     projectId: text('project_id').references((): any => sprints.id, { onDelete: 'set null' }), // eslint-disable-line @typescript-eslint/no-explicit-any
     parentId: text('parent_id').references((): any => tasks.id, { onDelete: 'set null' }), // eslint-disable-line @typescript-eslint/no-explicit-any -- self-ref
-    fanoutDepth: integer('fanout_depth').default(0).notNull(),
-    fanoutTotal: integer('fanout_total'),
     context: jsonb('context').notNull(),
     qualityScore: real('quality_score'),
     confidenceScore: real('confidence_score'),
