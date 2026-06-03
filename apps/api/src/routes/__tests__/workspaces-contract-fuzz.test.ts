@@ -18,6 +18,11 @@ import express from 'express'
 import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
 
+// First ensureServer() spins an Express app and the suite runs many fuzz
+// cases; under parallel turbo load the first request can exceed the 15s
+// default. Raise this file's timeouts so the gate is reliable (no logic change).
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })
+
 // ── Shared state ──────────────────────────────────────────────────────────────
 
 const ctl = {
