@@ -35,10 +35,13 @@ vi.mock('../../middleware/workspace-access.js', () => ({
 
 let parseNl: typeof import('../cron.js').__parseNlForTest
 
+// The dynamic import of cron.js (drizzle/postgres driver in its dep graph) is
+// heavy; under parallel turbo load the transform can exceed the 10s default
+// hook timeout. Pure-logic test — give the import room so the gate is reliable.
 beforeAll(async () => {
     const mod = await import('../cron.js')
     parseNl = mod.__parseNlForTest
-})
+}, 60_000)
 
 // Fixed reference time: Mon 2026-05-04 14:00:00 local. Day 1 = Monday.
 const now = new Date(2026, 4, 4, 14, 0, 0, 0)
