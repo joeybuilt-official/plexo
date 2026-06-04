@@ -1,9 +1,8 @@
 #!/usr/bin/env npx ts-node
 // SPDX-License-Identifier: AGPL-3.0-only
-// Multi-graph FalkorDB cypher runner. Read-only — rejects mutation keywords.
+// Single-workspace FalkorDB cypher runner. Read-only — rejects mutation keywords.
 // Usage:
-//   npx ts-node ops/cypher-cli.ts --graph plexo:test --cypher "MATCH (n) RETURN count(n)"
-//   npx ts-node ops/cypher-cli.ts --all-graphs  --cypher "MATCH (n) RETURN count(n)"
+//   npx ts-node ops/cypher-cli.ts --workspace <workspaceId> --cypher "MATCH (n) RETURN count(n)"
 
 import { createHmac } from 'node:crypto'
 import { parseArgs } from 'node:util'
@@ -19,8 +18,8 @@ function sign(body: string): { sig: string; ts: string } {
     return { sig, ts }
 }
 
-async function postCypher(graph: string, cypher: string): Promise<unknown> {
-    const body = JSON.stringify({ graph_name: graph, query: cypher })
+async function postCypher(workspaceId: string, cypher: string): Promise<unknown> {
+    const body = JSON.stringify({ workspace_id: workspaceId, cypher, params: {} })
     const { sig, ts } = sign(body)
     const res = await fetch(`${SIDECAR_URL}/v1/graph/cypher`, {
         method: 'POST',
@@ -36,26 +35,10 @@ async function postCypher(graph: string, cypher: string): Promise<unknown> {
     return res.json()
 }
 
-async function getGraphNames(): Promise<string[]> {
-    const body = ''
-    const { sig, ts } = sign(body)
-    const res = await fetch(`${SIDECAR_URL}/v1/schema/registry`, {
-        headers: {
-            'X-App-Id': 'plexo-ops',
-            'X-Plexo-Timestamp': ts,
-            'X-Plexo-Signature': sig,
-        },
-    })
-    if (!res.ok) throw new Error(`Registry returned ${res.status}: ${await res.text()}`)
-    const data = await res.json() as { graphs?: string[] }
-    return data.graphs ?? []
-}
-
 async function main() {
     const { values } = parseArgs({
         options: {
-            graph: { type: 'string' },
-            'all-graphs': { type: 'boolean', default: false },
+            workspace: { type: 'string' },
             cypher: { type: 'string' },
         },
         strict: true,
@@ -77,27 +60,15 @@ async function main() {
         process.exit(1)
     }
 
-    const allGraphs = values['all-graphs']
-    const graphs: string[] = allGraphs
-        ? await getGraphNames()
-        : values.graph
-            ? [values.graph]
-            : []
-
-    if (graphs.length === 0) {
-        console.error('Error: provide --graph <name> or --all-graphs')
+    const workspaceId = values.workspace?.trim()
+    if (!workspaceId) {
+        console.error('Error: --workspace <workspaceId> is required')
         process.exit(1)
     }
 
-    for (const graph of graphs) {
-        console.log(`\n── ${graph} ──`)
-        try {
-            const result = await postCypher(graph, cypher)
-            console.log(JSON.stringify(result, null, 2))
-        } catch (err) {
-            console.error(`  Error: ${err instanceof Error ? err.message : String(err)}`)
-        }
-    }
+    console.log(`\n── ${workspaceId} ──`)
+    const result = await postCypher(workspaceId, cypher)
+    console.log(JSON.stringify(result, null, 2))
 }
 
 main().catch((err) => {
