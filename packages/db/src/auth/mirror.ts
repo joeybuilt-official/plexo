@@ -62,7 +62,7 @@ export async function mirrorAuthUserToPublic(
             ${user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt},
             ${user.updatedAt instanceof Date ? user.updatedAt.toISOString() : user.updatedAt}
         WHERE NOT EXISTS (
-            SELECT 1 FROM public.users WHERE id = ${user.id}::uuid
+            SELECT 1 FROM public.users WHERE id::uuid = ${user.id}::uuid
         )
     `)
 }
