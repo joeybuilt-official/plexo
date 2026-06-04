@@ -15,7 +15,9 @@ import { test, expect } from '@playwright/test'
 import { hasAuthSession } from './_helpers'
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
-const API = `${BASE}/api/v1`
+// API-only routes (a2a card, etc.) are served by the api, not the web origin.
+// Use E2E_API_URL when set; fall back to BASE for single-origin deployments.
+const API = `${process.env.E2E_API_URL ?? BASE}/api/v1`
 
 const HAS_SESSION = hasAuthSession()
 
