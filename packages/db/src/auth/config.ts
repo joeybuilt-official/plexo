@@ -71,6 +71,7 @@ export function createPlexoBetterAuth(opts: PlexoAuthOptions): Auth {
             enabled: true,
             autoSignIn: true,
             minPasswordLength: 12,
+            disableSignUp: process.env.PLEXO_DISABLE_SIGNUP === 'true',
             ...(wrappedSendResetPassword ? { sendResetPassword: wrappedSendResetPassword } : {}),
         },
         ...(wrappedSendVerificationEmail
