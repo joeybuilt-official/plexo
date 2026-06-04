@@ -279,7 +279,9 @@ test.describe('Flow 7: Settings pages (authenticated)', () => {
             const jsErrors: string[] = []
             page.on('pageerror', err => jsErrors.push(err.message))
 
-            await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' })
+            // domcontentloaded (not networkidle): authed pages hold SSE/polling
+            // connections that never let the network go idle → 30s goto timeout.
+            await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' })
             await dismissAnalyticsModal(page)
 
             // Must not be a blank/empty page

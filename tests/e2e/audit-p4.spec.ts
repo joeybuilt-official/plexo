@@ -59,7 +59,7 @@ test.describe('AUDIT-P4: aria-labels on icon buttons (U-01)', () => {
     test.skip(!HAS_SESSION, 'Requires auth session')
 
     test('cron page action buttons have aria-labels', async ({ page }) => {
-        await page.goto(`${BASE}/app/cron`, { waitUntil: 'networkidle' })
+        await page.goto(`${BASE}/app/cron`, { waitUntil: 'domcontentloaded' })
         await dismissAnalyticsModal(page)
 
         // Run-now buttons should have aria-label containing "Run"

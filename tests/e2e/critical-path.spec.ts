@@ -12,7 +12,7 @@
  */
 import { test, expect } from '@playwright/test'
 
-const LIVE_URL = 'https://getplexo.com'
+const LIVE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const TEST_KEY = process.env.PLEXO_TEST_API_KEY
 
 test.describe('P1: Critical Path', () => {

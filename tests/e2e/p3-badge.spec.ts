@@ -9,7 +9,8 @@ import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const LIVE_URL = 'https://getplexo.com'
+const LIVE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
+const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001'
 const REPO_ROOT = path.resolve(__dirname, '../..')
 
 test.describe('P3: Awareness Badge + Vocabulary', () => {
@@ -52,7 +53,7 @@ test.describe('P3: Awareness Badge + Vocabulary', () => {
     })
 
     test('health endpoint responds on live', async ({ request }) => {
-        const res = await request.get(`${LIVE_URL}/health`)
+        const res = await request.get(`${API_URL}/health`)
         expect(res.status()).toBe(200)
     })
 })
