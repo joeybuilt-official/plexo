@@ -29,7 +29,7 @@ test.describe('P5: Self-Hosted Packaging', () => {
 
     test('.env.example exists and has required vars', () => {
         const envExample = fs.readFileSync(path.join(REPO_ROOT, '.env.example'), 'utf-8')
-        expect(envExample).toContain('DATABASE_URL')
+        expect(envExample).toContain('POSTGRES_PASSWORD')
         expect(envExample).toContain('ENCRYPTION_SECRET')
         expect(envExample).toContain('AUTH_SECRET')
     })

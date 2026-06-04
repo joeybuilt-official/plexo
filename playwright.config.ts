@@ -11,6 +11,14 @@ export default defineConfig({
     reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
     use: {
         baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:3000',
+        // Send an Origin header on all requests (incl. the `request` API fixture).
+        // The API's CSRF guard rejects cookie-authenticated mutations that lack
+        // an Origin/Referer with 403 CSRF_MISSING_ORIGIN; real browsers always
+        // send one, so without this the API-contract specs 403 before reaching
+        // validation. Mirrors baseURL so it matches BETTER_AUTH_TRUSTED_ORIGINS.
+        extraHTTPHeaders: {
+            Origin: process.env.E2E_BASE_URL ?? 'http://localhost:3000',
+        },
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
     },

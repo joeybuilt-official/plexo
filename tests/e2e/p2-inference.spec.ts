@@ -40,7 +40,7 @@ test.describe('P2: Inference Gateway & Provider Routing', () => {
             await page.goto(`${BASE}/settings/ai-providers`)
             await dismissAnalyticsModal(page)
 
-            await expect(page.locator('h1, h2').filter({ hasText: 'AI Providers' })).toBeVisible({ timeout: 10000 })
+            await expect(page.locator('h1, h2').filter({ hasText: 'AI & Memory' })).toBeVisible({ timeout: 10000 })
         })
 
         test('AI Providers page shows provider list', async ({ page }) => {
