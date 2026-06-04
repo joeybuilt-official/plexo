@@ -416,6 +416,8 @@ services:
       PORT: "3000"
       # Better Auth — shared identity layer
       AUTH_DATABASE_URL: ${AUTH_DATABASE_URL}
+      # App DB — required by the auth→public.users mirror (better-auth create.after hook)
+      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
       AUTH_SECRET: ${AUTH_SECRET}
       BETTER_AUTH_URL: ${PUBLIC_URL}
       NEXT_PUBLIC_API_URL: ${PUBLIC_URL}/api
