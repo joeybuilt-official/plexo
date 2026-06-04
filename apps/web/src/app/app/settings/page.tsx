@@ -116,6 +116,13 @@ export default function SettingsPage() {
     const [dirty, setDirty] = useState(false)
     useUnsavedChanges(dirty)
 
+    // Avoid SSR/client hydration mismatch (React #418): render client-only
+    // (native-only) sections only after mount so the first client render
+    // matches the server-rendered HTML. `typeof window` in render differs
+    // between server and client first paint and triggers the mismatch.
+    const [mounted, setMounted] = useState(false)
+    useEffect(() => { setMounted(true) }, [])
+
     const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
     // Workspace settings state
@@ -354,7 +361,7 @@ export default function SettingsPage() {
                 <p className="mb-2 text-[11px] uppercase tracking-widest text-text-muted hidden md:block">Settings</p>
                 <div className="flex flex-row md:flex-col gap-1.5 md:gap-0.5 min-w-min md:min-w-0">
                     {SECTIONS.filter(s =>
-                        !s.nativeOnly || (typeof window !== 'undefined' && getRuntimeContext() !== 'browser')
+                        !s.nativeOnly || (mounted && getRuntimeContext() !== 'browser')
                     ).map(({ id, label, icon: Icon }) => (
                         <button
                             key={id}

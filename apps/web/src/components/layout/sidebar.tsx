@@ -32,21 +32,12 @@ import {
     Zap,
     Radio,
     Clock,
-    ScrollText,
     Search,
     Sparkles,
     ChevronRight,
     AlertTriangle,
     FileText,
     Bug,
-    Box,
-    Rocket,
-    HardDrive,
-    KeyRound,
-    Database,
-    Server,
-    GitBranch,
-    Activity,
     Calendar,
 } from 'lucide-react'
 import { ArrowUpCircle } from 'lucide-react'
@@ -111,25 +102,20 @@ const NAV_PLATFORM: NavItem[] = [
     { label: 'Hub', href: '/app/hub', icon: Store },
 ]
 
-// Ops — infrastructure dashboards (visible when ops extensions are installed)
-const NAV_OPS: NavItem[] = [
-    { label: 'Development', href: '/app/ops/development', icon: GitBranch },
-    { label: 'Containers', href: '/app/ops/containers', icon: Box },
-    { label: 'Deployments', href: '/app/ops/deployments', icon: Rocket },
-    { label: 'Backups', href: '/app/ops/backups', icon: HardDrive },
-    { label: 'Environment', href: '/app/ops/env', icon: KeyRound },
-    { label: 'Database', href: '/app/ops/database', icon: Database },
-    { label: 'Infrastructure', href: '/app/ops/infra', icon: Server },
-    { label: 'Stabilization', href: '/app/ops/stabilization', icon: Activity },
-]
+// Ops — infrastructure dashboards. NOTE: the `/app/ops/*` pages do not exist in
+// this web build (no static or dynamic routes), and there is no per-workspace
+// "ops extension" signal to gate on (extensionTypeEnum has no `ops` type; the
+// built-in ops extensions are api-side only). Rendering these links produced
+// guaranteed 404s, so the section is removed until the dashboard pages ship.
+// To restore: add the page routes under app/app/ops/ and re-add a NAV_OPS section.
 
 // System — settings and admin
-// UX-016: Federation, Debug, Audit, Schedules collapsed into Settings sub-pages
+// UX-016: Federation, Debug, Audit, Schedules collapsed into Settings sub-pages.
+// Audit removed from nav: `/app/audit` has no page (stale after the UX-016 refactor).
 const NAV_SYSTEM: NavItem[] = [
     { label: 'Settings', href: '/app/settings', icon: SettingsIcon },
     { label: 'Scheduling', href: '/app/scheduling', icon: Clock },
     { label: 'Logs', href: '/app/logs', icon: FileText },
-    { label: 'Audit', href: '/app/audit', icon: ScrollText },
 ]
 
 // System — operator-only items (appended to NAV_SYSTEM when user is workspace owner)
@@ -847,10 +833,6 @@ export function Sidebar({ user, onNavClick, className = '', mobile = false }: { 
 
                     <NavSection id="platform" label="Platform" expanded={openSection === 'platform'} onToggle={toggleSection} collapsed={sidebarCollapsed}>
                         {renderSection(NAV_PLATFORM)}
-                    </NavSection>
-
-                    <NavSection id="ops" label="Ops" expanded={openSection === 'ops'} onToggle={toggleSection} collapsed={sidebarCollapsed}>
-                        {renderSection(NAV_OPS)}
                     </NavSection>
 
                     <NavSection id="system" label="System" expanded={openSection === 'system'} onToggle={toggleSection} collapsed={sidebarCollapsed}>
