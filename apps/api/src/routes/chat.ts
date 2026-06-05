@@ -697,18 +697,27 @@ chatRouter.post('/message', async (req, res) => {
                         { role: 'user' as const, content: trimmedMsg }
                     ] as any[]
 
-                    const classifyResult = await routeAndCall({
-                        workspaceId,
-                        taskType: 'classification',
-                        settings: aiSettings,
-                        doCall: async (model) => generateText({
-                            model,
-                            system: WEBCHAT_CLASSIFY_SYSTEM,
-                            messages: classifyMessages,
-                            abortSignal: AbortSignal.timeout(10_000),
+                    // Hard total budget for classification. The per-call abort
+                    // (10s) can stack across cascade + retry-same and blow past
+                    // half a minute; cap the whole step so we fail toward
+                    // execution fast instead of leaving the user waiting.
+                    const classifyResult = await Promise.race([
+                        routeAndCall({
+                            workspaceId,
+                            taskType: 'classification',
+                            settings: aiSettings,
+                            doCall: async (model) => generateText({
+                                model,
+                                system: WEBCHAT_CLASSIFY_SYSTEM,
+                                messages: classifyMessages,
+                                abortSignal: AbortSignal.timeout(10_000),
+                            }),
+                            opts: fallbackOpts(workspaceId),
                         }),
-                        opts: fallbackOpts(workspaceId),
-                    })
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error('classify-budget-exceeded')), 12_000).unref(),
+                        ),
+                    ])
                     const text = classifyResult.text?.trim() ?? ''
                     const upperText = text.toUpperCase()
                     const parts = text.split(/\s+/)
@@ -895,6 +904,18 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                     res.setHeader('X-Accel-Buffering', 'no')
                     res.flushHeaders()
 
+                    // Keepalive comment frames while the model works, so the
+                    // Cloudflare tunnel / browser don't drop an idle-but-active
+                    // SSE connection (the false "Request timed out" cause).
+                    // SSE comments (`: ...`) are ignored by the EventSource client.
+                    // Cleared in the finally below. Kill switch: PLEXO_CHAT_HEARTBEAT=false.
+                    const heartbeat = process.env.PLEXO_CHAT_HEARTBEAT !== 'false'
+                        ? setInterval(() => {
+                            if (!res.writableEnded) { try { res.write(': keepalive\n\n') } catch { /* ignore */ } }
+                        }, 15_000)
+                        : null
+                    heartbeat?.unref?.()
+
                     let fullText = ''
                     try {
                         const streamFn = async (model: ReturnType<typeof buildModel>) => {
@@ -982,6 +1003,8 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'failed', messageLength: 0, errorMessage: classified.message })
                         // Still run post-stream persistence with whatever we got
                         if (!fullText) return
+                    } finally {
+                        if (heartbeat) clearInterval(heartbeat)
                     }
 
                     // ── Post-stream quality check (can't unwrite chunks already sent, but
