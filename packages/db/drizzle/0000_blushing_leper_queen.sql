@@ -1,6 +1,6 @@
 -- Enable pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;--> statement-breakpoint
-CREATE TYPE "public"."auth_type" AS ENUM('oauth2', 'api_key', 'webhook', 'none');--> statement-breakpoint
+CREATE TYPE "public"."auth_type" AS ENUM('oauth2', 'api_key', 'webhook', 'none', 'paired_session');--> statement-breakpoint
 CREATE TYPE "public"."calibration" AS ENUM('over', 'correct', 'under');--> statement-breakpoint
 CREATE TYPE "public"."channel_type" AS ENUM('telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix', 'irc', 'webchat');--> statement-breakpoint
 CREATE TYPE "public"."connection_status" AS ENUM('active', 'error', 'expired', 'disconnected');--> statement-breakpoint

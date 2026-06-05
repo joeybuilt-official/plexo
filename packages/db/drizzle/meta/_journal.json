@@ -876,6 +876,13 @@
       "when": 1780588800000,
       "tag": "0125_lessons_graphiti_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1780675200000,
+      "tag": "0126_self_host_users_casing",
+      "breakpoints": true
     }
   ]
 }
