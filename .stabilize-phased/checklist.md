@@ -20,12 +20,13 @@
 - [ ] DEFERRED: fence-rescue on the `callModel` repair path (`call-model.ts`) + `schema_relaxed` telemetry counter. Planner coercion already prevents the observed task.failed; these are deeper robustness for other structured calls.
 
 ## Phase 4 — Observability + alerting
-- [ ] `router_v2_stats` additive migration + `getAllStats()` export
-- [ ] Snapshot cron persists stats (survives deploys)
+- [x] `router_v2_stats` additive migration (`0127_router_v2_stats.sql`, journal idx 126) + `getAllStats()` export (stats.ts; Bucket now retains structured key; 5 tests)
+- [x] Snapshot cron persists stats (survives deploys) — `runRouterStatsSnapshot()` in cron.ts, registered as INTERNAL_JOB "Router stats snapshot" (*/30, one batched insert/tick, never hot-path)
+- [x] Validate on throwaway DB — migration applied via PGlite (pg17): schema/indexes correct, idempotent (IF NOT EXISTS re-run), snapshot insert (NULL ws + cooldown ts) + latest-state DISTINCT ON verified. Agent+API typecheck clean.
 - [ ] Provider-failure events → `plexo_ops_analytics` (cascade-exhaust / repeated auth/quota)
 - [ ] Batched provider-unreliable + canary-FAILED alert via Telegram delivery path
 - [ ] Onboarding canary result emits an event (not just stdout)
-- [ ] Validate on throwaway DB; deploy
+- [ ] Deploy api (build + recreate) — operator-gated
 
 ## Phase 5 — End-to-end validation ⚠ operator-gate (real account)
 - [ ] Drive real "build me a flappy bird game" via browser session

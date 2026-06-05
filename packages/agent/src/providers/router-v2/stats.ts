@@ -25,6 +25,8 @@ interface Bucket {
     samples: Sample[]
     /** Epoch ms after which this provider is back in the pool (driven by recorded cooldowns). */
     cooldownEndAt: number
+    /** Structured key, retained so getAllStats() can emit fields without parsing the composite string. */
+    key: StatsKey
 }
 
 export interface StatsKey {
@@ -73,7 +75,7 @@ export function recordCall(key: StatsKey, durationMs: number, success: boolean):
     const now = Date.now()
     let b = store.get(k)
     if (!b) {
-        b = { samples: [], cooldownEndAt: 0 }
+        b = { samples: [], cooldownEndAt: 0, key }
         store.set(k, b)
     }
     b.samples.push({ durationMs, success, at: now })
@@ -85,7 +87,7 @@ export function recordCooldown(key: StatsKey, untilEpochMs: number): void {
     const k = keyOf(key)
     let b = store.get(k)
     if (!b) {
-        b = { samples: [], cooldownEndAt: 0 }
+        b = { samples: [], cooldownEndAt: 0, key }
         store.set(k, b)
     }
     b.cooldownEndAt = Math.max(b.cooldownEndAt, untilEpochMs)
@@ -124,5 +126,24 @@ export function _resetStatsForTest(): void {
     store.clear()
 }
 
-// TODO(Phase 5): periodic snapshot of `store` to a `router_v2_stats` table for
-// observability + cross-process aggregation. Until then, stats are per-process.
+export interface AllStatsEntry {
+    key: StatsKey
+    stats: ReadStats
+}
+
+/**
+ * Snapshot of every live bucket, for the periodic `router_v2_stats` persistence
+ * cron (Phase 4 observability). Per-process — each API instance reports its own
+ * in-memory view; cross-process aggregation happens at read time in the DB.
+ * Empty buckets (no samples and not cooling) are skipped — nothing to persist.
+ */
+export function getAllStats(): AllStatsEntry[] {
+    const now = Date.now()
+    const out: AllStatsEntry[] = []
+    for (const b of store.values()) {
+        trim(b, now)
+        if (b.samples.length === 0 && b.cooldownEndAt <= now) continue
+        out.push({ key: b.key, stats: getStats(b.key) })
+    }
+    return out
+}

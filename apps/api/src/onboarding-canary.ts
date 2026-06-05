@@ -30,6 +30,8 @@ import { db, sql } from '@plexo/db'
 import { workspaces, workspaceMembers, DEFAULT_WORKSPACE_SETTINGS, DEFAULT_INTELLIGENCE_SETTINGS } from '@plexo/db'
 import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/db/auth/config'
 import { logger } from './logger.js'
+import { emitCanaryResult } from './analytics/events.js'
+import { recordCanaryFailureForAlert } from './ops-alerts.js'
 
 /** Thrown to force the canary transaction to roll back after it succeeds. */
 class CanaryRollback extends Error {}
@@ -56,6 +58,9 @@ export async function runOnboardingCanary(): Promise<void> {
                 { canary: 'onboarding', canaryUserId },
                 '[onboarding-canary] canary user not found in public.users — provision it or unset PLEXO_ONBOARDING_CANARY_USER_ID',
             )
+            // Misconfiguration, not a regression — surface as an analytics signal
+            // but don't feed the operator alert (would be a standing false alarm).
+            emitCanaryResult({ check: 'onboarding', ok: false, durationMs: Date.now() - started })
             return
         }
 
@@ -93,10 +98,16 @@ export async function runOnboardingCanary(): Promise<void> {
             { canary: 'onboarding', ms: Date.now() - started },
             '[onboarding-canary] OK — new-user first-workspace path healthy',
         )
+        emitCanaryResult({ check: 'onboarding', ok: true, durationMs: Date.now() - started })
     } catch (err) {
         logger.error(
             { err, canary: 'onboarding', ms: Date.now() - started },
             '[onboarding-canary] FAILED — new-user first-workspace creation is broken',
         )
+        emitCanaryResult({ check: 'onboarding', ok: false, durationMs: Date.now() - started })
+        recordCanaryFailureForAlert({
+            check: 'onboarding',
+            reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
+        })
     }
 }
