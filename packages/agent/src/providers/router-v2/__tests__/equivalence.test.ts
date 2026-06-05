@@ -364,8 +364,8 @@ describe('router-v2 error-classifier', () => {
         ['Insufficient Balance', 'quota'],
         ['Insufficient Balance: Insufficient Balance', 'quota'],
         ['No object generated: response did not match schema', 'parse-malformed'],
-        ['No output generated. Check the stream for errors.', 'parse-malformed'],
-        ['AI_NoOutputGeneratedError: No output generated', 'parse-malformed'],
+        ['No output generated. Check the stream for errors.', 'empty-output'],
+        ['AI_NoOutputGeneratedError: No output generated', 'empty-output'],
         ['some unrelated bug', 'unknown'],
     ]
 
@@ -380,6 +380,19 @@ describe('router-v2 error-classifier', () => {
         const c = classifyError('a string')
         expect(c.class).toBe('unknown')
         expect(c.shouldFallback).toBe(false)
+    })
+
+    it('empty-output (empty stream) → retry-same so a single model can recover', () => {
+        const c = classifyError(new Error('No output generated. Check the stream for errors.'))
+        expect(c.class).toBe('empty-output')
+        expect(c.shouldFallback).toBe(true)
+        expect(c.suggestedAction).toBe('retry-same')
+    })
+
+    it('parse-malformed (structured) → fallback-next, not retry-same', () => {
+        const c = classifyError(new Error('No object generated: schema mismatch'))
+        expect(c.class).toBe('parse-malformed')
+        expect(c.suggestedAction).toBe('fallback-next')
     })
 
     it('auth class queues ops event', () => {
@@ -460,6 +473,54 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
             doCall: fn,
         })).rejects.toThrow(/schema validation|required field/)
         expect(fn).toHaveBeenCalledTimes(1)
+    })
+
+    it('empty-output on a SINGLE-provider workspace → retries the SAME model in place (no fallback needed)', async () => {
+        _resetStatsForTest()
+        let calls = 0
+        const fn = vi.fn(async () => {
+            calls++
+            if (calls === 1) throw new Error('No output generated. Check the stream for errors.')
+            return 'ok'
+        })
+        const settings = baseSettings({
+            primaryProvider: 'groq',
+            fallbackChain: [],
+            providers: {
+                groq: { provider: 'groq', apiKey: 'gsk_test', model: 'llama-3.3-70b', enabled: true },
+            },
+        })
+        const routed = await routeAndCall({
+            workspaceId: 'wsSingle',
+            taskType: 'conversation',
+            settings,
+            doCall: fn,
+        })
+        expect(routed).toBe('ok')
+        // Retried the same (only) model rather than hard-failing for lack of a fallback.
+        expect(fn).toHaveBeenCalledTimes(2)
+    })
+
+    it('persistent empty-output on a single provider → retries are bounded, then gives up', async () => {
+        _resetStatsForTest()
+        const fn = vi.fn(async () => {
+            throw new Error('No output generated. Check the stream for errors.')
+        })
+        const settings = baseSettings({
+            primaryProvider: 'groq',
+            fallbackChain: [],
+            providers: {
+                groq: { provider: 'groq', apiKey: 'gsk_test', model: 'llama-3.3-70b', enabled: true },
+            },
+        })
+        await expect(routeAndCall({
+            workspaceId: 'wsSingleDead',
+            taskType: 'conversation',
+            settings,
+            doCall: fn,
+        })).rejects.toThrow(/exhausted|No output generated/)
+        // 1 initial + RETRY_SAME_MAX (2) in-place retries = 3 attempts, then stop.
+        expect(fn).toHaveBeenCalledTimes(3)
     })
 
     it('high-stakes + only low-quality providers → throws RouterV2NoCandidateError', async () => {

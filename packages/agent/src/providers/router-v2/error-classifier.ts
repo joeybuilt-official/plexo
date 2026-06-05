@@ -17,6 +17,7 @@ export type ErrorClass =
     | 'network'
     | 'quota'
     | 'parse-malformed'
+    | 'empty-output'
     | 'unknown'
 
 export type SuggestedAction =
@@ -163,19 +164,29 @@ export function classifyError(err: unknown): Classification {
         return { class: 'content-policy', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
 
-    // Malformed / empty output — the model couldn't emit valid (or any) output.
-    // Advance to another model rather than permanently failing the request.
-    // Note the two distinct AI SDK errors, one word apart:
-    //   "no object generated"  → AI_NoObjectGeneratedError (structured-output failed)
-    //   "no output generated"  → AI_NoOutputGeneratedError (empty/failed stream)
-    // Both must fall back. Missing the latter let an empty stream from one
-    // provider hard-fail the whole task even when other providers were configured.
+    // Empty / failed stream — the model produced NO output at all
+    // (AI_NoOutputGeneratedError: "No output generated. Check the stream for
+    // errors."). This is transient: a re-call of the SAME model usually
+    // succeeds, so retry in place first (keeps a single-provider workspace
+    // resilient) — the router only advances to another model after retries.
+    if (
+        msg.includes('no output generated') ||
+        msg.includes('nooutputgenerated') ||
+        msg.includes('empty response') ||
+        msg.includes('empty completion') ||
+        msg.includes('no output from')
+    ) {
+        return { class: 'empty-output', shouldFallback: true, suggestedAction: 'retry-same' }
+    }
+
+    // Malformed STRUCTURED output — the model couldn't emit valid JSON/schema
+    // (AI_NoObjectGeneratedError, one word apart from the empty-output case
+    // above). This is a capability gap, not transient — retrying the same model
+    // won't help, so advance to a JSON-capable model.
     if (
         msg.includes('call_model_parse') ||
         msg.includes('json parsing failed') ||
         msg.includes('no object generated') ||
-        msg.includes('no output generated') ||
-        msg.includes('nooutputgenerated') ||
         msg.includes('json_schema') ||
         msg.includes('response format') ||
         msg.includes('structured')

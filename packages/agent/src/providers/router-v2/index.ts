@@ -47,6 +47,15 @@ const COOLDOWN_QUOTA_MS = 30 * 60_000
 
 const MAX_CASCADE = 4
 
+// Retry-same: for transient errors (e.g. an empty stream) a re-call of the
+// SAME model usually succeeds. We retry in place — bounded, with short backoff
+// — BEFORE advancing to another provider. This is what lets a workspace with a
+// single configured model survive a transient blip instead of hard-failing.
+const RETRY_SAME_MAX = 2
+const RETRY_SAME_BACKOFF_MS = 400
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
 export class RouterV2NoCandidateError extends Error {
     readonly code = 'ROUTER_V2_NO_CANDIDATE'
     readonly requireOperatorAction: boolean
@@ -140,6 +149,7 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
     let lastError: unknown
     let fallbackEngaged = false
     let cascadePos = 0
+    let sameRetries = 0
     let firstSelection: SelectionResult | null = null
     let firstSelectorDurationMs = 0
     let firstChosenProvider: string | undefined
@@ -229,6 +239,19 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
                 }))
                 throw new RouterV2CallError(err)
             }
+
+            // Retry-same: transient failures (e.g. an empty stream) usually
+            // succeed on a re-call of the SAME model. Retry in place — bounded,
+            // with short backoff — WITHOUT cooling down or excluding the
+            // provider. This keeps a single-provider workspace resilient: with
+            // nothing to fall back to, the only path to recovery is retrying.
+            if (cls.suggestedAction === 'retry-same' && sameRetries < RETRY_SAME_MAX) {
+                sameRetries++
+                await sleep(RETRY_SAME_BACKOFF_MS * sameRetries)
+                continue
+            }
+            // Done retrying this provider — reset the budget for the next one.
+            sameRetries = 0
 
             // Cool down the failed candidate so subsequent re-selection skips it.
             recordCooldown(
