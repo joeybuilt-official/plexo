@@ -549,7 +549,11 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
         }
     })
 
-    it('all candidates have no manifest entry → throws RouterV2NoCandidateError (no operator action)', async () => {
+    it('no manifest entry but providers configured → falls back to primary available provider (#11)', async () => {
+        // Post-fb14b5b: noManifestMatch no longer hard-fails when providers ARE
+        // configured — it falls back to available[0] and runs doCall, so a chat
+        // task type with no manifest row degrades gracefully instead of surfacing
+        // "Try again. / couldn't generate a response" to the user.
         const settings: WorkspaceAISettings = {
             primaryProvider: 'custom_xyz' as ProviderKey,
             fallbackChain: [],
@@ -566,8 +570,8 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
             workspaceId: 'wsCustom',
             taskType: 'conversation',
             settings,
-            doCall: async () => 'never',
-        })).rejects.toBeInstanceOf(RouterV2NoCandidateError)
+            doCall: async () => 'fallback-result',
+        })).resolves.toBe('fallback-result')
     })
 })
 

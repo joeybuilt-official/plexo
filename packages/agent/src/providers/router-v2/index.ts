@@ -32,8 +32,10 @@ import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
 import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
 import { emitProviderFailure } from './ops-events.js'
+import { withLane } from './lane-limiter.js'
 
 export * from './manifest.js'
+export * from './lane-limiter.js'
 export * from './selector.js'
 export * from './error-classifier.js'
 export * from './stats.js'
@@ -138,6 +140,13 @@ export interface RouteAndCallInput<T> {
  * Up to MAX_CASCADE attempts.
  */
 export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
+    // ADR 0002: gate background-lane calls behind a concurrency cap so memory/
+    // judge/summarization churn cannot starve interactive task planning. Flag
+    // OFF (default) → passthrough, byte-identical to pre-ADR behaviour.
+    return withLane(input.taskType, () => routeAndCallInner(input))
+}
+
+async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     const { workspaceId, taskType, settings, doCall, opts } = input
 
     let available = buildAvailable(settings)
