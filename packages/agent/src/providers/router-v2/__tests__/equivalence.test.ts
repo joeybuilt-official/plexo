@@ -95,19 +95,20 @@ beforeEach(async () => {
 // Manifest
 
 describe('router-v2 manifest', () => {
-    it('has 9 task types; 7 carry all 6 providers, 2 retain 5', () => {
+    it('has 9 task types; 7 carry all 7 providers, 2 retain 6', () => {
         const taskTypes = Object.keys(MANIFEST)
         expect(taskTypes).toHaveLength(9)
-        // codeGeneration joined the 6-provider rows in 2026-05-23 when
-        // ollama_cloud was added at prior=3 so credit-exhausted workspaces
-        // (no anthropic/deepseek) can still route past the Q2-hybrid bar.
-        const sixProvider = ['planning', 'extraction', 'classification', 'conversation', 'judging', 'summarization', 'codeGeneration']
-        for (const t of sixProvider) {
-            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(6)
+        // codeGeneration joined the wide rows in 2026-05-23 (ollama_cloud at
+        // prior=3 for credit-exhausted workspaces). cerebras added 2026-06-05
+        // across all rows (fast gpt-oss-120b lane) so the manifest can route a
+        // workspace's fastest connected provider — see ADR 0002 / planning-latency.
+        const wideProvider = ['planning', 'extraction', 'classification', 'conversation', 'judging', 'summarization', 'codeGeneration']
+        for (const t of wideProvider) {
+            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(7)
         }
-        const fiveProvider = ['verification', 'logAnalysis']
-        for (const t of fiveProvider) {
-            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(5)
+        const narrowProvider = ['verification', 'logAnalysis']
+        for (const t of narrowProvider) {
+            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(6)
         }
     })
 
@@ -144,9 +145,9 @@ describe('router-v2 manifest', () => {
         }
     })
 
-    it('judging row covers all 6 providers with priorScore ≥ 2', () => {
+    it('judging row covers all 7 providers with priorScore ≥ 2', () => {
         const row = MANIFEST.judging
-        expect(Object.keys(row).sort()).toEqual(['anthropic', 'deepseek', 'google', 'groq', 'ollama_cloud', 'openai'])
+        expect(Object.keys(row).sort()).toEqual(['anthropic', 'cerebras', 'deepseek', 'google', 'groq', 'ollama_cloud', 'openai'])
         for (const e of Object.values(row)) {
             expect(e!.priorScore).toBeGreaterThanOrEqual(2)
         }

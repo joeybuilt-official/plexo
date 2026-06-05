@@ -458,10 +458,17 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
     //   4. env fallback (resolveModelFromEnv)
 
     // Errors that warrant skipping a pinned judge and trying the cascade.
-    const pinSkippable = /json_schema|response format|structured|No object generated|JSON parsing failed|credit balance|insufficient_quota|rate.?limit|quota|tpd|429|ENOTFOUND|fetch failed|CALL_MODEL_TIMEOUT|CALL_MODEL_PARSE|NO_PROVIDER_AVAILABLE|ProviderResolutionError/i
+    // Includes auth/missing-key/resolution failures so a pin that points at a
+    // disabled or unkeyed provider degrades to the provider-agnostic cascade
+    // (never dead-ends at self-score — the judge must not depend on one vendor).
+    const pinSkippable = /json_schema|response format|structured|No object generated|JSON parsing failed|credit balance|insufficient_quota|rate.?limit|quota|tpd|401|403|invalid.?api.?key|authentication|unauthorized|x-api-key|missing.+key|no api key|429|ENOTFOUND|fetch failed|CALL_MODEL_TIMEOUT|CALL_MODEL_PARSE|NO_PROVIDER_AVAILABLE|ProviderResolutionError/i
 
-    // 1. Workspace pin — one-shot attempt; on skippable error fall through to cascade.
-    if (aiSettings?.judgeModel) {
+    // 1. Workspace pin — attempted ONLY when the pinned provider is actually
+    //    connected (present in the enabled providers map). A pin at a disabled
+    //    provider (e.g. ws pins anthropic/haiku but anthropic is off) is skipped
+    //    outright so we go straight to the router-v2 judging cascade, which
+    //    picks whatever connected provider can do the judge's structured JSON.
+    if (aiSettings?.judgeModel && aiSettings.providers[aiSettings.judgeModel.provider]) {
         const { provider, model } = aiSettings.judgeModel
         const cfg = aiSettings.providers[provider]
         try {
