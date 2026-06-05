@@ -405,3 +405,65 @@ describe('B2 conversations parity (SQL vs cypher)', () => {
         expect(b.items.map(pick)).toEqual(a.items.map(pick))
     })
 })
+
+describe('Phase O — cypher read failure falls back to postgres (sidecar-decouple)', () => {
+    beforeEach(async () => { await start() })
+    afterEach(async () => { await stop() })
+
+    it('GET / list — wedged sidecar (graphCypher throws) returns postgres rows, not 500', async () => {
+        process.env.FALKORDB_CONVERSATIONS = 'true'
+        try {
+            const { graphCypher } = await import('../../lib/graph-sidecar.js')
+            const gc = graphCypher as unknown as ReturnType<typeof vi.fn>
+            gc.mockReset()
+            gc.mockRejectedValue(new Error('graphiti sidecar timeout'))
+
+            const { db } = await import('@plexo/db')
+            const expected = FIXTURE.slice().reverse() // newest-first, like ORDER BY created_at DESC
+            ;(db.select as any).mockImplementationOnce(() => makeSelectBuilder(
+                expected.map(r => ({ ...r, createdAt: new Date(r.createdAt) })),
+            ))
+
+            const res = await fetch(url + `/api/v1/conversations?workspaceId=${WS}`)
+            // The whole point of Phase O: a thrown cypher read does NOT 500.
+            expect(res.status).toBe(200)
+            const body = await res.json() as { items: Record<string, unknown>[] }
+            expect(body.items.map(i => i.id)).toEqual(expected.map(r => r.id))
+        } finally {
+            const { graphCypher } = await import('../../lib/graph-sidecar.js')
+            ;(graphCypher as unknown as ReturnType<typeof vi.fn>).mockReset()
+            const { db } = await import('@plexo/db')
+            ;(db.select as any).mockClear?.()
+            delete process.env.FALKORDB_CONVERSATIONS
+        }
+    })
+
+    it('GET /:id — wedged sidecar (graphCypher throws) returns postgres row, not 500', async () => {
+        process.env.FALKORDB_CONVERSATIONS = 'true'
+        const row = FIXTURE[0]!
+        try {
+            const { graphCypher } = await import('../../lib/graph-sidecar.js')
+            const gc = graphCypher as unknown as ReturnType<typeof vi.fn>
+            gc.mockReset()
+            gc.mockRejectedValue(new Error('graphiti sidecar timeout'))
+
+            const { db } = await import('@plexo/db')
+            // First select = cypher-path workspace lookup (throws after, in graphCypher);
+            // second select = postgres fallback full-row fetch.
+            ;(db.select as any)
+                .mockImplementationOnce(() => makeSelectBuilder([{ workspaceId: row.workspaceId }]))
+                .mockImplementationOnce(() => makeSelectBuilder([{ ...row, createdAt: new Date(row.createdAt) }]))
+
+            const res = await fetch(url + '/api/v1/conversations/' + row.id)
+            expect(res.status).toBe(200)
+            const body = await res.json() as { id: string }
+            expect(body.id).toBe(row.id)
+        } finally {
+            const { graphCypher } = await import('../../lib/graph-sidecar.js')
+            ;(graphCypher as unknown as ReturnType<typeof vi.fn>).mockReset()
+            const { db } = await import('@plexo/db')
+            ;(db.select as any).mockClear?.()
+            delete process.env.FALKORDB_CONVERSATIONS
+        }
+    })
+})
