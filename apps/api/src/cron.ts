@@ -17,6 +17,7 @@ import { flushRetrievalCounts, decayConfidence } from './cron/confidence-lifecyc
 import { pollAllGmailChannels } from './lib/gmail-poll.js'
 import { runAttachmentScanTick } from './lib/attachment-scan-worker.js'
 import { getAllStats } from '@plexo/agent/providers/router-v2'
+import { getSchemaRelaxedStats } from '@plexo/agent/providers/call-model'
 import { flushOpsAlerts } from './ops-alerts.js'
 import { INTERNAL_JOB_NAMES } from './cron-internal-jobs.js'
 
@@ -182,6 +183,10 @@ async function runDataRetention(): Promise<void> {
  * path (one batched insert per cron tick).
  */
 export async function runRouterStatsSnapshot(): Promise<void> {
+    // Surface schema-relaxation telemetry alongside the router snapshot so the
+    // "how often the structured-output safety net fires" counter is observable.
+    logger.info({ schemaRelaxed: getSchemaRelaxedStats() }, 'Router stats snapshot: schema_relaxed counters')
+
     const entries = getAllStats()
     if (entries.length === 0) {
         logger.info('Router stats snapshot: no live buckets — skipping')

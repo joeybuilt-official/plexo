@@ -264,6 +264,41 @@ function backoffDelayMs(attempt: number): number {
     return attempt === 1 ? 500 : 1500
 }
 
+// ── schema_relaxed telemetry ──────────────────────────────────────────
+// In-process counters for how often a structured-output call was saved by a
+// relaxation/coercion path instead of failing. Per the stabilization pre-mortem:
+// surfacing "how often the safety net fires" guards against silently masking a
+// model that can't actually produce structured output. Per-process, snapshot-
+// friendly (same philosophy as router-v2 stats).
+
+interface SchemaRelaxedCounts {
+    fenceRescue: number      // raw fenced JSON recovered from a generateObject failure
+    repairArrayWrap: number  // repair output was a top-level array, wrapped to fit
+    repairRekey: number      // repair output had the wrong wrap key, renamed
+    repairValidated: number  // repair generateText output validated after extraction
+}
+
+const schemaRelaxedCounts: SchemaRelaxedCounts = {
+    fenceRescue: 0, repairArrayWrap: 0, repairRekey: 0, repairValidated: 0,
+}
+
+export function recordSchemaRelaxed(kind: keyof SchemaRelaxedCounts): void {
+    schemaRelaxedCounts[kind]++
+}
+
+export function getSchemaRelaxedStats(): SchemaRelaxedCounts & { total: number } {
+    const c = schemaRelaxedCounts
+    return { ...c, total: c.fenceRescue + c.repairArrayWrap + c.repairRekey + c.repairValidated }
+}
+
+/** Test-only — reset all schema_relaxed counters. */
+export function _resetSchemaRelaxedForTest(): void {
+    schemaRelaxedCounts.fenceRescue = 0
+    schemaRelaxedCounts.repairArrayWrap = 0
+    schemaRelaxedCounts.repairRekey = 0
+    schemaRelaxedCounts.repairValidated = 0
+}
+
 // ── Fenced-JSON rescue ────────────────────────────────────────────────
 // Some providers (notably ollama_cloud routed through @ai-sdk/openai-compatible
 // without `structuredOutputs` support) return JSON wrapped in markdown code
@@ -704,6 +739,7 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                             taskType: opts.taskType,
                             model: modelId,
                         }, 'callModel: rescued fenced JSON from generateObject failure')
+                        recordSchemaRelaxed('fenceRescue')
                         result = { object: rescued.object }
                         repairUsed = true
                     } else if (isSchemaCapabilityError(genErr)) {
@@ -804,6 +840,7 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                                     model: modelId,
                                     wrappedWith: wrapped.wrappedWith,
                                 }, 'callModel: repair output was top-level array; wrapped to satisfy object schema')
+                                recordSchemaRelaxed('repairArrayWrap')
                                 validated = { success: true as const, data: wrapped.data }
                             }
                         }
@@ -818,6 +855,7 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                                     rekeyedFrom: rekeyed.rekeyedFrom,
                                     rekeyedTo: rekeyed.rekeyedTo,
                                 }, 'callModel: repair output had wrong wrap key; renamed to satisfy schema')
+                                recordSchemaRelaxed('repairRekey')
                                 validated = { success: true as const, data: rekeyed.data }
                             }
                         }
@@ -850,6 +888,7 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                         }
 
                         repairUsed = true
+                        recordSchemaRelaxed('repairValidated')
                         result = {
                             object: validated.data,
                             usage: repairResult.usage,
