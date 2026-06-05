@@ -29,7 +29,7 @@ const TICK_INTERVAL_MS = 60_000 // 1 minute
 const MAX_JOBS_PER_TICK = 50
 
 /** Internal job names managed by cron.ts — skip from generic dispatch. */
-const INTERNAL_JOB_NAMES = new Set(['Memory consolidation', 'RSI Monitor'])
+const INTERNAL_JOB_NAMES = new Set(['Memory consolidation', 'RSI Monitor', 'Router stats snapshot', 'Ops alerts flush'])
 
 // ── Next-run computation ──────────────────────────────────────────────────────
 
