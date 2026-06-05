@@ -8,7 +8,10 @@
 // can be layered on later — this scaffold only registers the synthesis
 // subscriber so the Phase 5 pipeline has a target.
 function fyloBase() {
-    return (process.env.FYLO_INTERNAL_URL ?? 'http://service:3700').replace(/\/$/, '');
+    const host = process.env.FYLO_INTERNAL_URL;
+    if (!host)
+        throw new Error('FYLO_INTERNAL_URL env var is required for the Fylo bridge extension');
+    return host.replace(/\/$/, '');
 }
 function serviceHeaders() {
     return {

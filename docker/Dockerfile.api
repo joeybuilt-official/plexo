@@ -145,6 +145,8 @@ COPY extensions/core/levio-bridge/dist    ./extensions/core/levio-bridge/dist
 COPY extensions/core/levio-bridge/plexo.json ./extensions/core/levio-bridge/plexo.json
 COPY extensions/core/koforje-bridge/dist    ./extensions/core/koforje-bridge/dist
 COPY extensions/core/koforje-bridge/plexo.json ./extensions/core/koforje-bridge/plexo.json
+COPY extensions/core/fylo-bridge/dist    ./extensions/core/fylo-bridge/dist
+COPY extensions/core/fylo-bridge/plexo.json ./extensions/core/fylo-bridge/plexo.json
 
 # Root manifest — needed to read version field at build time
 COPY --from=deps /app/package.json ./
