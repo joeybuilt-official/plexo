@@ -25,7 +25,7 @@ import {
     type TaskType,
     type WorkspaceAISettings,
 } from '../registry.js'
-import { selectModel, type AvailableProvider, type SelectionResult } from './selector.js'
+import { selectModel, resolveModelId, type AvailableProvider, type SelectionResult } from './selector.js'
 import { recordCall, recordCooldown } from './stats.js'
 import { classifyError } from './error-classifier.js'
 import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
@@ -174,6 +174,27 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
             }))
             if (sel.requireOperatorAction) {
                 throw new RouterV2NoCandidateError(sel.rationale, true)
+            }
+            // noManifestMatch: the task type has no manifest entry on any configured
+            // provider, but providers ARE configured. Rather than hard-fail (which
+            // surfaces to the user as "Try again. / couldn't generate a response"),
+            // fall back to the primary available provider's resolved model. "never
+            // worse": only the previously-throwing path changes; normal selection is
+            // untouched, and the high-stakes operator-action block above is preserved.
+            const fb = available[0]
+            if (fb) {
+                const fbModel = resolveModelId(fb.provider, fb.config, taskType, settings)
+                const fbStart = Date.now()
+                try {
+                    const model = buildModel(fb.provider, fb.config, taskType, settings)
+                    const result = await doCall(model)
+                    recordCall({ workspaceId, provider: fb.provider, model: fbModel, taskType }, Date.now() - fbStart, true)
+                    recordAuthSuccess({ workspaceId, providerId: fb.provider })
+                    return result
+                } catch (err) {
+                    recordCall({ workspaceId, provider: fb.provider, model: fbModel, taskType }, Date.now() - fbStart, false)
+                    lastError = err
+                }
             }
             throw new RouterV2NoCandidateError(sel.rationale, false)
         }
