@@ -17,12 +17,17 @@ import { Toaster } from 'sonner'
 import { ConfirmDialogProvider } from '@web/components/ui/confirm-dialog'
 import { getWorkspaceId } from '@web/lib/workspace'
 import { AnalyticsPreviewModal } from '@web/components/AnalyticsPreviewModal'
+import { isSuperAdminEmail } from '@web/lib/super-admin'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
     const [h, cookieStore] = await Promise.all([headers(), cookies()])
     const auth = getAuth()
     const session = await auth.api.getSession({ headers: h })
     const user = session?.user ?? null
+    // The in-app updater (UpdateModal) polls the super-admin-gated
+    // /api/v1/system/version on mount. Only mount it for super-admins so
+    // normal users don't fire a guaranteed-403 request every page load.
+    const isSuperAdmin = isSuperAdminEmail(user?.email)
     let wsId = cookieStore.get('plexo_workspace_id')?.value
     const wsName = cookieStore.get('plexo_workspace_name')?.value
 
@@ -76,7 +81,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                         <DashboardMain>
                             <ConfirmDialogProvider>
                             <DashboardRefresher />
-                            <UpdateModal />
+                            {isSuperAdmin && <UpdateModal />}
                             <IntegrationsNudgeModal />
                             <CommandPaletteMount />
                             <FirstRunBanner />
