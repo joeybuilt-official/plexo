@@ -25,7 +25,12 @@ export interface PushParams {
 }
 
 export interface CompleteParams {
-    qualityScore: number
+    /**
+     * null = quality pending (the judge settles off the completion hot path,
+     * Phase M). A null here MUST NOT overwrite a score the detached judge may
+     * have already patched onto the row — see `complete()`.
+     */
+    qualityScore: number | null
     outcomeSummary: string
     tokensIn: number
     tokensOut: number
@@ -99,18 +104,21 @@ export async function claim(_agentId: string): Promise<typeof tasks.$inferSelect
 }
 
 export async function complete(taskId: string, params: CompleteParams): Promise<void> {
-    await db.update(tasks)
-        .set({
-            status: 'complete',
-            qualityScore: params.qualityScore,
-            outcomeSummary: params.outcomeSummary,
-            tokensIn: params.tokensIn,
-            tokensOut: params.tokensOut,
-            costUsd: params.costUsd,
-            completedAt: new Date(),
-            claimedUntil: null,
-        })
-        .where(eq(tasks.id, taskId))
+    const set: Partial<typeof tasks.$inferInsert> = {
+        status: 'complete',
+        outcomeSummary: params.outcomeSummary,
+        tokensIn: params.tokensIn,
+        tokensOut: params.tokensOut,
+        costUsd: params.costUsd,
+        completedAt: new Date(),
+        claimedUntil: null,
+    }
+    // Phase M: the quality judge runs off the hot path and patches the score
+    // asynchronously. A null score here means "pending" — skip the column so we
+    // never clobber a value the detached judge may have already written (the
+    // two writes race; the judge's real score must win regardless of order).
+    if (params.qualityScore != null) set.qualityScore = params.qualityScore
+    await db.update(tasks).set(set).where(eq(tasks.id, taskId))
 }
 
 export async function block(taskId: string, reason: string): Promise<void> {

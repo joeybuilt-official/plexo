@@ -19,6 +19,7 @@ export default defineConfig({
             '@plexo/agent/providers/call-model': resolve(root, 'packages/agent/src/providers/call-model.ts'),
             '@plexo/agent/providers/vision': resolve(root, 'packages/agent/src/providers/vision.ts'),
             '@plexo/agent/one-way-door': resolve(root, 'packages/agent/src/one-way-door.ts'),
+            '@plexo/agent/tasks/classify-capability-gap': resolve(root, 'packages/agent/src/tasks/classify-capability-gap.ts'),
             '@plexo/agent/principles': resolve(root, 'packages/agent/src/principles.ts'),
             '@plexo/agent/memory/store': resolve(root, 'packages/agent/src/memory/store.ts'),
             '@plexo/agent/memory/query': resolve(root, 'packages/agent/src/memory/query.ts'),

@@ -1296,7 +1296,8 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 description,
                 outcome: result.ok ? 'success' : 'partial',
                 outcomeSummary: result.outcomeSummary?.slice(0, 2000),
-                qualityScore: result.qualityScore,
+                // Phase M: score may be pending (judge runs off the hot path) → omit it.
+                qualityScore: result.qualityScore ?? undefined,
                 durationMs: Date.now() - taskStartMs,
                 toolsUsed: toolsUsedForEvent,
                 parentTaskId: task.parentId ?? null,
@@ -1356,36 +1357,44 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         // When scl_enabled=true, this drives Golden Record mutation (structured
         // concepts + relations). Otherwise it is gated by workspace preference
         // `reflection_enabled` and produces text-based behavior rules.
-        try {
-            const taskCtxForReflect = task.context as Record<string, unknown> | null | undefined
-            const goal = (taskCtxForReflect?.description as string)
-                ?? (taskCtxForReflect?.message as string)
-                ?? task.type
-            const reflectToolsUsed = [...new Set(
-                (result.steps ?? []).flatMap(s => (s.toolCalls ?? []).map(tc => tc.tool))
-            )]
-            const reflectResult = await reflectAndPromote({
-                workspaceId: taskWorkspaceId ?? '',
-                taskId: task.id,
-                goal,
-                taskType: task.type,
-                toolsUsed: reflectToolsUsed,
-                qualityScore: result.qualityScore,
-                outcomeSummary: result.outcomeSummary ?? '',
-                stepCount: result.steps?.length ?? 0,
-                durationMs: Date.now() - taskStartMs,
-            })
-            // ── Wire analytics emitters (domain mastery Phase 1) ──────────
-            if (reflectResult.track !== 'skipped') {
-                emitReflectionEvent({
-                    track: reflectResult.track,
-                    observationCount: reflectResult.observationCount,
+        // Phase M: when the score is pending (null), reflection is handled off
+        // the hot path by the executor's detached judge block (with the real
+        // verified score). Only reflect here for paths that carry a settled
+        // score (executor early-exit/error returns) — and never feed a null
+        // score into reflectAndPromote, whose threshold logic treats null as 0
+        // and would misroute to the failure track.
+        if (result.qualityScore != null) {
+            try {
+                const taskCtxForReflect = task.context as Record<string, unknown> | null | undefined
+                const goal = (taskCtxForReflect?.description as string)
+                    ?? (taskCtxForReflect?.message as string)
+                    ?? task.type
+                const reflectToolsUsed = [...new Set(
+                    (result.steps ?? []).flatMap(s => (s.toolCalls ?? []).map(tc => tc.tool))
+                )]
+                const reflectResult = await reflectAndPromote({
+                    workspaceId: taskWorkspaceId ?? '',
+                    taskId: task.id,
+                    goal,
                     taskType: task.type,
+                    toolsUsed: reflectToolsUsed,
+                    qualityScore: result.qualityScore,
+                    outcomeSummary: result.outcomeSummary ?? '',
+                    stepCount: result.steps?.length ?? 0,
+                    durationMs: Date.now() - taskStartMs,
                 })
-            }
+                // ── Wire analytics emitters (domain mastery Phase 1) ──────────
+                if (reflectResult.track !== 'skipped') {
+                    emitReflectionEvent({
+                        track: reflectResult.track,
+                        observationCount: reflectResult.observationCount,
+                        taskType: task.type,
+                    })
+                }
 
-        } catch (reflectErr) {
-            logger.warn({ err: reflectErr, taskId: task.id }, 'reflectAndPromote failed — non-fatal')
+            } catch (reflectErr) {
+                logger.warn({ err: reflectErr, taskId: task.id }, 'reflectAndPromote failed — non-fatal')
+            }
         }
 
         // ── Sprint task sync (CRITICAL) ────────────────────────────────────────
@@ -1421,13 +1430,9 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             logger.warn({ err: stErr, taskId: task.id }, 'Failed to update sprint_tasks status — non-fatal')
         }
 
-        // Persist judge metadata into context JSONB so the task detail UI can display it.
-        const extResult = result as typeof result & { judgeMeta?: Record<string, unknown> }
-        if (extResult.judgeMeta) {
-            await db.update(tasks).set({
-                context: sql`context || ${JSON.stringify({ _judge: extResult.judgeMeta })}::jsonb`,
-            }).where(eq(tasks.id, task.id))
-        }
+        // Phase M: judge metadata (context._judge) is now patched onto the task
+        // row by the executor's detached judge block, alongside the settled
+        // quality score — no longer carried back on the execution result.
 
         emitTaskOutcome({
             type: task.type ?? 'unknown',
