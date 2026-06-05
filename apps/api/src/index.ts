@@ -89,6 +89,7 @@ import { registerChannelAdapters } from './channels/register.js'
 import { taskInjectRouter } from './routes/task-inject.js'
 import { sharesRouter, publicShareRouter } from './routes/shares.js'
 import { terminateAll } from '@plexo/agent/persistent-pool'
+import { drainPendingJudges } from '@plexo/agent/executor'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
 import { initSprintLogger } from '@plexo/agent/sprint/logger'
@@ -808,6 +809,17 @@ process.on('SIGTERM', async () => {
     logger.info('SIGTERM received — starting graceful shutdown')
     stopAgentLoop()
     stopEventProcessor()
+
+    // Drain in-flight detached quality judges (Phase M) so their score/_judge
+    // patch lands before teardown. Bounded well inside the 10s force-exit below.
+    try {
+        await Promise.race([
+            drainPendingJudges(),
+            new Promise<void>(r => setTimeout(r, 5_000).unref()),
+        ])
+        logger.info('Pending judges drained')
+    } catch { /* drain is best-effort */ }
+
     terminateAll()
 
     // Drain DB connection pool
