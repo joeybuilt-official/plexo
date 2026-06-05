@@ -90,6 +90,9 @@ function ChatContent() {
     const hasSentFirstMessageRef = useRef(false)
     const startedAsNewRef = useRef(false)
     const sseRetryCountRef = useRef(0)
+    // Per-turn abort handle so a new send (or unmount) cancels the in-flight
+    // request without surfacing the cancellation as an error.
+    const sendAbortRef = useRef<AbortController | null>(null)
     if (!sessionId.current) {
         if (typeof window === 'undefined') {
             sessionId.current = `session-${Date.now()}`
@@ -425,9 +428,36 @@ function ChatContent() {
 
             let closed = false
             let stuckTimer: ReturnType<typeof setTimeout> | null = null
-            const cleanup = () => { closed = true; if (stuckTimer) clearTimeout(stuckTimer); es.close() }
+            // Inactivity watchdog: the server ticks every ~3s. If the connection
+            // stays open but goes silent for INACTIVITY_MS, it's a stalled stream
+            // (proxy/tunnel half-open) — force a reconnect instead of waiting out
+            // the 5-min stuck timer. Distinct from onerror (explicit drop).
+            const INACTIVITY_MS = 90_000
+            let inactivityTimer: ReturnType<typeof setTimeout> | null = null
+            const cleanup = () => {
+                closed = true
+                if (stuckTimer) clearTimeout(stuckTimer)
+                if (inactivityTimer) clearTimeout(inactivityTimer)
+                es.close()
+            }
+            const onInactive = () => {
+                if (closed) return
+                if (sseRetryCountRef.current < 1) {
+                    sseRetryCountRef.current++
+                    cleanup()
+                    setTimeout(() => { void pollReply(taskId, msgId).then(resolve) }, 1000)
+                }
+                // else: leave the stuck timer / onerror path to terminate.
+            }
+            const bumpActivity = () => {
+                if (closed) return
+                if (inactivityTimer) clearTimeout(inactivityTimer)
+                inactivityTimer = setTimeout(onInactive, INACTIVITY_MS)
+            }
+            bumpActivity()
 
             es.addEventListener('tick', (ev) => {
+                bumpActivity()
                 try {
                     const d = JSON.parse(ev.data) as {
                         status: string; elapsed: number; stepCount: number; lastAction: string | null
@@ -855,6 +885,11 @@ function ChatContent() {
         setError(null)
         setSending(true)
 
+        // Cancel any prior in-flight send and start a fresh abort handle.
+        sendAbortRef.current?.abort()
+        const abort = new AbortController()
+        sendAbortRef.current = abort
+
         let effectiveText = text
         if (docs && docs.length > 0) {
             const docBlock = docs.map(d =>
@@ -916,6 +951,7 @@ function ChatContent() {
             const isFirstNewSessionSend = startedAsNewRef.current && !hasSentFirstMessageRef.current
             const res = await fetch(`${API}/api/v1/chat/message`, {
                 method: 'POST',
+                signal: abort.signal,
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'text/event-stream, application/json',
@@ -1092,11 +1128,26 @@ function ChatContent() {
             setMessages((prev) => prev.map((m) =>
                 m.id === pendingId ? { ...m, status: 'failed', content: 'Unexpected response from server.' } : m
             ))
-        } catch {
-            setMessages((prev) => prev.map((m) =>
-                m.id === pendingId ? { ...m, status: 'failed', content: 'Request timed out or lost connection. Your conversation is saved — just send your message again.' } : m
-            ))
+        } catch (err) {
+            // Three distinct terminal states — never blanket everything as "timed out":
+            //  1. Aborted (new send / navigation) — silent, drop the pending bubble.
+            //  2. Network failure (fetch throws TypeError) — connection lost.
+            //  3. Anything else — a genuine error, surfaced as such.
+            if (err instanceof DOMException && err.name === 'AbortError') {
+                setMessages((prev) => prev.filter((m) => m.id !== pendingId))
+            } else {
+                const isNetwork = err instanceof TypeError
+                setMessages((prev) => prev.map((m) =>
+                    m.id === pendingId ? {
+                        ...m, status: 'failed',
+                        content: isNetwork
+                            ? 'Lost connection to the server. Your conversation is saved — just send again.'
+                            : 'Something went wrong sending your message. Your conversation is saved — just send again.',
+                    } : m
+                ))
+            }
         } finally {
+            if (sendAbortRef.current === abort) sendAbortRef.current = null
             setSending(false)
             setTimeout(() => inputRef.current?.focus(), 50)
         }

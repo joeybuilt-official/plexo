@@ -57,6 +57,8 @@ vi.mock('../../cost-gate.js', () => ({
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- dynamic import below
 let callModel: typeof import('../call-model.js').callModel
 let CallModelError: typeof import('../call-model.js').CallModelError
+let getSchemaRelaxedStats: typeof import('../call-model.js').getSchemaRelaxedStats
+let _resetSchemaRelaxedForTest: typeof import('../call-model.js')._resetSchemaRelaxedForTest
 
 beforeEach(async () => {
     generateTextMock.mockReset()
@@ -65,6 +67,9 @@ beforeEach(async () => {
     const mod = await import('../call-model.js')
     callModel = mod.callModel
     CallModelError = mod.CallModelError
+    getSchemaRelaxedStats = mod.getSchemaRelaxedStats
+    _resetSchemaRelaxedForTest = mod._resetSchemaRelaxedForTest
+    _resetSchemaRelaxedForTest()
 })
 
 afterEach(() => {
@@ -612,5 +617,41 @@ describe('callModel — PLEXO_LLM_STUB stub mode', () => {
         })
         expect(result.text).toContain('[STUB]')
         expect(generateTextMock).not.toHaveBeenCalled()
+    })
+})
+
+describe('callModel — schema_relaxed telemetry counter', () => {
+    const S = z.object({ score: z.number(), reason: z.string() })
+
+    it('starts at zero', () => {
+        expect(getSchemaRelaxedStats()).toEqual({
+            fenceRescue: 0, repairArrayWrap: 0, repairRekey: 0, repairValidated: 0, total: 0,
+        })
+    })
+
+    it('does NOT increment on a clean native generateObject success', async () => {
+        generateObjectMock.mockResolvedValueOnce({ object: { score: 1, reason: 'ok' } })
+        await callModel({ model: 'm', prompt: 'p', schema: S })
+        expect(getSchemaRelaxedStats().total).toBe(0)
+    })
+
+    it('increments fenceRescue when fenced JSON is rescued from a generateObject failure', async () => {
+        generateObjectMock.mockRejectedValueOnce(
+            Object.assign(new FakeNoObjectGeneratedError('parse'), { text: '```json\n{"score":0.5,"reason":"r"}\n```' }),
+        )
+        const r = await callModel({ model: 'm', prompt: 'p', schema: S })
+        expect(r.object).toEqual({ score: 0.5, reason: 'r' })
+        const s = getSchemaRelaxedStats()
+        expect(s.fenceRescue).toBe(1)
+        expect(s.total).toBe(1)
+    })
+
+    it('increments repairValidated when same-model generateText repair output validates', async () => {
+        generateObjectMock.mockRejectedValueOnce(new Error('Model does not support response_format json_schema'))
+        generateTextMock.mockResolvedValueOnce({ text: '{"score":0.3,"reason":"repaired"}' })
+        await callModel({ model: 'm', prompt: 'p', schema: S })
+        const s = getSchemaRelaxedStats()
+        expect(s.repairValidated).toBe(1)
+        expect(s.total).toBe(1)
     })
 })
