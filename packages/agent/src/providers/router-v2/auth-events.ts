@@ -13,6 +13,7 @@
  */
 
 import type { ProviderKey } from '../registry.js'
+import { emitProviderFailure } from './ops-events.js'
 
 const WINDOW_24H_MS = 24 * 60 * 60 * 1000
 const BADGE_THRESHOLD = 3
@@ -104,6 +105,18 @@ export function recordAuthFailure(input: {
     }
     // TODO(Phase 5): replace with real telemetry sink (Helm / PostHog / OTel).
     console.info(JSON.stringify(evt))
+
+    // Fire a provider-failure ops event once, exactly when the streak first
+    // crosses the badge threshold — avoids alerting on every subsequent failure.
+    if (b.consecutiveFailures === BADGE_THRESHOLD) {
+        emitProviderFailure({
+            kind: 'auth_failure_streak',
+            workspaceId,
+            provider: providerId,
+            consecutiveFailures: b.consecutiveFailures,
+            statusCode,
+        })
+    }
 }
 
 export function recordAuthSuccess(input: {

@@ -31,6 +31,7 @@ import { classifyError } from './error-classifier.js'
 import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
 import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
+import { emitProviderFailure } from './ops-events.js'
 
 export * from './manifest.js'
 export * from './selector.js'
@@ -38,6 +39,7 @@ export * from './error-classifier.js'
 export * from './stats.js'
 export * from './telemetry.js'
 export * from './auth-events.js'
+export * from './ops-events.js'
 export * from './quality-warnings.js'
 
 const COOLDOWN_RATE_LIMIT_MS = 60_000
@@ -274,6 +276,15 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
             selectorDurationMs: firstSelectorDurationMs, fallbackEngaged: true,
         }))
     }
+    // Provider-failure ops event: every candidate failed for this call.
+    emitProviderFailure({
+        kind: 'cascade_exhausted',
+        workspaceId,
+        provider: firstChosenProvider ?? 'unknown',
+        taskType,
+        skipped: skippedProviders,
+        lastError: lastError instanceof Error ? lastError.message.slice(0, 200) : String(lastError ?? ''),
+    })
     if (lastError instanceof Error) {
         throw new RouterV2CascadeExhausted(
             `router-v2 fallback chain exhausted: ${lastError.message.slice(0, 200)}`,

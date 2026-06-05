@@ -536,6 +536,43 @@ export function emitConversationLatency(opts: {
     }).catch(() => { /* never throws */ })
 }
 
+/**
+ * Emit when the router fails a provider hard: a cascade exhausted (every
+ * candidate failed for one call) or an auth/quota failure streak crossing the
+ * alert threshold. No error text — model family + kind + bucketed metadata only.
+ */
+export function emitProviderFailureEvent(opts: {
+    kind: string             // cascade_exhausted, auth_failure_streak
+    providerFamily: string
+    taskType?: string
+    statusCode?: number      // generic HTTP status (e.g. 401, 429) — no content
+    skippedCount?: number
+}): void {
+    void emit('provider_failure', {
+        kind: opts.kind,
+        model_family: modelFamily(opts.providerFamily),
+        ...(opts.taskType ? { task_type: opts.taskType } : {}),
+        ...(opts.statusCode ? { status_code: opts.statusCode } : {}),
+        ...(opts.skippedCount !== undefined ? { skipped_count_bucket: bucketCount(opts.skippedCount) } : {}),
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * Emit a synthetic-canary result (e.g. the onboarding canary). No payload —
+ * only which check ran, whether it passed, and a duration bucket.
+ */
+export function emitCanaryResult(opts: {
+    check: string            // onboarding
+    ok: boolean
+    durationMs: number
+}): void {
+    void emit('canary_result', {
+        check: opts.check,
+        ok: opts.ok,
+        duration_bucket: bucketMs(opts.durationMs),
+    }).catch(() => { /* never throws */ })
+}
+
 // ── SCL Analytics Events ─────────────────────────────────────────────────────
 
 export function emitSclExpand(opts: {

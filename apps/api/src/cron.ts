@@ -16,6 +16,8 @@ import { runSynthesisNightly } from './cron/synthesis-nightly.js'
 import { flushRetrievalCounts, decayConfidence } from './cron/confidence-lifecycle.js'
 import { pollAllGmailChannels } from './lib/gmail-poll.js'
 import { runAttachmentScanTick } from './lib/attachment-scan-worker.js'
+import { getAllStats } from '@plexo/agent/providers/router-v2'
+import { flushOpsAlerts } from './ops-alerts.js'
 
 export { runRSIMonitor }
 export { runSynthesisNightly }
@@ -170,6 +172,46 @@ async function runDataRetention(): Promise<void> {
 }
 
 /**
+ * Phase 4 (stabilization) — persist router-v2 call stats.
+ *
+ * Router-v2 stats live in-memory per process and reset on every deploy. This
+ * snapshots the current state of every live bucket into `router_v2_stats` on a
+ * fixed cadence so observability survives restarts and multiple API instances'
+ * views can be aggregated at read time. Append-only; never writes on the hot
+ * path (one batched insert per cron tick).
+ */
+export async function runRouterStatsSnapshot(): Promise<void> {
+    const entries = getAllStats()
+    if (entries.length === 0) {
+        logger.info('Router stats snapshot: no live buckets — skipping')
+        return
+    }
+
+    const snapshotAt = new Date()
+    const rows = entries.map(({ key, stats }) => sql`(
+        ${key.workspaceId ?? null},
+        ${key.provider},
+        ${key.model},
+        ${key.taskType},
+        ${stats.sampleCount},
+        ${stats.successRate},
+        ${stats.latencyP50Ms},
+        ${stats.latencyP95Ms},
+        ${stats.recentFailurePenalty},
+        ${stats.cooldownEndAt > 0 ? new Date(stats.cooldownEndAt) : null},
+        ${snapshotAt}
+    )`)
+
+    await db.execute(sql`
+        INSERT INTO router_v2_stats
+            (workspace_id, provider, model, task_type, sample_count, success_rate,
+             latency_p50_ms, latency_p95_ms, recent_failure_penalty, cooldown_end_at, snapshot_at)
+        VALUES ${sql.join(rows, sql`, `)}
+    `)
+    logger.info({ count: entries.length }, 'Router stats snapshot: persisted')
+}
+
+/**
  * FUN-039: Crash-resilient internal scheduler.
  *
  * Instead of bare setInterval (which resets on process restart and loses
@@ -205,6 +247,22 @@ const INTERNAL_JOBS: Array<{
         schedule: '0 3 * * *',
         intervalMs: 24 * 60 * 60 * 1000,
         handler: runArtifactCleanup,
+    },
+    {
+        // Phase 4 (stabilization) — persist router-v2 stats so observability
+        // survives deploys. Snapshot the in-memory buckets every 30 min.
+        name: 'Router stats snapshot',
+        schedule: '*/30 * * * *',
+        intervalMs: 30 * 60 * 1000,
+        handler: runRouterStatsSnapshot,
+    },
+    {
+        // Phase 4 (stabilization) — batched operator alert for provider
+        // unreliability + failed canaries. Sends one Telegram summary per tick.
+        name: 'Ops alerts flush',
+        schedule: '*/15 * * * *',
+        intervalMs: 15 * 60 * 1000,
+        handler: flushOpsAlerts,
     },
     {
         name: 'Orphan user cleanup',

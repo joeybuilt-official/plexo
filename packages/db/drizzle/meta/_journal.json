@@ -883,6 +883,13 @@
       "when": 1780675200000,
       "tag": "0126_self_host_users_casing",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1780761600000,
+      "tag": "0127_router_v2_stats",
+      "breakpoints": true
     }
   ]
 }

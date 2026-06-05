@@ -183,6 +183,9 @@ import { startEventProcessor, stopEventProcessor } from './federation/event-proc
 import { db, eq, sql } from '@plexo/db'
 import { sprints, nodes } from '@plexo/db'
 import { runCronJobs, scheduleMemoryConsolidation, runRSIMonitor } from './cron.js'
+import { setProviderFailureSink } from '@plexo/agent/providers/router-v2'
+import { emitProviderFailureEvent } from './analytics/events.js'
+import { recordProviderFailureForAlert } from './ops-alerts.js'
 import { onboardingCanaryEnabled, runOnboardingCanary } from './onboarding-canary.js'
 import { startCronDispatch } from './cron-dispatch.js'
 import { emitHeartbeat } from './analytics/events.js'
@@ -676,6 +679,25 @@ const server = app.listen(port, '0.0.0.0', async () => {
     } else {
         logger.warn('Background runCronJobs disabled via PLEXO_DISABLE_CRONS=1')
     }
+
+    // Provider-failure ops sink (Phase 4): the agent router fires cascade-exhaust
+    // and auth/quota-streak events into this; we record a privacy-safe analytics
+    // event and accumulate for the batched Telegram alert (flushed by cron).
+    setProviderFailureSink((evt) => {
+        emitProviderFailureEvent({
+            kind: evt.kind,
+            providerFamily: evt.provider,
+            taskType: evt.taskType,
+            statusCode: evt.statusCode,
+            skippedCount: evt.skipped?.length,
+        })
+        recordProviderFailureForAlert({
+            kind: evt.kind,
+            provider: evt.provider,
+            taskType: evt.taskType,
+            statusCode: evt.statusCode,
+        })
+    })
 
     // Schedule automatic memory consolidation (every 6h, first run after 5m)
     scheduleMemoryConsolidation()
