@@ -241,7 +241,8 @@ router.post('/:workspaceId/local/reload', async (req: any, res: any) => {
         if (workspaceId) invalidateIntelligenceSettings(workspaceId)
         return res.json({ ok: true, ...(body as object) })
     } catch (err) {
-        return res.status(500).json({ error: err instanceof Error ? err.message : 'Reload failed' })
+        logger.error({ err }, 'Failed to reload embeddings model')
+        return res.status(500).json({ error: 'Reload failed' })
     }
 })
 

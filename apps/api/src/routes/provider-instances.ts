@@ -495,6 +495,7 @@ router.delete('/:instanceId', async (req: any, res: any) => {
         if (err.message?.includes('managed')) {
             return res.status(403).json({ error: err.message })
         }
+        logger.error({ err, instanceId }, 'Failed to remove provider')
         return res.status(500).json({ error: 'Failed to remove provider' })
     }
 })

@@ -30,7 +30,7 @@ import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { embed } from '@plexo/agent/memory/store'
 import { callModel, CallModelError } from '@plexo/agent/providers/call-model'
 import { resolveModelFromEnv, type FallbackOptions } from '@plexo/agent/providers/registry'
-import { routeAndCall } from '@plexo/agent/providers/router-v2'
+import { routeAndCall, RouterV2NoCandidateError } from '@plexo/agent/providers/router-v2'
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 
 const logger = pino({ name: 'inference-routes' })
@@ -337,6 +337,18 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
             const status = mapCallModelErrorStatus(err.code)
             logger.warn({ err, workspaceId, code: err.code }, 'inference.chat: callModel error')
             res.status(status).json({ error: { code: err.code, message: err.message } })
+            return
+        }
+        if (err instanceof RouterV2NoCandidateError) {
+            // Expected, operator-actionable condition: the workspace has no
+            // provider meeting the quality bar for this task. Not an internal
+            // error — return a clear 422 and log at warn so it doesn't
+            // masquerade as a code bug (this path was spamming level-50 logs).
+            logger.warn(
+                { err, workspaceId, taskType, code: 'ROUTER_V2_NO_CANDIDATE' },
+                'inference.chat: no qualifying provider for task — operator action required',
+            )
+            res.status(422).json({ error: { code: 'ROUTER_V2_NO_CANDIDATE', message: err.message } })
             return
         }
         logger.error({ err, workspaceId }, 'inference.chat: unexpected error')
