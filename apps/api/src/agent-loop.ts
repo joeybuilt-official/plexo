@@ -1585,10 +1585,13 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         } else {
             const errCtx = (task.context as Record<string, unknown>) ?? {}
             const errDesc = (errCtx.description as string) ?? (errCtx.message as string) ?? task.type ?? 'task'
-            // Slice 1: label capability gaps (no deploy/host/integration) distinctly
-            // from genuine tool crashes. Conservative — defaults to ToolError.
-            // (Slice 2 will flip capability_unavailable to a graceful terminal state
-            // when a partial deliverable exists; for now status stays 'failed'.)
+            // Label capability gaps (no deploy/host/integration) distinctly from
+            // genuine tool crashes. Conservative — defaults to ToolError.
+            // Phase N (Slice 2) handles the graceful case UPSTREAM in the executor:
+            // a capability gap WITH a deliverable returns ok:true (complete +
+            // limitation marker) and never reaches here. So this path is now only
+            // the no-deliverable capability gap → fail honestly as
+            // capability_unavailable (vs a real tool crash → tool_error).
             const nonTransientReason = classifyCapabilityGap(message)
                 ? FailureReason.CapabilityUnavailable
                 : FailureReason.ToolError

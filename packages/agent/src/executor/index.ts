@@ -46,6 +46,7 @@ import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } fro
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { judgeQuality } from './quality-judge.js'
 import type { JudgeMeta } from './quality-judge.js'
+import { classifyCapabilityGap } from '../tasks/classify-capability-gap.js'
 import { buildWebTools } from '../tools/web-tools.js'
 import { buildConversationalTaskPrompt, buildTaskPrompt } from '../prompts/build-system-prompt.js'
 import { getLevioUserTimezone } from '../connections/factories/levio.js'
@@ -858,7 +859,78 @@ export function selectExecutorTaskTier(plan: ExecutionPlan): import('../provider
 
 // ── Executor ──────────────────────────────────────────────────────────────────
 
+/** Has this task produced a persisted deliverable (an artifact row)? */
+async function taskHasDeliverable(taskId: string): Promise<boolean> {
+    try {
+        const rows = await db.select({ id: artifacts.id })
+            .from(artifacts).where(eq(artifacts.taskId, taskId)).limit(1)
+        return rows.length > 0
+    } catch (err) {
+        logger.warn({ err, taskId }, 'taskHasDeliverable check failed — treating as no deliverable')
+        return false
+    }
+}
+
+/** Honest user-facing note for a capability-limited completion (Phase N). */
+export function buildCapabilityLimitationSummary(message: string): string {
+    const detail = message.replace(/\s+/g, ' ').trim().slice(0, 200)
+    return (
+        'Completed with a limitation. I produced the deliverable for this task, but I ' +
+        'could not perform the requested step because that capability is not available ' +
+        'to me (e.g. deploying or hosting to a live URL). The generated files are saved ' +
+        'to this task — you can download them or use the share link to run them.' +
+        (detail ? ` (Detail: ${detail})` : '')
+    )
+}
+
+/**
+ * Phase N (operator-approved: complete+marker): a capability gap — the agent was
+ * asked to use a tool/capability that does not exist (deploy, host, a missing
+ * integration) — is not a crash. When the run still produced a deliverable,
+ * complete the task gracefully with an honest limitation note rather than
+ * failing; the user got real work, just not the unavailable capability.
+ * Genuinely-empty impossible asks (no deliverable) and real tool crashes still
+ * propagate to agent-loop → fail. A `context._capabilityLimitation` marker is
+ * written so the UI/analytics can distinguish this from a clean success.
+ */
 export async function executeTask(
+    ctx: ExecutionContext,
+    plan: ExecutionPlan,
+    aiSettings?: WorkspaceAISettings,
+): Promise<ExecutionResult> {
+    const wrapperStart = Date.now()
+    try {
+        return await executeTaskInner(ctx, plan, aiSettings)
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        if (classifyCapabilityGap(message) && await taskHasDeliverable(ctx.taskId)) {
+            logger.info(
+                { taskId: ctx.taskId, detail: message.slice(0, 200) },
+                'capability gap with deliverable present — completing with limitation (Phase N)',
+            )
+            await db.update(tasks).set({
+                context: sql`COALESCE(context, '{}'::jsonb) || ${JSON.stringify({
+                    _capabilityLimitation: { reason: 'capability_unavailable', detail: message.slice(0, 500) },
+                })}::jsonb`,
+            }).where(eq(tasks.id, ctx.taskId))
+                .catch((e) => logger.warn({ err: e, taskId: ctx.taskId }, 'capability-limitation marker patch failed (non-fatal)'))
+            return {
+                taskId: ctx.taskId,
+                ok: true,
+                steps: [],
+                outcomeSummary: buildCapabilityLimitationSummary(message),
+                qualityScore: null,
+                totalTokensIn: 0,
+                totalTokensOut: 0,
+                totalCostUsd: 0,
+                totalDurationMs: Date.now() - wrapperStart,
+            }
+        }
+        throw err
+    }
+}
+
+async function executeTaskInner(
     ctx: ExecutionContext,
     plan: ExecutionPlan,
     aiSettings?: WorkspaceAISettings,
