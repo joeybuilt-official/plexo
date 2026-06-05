@@ -52,12 +52,18 @@ const PlanStepSchema = z.object({
 //
 // String entries are also tightened to min(5) so things like " " or
 // "1" don't slip through the same way.
-const OneWayDoorSchema = z.union([
+export const OneWayDoorSchema = z.union([
+    // Object form. Weak models often emit a partial object (missing `type` or
+    // `reversibility`), which previously failed the whole union → invalid_union
+    // → the entire plan parse threw → task.failed. Each field now coerces to a
+    // SAFE default so a malformed entry becomes a safe one-way-door instead of
+    // killing the task. Critically, `requiresApproval` fails CLOSED (defaults to
+    // true) — relaxation must never let an irreversible op slip past approval.
     z.object({
-        description: z.string().min(5),
-        type: z.enum(['data_write', 'external_call', 'destructive', 'state_change']),
-        reversibility: z.string(),
-        requiresApproval: z.boolean(),
+        description: z.string().min(5).catch('Unspecified irreversible operation'),
+        type: z.enum(['data_write', 'external_call', 'destructive', 'state_change']).catch('state_change'),
+        reversibility: z.string().catch('unknown'),
+        requiresApproval: z.boolean().catch(true),
     }),
     // Tolerate numbers: LLMs sometimes return oneWayDoors:[4] meaning
     // "4 irreversible operations". Drop these silently instead of
