@@ -183,6 +183,7 @@ import { startEventProcessor, stopEventProcessor } from './federation/event-proc
 import { db, eq, sql } from '@plexo/db'
 import { sprints, nodes } from '@plexo/db'
 import { runCronJobs, scheduleMemoryConsolidation, runRSIMonitor } from './cron.js'
+import { onboardingCanaryEnabled, runOnboardingCanary } from './onboarding-canary.js'
 import { startCronDispatch } from './cron-dispatch.js'
 import { emitHeartbeat } from './analytics/events.js'
 
@@ -692,6 +693,16 @@ const server = app.listen(port, '0.0.0.0', async () => {
             void runRSIMonitor()
             setInterval(() => { void runRSIMonitor() }, 6 * 60 * 60 * 1000).unref()
         }, 7 * 60 * 1000)
+    }
+
+    // Onboarding canary — every 30m (first run after 4m). OFF unless both
+    // PLEXO_ONBOARDING_CANARY=1 and PLEXO_ONBOARDING_CANARY_USER_ID are set.
+    if (onboardingCanaryEnabled()) {
+        logger.info('Onboarding canary enabled — scheduling synthetic first-workspace check every 30m')
+        setTimeout(() => {
+            void runOnboardingCanary()
+            setInterval(() => { void runOnboardingCanary() }, 30 * 60 * 1000).unref()
+        }, 4 * 60 * 1000)
     }
 
     // Seed default cron rows per workspace in one batch INSERT (avoids N+1 at startup)
