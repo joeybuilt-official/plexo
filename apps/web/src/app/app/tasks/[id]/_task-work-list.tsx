@@ -50,7 +50,7 @@ export function TaskWorkList({ assets }: { assets: TaskAsset[] }) {
                             <ChevronRight className={`h-3 w-3 text-text-muted transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
                         </button>
                         {open && (
-                            <div className="border-t border-border/60 max-h-[600px] overflow-auto">
+                            <div className="border-t border-border/60 max-h-[80vh] overflow-auto">
                                 {asset.isText && asset.content ? (
                                     <WorkRenderer
                                         work={asset}
