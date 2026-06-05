@@ -16,8 +16,8 @@
  *   ></script>
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, desc, sql } from '@plexo/db'
-import { workspaces, tasks, taskSteps, sprints, modelsKnowledge } from '@plexo/db'
+import { db, eq, and, desc, sql } from '@plexo/db'
+import { workspaces, tasks, taskSteps, sprints, sprintTasks, sprintLogs, modelsKnowledge } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 import { trackDelivery } from '../delivery-tracker.js'
@@ -1534,6 +1534,7 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                 status: tasks.status,
                 outcomeSummary: tasks.outcomeSummary,
                 createdAt: tasks.createdAt,
+                projectId: tasks.projectId,
             }).from(tasks).where(eq(tasks.id, taskId!)).limit(1)
 
             if (!task) {
@@ -1777,6 +1778,71 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                 })
             }
 
+            // Sprint/sub-agent activity: when this chat task spawned a sprint
+            // (projectId set), project its current wave + sub-agent states so the
+            // chat can render the multi-agent "Agent Activity" panel. Single-agent
+            // tasks have no projectId and this stays undefined (panel hidden).
+            let sprint: {
+                id: string
+                request: string
+                totalTasks: number
+                completedTasks: number
+                failedTasks: number
+                currentWave?: { index: number; total: number }
+                subAgents: Array<{ id: string; description: string; branch: string; status: string; priority: number }>
+            } | undefined
+            if (task.projectId) {
+                try {
+                    const [sp] = await db.select({
+                        id: sprints.id,
+                        request: sprints.request,
+                        totalTasks: sprints.totalTasks,
+                        completedTasks: sprints.completedTasks,
+                        failedTasks: sprints.failedTasks,
+                    }).from(sprints).where(eq(sprints.id, task.projectId)).limit(1)
+
+                    if (sp) {
+                        const subRows = await db.select({
+                            id: sprintTasks.id,
+                            description: sprintTasks.description,
+                            branch: sprintTasks.branch,
+                            status: sprintTasks.status,
+                            priority: sprintTasks.priority,
+                        }).from(sprintTasks)
+                            .where(eq(sprintTasks.sprintId, sp.id))
+                            .orderBy(sprintTasks.priority, sprintTasks.createdAt)
+                            .limit(40)
+
+                        const [lastWave] = await db.select({ metadata: sprintLogs.metadata })
+                            .from(sprintLogs)
+                            .where(and(eq(sprintLogs.sprintId, sp.id), eq(sprintLogs.event, 'wave_start')))
+                            .orderBy(desc(sprintLogs.createdAt))
+                            .limit(1)
+                        const wm = (lastWave?.metadata ?? {}) as { wave?: number; totalWaves?: number }
+
+                        sprint = {
+                            id: sp.id,
+                            request: (sp.request ?? '').slice(0, 200),
+                            totalTasks: sp.totalTasks,
+                            completedTasks: sp.completedTasks,
+                            failedTasks: sp.failedTasks,
+                            ...(typeof wm.wave === 'number' && typeof wm.totalWaves === 'number'
+                                ? { currentWave: { index: wm.wave, total: wm.totalWaves } }
+                                : {}),
+                            subAgents: subRows.map((r) => ({
+                                id: r.id,
+                                description: (r.description ?? '').slice(0, 160),
+                                branch: r.branch ?? '',
+                                status: r.status,
+                                priority: r.priority,
+                            })),
+                        }
+                    }
+                } catch (err) {
+                    logger.debug({ err, taskId }, 'Webchat SSE sprint projection failed')
+                }
+            }
+
             send('tick', {
                 taskId,
                 status: task.status,
@@ -1785,6 +1851,7 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                 lastAction,
                 progressEvents,
                 ...(phases ? { phases, currentPhase } : {}),
+                ...(sprint ? { sprint } : {}),
             })
         } catch (err) {
             logger.error({ err, taskId }, 'Webchat SSE tick failed')

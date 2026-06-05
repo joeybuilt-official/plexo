@@ -26,7 +26,7 @@ import { type PastedImage, type PastedDocument, kindFromMime } from '@web/lib/at
 import { useSpeechInput } from '@web/hooks/use-speech-input'
 import { VoiceWaveform } from '@web/components/voice-waveform'
 
-import type { ChatMessage, Message, PlanProposalMessage, TaskAsset } from './_components/types'
+import type { ChatMessage, Message, PlanProposalMessage, TaskAsset, SprintActivity } from './_components/types'
 import { isPlanProposalMessage } from './_components/types'
 import { MessageBubble } from './_components/message-bubble'
 import { normalizeEvents, type RawProgressEvent } from './_components/agent-thinking-panel'
@@ -434,6 +434,7 @@ function ChatContent() {
                         phases?: Array<{ index: number; total: number; label: string; status: 'pending' | 'running' | 'complete' }>
                         currentPhase?: string
                         progressEvents?: RawProgressEvent[]
+                        sprint?: SprintActivity
                     }
 
                     const normalized = normalizeEvents(d.progressEvents)
@@ -452,6 +453,7 @@ function ChatContent() {
                             ...m, status: 'running', content: d.status, steps: nextSteps,
                             phases: d.phases ?? m.phases, currentPhase: d.currentPhase ?? m.currentPhase,
                             progressEvents: normalized.length > 0 ? normalized : m.progressEvents,
+                            sprint: d.sprint ?? m.sprint,
                         }
                     }))
                 } catch { /* ignore parse errors */ }
