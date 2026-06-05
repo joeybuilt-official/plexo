@@ -52,6 +52,7 @@
     "./escalation/manager": "./src/escalation/manager.ts",
     "./tasks/types": "./src/tasks/types.ts",
     "./tasks/escalate": "./src/tasks/escalate.ts",
+    "./tasks/classify-capability-gap": "./src/tasks/classify-capability-gap.ts",
     "./tasks/terminal-fail": "./src/tasks/terminal-fail.ts",
     "./tasks/reflect": "./src/tasks/reflect.ts",
     "./providers/registry": "./src/providers/registry.ts",

@@ -11,6 +11,7 @@ import { routeAndBuild, routeAndCall, RouterV2CallError } from '../providers/rou
 import type { ResolvedModelMeta } from '../providers/router.js'
 import { modelSupportsVision, findVisionCapableModel } from '../providers/vision.js'
 import { assertAgentCostCeilingOk, CostCeilingExceededError } from '../cost-gate.js'
+import { ensureArtifactShareUrl } from '../tasks/artifact-share.js'
 import { getResumeStep, buildResumeMessages, hasTaskComplete } from './step-builder.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
@@ -572,6 +573,7 @@ Declare a "kind" so the user gets the right renderer:
                     }
                 }
                 // Persist to DB (Phase 4 + Phase 2 works taxonomy)
+                let shareUrlNote = ''
                 try {
                     // Phase 2: prefer explicit `kind` from the agent; fall back to inference.
                     const inferred = inferKind(input.filename as string, input.content as string)
@@ -593,6 +595,7 @@ Declare a "kind" so the user gets the right renderer:
                     }
 
                     // FUN-035: Atomic SELECT FOR UPDATE inside transaction to prevent TOCTOU race
+                    let savedArtifactId: string | null = null
                     await db.transaction(async (tx) => {
                         const [existing] = await tx.execute<{
                             id: string
@@ -608,6 +611,7 @@ Declare a "kind" so the user gets the right renderer:
                         `)
 
                         if (existing) {
+                            savedArtifactId = existing.id
                             const newVersion = existing.current_version + 1
                             await tx.update(artifacts)
                                 .set({ currentVersion: newVersion, updatedAt: new Date(), kind, meta })
@@ -621,6 +625,7 @@ Declare a "kind" so the user gets the right renderer:
                             })
                         } else {
                             const artifactId = ulid()
+                            savedArtifactId = artifactId
                             await tx.insert(artifacts).values({
                                 id: artifactId,
                                 workspaceId: ctx.workspaceId,
@@ -641,12 +646,21 @@ Declare a "kind" so the user gets the right renderer:
                             })
                         }
                     })
+
+                    // Surface a shareable "play it" URL for self-contained playable
+                    // HTML (games/apps). Unlisted link-only; best-effort.
+                    const isPlayableHtml = (kind === 'html' || kind === 'mockup')
+                        && /<!doctype html|<html[\s>]/i.test(artifactContent ?? '')
+                    if (isPlayableHtml && savedArtifactId) {
+                        const shareUrl = await ensureArtifactShareUrl(savedArtifactId, ctx.workspaceId)
+                        if (shareUrl) shareUrlNote = ` | Play/share: ${shareUrl}`
+                    }
                 } catch (dbErr) {
                     console.error('Failed to persist artifact to DB:', dbErr)
                 }
 
                 const note = storageUrl ? ` | S3: ${storageUrl}` : ''
-                return `Asset saved: ${filePath} (${(input.content as string).length} bytes)${note}`
+                return `Asset saved: ${filePath} (${(input.content as string).length} bytes)${note}${shareUrlNote}`
             },
         }),
         // ── Consolidated web tools (search, fetch, read_page) ─────────────────
@@ -1502,7 +1516,8 @@ You MUST call write_asset (NOT write_file) at least once before calling task_com
 - Do NOT put your primary work only in the task_complete summary — the summary is a 1-3 sentence description, not the actual output.
 - Only call task_complete AFTER you have called write_asset at least once with the actual work.
 - WRONG: write_file("report.md", content) → user cannot see it
-- RIGHT: write_asset("report.md", content, kind="markdown") → user sees it in dashboard`
+- RIGHT: write_asset("report.md", content, kind="markdown") → user sees it in dashboard
+- If a write_asset result includes a "Play/share:" URL (auto-generated for playable HTML games/apps), INCLUDE that exact URL in your final reply so the user can open and play/share it.`
         : ''
 
     // SCL context is a workspace-memory expansion that helps multi-step tasks

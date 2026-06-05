@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
+import { db, eq, and, isNull, artifactShares } from '@plexo/db'
+
+// The human-facing share PAGE is served by the WEB app (e.g. app.getplexo.com/s/<id>),
+// NOT the api origin. PUBLIC_URL points at the api (api.getplexo.com), whose /s/<id>
+// 404s. Prefer an explicit app URL, fall back to the auth URL (same app origin), then
+// PUBLIC_URL as a last resort.
+const APP_URL = process.env.APP_PUBLIC_URL || process.env.BETTER_AUTH_URL || process.env.PUBLIC_URL || 'http://localhost:3000'
+
+function generateShareId(): string {
+    return crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+}
+
+/**
+ * Idempotently ensure an **unlisted** (link-only, not publicly listed) share for
+ * an artifact and return its public URL — e.g. so a produced playable HTML asset
+ * yields a `${APP_URL}/s/<id>` link the user can open. Best-effort: never
+ * throws (returns null on any failure). Mirrors the create logic in
+ * apps/api/src/routes/shares.ts (one active share per artifact, enforced by the
+ * `artifact_shares_active_uq` unique index).
+ */
+export async function ensureArtifactShareUrl(artifactId: string, workspaceId: string): Promise<string | null> {
+    try {
+        const reuse = await db.select({ id: artifactShares.id })
+            .from(artifactShares)
+            .where(and(eq(artifactShares.artifactId, artifactId), isNull(artifactShares.revokedAt)))
+            .limit(1)
+        if (reuse[0]) return `${APP_URL}/s/${reuse[0].id}`
+
+        const shareId = generateShareId()
+        await db.insert(artifactShares).values({
+            id: shareId,
+            artifactId,
+            workspaceId,
+            createdBy: 'agent-auto',
+            // visibility defaults to 'unlisted' (link-only) — see schema.
+        }).onConflictDoNothing()
+
+        // Re-read to resolve the winner under the active-share unique index
+        // (covers the onConflictDoNothing race where another writer won).
+        const after = await db.select({ id: artifactShares.id })
+            .from(artifactShares)
+            .where(and(eq(artifactShares.artifactId, artifactId), isNull(artifactShares.revokedAt)))
+            .limit(1)
+        return after[0] ? `${APP_URL}/s/${after[0].id}` : null
+    } catch {
+        return null
+    }
+}
