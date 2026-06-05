@@ -21,10 +21,24 @@ import { createContext, useContext, useState, useEffect, useLayoutEffect, type R
 // useLayoutEffect on client, noop on server (avoids SSR warning)
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
+export interface WorkspaceData {
+    id: string
+    name: string
+    ownerId: string
+    settings: Record<string, unknown> | null
+}
+
 interface WorkspaceContextValue {
     workspaceId: string
     workspaceName: string
     userName: string
+    /**
+     * The active workspace record, fetched once per workspaceId. Shared so
+     * layout-level consumers (sidebar owner check, read-only banner,
+     * personality gate) read one fetch instead of each issuing their own
+     * GET /workspaces/:id. `null` until the first fetch resolves.
+     */
+    workspace: WorkspaceData | null
     setWorkspace: (id: string, name: string) => void
 }
 
@@ -48,6 +62,7 @@ const WorkspaceContext = createContext<WorkspaceContextValue>({
     workspaceId: '',
     workspaceName: '',
     userName: '',
+    workspace: null,
     setWorkspace: () => undefined,
 })
 
@@ -67,6 +82,7 @@ export function WorkspaceProvider({
     const [workspaceId, setWorkspaceId] = useState(initialId || envId)
     const [workspaceName, setWorkspaceNameRaw] = useState(initialName || '')
     const [userName, setUserName] = useState(initialUserName || '')
+    const [workspace, setWorkspaceData] = useState<WorkspaceData | null>(null)
 
     // Wrap setWorkspaceName to also persist to localStorage
     function setWorkspaceName(name: string) {
@@ -129,10 +145,11 @@ export function WorkspaceProvider({
                 }
                 return null
             })
-            .then((d: { name?: string; __stale?: boolean } | null) => {
+            .then((d: (Partial<WorkspaceData> & { __stale?: boolean }) | null) => {
                 if (cancelled) return
                 if (d && '__stale' in d && d.__stale) {
                     // Clear the stale workspace ID and resolve a valid one
+                    setWorkspaceData(null)
                     try { localStorage.removeItem(STORAGE_KEY) } catch {}
                     fetch(`${api}/api/v1/workspaces`, { cache: 'no-store' })
                         .then((r) => r.ok ? r.json() : null)
@@ -152,7 +169,15 @@ export function WorkspaceProvider({
                         .catch(() => { /* non-fatal */ })
                     return
                 }
-                if (d && 'name' in d && d.name) setWorkspaceName(d.name)
+                if (d && d.id) {
+                    setWorkspaceData({
+                        id: d.id,
+                        name: d.name ?? '',
+                        ownerId: d.ownerId ?? '',
+                        settings: d.settings ?? null,
+                    })
+                }
+                if (d && d.name) setWorkspaceName(d.name)
             })
             .catch(() => { /* non-fatal */ })
         return () => { cancelled = true }
@@ -165,7 +190,7 @@ export function WorkspaceProvider({
     }
 
     return (
-        <WorkspaceContext.Provider value={{ workspaceId, workspaceName, userName, setWorkspace }}>
+        <WorkspaceContext.Provider value={{ workspaceId, workspaceName, userName, workspace, setWorkspace }}>
             {children}
         </WorkspaceContext.Provider>
     )
