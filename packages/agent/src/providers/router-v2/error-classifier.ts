@@ -163,12 +163,19 @@ export function classifyError(err: unknown): Classification {
         return { class: 'content-policy', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
 
-    // Malformed output — model couldn't emit valid structured output. Advance to
-    // a JSON-capable model rather than permanently failing the request.
+    // Malformed / empty output — the model couldn't emit valid (or any) output.
+    // Advance to another model rather than permanently failing the request.
+    // Note the two distinct AI SDK errors, one word apart:
+    //   "no object generated"  → AI_NoObjectGeneratedError (structured-output failed)
+    //   "no output generated"  → AI_NoOutputGeneratedError (empty/failed stream)
+    // Both must fall back. Missing the latter let an empty stream from one
+    // provider hard-fail the whole task even when other providers were configured.
     if (
         msg.includes('call_model_parse') ||
         msg.includes('json parsing failed') ||
         msg.includes('no object generated') ||
+        msg.includes('no output generated') ||
+        msg.includes('nooutputgenerated') ||
         msg.includes('json_schema') ||
         msg.includes('response format') ||
         msg.includes('structured')

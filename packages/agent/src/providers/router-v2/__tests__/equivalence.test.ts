@@ -363,6 +363,9 @@ describe('router-v2 error-classifier', () => {
         ['insufficient_quota: billing required', 'quota'],
         ['Insufficient Balance', 'quota'],
         ['Insufficient Balance: Insufficient Balance', 'quota'],
+        ['No object generated: response did not match schema', 'parse-malformed'],
+        ['No output generated. Check the stream for errors.', 'parse-malformed'],
+        ['AI_NoOutputGeneratedError: No output generated', 'parse-malformed'],
         ['some unrelated bug', 'unknown'],
     ]
 
