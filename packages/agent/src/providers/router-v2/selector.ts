@@ -83,7 +83,7 @@ export interface SelectInput {
 }
 
 /** Resolve the concrete model ID this candidate would call. */
-function resolveModelId(
+export function resolveModelId(
     provider: ProviderKey,
     config: AIProviderConfig,
     taskType: TaskType,
