@@ -134,6 +134,11 @@ export function deterministicEscalation(input: EscalateInput): EscalationSummary
             action = 'Check that the required service is connected and reachable in Settings → Connections.'
             recoverable = true
             break
+        case 'capability_unavailable':
+            why = 'The task asked for something this agent has no tool or integration to do (for example deploying or hosting a site). The work it COULD do may have completed.'
+            action = 'Use the produced output directly, or connect a tool that provides the missing capability in Settings → Connections, then re-submit.'
+            recoverable = true
+            break
         case 'planner_failed':
             why = 'The planner could not produce a safe execution plan for this request.'
             action = 'Re-phrase the task with more specifics, or break it into smaller pieces.'

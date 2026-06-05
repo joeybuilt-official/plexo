@@ -9,6 +9,7 @@ import type { ExecutionPlan } from '@plexo/agent/types'
 import { executeTask } from '@plexo/agent/executor'
 import { markTaskFailed } from '@plexo/agent/tasks/terminal-fail'
 import { FailureReason, type TaskCompletedPayload, type EscalationSummary } from '@plexo/agent/tasks/types'
+import { classifyCapabilityGap } from '@plexo/agent/tasks/classify-capability-gap'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
 import { storeMemory } from '@plexo/agent/memory/store'
@@ -1579,10 +1580,17 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         } else {
             const errCtx = (task.context as Record<string, unknown>) ?? {}
             const errDesc = (errCtx.description as string) ?? (errCtx.message as string) ?? task.type ?? 'task'
+            // Slice 1: label capability gaps (no deploy/host/integration) distinctly
+            // from genuine tool crashes. Conservative — defaults to ToolError.
+            // (Slice 2 will flip capability_unavailable to a graceful terminal state
+            // when a partial deliverable exists; for now status stays 'failed'.)
+            const nonTransientReason = classifyCapabilityGap(message)
+                ? FailureReason.CapabilityUnavailable
+                : FailureReason.ToolError
             const nonTransientFail = await markTaskFailed({
                 taskId: task.id,
                 workspaceId: taskWorkspaceId ?? '',
-                failureReason: FailureReason.ToolError,
+                failureReason: nonTransientReason,
                 errorText: reasonPrefix + message,
                 taskDescription: errDesc,
                 aiSettings: aiSettings ?? undefined,

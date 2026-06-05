@@ -13,7 +13,9 @@ function generateShareId(): string {
     return crypto.randomUUID().replace(/-/g, '').slice(0, 12)
 }
 
-const PUBLIC_URL = process.env.PUBLIC_URL || 'http://localhost:3000'
+// The share PAGE renders on the WEB app (app.getplexo.com/s/<id>), not the api
+// origin (PUBLIC_URL = api.getplexo.com, whose /s/<id> 404s). Use the app origin.
+const PUBLIC_URL = process.env.APP_PUBLIC_URL || process.env.BETTER_AUTH_URL || process.env.PUBLIC_URL || 'http://localhost:3000'
 
 // ── Authenticated routes (POST/DELETE/GET on /shares/:artifactId) ───────
 

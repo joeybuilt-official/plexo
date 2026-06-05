@@ -307,7 +307,7 @@ function WorksList({ works, formatAge, formatSize }: {
                                         <Loader2 className="h-4 w-4 animate-spin" /> Loading content...
                                     </div>
                                 ) : content ? (
-                                    <div className="max-h-[600px] overflow-auto">
+                                    <div className="max-h-[80vh] overflow-auto">
                                         <WorkRenderer
                                             work={{ filename: work.filename, kind: work.kind ?? 'markdown', content, meta: work.meta, bytes: work.contentLength, isText: true }}
                                         />

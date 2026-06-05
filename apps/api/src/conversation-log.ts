@@ -104,8 +104,11 @@ export async function recordConversation(params: RecordConversationParams): Prom
 
     // ── Phase B2 (ADR 0021) dual-write: Message + Session + IN_SESSION + NEXT ──
     // Postgres is authoritative. Any sidecar failure logs + telemetry but never
-    // throws from this fn. Awaited-with-catch (NOT void-and-forget) so callers
-    // pay the latency cost up-front and we surface drift in real time.
+    // throws from this fn. FIRE-AND-FORGET: reversed the original await-with-catch
+    // (which made callers "pay the latency cost up-front") because a stalled
+    // graphiti sidecar was blocking the chat request path (routes/chat.ts:1108)
+    // and surfacing to the user as "Failed" after a ~undici timeout. Drift is still
+    // surfaced via the catch-telemetry below — just off the hot path now.
     if (isGraphSidecarConfigured()) {
         // Session id falls back to the conversation id when no session is set —
         // mirrors the SQL `COALESCE(session_id, id)` used by the grouped view.
@@ -124,7 +127,8 @@ export async function recordConversation(params: RecordConversationParams): Prom
                 prevMessageId = prev?.id ?? null
             }
 
-            await graphWrite({
+            // fire-and-forget — never block/fail the caller on a slow sidecar
+            void graphWrite({
                 workspace_id: params.workspaceId,
                 app: 'plexo',
                 nodes: [
@@ -174,12 +178,20 @@ export async function recordConversation(params: RecordConversationParams): Prom
                         }]
                         : []),
                 ],
+            }).catch((err) => {
+                // Telemetry signal: FalkorDB is falling behind. Postgres still wins.
+                // Runs off the request path now, so it never delays/fails the caller.
+                logger.warn(
+                    { err, conversationId: id, workspaceId: params.workspaceId, sessionId },
+                    'recordConversation: graph sidecar dual-write failed (postgres authoritative)',
+                )
             })
         } catch (err) {
-            // Telemetry signal: FalkorDB is falling behind. Postgres still wins.
-            logger.warn(
-                { err, conversationId: id, workspaceId: params.workspaceId, sessionId },
-                'recordConversation: graph sidecar dual-write failed (postgres authoritative)',
+            // Only the prevMessageId postgres lookup is awaited here now; the graph
+            // write is fire-and-forget above. A lookup failure is non-fatal.
+            logger.debug(
+                { err, conversationId: id, workspaceId: params.workspaceId },
+                'recordConversation: prevMessageId lookup failed (non-fatal, postgres authoritative)',
             )
         }
     }
