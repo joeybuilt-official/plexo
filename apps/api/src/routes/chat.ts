@@ -44,6 +44,7 @@ import { resolveSessionId as resolveUniversalSession, embedMessage as embedSessi
 import { buildConversationSystemPrompt, translateErrorForUser } from '../channel-ai.js'
 import { WEBCHAT_CLASSIFY_SYSTEM } from '@plexo/agent/prompts/build-system-prompt'
 import { getTelegramToken } from './telegram.js'
+import { preClassifyIntent } from './chat-intent.js'
 import { trackError, trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -669,53 +670,27 @@ chatRouter.post('/message', async (req, res) => {
         let isComplex = false
 
         if (!forceConversation) {
-            // Fast local heuristic: skip the LLM classifier for messages that are
-            // obviously conversational (greetings, questions, short messages, follow-ups).
-            // This saves 500ms-2s per message for the common case.
-            const lower = trimmedMsg.toLowerCase()
-            const wordCount = trimmedMsg.split(/\s+/).length
-
-            // Explicit project intent — honor what the user literally said.
-            // The LLM classifier's PROJECT definition requires "days/weeks"
-            // scale, so it will reject a message like "start a new project:
-            // build me an HTML snake game" even though the user's stated
-            // intent is unambiguous. We short-circuit that here and route
-            // through the sprint/project flow instead of single-task. The
-            // user still gets the "confirm to get started" step downstream.
-            const isExplicitProject =
-                /\b(start|kick\s*off|kickoff|begin|create|spin\s*up|set\s*up|setup)\s+(a\s+|an\s+|the\s+|another\s+|new\s+)?(new\s+)?project\b/i.test(lower) ||
-                /\bnew\s+project\s*[:\-]/i.test(lower) ||
-                /\blet'?s\s+(start|build|create|make|kick\s*off|begin)\s+(a\s+|an\s+|the\s+|another\s+)?(new\s+)?project\b/i.test(lower) ||
-                /^project\s*[:\-]\s+/i.test(trimmedMsg)
-
-            // Ops commands — always TASK, even if short.
-            // Explicit project intent takes precedence so "let's start a
-            // project" isn't eaten by \bstart\b on docker-enabled hosts.
-            const isOpsCommand = !isExplicitProject && /\b(restart|deploy|rebuild|redeploy|stop|docker|container|compose|logs|status|health.?check|pull|push|git\s|caddy|nginx|dns|certificate|cert|backup|migrate|rollback)\b/i.test(lower)
-
-            if (isExplicitProject) {
+            // Fast local heuristic (pure, unit-tested in chat-intent.ts) — skips
+            // the LLM classifier for unambiguous messages. Ambiguous ones defer
+            // to the LLM classifier below.
+            const pre = preClassifyIntent(trimmedMsg)
+            if (pre.kind === 'project') {
                 intent = 'PROJECT'
                 isComplex = true
                 logger.info({ workspaceId, message: trimmedMsg.slice(0, 80) }, 'Webchat: explicit project intent detected — skipping LLM classifier')
-            } else if (isOpsCommand) {
+            } else if (pre.kind === 'task') {
                 intent = 'TASK'
-                isComplex = false
-            } else {
-            const hasTaskVerb = /\b(create|write|fix|update|install|configure|implement|migrate|generate|refactor|optimize|build|make|add|connect|remove|delete|send|post|schedule|run|execute)\b/i.test(lower)
-            const isObviousConversation =
-                (wordCount <= 5 && !hasTaskVerb) ||                               // very short messages without an action verb
-                /^(hi|hey|hello|yo|sup|what|how|why|when|where|who|can you|do you|are you|tell me|thanks|thank you|ok|okay|sure|yes|no|yeah|nah|again|try again|test)/i.test(lower) ||
-                /\?$/.test(trimmedMsg) ||                                          // questions
-                /^(remember|always|never|don't|make sure)\s/i.test(lower)           // memory instructions
-
-            const isObviousMemory = /^(remember|always|never|don't|dont)\s/i.test(lower)
-
-            if (isObviousMemory) {
+                isComplex = pre.isComplex
+            } else if (pre.kind === 'memory') {
                 intent = 'MEMORY'
-            } else if (isObviousConversation) {
+            } else if (pre.kind === 'conversation') {
                 intent = 'CONVERSATION'
             } else {
-                // Ambiguous — fall back to LLM classifier
+                // Ambiguous — defer to the LLM classifier. On failure or an
+                // unrecognized label, fail TOWARD execution when the message
+                // carries a task verb (never silently degrade a build request
+                // to chat).
+                const execDefault: 'TASK' | 'CONVERSATION' = pre.hasTaskVerb ? 'TASK' : 'CONVERSATION'
                 try {
                     const classifyMessages = [
                         ...textHistory,
@@ -740,14 +715,14 @@ chatRouter.post('/message', async (req, res) => {
                     if (upperText.startsWith('TASK')) intent = 'TASK'
                     else if (upperText.startsWith('PROJECT')) intent = 'PROJECT'
                     else if (upperText.startsWith('MEMORY')) intent = 'MEMORY'
-                    else intent = 'CONVERSATION'
+                    else if (upperText.startsWith('CONVERSATION')) intent = 'CONVERSATION'
+                    else intent = execDefault
 
                     if (parts[1]?.toUpperCase().startsWith('COMPLEX')) isComplex = true
                 } catch {
-                    intent = 'CONVERSATION'
+                    intent = execDefault
                 }
             }
-            } // close ops-command else
         }
 
 
