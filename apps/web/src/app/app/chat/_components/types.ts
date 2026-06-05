@@ -120,5 +120,29 @@ export interface Message {
      * client replaces the message-level copy wholesale.
      */
     progressEvents?: ProgressEvent[]
+    /**
+     * Sprint / sub-agent activity, present when this chat task fanned out into a
+     * multi-agent sprint. Sent on each reply-stream tick; drives the
+     * <AgentActivityPanel>. Undefined for single-agent tasks.
+     */
+    sprint?: SprintActivity
     at: number
+}
+
+export interface SprintSubAgent {
+    id: string
+    description: string
+    branch: string
+    status: string   // queued | running | complete | failed | blocked | ...
+    priority: number
+}
+
+export interface SprintActivity {
+    id: string
+    request: string
+    totalTasks: number
+    completedTasks: number
+    failedTasks: number
+    currentWave?: { index: number; total: number }
+    subAgents: SprintSubAgent[]
 }

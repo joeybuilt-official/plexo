@@ -15,6 +15,7 @@ import type { ChatMessage, Message, TaskAsset } from './types'
 import { isPlanProposalMessage } from './types'
 import { PlanCard } from './plan-card'
 import { AgentThinkingPanel } from './agent-thinking-panel'
+import { AgentActivityPanel } from './agent-activity-panel'
 import { KindBadge } from '@web/components/works/KindBadge'
 import { resolveKind } from '@web/components/works/WorkRenderer'
 
@@ -263,6 +264,13 @@ function ChatBubble({
             <div className={`relative flex flex-col gap-1 max-w-[85%] md:max-w-[80%] min-w-0 ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                 {imageStrip}
                 {docStrip}
+
+                {msg.role === 'agent' && msg.sprint && msg.sprint.subAgents.length > 0 && (
+                    <AgentActivityPanel
+                        sprint={msg.sprint}
+                        isRunning={msg.status === 'running' || msg.status === 'queued'}
+                    />
+                )}
 
                 {msg.role === 'agent' && (msg.progressEvents && msg.progressEvents.length > 0 || msg.status === 'running') && (
                     <AgentThinkingPanel
