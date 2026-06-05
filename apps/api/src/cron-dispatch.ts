@@ -24,12 +24,13 @@ import type { TaskType } from '@plexo/db'
 import { push } from '@plexo/queue'
 import { logger } from './logger.js'
 import { deliverToOriginChannel } from './channel-delivery.js'
+// Canonical set of internal function-handler job names (managed by cron.ts's
+// in-process scheduler) — skipped from generic dispatch. Lives in its own
+// dependency-free module so we don't pull cron.ts's agent import graph in here.
+import { INTERNAL_JOB_NAMES } from './cron-internal-jobs.js'
 
 const TICK_INTERVAL_MS = 60_000 // 1 minute
 const MAX_JOBS_PER_TICK = 50
-
-/** Internal job names managed by cron.ts — skip from generic dispatch. */
-const INTERNAL_JOB_NAMES = new Set(['Memory consolidation', 'RSI Monitor', 'Router stats snapshot', 'Ops alerts flush'])
 
 // ── Next-run computation ──────────────────────────────────────────────────────
 
@@ -90,7 +91,11 @@ export async function dispatchDueJobs(): Promise<void> {
         const prevFailures: number = r.consecutiveFailures ?? r.consecutive_failures ?? 0
         const schedule: string | null = r.schedule ?? null
 
-        // Skip internal jobs managed by cron.ts
+        // Skip internal function-handler jobs (run by cron.ts's in-process
+        // scheduler) — they have no prompt and must never become queued agent
+        // tasks. Note: a routine legitimately MAY have no prompt (notify-only or
+        // connector-only), so we key off the name set, not an empty-payload
+        // heuristic. The set includes legacy aliases (e.g. 'flush-retrieval-counts').
         if (INTERNAL_JOB_NAMES.has(job.name)) {
             // Still need to advance next_run_at if it's null / stale
             const next = nextRunAfter(schedule, now)

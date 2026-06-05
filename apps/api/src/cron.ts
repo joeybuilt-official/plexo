@@ -18,6 +18,7 @@ import { pollAllGmailChannels } from './lib/gmail-poll.js'
 import { runAttachmentScanTick } from './lib/attachment-scan-worker.js'
 import { getAllStats } from '@plexo/agent/providers/router-v2'
 import { flushOpsAlerts } from './ops-alerts.js'
+import { INTERNAL_JOB_NAMES } from './cron-internal-jobs.js'
 
 export { runRSIMonitor }
 export { runSynthesisNightly }
@@ -402,6 +403,14 @@ export function scheduleMemoryConsolidation(): void {
         return
     }
     const CHECK_INTERVAL = 10 * 60 * 1000 // check every 10 minutes
+
+    // Drift guard: every internal function-handler job MUST be in the
+    // cron-dispatch skip set, else cron-dispatch queues empty agent tasks for it.
+    for (const job of INTERNAL_JOBS) {
+        if (!INTERNAL_JOB_NAMES.has(job.name)) {
+            logger.error({ name: job.name }, 'cron: INTERNAL_JOBS name missing from INTERNAL_JOB_NAMES (cron-internal-jobs.ts) — cron-dispatch will queue empty tasks for it')
+        }
+    }
 
     // Upsert internal job rows on startup
     void ensureInternalCronJobs().catch(err =>
