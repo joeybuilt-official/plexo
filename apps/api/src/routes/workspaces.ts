@@ -54,6 +54,7 @@ workspacesRouter.get('/', async (req, res) => {
 
         res.json({ items: rows, total: rows.length })
     } catch (err) {
+        logger.error({ err }, '[workspaces.list] failed to list workspaces')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list workspaces' } })
     }
 })
@@ -82,6 +83,7 @@ workspacesRouter.get('/:id', async (req, res) => {
         const { aiProviders: _omitted, ...safeSettings } = (ws.settings ?? {}) as Record<string, unknown>
         res.json({ ...ws, settings: safeSettings })
     } catch (err) {
+        logger.error({ err, id }, '[workspaces.get] failed to get workspace')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get workspace' } })
     }
 })
@@ -185,6 +187,7 @@ workspacesRouter.post('/', async (req, res) => {
 
         res.status(201).json(created)
     } catch (err) {
+        logger.error({ err, ownerId }, '[workspaces.create] failed to create workspace')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create workspace' } })
     }
 })
@@ -242,6 +245,7 @@ workspacesRouter.delete('/:id', async (req, res) => {
         trackEvent('workspace.deleted', 'warning', { workspaceId: id })
         res.json({ ok: true })
     } catch (err) {
+        logger.error({ err, id }, '[workspaces.delete] failed to delete workspace')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete workspace' } })
     }
 })
@@ -334,6 +338,7 @@ workspacesRouter.patch('/:id', async (req, res) => {
 
         res.json({ ok: true })
     } catch (err) {
+        logger.error({ err, id }, '[workspaces.update] failed to update workspace')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update workspace' } })
     }
 })
