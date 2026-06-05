@@ -1535,6 +1535,7 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                 outcomeSummary: tasks.outcomeSummary,
                 createdAt: tasks.createdAt,
                 projectId: tasks.projectId,
+                plan: tasks.plan,
             }).from(tasks).where(eq(tasks.id, taskId!)).limit(1)
 
             if (!task) {
@@ -1562,6 +1563,15 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                 finish('timeout', { taskId, reply: `Task running for ${Math.round(elapsed)}s. Still processing — results will appear when complete.` })
                 return
             }
+
+            // Accepted plan (persisted at agent-loop after planning) — used to
+            // surface "what is being built" while a single long step runs, and
+            // to send a compact plan summary on the tick for the chat header.
+            const planObj = task.plan as {
+                goal?: string
+                confidenceScore?: number
+                steps?: Array<{ stepNumber: number; description: string; toolsRequired?: string[] }>
+            } | null
 
             // Still running — fetch latest step for progress detail
             const [latestStep] = await db.select({
@@ -1603,6 +1613,7 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                     outcome: taskSteps.outcome,
                     isTerminal: taskSteps.isTerminal,
                     stepState: taskSteps.stepState,
+                    state: taskSteps.state,
                     createdAt: taskSteps.createdAt,
                 }).from(taskSteps)
                     .where(eq(taskSteps.taskId, taskId!))
@@ -1715,6 +1726,24 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                             })
                         }
                     }
+
+                    // Bare running step from the executor's pre-step insert:
+                    // model generation is in flight but no tool calls have been
+                    // checkpointed yet. Surface a "Generating (model)" event so a
+                    // single long step (1-step plans for simple builds) streams
+                    // activity instead of a silent pulse. Suppressed once the
+                    // end-of-step update stamps stepState.completedAt.
+                    if (!Array.isArray(row.toolCalls) && row.state === 'running'
+                        && state && typeof state === 'object' && state.phase === 'generating' && !stateEnd) {
+                        const model = typeof state.model === 'string' ? state.model.split('/').pop() : undefined
+                        progressEvents.push({
+                            id: `gen-${row.stepNumber}`,
+                            kind: 'status',
+                            title: model ? `Generating response (${model})` : 'Generating response',
+                            startedAt,
+                            status: 'running',
+                        })
+                    }
                 }
 
                 if (phaseEvents.length > 0) {
@@ -1769,13 +1798,27 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                 const taskCreatedMs = task.createdAt instanceof Date
                     ? task.createdAt.getTime()
                     : startedAt
-                progressEvents.push({
-                    id: 'pre-step-thinking',
-                    kind: 'phase',
-                    title: 'Planning\u2026',
-                    startedAt: taskCreatedMs,
-                    status: 'running',
-                })
+                const planSteps = planObj?.steps
+                if (planSteps && planSteps.length > 0) {
+                    const first = planSteps[0]!
+                    const cap = first.toolsRequired?.[0] ? describeToolCall(first.toolsRequired[0]) : undefined
+                    progressEvents.push({
+                        id: `plan-step-${first.stepNumber}`,
+                        kind: 'status',
+                        title: cap ? `${first.description} \u2014 ${cap}` : first.description,
+                        startedAt: taskCreatedMs,
+                        status: 'running',
+                    })
+                    if (!currentPhase) currentPhase = first.description
+                } else {
+                    progressEvents.push({
+                        id: 'pre-step-thinking',
+                        kind: 'phase',
+                        title: 'Planning\u2026',
+                        startedAt: taskCreatedMs,
+                        status: 'running',
+                    })
+                }
             }
 
             // Sprint/sub-agent activity: when this chat task spawned a sprint
@@ -1843,6 +1886,22 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                 }
             }
 
+            // Compact plan summary so the chat can render a "Here's the plan"
+            // header while the task runs — the data the user was missing during
+            // the bare "Thinking…" wait. Capability tag derived from each step's
+            // first required tool.
+            const planSummary = (planObj?.steps && planObj.steps.length > 0)
+                ? {
+                    goal: planObj.goal,
+                    confidenceScore: planObj.confidenceScore,
+                    steps: planObj.steps.map((s) => ({
+                        n: s.stepNumber,
+                        description: s.description,
+                        capability: s.toolsRequired?.[0] ? describeToolCall(s.toolsRequired[0]) : undefined,
+                    })),
+                }
+                : undefined
+
             send('tick', {
                 taskId,
                 status: task.status,
@@ -1850,7 +1909,9 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
                 stepCount,
                 lastAction,
                 progressEvents,
-                ...(phases ? { phases, currentPhase } : {}),
+                ...(phases ? { phases } : {}),
+                ...(currentPhase ? { currentPhase } : {}),
+                ...(planSummary ? { plan: planSummary } : {}),
                 ...(sprint ? { sprint } : {}),
             })
         } catch (err) {

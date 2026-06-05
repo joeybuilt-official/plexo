@@ -463,6 +463,7 @@ function ChatContent() {
                         status: string; elapsed: number; stepCount: number; lastAction: string | null
                         phases?: Array<{ index: number; total: number; label: string; status: 'pending' | 'running' | 'complete' }>
                         currentPhase?: string
+                        plan?: Message['livePlan']
                         progressEvents?: RawProgressEvent[]
                         sprint?: SprintActivity
                     }
@@ -482,6 +483,7 @@ function ChatContent() {
                         return {
                             ...m, status: 'running', content: d.status, steps: nextSteps,
                             phases: d.phases ?? m.phases, currentPhase: d.currentPhase ?? m.currentPhase,
+                            livePlan: d.plan ?? m.livePlan,
                             progressEvents: normalized.length > 0 ? normalized : m.progressEvents,
                             sprint: d.sprint ?? m.sprint,
                         }
