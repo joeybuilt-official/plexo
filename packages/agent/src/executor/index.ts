@@ -1703,6 +1703,15 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                     state: 'running',
                     startedAt: new Date(stepWallStart),
                     attempts: 1,
+                    // Sub-phase marker so the chat SSE projector can stream
+                    // "Generating (model)" while a single long step is in
+                    // flight. Reflects the primary provider pre-fallback —
+                    // a progress hint, not authoritative attribution.
+                    stepState: {
+                        phase: 'generating',
+                        model: `${resolvedMeta.provider}/${resolvedMeta.id}`,
+                        startedAt: stepWallStart,
+                    },
                 }).returning({ id: taskSteps.id })
                 stepRowId = inserted[0]?.id ?? null
             } catch (preErr) {

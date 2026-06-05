@@ -114,6 +114,18 @@ export interface Message {
     }>
     currentPhase?: string
     /**
+     * Compact accepted-plan summary streamed on each reply-stream tick while
+     * the task runs. Renders a "Plan" header in the running bubble so a single
+     * long step shows WHAT is being built (goal + steps + capability tags)
+     * instead of a bare "Thinking…" timer. Distinct from PlanProposalMessage's
+     * `plan` (which is the pre-execution approval card).
+     */
+    livePlan?: {
+        goal?: string
+        confidenceScore?: number
+        steps: Array<{ n: number; description: string; capability?: string }>
+    }
+    /**
      * Live progress events emitted by the agent executor via the
      * /api/chat/reply-stream/:taskId SSE tick. Drives the
      * <AgentThinkingPanel>. Each tick sends the cumulative array; the

@@ -7,7 +7,7 @@ import { useState, useEffect, memo } from 'react'
 import Link from 'next/link'
 import {
     User, CheckCircle2, XCircle, Loader2, Copy, Check, FileText, Circle,
-    ChevronDown, ArrowUpRight,
+    ChevronDown, ArrowUpRight, ListChecks,
 } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { PlexoAwarenessBadge } from '@web/components/plexo-awareness-badge'
@@ -103,6 +103,52 @@ function PhaseIndicator({ phases, currentPhase }: {
                             {phase.status === 'pending' && <Circle className="h-3 w-3 text-text-muted/30" />}
                             <span className={phase.status === 'pending' ? 'text-text-muted/40' : phase.status === 'running' ? 'text-azure' : 'text-text-secondary'}>
                                 {phase.label}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+/**
+ * Compact, collapsible view of the accepted plan streamed on the reply-stream
+ * tick. Shows the goal + each step's description and capability tag so a single
+ * long step surfaces WHAT is being built instead of a bare "Thinking…" timer.
+ * Expanded by default while the task runs.
+ */
+function LivePlanCard({ plan }: { plan: NonNullable<Message['livePlan']> }) {
+    const [expanded, setExpanded] = useState(true)
+    if (!plan.steps || plan.steps.length === 0) return null
+    const conf = typeof plan.confidenceScore === 'number'
+        ? `${Math.round(plan.confidenceScore * 100)}%`
+        : null
+    return (
+        <div className="mb-1.5 w-full">
+            <button
+                type="button"
+                aria-expanded={expanded}
+                aria-label={expanded ? 'Hide plan' : 'Show plan'}
+                onClick={() => setExpanded(!expanded)}
+                className="flex items-center gap-2 px-3 py-1 rounded-sm bg-surface-1/30 border border-border/20 hover:bg-surface-1/50 transition-all text-xs w-full"
+            >
+                <ListChecks className="h-3 w-3 text-azure shrink-0" />
+                <span className="text-text-secondary truncate flex-1 text-left">
+                    {plan.goal ?? 'Plan'}{plan.steps.length > 1 ? ` · ${plan.steps.length} steps` : ''}
+                </span>
+                {conf && <span className="text-text-muted shrink-0">{conf}</span>}
+                <ChevronDown className={`h-3 w-3 text-text-muted transition-transform shrink-0 ${expanded ? 'rotate-180' : ''}`} />
+            </button>
+
+            {expanded && (
+                <div className="mt-1 pl-2 space-y-0.5">
+                    {plan.steps.map((s) => (
+                        <div key={s.n} className="flex items-start gap-2 text-[11px]">
+                            <span className="text-text-muted/60 shrink-0">{s.n}.</span>
+                            <span className="text-text-secondary">
+                                {s.description}
+                                {s.capability && <span className="text-azure/70"> · {s.capability}</span>}
                             </span>
                         </div>
                     ))}
@@ -270,6 +316,11 @@ function ChatBubble({
                         sprint={msg.sprint}
                         isRunning={msg.status === 'running' || msg.status === 'queued'}
                     />
+                )}
+
+                {msg.role === 'agent' && msg.livePlan
+                    && (msg.status === 'running' || msg.status === 'queued') && (
+                    <LivePlanCard plan={msg.livePlan} />
                 )}
 
                 {msg.role === 'agent' && (msg.progressEvents && msg.progressEvents.length > 0 || msg.status === 'running') && (
