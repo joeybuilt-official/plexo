@@ -13,29 +13,13 @@
  * is in dry-run mode and links to Settings → Agent → Limits to disable.
  */
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Eye } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
-const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
-
 export function ReadOnlyBanner() {
-    const { workspaceId } = useWorkspace()
-    const [readOnly, setReadOnly] = useState(false)
-
-    useEffect(() => {
-        if (!workspaceId) { setReadOnly(false); return }
-        let cancelled = false
-        fetch(`${API}/api/v1/workspaces/${workspaceId}`, { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : null)
-            .then((d: { settings?: { readOnlyMode?: boolean } } | null) => {
-                if (cancelled) return
-                setReadOnly(Boolean(d?.settings?.readOnlyMode))
-            })
-            .catch(() => { /* non-fatal */ })
-        return () => { cancelled = true }
-    }, [workspaceId])
+    const { workspace } = useWorkspace()
+    const readOnly = Boolean((workspace?.settings as { readOnlyMode?: boolean } | null)?.readOnlyMode)
 
     if (!readOnly) return null
 

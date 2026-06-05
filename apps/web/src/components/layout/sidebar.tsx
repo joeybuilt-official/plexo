@@ -564,7 +564,7 @@ function NavSection({ id, label, expanded, onToggle, collapsed: sidebarCollapsed
 
 export function Sidebar({ user, onNavClick, className = '', mobile = false }: { user?: SessionUser; onNavClick?: () => void; className?: string; mobile?: boolean }) {
     const pathname = usePathname()
-    const { workspaceId } = useWorkspace()
+    const { workspaceId, workspace } = useWorkspace()
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
     // Read sidebar collapse state BEFORE paint to prevent width flash
@@ -625,25 +625,24 @@ export function Sidebar({ user, onNavClick, className = '', mobile = false }: { 
     const [capabilityWarning, setCapabilityWarning] = useState(false)
     const [isOperator, setIsOperator] = useState(false)
 
-    // Detect workspace-owner (operator) status — gates Debug nav item
+    // Detect workspace-owner (operator) status — gates Debug nav item.
+    // Reads the shared workspace from context (single GET /workspaces/:id)
+    // rather than issuing its own fetch.
     useEffect(() => {
-        if (!workspaceId) return
+        const ownerId = workspace?.ownerId
+        if (!ownerId) return
         let cancelled = false
         ;(async () => {
             try {
                 const session = await authClient.getSession()
                 const userId = session.data?.user?.id
-                if (!userId) return
-                const res = await fetch(`/api/v1/workspaces/${workspaceId}`, { cache: 'no-store' })
-                if (!res.ok) return
-                const data = await res.json() as { ownerId?: string }
-                if (!cancelled && data.ownerId && data.ownerId === userId) {
+                if (!cancelled && userId && ownerId === userId) {
                     setIsOperator(true)
                 }
             } catch { /* non-fatal */ }
         })()
         return () => { cancelled = true }
-    }, [workspaceId])
+    }, [workspace?.ownerId])
 
     // Toast on state transitions — fire when counts increase, skip initial load
     const prevApprovals = useRef<number | null>(null)

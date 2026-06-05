@@ -21,13 +21,13 @@ import { useFocusTrap } from '@web/hooks/use-focus-trap'
 
 const API = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
 
-function useNeedsPersonality(workspaceId: string): { loading: boolean; needsSetup: boolean } {
+function useNeedsPersonality(): { loading: boolean; needsSetup: boolean } {
+    const { workspaceId, workspace } = useWorkspace()
     const [loading, setLoading] = useState(true)
     const [needsSetup, setNeedsSetup] = useState(false)
 
     useEffect(() => {
-        if (!workspaceId) { setLoading(false); return }
-        let cancelled = false
+        if (!workspaceId) { setNeedsSetup(false); setLoading(false); return }
 
         // Check localStorage first for fast dismissal
         const dismissKey = `plexo_personality_done_${workspaceId}`
@@ -37,30 +37,25 @@ function useNeedsPersonality(workspaceId: string): { loading: boolean; needsSetu
             return
         }
 
-        fetch(`${API}/api/v1/workspaces/${workspaceId}`, { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : null)
-            .then((data: { settings?: { agentPersona?: string; personalityConfigured?: boolean } } | null) => {
-                if (cancelled) return
-                const s = data?.settings
-                // Already configured via quiz or manually set a persona
-                if (s?.personalityConfigured || (s?.agentPersona && s.agentPersona.length > 10)) {
-                    setNeedsSetup(false)
-                } else {
-                    setNeedsSetup(true)
-                }
-                setLoading(false)
-            })
-            .catch(() => { if (!cancelled) { setNeedsSetup(false); setLoading(false) } })
-
-        return () => { cancelled = true }
-    }, [workspaceId])
+        // Read settings from the shared workspace context (single
+        // GET /workspaces/:id). Wait until it has resolved.
+        if (!workspace) return
+        const s = workspace.settings as { agentPersona?: string; personalityConfigured?: boolean } | null
+        // Already configured via quiz or manually set a persona
+        if (s?.personalityConfigured || (s?.agentPersona && s.agentPersona.length > 10)) {
+            setNeedsSetup(false)
+        } else {
+            setNeedsSetup(true)
+        }
+        setLoading(false)
+    }, [workspaceId, workspace])
 
     return { loading, needsSetup }
 }
 
 export function PersonalityModalGate({ children }: { children: React.ReactNode }) {
     const { workspaceId } = useWorkspace()
-    const { loading, needsSetup } = useNeedsPersonality(workspaceId)
+    const { loading, needsSetup } = useNeedsPersonality()
     const [dismissed, setDismissed] = useState(false)
 
     const dismissKey = `plexo_personality_done_${workspaceId}`
