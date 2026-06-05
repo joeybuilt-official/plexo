@@ -62,6 +62,32 @@ import {
 
 const logger = pino({ name: 'executor' })
 
+// ── Quality-judge off-hot-path lifecycle (Phase M / ADR 0002) ──────────────
+// The quality judge is an LLM ensemble call. Running it inline before the
+// executor returns delays user-visible task completion. We detach it: the
+// executor returns qualityScore=null (pending) and the judge + its downstream
+// consumers run in a tracked background promise that patches the real score
+// onto the task row. The tracked set lets a graceful shutdown drain in-flight
+// judges; `judge_dropped` counts judges that threw (escalate to a durable job
+// per Phase F if this rate climbs).
+const _pendingJudges = new Set<Promise<void>>()
+let _judgeDropped = 0
+
+function trackJudge(p: Promise<void>): void {
+    _pendingJudges.add(p)
+    void p.finally(() => _pendingJudges.delete(p))
+}
+
+/** Await all in-flight detached judges. Call before worker/process teardown. */
+export async function drainPendingJudges(): Promise<void> {
+    await Promise.allSettled([..._pendingJudges])
+}
+
+/** Count of detached judges that threw (telemetry / Phase F escalation gate). */
+export function getJudgeDroppedCount(): number {
+    return _judgeDropped
+}
+
 // ── Test output parser ────────────────────────────────────────
 
 interface ParsedTestResult {
@@ -2432,43 +2458,28 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
         durationMs: stepDurationMs,
     })
 
-    // Independent quality judge — decoupled from self-assessment to prevent reward hacking.
-    // Runs non-blocking post-execution; replaces finalQuality if successful.
-    // Falls back to self-reported score on any failure.
-    const judgeResult = await judgeQuality({
-        taskType: ctx.taskType ?? 'coding',
-        goal: plan.goal,
-        deliverableSummary: finalSummary,
-        toolsUsed: toolCallRecords.map((t) => t.tool),
-        selfScore: finalQuality,
-        aiSettings,
-        userRequest: plan.goal,
-    }).catch((err) => {
-        console.warn('[executor] quality judge failed, falling back to self-score', err instanceof Error ? err.message : String(err))
-        return { score: finalQuality, meta: { mode: 'fallback' as const, selfScore: finalQuality, judgeCount: 0, dissenters: [], models: [] } }
-    })
-
-    const verifiedQuality = judgeResult.score
-    const judgeMeta: JudgeMeta = judgeResult.meta
-
-    const executionResult: ExecutionResult & { judgeMeta?: JudgeMeta } = {
+    // Phase M (ADR 0002): build the result with qualityScore=null (pending) and
+    // return it WITHOUT waiting on the quality judge. The judge is an LLM
+    // ensemble call; running it inline delayed user-visible completion. It now
+    // runs in a tracked detached promise that patches the real score onto the
+    // task row. completeTask (agent-loop) persists status=complete with a null
+    // score and will not clobber the judge's patched value (see queue complete()).
+    const executionResult: ExecutionResult = {
         taskId: ctx.taskId,
         ok: true,
         steps: stepResults,
         outcomeSummary: finalSummary,
-        qualityScore: verifiedQuality,
+        qualityScore: null,
         totalTokensIn,
         totalTokensOut,
         totalCostUsd: totalCost,
         totalDurationMs: Date.now() - startTime,
-        judgeMeta,
     }
 
 
     // NOTE: api_cost_tracking is written ONLY by agent-loop.ts after completeTask().
     // Do NOT write it here — doing so would double-count every task's spend.
 
-    // Record task outcome to semantic memory + infer preferences (non-blocking)
     const toolsUsed = stepResults.flatMap((s) => s.toolCalls.map((t) => t.tool))
     const filesWritten = stepResults.flatMap((s) =>
         s.toolCalls
@@ -2478,8 +2489,8 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
     )
 
     // ── Structural Proof: syntax-check written files (coding tasks only) ──────
-    // Non-blocking and non-fatal: a proof failure is logged and annotated on
-    // the result but does not change ok:true — the work already shipped.
+    // Independent of the judge; stays a plain fire-and-forget (non-fatal: a
+    // proof failure is logged but does not change ok:true — the work shipped).
     if (ctx.sprintWorkDir && filesWritten.length > 0) {
         void import('./structural-proof.js').then(async ({ verifyStructure }) => {
             const workDir = ctx.sprintWorkDir!
@@ -2496,98 +2507,136 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
         }).catch((err) => console.warn('[executor] structural-proof import/run failed (non-fatal)', err instanceof Error ? err.message : String(err)))
     }
 
-    const memOutcome: 'success' | 'partial' | 'failure' = executionResult.ok
-        ? verifiedQuality >= 0.7
-            ? 'success'
-            : 'partial'
-        : 'failure'
-
-    // Memory writes are non-blocking but we log failures so they're diagnosable.
-    // Each concern is independent — one failure doesn't abort the others.
-    const pinoMod = await import('pino')
-    const memLogger = pinoMod.default({ name: 'executor.memory' })
-
-    void import('../memory/store.js').then(({ recordTaskMemory }) =>
-        recordTaskMemory({
-            workspaceId: ctx.workspaceId,
-            taskId: ctx.taskId,
-            description: plan.goal,
-            outcome: memOutcome,
-            toolsUsed,
-            qualityScore: verifiedQuality,
-            durationMs: executionResult.totalDurationMs,
-            aiSettings: settings,
-        })
-    ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'recordTaskMemory failed'))
-
-    void import('../memory/preferences.js').then(({ inferFromTaskOutcome }) =>
-        inferFromTaskOutcome({
-            workspaceId: ctx.workspaceId,
-            toolsUsed,
-            filesWritten,
-            qualityScore: verifiedQuality,
-            outcome: memOutcome,
-        })
-    ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'inferFromTaskOutcome failed'))
-
-    void import('../behavior/reflect.js').then(({ reflectAndPromote }) =>
-        reflectAndPromote({
-            workspaceId: ctx.workspaceId,
-            taskId: ctx.taskId,
-            goal: plan.goal,
-            taskType: ctx.taskType ?? 'general',
-            toolsUsed,
-            qualityScore: verifiedQuality,
-            outcomeSummary: executionResult.outcomeSummary ?? '',
-            stepCount: stepResults.length,
-            durationMs: executionResult.totalDurationMs,
-        })
-    ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'reflectAndPromote failed'))
-
-    // Domain mastery: infer domain_tag (ADR-001, zero-cost heuristic)
-    const { inferDomainTag } = await import('../domain-mastery/index.js')
-    const domainTag = inferDomainTag(ctx.taskType ?? 'general', plan.goal ?? '')
-
-    void db.execute(sql`
-        INSERT INTO work_ledger
-            (id, workspace_id, task_id, type, source, tokens_in, tokens_out, cost_usd,
-             quality_score, deliverables, wall_clock_ms, domain_tag, context_hash,
-             context_rule_keys, completed_at)
-        VALUES
-            (gen_random_uuid(), ${ctx.workspaceId}::uuid, ${ctx.taskId},
-             ${ctx.taskType ?? 'automation'}, ${'agent'},
-             ${executionResult.totalTokensIn}, ${executionResult.totalTokensOut},
-             ${executionResult.totalCostUsd}, ${verifiedQuality},
-             ${JSON.stringify(filesWritten)}::jsonb, ${executionResult.totalDurationMs},
-             ${domainTag}, ${resolvedContextHash},
-             ${resolvedContextRuleKeys.length > 0 ? JSON.stringify(resolvedContextRuleKeys) : null}::jsonb,
-             now())
-    `).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'work_ledger insert failed — check schema or migration'))
-
-    // Domain mastery Phase 3: credit assignment (fire-and-forget)
-    void import('../domain-mastery/credit-assignment.js').then(({ recordCredit }) =>
-        recordCredit({
-            workspaceId: ctx.workspaceId,
-            contextHash: resolvedContextHash,
-            contextRuleKeys: resolvedContextRuleKeys,
-            qualityScore: verifiedQuality,
-            domainTag,
-        })
-    ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'Credit assignment failed'))
-
-    // Phase 15 — record which prompt variant was used and evaluate auto-promotion
-    void recordVariantOutcome({
-        workspaceId: ctx.workspaceId,
-        taskId: ctx.taskId,
-        variant: variantAssignment.variant,
-        challengerId: variantAssignment.challengerId,
-        qualityScore: verifiedQuality,
-    }).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'recordVariantOutcome failed'))
-
-    // Clean up tool worker thread
+    // Clean up tool worker thread — independent of the judge; do it before return.
     if (toolWorker) {
         await toolWorker.destroy().catch((err: unknown) => { logger.warn({ err }, 'toolWorker.destroy failed') })
     }
+
+    // ── Detached quality judge + score-dependent consumers (Phase M) ──────────
+    // Everything below previously ran inline before the return. It now runs off
+    // the hot path: the judge settles the real verified score, patches it onto
+    // the task row, and the memory/reflection/credit/variant consumers receive
+    // that real score (never the self-reported one). Tracked so a graceful
+    // shutdown can drain in-flight judges; a throw bumps `judge_dropped` and
+    // leaves the score pending rather than fabricating one.
+    trackJudge((async () => {
+        // Independent quality judge — decoupled from self-assessment to prevent
+        // reward hacking. Falls back to the self-reported score on any failure.
+        const judgeResult = await judgeQuality({
+            taskType: ctx.taskType ?? 'coding',
+            goal: plan.goal,
+            deliverableSummary: finalSummary,
+            toolsUsed: toolCallRecords.map((t) => t.tool),
+            selfScore: finalQuality,
+            aiSettings,
+            userRequest: plan.goal,
+        }).catch((err) => {
+            console.warn('[executor] quality judge failed, falling back to self-score', err instanceof Error ? err.message : String(err))
+            return { score: finalQuality, meta: { mode: 'fallback' as const, selfScore: finalQuality, judgeCount: 0, dissenters: [], models: [] } }
+        })
+
+        const verifiedQuality = judgeResult.score
+        const judgeMeta: JudgeMeta = judgeResult.meta
+
+        // Patch the settled score + judge metadata onto the task row. Uses
+        // COALESCE so a concurrent completeTask with a pending(null) score can't
+        // null this out; the jsonb merge mirrors what agent-loop did inline.
+        await db.update(tasks).set({
+            qualityScore: verifiedQuality,
+            context: sql`COALESCE(context, '{}'::jsonb) || ${JSON.stringify({ _judge: judgeMeta })}::jsonb`,
+        }).where(eq(tasks.id, ctx.taskId))
+            .catch((err) => logger.warn({ err, taskId: ctx.taskId }, 'judge score/meta patch failed (non-fatal)'))
+
+        const memOutcome: 'success' | 'partial' | 'failure' = executionResult.ok
+            ? verifiedQuality >= 0.7
+                ? 'success'
+                : 'partial'
+            : 'failure'
+
+        // Memory writes are non-blocking but we log failures so they're diagnosable.
+        const pinoMod = await import('pino')
+        const memLogger = pinoMod.default({ name: 'executor.memory' })
+
+        void import('../memory/store.js').then(({ recordTaskMemory }) =>
+            recordTaskMemory({
+                workspaceId: ctx.workspaceId,
+                taskId: ctx.taskId,
+                description: plan.goal,
+                outcome: memOutcome,
+                toolsUsed,
+                qualityScore: verifiedQuality,
+                durationMs: executionResult.totalDurationMs,
+                aiSettings: settings,
+            })
+        ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'recordTaskMemory failed'))
+
+        void import('../memory/preferences.js').then(({ inferFromTaskOutcome }) =>
+            inferFromTaskOutcome({
+                workspaceId: ctx.workspaceId,
+                toolsUsed,
+                filesWritten,
+                qualityScore: verifiedQuality,
+                outcome: memOutcome,
+            })
+        ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'inferFromTaskOutcome failed'))
+
+        void import('../behavior/reflect.js').then(({ reflectAndPromote }) =>
+            reflectAndPromote({
+                workspaceId: ctx.workspaceId,
+                taskId: ctx.taskId,
+                goal: plan.goal,
+                taskType: ctx.taskType ?? 'general',
+                toolsUsed,
+                qualityScore: verifiedQuality,
+                outcomeSummary: executionResult.outcomeSummary ?? '',
+                stepCount: stepResults.length,
+                durationMs: executionResult.totalDurationMs,
+            })
+        ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'reflectAndPromote failed'))
+
+        // Domain mastery: infer domain_tag (ADR-001, zero-cost heuristic)
+        const { inferDomainTag } = await import('../domain-mastery/index.js')
+        const domainTag = inferDomainTag(ctx.taskType ?? 'general', plan.goal ?? '')
+
+        void db.execute(sql`
+            INSERT INTO work_ledger
+                (id, workspace_id, task_id, type, source, tokens_in, tokens_out, cost_usd,
+                 quality_score, deliverables, wall_clock_ms, domain_tag, context_hash,
+                 context_rule_keys, completed_at)
+            VALUES
+                (gen_random_uuid(), ${ctx.workspaceId}::uuid, ${ctx.taskId},
+                 ${ctx.taskType ?? 'automation'}, ${'agent'},
+                 ${executionResult.totalTokensIn}, ${executionResult.totalTokensOut},
+                 ${executionResult.totalCostUsd}, ${verifiedQuality},
+                 ${JSON.stringify(filesWritten)}::jsonb, ${executionResult.totalDurationMs},
+                 ${domainTag}, ${resolvedContextHash},
+                 ${resolvedContextRuleKeys.length > 0 ? JSON.stringify(resolvedContextRuleKeys) : null}::jsonb,
+                 now())
+        `).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'work_ledger insert failed — check schema or migration'))
+
+        // Domain mastery Phase 3: credit assignment (fire-and-forget)
+        void import('../domain-mastery/credit-assignment.js').then(({ recordCredit }) =>
+            recordCredit({
+                workspaceId: ctx.workspaceId,
+                contextHash: resolvedContextHash,
+                contextRuleKeys: resolvedContextRuleKeys,
+                qualityScore: verifiedQuality,
+                domainTag,
+            })
+        ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'Credit assignment failed'))
+
+        // Phase 15 — record which prompt variant was used and evaluate auto-promotion
+        void recordVariantOutcome({
+            workspaceId: ctx.workspaceId,
+            taskId: ctx.taskId,
+            variant: variantAssignment.variant,
+            challengerId: variantAssignment.challengerId,
+            qualityScore: verifiedQuality,
+        }).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'recordVariantOutcome failed'))
+    })().catch((err) => {
+        _judgeDropped++
+        logger.warn({ err, taskId: ctx.taskId }, 'detached judge block threw — score left pending (judge_dropped)')
+    }))
 
     return executionResult
 }

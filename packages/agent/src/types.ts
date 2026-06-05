@@ -598,7 +598,12 @@ export interface ExecutionResult {
     errorCode?: string
     steps: StepResult[]
     outcomeSummary: string
-    qualityScore: number
+    /**
+     * null = quality judge has not settled yet (it runs off the completion hot
+     * path, ADR 0002 / Phase M). The score is async-patched onto the task row
+     * when the judge resolves. Never fabricated.
+     */
+    qualityScore: number | null
     totalTokensIn: number
     totalTokensOut: number
     totalCostUsd: number
