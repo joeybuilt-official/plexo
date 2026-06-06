@@ -25,14 +25,34 @@ Stop background graphiti episode-extraction from competing with interactive task
 - Exit: router-v2 suite green; a `general` route logs a scored `chosen` (not noManifestMatch fallback).
 - Status: pending
 
-## Phase 4 — Executor setup latency re-measure (log-based, no budget)
+## Phase 4 — Executor setup latency re-measure (log-based, no budget) — DONE (finding recorded)
 - Scope: from existing prod logs, quantify current executor/tool-set setup time now that fylo-bridge ships + lane-iso + Phase 1 are live (compare to the ~5min Phase K/L observation). Identify the dominant remaining contributor (background AI churn vs plugin load vs graphiti). Record findings; spin a follow-up phase only if a concrete lever appears.
 - Deps: Phase 2 (so lane override is live during measurement). Subagents: Explore for log analysis.
 - Exit: a measured setup-time figure + named dominant contributor recorded in plan.md.
-- Status: pending
+
+### FINDING (2026-06-05, 47-min live window, ws 69d1f1f1)
+Log-msg histogram top entry by 2×: **`AI settings loaded from provider_instances` = 1408 loads in 47min (~30/min, one every ~2s), ALL one workspace, NO cache.** Each `loadSettingsFromInstances` (settings-from-instances.ts:55) = **2 DB queries (provider_instances + workspaces) + per-row AES-256-GCM decrypt + an info log**. A second uncached config path compounds it: agent-loop ai-cred chain-walk = 560 loads/47min (`ai-cred: walking provider chain` / `settings loaded` / `API key found in DB`, agent-loop.ts:237-326).
+- **Dominant remaining contributor = uncached per-call provider-config loads on the inference hot path** (callers: inference.ts:254 [every graphiti episode posts several], agent-loop.ts:238, embeddings/router.ts, memory bridge/extract, reflect). NOT fylo-bridge (absent, Phase P holds), NOT background AI churn directly (graphiti now lane-capped, Phase 1/5 proven), NOT plugin load.
+- provider_instances for a workspace changes ~daily; reloading it ~30×/min with crypto is pure waste. **Concrete lever → Phase 6 (proposed).**
+- Other log noise: 828× `Federation event type not handled — marking processed and dropping` (per local-node-event) + 12× `Stabilization alert raised` — separate observability noise, not setup latency; out of Round-4 scope (flag only).
+- "Setup-time figure": no instrumented claim→first-route timer exists; 4× `POST /api/v1/ai/tasks failed` were all `Delay was aborted` (client abort/supersede, benign — not crashes).
+- Status: DONE.
+
+## Phase 6 — Workspace AI-settings cache (PROPOSED, operator gate — concrete Phase 4 lever)
+Goal: collapse the ~1408+560 uncached per-call provider-config DB loads (ws 69d1, 47min) to ~1 per TTL window. Add a short-TTL (e.g. 30–60s) in-memory cache keyed by workspaceId around `loadSettingsFromInstances` (and the agent-loop ai-cred resolver), write-invalidated on provider-instance edits (instances.ts mutation points bump a per-ws version/clear the key). Cuts 2 DB queries + AES-GCM decrypt off the inference hot path on the vast majority of calls.
+- Risk/gate: caches decrypted API keys in memory (already transiently in memory; short TTL bounds exposure) + must invalidate on config change so provider edits propagate promptly → correctness-sensitive. Hot-path change ∴ operator awareness before implementing. Flag-gateable (TTL=0 ⇒ today's behavior).
+- Verify: post-deploy the `AI settings loaded from provider_instances` rate should drop from ~30/min toward ~1–2/min; no stale-config regressions after a provider edit.
 
 ## Phase 5 — Background-lane observability gauge — DONE (commit 2db8205, prod 34470b7e68db)
 Counters (bgAcquired/bgQueued/bgMaxQueueDepth/bgOverrides) in withLane → getLaneStats() → router-stats snapshot cron (30m). Live-read: `ssh <server> 'docker logs --since 1900s plexo-api | grep "background-lane counters"'`. First tick ≤30m after the 01:56Z recreate.
+
+### LIVE READING (2026-06-05, ~35min uptime, cumulative since process start)
+`{bgAcquired:607, bgQueued:61, bgMaxQueueDepth:3, bgOverrides:535}`
+- **bgOverrides=535 (>0) ⇒ graphiti CONFIRMED riding the background lane.** Phase 1+2 mechanism validated live in prod (535/607 = 88% of bg-lane work is the graphiti per-caller override).
+- **bgQueued=61, maxDepth=3 (>0) ⇒ the BG_MAX=2 cap IS engaging.** Graphiti is genuinely concurrency-capped (peak 3 calls waiting) — no longer competing unbounded with interactive planning. Interactive lane unbounded ∴ planning unaffected. Core Round-4 hypothesis proven.
+
+### BUG FOUND + FIXED — router-stats snapshot persistence crash
+runRouterStatsSnapshot (cron.ts:198-218) logged the gauge fine (line 190, before the write) but the INSERT crashed every 30m: `ERR_INVALID_ARG_TYPE: ... Received an instance of Date` (postgres-js Bind). Root cause: raw `sql\`(${snapshotAt})\`` interpolation in a VALUES tuple gives drizzle no column-type context → Date passed untyped to postgres-js. `router_v2_stats` had **0 rows ever** (persistence never worked since the Phase-4-stabilization feature shipped). Note line 34 `.set({lastRunAt:new Date()})` works b/c the query-builder knows the column type. Fix: `.toISOString()` on both Date binds (cooldown_end_at + snapshot_at) so Postgres casts text→timestamp. Pre-existing bug, surfaced by the Phase 5 gauge investigation; fixing it makes Phase 5's DB persistence (+ Phase 4 trend history) actually work.
 
 ## D2 — Graphiti fast-model routing (DEFERRED, operator opt-in — EXECUTABLE SPEC)
 Goal: route background-app (graphiti) inference calls to a fast provider (cerebras/groq gpt-oss-120b) to cut per-episode 5–14s → ~1–2s + offload deepseek. Quality risk on structured entity extraction → flag default-off, A/B via the Phase 5 gauge + graphiti add_episode timings.
@@ -53,10 +73,15 @@ Entry points: selector.ts:86 resolveModelId / :145 selectModel / :153 candidate 
 - Phase 1 — DONE, committed 7249487 (lane override + tests; router-v2 79/79, inference 28/28; agent+api tsc clean).
 - Phase 2 — DONE, deployed prod image 8fc6581a5b7e (rollback 8e13631a5ef6); override active (BG_APPS=graphiti-sidecar, LANE_ISO=1, BG_MAX=2); 0 errors; graphiti functioning. Compose backup docker-compose.yml.pre-bgapps.bak. Prod-source snapshot 0a8312f.
 - Phase 3 — DESCOPED (general already graceful via #11; not a router TaskType).
-- Phase 4 — INCONCLUSIVE; recreate flushed logs, no in-window interactive task. Re-measure under natural load. Positives: fylo-bridge absent, deepseek p95 ~6.5s.
-- D2 (graphiti fast-model) — DEFERRED, operator opt-in.
+- Phase 4 — DONE. Dominant contributor = uncached per-call provider-config DB loads (1408+560/47min, single ws) on inference hot path. Concrete lever → Phase 6 proposed.
+- Phase 5 — LIVE-VERIFIED. Gauge confirms graphiti on bg lane (bgOverrides 535) + cap engaging (bgQueued 61, depth 3). Found+fixed snapshot-persistence Date crash (0 rows ever → fix deploy pending).
+- Phase 6 — PROPOSED (workspace AI-settings cache); operator gate (hot-path + decrypted-key cache).
+- D2 (graphiti fast-model) — DEFERRED, operator opt-in. Recommendation: HOLD. Lane cap already solves the interactive-competition problem (Phase 5 proven); D2 is a throughput/cost play with extraction-quality risk. Phase 6 (config-load churn) is the higher-value, lower-risk next lever. Enable D2 only if per-episode graphiti latency (4.7–13.8s deepseek) becomes a felt backlog-drain problem.
 
 ## Decisions log
 - 2026-06-05 — Plan created. Per-caller lane override chosen over global extraction-reclassify to preserve the Phase L decision. D2 model-swap deferred to its own flag. 'general' manifest entry is additive cleanup.
 - 2026-06-05 — Phase 3 descoped: 'general' is a DB/category type, not a router TaskType; #11 noManifestMatch already falls back gracefully. Adding it = invasive TaskType-union change for no functional gain.
 - 2026-06-05 — Phase 1+2 shipped + merged to main. Runtime lane-cap not observable (Phase L deferred metrics) → flagged a minimal lane-gauge as a future follow-up. Phase 4 latency re-measure needs steady-state under natural interactive load.
+- 2026-06-05 — Phase 5 live-verified: gauge proves graphiti rides bg lane (bgOverrides 535) and the BG_MAX=2 cap engages (bgQueued 61, depth 3). Core Round-4 hypothesis confirmed in prod.
+- 2026-06-05 — Found+fixed pre-existing router-stats snapshot crash (Date bind → ERR_INVALID_ARG_TYPE; 0 rows ever). One-liner `.toISOString()` fix in cron.ts. Deploy pending.
+- 2026-06-05 — Phase 4 complete: dominant contributor = uncached per-call provider-config loads (~30/min single ws, 2 DB queries + AES-GCM each). Proposed Phase 6 (TTL settings cache) as the lever. D2 recommendation: HOLD (lane cap already addresses the core problem; Phase 6 is higher-value/lower-risk).

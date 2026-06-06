@@ -206,8 +206,8 @@ export async function runRouterStatsSnapshot(): Promise<void> {
         ${stats.latencyP50Ms},
         ${stats.latencyP95Ms},
         ${stats.recentFailurePenalty},
-        ${stats.cooldownEndAt > 0 ? new Date(stats.cooldownEndAt) : null},
-        ${snapshotAt}
+        ${stats.cooldownEndAt > 0 ? new Date(stats.cooldownEndAt).toISOString() : null},
+        ${snapshotAt.toISOString()}
     )`)
 
     await db.execute(sql`
