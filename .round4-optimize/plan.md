@@ -31,8 +31,18 @@ Stop background graphiti episode-extraction from competing with interactive task
 - Exit: a measured setup-time figure + named dominant contributor recorded in plan.md.
 - Status: pending
 
-## D2 — Graphiti fast-model routing (DEFERRED, own gated phase)
-Optional: route background-classified inference-proxy calls to a fast provider (cerebras/groq) to cut per-episode latency ~5–10x + offload deepseek. Quality risk on structured extraction → separate flag (default off), A/B observed. NOT in scope unless operator opts in after Phase 2.
+## Phase 5 — Background-lane observability gauge — DONE (commit 2db8205, prod 34470b7e68db)
+Counters (bgAcquired/bgQueued/bgMaxQueueDepth/bgOverrides) in withLane → getLaneStats() → router-stats snapshot cron (30m). Live-read: `ssh <server> 'docker logs --since 1900s plexo-api | grep "background-lane counters"'`. First tick ≤30m after the 01:56Z recreate.
+
+## D2 — Graphiti fast-model routing (DEFERRED, operator opt-in — EXECUTABLE SPEC)
+Goal: route background-app (graphiti) inference calls to a fast provider (cerebras/groq gpt-oss-120b) to cut per-episode 5–14s → ~1–2s + offload deepseek. Quality risk on structured entity extraction → flag default-off, A/B via the Phase 5 gauge + graphiti add_episode timings.
+Why a new hook (not existing knobs): `settings.modelOverrides[taskType]` (selector.ts:95) is workspace-wide per taskType → would hit ALL 'extraction' incl. interactive. Manifest bump (#1-style) likewise global. Need per-CALL scoping to the bg-app caller.
+Executable steps (next session):
+1. `RouteAndCallInput.modelIdOverride?: string` (router-v2/index.ts) + thread into `SelectInput` → `selectModel` (selector.ts:145). When set and a provider in `availableProviders` resolves to that model id, force-pick it (bypass scoring; keep cascade fallback to normal scoring on call failure). Keep telemetry `chosen` + a `forcedModel:true` flag.
+2. inference.ts: when `backgroundLaneOverride(req)` is background AND env `PLEXO_INFERENCE_BG_MODEL` set (e.g. `cerebras/gpt-oss-120b` or bare model id), pass `modelIdOverride` into routeAndCall. Empty/unset = today (no D2).
+3. Tests: forced model picked when provider available; falls back to normal selection when forced model's provider absent or call fails; flag-off = no override.
+4. Deploy flag default-OFF; enable by setting `PLEXO_INFERENCE_BG_MODEL` + recreate; observe gauge + graphiti add_episode latency for ~1h; revert = unset env.
+Entry points: selector.ts:86 resolveModelId / :145 selectModel / :153 candidate loop; index.ts:129 RouteAndCallInput / :142 routeAndCall; inference.ts backgroundLaneOverride + :304 routeAndCall call.
 
 ## One-way doors / operator gates
 - D1 lane mechanism (per-caller override vs global reclassify) — operator decision (ADR 0001 conflict #1). Recommended: per-caller override.
