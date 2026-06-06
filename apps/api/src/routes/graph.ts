@@ -25,6 +25,7 @@ import { randomUUID } from 'node:crypto'
 import { Router } from 'express'
 import pino from 'pino'
 import { GraphitiClient } from '@plexo/graphiti-bridge'
+import { graphCypher, isGraphSidecarConfigured } from '../lib/graph-sidecar.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 
 const logger = pino({ name: 'graph-routes' })
@@ -133,6 +134,48 @@ router.get('/facts/search', async (req, res) => {
         return
     }
     res.json({ results: result.results })
+})
+
+// Read-only cypher proxy for graph-viz consumers (Nexalog explorer, ADR 0026).
+// Blocks mutating clauses so a service-key caller can't write through this
+// surface; structured writes go through /v1/graph/write on the sidecar.
+const CYPHER_WRITE_RE = /\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|LOAD\s+CSV)\b/i
+
+interface CypherBody {
+    workspaceId?: string
+    cypher?: string
+    params?: Record<string, unknown>
+}
+
+router.post('/cypher', async (req, res) => {
+    const body = req.body as CypherBody | undefined
+    if (!body || typeof body.workspaceId !== 'string' || !UUID_RE.test(body.workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE_ID', message: 'workspaceId must be a UUID' } })
+        return
+    }
+    if (typeof body.cypher !== 'string' || body.cypher.trim().length === 0) {
+        res.status(400).json({ error: { code: 'EMPTY_CYPHER', message: 'cypher must be a non-empty string' } })
+        return
+    }
+    if (CYPHER_WRITE_RE.test(body.cypher)) {
+        res.status(400).json({ error: { code: 'WRITE_FORBIDDEN', message: 'this surface is read-only' } })
+        return
+    }
+    if (!isGraphSidecarConfigured()) {
+        res.status(503).json({ error: { code: 'SIDECAR_UNCONFIGURED', message: 'graphiti sidecar URL or service key not set' } })
+        return
+    }
+    try {
+        const result = await graphCypher({
+            workspace_id: body.workspaceId,
+            cypher: body.cypher,
+            params: body.params ?? {},
+        })
+        res.json(result)
+    } catch (err) {
+        logger.warn({ workspaceId: body.workspaceId, err: (err as Error).message }, 'graph.cypher: sidecar error')
+        res.status(502).json({ error: { code: 'SIDECAR_ERROR', message: (err as Error).message } })
+    }
 })
 
 export const graphRouter = router
