@@ -145,5 +145,74 @@ describe('router-v2 lane-limiter', () => {
             await withLane('summarization' as TaskType, async () => { ran = true })
             expect(ran).toBe(true)
         })
+
+        it('laneOverride="background" forces an interactive taskType into the capped lane (Round-4)', async () => {
+            process.env.PLEXO_BG_AI_MAX_CONCURRENT = '1'
+            _resetLaneLimiterForTest()
+
+            const gate = deferred()
+            let secondStarted = false
+
+            // An 'extraction' (interactive) call overridden to background holds the only bg permit.
+            const first = withLane('extraction' as TaskType, async () => { await gate.promise }, 'background')
+            await Promise.resolve()
+            // A second overridden 'extraction' must queue behind it (proves it's in the bg lane).
+            const second = withLane('extraction' as TaskType, async () => { secondStarted = true }, 'background')
+            await Promise.resolve()
+            expect(secondStarted).toBe(false)
+
+            gate.resolve()
+            await Promise.all([first, second])
+            expect(secondStarted).toBe(true)
+        })
+
+        it('laneOverride does NOT block when overridden interactive (no cap) and ignores taskType bg classification', async () => {
+            process.env.PLEXO_BG_AI_MAX_CONCURRENT = '1'
+            _resetLaneLimiterForTest()
+
+            const bgGate = deferred()
+            // Saturate bg lane via a real background taskType.
+            const bg1 = withLane('summarization' as TaskType, async () => { await bgGate.promise })
+            await Promise.resolve()
+
+            // A summarization call explicitly overridden to interactive must NOT queue behind bg1.
+            let overriddenRan = false
+            await withLane('summarization' as TaskType, async () => { overriddenRan = true }, 'interactive')
+            expect(overriddenRan).toBe(true)
+
+            bgGate.resolve()
+            await bg1
+        })
+
+        it('without override, an interactive taskType is unaffected by a saturated bg lane', async () => {
+            process.env.PLEXO_BG_AI_MAX_CONCURRENT = '1'
+            _resetLaneLimiterForTest()
+
+            const bgGate = deferred()
+            const bg1 = withLane('summarization' as TaskType, async () => { await bgGate.promise })
+            await Promise.resolve()
+
+            let extractionRan = false
+            await withLane('extraction' as TaskType, async () => { extractionRan = true })
+            expect(extractionRan).toBe(true)
+
+            bgGate.resolve()
+            await bg1
+        })
+    })
+
+    describe('withLane — flag OFF ignores laneOverride', () => {
+        it('background override is a passthrough when isolation disabled', async () => {
+            const gate = deferred()
+            let secondStarted = false
+            const first = withLane('extraction' as TaskType, async () => { await gate.promise }, 'background')
+            await Promise.resolve()
+            const second = withLane('extraction' as TaskType, async () => { secondStarted = true }, 'background')
+            await Promise.resolve()
+            // No cap when disabled → second runs immediately even with bg override.
+            expect(secondStarted).toBe(true)
+            gate.resolve()
+            await Promise.all([first, second])
+        })
     })
 })

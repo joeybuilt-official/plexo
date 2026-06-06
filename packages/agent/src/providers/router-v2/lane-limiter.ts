@@ -89,16 +89,21 @@ function backgroundSemaphore(): Semaphore {
 }
 
 /**
- * Run `fn` under its task type's lane.
+ * Run `fn` under its lane.
  * - Flag OFF: passthrough (no semaphore, no extra Promise hop on the success
  *   path beyond the call itself) — identical to pre-ADR behaviour.
  * - INTERACTIVE lane: unbounded passthrough.
  * - BACKGROUND lane: acquire a permit, run, release in `finally` (release runs
  *   on throw too — pre-mortem #2 leak guard).
+ *
+ * `laneOverride` lets a trusted caller force the lane independent of taskType —
+ * e.g. the inference proxy routes a background app's (graphiti) schema-mode
+ * `extraction` call into the background lane without globally reclassifying
+ * `extraction` (Round-4: preserves the Phase L taskType-only decision).
  */
-export async function withLane<T>(taskType: TaskType, fn: () => Promise<T>): Promise<T> {
+export async function withLane<T>(taskType: TaskType, fn: () => Promise<T>, laneOverride?: Lane): Promise<T> {
     if (!laneIsolationEnabled()) return fn()
-    if (laneFor(taskType) === 'interactive') return fn()
+    if ((laneOverride ?? laneFor(taskType)) === 'interactive') return fn()
 
     const sem = backgroundSemaphore()
     await sem.acquire()

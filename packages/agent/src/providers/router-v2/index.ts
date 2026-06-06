@@ -32,7 +32,7 @@ import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
 import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
 import { emitProviderFailure } from './ops-events.js'
-import { withLane } from './lane-limiter.js'
+import { withLane, type Lane } from './lane-limiter.js'
 
 export * from './manifest.js'
 export * from './lane-limiter.js'
@@ -132,6 +132,14 @@ export interface RouteAndCallInput<T> {
     settings: WorkspaceAISettings
     doCall: (model: AnyLanguageModel) => Promise<T>
     opts?: FallbackOptions
+    /**
+     * Force the concurrency lane independent of `taskType`. Used by trusted
+     * callers (the inference proxy for background apps like graphiti) to put a
+     * schema-mode `extraction` call into the background lane without globally
+     * reclassifying the taskType. Affects lane gating only — manifest scoring
+     * still uses `taskType`.
+     */
+    laneOverride?: Lane
 }
 
 /**
@@ -143,7 +151,7 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
     // ADR 0002: gate background-lane calls behind a concurrency cap so memory/
     // judge/summarization churn cannot starve interactive task planning. Flag
     // OFF (default) → passthrough, byte-identical to pre-ADR behaviour.
-    return withLane(input.taskType, () => routeAndCallInner(input))
+    return withLane(input.taskType, () => routeAndCallInner(input), input.laneOverride)
 }
 
 async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {

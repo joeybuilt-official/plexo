@@ -55,7 +55,7 @@ const { callModel } = await import('@plexo/agent/providers/call-model')
 const { resolveModel } = await import('@plexo/agent/providers/registry')
 const { routeAndCall } = await import('@plexo/agent/providers/router-v2')
 const { loadSettingsFromInstances } = await import('@plexo/agent/providers/settings-from-instances')
-const { inferenceRouter } = await import('../inference.js')
+const { inferenceRouter, backgroundLaneOverrideForAppId } = await import('../inference.js')
 
 const SERVICE_KEY = 'test-service-key-1234567890abcd'
 const VALID_WORKSPACE = '00000000-0000-0000-0000-000000000001'
@@ -563,5 +563,33 @@ describe('URL-routed /api/inference/ws/:workspaceId/v1/...', () => {
             body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
         })
         expect(res.status).toBe(401)
+    })
+})
+
+describe('backgroundLaneOverrideForAppId (Round-4 lane override)', () => {
+    const prev = process.env.PLEXO_INFERENCE_BG_APPS
+    afterAll(() => {
+        if (prev === undefined) delete process.env.PLEXO_INFERENCE_BG_APPS
+        else process.env.PLEXO_INFERENCE_BG_APPS = prev
+    })
+
+    it('defaults the allowlist to graphiti-sidecar', () => {
+        delete process.env.PLEXO_INFERENCE_BG_APPS
+        expect(backgroundLaneOverrideForAppId('graphiti-sidecar')).toBe('background')
+        expect(backgroundLaneOverrideForAppId('some-interactive-app')).toBeUndefined()
+        expect(backgroundLaneOverrideForAppId(undefined)).toBeUndefined()
+        expect(backgroundLaneOverrideForAppId('')).toBeUndefined()
+    })
+
+    it('honors a custom comma-separated allowlist', () => {
+        process.env.PLEXO_INFERENCE_BG_APPS = 'graphiti-sidecar, batch-worker'
+        expect(backgroundLaneOverrideForAppId('batch-worker')).toBe('background')
+        expect(backgroundLaneOverrideForAppId('graphiti-sidecar')).toBe('background')
+        expect(backgroundLaneOverrideForAppId('nope')).toBeUndefined()
+    })
+
+    it('empty allowlist disables the override (escape hatch)', () => {
+        process.env.PLEXO_INFERENCE_BG_APPS = ''
+        expect(backgroundLaneOverrideForAppId('graphiti-sidecar')).toBeUndefined()
     })
 })
