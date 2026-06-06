@@ -38,8 +38,10 @@ import json
 import logging
 import os
 import random
+import re
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request
@@ -205,6 +207,20 @@ def _ws_lock(workspace_id: str) -> asyncio.Lock:
     """Per-workspace lock. defaultdict creation is safe under CPython's
     single-threaded asyncio event loop."""
     return _WORKSPACE_LOCKS[workspace_id]
+
+
+# The per-workspace lock exists to serialize WRITES (see locking model above).
+# Read-only cypher does not mutate the graph, so it must not queue behind an
+# in-flight write — otherwise graph-viz reads starve on a workspace that is
+# actively ingesting episodes. Conservative detection: any write clause means
+# take the lock; a false positive only costs a little latency, never safety.
+_CYPHER_WRITE_RE = re.compile(
+    r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|LOAD\s+CSV)\b", re.IGNORECASE
+)
+
+
+def _is_read_only_cypher(cypher: str) -> bool:
+    return _CYPHER_WRITE_RE.search(cypher) is None
 
 
 async def _get_graphiti(workspace_id: str) -> Graphiti:
@@ -759,8 +775,11 @@ async def graph_cypher(request: Request, body: GraphCypherRequest) -> JSONRespon
     await _require_hmac(request)
     _validate_workspace_id(body.workspace_id)
 
+    # Read-only cypher skips the write lock so graph reads aren't starved by
+    # in-flight episode ingestion; FalkorDB runs each query atomically.
+    guard = nullcontext() if _is_read_only_cypher(body.cypher) else _ws_lock(body.workspace_id)
     lock_wait_start = _now_monotonic_ms()
-    async with _ws_lock(body.workspace_id):
+    async with guard:
         lock_wait_ms = _now_monotonic_ms() - lock_wait_start
         query_start = _now_monotonic_ms()
         client = _falkordb_client()
