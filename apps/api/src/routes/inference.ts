@@ -107,6 +107,29 @@ function mapCallModelErrorStatus(code: CallModelError['code']): number {
     }
 }
 
+/**
+ * Round-4: background-app lane override. The inference proxy serves trusted
+ * internal callers (notably the graphiti sidecar, whose episode extraction is
+ * fire-and-forget background work). Their schema-mode calls classify as
+ * `extraction` = interactive lane, so they ride uncapped and compete with
+ * interactive planning. When the caller's `X-App-Id` is in the background
+ * allowlist (`PLEXO_INFERENCE_BG_APPS`, default `graphiti-sidecar`), force the
+ * background lane — caps them via PLEXO_BG_AI_MAX_CONCURRENT without globally
+ * reclassifying `extraction` (preserves the Phase L taskType-only decision).
+ * Lane gating only; manifest scoring still uses the real taskType.
+ */
+export function backgroundLaneOverrideForAppId(appId: string | undefined): 'background' | undefined {
+    if (typeof appId !== 'string' || !appId) return undefined
+    const raw = process.env.PLEXO_INFERENCE_BG_APPS ?? 'graphiti-sidecar'
+    const allow = new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))
+    return allow.has(appId) ? 'background' : undefined
+}
+
+function backgroundLaneOverride(req: Request): 'background' | undefined {
+    const appId = req.headers['x-app-id']
+    return backgroundLaneOverrideForAppId(typeof appId === 'string' ? appId : undefined)
+}
+
 async function embeddingsHandler(req: Request, res: Response): Promise<void> {
     const workspaceId = resolveWorkspaceId(req)
     if (!workspaceId) {
@@ -288,6 +311,7 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
                 settings: aiSettings,
                 doCall: dispatch,
                 opts: fallbackOpts,
+                laneOverride: backgroundLaneOverride(req),
             })
         } else {
             // No workspace settings — env-var fallback path (dev / self-host)
