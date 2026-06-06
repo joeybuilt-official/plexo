@@ -370,12 +370,20 @@ export function buildModel(
     config: AIProviderConfig,
     taskType: TaskType,
     settings: WorkspaceAISettings,
+    /**
+     * Per-call forced model id (Round-4 D2). When set + valid it wins over the
+     * workspace cascade — used by the router when the selector force-picks a
+     * model for a specific caller (e.g. background graphiti → a fast model).
+     * Highest precedence so it overrides even settings.modelOverrides[taskType].
+     */
+    modelIdOverride?: string,
 ): AnyLanguageModel {
     // Resolve model ID — never let a Claude ID land on a non-Anthropic provider
     const validModel = (id: string | undefined) =>
         id && id.trim() !== '' && id !== 'default' && id !== 'placeholder' ? id : undefined
 
     let modelId =
+        validModel(modelIdOverride) ??
         validModel(settings.modelOverrides?.[taskType]) ??
         validModel(config.model) ??
         PROVIDER_DEFAULT_MODELS[providerKey] ??

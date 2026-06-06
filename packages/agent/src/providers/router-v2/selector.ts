@@ -72,6 +72,8 @@ export interface SelectionResult {
      * Settings page reads the 7-day count to render the `provider_quality_warning` chip.
      */
     degradationReason?: 'workspace_low_quality_only'
+    /** Round-4 D2: true when `chosen` came from a forced modelIdOverride (bypassed scoring). */
+    forcedModel?: boolean
 }
 
 export interface SelectInput {
@@ -80,6 +82,14 @@ export interface SelectInput {
     /** Providers the workspace has configured + we should consider. Order is honored as a soft prior. */
     availableProviders: AvailableProvider[]
     settings: WorkspaceAISettings
+    /**
+     * Round-4 D2: per-call forced model. Accepts `provider/model` or a bare
+     * `model` id. When it resolves to a configured provider (with a manifest
+     * entry for this task type) the selector force-picks it, bypassing scoring.
+     * If it can't be resolved (provider absent / in the excluded pool), the
+     * selector falls through to normal scoring. Default unset = no override.
+     */
+    modelIdOverride?: string
 }
 
 /** Resolve the concrete model ID this candidate would call. */
@@ -142,9 +152,63 @@ function whyNotPicked(c: Scored, top: Scored): string {
     return `lower composite score (${c.score.toFixed(2)} vs ${top.score.toFixed(2)})`
 }
 
+/**
+ * Round-4 D2: try to resolve a forced model from `modelIdOverride` against the
+ * configured providers. Returns a ChosenModel (bypassing scoring) when the model
+ * maps to an available provider that has a manifest entry for this task type;
+ * null otherwise (caller falls through to normal scoring).
+ */
+function resolveForcedModel(
+    modelIdOverride: string,
+    availableProviders: AvailableProvider[],
+    taskType: TaskType,
+    settings: WorkspaceAISettings,
+): ChosenModel | null {
+    const trimmed = modelIdOverride.trim()
+    if (trimmed === '') return null
+    const slash = trimmed.indexOf('/')
+    const wantProvider = slash > 0 ? trimmed.slice(0, slash) : null
+    const wantModel = slash > 0 ? trimmed.slice(slash + 1) : trimmed
+
+    for (const ap of availableProviders) {
+        if (wantProvider && ap.provider !== wantProvider) continue
+        const resolved = resolveModelId(ap.provider, ap.config, taskType, settings)
+        const matches = wantProvider !== null || resolved === wantModel || ap.config.model === wantModel
+        if (!matches) continue
+        const entry = getManifestEntry(taskType, ap.provider)
+        if (!entry) continue // need an entry for cascade params; else fall through to scoring
+        return {
+            provider: ap.provider,
+            model: wantProvider !== null ? wantModel : (resolved ?? wantModel),
+            score: 0,
+            priorScore: entry.priorScore,
+            manifestEntry: entry,
+        }
+    }
+    return null
+}
+
 export function selectModel(input: SelectInput): SelectionResult {
-    const { workspaceId, taskType, availableProviders, settings } = input
+    const { workspaceId, taskType, availableProviders, settings, modelIdOverride } = input
     const now = Date.now()
+
+    // D2 forced model: highest precedence, bypasses scoring. Falls through to
+    // normal selection when the forced model isn't an available provider (e.g.
+    // it failed and was excluded from the cascade pool).
+    if (modelIdOverride) {
+        const forced = resolveForcedModel(modelIdOverride, availableProviders, taskType, settings)
+        if (forced) {
+            return {
+                chosen: forced,
+                alternatives: [],
+                rationale: `${forced.provider}/${forced.model} forced via modelIdOverride (bypassed scoring).`,
+                manifestVersion,
+                requireOperatorAction: false,
+                noManifestMatch: false,
+                forcedModel: true,
+            }
+        }
+    }
 
     const scoredAll: Scored[] = []
     for (const ap of availableProviders) {

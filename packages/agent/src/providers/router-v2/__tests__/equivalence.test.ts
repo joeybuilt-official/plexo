@@ -194,6 +194,56 @@ describe('router-v2 selector', () => {
         expect(r.chosen!.provider).toBe('anthropic')
         expect(r.alternatives.length).toBeGreaterThan(0)
         expect(r.rationale).toContain('anthropic')
+        expect(r.forcedModel).toBeFalsy() // D2: no override ⇒ normal selection
+    })
+
+    it('D2 forced model (provider/model): bypasses scoring even when a higher-prior provider is available', () => {
+        const r = selectModel({
+            workspaceId: 'ws-1',
+            taskType: 'codeGeneration',
+            availableProviders: [
+                { provider: 'anthropic', config: baseSettings().providers.anthropic! }, // prior 5
+                { provider: 'deepseek', config: baseSettings().providers.deepseek! },
+            ],
+            settings: baseSettings(),
+            modelIdOverride: 'deepseek/zzz-fast',
+        })
+        expect(r.forcedModel).toBe(true)
+        expect(r.chosen!.provider).toBe('deepseek')
+        expect(r.chosen!.model).toBe('zzz-fast') // forced model id used verbatim
+        expect(r.alternatives).toEqual([])
+        expect(r.rationale).toContain('forced')
+    })
+
+    it('D2 forced model (bare model id): matches the provider whose resolved model equals it', () => {
+        const r = selectModel({
+            workspaceId: 'ws-1',
+            taskType: 'codeGeneration',
+            availableProviders: [
+                { provider: 'anthropic', config: baseSettings().providers.anthropic! },
+                { provider: 'deepseek', config: baseSettings().providers.deepseek! },
+            ],
+            settings: baseSettings(),
+            modelIdOverride: 'deepseek-v3', // == deepseek config.model
+        })
+        expect(r.forcedModel).toBe(true)
+        expect(r.chosen!.provider).toBe('deepseek')
+        expect(r.chosen!.model).toBe('deepseek-v3')
+    })
+
+    it('D2 forced model: provider absent from the pool → falls through to normal scoring', () => {
+        const r = selectModel({
+            workspaceId: 'ws-1',
+            taskType: 'codeGeneration',
+            availableProviders: [
+                { provider: 'anthropic', config: baseSettings().providers.anthropic! },
+                { provider: 'deepseek', config: baseSettings().providers.deepseek! },
+            ],
+            settings: baseSettings(),
+            modelIdOverride: 'cerebras/gpt-oss-120b', // cerebras not in pool
+        })
+        expect(r.forcedModel).toBeFalsy()
+        expect(r.chosen!.provider).toBe('anthropic') // normal top scorer
     })
 
     it('emits alternatives_considered always (operator decision C2)', () => {
@@ -423,6 +473,37 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
     it('happy path: primary succeeds → returns the result', async () => {
         const routed = await routeAndCall({
             workspaceId: 'ws-1',
+            taskType: 'conversation',
+            settings: baseSettings(),
+            doCall: async () => 'ok',
+        })
+        expect(routed).toBe('ok')
+    })
+
+    it('D2 forced model: failed forced call → cascades to a normally-scored provider', async () => {
+        _resetStatsForTest()
+        let calls = 0
+        const fn = vi.fn(async (model: any) => {
+            calls++
+            // The forced deepseek call fails retryably the first time; the
+            // cascade excludes deepseek and re-selects (no override match left).
+            if (calls === 1) throw new Error('429 too many requests')
+            return 'ok'
+        })
+        const routed = await routeAndCall({
+            workspaceId: 'wsD2',
+            taskType: 'conversation',
+            settings: baseSettings(),
+            doCall: fn,
+            modelIdOverride: 'deepseek/zzz-fast',
+        })
+        expect(routed).toBe('ok')
+        expect(calls).toBeGreaterThanOrEqual(2) // forced attempt + cascade attempt
+    })
+
+    it('D2 flag-off (no modelIdOverride): behaves exactly as today', async () => {
+        const routed = await routeAndCall({
+            workspaceId: 'wsD2off',
             taskType: 'conversation',
             settings: baseSettings(),
             doCall: async () => 'ok',

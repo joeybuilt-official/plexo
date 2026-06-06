@@ -37,7 +37,11 @@
 - [x] Deployed + healthy + 0 errors. Prod-source snapshot de0c7f8.
 - [x] LIVE READING (2026-06-05): `{bgAcquired:607,bgQueued:61,bgMaxQueueDepth:3,bgOverrides:535}`. bgOverrides>0 ⇒ graphiti on bg lane CONFIRMED; bgQueued>0 ⇒ cap engaging CONFIRMED. Round-4 hypothesis proven in prod.
 - [x] BUG: snapshot INSERT crashed every 30m (Date bind → ERR_INVALID_ARG_TYPE); router_v2_stats 0 rows ever. Fixed cron.ts:209-210 with `.toISOString()`. api tsc clean.
-- [ ] Deploy fix to NAS plexo-api; verify next tick logs `Router stats snapshot: persisted` + router_v2_stats gains rows.
+- [x] Deployed (prod 2b9607dd→since b3925c3f) + VERIFIED: `Router stats snapshot: persisted` logged, router_v2_stats gaining rows (was 0 ever).
 
-## Deferred
-- [ ] D2 — graphiti fast-model routing (separate flag, operator opt-in). RECOMMENDATION: HOLD — lane cap already solves interactive-competition; Phase 6 is higher-value/lower-risk. Revisit only if graphiti backlog-drain latency becomes a felt problem.
+## D2 — graphiti fast-model routing — CODE IMPLEMENTED default-OFF (deploy pending; flip-on = operator gate)
+- [x] buildModel +modelIdOverride? (registry.ts, highest precedence); selector +modelIdOverride?/forcedModel? + resolveForcedModel (provider/model | bare id; manifest-entry-gated; falls through if provider absent)
+- [x] index.ts RouteAndCallInput +modelIdOverride? threaded to selectModel + buildModel-on-forced; cascade self-disables override after a forced-call failure
+- [x] inference.ts backgroundModelForAppId() = PLEXO_INFERENCE_BG_MODEL for bg-allowlisted callers only; wired as modelIdOverride
+- [x] Tests: selector forced/bare/absent + routeAndCall forced-fail-cascades + flag-off (router-v2 58); inference default-OFF/on/interactive-never/empty (inference 32); agent+api tsc clean
+- [ ] Deploy (flag default-OFF, no behavior change); flip-on later via PLEXO_INFERENCE_BG_MODEL + recreate after operator OK (extraction-quality A/B), revert = unset env
