@@ -18,6 +18,7 @@ import { pollAllGmailChannels } from './lib/gmail-poll.js'
 import { runAttachmentScanTick } from './lib/attachment-scan-worker.js'
 import { getAllStats } from '@plexo/agent/providers/router-v2'
 import { getSchemaRelaxedStats } from '@plexo/agent/providers/call-model'
+import { getLaneStats } from '@plexo/agent/providers/router-v2'
 import { flushOpsAlerts } from './ops-alerts.js'
 import { INTERNAL_JOB_NAMES } from './cron-internal-jobs.js'
 
@@ -186,6 +187,7 @@ export async function runRouterStatsSnapshot(): Promise<void> {
     // Surface schema-relaxation telemetry alongside the router snapshot so the
     // "how often the structured-output safety net fires" counter is observable.
     logger.info({ schemaRelaxed: getSchemaRelaxedStats() }, 'Router stats snapshot: schema_relaxed counters')
+    logger.info({ lane: getLaneStats() }, 'Router stats snapshot: background-lane counters')
 
     const entries = getAllStats()
     if (entries.length === 0) {

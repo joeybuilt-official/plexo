@@ -8,6 +8,7 @@ import {
     laneIsolationEnabled,
     withLane,
     Semaphore,
+    getLaneStats,
     _resetLaneLimiterForTest,
 } from '../lane-limiter.js'
 import type { TaskType } from '../../registry.js'
@@ -198,6 +199,48 @@ describe('router-v2 lane-limiter', () => {
 
             bgGate.resolve()
             await bg1
+        })
+    })
+
+    describe('getLaneStats counters (Round-4 gauge)', () => {
+        beforeEach(() => { process.env.PLEXO_AI_LANE_ISOLATION = '1' })
+
+        it('counts acquisitions, queueing, max depth, and override-forced bg traffic', async () => {
+            process.env.PLEXO_BG_AI_MAX_CONCURRENT = '1'
+            _resetLaneLimiterForTest()
+            expect(getLaneStats()).toEqual({ bgAcquired: 0, bgQueued: 0, bgMaxQueueDepth: 0, bgOverrides: 0 })
+
+            const gate = deferred()
+            // bg1 (taskType-classified) holds the only permit.
+            const bg1 = withLane('summarization' as TaskType, async () => { await gate.promise })
+            await Promise.resolve()
+            // bg2 (override-forced) must queue behind bg1.
+            const bg2 = withLane('extraction' as TaskType, async () => {}, 'background')
+            await Promise.resolve()
+
+            const mid = getLaneStats()
+            expect(mid.bgAcquired).toBe(2)
+            expect(mid.bgOverrides).toBe(1)        // only bg2 was override-forced
+            expect(mid.bgQueued).toBe(1)           // bg2 had to wait
+            expect(mid.bgMaxQueueDepth).toBe(1)
+
+            gate.resolve()
+            await Promise.all([bg1, bg2])
+        })
+
+        it('flag OFF records nothing', async () => {
+            process.env.PLEXO_AI_LANE_ISOLATION = '0'
+            _resetLaneLimiterForTest()
+            await withLane('summarization' as TaskType, async () => {})
+            await withLane('extraction' as TaskType, async () => {}, 'background')
+            expect(getLaneStats()).toEqual({ bgAcquired: 0, bgQueued: 0, bgMaxQueueDepth: 0, bgOverrides: 0 })
+        })
+
+        it('getLaneStats returns a copy (no external mutation)', () => {
+            _resetLaneLimiterForTest()
+            const s = getLaneStats()
+            s.bgAcquired = 999
+            expect(getLaneStats().bgAcquired).toBe(0)
         })
     })
 
