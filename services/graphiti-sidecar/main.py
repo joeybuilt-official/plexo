@@ -215,12 +215,16 @@ def _ws_lock(workspace_id: str) -> asyncio.Lock:
 # actively ingesting episodes. Conservative detection: any write clause means
 # take the lock; a false positive only costs a little latency, never safety.
 _CYPHER_WRITE_RE = re.compile(
-    r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|LOAD\s+CSV)\b", re.IGNORECASE
+    r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|FOREACH|LOAD\s+CSV)\b"
+    r"|\bCALL\s+apoc\.\w*(create|merge|delete|set|remove|refactor)",
+    re.IGNORECASE,
 )
+# Strip comments first so a write keyword can't hide behind // or /* */.
+_CYPHER_COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 
 
 def _is_read_only_cypher(cypher: str) -> bool:
-    return _CYPHER_WRITE_RE.search(cypher) is None
+    return _CYPHER_WRITE_RE.search(_CYPHER_COMMENT_RE.sub(" ", cypher)) is None
 
 
 async def _get_graphiti(workspace_id: str) -> Graphiti:
