@@ -39,5 +39,14 @@ Optional: route background-classified inference-proxy calls to a fast provider (
 - D2 fast-model — separate opt-in (ADR 0001 conflict #2).
 - Every prod deploy hostname-gated + announced; push to public origin within the standing Round-4 OK.
 
+## Status (2026-06-05)
+- Phase 1 — DONE, committed 7249487 (lane override + tests; router-v2 79/79, inference 28/28; agent+api tsc clean).
+- Phase 2 — DONE, deployed prod image 8fc6581a5b7e (rollback 8e13631a5ef6); override active (BG_APPS=graphiti-sidecar, LANE_ISO=1, BG_MAX=2); 0 errors; graphiti functioning. Compose backup docker-compose.yml.pre-bgapps.bak. Prod-source snapshot 0a8312f.
+- Phase 3 — DESCOPED (general already graceful via #11; not a router TaskType).
+- Phase 4 — INCONCLUSIVE; recreate flushed logs, no in-window interactive task. Re-measure under natural load. Positives: fylo-bridge absent, deepseek p95 ~6.5s.
+- D2 (graphiti fast-model) — DEFERRED, operator opt-in.
+
 ## Decisions log
 - 2026-06-05 — Plan created. Per-caller lane override chosen over global extraction-reclassify to preserve the Phase L decision. D2 model-swap deferred to its own flag. 'general' manifest entry is additive cleanup.
+- 2026-06-05 — Phase 3 descoped: 'general' is a DB/category type, not a router TaskType; #11 noManifestMatch already falls back gracefully. Adding it = invasive TaskType-union change for no functional gain.
+- 2026-06-05 — Phase 1+2 shipped + merged to main. Runtime lane-cap not observable (Phase L deferred metrics) → flagged a minimal lane-gauge as a future follow-up. Phase 4 latency re-measure needs steady-state under natural interactive load.
