@@ -38,7 +38,8 @@ Log-msg histogram top entry by 2×: **`AI settings loaded from provider_instance
 - "Setup-time figure": no instrumented claim→first-route timer exists; 4× `POST /api/v1/ai/tasks failed` were all `Delay was aborted` (client abort/supersede, benign — not crashes).
 - Status: DONE.
 
-## Phase 6 — Workspace AI-settings cache — IMPLEMENTED (operator-approved 2026-06-05; deploy/verify pending)
+## Phase 6 — Workspace AI-settings cache — DONE + VERIFIED (prod image b3925c3f, 2026-06-05)
+VERIFIED: provider-config load rate dropped ~30/min → **~2.0/min** (4 loads/120s = one per 30s TTL window) while bg traffic kept flowing (25 events/120s); 0 errors. ~15× reduction on the inference hot path. Rollback = `PLEXO_SETTINGS_CACHE_TTL_MS=0` + recreate (no rebuild) or recreate on prior image 2b9607dd.
 Goal: collapse the ~1408+560 uncached per-call provider-config DB loads (ws 69d1, 47min) to ~1 per TTL window. Short-TTL in-memory cache keyed by workspaceId around `loadSettingsFromInstances` covers BOTH hot paths (the agent-loop ai-cred resolver calls loadSettingsFromInstances at agent-loop.ts:238, then only does in-memory work — no extra DB). Cuts 2 DB queries + per-row AES-GCM decrypt off the inference hot path on the vast majority of calls.
 - Impl: settings-from-instances.ts — `SETTINGS_CACHE_TTL_MS` (env `PLEXO_SETTINGS_CACHE_TTL_MS`, default 30000, 0=disabled=today); Map<wsId,{value,expiresAt}>; existing body → `loadSettingsFromInstancesUncached`; `invalidateSettingsCache(wsId?)` exported. instances.ts CRUD (add/update/remove/reorder) call invalidate for prompt freshness on operator edits. Other rare writers (judgeModel jsonb_set, discovery capability refresh, embeddings model/dims) rely on ≤TTL eventual consistency (embeddings fields aren't surfaced into WorkspaceAISettings anyway).
 - Tests: settings-from-instances.test.ts +2 (memoize within TTL = no 2nd DB load; invalidate(ws) reloads that ws only, other ws stays cached). 6/6 green; reflect 6/6 + extract 10/10 unaffected; agent+api tsc clean.
@@ -77,7 +78,7 @@ Entry points: selector.ts:86 resolveModelId / :145 selectModel / :153 candidate 
 - Phase 3 — DESCOPED (general already graceful via #11; not a router TaskType).
 - Phase 4 — DONE. Dominant contributor = uncached per-call provider-config DB loads (1408+560/47min, single ws) on inference hot path. Concrete lever → Phase 6 proposed.
 - Phase 5 — LIVE-VERIFIED. Gauge confirms graphiti on bg lane (bgOverrides 535) + cap engaging (bgQueued 61, depth 3). Found+fixed snapshot-persistence Date crash (0 rows ever → fix deploy pending).
-- Phase 6 — IMPLEMENTED (workspace AI-settings cache, operator-approved); tests+tsc green; deploy/verify pending.
+- Phase 6 — DONE + VERIFIED (prod b3925c3f): config-load rate ~30/min → ~2/min (~15× cut), 0 errors.
 - D2 (graphiti fast-model) — DEFERRED, operator opt-in. Recommendation: HOLD. Lane cap already solves the interactive-competition problem (Phase 5 proven); D2 is a throughput/cost play with extraction-quality risk. Phase 6 (config-load churn) is the higher-value, lower-risk next lever. Enable D2 only if per-episode graphiti latency (4.7–13.8s deepseek) becomes a felt backlog-drain problem.
 
 ## Decisions log
