@@ -884,6 +884,22 @@ export function buildCapabilityLimitationSummary(message: string): string {
 }
 
 /**
+ * Pure decision for the {@link executeTask} catch handler: given the thrown
+ * error message and whether a deliverable was persisted, decide whether to
+ * complete gracefully with a limitation (Phase N) or re-throw (→ agent-loop
+ * fail). Extracted so the wired decision is unit-testable without driving the
+ * full executor / db.
+ */
+export function decideCapabilityGapOutcome(
+    message: string,
+    hasDeliverable: boolean,
+): 'complete_with_limitation' | 'rethrow' {
+    return classifyCapabilityGap(message) && hasDeliverable
+        ? 'complete_with_limitation'
+        : 'rethrow'
+}
+
+/**
  * Phase N (operator-approved: complete+marker): a capability gap — the agent was
  * asked to use a tool/capability that does not exist (deploy, host, a missing
  * integration) — is not a crash. When the run still produced a deliverable,
@@ -903,7 +919,7 @@ export async function executeTask(
         return await executeTaskInner(ctx, plan, aiSettings)
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        if (classifyCapabilityGap(message) && await taskHasDeliverable(ctx.taskId)) {
+        if (decideCapabilityGapOutcome(message, await taskHasDeliverable(ctx.taskId)) === 'complete_with_limitation') {
             logger.info(
                 { taskId: ctx.taskId, detail: message.slice(0, 200) },
                 'capability gap with deliverable present — completing with limitation (Phase N)',
@@ -944,6 +960,21 @@ async function executeTaskInner(
     let totalCost = 0
     let finalSummary = ''
     let finalQuality = 0.5
+
+    // ── Phase N verification hook (double-gated, inert in normal operation) ──
+    // ctx.capabilityGapTest is only set when env PLEXO_CAPABILITY_GAP_TEST==='1'
+    // AND the task carries context._capabilityGapTest. It forces a synthetic
+    // throw — early, before any model spend — so the capability-gap paths can be
+    // exercised end-to-end. The deliverable precondition is controlled by the
+    // harness (artifact-row presence), not here. See executeTask catch handler.
+    if (ctx.capabilityGapTest) {
+        if (ctx.capabilityGapTest === 'crash') {
+            // Non-capability-worded → classifyCapabilityGap=false → tool_error.
+            throw new PlexoError('database connection reset by peer (synthetic crash test)', 'CAPABILITY_GAP_TEST', 'system', 500)
+        }
+        // 'with_deliverable' | 'no_deliverable' → capability-worded throw.
+        throw new PlexoError('No such tool: deploy_site (capability-gap test)', 'CAPABILITY_GAP_TEST', 'system', 500)
+    }
 
     // ── One-Way Door gate (§8.4 approval protocol) ───────────────────────────
     // If the plan flags irreversible operations, request approval before running.

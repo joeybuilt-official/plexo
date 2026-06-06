@@ -576,6 +576,19 @@ export interface ExecutionContext {
      * `incrementCounter('plexo_outbound_denial_loop_total', ...)`.
      */
     onOutboundDenialLoop?: (params: { tool: string; provider: string; count: number }) => void
+    /**
+     * Phase N verification hook (double-gated). Only populated when env
+     * `PLEXO_CAPABILITY_GAP_TEST === '1'` AND `task.context._capabilityGapTest`
+     * is set. Forces the executor to throw a synthetic error so the
+     * capability-gap complete-with-limitation / honest-fail paths can be
+     * exercised end-to-end in prod without relying on the model emitting a
+     * matching error organically. Inert in all normal operation (undefined).
+     *   'with_deliverable' | 'no_deliverable' → capability-worded throw
+     *   'crash'                                → non-matching throw (real crash)
+     * The deliverable precondition itself is controlled by the harness
+     * (presence/absence of an artifact row), not by this flag.
+     */
+    capabilityGapTest?: 'with_deliverable' | 'no_deliverable' | 'crash'
 }
 
 export interface StepResult {
