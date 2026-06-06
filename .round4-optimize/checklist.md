@@ -21,5 +21,13 @@
 - [x] Confirmed positives: fylo-bridge activation failures ABSENT (Phase P holds); deepseek p95 ~6.5s (lighter load) vs ~10-13s earlier
 - [ ] BLOCKED: plexo-api recreate flushed in-container logs; no interactive task in-window post-deploy → cannot compute claim→first-planning-route delta without driving a task (budget). Re-measure under natural interactive load next session, OR check if logs persist to disk/remote.
 
+## Phase 5 — Background-lane observability gauge — DONE (commit 2db8205, prod image 34470b7e68db)
+- [x] lane-limiter.ts: counters bgAcquired/bgQueued/bgMaxQueueDepth/bgOverrides + getLaneStats(); recorded in withLane bg branch; reset in test helper
+- [x] cron.ts: getLaneStats() logged in runRouterStatsSnapshot (every 30m)
+- [x] tests: counter accounting + flag-off no-op + copy-on-read (lane-limiter 15/15); agent+api tsc clean
+- [x] Deployed + healthy + 0 errors. Prod-source snapshot de0c7f8.
+- [~] First live reading at next snapshot cron tick (≤30m): grep `ssh <server> 'docker logs --since 1900s plexo-api | grep "background-lane counters"'`. bgOverrides>0 confirms graphiti rides the bg lane; bgQueued>0 confirms the cap engages.
+
 ## Deferred
 - [ ] D2 — graphiti fast-model routing (separate flag, operator opt-in after Phase 2)
+- [ ] Phase 4 — re-measure setup latency under natural load (now aided by the Phase 5 gauge)
