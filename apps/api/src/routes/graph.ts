@@ -139,7 +139,21 @@ router.get('/facts/search', async (req, res) => {
 // Read-only cypher proxy for graph-viz consumers (Nexalog explorer, ADR 0026).
 // Blocks mutating clauses so a service-key caller can't write through this
 // surface; structured writes go through /v1/graph/write on the sidecar.
-const CYPHER_WRITE_RE = /\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|LOAD\s+CSV)\b/i
+//
+// Defense in depth (ADR 0002): comments are stripped first so a write keyword
+// can't hide behind `//` / `/* */`; write-procedures (apoc create/merge/...) and
+// FOREACH are covered in addition to the bare write clauses. Conservative: a
+// false positive only blocks a read; a false negative would allow a write.
+const CYPHER_WRITE_RE =
+    /\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|FOREACH|LOAD\s+CSV)\b|\bCALL\s+apoc\.\w*(create|merge|delete|set|remove|refactor)/i
+
+function stripCypherComments(cypher: string): string {
+    return cypher.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
+}
+
+export function isWriteCypher(cypher: string): boolean {
+    return CYPHER_WRITE_RE.test(stripCypherComments(cypher))
+}
 
 interface CypherBody {
     workspaceId?: string
@@ -157,7 +171,7 @@ router.post('/cypher', async (req, res) => {
         res.status(400).json({ error: { code: 'EMPTY_CYPHER', message: 'cypher must be a non-empty string' } })
         return
     }
-    if (CYPHER_WRITE_RE.test(body.cypher)) {
+    if (isWriteCypher(body.cypher)) {
         res.status(400).json({ error: { code: 'WRITE_FORBIDDEN', message: 'this surface is read-only' } })
         return
     }
