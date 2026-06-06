@@ -89,6 +89,20 @@ function backgroundSemaphore(): Semaphore {
 }
 
 /**
+ * Lane observability counters (Phase L deferred metrics; Round-4 minimal gauge).
+ * Surfaced via the router-stats snapshot cron. `queued`/`maxQueueDepth` prove the
+ * background cap is actually engaging; `overrides` isolates lane-override-forced
+ * traffic (e.g. graphiti via the inference proxy) from taskType-classified bg.
+ */
+interface LaneStats { bgAcquired: number; bgQueued: number; bgMaxQueueDepth: number; bgOverrides: number }
+const laneStats: LaneStats = { bgAcquired: 0, bgQueued: 0, bgMaxQueueDepth: 0, bgOverrides: 0 }
+
+/** Snapshot of the background-lane counters (copy). */
+export function getLaneStats(): LaneStats {
+    return { ...laneStats }
+}
+
+/**
  * Run `fn` under its lane.
  * - Flag OFF: passthrough (no semaphore, no extra Promise hop on the success
  *   path beyond the call itself) — identical to pre-ADR behaviour.
@@ -106,6 +120,13 @@ export async function withLane<T>(taskType: TaskType, fn: () => Promise<T>, lane
     if ((laneOverride ?? laneFor(taskType)) === 'interactive') return fn()
 
     const sem = backgroundSemaphore()
+    laneStats.bgAcquired++
+    if (laneOverride === 'background') laneStats.bgOverrides++
+    if (sem.inFlightFree === 0) {
+        laneStats.bgQueued++
+        const depth = sem.waiting + 1
+        if (depth > laneStats.bgMaxQueueDepth) laneStats.bgMaxQueueDepth = depth
+    }
     await sem.acquire()
     try {
         return await fn()
@@ -114,7 +135,11 @@ export async function withLane<T>(taskType: TaskType, fn: () => Promise<T>, lane
     }
 }
 
-/** Reset the module-level background semaphore. Tests only. */
+/** Reset the module-level background semaphore + counters. Tests only. */
 export function _resetLaneLimiterForTest(): void {
     bgSemaphore = null
+    laneStats.bgAcquired = 0
+    laneStats.bgQueued = 0
+    laneStats.bgMaxQueueDepth = 0
+    laneStats.bgOverrides = 0
 }
