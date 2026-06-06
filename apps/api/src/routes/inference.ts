@@ -130,6 +130,25 @@ function backgroundLaneOverride(req: Request): 'background' | undefined {
     return backgroundLaneOverrideForAppId(typeof appId === 'string' ? appId : undefined)
 }
 
+/**
+ * Round-4 D2 (operator opt-in, default OFF): when the caller is a background
+ * app AND `PLEXO_INFERENCE_BG_MODEL` is set, force that model (`provider/model`
+ * or bare `model`) for the call so background graphiti extraction can run on a
+ * fast provider instead of the workspace's deepseek cascade. Unset/empty = no
+ * override (today's behaviour). The router cascades to normal selection if the
+ * forced model's provider is absent or the call fails.
+ */
+export function backgroundModelForAppId(appId: string | undefined): string | undefined {
+    if (backgroundLaneOverrideForAppId(appId) !== 'background') return undefined
+    const m = process.env.PLEXO_INFERENCE_BG_MODEL
+    return typeof m === 'string' && m.trim() !== '' ? m.trim() : undefined
+}
+
+function backgroundModelOverride(req: Request): string | undefined {
+    const appId = req.headers['x-app-id']
+    return backgroundModelForAppId(typeof appId === 'string' ? appId : undefined)
+}
+
 async function embeddingsHandler(req: Request, res: Response): Promise<void> {
     const workspaceId = resolveWorkspaceId(req)
     if (!workspaceId) {
@@ -312,6 +331,7 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
                 doCall: dispatch,
                 opts: fallbackOpts,
                 laneOverride: backgroundLaneOverride(req),
+                modelIdOverride: backgroundModelOverride(req),
             })
         } else {
             // No workspace settings — env-var fallback path (dev / self-host)

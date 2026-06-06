@@ -140,6 +140,14 @@ export interface RouteAndCallInput<T> {
      * still uses `taskType`.
      */
     laneOverride?: Lane
+    /**
+     * Round-4 D2: per-call forced model (`provider/model` or bare `model`).
+     * The selector force-picks it (bypassing scoring) when it maps to a
+     * configured provider; on call failure the normal cascade takes over (the
+     * forced provider is excluded, so re-selection scores the rest). Unset =
+     * today's behaviour. Used by the inference proxy for background apps.
+     */
+    modelIdOverride?: string
 }
 
 /**
@@ -155,7 +163,7 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
 }
 
 async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
-    const { workspaceId, taskType, settings, doCall, opts } = input
+    const { workspaceId, taskType, settings, doCall, opts, modelIdOverride } = input
 
     let available = buildAvailable(settings)
     if (available.length === 0) {
@@ -176,7 +184,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
 
     while (cascadePos < MAX_CASCADE && available.length > 0) {
         const selStart = Date.now()
-        const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings })
+        const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelIdOverride })
         const selDur = Date.now() - selStart
         if (cascadePos === 0) {
             firstSelection = sel
@@ -221,7 +229,9 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
         const cfg = settings.providers[chosen.provider] as AIProviderConfig
         const t0 = Date.now()
         try {
-            const model = buildModel(chosen.provider, cfg, taskType, settings)
+            // D2: when the selector force-picked, pass the forced model id so
+            // buildModel calls exactly that model (not the workspace cascade).
+            const model = buildModel(chosen.provider, cfg, taskType, settings, sel.forcedModel ? chosen.model : undefined)
             const result = await doCall(model)
             recordCall(
                 { workspaceId, provider: chosen.provider, model: chosen.model, taskType },

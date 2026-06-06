@@ -55,7 +55,7 @@ const { callModel } = await import('@plexo/agent/providers/call-model')
 const { resolveModel } = await import('@plexo/agent/providers/registry')
 const { routeAndCall } = await import('@plexo/agent/providers/router-v2')
 const { loadSettingsFromInstances } = await import('@plexo/agent/providers/settings-from-instances')
-const { inferenceRouter, backgroundLaneOverrideForAppId } = await import('../inference.js')
+const { inferenceRouter, backgroundLaneOverrideForAppId, backgroundModelForAppId } = await import('../inference.js')
 
 const SERVICE_KEY = 'test-service-key-1234567890abcd'
 const VALID_WORKSPACE = '00000000-0000-0000-0000-000000000001'
@@ -591,5 +591,41 @@ describe('backgroundLaneOverrideForAppId (Round-4 lane override)', () => {
     it('empty allowlist disables the override (escape hatch)', () => {
         process.env.PLEXO_INFERENCE_BG_APPS = ''
         expect(backgroundLaneOverrideForAppId('graphiti-sidecar')).toBeUndefined()
+    })
+})
+
+describe('backgroundModelForAppId (Round-4 D2 graphiti fast-model, default OFF)', () => {
+    const prevApps = process.env.PLEXO_INFERENCE_BG_APPS
+    const prevModel = process.env.PLEXO_INFERENCE_BG_MODEL
+    afterAll(() => {
+        if (prevApps === undefined) delete process.env.PLEXO_INFERENCE_BG_APPS
+        else process.env.PLEXO_INFERENCE_BG_APPS = prevApps
+        if (prevModel === undefined) delete process.env.PLEXO_INFERENCE_BG_MODEL
+        else process.env.PLEXO_INFERENCE_BG_MODEL = prevModel
+    })
+
+    it('default OFF: no override even for a background app when BG_MODEL unset', () => {
+        delete process.env.PLEXO_INFERENCE_BG_APPS
+        delete process.env.PLEXO_INFERENCE_BG_MODEL
+        expect(backgroundModelForAppId('graphiti-sidecar')).toBeUndefined()
+    })
+
+    it('background app + BG_MODEL set → returns the forced model', () => {
+        delete process.env.PLEXO_INFERENCE_BG_APPS
+        process.env.PLEXO_INFERENCE_BG_MODEL = 'cerebras/gpt-oss-120b'
+        expect(backgroundModelForAppId('graphiti-sidecar')).toBe('cerebras/gpt-oss-120b')
+    })
+
+    it('interactive app never gets the override even when BG_MODEL set', () => {
+        delete process.env.PLEXO_INFERENCE_BG_APPS
+        process.env.PLEXO_INFERENCE_BG_MODEL = 'cerebras/gpt-oss-120b'
+        expect(backgroundModelForAppId('some-interactive-app')).toBeUndefined()
+        expect(backgroundModelForAppId(undefined)).toBeUndefined()
+    })
+
+    it('empty/whitespace BG_MODEL → no override', () => {
+        delete process.env.PLEXO_INFERENCE_BG_APPS
+        process.env.PLEXO_INFERENCE_BG_MODEL = '   '
+        expect(backgroundModelForAppId('graphiti-sidecar')).toBeUndefined()
     })
 })
