@@ -666,16 +666,6 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         ? taskContext0.modelOverrideId
         : undefined
 
-    // Phase N verification hook: double-gated (env flag + context sentinel),
-    // inert otherwise. Forces a synthetic capability-gap/crash throw so the
-    // complete-with-limitation / honest-fail paths are exercisable end-to-end.
-    const capabilityGapTest = process.env.PLEXO_CAPABILITY_GAP_TEST === '1'
-        && (taskContext0?._capabilityGapTest === 'with_deliverable'
-            || taskContext0?._capabilityGapTest === 'no_deliverable'
-            || taskContext0?._capabilityGapTest === 'crash')
-        ? taskContext0._capabilityGapTest as 'with_deliverable' | 'no_deliverable' | 'crash'
-        : undefined
-
     const sprintId: string | undefined = taskRow?.projectId ?? undefined
 
     // ── Execution Priming: pre-load sprint-scoped files ──────────────────────────
@@ -749,8 +739,6 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             ?.[aiSettings?.primaryProvider ?? 'openai']?.model ?? 'gpt-4o',
         // Per-task override (Mode 4): forces this model ID over workspace settings
         modelOverrideId,
-        // Phase N verification hook (double-gated; undefined in normal operation)
-        capabilityGapTest,
         // Sprint coding context
         sprintWorkDir,
         sprintRepo,

@@ -961,21 +961,6 @@ async function executeTaskInner(
     let finalSummary = ''
     let finalQuality = 0.5
 
-    // ── Phase N verification hook (double-gated, inert in normal operation) ──
-    // ctx.capabilityGapTest is only set when env PLEXO_CAPABILITY_GAP_TEST==='1'
-    // AND the task carries context._capabilityGapTest. It forces a synthetic
-    // throw — early, before any model spend — so the capability-gap paths can be
-    // exercised end-to-end. The deliverable precondition is controlled by the
-    // harness (artifact-row presence), not here. See executeTask catch handler.
-    if (ctx.capabilityGapTest) {
-        if (ctx.capabilityGapTest === 'crash') {
-            // Non-capability-worded → classifyCapabilityGap=false → tool_error.
-            throw new PlexoError('database connection reset by peer (synthetic crash test)', 'CAPABILITY_GAP_TEST', 'system', 500)
-        }
-        // 'with_deliverable' | 'no_deliverable' → capability-worded throw.
-        throw new PlexoError('No such tool: deploy_site (capability-gap test)', 'CAPABILITY_GAP_TEST', 'system', 500)
-    }
-
     // ── One-Way Door gate (§8.4 approval protocol) ───────────────────────────
     // If the plan flags irreversible operations, request approval before running.
     const owdList = plan.oneWayDoors ?? []
