@@ -24,10 +24,11 @@
 - [x] `POST /api/v1/ai/tasks failed` ×4 = all `Delay was aborted` (client abort/supersede, benign).
 - [x] Lever recorded → Phase 6 (TTL settings cache), proposed/operator-gated.
 
-## Phase 6 — Workspace AI-settings cache — PROPOSED (operator gate)
-- [ ] Short-TTL (30–60s) in-memory cache keyed by workspaceId around loadSettingsFromInstances + ai-cred resolver; write-invalidate on provider-instance edits (instances.ts)
-- [ ] Flag-gateable (TTL=0 = today); gate b/c caches decrypted keys + config-change propagation correctness
-- [ ] Verify: load rate drops ~30/min → ~1-2/min; no stale-config after a provider edit
+## Phase 6 — Workspace AI-settings cache — IMPLEMENTED (operator-approved; deploy/verify pending)
+- [x] Short-TTL cache (PLEXO_SETTINGS_CACHE_TTL_MS, default 30s, 0=disabled) keyed by workspaceId around loadSettingsFromInstances (covers ai-cred path too — it calls this fn). settings-from-instances.ts: invalidateSettingsCache(wsId?) exported; body → loadSettingsFromInstancesUncached
+- [x] Write-invalidate at instances.ts CRUD (addProvider/updateProvider/removeProvider/reorderProviders). Other writers → ≤TTL eventual (embeddings fields not in WorkspaceAISettings; judgeModel/capability refresh tolerate ≤TTL)
+- [x] Tests: memoize-no-2nd-load + invalidate(ws)-scoped reload (settings 6/6); reflect 6/6 + extract 10/10 green; agent+api tsc clean
+- [ ] Deploy + verify load rate drops ~30/min → ~1-2/min; no stale-config after a provider edit
 
 ## Phase 5 — Background-lane observability gauge — DONE (commit 2db8205, prod image 34470b7e68db)
 - [x] lane-limiter.ts: counters bgAcquired/bgQueued/bgMaxQueueDepth/bgOverrides + getLaneStats(); recorded in withLane bg branch; reset in test helper

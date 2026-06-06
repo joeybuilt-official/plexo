@@ -12,6 +12,7 @@
 import { db, eq, and, asc, sql } from '@plexo/db'
 import { providerInstances } from '@plexo/db'
 import { discoverCapabilities, type ProviderCapabilities } from './discovery.js'
+import { invalidateSettingsCache } from './settings-from-instances.js'
 import pino from 'pino'
 
 const logger = pino({ name: 'provider:instances' })
@@ -103,6 +104,7 @@ export async function addProvider(workspaceId: string, input: ProviderInstanceIn
         lastDiscoveredAt: new Date(),
     }).returning()
 
+    invalidateSettingsCache(workspaceId)
     return row as ProviderInstanceRow
 }
 
@@ -122,6 +124,7 @@ export async function updateProvider(instanceId: string, updates: Partial<{
         .set({ ...updates, updatedAt: new Date() })
         .where(eq(providerInstances.id, instanceId))
         .returning()
+    if (row) invalidateSettingsCache((row as ProviderInstanceRow).workspaceId)
     return (row as ProviderInstanceRow) ?? null
 }
 
@@ -129,7 +132,7 @@ export async function updateProvider(instanceId: string, updates: Partial<{
  * Remove a provider instance. Rejects managed providers.
  */
 export async function removeProvider(instanceId: string): Promise<void> {
-    const [row] = await db.select({ managed: providerInstances.managed })
+    const [row] = await db.select({ managed: providerInstances.managed, workspaceId: providerInstances.workspaceId })
         .from(providerInstances)
         .where(eq(providerInstances.id, instanceId))
         .limit(1)
@@ -138,6 +141,7 @@ export async function removeProvider(instanceId: string): Promise<void> {
     if (row.managed) throw new Error('Cannot remove the managed provider. It is a built-in default.')
 
     await db.delete(providerInstances).where(eq(providerInstances.id, instanceId))
+    invalidateSettingsCache(row.workspaceId)
 }
 
 /**
@@ -162,6 +166,7 @@ export async function reorderProviders(workspaceId: string, orderedIds: string[]
                 eq(providerInstances.workspaceId, workspaceId),
             ))
     }
+    invalidateSettingsCache(workspaceId)
 }
 
 /**
