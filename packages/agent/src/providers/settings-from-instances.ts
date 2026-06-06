@@ -46,13 +46,54 @@ function decryptKey(token: string, workspaceId: string): string | null {
     }
 }
 
+// ── Short-TTL cache (Round-4 Phase 6) ─────────────────────────────────────────
+// loadSettingsFromInstances sits on the inference hot path (every proxy call +
+// every agent-loop credential walk). Pre-cache it was hit ~30×/min for a single
+// workspace, each time costing 2 DB queries + per-row AES-GCM decrypt. Provider
+// config changes ~daily, so a short TTL collapses that to ~1 load per window.
+// PLEXO_SETTINGS_CACHE_TTL_MS=0 disables (today's behavior). The canonical
+// provider CRUD layer (instances.ts) calls invalidateSettingsCache on writes for
+// prompt freshness; other rare writers (judgeModel, capability refresh) rely on
+// ≤TTL eventual consistency.
+const SETTINGS_CACHE_TTL_MS = (() => {
+    const raw = process.env.PLEXO_SETTINGS_CACHE_TTL_MS
+    if (raw === undefined) return 30_000
+    const n = Number(raw)
+    return Number.isFinite(n) && n >= 0 ? n : 30_000
+})()
+
+interface SettingsCacheEntry {
+    value: WorkspaceAISettings | null
+    expiresAt: number
+}
+const settingsCache = new Map<string, SettingsCacheEntry>()
+
+/** Drop cached settings for a workspace (or all workspaces when omitted). */
+export function invalidateSettingsCache(workspaceId?: string): void {
+    if (workspaceId) settingsCache.delete(workspaceId)
+    else settingsCache.clear()
+}
+
 // ── Main function ────────────────────────────────────────────────────────────
 
 /**
- * Load WorkspaceAISettings from provider_instances table.
+ * Load WorkspaceAISettings from provider_instances table (short-TTL cached).
  * Returns null if no instances exist (not yet migrated).
  */
 export async function loadSettingsFromInstances(workspaceId: string): Promise<WorkspaceAISettings | null> {
+    if (SETTINGS_CACHE_TTL_MS > 0) {
+        const hit = settingsCache.get(workspaceId)
+        if (hit && hit.expiresAt > Date.now()) return hit.value
+    }
+    const value = await loadSettingsFromInstancesUncached(workspaceId)
+    if (SETTINGS_CACHE_TTL_MS > 0) {
+        settingsCache.set(workspaceId, { value, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS })
+    }
+    return value
+}
+
+/** Uncached read — DB + decrypt every call. Use loadSettingsFromInstances. */
+async function loadSettingsFromInstancesUncached(workspaceId: string): Promise<WorkspaceAISettings | null> {
     const rows = await db.select()
         .from(providerInstances)
         .where(eq(providerInstances.workspaceId, workspaceId))

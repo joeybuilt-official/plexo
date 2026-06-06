@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock DB
 const mockRows: any[] = []
+let dbLoads = 0
 vi.mock('@plexo/db', () => ({
     db: {
         select: () => ({
             from: () => ({
                 where: () => ({
-                    orderBy: () => Promise.resolve(mockRows),
+                    orderBy: () => { dbLoads++; return Promise.resolve(mockRows) },
                 }),
             }),
         }),
@@ -17,10 +18,10 @@ vi.mock('@plexo/db', () => ({
     providerInstances: { workspaceId: 'workspace_id', preferenceOrder: 'preference_order' },
 }))
 
-import { loadSettingsFromInstances } from './settings-from-instances.js'
+import { loadSettingsFromInstances, invalidateSettingsCache } from './settings-from-instances.js'
 
 describe('loadSettingsFromInstances', () => {
-    beforeEach(() => { mockRows.length = 0 })
+    beforeEach(() => { mockRows.length = 0; dbLoads = 0; invalidateSettingsCache() })
 
     it('returns null for empty workspace', async () => {
         expect(await loadSettingsFromInstances('ws-1')).toBeNull()
@@ -60,5 +61,43 @@ describe('loadSettingsFromInstances', () => {
         const result = await loadSettingsFromInstances('ws-1')
         expect(result!.providers.ollama?.baseUrl).toBe('http://ollama:11434')
         delete process.env.OLLAMA_INTERNAL_URL
+    })
+
+    describe('short-TTL cache (Round-4 Phase 6)', () => {
+        it('memoizes within TTL — second call does not re-hit the DB', async () => {
+            mockRows.push({ id: '1', providerType: 'anthropic', enabled: true, encryptedKey: null, endpointUrl: null, managed: false, selectedModel: 'm1', preferenceOrder: 0 })
+
+            const a = await loadSettingsFromInstances('ws-cache')
+            expect(a!.primaryProvider).toBe('anthropic')
+            expect(dbLoads).toBe(1)
+
+            // Mutate the underlying rows; cached value must be returned unchanged.
+            mockRows.length = 0
+            mockRows.push({ id: '2', providerType: 'openai', enabled: true, encryptedKey: null, endpointUrl: null, managed: false, selectedModel: 'm2', preferenceOrder: 0 })
+
+            const b = await loadSettingsFromInstances('ws-cache')
+            expect(b!.primaryProvider).toBe('anthropic') // stale-but-cached
+            expect(dbLoads).toBe(1) // no second DB load
+        })
+
+        it('invalidateSettingsCache(ws) forces a reload for that workspace only', async () => {
+            mockRows.push({ id: '1', providerType: 'anthropic', enabled: true, encryptedKey: null, endpointUrl: null, managed: false, selectedModel: 'm1', preferenceOrder: 0 })
+            await loadSettingsFromInstances('ws-a')
+            await loadSettingsFromInstances('ws-b')
+            expect(dbLoads).toBe(2)
+
+            invalidateSettingsCache('ws-a')
+
+            mockRows.length = 0
+            mockRows.push({ id: '2', providerType: 'openai', enabled: true, encryptedKey: null, endpointUrl: null, managed: false, selectedModel: 'm2', preferenceOrder: 0 })
+
+            const a = await loadSettingsFromInstances('ws-a')
+            expect(a!.primaryProvider).toBe('openai') // reloaded
+            expect(dbLoads).toBe(3)
+
+            const b = await loadSettingsFromInstances('ws-b')
+            expect(b!.primaryProvider).toBe('anthropic') // still cached
+            expect(dbLoads).toBe(3)
+        })
     })
 })
