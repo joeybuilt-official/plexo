@@ -28,6 +28,37 @@ API keys can be set here or configured in-app via **Settings > AI Providers**. K
 
 Ollama (local models) is optional and only starts with `docker compose --profile gpu up`. No API key needed -- configure it in-app with a base URL.
 
+### GPU acceleration (vision)
+
+The `vision` sidecar (CLIP image/text embeddings + face detect/recognize) runs
+on CPU by default. To run it on an NVIDIA GPU, layer in the GPU override — this
+builds the CUDA image (`Dockerfile.vision.gpu`, CUDA 12 + cuDNN 9) and sets
+`VISION_ORT_EP=cuda`:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+  --profile vision up -d --build vision
+```
+
+Requirements: an NVIDIA GPU + driver and the **NVIDIA Container Toolkit**.
+Verify the host can expose a GPU first:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+```
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VISION_ORT_EP` | `cpu` | Set to `cuda` to use the GPU for CLIP + faces. |
+| `OLLAMA_URL` | `http://ollama:11434` | OCR + object labels run here; GPU if the Ollama container has one. |
+| `OLLAMA_OCR_MODEL` | `qwen2.5vl:7b` | Vision-language model used for OCR/labels. |
+| `VISION_GPUS` | `all` | Which GPUs to expose (`all` or e.g. `0`). |
+
+It degrades safely: any op the CUDA EP can't run falls back to CPU per-op, and
+if CUDA can't initialise at all the whole sidecar falls back to CPU rather than
+crashing. OCR + labels are GPU-accelerated purely by pointing `OLLAMA_URL` at a
+GPU-backed Ollama — no CUDA image needed for those.
+
 ## Channel Integrations
 
 Enable external messaging channels. All are optional.
