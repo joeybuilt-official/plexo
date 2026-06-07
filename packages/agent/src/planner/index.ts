@@ -79,7 +79,9 @@ export const OneWayDoorSchema = z.union([
 
 const PhaseSchema = z.object({
     label: z.string().describe('Present-tense action label: "Scanning repo", "Writing migration"'),
-    description: z.string().optional(),
+    // ADR 0004: `.nullable()` not `.optional()` — strict providers (groq/cerebras)
+    // reject optional (omitted-from-required) properties.
+    description: z.string().nullable(),
 })
 
 const ExecutionPlanShape = z.object({
@@ -365,7 +367,7 @@ CRITICAL: If the task involves ANY website, web service, social media platform, 
     }
 
     const planSteps = raw.object.steps as PlanStep[]
-    const planPhases = (raw.object.phases ?? []).map((p, i) => ({ index: i, label: p.label, description: p.description }))
+    const planPhases = (raw.object.phases ?? []).map((p, i) => ({ index: i, label: p.label, description: p.description ?? undefined }))
     const plan: ExecutionPlan = {
         taskId: ctx.taskId,
         goal: raw.object.goal,

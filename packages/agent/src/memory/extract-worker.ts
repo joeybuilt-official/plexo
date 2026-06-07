@@ -26,7 +26,12 @@ const FactSchema = z.object({
         subject: z.string().max(100),
         predicate: z.string().max(100),
         object: z.string().max(300),
-        domain: z.string().max(60).optional(),
+        // Strict OpenAI-compat providers (groq/cerebras) require every property
+        // in `required`; a bare `.optional()` omits it → "invalid JSON schema:
+        // required must include domain" → 100% failure on those providers (ADR
+        // 0004). `.nullable()` keeps it required as type ["string","null"];
+        // consumers already null-coalesce (fact.domain ?? null).
+        domain: z.string().max(60).nullable(),
         // .refine instead of .min().max() — Anthropic structured-output rejects
         // {minimum, maximum} on number-typed JSON Schema fields. See quality-judge.ts.
         confidence: z.number().refine((n) => n >= 0 && n <= 1, { message: 'confidence must be 0..1' }),
