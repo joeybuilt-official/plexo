@@ -57,6 +57,9 @@ vi.mock('@plexo/db', () => ({
             if (rendered.includes('WITH priced AS')) {
                 return { rows: ctl.rows.breakdown ?? [] }
             }
+            if (rendered.includes('router_v2_stats')) {
+                return { rows: ctl.rows.routerStats ?? [] }
+            }
             if (rendered.includes('FROM inference_logs') && rendered.includes('LEFT JOIN models_knowledge')) {
                 return { rows: ctl.rows.logs ?? [] }
             }
@@ -92,6 +95,9 @@ vi.mock('../../lib/intelligence-spend.js', () => ({
         unpricedOutputTokens: 0,
         computedAt: new Date().toISOString(),
     })),
+    loadAppSpend: vi.fn(async () => [
+        { appId: 'graphiti-sidecar', pricedUsd: 0.4, inputTokens: 200_000, outputTokens: 50_000, requests: 40 },
+    ]),
 }))
 
 let server: Server | null = null
@@ -205,6 +211,9 @@ describe('GET /api/v1/intel-dashboard/:ws/cost-summary', () => {
         expect(body.topModel.model).toBe('claude-sonnet-4-5')
         expect(body.topModel.costUsd).toBeCloseTo(9.5)
         expect(body.topTaskType.taskType).toBe('codeGeneration')
+        // Round-5 Phase 6: per-app attribution surfaced in the dashboard.
+        expect(Array.isArray(body.appSpend)).toBe(true)
+        expect(body.appSpend[0].appId).toBe('graphiti-sidecar')
     })
 
     it('handles empty breakdown gracefully', async () => {
@@ -216,6 +225,34 @@ describe('GET /api/v1/intel-dashboard/:ws/cost-summary', () => {
         const body = await res.json() as any
         expect(body.topModel).toBeNull()
         expect(body.topTaskType).toBeNull()
+    })
+})
+
+describe('GET /api/v1/intel-dashboard/:ws/router-stats (Round-5 Phase 9)', () => {
+    it('returns the latest router_v2_stats bucket per key', async () => {
+        ctl.rows.routerStats = [{
+            provider: 'deepseek', model: 'deepseek-v4-flash', task_type: 'extraction',
+            sample_count: 120, success_rate: 0.98,
+            latency_p50_ms: 400, latency_p95_ms: 1200,
+            cooldown_end_at: null, snapshot_at: '2026-06-06T21:00:00.000Z',
+        }]
+        const res = await fetch(`${baseUrl}/api/v1/intel-dashboard/${WS}/router-stats`)
+        expect(res.status).toBe(200)
+        const body = await res.json() as any
+        expect(body.count).toBe(1)
+        expect(body.buckets[0]).toMatchObject({
+            provider: 'deepseek', model: 'deepseek-v4-flash', taskType: 'extraction',
+            sampleCount: 120, successRate: 0.98, latencyP50Ms: 400, latencyP95Ms: 1200,
+        })
+    })
+
+    it('returns an empty list when no recent snapshots', async () => {
+        ctl.rows.routerStats = []
+        const res = await fetch(`${baseUrl}/api/v1/intel-dashboard/${WS}/router-stats`)
+        expect(res.status).toBe(200)
+        const body = await res.json() as any
+        expect(body.count).toBe(0)
+        expect(body.buckets).toEqual([])
     })
 })
 
