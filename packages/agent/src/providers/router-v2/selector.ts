@@ -9,8 +9,10 @@
  * Algorithm:
  *   1. Build candidate list from `availableProviders` × resolved model.
  *   2. Look up manifest entry per candidate; skip if `hardSkipPredicate` true.
- *   3. Q2 hybrid: high-stakes task + all candidates < LOW_QUALITY_THRESHOLD →
- *      requireOperatorAction. Other task types route through anyway.
+ *   3. Low manifest quality is NEVER a hard block (single-provider rule): a
+ *      workspace must work with whatever provider it has. A high-stakes task on
+ *      below-bar providers degrades-and-proceeds with `degradationReason`, not
+ *      `requireOperatorAction`. (Was a Q2-hybrid block — removed 2026-06-07.)
   *   4. Score = priorScore × 1.0 − latencyP95Penalty × 0.3 − recentFailurePenalty × 0.2.
  *   5. chosen = top scorer; alternatives = next 2 with reason.
  *
@@ -18,8 +20,6 @@
  */
 
 import {
-    HIGH_STAKES_TASK_TYPES,
-    LOW_QUALITY_THRESHOLD,
     PROVIDER_DEFAULT_MODEL_CLASS,
     getManifestEntry,
     manifestVersion,
@@ -246,20 +246,12 @@ export function selectModel(input: SelectInput): SelectionResult {
         }
     }
 
-    // Q2 hybrid: block + prompt only for high-stakes tasks when NO candidate
-    // (cooling or not) meets the quality bar.
-    const highStakes = HIGH_STAKES_TASK_TYPES.has(taskType)
-    const anyMeetsBar = scoredAll.some(c => c.priorScore >= LOW_QUALITY_THRESHOLD)
-    if (highStakes && !anyMeetsBar) {
-        return {
-            chosen: null,
-            alternatives: [],
-            rationale: `No installed provider meets quality bar (≥${LOW_QUALITY_THRESHOLD}) for high-stakes task "${taskType}". Operator action required.`,
-            manifestVersion,
-            requireOperatorAction: true,
-            noManifestMatch: false,
-        }
-    }
+    // Single-provider rule (2026-06-07): low manifest quality is NEVER a hard
+    // block. A workspace must be usable with whatever provider it has connected,
+    // even for high-stakes tasks. Below-bar candidates fall through to normal
+    // selection and surface `degradationReason` (non-blocking). The former
+    // Q2-hybrid `requireOperatorAction` block was removed because it dead-ended
+    // single-provider / all-low-quality workspaces.
 
     // Prefer non-cooling candidates first; fall through to cooling only when all are.
     const nonCooling = scoredAll.filter(c => !c.cooling)

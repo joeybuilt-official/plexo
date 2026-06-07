@@ -63,8 +63,6 @@ import {
     recordCall,
     RouterV2NoCandidateError,
     RouterV2CascadeExhausted,
-    LOW_QUALITY_THRESHOLD,
-    HIGH_STAKES_TASK_TYPES,
     MANIFEST,
     getManifestEntry,
 } from '../index.js'
@@ -263,11 +261,11 @@ describe('router-v2 selector', () => {
         }
     })
 
-    it('Q2 hybrid: planning + only low-quality providers → requireOperatorAction', () => {
-        // Construct an "all low quality" candidate set by monkey-patching the
-        // manifest for the test. (Production manifest gives groq/planning
-        // priorScore=3 — at the bar — so we mutate it down to 2 to exercise
-        // the Q2 path. Same pattern as the summarization test below.)
+    it('single-provider rule: planning + only low-quality provider → degrade-and-proceed (no block)', () => {
+        // Single low-quality provider on a high-stakes task must still route
+        // (2026-06-07: removed the Q2-hybrid requireOperatorAction block — it
+        // dead-ended single-provider workspaces). Mutate groq/planning below the
+        // old bar to exercise the path.
         const orig = MANIFEST.planning.groq!.priorScore
         ;(MANIFEST.planning.groq as any).priorScore = 2
         try {
@@ -284,9 +282,10 @@ describe('router-v2 selector', () => {
                 availableProviders: [{ provider: 'groq', config: settings.providers.groq! }],
                 settings,
             })
-            expect(r.chosen).toBeNull()
-            expect(r.requireOperatorAction).toBe(true)
-            expect(r.rationale).toContain('high-stakes')
+            expect(r.chosen).not.toBeNull()
+            expect(r.chosen!.provider).toBe('groq')
+            expect(r.requireOperatorAction).toBe(false)
+            expect(r.degradationReason).toBe('workspace_low_quality_only')
         } finally {
             ;(MANIFEST.planning.groq as any).priorScore = orig
         }
@@ -605,11 +604,10 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
         expect(fn).toHaveBeenCalledTimes(3)
     })
 
-    it('high-stakes + only low-quality providers → throws RouterV2NoCandidateError', async () => {
-        // Production manifest puts groq/planning at priorScore=3 — at the
-        // Q2 hybrid bar — so we mutate it down to 2 here to exercise the
-        // RouterV2NoCandidateError path. Same pattern as the selector-level
-        // Q2 hybrid test earlier in the file.
+    it('single-provider rule: high-stakes + only low-quality provider → runs (no NoCandidate throw)', async () => {
+        // 2026-06-07: removed the Q2-hybrid quality-bar block. A high-stakes task
+        // with only a below-bar provider must RUN on it (single-provider rule),
+        // not throw RouterV2NoCandidateError. Mutate groq/planning below the old bar.
         const orig = MANIFEST.planning.groq!.priorScore
         ;(MANIFEST.planning.groq as any).priorScore = 2
         try {
@@ -624,8 +622,8 @@ describe('routeAndCall behavior (post-withFallback retirement)', () => {
                 workspaceId: 'wsLow',
                 taskType: 'planning',
                 settings,
-                doCall: async () => 'never',
-            })).rejects.toBeInstanceOf(RouterV2NoCandidateError)
+                doCall: async () => 'served-by-only-provider',
+            })).resolves.toBe('served-by-only-provider')
         } finally {
             ;(MANIFEST.planning.groq as any).priorScore = orig
         }
