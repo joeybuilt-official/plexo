@@ -32,6 +32,7 @@ import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
 import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
 import { loadModelCandidates, isModelRouterEnabled, type ShadowInput } from './shadow.js'
+import { requirementsForTask } from './enumerate.js'
 import type { ModelCandidate } from './candidate.js'
 import { emitProviderFailure } from './ops-events.js'
 import { withLane, type Lane } from './lane-limiter.js'
@@ -182,7 +183,14 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     }
     // Round-6 Phase 1: the first-selection provider pool, used to compute the
     // model-level router's shadow would-pick (flag-gated; never alters serving).
-    const shadowInput: ShadowInput = { workspaceId, taskType, available: [...available], settings }
+    // Phase 3: per-task hard capability requirements feed the gate.
+    const shadowInput: ShadowInput = {
+        workspaceId,
+        taskType,
+        available: [...available],
+        settings,
+        requirements: requirementsForTask(taskType),
+    }
 
     // Round-6 Phase 2: when the serving flip is ON, pre-load the gated model
     // candidates once and pass them to selectModel so it returns the best MODEL.
@@ -204,10 +212,16 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     let firstSelectorDurationMs = 0
     let firstChosenProvider: string | undefined
     const skippedProviders: string[] = []
+    // Round-6 Phase 3: model-granular cascade. Tracks failed (provider/model) so
+    // fallback advances across the ranked model shortlist; a provider is only
+    // dropped from the pool once ALL its candidate models are exhausted.
+    const excludedModels = new Set<string>()
 
     while (cascadePos < MAX_CASCADE && available.length > 0) {
         const selStart = Date.now()
-        const candidatesForIter = modelCandidates?.filter(c => available.some(a => a.provider === c.provider))
+        const candidatesForIter = modelCandidates?.filter(
+            c => available.some(a => a.provider === c.provider) && !excludedModels.has(`${c.provider}/${c.modelId}`),
+        )
         const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelIdOverride, modelCandidates: candidatesForIter })
         const selDur = Date.now() - selStart
         if (cascadePos === 0) {
@@ -334,9 +348,24 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
                 Date.now() + cooldownMsForClass(cls),
             )
 
-            // Exclude the failed provider from the next iteration's candidate pool.
-            skippedProviders.push(chosen.provider)
-            available = available.filter(a => a.provider !== chosen.provider)
+            // Exclude the failed candidate from the next iteration. Model-routed
+            // (Phase 3): drop just the failed (provider/model) and keep the
+            // provider while it still has un-failed candidate models — fallback
+            // advances across the ranked model shortlist. Drop the provider only
+            // when its models are exhausted. Legacy: drop the whole provider.
+            if (sel.modelRouted && modelCandidates) {
+                excludedModels.add(`${chosen.provider}/${chosen.model}`)
+                const moreOnProvider = modelCandidates.some(
+                    c => c.provider === chosen.provider && !excludedModels.has(`${c.provider}/${c.modelId}`),
+                )
+                if (!moreOnProvider) {
+                    skippedProviders.push(chosen.provider)
+                    available = available.filter(a => a.provider !== chosen.provider)
+                }
+            } else {
+                skippedProviders.push(chosen.provider)
+                available = available.filter(a => a.provider !== chosen.provider)
+            }
             fallbackEngaged = true
             cascadePos++
         }
@@ -401,7 +430,7 @@ export async function routeAndBuild(input: {
     let modelCandidates: ModelCandidate[] | undefined
     if (isModelRouterEnabled()) {
         try {
-            modelCandidates = await loadModelCandidates({ workspaceId, taskType, available: [...available], settings })
+            modelCandidates = await loadModelCandidates({ workspaceId, taskType, available: [...available], settings, requirements: requirementsForTask(taskType) })
         } catch {
             modelCandidates = undefined
         }

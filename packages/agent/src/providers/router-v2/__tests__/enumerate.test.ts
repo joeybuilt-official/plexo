@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { enumerateModelCandidates, capabilityGate, type KnowledgeRow } from '../enumerate.js'
+import { enumerateModelCandidates, capabilityGate, requirementsForTask, type KnowledgeRow } from '../enumerate.js'
 import type { ModelCandidate } from '../candidate.js'
 import type { AvailableProvider } from '../selector.js'
 import type { WorkspaceAISettings } from '../../registry.js'
@@ -157,5 +157,26 @@ describe('capabilityGate', () => {
         const all = [cand('a', ['tool-calling']), cand('b', ['streaming'])]
         const out = capabilityGate(['vision'], all)
         expect(out).toHaveLength(2) // single-provider rule
+    })
+})
+
+describe('requirementsForTask', () => {
+    it('requires json-mode for structured-output tasks', () => {
+        expect(requirementsForTask('extraction')).toEqual(['json-mode'])
+        expect(requirementsForTask('judging')).toEqual(['json-mode'])
+    })
+    it('has no hard requirements for other tasks', () => {
+        expect(requirementsForTask('planning')).toEqual([])
+        expect(requirementsForTask('conversation')).toEqual([])
+        expect(requirementsForTask('summarization')).toEqual([])
+    })
+    it('filters extraction candidates to json-mode-capable via the gate', () => {
+        const mk = (modelId: string, caps: string[]): ModelCandidate =>
+            ({
+                provider: 'x' as never, modelId, capabilities: new Set(caps) as never,
+                contextWindow: 0, costPerMIn: 0, costPerMOut: 0, reliability: 1, priorScoreByTask: {},
+            })
+        const out = capabilityGate(requirementsForTask('extraction'), [mk('json', ['json-mode', 'tool-calling']), mk('plain', ['tool-calling'])])
+        expect(out.map(c => c.modelId)).toEqual(['json'])
     })
 })
