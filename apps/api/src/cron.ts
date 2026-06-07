@@ -19,7 +19,7 @@ import { runAttachmentScanTick } from './lib/attachment-scan-worker.js'
 import { getAllStats } from '@plexo/agent/providers/router-v2'
 import { getSchemaRelaxedStats } from '@plexo/agent/providers/call-model'
 import { getLaneStats } from '@plexo/agent/providers/router-v2'
-import { flushOpsAlerts } from './ops-alerts.js'
+import { flushOpsAlerts, evaluateSloBreaches, sloThresholdsFromEnv, recordSloBreachForAlert } from './ops-alerts.js'
 import { INTERNAL_JOB_NAMES } from './cron-internal-jobs.js'
 
 export { runRSIMonitor }
@@ -255,6 +255,28 @@ export async function runRouterStatsSnapshot(): Promise<void> {
         VALUES ${sql.join(rows, sql`, `)}
     `)
     logger.info({ count: entries.length }, 'Router stats snapshot: persisted')
+
+    // Round-5 Phase 9: SLO breach detection on the same in-memory buckets we
+    // just snapshotted. Breaches are enqueued into the batched ops-alerts flush
+    // (one Telegram summary per tick). Env-gated; PLEXO_SLO_MIN_SUCCESS=0 = off.
+    const slo = sloThresholdsFromEnv()
+    if (slo) {
+        const breaches = evaluateSloBreaches(
+            entries.map(({ key, stats }) => ({
+                provider: key.provider,
+                model: key.model,
+                taskType: key.taskType,
+                successRate: stats.successRate,
+                sampleCount: stats.sampleCount,
+                latencyP95Ms: stats.latencyP95Ms,
+            })),
+            slo,
+        )
+        for (const b of breaches) recordSloBreachForAlert(b)
+        if (breaches.length > 0) {
+            logger.warn({ breaches: breaches.length, minSuccess: slo.minSuccess, minSamples: slo.minSamples }, 'Router stats snapshot: SLO breaches enqueued for ops alert')
+        }
+    }
 }
 
 /**

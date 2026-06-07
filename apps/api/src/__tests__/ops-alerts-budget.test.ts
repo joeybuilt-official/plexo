@@ -27,6 +27,6 @@ describe('ops-alerts budget stream (Round-5 Phase 6)', () => {
 
     it('does not deliver when only nothing is buffered (no throw)', async () => {
         await expect(flushOpsAlerts()).resolves.toBeUndefined()
-        expect(_opsAlertBufferSizes()).toEqual({ provider: 0, canary: 0, budget: 0 })
+        expect(_opsAlertBufferSizes()).toEqual({ provider: 0, canary: 0, budget: 0, slo: 0 })
     })
 })
