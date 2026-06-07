@@ -64,12 +64,13 @@
 - [x] DECLINED executor generateText→streamText (tool-path hot-loop regression risk > marginal gain); documented
 - [ ] (optional, next UI session) verify/polish agent-thinking/activity panels at 390px via authed Playwright; web rebuild if changed
 
-## Phase 8 — Security depth: key-versioning + audit + X-App-Id (WS F2/F3) ⚠ one-way
-- [ ] read-compat multi-key (enc:v2:<keyId> + legacy) — DEPLOY 1 (writes stay v1)
-- [ ] verify both formats decrypt in prod; THEN flip writes to v2 — DEPLOY 2
-- [ ] audit provider-credential mutations + super-admin actions
-- [ ] X-App-Id integrity decision (sign vs document trust model)
-- [ ] tests + tsc green
+## Phase 8 — Security depth: key-versioning + audit + X-App-Id (WS F2/F3) ⚠ one-way — DEPLOY 1 DONE
+- [x] read-compat multi-key (enc:v2:<keyId> + legacy multi-key) — DEPLOY 1 (writes stay v1; PLEXO_ENC_WRITE_V2 unset)
+- [ ] verify v1 creds still decrypt in prod (soak), THEN DEPLOY 2 = set PLEXO_ENC_WRITE_V2=1 + recreate (env flip, no rebuild) ⚠ one-way (keyring must retain keyId's secret)
+- [x] audit provider-credential mutations (ai-provider-creds PUT → provider.update); super-admin audit DEFERRED (no ws ctx + read-noise → per-action instead)
+- [x] X-App-Id integrity: option (b) chosen — document trusted-mesh model, no hot-path HMAC
+- [x] tests (8 crypto: v1/v2 round-trip, read-compat, rotation×2, missing-keyId, wrong-ws) + tsc green; ai-provider-creds + channel-config-crypto unbroken (30/30)
+- [x] DEPLOY 1 deployed: prod img 5a428b1b, healthy, 0 decrypt/auth failures. v1 read path is byte-identical by construction (single-key keyring → same HMAC key as before); v2 read unit-tested. No v2 rows created (writes still v1). DEPLOY 2 = env flip after soak.
 
 ## Phase 9 — QA load/chaos + observability (WS G) — PARTIAL (SLO alerting + chaos shipped)
 - [x] inference-proxy cascade fault-injection: chaos test (provider cascade exhaustion → clean 500) added to inference.test.ts (34/34)

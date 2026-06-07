@@ -1,8 +1,14 @@
 # ADR 0003 — ENCRYPTION_SECRET key-versioning + service-key/X-App-Id hardening (WS F)
 
 Date: 2026-06-06
-Status: Proposed (awaiting operator gate)
+Status: ACCEPTED — Deploy 1 shipped 2026-06-06 (read-compat; writes stay v1). Deploy 2 (write-v2 env flip) pending a read-compat soak.
 Project: Plexo Round-5 optimization
+
+## Decisions taken (2026-06-06)
+1. Versioned ciphertext IMPLEMENTED (crypto.ts): keyring (ENCRYPTION_SECRET + ENCRYPTION_SECRET_PREVIOUS); decrypt handles legacy v1 (tries all keyring secrets) + v2 (`enc:v2:<keyId>....`); encrypt writes v1 by default, v2 when PLEXO_ENC_WRITE_V2=1. Deploy 1 = read-compat only (this commit). Deploy 2 = set PLEXO_ENC_WRITE_V2=1 + recreate (pure env flip, no rebuild) AFTER verifying read-compat in prod.
+2. Audit: provider-credential mutation (ai-provider-creds PUT) now writes a fire-and-forget `provider.update` audit_log row (key names only). Super-admin audit hook DEFERRED — requireSuperAdmin has no workspace context (audit_log.workspace_id) and would audit reads too; better added per-action at mutating super-admin routes.
+3. X-App-Id integrity: chose option (b) — document the trusted-mesh trust model; NO hot-path HMAC (Pat's perf concern). Revisit to option (a) only if an untrusted caller is ever added to the mesh.
+4. crypto-util.ts (connections creds) is a v1 twin — left as-is (out of ADR scope). Safe while the current ENCRYPTION_SECRET is retained; a full rotation would need the same multi-key read treatment there too.
 
 ## Context
 
