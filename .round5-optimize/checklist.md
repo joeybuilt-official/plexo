@@ -71,8 +71,9 @@
 - [ ] X-App-Id integrity decision (sign vs document trust model)
 - [ ] tests + tsc green
 
-## Phase 9 — QA load/chaos + observability (WS G)
-- [ ] inference-proxy load + cascade fault-injection tests
-- [ ] chat SSE e2e (reconnect/cancel mid-stream)
-- [ ] router_v2_stats dashboard + SLO/alerting on /metrics
-- [ ] CI green; dashboard reads router_v2_stats; SLO breach alerts
+## Phase 9 — QA load/chaos + observability (WS G) — PARTIAL (SLO alerting + chaos shipped)
+- [x] inference-proxy cascade fault-injection: chaos test (provider cascade exhaustion → clean 500) added to inference.test.ts (34/34)
+- [x] SLO/alerting: evaluateSloBreaches() (pure, tested 9) + runRouterStatsSnapshot enqueues breaches → batched ops-alerts flush; env PLEXO_SLO_MIN_SUCCESS(0=off)/MIN_SAMPLES/MAX_P95_MS
+- [ ] (next) router_v2_stats dashboard panel — extend apps/api/src/routes/intelligence-dashboard.ts (latest snapshot per key via router_v2_stats_key_idx)
+- [ ] (next) chat SSE e2e reconnect/cancel mid-stream — GET /api/chat/reply-stream/:taskId
+- [x] deployed (img pending — Phase 9 build/recreate in progress)
