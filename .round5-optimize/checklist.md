@@ -5,14 +5,18 @@
 - [x] unhandledRejection logging normalized to Error (index.ts:852, mirror cc-ingest.ts)
 - [x] fylo-bridge: CLOSED as non-issue — enabled in prod (ws 69d1), loader degrades gracefully (plugins/bridge.ts:196 warn+skip), 0 module errors in current image; audit "dead plugin" was stale-image artifact. No change (deleting would remove a live extension).
 - [x] api tsc green; committed (Round-5 P1)
-- [ ] deployed + verified (build in flight) — bounded node_events after a retention tick, real rejection stack
+- [x] deployed (img 8339f3fd) + verified healthy; retention runs on daily 3am cron
 
 ## Phase 2 — HTTP backpressure + payload safety (WS F1) ⚠ — CODE DONE
 - [x] Inventory: generalLimiter is app-wide (2000/15min/IP) so inference/events WERE behind a coarse IP limit that would throttle a busy single-IP graphiti container
 - [x] serviceLimiter (app-id-keyed, PLEXO_SERVICE_RATE_MAX default 1200/min, 0=off) added; generalLimiter now skips /api/inference + /api/v1/events; serviceLimiter mounted on both
 - [x] embeddings batch cap (PLEXO_EMBEDDINGS_MAX_BATCH default 256, 0=off) → 413 BATCH_TOO_LARGE before provider fan-out (inference.ts)
 - [x] test: oversized batch → 413 (inference 33/33); api tsc green
-- [ ] commit + deploy after P1 verifies; verify graphiti/Fonto uninterrupted (0 spurious 429)
+- [x] committed (0a8dc1f) + deployed (img 994250e4) + verified healthy; 0 spurious 429 (quiet window)
+
+## Phase 3 — discovery DONE; STOPPED at ⚠ migration operator-gate
+- [x] entry points recorded in plan.md (schema:318, migration 0128, dispatch site, telemetry.ts, ab-variants welchsTTest, graphiti task-less → needs proxy)
+- [ ] OPERATOR GATE: approve additive nullable routed_provider/routed_model migration on tasks + ADR-0001 graphiti-quality-proxy choice (parse-fail/entity-count vs shadow)
 
 ## Phase 2 — HTTP backpressure + payload safety (WS F1) ⚠
 - [ ] Explore: inventory current per-router rate-limit application (index.ts)
