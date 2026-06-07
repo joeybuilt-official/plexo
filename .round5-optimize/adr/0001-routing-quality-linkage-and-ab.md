@@ -1,8 +1,12 @@
 # ADR 0001 — Routing-choice → outcome linkage + A/B scorecard (WS B enabler)
 
 Date: 2026-06-06
-Status: Proposed (awaiting operator gate)
+Status: ACCEPTED (operator gate cleared 2026-06-06)
 Project: Plexo Round-5 optimization (`.round5-optimize/`)
+
+## Operator decisions (2026-06-06)
+1. Additive migration 0128 (`tasks.routed_provider`, `tasks.routed_model`, nullable) — APPROVED as scoped (no backfill, no NOT NULL, write-on-new-rows).
+2. Graphiti extraction-quality proxy — **SHADOW RE-EXTRACTION chosen** (Maya/ground-truth), NOT the cheap downstream proxy. ∴ implement a bounded, sampled, default-OFF shadow re-extraction on the inference-proxy extraction path: re-run the same episode on the D2 candidate model, score agreement vs primary, persist to `shadow_extraction_results`. Cost bounded by sampling rate (`PLEXO_SHADOW_EXTRACTION_RATE`, default 0=OFF) + default-OFF so the over-budget-ws concern (Felix) only materializes when the operator explicitly enables it for the Phase-4 eval window.
 
 ## Context
 

@@ -209,7 +209,7 @@ async function autoPromote(workspaceId: string, challengerId: string): Promise<v
     }
 }
 
-function welchsTTest(a: number[], b: number[]): { pValue: number, tStat: number, meanA: number, meanB: number } {
+export function welchsTTest(a: number[], b: number[]): { pValue: number, tStat: number, meanA: number, meanB: number } {
     const meanA = a.reduce((sum, val) => sum + val, 0) / a.length
     const meanB = b.reduce((sum, val) => sum + val, 0) / b.length
 

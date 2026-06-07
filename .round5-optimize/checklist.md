@@ -14,9 +14,9 @@
 - [x] test: oversized batch → 413 (inference 33/33); api tsc green
 - [x] committed (0a8dc1f) + deployed (img 994250e4) + verified healthy; 0 spurious 429 (quiet window)
 
-## Phase 3 — discovery DONE; STOPPED at ⚠ migration operator-gate
+## Phase 3 — discovery DONE; operator gate CLEARED
 - [x] entry points recorded in plan.md (schema:318, migration 0128, dispatch site, telemetry.ts, ab-variants welchsTTest, graphiti task-less → needs proxy)
-- [ ] OPERATOR GATE: approve additive nullable routed_provider/routed_model migration on tasks + ADR-0001 graphiti-quality-proxy choice (parse-fail/entity-count vs shadow)
+- [x] OPERATOR GATE CLEARED 2026-06-06: migration APPROVED as scoped; proxy = SHADOW RE-EXTRACTION (not cheap proxy)
 
 ## Phase 2 — HTTP backpressure + payload safety (WS F1) ⚠
 - [ ] Explore: inventory current per-router rate-limit application (index.ts)
@@ -24,13 +24,15 @@
 - [ ] embeddings batch-size cap (reject oversized input[] before provider; inference.ts:152)
 - [ ] tests (429 past threshold + legit-rate passes); tsc green; deployed; 0 spurious 429 for graphiti/Fonto
 
-## Phase 3 — Routing→quality linkage + A/B scorecard (WS B) ⚠ migration
-- [ ] migration: nullable routed_provider/routed_model on tasks (operator OK)
-- [ ] write routing choice at dispatch; persist model.routed to a table (replace console sink)
-- [ ] add routing_events to runDataRetention()
-- [ ] scorecard query (Welch t-test via ab-variants.ts) qualityScore by routed_model for extraction
-- [ ] graphiti extraction-quality proxy chosen (parse-fail/entity-count first)
-- [ ] tests + tsc green; migration clean; deployed
+## Phase 3 — Routing→quality linkage + A/B scorecard (WS B) ⚠ migration — CODE DONE
+- [x] migration 0128: nullable routed_provider/routed_model on tasks + routing_events + shadow_extraction_results tables (+ journal entry idx 127)
+- [x] write routing choice at dispatch: executor patches tasks.routed_provider/model (resolvedMeta) at the judge update (executor/index.ts:2632)
+- [x] persist model.routed to routing_events (telemetry.ts emitRoutedEvent → fire-and-forget INSERT; taskId threaded via RouteAndCallInput)
+- [x] add routing_events + shadow_extraction_results to runDataRetention() (ROUTING_EVENTS_RETENTION_DAYS default 30)
+- [x] scorecard: eval/routing-scorecard.ts — routingScorecard() (Welch via exported ab-variants.welchsTTest, qualityScore by routed_model) + shadowExtractionScorecard()
+- [x] graphiti SHADOW re-extraction: routes/shadow-extraction.ts — sampled (PLEXO_SHADOW_EXTRACTION_RATE default 0=OFF), background-app + schema-mode only, agreement + field-count → shadow_extraction_results
+- [x] tests (4 scorecard) + tsc green (db/agent/api); inference 33/33, router-v2 87/87, executor+judge 36, cron 30 — no regressions
+- [ ] migration clean in prod; deployed + verified
 
 ## Phase 4 — D2 flip A/B execution (WS B) ⚠ operator GO
 - [ ] operator GO; set PLEXO_INFERENCE_BG_MODEL=cerebras/gpt-oss-120b + recreate

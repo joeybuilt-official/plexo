@@ -128,6 +128,12 @@ function cooldownMsForClass(c: ReturnType<typeof classifyError>): number {
 
 export interface RouteAndCallInput<T> {
     workspaceId: string | undefined
+    /**
+     * Round-5 Phase 3: the task row this call serves, if any. Threaded only into
+     * the routing_events telemetry sink so the decision can be joined to outcome.
+     * Proxy-only callers (graphiti inference) leave it undefined.
+     */
+    taskId?: string
     taskType: TaskType
     settings: WorkspaceAISettings
     doCall: (model: AnyLanguageModel) => Promise<T>
@@ -163,7 +169,7 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
 }
 
 async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
-    const { workspaceId, taskType, settings, doCall, opts, modelIdOverride } = input
+    const { workspaceId, taskId, taskType, settings, doCall, opts, modelIdOverride } = input
 
     let available = buildAvailable(settings)
     if (available.length === 0) {
@@ -194,7 +200,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
         if (!sel.chosen) {
             // Emit telemetry even for failed routing so dashboards see the gap.
             emitRoutedEvent(buildRoutedEvent({
-                workspaceId, taskType, selection: sel,
+                workspaceId, taskId, taskType, selection: sel,
                 selectorDurationMs: selDur, fallbackEngaged,
             }))
             if (sel.requireOperatorAction) {
@@ -248,7 +254,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
                 })
             }
             emitRoutedEvent(buildRoutedEvent({
-                workspaceId, taskType, selection: sel,
+                workspaceId, taskId, taskType, selection: sel,
                 selectorDurationMs: selDur, fallbackEngaged,
             }))
             if (fallbackEngaged && firstChosenProvider) {
@@ -284,7 +290,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             }
             if (!cls.shouldFallback) {
                 emitRoutedEvent(buildRoutedEvent({
-                    workspaceId, taskType, selection: sel,
+                    workspaceId, taskId, taskType, selection: sel,
                     selectorDurationMs: selDur, fallbackEngaged,
                 }))
                 throw new RouterV2CallError(err)
@@ -320,7 +326,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     // Cascade exhausted — emit telemetry with the first selection (or nothing if none).
     if (firstSelection) {
         emitRoutedEvent(buildRoutedEvent({
-            workspaceId, taskType, selection: firstSelection,
+            workspaceId, taskId, taskType, selection: firstSelection,
             selectorDurationMs: firstSelectorDurationMs, fallbackEngaged: true,
         }))
     }
