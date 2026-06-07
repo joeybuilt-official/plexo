@@ -20,21 +20,23 @@ import { emitMemoryExtraction, emitMemoryEmbedded } from '../analytics/memory-ev
 
 const logger = pino({ name: 'extract-worker' })
 
+// ADR 0004: keep this schema minimal so small models (gpt-oss-120b on
+// groq/cerebras/ollama) reliably satisfy strict structured-output validation.
+//  - `.nullable()` not `.optional()` — strict providers reject optional
+//    (omitted-from-`required`) properties ("invalid JSON schema: required must
+//    include domain").
+//  - NO maxLength / numeric-bound constraints — small models exceed them and
+//    strict mode hard-rejects the whole generation ("Failed to validate JSON").
+//    We validate loosely here and truncate/clamp in the consumer before the DB
+//    write (which carries the real length limits).
 const FactSchema = z.object({
     facts: z.array(z.object({
         factType: z.enum(['identity', 'preference', 'skill', 'context', 'constraint']),
-        subject: z.string().max(100),
-        predicate: z.string().max(100),
-        object: z.string().max(300),
-        // Strict OpenAI-compat providers (groq/cerebras) require every property
-        // in `required`; a bare `.optional()` omits it → "invalid JSON schema:
-        // required must include domain" → 100% failure on those providers (ADR
-        // 0004). `.nullable()` keeps it required as type ["string","null"];
-        // consumers already null-coalesce (fact.domain ?? null).
-        domain: z.string().max(60).nullable(),
-        // .refine instead of .min().max() — Anthropic structured-output rejects
-        // {minimum, maximum} on number-typed JSON Schema fields. See quality-judge.ts.
-        confidence: z.number().refine((n) => n >= 0 && n <= 1, { message: 'confidence must be 0..1' }),
+        subject: z.string(),
+        predicate: z.string(),
+        object: z.string(),
+        domain: z.string().nullable(),
+        confidence: z.number(),
     })),
 })
 
@@ -91,7 +93,19 @@ export async function extractTurn(params: {
             }
         }
         if (!extracted) {
-            extracted = await doCall(resolveModelFromEnv())
+            // ADR 0004: routeAndCall exhausted (e.g. the workspace's only models
+            // are small ones that can't satisfy the extraction schema, and
+            // deepseek is out of balance). The env fallback throws NO_PROVIDER in
+            // the inngest context (no system-wide key) — fact extraction is
+            // non-critical memory enrichment, so degrade cleanly instead of
+            // raising a noisy error.
+            try {
+                extracted = await doCall(resolveModelFromEnv())
+            } catch {
+                logger.info({ workspaceId, source }, 'extract-worker: no extraction provider could satisfy the schema — skipping (non-fatal)')
+                emitMemoryExtraction({ workspaceId, factsExtracted: 0, factsWritten: 0, source, sessionId })
+                return
+            }
         }
         const { object: parsed } = extracted
 
@@ -104,7 +118,18 @@ export async function extractTurn(params: {
         const backend = getWriteBackend()
 
         let factsWritten = 0
-        for (const fact of parsed.facts.slice(0, 3)) {
+        for (const rawFact of parsed.facts.slice(0, 3)) {
+            // ADR 0004: length/range limits live here (not in the strict schema)
+            // so small models can't hard-fail generation on them. Truncate to the
+            // DB column limits + clamp confidence to 0..1.
+            const fact = {
+                factType: rawFact.factType,
+                subject: rawFact.subject.slice(0, 100),
+                predicate: rawFact.predicate.slice(0, 100),
+                object: rawFact.object.slice(0, 300),
+                domain: rawFact.domain ? rawFact.domain.slice(0, 60) : null,
+                confidence: Math.min(1, Math.max(0, Number(rawFact.confidence) || 0)),
+            }
             const content = `${fact.subject} ${fact.predicate} ${fact.object}`
             const id = crypto.randomUUID()
 
