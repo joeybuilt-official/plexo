@@ -87,11 +87,16 @@ async function loadEngine(modelId: ClipModelId): Promise<ClipEngine> {
     const repo = MODEL_REPOS[modelId]
     if (!repo) throw new Error(`CLIP model "${modelId}" has no configured HF repo`)
     const p = (async () => {
-        logger.info({ modelId, repo, cacheDir: CACHE_DIR }, 'Loading CLIP engine')
+        // GPU opt-in: VISION_ORT_EP=cuda loads the CLIP ONNX graphs onto the
+        // CUDA execution provider via transformers.js `device` (needs a
+        // CUDA-12 + cuDNN-9 image — see the Dockerfile.vision GPU variant).
+        // Default 'cpu' keeps CPU-only hosts working unchanged.
+        const device = process.env.VISION_ORT_EP === 'cuda' ? 'cuda' : 'cpu'
+        logger.info({ modelId, repo, cacheDir: CACHE_DIR, device }, 'Loading CLIP engine')
         const t0 = performance.now()
         const [visionModel, textModel, processor, tokenizer] = await Promise.all([
-            CLIPVisionModelWithProjection.from_pretrained(repo, { dtype: 'fp32' }),
-            CLIPTextModelWithProjection.from_pretrained(repo, { dtype: 'fp32' }),
+            CLIPVisionModelWithProjection.from_pretrained(repo, { dtype: 'fp32', device }),
+            CLIPTextModelWithProjection.from_pretrained(repo, { dtype: 'fp32', device }),
             AutoProcessor.from_pretrained(repo),
             AutoTokenizer.from_pretrained(repo),
         ])

@@ -117,15 +117,21 @@ async function loadEngine(): Promise<FacesEngine> {
             fallbackUrl:
                 'https://huggingface.co/immich-app/buffalo_l/resolve/main/recognition/model.onnx',
         })
-        logger.info({ detPath, recPath }, 'Initializing buffalo_l ONNX sessions')
+        // GPU opt-in: VISION_ORT_EP=cuda runs the ONNX sessions on the CUDA
+        // execution provider (needs a CUDA-12 + cuDNN-9 image — see the
+        // Dockerfile.vision GPU variant), with per-op CPU fallback. Default
+        // stays CPU so CPU-only hosts keep working unchanged.
+        const ortEp: string[] =
+            process.env.VISION_ORT_EP === 'cuda' ? ['cuda', 'cpu'] : ['cpu']
+        logger.info({ detPath, recPath, ortEp }, 'Initializing buffalo_l ONNX sessions')
         const t0 = performance.now()
         const [detSession, recSession] = await Promise.all([
             ort.InferenceSession.create(detPath, {
-                executionProviders: ['cpu'],
+                executionProviders: ortEp,
                 graphOptimizationLevel: 'all',
             }),
             ort.InferenceSession.create(recPath, {
-                executionProviders: ['cpu'],
+                executionProviders: ortEp,
                 graphOptimizationLevel: 'all',
             }),
         ])
