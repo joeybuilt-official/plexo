@@ -25,10 +25,12 @@
 - [x] prod shadow logs show would-pick vs served — verified extraction + summarization (served cerebras/ollama_cloud; shadow deepseek/deepseek-v4-flash; full shortlist + model.shadow log line). Bug fixed mid-deploy: drizzle array-binding (inArray) — see plan decisions log.
 
 ## Phase 2 — Weighted scorer + selector integration ⚠ behavior (flag-gated)
-- [ ] scoreModelCandidate over {task-fit prior, live stats success/p95, reliability, cost} w/ objective weights
-- [ ] selectModel returns best MODEL when flag ON; flag OFF byte-identical to today
-- [ ] explicit per-task override always wins; single-provider degrade-and-proceed preserved; D2 modelIdOverride path intact
-- [ ] tests (flag OFF identical; flag ON capability+score-best; single-provider; override wins) + tsc green; deployed (flag OFF)
+- [x] scoreModelCandidate over {task-fit prior, live stats success/p95, reliability, cost} w/ objective weights — score.ts (modelQualityScore + selectBestModel; quality-first default, cost-first via PLEXO_ROUTING_OBJECTIVE; unknown-cost-last; cooling pool)
+- [x] selectModel returns best MODEL when flag ON; flag OFF byte-identical — selector.ts flag-gated branch; equivalence suite unchanged
+- [x] explicit per-task override always wins; single-provider preserved; D2 modelIdOverride intact — selector-model-router.test.ts
+- [x] index.ts: loadModelCandidates when flag ON; buildModel uses chosen model for model-routed picks; shadow uses real scorer (provisionalPick removed)
+- [x] tests + tsc green — score(10)+selector-model-router(6)+shadow(7); full router-v2 132 green
+- [x] deployed (flag OFF in prod) — rebuilt+recreated; ROUTER=0/SHADOW=1; verified serving unchanged (legacy cerebras) + shadow now scorer-driven (reason "scored", live stats shifted would-pick groq vs deepseek)
 
 ## Phase 3 — Model-granular cascade + per-task capability requirements ⚠ behavior
 - [ ] cascade advances across ranked model shortlist (capped, ordered), not just providers
