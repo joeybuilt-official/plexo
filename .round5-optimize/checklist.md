@@ -76,4 +76,4 @@
 - [x] SLO/alerting: evaluateSloBreaches() (pure, tested 9) + runRouterStatsSnapshot enqueues breaches → batched ops-alerts flush; env PLEXO_SLO_MIN_SUCCESS(0=off)/MIN_SAMPLES/MAX_P95_MS
 - [x] router_v2_stats dashboard endpoint: GET /api/v1/intel-dashboard/:ws/router-stats (latest bucket per key, 2h window) + per-app spend (loadAppSpend) added to cost-summary; tests 13/13
 - [ ] (optional, remaining) chat SSE e2e reconnect/cancel mid-stream — GET /api/chat/reply-stream/:taskId
-- [x] CORE EXIT MET: chaos test ✓ + dashboard reads router_v2_stats ✓ + SLO breach alerts ✓. Deployed (img f89c7460 then dashboard build/recreate in progress).
+- [x] CORE EXIT MET: chaos test ✓ + dashboard reads router_v2_stats ✓ + SLO breach alerts ✓. Deployed — final prod img 6c0a1c88, healthy, 0 errors.
