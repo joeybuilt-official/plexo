@@ -114,6 +114,97 @@ export async function routingScorecard(opts: {
     return { taskType, minSamples, arms, comparisons }
 }
 
+export interface ModelRouterTaskScore {
+    taskType: string
+    /** Shadow window: how often the model-router's would-pick differed from the served model. */
+    shadow: { n: number; divergent: number; divergenceRate: number }
+    /**
+     * Post-flip A/B: served-model quality split by whether the model-level router
+     * chose it. Populated only once the serving flip (PLEXO_MODEL_ROUTER) is on;
+     * before that the router arm is empty.
+     */
+    ab: {
+        baseline: { n: number; meanQuality: number }
+        router: { n: number; meanQuality: number }
+        /** One-tailed Welch p that router quality > baseline; null until both arms have ≥2. */
+        pValue: number | null
+        /** Both arms cleared minSamples. */
+        sufficient: boolean
+    }
+}
+
+/**
+ * Model-level router scorecard (Round-6 Phase 4). Read-only. Per task type:
+ *  - shadow divergence over the window (would-pick vs served) — measurable while
+ *    the serving flip is OFF, from `routing_events.shadow_model_choice`.
+ *  - post-flip quality A/B — served quality (`tasks.quality_score`) split by
+ *    `routing_events.model_routed`, with a one-tailed Welch test.
+ * This is the evidence that gates the Phase 5 flip.
+ */
+export async function modelRouterScorecard(opts: {
+    windowDays?: number
+    minSamples?: number
+} = {}): Promise<ModelRouterTaskScore[]> {
+    const windowDays = opts.windowDays ?? 14
+    const minSamples = opts.minSamples ?? 100
+
+    const divRows = (await db.execute(sql`
+        SELECT task_type,
+               COUNT(*) FILTER (WHERE shadow_model_choice IS NOT NULL) AS shadow_n,
+               COUNT(*) FILTER (
+                   WHERE shadow_model_choice IS NOT NULL
+                     AND (provider || '/' || model) IS DISTINCT FROM (shadow_model_choice::jsonb ->> 'chosen')
+               ) AS divergent_n
+        FROM routing_events
+        WHERE created_at > NOW() - INTERVAL '1 day' * ${windowDays}
+        GROUP BY task_type
+    `)) as unknown as Array<{ task_type: string; shadow_n: number; divergent_n: number }>
+
+    const qRows = (await db.execute(sql`
+        SELECT re.task_type AS task_type, re.model_routed AS model_routed, t.quality_score AS quality
+        FROM routing_events re
+        JOIN tasks t ON t.id = re.task_id
+        WHERE re.created_at > NOW() - INTERVAL '1 day' * ${windowDays}
+          AND re.task_id IS NOT NULL
+          AND t.quality_score IS NOT NULL
+    `)) as unknown as Array<{ task_type: string; model_routed: boolean; quality: number }>
+
+    const byTask = new Map<string, { baseline: number[]; router: number[] }>()
+    for (const r of qRows) {
+        const q = Number(r.quality)
+        if (!Number.isFinite(q)) continue
+        const e = byTask.get(r.task_type) ?? { baseline: [], router: [] }
+        ;(r.model_routed ? e.router : e.baseline).push(q)
+        byTask.set(r.task_type, e)
+    }
+
+    const divByTask = new Map<string, { shadow_n: number; divergent_n: number }>()
+    for (const d of divRows) divByTask.set(d.task_type, { shadow_n: Number(d.shadow_n), divergent_n: Number(d.divergent_n) })
+
+    const taskTypes = new Set<string>([...byTask.keys(), ...divByTask.keys()])
+    const mean = (a: number[]) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0)
+
+    return [...taskTypes].map(taskType => {
+        const d = divByTask.get(taskType) ?? { shadow_n: 0, divergent_n: 0 }
+        const q = byTask.get(taskType) ?? { baseline: [], router: [] }
+        const canTest = q.baseline.length >= 2 && q.router.length >= 2
+        return {
+            taskType,
+            shadow: {
+                n: d.shadow_n,
+                divergent: d.divergent_n,
+                divergenceRate: d.shadow_n > 0 ? d.divergent_n / d.shadow_n : 0,
+            },
+            ab: {
+                baseline: { n: q.baseline.length, meanQuality: mean(q.baseline) },
+                router: { n: q.router.length, meanQuality: mean(q.router) },
+                pValue: canTest ? welchsTTest(q.baseline, q.router).pValue : null,
+                sufficient: q.baseline.length >= minSamples && q.router.length >= minSamples,
+            },
+        }
+    }).sort((a, b) => b.shadow.n - a.shadow.n)
+}
+
 export interface ShadowPair {
     primaryModel: string
     shadowModel: string

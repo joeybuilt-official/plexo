@@ -34,6 +34,8 @@ export interface RoutedEvent {
     requireOperatorAction: boolean
     /** Present when the selector routed to a sub-recommended provider (ADR §C6 Q2). */
     degradation_reason?: 'workspace_low_quality_only'
+    /** Round-6 Phase 4: true when the served pick came from the model-level router. */
+    modelRouted: boolean
 }
 
 export function buildRoutedEvent(args: {
@@ -60,6 +62,7 @@ export function buildRoutedEvent(args: {
         fallbackEngaged,
         requireOperatorAction: selection.requireOperatorAction,
         ...(selection.degradationReason ? { degradation_reason: selection.degradationReason } : {}),
+        modelRouted: selection.modelRouted === true,
     }
 }
 
@@ -93,7 +96,7 @@ async function persistRoutedEvent(evt: RoutedEvent, shadowInput?: ShadowInput): 
         }
         await db.execute(sql`
             INSERT INTO routing_events
-                (workspace_id, task_id, task_type, provider, model, fallback_engaged, selector_duration_ms, shadow_model_choice)
+                (workspace_id, task_id, task_type, provider, model, fallback_engaged, selector_duration_ms, shadow_model_choice, model_routed)
             VALUES (
                 ${evt.workspaceId ?? null},
                 ${evt.taskId ?? null},
@@ -102,7 +105,8 @@ async function persistRoutedEvent(evt: RoutedEvent, shadowInput?: ShadowInput): 
                 ${evt.chosen?.model ?? null},
                 ${evt.fallbackEngaged},
                 ${Math.round(evt.selectorDurationMs)},
-                ${shadow}
+                ${shadow},
+                ${evt.modelRouted}
             )
         `)
     } catch {
