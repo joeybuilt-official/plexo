@@ -1,0 +1,69 @@
+# Plexo Round-6 — Model-level router — Master Plan
+
+Date: 2026-06-07. Project root `/workspace/plexo/.round6-model-router/`. Repo `/workspace/plexo` (public, joeybuilt). Prod = the server compose `/srv/plexo`; deploy = git-apply overlay patch → `docker compose build plexo-api` → `up -d --no-deps`, hostname-gated + announced. Migrations applied to prod `plexo` DB (plexo-postgres) **BEFORE** recreate (Round-5 lesson — see memory reference_plexo_deploy_migrations). main @ `a520e81`, prod plexo-api img `73550e59`.
+
+Carries Round-5 discipline: unit tests + `tsc` green before deploy; flag-gated behavior changes default OFF; log/DB-based prod verification; caveman artifacts; NO hardwired provider; single-provider rule (ADR 0005) + strict-schema compat (ADR 0004) preserved.
+
+## Goal
+Upgrade router-v2 from provider-selection-with-one-fixed-model to a model-level router that, per request, selects the most appropriate model across all connected providers' catalogs — capability-gated, quality+cost+live-stats scored — without breaking single-provider, strict-schema, cascade, or the no-hardwired-provider rule; shippable, measurable, reversible.
+
+## Open operator decisions (from ADR 0006 — gate these before/at kickoff)
+1. **Objective default**: quality-first (cost tiebreaker) [recommended] vs cost-first.
+2. **User-model precedence**: auto-route only when no explicit per-task override; explicit choice always wins [recommended] vs full auto-override.
+3. **Candidate source**: (configured ∪ discovered models for connected providers) ∩ `models_knowledge` for capability/cost [recommended] vs catalog-only vs configured-only.
+
+These shape Phases 1–3. Recommended defaults assumed in the plan; operator may override.
+
+---
+
+## Phase 0 — Candidate model + capability foundation (data)
+- Scope: define a `ModelCandidate` type ({provider, modelId, capabilities, contextWindow, costPerMIn/Out, reliability, priorScore-by-task}); a per-model **capability** derivation (map `models_knowledge.strengths[]` + manifest `Capability` + provider quirks → a normalized capability set); validate/backfill `models_knowledge` rows for the providers actually connected in prod (audit coverage; flag gaps). No selection logic yet. Confirm `router_v2_stats` is already model-keyed (it is) so per-model live stats exist.
+- Deps: none. Subagents: Explore to inventory `models_knowledge` coverage + the discovery path (`registry.ts` `/v1/models`, ollama adapter) for connected providers.
+- Exit: `ModelCandidate` + capability-derivation unit-tested; a read-only report of model coverage per connected provider (gaps named). No behavior change.
+- Status: pending
+
+## Phase 1 — Candidate enumeration + capability gate (pure, shadow/log-only)
+- Scope: a pure `enumerateModelCandidates({workspaceId, taskType, settings})` → capped candidate list (configured + discovered ∩ knowledge), and a `capabilityGate(taskType, requirements, candidates)` hard filter (e.g. vision tasks → vision-capable only; extraction → json-reliable; min-context). Wire it **shadow/log-only**: alongside today's selection, compute what the model-router *would* pick and emit it to `routing_events` (a `shadow_model_choice` column/field) — do NOT change the served model. Flag `PLEXO_MODEL_ROUTER` (default OFF) controls whether shadow logging runs.
+- Deps: Phase 0. Subagents: general-purpose for the enumerate/gate + tests.
+- Exit: unit tests for enumeration + gate (incl single-provider: candidate set never empties to a block); prod shadow logs show would-pick vs served for ≥1 of each task type; served model unchanged; tsc green; deployed.
+- Status: pending
+
+## Phase 2 — Weighted model scorer + selector integration (flag-gated) ⚠ behavior
+- Scope: a `scoreModelCandidate` over {task-fit prior (manifest class), live `router_v2_stats` success/p95 per model, reliability, cost} with the operator's objective weights; integrate into `selectModel` so that when `PLEXO_MODEL_ROUTER=1` the selector returns the best **model** (not just provider+default-model), honoring user explicit overrides (decision #2). Preserve single-provider degrade-and-proceed (ADR 0005) + the modelIdOverride/D2 path. Default OFF = byte-identical to today.
+- Deps: Phase 1. Subagents: general-purpose.
+- Exit: tests: flag-OFF identical to current selection; flag-ON picks capability+score-best model; single-provider still serves; explicit override still wins; tsc green; deployed (flag still OFF in prod).
+- Status: pending
+
+## Phase 3 — Model-granular cascade + per-task capability requirements ⚠ behavior
+- Scope: extend the cascade (`router-v2/index.ts`) so fallback advances across the ranked model shortlist (capped, ordered) not just providers; define per-taskType capability requirements (vision/json-strict/min-context) feeding the Phase-1 gate; ensure cascade never fans out unboundedly (Rey) and never excludes the last/only candidate (single-provider rule).
+- Deps: Phase 2. Subagents: general-purpose.
+- Exit: tests: a failing top model cascades to the next ranked model (same or other provider); bounded attempts; single-provider retry-same preserved; tsc green; deployed (flag OFF).
+- Status: pending
+
+## Phase 4 — Telemetry + A/B scorecard (measure before flip)
+- Scope: extend `routing_events` with the chosen-candidate context (shortlist + why); a scorecard reusing the Round-5 Welch `routingScorecard` to compare `qualityScore` (and cost/latency) of model-router choices vs baseline per task type; add any new table to `runDataRetention()`.
+- Deps: Phases 1–3 (shadow + flag data). Subagents: general-purpose.
+- Exit: scorecard returns per-task model-router-vs-baseline quality/cost/latency deltas with sample counts; tsc green; deployed.
+- Status: pending
+
+## Phase 5 — Measured flip (operator GO) ⚠ one-way-ish / operator gate
+- Scope: with the Phase-4 scorecard live + shadow data accrued, flip `PLEXO_MODEL_ROUTER=1` (env + recreate, no rebuild); observe scorecard + lane gauge + error rates ~1h+; decide keep/revert. Operator-gated GO (quality + cost bar).
+- Deps: Phase 4 + sufficient shadow samples. Subagents: none.
+- Exit: a recorded measured decision (keep with quality/cost delta within bar, or revert). Reversible via the env flag.
+- Status: pending
+
+## One-way doors / operator gates (summary)
+- Objective / user-precedence / candidate-source decisions (kickoff) — operator.
+- Phase 2 ⚠ behavior (flag-gated, default OFF) — verify flag-OFF identical.
+- Phase 3 ⚠ behavior (cascade semantics, flag-gated).
+- Phase 5 ⚠ operator GO (quality+cost) — measured flip.
+
+## Deploy/verify recipe (every code phase)
+1. commit + push (within standing OK).
+2. `git diff <prev> <head> -- packages apps` → copy to the server → `git apply` in `source/plexo` (dry-run `--check` first).
+3. migrations (if any): apply SQL to prod `plexo` DB BEFORE recreate.
+4. `docker compose build plexo-api` → `up -d --no-deps plexo-api` → wait healthy.
+5. verify via logs/DB; flag stays OFF until Phase 5.
+
+## Decisions log
+- 2026-06-07 — Plan created (phased-plan skill). Audit: router selects provider + one fixed model/provider; manifest provider×task; models_knowledge per-model data unused in routing; per-provider discovery exists. ADR 0006 written w/ expert panel + 3 operator conflicts (objective, user-precedence, candidate-source). Awaiting operator gate.
