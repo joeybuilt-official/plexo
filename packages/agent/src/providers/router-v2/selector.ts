@@ -26,6 +26,9 @@ import {
     type ManifestEntry,
 } from './manifest.js'
 import { getStats } from './stats.js'
+import { selectBestModel } from './score.js'
+import { isModelRouterEnabled } from './flags.js'
+import type { ModelCandidate } from './candidate.js'
 import { RECOMMENDED_PRIOR } from './quality-warnings.js'
 import {
     DEFAULT_MODEL_ROUTING,
@@ -74,6 +77,8 @@ export interface SelectionResult {
     degradationReason?: 'workspace_low_quality_only'
     /** Round-4 D2: true when `chosen` came from a forced modelIdOverride (bypassed scoring). */
     forcedModel?: boolean
+    /** Round-6 Phase 2: true when `chosen` came from the model-level router (flag on). */
+    modelRouted?: boolean
 }
 
 export interface SelectInput {
@@ -90,6 +95,13 @@ export interface SelectInput {
      * selector falls through to normal scoring. Default unset = no override.
      */
     modelIdOverride?: string
+    /**
+     * Round-6 Phase 2: pre-enumerated + capability-gated model candidates across
+     * the connected providers (caller fetches knowledge + enumerates). Consulted
+     * ONLY when PLEXO_MODEL_ROUTER is on and no explicit per-task override is set.
+     * Unset / flag-off → byte-identical legacy provider selection.
+     */
+    modelCandidates?: ModelCandidate[]
 }
 
 /** Resolve the concrete model ID this candidate would call. */
@@ -188,6 +200,13 @@ function resolveForcedModel(
     return null
 }
 
+/** Minimal manifest entry for a model-router pick whose provider isn't manifested. */
+function syntheticEntry(c: ModelCandidate, taskType: TaskType): ManifestEntry {
+    const p = c.priorScoreByTask[taskType] ?? 1
+    const prior = Math.max(1, Math.min(5, p)) as 1 | 2 | 3 | 4 | 5
+    return { priorScore: prior, capabilities: [...c.capabilities], quirks: [], lastValidatedAt: '1970-01-01' }
+}
+
 export function selectModel(input: SelectInput): SelectionResult {
     const { workspaceId, taskType, availableProviders, settings, modelIdOverride } = input
     const now = Date.now()
@@ -206,6 +225,54 @@ export function selectModel(input: SelectInput): SelectionResult {
                 requireOperatorAction: false,
                 noManifestMatch: false,
                 forcedModel: true,
+            }
+        }
+    }
+
+    // Round-6 Phase 2: model-level routing (flag-gated). Picks the best MODEL
+    // across the pre-enumerated, capability-gated candidates. Skipped (→ legacy
+    // provider selection below, byte-identical) when the flag is off, no
+    // candidates were supplied, or the user set an explicit per-task model
+    // override (decision #2: an explicit choice always wins — auto-route only
+    // fills the gap). D2 modelIdOverride above still takes precedence.
+    const validOverride = (id: string | undefined) =>
+        id && id.trim() !== '' && id !== 'default' && id !== 'placeholder' ? id : undefined
+    const explicitOverride = validOverride(settings.modelOverrides?.[taskType])
+    if (isModelRouterEnabled() && input.modelCandidates && input.modelCandidates.length > 0 && !explicitOverride) {
+        const ranked = selectBestModel({
+            candidates: input.modelCandidates,
+            taskType,
+            statsFor: (provider, model) => getStats({ workspaceId, provider, model, taskType }),
+            now,
+        })
+        if (ranked.length > 0) {
+            const top = ranked[0]!
+            const topPrior = top.candidate.priorScoreByTask[taskType] ?? 0
+            const entry = getManifestEntry(taskType, top.candidate.provider) ?? syntheticEntry(top.candidate, taskType)
+            const alternatives: Alternative[] = ranked.slice(1, 3).map(s => ({
+                provider: s.candidate.provider,
+                model: s.candidate.modelId,
+                score: s.quality,
+                priorScore: s.candidate.priorScoreByTask[taskType] ?? 0,
+                whyNotPicked: `lower model score (${s.quality.toFixed(2)} vs ${top.quality.toFixed(2)})`,
+            }))
+            const degradationReason: 'workspace_low_quality_only' | undefined =
+                topPrior < RECOMMENDED_PRIOR ? 'workspace_low_quality_only' : undefined
+            return {
+                chosen: {
+                    provider: top.candidate.provider,
+                    model: top.candidate.modelId,
+                    score: top.quality,
+                    priorScore: topPrior,
+                    manifestEntry: entry,
+                },
+                alternatives,
+                rationale: `model-router: ${top.candidate.provider}/${top.candidate.modelId} (q=${top.quality.toFixed(2)}, prior=${topPrior})`,
+                manifestVersion,
+                requireOperatorAction: false,
+                noManifestMatch: false,
+                degradationReason,
+                modelRouted: true,
             }
         }
     }
