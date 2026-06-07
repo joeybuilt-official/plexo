@@ -17,7 +17,7 @@
  * the real scorer. ADR 0006, Round-6 plan Phase 1.
  */
 
-import { db, sql } from '@plexo/db'
+import { db, inArray, modelsKnowledge } from '@plexo/db'
 import { enumerateModelCandidates, capabilityGate, type KnowledgeRow } from './enumerate.js'
 import type { ModelCandidate } from './candidate.js'
 import type { Capability } from './manifest.js'
@@ -78,28 +78,26 @@ export interface ShadowInput {
 
 async function fetchKnowledge(providers: readonly string[]): Promise<KnowledgeRow[]> {
     if (providers.length === 0) return []
-    const rows = await db.execute<{
-        provider: string
-        model_id: string
-        context_window: number | null
-        cost_per_m_in: number | null
-        cost_per_m_out: number | null
-        strengths: unknown
-        reliability_score: number | null
-    }>(sql`
-        SELECT provider, model_id, context_window, cost_per_m_in, cost_per_m_out, strengths, reliability_score
-        FROM models_knowledge
-        WHERE provider = ANY(${providers})
-    `)
-    const list = Array.isArray(rows) ? rows : ((rows as { rows?: unknown[] }).rows ?? [])
-    return (list as Array<Record<string, unknown>>).map(r => ({
-        provider: String(r.provider),
-        modelId: String(r.model_id),
-        contextWindow: r.context_window == null ? undefined : Number(r.context_window),
-        costPerMIn: r.cost_per_m_in == null ? undefined : Number(r.cost_per_m_in),
-        costPerMOut: r.cost_per_m_out == null ? undefined : Number(r.cost_per_m_out),
-        strengths: Array.isArray(r.strengths) ? (r.strengths as string[]) : undefined,
-        reliabilityScore: r.reliability_score == null ? undefined : Number(r.reliability_score),
+    const rows = await db
+        .select({
+            provider: modelsKnowledge.provider,
+            modelId: modelsKnowledge.modelId,
+            contextWindow: modelsKnowledge.contextWindow,
+            costPerMIn: modelsKnowledge.costPerMIn,
+            costPerMOut: modelsKnowledge.costPerMOut,
+            strengths: modelsKnowledge.strengths,
+            reliabilityScore: modelsKnowledge.reliabilityScore,
+        })
+        .from(modelsKnowledge)
+        .where(inArray(modelsKnowledge.provider, [...providers]))
+    return rows.map(r => ({
+        provider: r.provider,
+        modelId: r.modelId,
+        contextWindow: r.contextWindow ?? undefined,
+        costPerMIn: r.costPerMIn ?? undefined,
+        costPerMOut: r.costPerMOut ?? undefined,
+        strengths: Array.isArray(r.strengths) ? r.strengths : undefined,
+        reliabilityScore: r.reliabilityScore ?? undefined,
     }))
 }
 

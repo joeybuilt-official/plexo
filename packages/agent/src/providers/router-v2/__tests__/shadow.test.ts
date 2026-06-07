@@ -7,10 +7,15 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const execute = vi.fn()
+const where = vi.fn()
 vi.mock('@plexo/db', () => ({
-    db: { execute: (...a: unknown[]) => execute(...a) },
-    sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({ strings, vals }),
+    db: { select: () => ({ from: () => ({ where: (...a: unknown[]) => where(...a) }) }) },
+    inArray: (..._a: unknown[]) => ({}),
+    modelsKnowledge: {
+        provider: 'provider', modelId: 'modelId', contextWindow: 'contextWindow',
+        costPerMIn: 'costPerMIn', costPerMOut: 'costPerMOut', strengths: 'strengths',
+        reliabilityScore: 'reliabilityScore',
+    },
 }))
 
 import {
@@ -42,7 +47,7 @@ const cand = (provider: string, modelId: string, prior: number, reliability = 1,
 afterEach(() => {
     delete process.env.PLEXO_MODEL_ROUTER
     delete process.env.PLEXO_MODEL_ROUTER_SHADOW
-    execute.mockReset()
+    where.mockReset()
 })
 
 describe('flags', () => {
@@ -91,16 +96,14 @@ describe('computeShadowChoice', () => {
         delete process.env.PLEXO_MODEL_ROUTER
         const out = await computeShadowChoice({ taskType: 'planning', available: [ap('anthropic', 'claude-sonnet-4-6')], settings })
         expect(out).toBeNull()
-        expect(execute).not.toHaveBeenCalled()
+        expect(where).not.toHaveBeenCalled()
     })
 
     it('computes a would-pick when flag ON', async () => {
         process.env.PLEXO_MODEL_ROUTER = '1'
-        execute.mockResolvedValueOnce({
-            rows: [
-                { provider: 'anthropic', model_id: 'claude-sonnet-4-6', context_window: 200000, cost_per_m_in: 3, cost_per_m_out: 15, strengths: ['tools'], reliability_score: 0.97 },
-            ],
-        })
+        where.mockResolvedValueOnce([
+            { provider: 'anthropic', modelId: 'claude-sonnet-4-6', contextWindow: 200000, costPerMIn: 3, costPerMOut: 15, strengths: ['tools'], reliabilityScore: 0.97 },
+        ])
         const out = await computeShadowChoice({
             taskType: 'planning',
             available: [ap('anthropic', 'claude-sonnet-4-6'), ap('deepseek', 'deepseek-v3')],
@@ -115,7 +118,7 @@ describe('computeShadowChoice', () => {
 
     it('returns null (never throws) when the DB read fails', async () => {
         process.env.PLEXO_MODEL_ROUTER = '1'
-        execute.mockRejectedValueOnce(new Error('db down'))
+        where.mockRejectedValueOnce(new Error('db down'))
         const out = await computeShadowChoice({ taskType: 'planning', available: [ap('anthropic', 'claude-sonnet-4-6')], settings })
         expect(out).toBeNull()
     })
