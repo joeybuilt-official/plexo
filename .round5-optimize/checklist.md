@@ -76,4 +76,4 @@
 - [x] SLO/alerting: evaluateSloBreaches() (pure, tested 9) + runRouterStatsSnapshot enqueues breaches → batched ops-alerts flush; env PLEXO_SLO_MIN_SUCCESS(0=off)/MIN_SAMPLES/MAX_P95_MS
 - [ ] (next) router_v2_stats dashboard panel — extend apps/api/src/routes/intelligence-dashboard.ts (latest snapshot per key via router_v2_stats_key_idx)
 - [ ] (next) chat SSE e2e reconnect/cancel mid-stream — GET /api/chat/reply-stream/:taskId
-- [x] deployed (img pending — Phase 9 build/recreate in progress)
+- [x] deployed: prod img f89c7460, healthy, 0 errors (SLO check active on the 30-min router-stats snapshot; PLEXO_SLO_MIN_SUCCESS default 0.85)
