@@ -38,7 +38,7 @@ These shape Phases 1–3. Recommended defaults assumed in the plan; operator may
 - Scope: extend the cascade (`router-v2/index.ts`) so fallback advances across the ranked model shortlist (capped, ordered) not just providers; define per-taskType capability requirements (vision/json-strict/min-context) feeding the Phase-1 gate; ensure cascade never fans out unboundedly (Rey) and never excludes the last/only candidate (single-provider rule).
 - Deps: Phase 2. Subagents: general-purpose.
 - Exit: tests: a failing top model cascades to the next ranked model (same or other provider); bounded attempts; single-provider retry-same preserved; tsc green; deployed (flag OFF).
-- Status: pending
+- Status: DONE 2026-06-07 — index.ts excludedModels (model-granular cascade; provider dropped only when its models exhausted; bounded by MAX_CASCADE; retry-same path untouched) + enumerate.ts requirementsForTask (extraction/judging→json-mode; vision deferred=request-intrinsic, min-context deferred=context_window unreliable). Tests: requirementsForTask+gate (enumerate.test), model-granular cascade (model-cascade.test); router-v2 137 green; tsc clean. Deployed flag-OFF; verified serving unchanged + gate live in prod (extraction json-mode requirement narrowed shadow shortlist 4→1, only groq passed).
 
 ## Phase 4 — Telemetry + A/B scorecard (measure before flip)
 - Scope: extend `routing_events` with the chosen-candidate context (shortlist + why); a scorecard reusing the Round-5 Welch `routingScorecard` to compare `qualityScore` (and cost/latency) of model-router choices vs baseline per task type; add any new table to `runDataRetention()`.

@@ -33,10 +33,11 @@
 - [x] deployed (flag OFF in prod) — rebuilt+recreated; ROUTER=0/SHADOW=1; verified serving unchanged (legacy cerebras) + shadow now scorer-driven (reason "scored", live stats shifted would-pick groq vs deepseek)
 
 ## Phase 3 — Model-granular cascade + per-task capability requirements ⚠ behavior
-- [ ] cascade advances across ranked model shortlist (capped, ordered), not just providers
-- [ ] per-taskType capability requirements feed the gate (vision/json-strict/min-context)
-- [ ] bounded fan-out; never excludes last/only candidate (single-provider); retry-same preserved
-- [ ] tests + tsc green; deployed (flag OFF)
+- [x] cascade advances across ranked model shortlist, not just providers — index.ts excludedModels; provider dropped only when its models exhausted; bounded by MAX_CASCADE
+- [x] per-taskType capability requirements feed the gate — requirementsForTask (extraction/judging→json-mode); vision deferred (request-intrinsic) + min-context deferred (context_window unreliable)
+- [x] bounded fan-out; never excludes last/only candidate (single-provider); retry-same preserved (retry-same path untouched)
+- [x] tests + tsc green — requirementsForTask + gate (enumerate.test); model-granular cascade (model-cascade.test); router-v2 137 green
+- [x] deployed (flag OFF) — rebuilt+recreated; verified serving unchanged + gate live (extraction json-mode req narrowed shadow shortlist 4→1, only groq passed)
 
 ## Phase 4 — Telemetry + A/B scorecard
 - [ ] routing_events extended w/ chosen-candidate context (shortlist + why)
