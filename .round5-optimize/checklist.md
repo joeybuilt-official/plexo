@@ -50,11 +50,11 @@
 ## Phase 6 — Per-app cost attribution + burn-rate alert (WS E) ⚠ migration — PAUSED at operator decision
 - [x] discovery: inference_logs already has task_type; written ONLY by agent-loop:1197; proxy (graphiti/Fonto) does NOT write it → per-app needs a NEW proxy-side write
 - [x] discovery: getWorkspaceSpend() reads inference_logs + backs the cost-enforcement gate → adding proxy rows risks BLOCKING over-budget ws 69d1. ops-alert = batched buffer (ops-alerts.ts); alerted_80 set but never consumed.
-- [ ] OPERATOR DECISION: does proxy/app inference count toward the $50 enforcement ceiling? (a) attribution-only (exclude app rows from enforcement query) [safe] vs (b) count it (needs ceiling/policy change first)
-- [ ] migration 0129: app_id on inference_logs (additive); schema.ts appId
-- [ ] proxy fire-and-forget inference_logs write w/ app_id (capture provider in dispatch); per-app spend query (loadAppSpend grouping by app_id, mirror intelligence-spend pricing)
-- [ ] burn-rate alert: add budget stream to ops-alerts.ts + wire agent-loop 80% false→true crossing via prior-value CTE
-- [ ] tests + tsc green; APPLY 0129 SQL to prod BEFORE recreate (see reference_plexo_deploy_migrations); deployed; attribution verified
+- [x] OPERATOR DECISION: attribution-only (exclude app rows from enforcement query) — chosen 2026-06-06
+- [x] migration 0129: app_id on inference_logs (additive); schema.ts appId
+- [x] proxy fire-and-forget inference_logs write w/ app_id (captures served provider); loadAppSpend grouping by app_id (mirrors pricing); getWorkspaceSpend excludes app_id IS NOT NULL
+- [x] burn-rate alert: budget stream in ops-alerts.ts + agent-loop 80% false→true crossing via prior-value CTE
+- [x] tests (ops-alerts-budget 3, app-spend 2) + tsc green; cost-enforcement 9 + inference 33 unbroken; applied 0129 to prod BEFORE recreate; deployed img 555ecb8f healthy, 0 errors
 
 ## Phase 7 — Chat per-token streaming + a11y/mobile (WS A + G-partial)
 - [ ] stream generateText into intermediate progress events (executor/index.ts:1912)
