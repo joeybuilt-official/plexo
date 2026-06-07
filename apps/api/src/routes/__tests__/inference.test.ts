@@ -129,6 +129,25 @@ describe('POST /api/inference/v1/embeddings', () => {
         expect(embed).toHaveBeenCalledTimes(2)
     })
 
+    it('rejects an oversized input batch with 413 (Round-5 Phase 2 OOM guard)', async () => {
+        const prev = process.env.PLEXO_EMBEDDINGS_MAX_BATCH
+        process.env.PLEXO_EMBEDDINGS_MAX_BATCH = '4'
+        try {
+            const base = await getServer()
+            const res = await fetch(`${base}/api/inference/v1/embeddings`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({ input: ['a', 'b', 'c', 'd', 'e'] }), // 5 > 4
+            })
+            expect(res.status).toBe(413)
+            const body = await res.json() as { error: { code: string } }
+            expect(body.error.code).toBe('BATCH_TOO_LARGE')
+        } finally {
+            if (prev === undefined) delete process.env.PLEXO_EMBEDDINGS_MAX_BATCH
+            else process.env.PLEXO_EMBEDDINGS_MAX_BATCH = prev
+        }
+    })
+
     it('rejects requests without X-Plexo-Workspace-Id', async () => {
         const headers = authHeaders()
         delete headers['X-Plexo-Workspace-Id']

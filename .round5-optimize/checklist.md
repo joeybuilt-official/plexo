@@ -1,10 +1,18 @@
 # Plexo Round-5 — checklist
 
 ## Phase 1 — Reliability + log hygiene (WS D)
-- [ ] node_events pruning added to runDataRetention() (cron.ts:161-175); retention window chosen
-- [ ] unhandledRejection/uncaughtException logging normalized to Error (index.ts:852-854, mirror cc-ingest.ts:27-29)
-- [ ] fylo-bridge dead plugin removed (or plexo.json:10 entry fixed) — confirmed 0 workspaces enable it
-- [ ] tests + agent/api tsc green; deployed; verified (bounded node_events, real rejection stack, no fylo-bridge module error)
+- [x] node_events pruning added to runDataRetention() (cron.ts); NODE_EVENTS_RETENTION_DAYS default 7; prod read-only check: 58227 total / 2237 prunable@7d / 0 pending
+- [x] unhandledRejection logging normalized to Error (index.ts:852, mirror cc-ingest.ts)
+- [x] fylo-bridge: CLOSED as non-issue — enabled in prod (ws 69d1), loader degrades gracefully (plugins/bridge.ts:196 warn+skip), 0 module errors in current image; audit "dead plugin" was stale-image artifact. No change (deleting would remove a live extension).
+- [x] api tsc green; committed (Round-5 P1)
+- [ ] deployed + verified (build in flight) — bounded node_events after a retention tick, real rejection stack
+
+## Phase 2 — HTTP backpressure + payload safety (WS F1) ⚠ — CODE DONE
+- [x] Inventory: generalLimiter is app-wide (2000/15min/IP) so inference/events WERE behind a coarse IP limit that would throttle a busy single-IP graphiti container
+- [x] serviceLimiter (app-id-keyed, PLEXO_SERVICE_RATE_MAX default 1200/min, 0=off) added; generalLimiter now skips /api/inference + /api/v1/events; serviceLimiter mounted on both
+- [x] embeddings batch cap (PLEXO_EMBEDDINGS_MAX_BATCH default 256, 0=off) → 413 BATCH_TOO_LARGE before provider fan-out (inference.ts)
+- [x] test: oversized batch → 413 (inference 33/33); api tsc green
+- [ ] commit + deploy after P1 verifies; verify graphiti/Fonto uninterrupted (0 spurious 429)
 
 ## Phase 2 — HTTP backpressure + payload safety (WS F1) ⚠
 - [ ] Explore: inventory current per-router rate-limit application (index.ts)

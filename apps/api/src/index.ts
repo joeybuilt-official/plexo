@@ -175,7 +175,7 @@ import { intelligenceRouter } from './routes/intelligence.js'
 import { intelligenceDashboardRouter } from './routes/intelligence-dashboard.js'
 import { modelsRouter } from './routes/models.js'
 import { traceMiddleware } from './middleware/trace.js'
-import { generalLimiter, authLimiter, taskCreationLimiter, webhookLimiter } from './middleware/rate-limit.js'
+import { generalLimiter, authLimiter, taskCreationLimiter, webhookLimiter, serviceLimiter } from './middleware/rate-limit.js'
 import { createOriginCsrfMiddleware } from './middleware/csrf.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
 import { sessionLogMiddleware } from './middleware/session-log.middleware.js'
@@ -405,7 +405,7 @@ v1.use('/system', requireSuperAdmin, systemRouter)
 v1.use('/pax', paxRouter)
 v1.use('/nodes', nodesRouter)
 v1.use('/federation', federationRouter)
-v1.use('/events', nodeEventsRouter)
+v1.use('/events', serviceLimiter, nodeEventsRouter)
 v1.use('/workspaces/:id/apps', requireWorkspaceMember('id'), workspaceAppsRouter)
 v1.use('/workspaces/:id/providers', requireWorkspaceMember('id'), providerInstancesRouter)
 v1.use('/embeddings', embeddingsRouter)
@@ -503,7 +503,7 @@ app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn, l
 // Inference shim — exposes Plexo's per-workspace LLM provider router as an
 // OpenAI-compatible endpoint for the Graphiti Python sidecar (ADR 0011).
 // Phase 3a ships /v1/embeddings; Phase 3b adds /v1/chat/completions.
-app.use('/api/inference', jsonDefault, inferenceRouter)
+app.use('/api/inference', serviceLimiter, jsonDefault, inferenceRouter)
 
 // Phase 8 graph routes — public surface for @joeybuilt/plexo-sdk 1.1.0.
 // Proxies addEpisode + searchFacts through the bridge to the Graphiti sidecar.

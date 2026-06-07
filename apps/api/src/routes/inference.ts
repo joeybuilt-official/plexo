@@ -169,6 +169,14 @@ async function embeddingsHandler(req: Request, res: Response): Promise<void> {
         res.status(400).json({ error: { code: 'EMPTY_INPUT', message: '`input` must be a string or non-empty array' } })
         return
     }
+    // Round-5 Phase 2: cap batch size. embed() fans out via Promise.all below,
+    // so an unbounded input[] = unbounded concurrent provider calls → OOM.
+    // PLEXO_EMBEDDINGS_MAX_BATCH (default 256, 0 = unbounded).
+    const maxBatch = Number(process.env.PLEXO_EMBEDDINGS_MAX_BATCH ?? 256)
+    if (maxBatch > 0 && inputs.length > maxBatch) {
+        res.status(413).json({ error: { code: 'BATCH_TOO_LARGE', message: `input batch of ${inputs.length} exceeds max ${maxBatch}` } })
+        return
+    }
 
     try {
         const vectors = await Promise.all(inputs.map((text) => embed(text, workspaceId)))

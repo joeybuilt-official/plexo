@@ -48,7 +48,15 @@ export const generalLimiter = rateLimit({
     legacyHeaders: false,
     store: makeStore('gen'),
     message: { error: { code: 'RATE_LIMITED', message: 'Too many requests — try again later' } },
-    skip: (req) => req.path === '/health' || isLoopback(req.ip),
+    // Service-key routes (/api/inference, /api/v1/events) are exempt from the
+    // coarse per-IP general limit — high-volume internal callers (graphiti,
+    // Fonto) share one container IP and would be wrongly throttled. They get
+    // the app-id-keyed serviceLimiter instead (Round-5 Phase 2).
+    skip: (req) =>
+        req.path === '/health'
+        || isLoopback(req.ip)
+        || req.path.startsWith('/api/inference')
+        || req.path.startsWith('/api/v1/events'),
 })
 
 export const authLimiter = rateLimit({
@@ -78,5 +86,29 @@ export const webhookLimiter = rateLimit({
     legacyHeaders: false,
     store: makeStore('wh'),
     message: { error: { code: 'WEBHOOK_RATE_LIMITED', message: 'Webhook rate limit exceeded' } },
+    skip: (req) => isLoopback(req.ip),
+})
+
+// Round-5 Phase 2: backpressure for service-key routes (inference proxy +
+// node-events emit). These are the highest-cost ops and had NO HTTP rate limit,
+// so a runaway caller (e.g. a Fonto re-enqueue loop) or a leaked key could spam
+// LLM calls / event inserts unbounded. Keyed by X-App-Id (callers are separate
+// containers, not loopback, so IP keying would lump all apps together) with an
+// IP fallback. Generous + env-tunable so legit graphiti/Fonto rates pass and a
+// true runaway is still capped. PLEXO_SERVICE_RATE_MAX per app-id per minute
+// (default 1200 = 20/s; 0 disables).
+const SERVICE_RATE_MAX = Number(process.env.PLEXO_SERVICE_RATE_MAX ?? 1200)
+export const serviceLimiter = rateLimit({
+    windowMs: MINUTE_MS,
+    max: SERVICE_RATE_MAX > 0 ? SERVICE_RATE_MAX : Number.MAX_SAFE_INTEGER,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    store: makeStore('svc'),
+    message: { error: { code: 'SERVICE_RATE_LIMITED', message: 'Service call rate limit exceeded' } },
+    keyGenerator: (req) => {
+        const appId = req.headers['x-app-id']
+        if (typeof appId === 'string' && appId.trim() !== '') return `app:${appId.trim()}`
+        return `ip:${req.ip ?? 'unknown'}`
+    },
     skip: (req) => isLoopback(req.ip),
 })
