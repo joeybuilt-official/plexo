@@ -38,8 +38,9 @@
 ## Phase 4 — D2 flip A/B execution (WS B) ⚠ operator GO — EVAL WINDOW LIVE
 - [x] confirmed cerebras/gpt-oss-120b enabled on ws 69d1f1f1 (vs deepseek-v4-flash)
 - [x] enabled shadow eval in prod: compose PLEXO_SHADOW_EXTRACTION_MODEL=cerebras/gpt-oss-120b + PLEXO_SHADOW_EXTRACTION_RATE=0.1, recreated (live img 5042e794, healthy, 0 errors)
-- [ ] WAIT for shadow_extraction_results to accrue usable n (graphiti is low-volume ~1-2/day → slow); read shadowExtractionScorecard()
-- [ ] operator GO + high agreement + spot-check → set PLEXO_INFERENCE_BG_MODEL=cerebras/gpt-oss-120b + recreate; observe ~1h+; record keep/revert
+- [x] ran browser sims on ws 69d1 → generated traffic (routing_events +38, shadow 2, app_logs 28). Phase 4 infra confirmed live with real data.
+- [x] DECISION: D2 = NO-GO. cerebras 100% failure (rate-limit + strict-schema reject); shadow degenerate (cascades to ollama → primary==shadow, agreement 1.0). PLEXO_INFERENCE_BG_MODEL stays OFF. Re-eval after strict-schema fix + cerebras rate-limits clear.
+- [x] sims also surfaced 2 real bugs (see findings): deepseek "Insufficient Balance" (chat degraded — operator must add credits/switch primary); Facts/extraction schema strict-mode `required` incompatibility (groq/cerebras reject → extraction falls back to ollama)
 
 ## Phase 5 — Planner-starvation: lane reservation (WS C) ⚠ — CLOSED (already implemented)
 - [x] enumerated background-origin call sites: extract-worker/reflect/self-improvement/store ALL use taskType:'summarization' (already background lane); graphiti uses Round-4 D1 laneOverride. NO background-origin 'extraction' site exists — ADR 0002 premise was stale.
