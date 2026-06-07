@@ -31,6 +31,7 @@ import { classifyError } from './error-classifier.js'
 import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
 import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
+import type { ShadowInput } from './shadow.js'
 import { emitProviderFailure } from './ops-events.js'
 import { withLane, type Lane } from './lane-limiter.js'
 
@@ -178,6 +179,9 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             false,
         )
     }
+    // Round-6 Phase 1: the first-selection provider pool, used to compute the
+    // model-level router's shadow would-pick (flag-gated; never alters serving).
+    const shadowInput: ShadowInput = { taskType, available: [...available], settings }
 
     let lastError: unknown
     let fallbackEngaged = false
@@ -256,7 +260,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             emitRoutedEvent(buildRoutedEvent({
                 workspaceId, taskId, taskType, selection: sel,
                 selectorDurationMs: selDur, fallbackEngaged,
-            }))
+            }), shadowInput)
             if (fallbackEngaged && firstChosenProvider) {
                 const fbInfo = {
                     workspaceId,
@@ -328,7 +332,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
         emitRoutedEvent(buildRoutedEvent({
             workspaceId, taskId, taskType, selection: firstSelection,
             selectorDurationMs: firstSelectorDurationMs, fallbackEngaged: true,
-        }))
+        }), shadowInput)
     }
     // Provider-failure ops event: every candidate failed for this call.
     emitProviderFailure({
