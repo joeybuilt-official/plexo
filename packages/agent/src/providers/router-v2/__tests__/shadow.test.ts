@@ -15,6 +15,7 @@ vi.mock('@plexo/db', () => ({
 
 import {
     isModelRouterEnabled,
+    isShadowLoggingEnabled,
     provisionalPick,
     computeShadowChoice,
 } from '../shadow.js'
@@ -40,19 +41,30 @@ const cand = (provider: string, modelId: string, prior: number, reliability = 1,
 
 afterEach(() => {
     delete process.env.PLEXO_MODEL_ROUTER
+    delete process.env.PLEXO_MODEL_ROUTER_SHADOW
     execute.mockReset()
 })
 
-describe('isModelRouterEnabled', () => {
-    it('is OFF by default', () => {
+describe('flags', () => {
+    it('serving flip is OFF by default, ON only for exactly "1"', () => {
         delete process.env.PLEXO_MODEL_ROUTER
         expect(isModelRouterEnabled()).toBe(false)
-    })
-    it('is ON only for exactly "1"', () => {
         process.env.PLEXO_MODEL_ROUTER = '1'
         expect(isModelRouterEnabled()).toBe(true)
         process.env.PLEXO_MODEL_ROUTER = 'true'
         expect(isModelRouterEnabled()).toBe(false)
+    })
+    it('shadow logging is OFF by default', () => {
+        expect(isShadowLoggingEnabled()).toBe(false)
+    })
+    it('shadow logging ON via its own flag without enabling serving', () => {
+        process.env.PLEXO_MODEL_ROUTER_SHADOW = '1'
+        expect(isShadowLoggingEnabled()).toBe(true)
+        expect(isModelRouterEnabled()).toBe(false)
+    })
+    it('serving flip implies shadow logging', () => {
+        process.env.PLEXO_MODEL_ROUTER = '1'
+        expect(isShadowLoggingEnabled()).toBe(true)
     })
 })
 
