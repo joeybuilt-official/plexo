@@ -44,6 +44,10 @@ vi.mock('@plexo/agent/providers/registry', () => ({
 vi.mock('@plexo/agent/providers/router-v2', () => ({
     routeAndCall: vi.fn(async (input: { doCall: (m: unknown) => Promise<unknown> }) =>
         input.doCall({ __mock: 'wf-model', provider: 'mock' } as never)),
+    // The handler narrows errors with `instanceof RouterV2NoCandidateError`; the
+    // class must exist on the mock or that check throws a TypeError (turning a
+    // clean 500 into an Express HTML error page).
+    RouterV2NoCandidateError: class RouterV2NoCandidateError extends Error {},
 }))
 
 vi.mock('@plexo/agent/providers/settings-from-instances', () => ({
@@ -363,6 +367,25 @@ describe('POST /api/inference/v1/chat/completions', () => {
         const opts = vi.mocked(callModel).mock.calls[0]![0]!
         expect((opts.model as { __mock: string }).__mock).toBe('workspace-model')
         expect(opts.provider).toBe('openai')
+    })
+
+    it('chaos: provider cascade exhaustion → graceful 500 (no crash)', async () => {
+        // Round-5 Phase 9 fault injection: every provider fails inside the
+        // router. The handler must return a clean 500, not throw/hang.
+        const aiSettings = { fakeSettings: true }
+        vi.mocked(loadSettingsFromInstances).mockResolvedValueOnce(aiSettings as never)
+        vi.mocked(routeAndCall).mockRejectedValueOnce(
+            new Error('router-v2 fallback chain exhausted: all providers failed'),
+        )
+        const base = await getServer()
+        const res = await fetch(`${base}/api/inference/v1/chat/completions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
+        })
+        expect(res.status).toBe(500)
+        const body = await res.json() as { error: { code: string } }
+        expect(body.error.code).toBe('INTERNAL_ERROR')
     })
 
     it('routes json_schema requests through the extraction task type (Phase 3b follow-up)', async () => {

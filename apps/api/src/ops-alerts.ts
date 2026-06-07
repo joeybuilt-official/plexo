@@ -43,9 +43,18 @@ interface BudgetAlertRecord {
     at: number
 }
 
+interface SloBreachRecord {
+    scope: string            // "provider/model (taskType)"
+    successRate: number
+    sampleCount: number
+    p95Ms: number
+    at: number
+}
+
 const providerFailures: ProviderFailureRecord[] = []
 const canaryFailures: CanaryFailureRecord[] = []
 const budgetAlerts: BudgetAlertRecord[] = []
+const sloBreaches: SloBreachRecord[] = []
 
 export function recordProviderFailureForAlert(rec: Omit<ProviderFailureRecord, 'at'>): void {
     if (providerFailures.length >= MAX_BUFFER) providerFailures.shift()
@@ -67,9 +76,76 @@ export function recordBudgetAlertForAlert(rec: Omit<BudgetAlertRecord, 'at'>): v
     budgetAlerts.push({ ...rec, at: Date.now() })
 }
 
+/**
+ * Round-5 Phase 9 — SLO breach. Enqueued by the router-stats snapshot cron when
+ * a (provider, model, task_type) bucket's success rate (or p95 latency) breaches
+ * the SLO with enough samples to be meaningful.
+ */
+export function recordSloBreachForAlert(rec: Omit<SloBreachRecord, 'at'>): void {
+    if (sloBreaches.length >= MAX_BUFFER) sloBreaches.shift()
+    sloBreaches.push({ ...rec, at: Date.now() })
+}
+
+export interface SloThresholds {
+    /** Minimum acceptable success rate (0..1). */
+    minSuccess: number
+    /** Ignore buckets with fewer samples than this (noise floor). */
+    minSamples: number
+    /** Max acceptable p95 latency in ms; 0 = don't check latency. */
+    maxP95Ms: number
+}
+
+export interface RouterBucketStat {
+    provider: string
+    model: string
+    taskType: string
+    successRate: number
+    sampleCount: number
+    latencyP95Ms: number
+}
+
+/**
+ * Pure SLO evaluation — returns the breaching buckets (no side effects, no
+ * timestamp). The cron maps these into recordSloBreachForAlert. Read thresholds
+ * from env via {@link sloThresholdsFromEnv}.
+ */
+export function evaluateSloBreaches(
+    buckets: RouterBucketStat[],
+    t: SloThresholds,
+): Omit<SloBreachRecord, 'at'>[] {
+    const out: Omit<SloBreachRecord, 'at'>[] = []
+    for (const b of buckets) {
+        if (b.sampleCount < t.minSamples) continue
+        const successBreach = b.successRate < t.minSuccess
+        const latencyBreach = t.maxP95Ms > 0 && b.latencyP95Ms > t.maxP95Ms
+        if (successBreach || latencyBreach) {
+            out.push({
+                scope: `${b.provider}/${b.model} (${b.taskType})`,
+                successRate: b.successRate,
+                sampleCount: b.sampleCount,
+                p95Ms: b.latencyP95Ms,
+            })
+        }
+    }
+    return out
+}
+
+/** SLO thresholds from env. PLEXO_SLO_MIN_SUCCESS=0 disables the SLO check entirely. */
+export function sloThresholdsFromEnv(): SloThresholds | null {
+    const minSuccess = Number(process.env.PLEXO_SLO_MIN_SUCCESS ?? 0.85)
+    if (!Number.isFinite(minSuccess) || minSuccess <= 0) return null  // disabled
+    const minSamples = Number(process.env.PLEXO_SLO_MIN_SAMPLES ?? 20)
+    const maxP95Ms = Number(process.env.PLEXO_SLO_MAX_P95_MS ?? 0)
+    return {
+        minSuccess: Math.min(1, minSuccess),
+        minSamples: Number.isFinite(minSamples) && minSamples > 0 ? minSamples : 20,
+        maxP95Ms: Number.isFinite(maxP95Ms) && maxP95Ms > 0 ? maxP95Ms : 0,
+    }
+}
+
 /** Test/introspection helper. */
-export function _opsAlertBufferSizes(): { provider: number; canary: number; budget: number } {
-    return { provider: providerFailures.length, canary: canaryFailures.length, budget: budgetAlerts.length }
+export function _opsAlertBufferSizes(): { provider: number; canary: number; budget: number; slo: number } {
+    return { provider: providerFailures.length, canary: canaryFailures.length, budget: budgetAlerts.length, slo: sloBreaches.length }
 }
 
 /** Aggregate provider failures into `kind/provider → count` lines. */
@@ -105,6 +181,18 @@ function summarizeBudgetAlerts(): string[] {
         .map((b) => `• ws ${b.workspaceId.slice(0, 8)} at $${b.costUsd.toFixed(2)} / $${b.ceilingUsd.toFixed(2)} ceiling (${Math.round((b.costUsd / b.ceilingUsd) * 100)}%)`)
 }
 
+function summarizeSloBreaches(): string[] {
+    // De-dup by scope, keeping the worst (lowest success) observation.
+    const worst = new Map<string, SloBreachRecord>()
+    for (const s of sloBreaches) {
+        const cur = worst.get(s.scope)
+        if (!cur || s.successRate < cur.successRate) worst.set(s.scope, s)
+    }
+    return [...worst.values()]
+        .sort((a, b) => a.successRate - b.successRate)
+        .map((s) => `• ${s.scope}: ${Math.round(s.successRate * 100)}% success, p95 ${s.p95Ms}ms (n=${s.sampleCount})`)
+}
+
 /**
  * Batched flush. Sends one Telegram message if anything accumulated, then
  * clears the buffers. Safe to call on a cron even when nothing is configured.
@@ -113,7 +201,8 @@ export async function flushOpsAlerts(): Promise<void> {
     const providerCount = providerFailures.length
     const canaryCount = canaryFailures.length
     const budgetCount = budgetAlerts.length
-    if (providerCount === 0 && canaryCount === 0 && budgetCount === 0) return
+    const sloCount = sloBreaches.length
+    if (providerCount === 0 && canaryCount === 0 && budgetCount === 0 && sloCount === 0) return
 
     const workspaceId = process.env.PLEXO_OPS_ALERT_WORKSPACE_ID
     const chatId = process.env.PLEXO_OPS_ALERT_CHAT_ID
@@ -129,6 +218,9 @@ export async function flushOpsAlerts(): Promise<void> {
     if (budgetCount > 0) {
         lines.push('', `Budget pre-ceiling (${budgetCount} in window):`, ...summarizeBudgetAlerts())
     }
+    if (sloCount > 0) {
+        lines.push('', `SLO breaches (${sloCount} in window):`, ...summarizeSloBreaches())
+    }
     const text = lines.join('\n')
 
     // Clear regardless of delivery outcome — these are point-in-time alerts;
@@ -136,10 +228,11 @@ export async function flushOpsAlerts(): Promise<void> {
     providerFailures.length = 0
     canaryFailures.length = 0
     budgetAlerts.length = 0
+    sloBreaches.length = 0
 
     if (!workspaceId || !chatId || !token) {
         logger.warn(
-            { providerCount, canaryCount, budgetCount, hasWorkspace: Boolean(workspaceId), hasChat: Boolean(chatId), hasToken: Boolean(token) },
+            { providerCount, canaryCount, budgetCount, sloCount, hasWorkspace: Boolean(workspaceId), hasChat: Boolean(chatId), hasToken: Boolean(token) },
             'Ops alert accumulated but delivery is not configured (PLEXO_OPS_ALERT_WORKSPACE_ID / PLEXO_OPS_ALERT_CHAT_ID / registered bot token) — logging only',
         )
         return
@@ -154,7 +247,7 @@ export async function flushOpsAlerts(): Promise<void> {
         if (!res.ok) {
             logger.error({ status: res.status }, 'Ops alert Telegram delivery failed')
         } else {
-            logger.info({ providerCount, canaryCount, budgetCount }, 'Ops alert delivered')
+            logger.info({ providerCount, canaryCount, budgetCount, sloCount }, 'Ops alert delivered')
         }
     } catch (err) {
         logger.error({ err }, 'Ops alert Telegram delivery threw')
