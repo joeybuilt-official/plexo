@@ -33,6 +33,7 @@ import { resolveModelFromEnv, type FallbackOptions } from '@plexo/agent/provider
 import { routeAndCall, RouterV2NoCandidateError } from '@plexo/agent/providers/router-v2'
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 import { maybeShadowExtraction } from './shadow-extraction.js'
+import { db, sql } from '@plexo/db'
 
 const logger = pino({ name: 'inference-routes' })
 
@@ -148,6 +149,43 @@ export function backgroundModelForAppId(appId: string | undefined): string | und
 function backgroundModelOverride(req: Request): string | undefined {
     const appId = req.headers['x-app-id']
     return backgroundModelForAppId(typeof appId === 'string' ? appId : undefined)
+}
+
+/**
+ * Round-5 Phase 6: fire-and-forget per-app inference_logs write. The proxy
+ * (graphiti/Fonto/...) previously logged nothing, so app spend was invisible.
+ * Tagged with app_id; the cost-enforcement gate (getWorkspaceSpend) skips
+ * app_id IS NOT NULL rows, so this is attribution-only and can't trip the
+ * ceiling. Never blocks or fails the response.
+ */
+function logAppInference(args: {
+    workspaceId: string
+    appId: string
+    model: string
+    provider: string
+    inputTokens: number
+    outputTokens: number
+    latencyMs: number
+    taskType: string
+    success: boolean
+}): void {
+    void (async () => {
+        try {
+            await db.execute(sql`
+                INSERT INTO inference_logs
+                    (instance_uuid, workspace_id, model, provider, input_tokens, output_tokens, latency_ms, task_type, app_id, success)
+                VALUES (
+                    ${process.env.PLEXO_INSTANCE_ID ?? 'unknown'},
+                    ${args.workspaceId}::uuid,
+                    ${args.model}, ${args.provider},
+                    ${Math.round(args.inputTokens)}, ${Math.round(args.outputTokens)}, ${Math.round(args.latencyMs)},
+                    ${args.taskType}, ${args.appId}, ${args.success}
+                )
+            `)
+        } catch (err) {
+            logger.warn({ err, workspaceId: args.workspaceId, appId: args.appId }, 'inference.chat: app inference_logs write failed (non-fatal)')
+        }
+    })()
 }
 
 async function embeddingsHandler(req: Request, res: Response): Promise<void> {
@@ -317,6 +355,8 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
             })
     }
 
+    const reqStartMs = Date.now()
+    let servedProvider = 'unknown'
     try {
         let result: Awaited<ReturnType<typeof doCall>>
         if (aiSettings) {
@@ -325,6 +365,7 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
             // advance to the next provider automatically.
             const dispatch = async (model: import('ai').LanguageModel): Promise<Awaited<ReturnType<typeof doCall>>> => {
                 const provider = (model as { provider?: string }).provider ?? 'unknown'
+                servedProvider = provider
                 return doCall(model, provider)
             }
             const fallbackOpts: FallbackOptions = {
@@ -346,6 +387,7 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
             // No workspace settings — env-var fallback path (dev / self-host)
             try {
                 const envModel = resolveModelFromEnv()
+                servedProvider = 'env-fallback'
                 result = await doCall(envModel, 'env-fallback')
             } catch (envErr) {
                 // CallModelError surfaces parse/timeout/etc — let the outer
@@ -385,6 +427,27 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
                 total_tokens: result.inputTokens + result.outputTokens,
             },
         })
+
+        // Round-5 Phase 6 (WS E): per-app cost attribution. Log the proxy call
+        // tagged with X-App-Id so app spend (graphiti/Fonto/...) is attributable.
+        // Attribution-only — excluded from the enforcement gate. Fire-and-forget.
+        {
+            const appIdHdr = req.headers['x-app-id']
+            const appId = typeof appIdHdr === 'string' && appIdHdr ? appIdHdr : undefined
+            if (appId) {
+                logAppInference({
+                    workspaceId,
+                    appId,
+                    model: result.model || 'unknown',
+                    provider: servedProvider,
+                    inputTokens: result.inputTokens,
+                    outputTokens: result.outputTokens,
+                    latencyMs: Date.now() - reqStartMs,
+                    taskType,
+                    success: true,
+                })
+            }
+        }
 
         // Round-5 Phase 3 (ADR 0001): graphiti shadow re-extraction. After the
         // response is sent, sampled background-app extraction calls re-run the

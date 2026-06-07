@@ -1674,6 +1674,10 @@ export const inferenceLogs = pgTable('inference_logs', {
     resolutionLevel: text('resolution_level'),
     contextBudgetUsed: integer('context_budget_used'),
     taskType: text('task_type').notNull().default('unknown'),
+    /** Round-5 Phase 6: X-App-Id of the proxy caller (graphiti/Fonto/...). NULL
+     *  for internal agent-loop rows. Enforcement gate counts only app_id IS NULL;
+     *  attribution counts all rows. */
+    appId: text('app_id'),
     success: boolean('success').notNull().default(true),
     accepted: boolean('accepted'),
     scrubInputPattern: text('scrub_input_pattern'),

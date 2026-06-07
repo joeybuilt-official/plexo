@@ -36,8 +36,16 @@ interface CanaryFailureRecord {
     at: number
 }
 
+interface BudgetAlertRecord {
+    workspaceId: string
+    costUsd: number
+    ceilingUsd: number
+    at: number
+}
+
 const providerFailures: ProviderFailureRecord[] = []
 const canaryFailures: CanaryFailureRecord[] = []
+const budgetAlerts: BudgetAlertRecord[] = []
 
 export function recordProviderFailureForAlert(rec: Omit<ProviderFailureRecord, 'at'>): void {
     if (providerFailures.length >= MAX_BUFFER) providerFailures.shift()
@@ -49,9 +57,19 @@ export function recordCanaryFailureForAlert(rec: Omit<CanaryFailureRecord, 'at'>
     canaryFailures.push({ ...rec, at: Date.now() })
 }
 
+/**
+ * Round-5 Phase 6 — pre-ceiling burn-rate alert. Called when a workspace's
+ * weekly spend first crosses the 80% threshold (agent-loop detects the
+ * false→true transition, so this fires once per workspace per week, not per task).
+ */
+export function recordBudgetAlertForAlert(rec: Omit<BudgetAlertRecord, 'at'>): void {
+    if (budgetAlerts.length >= MAX_BUFFER) budgetAlerts.shift()
+    budgetAlerts.push({ ...rec, at: Date.now() })
+}
+
 /** Test/introspection helper. */
-export function _opsAlertBufferSizes(): { provider: number; canary: number } {
-    return { provider: providerFailures.length, canary: canaryFailures.length }
+export function _opsAlertBufferSizes(): { provider: number; canary: number; budget: number } {
+    return { provider: providerFailures.length, canary: canaryFailures.length, budget: budgetAlerts.length }
 }
 
 /** Aggregate provider failures into `kind/provider → count` lines. */
@@ -74,6 +92,19 @@ function summarizeCanaryFailures(): string[] {
     return [...counts.entries()].map(([k, n]) => `• ${k} canary FAILED ×${n}`)
 }
 
+function summarizeBudgetAlerts(): string[] {
+    // One workspace can cross 80% once per week; if multiple buffered, show the
+    // highest cost per workspace.
+    const peak = new Map<string, BudgetAlertRecord>()
+    for (const b of budgetAlerts) {
+        const cur = peak.get(b.workspaceId)
+        if (!cur || b.costUsd > cur.costUsd) peak.set(b.workspaceId, b)
+    }
+    return [...peak.values()]
+        .sort((a, b) => b.costUsd - a.costUsd)
+        .map((b) => `• ws ${b.workspaceId.slice(0, 8)} at $${b.costUsd.toFixed(2)} / $${b.ceilingUsd.toFixed(2)} ceiling (${Math.round((b.costUsd / b.ceilingUsd) * 100)}%)`)
+}
+
 /**
  * Batched flush. Sends one Telegram message if anything accumulated, then
  * clears the buffers. Safe to call on a cron even when nothing is configured.
@@ -81,7 +112,8 @@ function summarizeCanaryFailures(): string[] {
 export async function flushOpsAlerts(): Promise<void> {
     const providerCount = providerFailures.length
     const canaryCount = canaryFailures.length
-    if (providerCount === 0 && canaryCount === 0) return
+    const budgetCount = budgetAlerts.length
+    if (providerCount === 0 && canaryCount === 0 && budgetCount === 0) return
 
     const workspaceId = process.env.PLEXO_OPS_ALERT_WORKSPACE_ID
     const chatId = process.env.PLEXO_OPS_ALERT_CHAT_ID
@@ -94,16 +126,20 @@ export async function flushOpsAlerts(): Promise<void> {
     if (canaryCount > 0) {
         lines.push('', `Canary failures (${canaryCount} in window):`, ...summarizeCanaryFailures())
     }
+    if (budgetCount > 0) {
+        lines.push('', `Budget pre-ceiling (${budgetCount} in window):`, ...summarizeBudgetAlerts())
+    }
     const text = lines.join('\n')
 
     // Clear regardless of delivery outcome — these are point-in-time alerts;
     // retaining them would compound into the next window and double-count.
     providerFailures.length = 0
     canaryFailures.length = 0
+    budgetAlerts.length = 0
 
     if (!workspaceId || !chatId || !token) {
         logger.warn(
-            { providerCount, canaryCount, hasWorkspace: Boolean(workspaceId), hasChat: Boolean(chatId), hasToken: Boolean(token) },
+            { providerCount, canaryCount, budgetCount, hasWorkspace: Boolean(workspaceId), hasChat: Boolean(chatId), hasToken: Boolean(token) },
             'Ops alert accumulated but delivery is not configured (PLEXO_OPS_ALERT_WORKSPACE_ID / PLEXO_OPS_ALERT_CHAT_ID / registered bot token) — logging only',
         )
         return
@@ -118,7 +154,7 @@ export async function flushOpsAlerts(): Promise<void> {
         if (!res.ok) {
             logger.error({ status: res.status }, 'Ops alert Telegram delivery failed')
         } else {
-            logger.info({ providerCount, canaryCount }, 'Ops alert delivered')
+            logger.info({ providerCount, canaryCount, budgetCount }, 'Ops alert delivered')
         }
     } catch (err) {
         logger.error({ err }, 'Ops alert Telegram delivery threw')
