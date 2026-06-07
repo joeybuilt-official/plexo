@@ -154,3 +154,21 @@ export function capabilityGate(
     const pass = candidates.filter(c => required.every(r => c.capabilities.has(r)))
     return pass.length > 0 ? pass : [...candidates]
 }
+
+/**
+ * Per-task hard capability requirements (Round-6 Phase 3). Conservative: only
+ * requirements that are genuinely task-intrinsic. Structured-output tasks
+ * (extraction/judging) need json-mode. NOT included: vision (request-intrinsic,
+ * not task-intrinsic — depends on whether the payload has images) and
+ * min-context (knowledge `context_window` is unreliable — hardcoded 128000 — so
+ * numeric min-context gating is deferred; see phase0-coverage-report). The gate
+ * never empties to a block, so an over-strict requirement degrades gracefully.
+ */
+export const TASK_CAPABILITY_REQUIREMENTS: Partial<Record<TaskType, Capability[]>> = {
+    extraction: ['json-mode'],
+    judging: ['json-mode'],
+}
+
+export function requirementsForTask(taskType: TaskType): Capability[] {
+    return TASK_CAPABILITY_REQUIREMENTS[taskType] ?? []
+}
