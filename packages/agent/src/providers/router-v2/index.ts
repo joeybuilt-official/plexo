@@ -31,7 +31,8 @@ import { classifyError } from './error-classifier.js'
 import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
 import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
-import type { ShadowInput } from './shadow.js'
+import { loadModelCandidates, isModelRouterEnabled, type ShadowInput } from './shadow.js'
+import type { ModelCandidate } from './candidate.js'
 import { emitProviderFailure } from './ops-events.js'
 import { withLane, type Lane } from './lane-limiter.js'
 
@@ -181,7 +182,19 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     }
     // Round-6 Phase 1: the first-selection provider pool, used to compute the
     // model-level router's shadow would-pick (flag-gated; never alters serving).
-    const shadowInput: ShadowInput = { taskType, available: [...available], settings }
+    const shadowInput: ShadowInput = { workspaceId, taskType, available: [...available], settings }
+
+    // Round-6 Phase 2: when the serving flip is ON, pre-load the gated model
+    // candidates once and pass them to selectModel so it returns the best MODEL.
+    // Flag OFF → modelCandidates stays undefined → byte-identical legacy path.
+    let modelCandidates: ModelCandidate[] | undefined
+    if (isModelRouterEnabled()) {
+        try {
+            modelCandidates = await loadModelCandidates(shadowInput)
+        } catch {
+            modelCandidates = undefined
+        }
+    }
 
     let lastError: unknown
     let fallbackEngaged = false
@@ -194,7 +207,8 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
 
     while (cascadePos < MAX_CASCADE && available.length > 0) {
         const selStart = Date.now()
-        const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelIdOverride })
+        const candidatesForIter = modelCandidates?.filter(c => available.some(a => a.provider === c.provider))
+        const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelIdOverride, modelCandidates: candidatesForIter })
         const selDur = Date.now() - selStart
         if (cascadePos === 0) {
             firstSelection = sel
@@ -239,9 +253,10 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
         const cfg = settings.providers[chosen.provider] as AIProviderConfig
         const t0 = Date.now()
         try {
-            // D2: when the selector force-picked, pass the forced model id so
-            // buildModel calls exactly that model (not the workspace cascade).
-            const model = buildModel(chosen.provider, cfg, taskType, settings, sel.forcedModel ? chosen.model : undefined)
+            // D2 / Round-6: when the selector force-picked (D2) or model-routed
+            // (Phase 2), pass the chosen model id so buildModel calls exactly that
+            // model rather than the provider's default-resolved model.
+            const model = buildModel(chosen.provider, cfg, taskType, settings, (sel.forcedModel || sel.modelRouted) ? chosen.model : undefined)
             const result = await doCall(model)
             recordCall(
                 { workspaceId, provider: chosen.provider, model: chosen.model, taskType },
@@ -383,13 +398,21 @@ export async function routeAndBuild(input: {
             false,
         )
     }
-    const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings })
+    let modelCandidates: ModelCandidate[] | undefined
+    if (isModelRouterEnabled()) {
+        try {
+            modelCandidates = await loadModelCandidates({ workspaceId, taskType, available: [...available], settings })
+        } catch {
+            modelCandidates = undefined
+        }
+    }
+    const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelCandidates })
     if (!sel.chosen) {
         throw new RouterV2NoCandidateError(sel.rationale, sel.requireOperatorAction)
     }
     const chosen = sel.chosen
     const cfg = settings.providers[chosen.provider] as AIProviderConfig
-    const model = buildModel(chosen.provider, cfg, taskType, settings)
+    const model = buildModel(chosen.provider, cfg, taskType, settings, sel.modelRouted ? chosen.model : undefined)
     return {
         model,
         meta: {

@@ -21,28 +21,14 @@ vi.mock('@plexo/db', () => ({
 import {
     isModelRouterEnabled,
     isShadowLoggingEnabled,
-    provisionalPick,
     computeShadowChoice,
 } from '../shadow.js'
-import type { ModelCandidate } from '../candidate.js'
 import type { AvailableProvider } from '../selector.js'
 import type { WorkspaceAISettings } from '../../registry.js'
 
 const settings: WorkspaceAISettings = {} as WorkspaceAISettings
 const ap = (provider: string, model?: string): AvailableProvider =>
     ({ provider, config: { provider, model } } as unknown as AvailableProvider)
-
-const cand = (provider: string, modelId: string, prior: number, reliability = 1, costPerMIn = 0): ModelCandidate =>
-    ({
-        provider: provider as never,
-        modelId,
-        capabilities: new Set() as never,
-        contextWindow: 0,
-        costPerMIn,
-        costPerMOut: 0,
-        reliability,
-        priorScoreByTask: { planning: prior } as never,
-    })
 
 afterEach(() => {
     delete process.env.PLEXO_MODEL_ROUTER
@@ -73,28 +59,10 @@ describe('flags', () => {
     })
 })
 
-describe('provisionalPick', () => {
-    it('picks highest prior', () => {
-        const p = provisionalPick('planning', [cand('a', 'm1', 3), cand('b', 'm2', 5)])
-        expect(p?.modelId).toBe('m2')
-    })
-    it('breaks prior ties by reliability desc', () => {
-        const p = provisionalPick('planning', [cand('a', 'm1', 5, 0.8), cand('b', 'm2', 5, 0.99)])
-        expect(p?.modelId).toBe('m2')
-    })
-    it('breaks reliability ties by lower input cost', () => {
-        const p = provisionalPick('planning', [cand('a', 'm1', 5, 1, 10), cand('b', 'm2', 5, 1, 2)])
-        expect(p?.modelId).toBe('m2')
-    })
-    it('returns null on empty', () => {
-        expect(provisionalPick('planning', [])).toBeNull()
-    })
-})
-
 describe('computeShadowChoice', () => {
     it('returns null when flag OFF (no DB call)', async () => {
         delete process.env.PLEXO_MODEL_ROUTER
-        const out = await computeShadowChoice({ taskType: 'planning', available: [ap('anthropic', 'claude-sonnet-4-6')], settings })
+        const out = await computeShadowChoice({ workspaceId: undefined, taskType: 'planning', available: [ap('anthropic', 'claude-sonnet-4-6')], settings })
         expect(out).toBeNull()
         expect(where).not.toHaveBeenCalled()
     })
@@ -105,6 +73,7 @@ describe('computeShadowChoice', () => {
             { provider: 'anthropic', modelId: 'claude-sonnet-4-6', contextWindow: 200000, costPerMIn: 3, costPerMOut: 15, strengths: ['tools'], reliabilityScore: 0.97 },
         ])
         const out = await computeShadowChoice({
+            workspaceId: undefined,
             taskType: 'planning',
             available: [ap('anthropic', 'claude-sonnet-4-6'), ap('deepseek', 'deepseek-v3')],
             settings,
@@ -119,7 +88,7 @@ describe('computeShadowChoice', () => {
     it('returns null (never throws) when the DB read fails', async () => {
         process.env.PLEXO_MODEL_ROUTER = '1'
         where.mockRejectedValueOnce(new Error('db down'))
-        const out = await computeShadowChoice({ taskType: 'planning', available: [ap('anthropic', 'claude-sonnet-4-6')], settings })
+        const out = await computeShadowChoice({ workspaceId: undefined, taskType: 'planning', available: [ap('anthropic', 'claude-sonnet-4-6')], settings })
         expect(out).toBeNull()
     })
 })

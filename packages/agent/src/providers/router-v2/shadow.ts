@@ -19,28 +19,15 @@
 
 import { db, inArray, modelsKnowledge } from '@plexo/db'
 import { enumerateModelCandidates, capabilityGate, type KnowledgeRow } from './enumerate.js'
+import { selectBestModel } from './score.js'
+import { getStats } from './stats.js'
+import { isModelRouterEnabled, isShadowLoggingEnabled } from './flags.js'
 import type { ModelCandidate } from './candidate.js'
 import type { Capability } from './manifest.js'
 import type { AvailableProvider } from './selector.js'
 import type { TaskType, WorkspaceAISettings } from '../registry.js'
 
-/**
- * Serving flip (default OFF). When ON, the model-level router's pick is actually
- * served (Phase 2+ selector integration). Stays OFF in prod until Phase 5.
- */
-export function isModelRouterEnabled(): boolean {
-    return process.env.PLEXO_MODEL_ROUTER === '1'
-}
-
-/**
- * Observe-only shadow logging (default OFF). Distinct from the serving flip so
- * shadow would-pick data can accrue in prod (Phases 1–4) with the served model
- * UNCHANGED. The serving flip implies shadow too, so once flipped (Phase 5)
- * served-vs-shadow comparison keeps logging.
- */
-export function isShadowLoggingEnabled(): boolean {
-    return process.env.PLEXO_MODEL_ROUTER_SHADOW === '1' || isModelRouterEnabled()
-}
+export { isModelRouterEnabled, isShadowLoggingEnabled }
 
 export interface ShadowChoice {
     /** `provider/model` the model-level router would pick. */
@@ -52,22 +39,8 @@ export interface ShadowChoice {
     reason: string
 }
 
-/**
- * Provisional Phase-1 pick: highest task-prior, tie-broken by reliability desc
- * then input cost asc (quality-first w/ cost tiebreaker). NOT the Phase-2 scorer.
- */
-export function provisionalPick(taskType: TaskType, candidates: readonly ModelCandidate[]): ModelCandidate | null {
-    if (candidates.length === 0) return null
-    const prior = (c: ModelCandidate) => c.priorScoreByTask[taskType] ?? 0
-    return [...candidates].sort((a, b) => {
-        if (prior(b) !== prior(a)) return prior(b) - prior(a)
-        if (b.reliability !== a.reliability) return b.reliability - a.reliability
-        if (a.costPerMIn !== b.costPerMIn) return a.costPerMIn - b.costPerMIn
-        return `${a.provider}/${a.modelId}`.localeCompare(`${b.provider}/${b.modelId}`)
-    })[0]!
-}
-
 export interface ShadowInput {
+    workspaceId: string | undefined
     taskType: TaskType
     /** The connected provider pool for this decision (first-selection pool). */
     available: AvailableProvider[]
@@ -102,32 +75,47 @@ async function fetchKnowledge(providers: readonly string[]): Promise<KnowledgeRo
 }
 
 /**
+ * Fetch knowledge + enumerate + capability-gate the model candidates for a
+ * decision. Shared by the shadow path and the serving integration (index.ts).
+ * Discovered models are omitted (the configured/resolved model is always a
+ * candidate; single-provider rule). Returns the gated candidate list.
+ */
+export async function loadModelCandidates(input: ShadowInput): Promise<ModelCandidate[]> {
+    const providers = Array.from(new Set(input.available.map(a => a.provider as string)))
+    const knowledge = await fetchKnowledge(providers)
+    const candidates = enumerateModelCandidates({
+        taskType: input.taskType,
+        availableProviders: input.available,
+        settings: input.settings,
+        knowledge,
+    })
+    return capabilityGate(input.requirements ?? [], candidates)
+}
+
+/**
  * Compute the shadow choice for a decision. Returns null when disabled, on no
- * candidates, or on any error (telemetry must never break routing). Fetches
- * knowledge rows for the connected providers; discovered models are omitted in
- * Phase 1 (the configured/resolved model is always a candidate).
+ * candidates, or on any error (telemetry must never break routing). Uses the
+ * Phase-2 weighted scorer (`selectBestModel`) so the shadow would-pick matches
+ * what serving would pick once flipped.
  */
 export async function computeShadowChoice(input: ShadowInput): Promise<ShadowChoice | null> {
     if (!isShadowLoggingEnabled()) return null
     try {
-        const providers = Array.from(new Set(input.available.map(a => a.provider as string)))
-        const knowledge = await fetchKnowledge(providers)
-        const candidates = enumerateModelCandidates({
+        const gated = await loadModelCandidates(input)
+        const ranked = selectBestModel({
+            candidates: gated,
             taskType: input.taskType,
-            availableProviders: input.available,
-            settings: input.settings,
-            knowledge,
+            statsFor: (provider, model) => getStats({ workspaceId: input.workspaceId, provider, model, taskType: input.taskType }),
+            now: Date.now(),
         })
-        const gated = capabilityGate(input.requirements ?? [], candidates)
-        const pick = provisionalPick(input.taskType, gated)
-        if (!pick) return null
-        const rank = (a: ModelCandidate, b: ModelCandidate) =>
-            (b.priorScoreByTask[input.taskType] ?? 0) - (a.priorScoreByTask[input.taskType] ?? 0)
+        if (ranked.length === 0) return null
+        const top = ranked[0]!
+        const prior = top.candidate.priorScoreByTask[input.taskType] ?? 0
         return {
-            chosen: `${pick.provider}/${pick.modelId}`,
-            prior: pick.priorScoreByTask[input.taskType] ?? 0,
-            shortlist: [...gated].sort(rank).slice(0, 5).map(c => `${c.provider}/${c.modelId}`),
-            reason: `provisional (prior=${pick.priorScoreByTask[input.taskType] ?? 0}, gated=${gated.length}/${candidates.length})`,
+            chosen: `${top.candidate.provider}/${top.candidate.modelId}`,
+            prior,
+            shortlist: ranked.slice(0, 5).map(s => `${s.candidate.provider}/${s.candidate.modelId}`),
+            reason: `scored (q=${top.quality.toFixed(2)}, prior=${prior}, gated=${gated.length})`,
         }
     } catch {
         return null
