@@ -1,8 +1,11 @@
 # ADR 0005 — Single-provider rule: low quality never hard-blocks
 
 Date: 2026-06-07
-Status: ACCEPTED — implementing (operator directive)
+Status: ACCEPTED — SHIPPED + VERIFIED (commit cb5a91a → prod img 73550e59)
 Project: Plexo Round-5 (follow-on)
+
+## Verification (prod, 2026-06-07)
+On ws 69d1 (all-gpt-oss = "low quality"): every `model.routed` now shows `requireOperatorAction: false` + `degradation_reason: workspace_low_quality_only` with a chosen provider (e.g. ollama_cloud served when groq/cerebras were at 100% failure). No "Operator action required" hard-block observed. 87/87 router-v2 tests green.
 
 ## Context
 Operator requirement: "Users should be able to use Plexo with a single provider connected." The router's selector (`selector.ts`) had a **Q2-hybrid block** (ADR-era C6 Q2): for high-stakes task types, if NO candidate met `LOW_QUALITY_THRESHOLD` (manifest priorScore ≥ 3), it returned `chosen: null, requireOperatorAction: true` → `RouterV2NoCandidateError`. A workspace whose only provider is "low quality" per the manifest (e.g. any single gpt-oss-120b provider) therefore **could not run high-stakes tasks at all** — a dead end that violates the single-provider requirement.
