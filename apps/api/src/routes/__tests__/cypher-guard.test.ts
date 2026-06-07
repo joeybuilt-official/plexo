@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { isWriteCypher } from '../graph.js'
+import { isWriteCypher, clampCypherLimit, MAX_CYPHER_LIMIT } from '../graph.js'
 
 const READ_CASES: Array<[string, string]> = [
   ['plain match/return', 'MATCH (n:Entity)-[r:RELATES_TO]->(m:Entity) RETURN n, m LIMIT 500'],
@@ -49,4 +49,39 @@ describe('isWriteCypher — write (blocked) queries', () => {
       expect(isWriteCypher(cypher)).toBe(true)
     })
   }
+})
+
+function limitOf(cypher: string): number | null {
+  const m = /\blimit\s+(\d+)\b/i.exec(cypher)
+  return m ? Number(m[1]) : null
+}
+
+describe('clampCypherLimit — server-side row cap (defense-in-depth)', () => {
+  it('leaves an in-range LIMIT untouched', () => {
+    expect(limitOf(clampCypherLimit('MATCH (n) RETURN n LIMIT 500'))).toBe(500)
+  })
+  it('clamps an over-cap LIMIT down to the max', () => {
+    expect(limitOf(clampCypherLimit('MATCH (n) RETURN n LIMIT 999999'))).toBe(MAX_CYPHER_LIMIT)
+  })
+  it('clamps a LIMIT equal to the boundary (no change)', () => {
+    expect(limitOf(clampCypherLimit(`MATCH (n) RETURN n LIMIT ${MAX_CYPHER_LIMIT}`))).toBe(MAX_CYPHER_LIMIT)
+  })
+  it('appends a LIMIT when none is present', () => {
+    expect(limitOf(clampCypherLimit('MATCH (n) RETURN n'))).toBe(MAX_CYPHER_LIMIT)
+  })
+  it('appends a LIMIT, stripping a trailing semicolon', () => {
+    const out = clampCypherLimit('MATCH (n) RETURN n;')
+    expect(out).not.toMatch(/;/)
+    expect(limitOf(out)).toBe(MAX_CYPHER_LIMIT)
+  })
+  it('clamps the FINAL limit (e.g. after a subquery LIMIT)', () => {
+    const out = clampCypherLimit('MATCH (n) WITH n LIMIT 10 RETURN n LIMIT 999999')
+    expect(out).toMatch(/LIMIT 10\b/)
+    expect(out.trimEnd().endsWith(`LIMIT ${MAX_CYPHER_LIMIT}`)).toBe(true)
+  })
+  it('ignores a commented-out LIMIT and appends a real cap', () => {
+    const out = clampCypherLimit('MATCH (n) RETURN n // LIMIT 999999')
+    expect(limitOf(out)).toBe(MAX_CYPHER_LIMIT)
+    expect(out).not.toMatch(/999999/)
+  })
 })

@@ -72,6 +72,10 @@ app = FastAPI(title="plexo-graphiti", version="0.4.0-falkordb")
 SERVICE_KEY = os.environ.get("PLEXO_SERVICE_KEY", "")
 FALKORDB_HOST = os.environ.get("FALKORDB_HOST", "falkordb")
 FALKORDB_PORT = int(os.environ.get("FALKORDB_PORT", "6379"))
+# Statement timeout (ms) for read-only /v1/graph/cypher queries — bounds a
+# runaway read against the shared FalkorDB (ADR 0002). Generous default; tune
+# via env without a code change. 0 disables the bound.
+GRAPH_CYPHER_READ_TIMEOUT_MS = int(os.environ.get("GRAPH_CYPHER_READ_TIMEOUT_MS", "30000"))
 PLEXO_INFERENCE_BASE = os.environ.get(
     "PLEXO_INFERENCE_BASE",
     "http://plexo-api:8080/api/inference",
@@ -781,14 +785,28 @@ async def graph_cypher(request: Request, body: GraphCypherRequest) -> JSONRespon
 
     # Read-only cypher skips the write lock so graph reads aren't starved by
     # in-flight episode ingestion; FalkorDB runs each query atomically.
-    guard = nullcontext() if _is_read_only_cypher(body.cypher) else _ws_lock(body.workspace_id)
+    #
+    # Defense-in-depth (ADR 0002): read-only cypher executes via GRAPH.RO_QUERY
+    # (ro_query), so the FalkorDB engine itself rejects any write — even one that
+    # slipped past the upstream regex guard can't mutate. A statement timeout
+    # bounds runaway reads against the shared server. Writes keep the lock + the
+    # unbounded GRAPH.QUERY path (structured writes go through /v1/graph/write).
+    read_only = _is_read_only_cypher(body.cypher)
+    guard = nullcontext() if read_only else _ws_lock(body.workspace_id)
     lock_wait_start = _now_monotonic_ms()
     async with guard:
         lock_wait_ms = _now_monotonic_ms() - lock_wait_start
         query_start = _now_monotonic_ms()
         client = _falkordb_client()
         graph = client.select_graph(body.workspace_id)
-        result = await graph.query(body.cypher, body.params)
+        if read_only:
+            result = await graph.ro_query(
+                body.cypher,
+                body.params,
+                timeout=GRAPH_CYPHER_READ_TIMEOUT_MS or None,
+            )
+        else:
+            result = await graph.query(body.cypher, body.params)
         query_ms = _now_monotonic_ms() - query_start
 
     rows: list = []
