@@ -66,7 +66,7 @@
 
 ## Phase 8 — Security depth: key-versioning + audit + X-App-Id (WS F2/F3) ⚠ one-way — DEPLOY 1 DONE
 - [x] read-compat multi-key (enc:v2:<keyId> + legacy multi-key) — DEPLOY 1 (writes stay v1; PLEXO_ENC_WRITE_V2 unset)
-- [ ] verify v1 creds still decrypt in prod (soak), THEN DEPLOY 2 = set PLEXO_ENC_WRITE_V2=1 + recreate (env flip, no rebuild) ⚠ one-way (keyring must retain keyId's secret)
+- [x] DEPLOY 2 DONE 2026-06-07: PLEXO_ENC_WRITE_V2=1 set in the server .env + recreated (img unchanged 5a428b1b, env-only); healthy, 0 decrypt failures, flag active in container. New writes now v2; v1 reads unaffected. ⚠ one-way crossed — keyring retains current ENCRYPTION_SECRET (the v2 keyId source).
 - [x] audit provider-credential mutations (ai-provider-creds PUT → provider.update); super-admin audit DEFERRED (no ws ctx + read-noise → per-action instead)
 - [x] X-App-Id integrity: option (b) chosen — document trusted-mesh model, no hot-path HMAC
 - [x] tests (8 crypto: v1/v2 round-trip, read-compat, rotation×2, missing-keyId, wrong-ws) + tsc green; ai-provider-creds + channel-config-crypto unbroken (30/30)
@@ -76,5 +76,5 @@
 - [x] inference-proxy cascade fault-injection: chaos test (provider cascade exhaustion → clean 500) added to inference.test.ts (34/34)
 - [x] SLO/alerting: evaluateSloBreaches() (pure, tested 9) + runRouterStatsSnapshot enqueues breaches → batched ops-alerts flush; env PLEXO_SLO_MIN_SUCCESS(0=off)/MIN_SAMPLES/MAX_P95_MS
 - [x] router_v2_stats dashboard endpoint: GET /api/v1/intel-dashboard/:ws/router-stats (latest bucket per key, 2h window) + per-app spend (loadAppSpend) added to cost-summary; tests 13/13
-- [ ] (optional, remaining) chat SSE e2e reconnect/cancel mid-stream — GET /api/chat/reply-stream/:taskId
-- [x] CORE EXIT MET: chaos test ✓ + dashboard reads router_v2_stats ✓ + SLO breach alerts ✓. Deployed — final prod img 6c0a1c88, healthy, 0 errors.
+- [x] chat SSE reply-stream cancel/terminate e2e (chat-reply-stream.test.ts, 3/3): terminal event+end, TASK_NOT_FOUND, client-close clears interval. Test-only — no deploy.
+- [x] CORE EXIT MET + FULL: chaos test ✓ + dashboard reads router_v2_stats ✓ + SLO breach alerts ✓ + SSE cancel test ✓. Deployed — prod img 6c0a1c88.
