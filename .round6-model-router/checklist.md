@@ -13,11 +13,13 @@
 - [x] no behavior change — new files only, nothing imports them; tsc green
 
 ## Phase 1 — Candidate enumeration + capability gate (shadow/log-only)
-- [ ] pure enumerateModelCandidates (capped; configured + discovered ∩ knowledge)
-- [ ] capabilityGate hard filter (vision/json-reliable/min-context); never empties to a block (single-provider rule)
-- [ ] shadow log: emit would-pick vs served to routing_events; served model UNCHANGED
+- [x] pure enumerateModelCandidates (capped; configured + discovered ∩ knowledge; pins configured) — enumerate.ts
+- [x] capabilityGate hard filter; never empties to a block (single-provider rule) — enumerate.ts
+- [x] tests + tsc green (enumerate.test.ts 10 tests; full router-v2 suite 109 green)
+- [ ] shadow log: emit would-pick vs served to routing_events; served model UNCHANGED  ← impure, NEXT
 - [ ] flag PLEXO_MODEL_ROUTER (default OFF) gates shadow logging
-- [ ] tests + tsc green; deployed; prod shadow logs show would-pick vs served
+- [ ] migration: add shadow_model_choice column to routing_events  ⚠ prod migration = authorization gate
+- [ ] deployed; prod shadow logs show would-pick vs served  ⚠ deploy = authorization gate
 
 ## Phase 2 — Weighted scorer + selector integration ⚠ behavior (flag-gated)
 - [ ] scoreModelCandidate over {task-fit prior, live stats success/p95, reliability, cost} w/ objective weights
