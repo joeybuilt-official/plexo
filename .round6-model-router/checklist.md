@@ -40,10 +40,11 @@
 - [x] deployed (flag OFF) — rebuilt+recreated; verified serving unchanged + gate live (extraction json-mode req narrowed shadow shortlist 4→1, only groq passed)
 
 ## Phase 4 — Telemetry + A/B scorecard
-- [ ] routing_events extended w/ chosen-candidate context (shortlist + why)
-- [ ] scorecard (Welch via routingScorecard) model-router vs baseline: quality/cost/latency per task
-- [ ] new table (if any) added to runDataRetention()
-- [ ] tests + tsc green; deployed
+- [x] routing_events extended w/ chosen-candidate context — shadow_model_choice (chosen+prior+shortlist+reason, Phase 1) + model_routed marker (0131)
+- [x] scorecard model-router vs baseline — modelRouterScorecard: shadow divergence (pre-flip) + served-quality A/B Welch per task type
+- [x] no new table — routing_events already pruned by cron runDataRetention (cron.ts:194); model_routed is a column
+- [x] tests + tsc green — model-router-scorecard.test (3); router-v2+eval 165 green
+- [x] deployed — migration 0131 applied; rebuilt+recreated; verified model_routed persists (f, flag off) + scorecard runs on live prod data (extraction div 98%, summarization 25%, conversation 14%; A/B arms 0 pre-flip)
 
 ## Phase 5 — Measured flip ⚠ operator GO
 - [ ] sufficient shadow samples accrued

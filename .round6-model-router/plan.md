@@ -44,7 +44,7 @@ These shape Phases 1–3. Recommended defaults assumed in the plan; operator may
 - Scope: extend `routing_events` with the chosen-candidate context (shortlist + why); a scorecard reusing the Round-5 Welch `routingScorecard` to compare `qualityScore` (and cost/latency) of model-router choices vs baseline per task type; add any new table to `runDataRetention()`.
 - Deps: Phases 1–3 (shadow + flag data). Subagents: general-purpose.
 - Exit: scorecard returns per-task model-router-vs-baseline quality/cost/latency deltas with sample counts; tsc green; deployed.
-- Status: pending
+- Status: DONE 2026-06-07 — migration 0131 (routing_events.model_routed) + telemetry persists it + modelRouterScorecard (shadow divergence pre-flip + served-quality A/B Welch post-flip; reuses ab-variants welchsTTest). Tests 3; router-v2+eval 165 green; tsc clean. Deployed flag-OFF; scorecard verified on LIVE prod data: extraction div 98.1% (n=107), summarization 24.7% (n=299), conversation 14.3% (n=42); A/B arms 0 (no post-flip data yet, expected). Retention: routing_events already pruned (cron.ts:194). KEY SIGNAL for Phase 5: extraction 98% divergence — router would serve groq (json-mode gate) vs current cerebras/ollama_cloud; operator must weigh before flip.
 
 ## Phase 5 — Measured flip (operator GO) ⚠ one-way-ish / operator gate
 - Scope: with the Phase-4 scorecard live + shadow data accrued, flip `PLEXO_MODEL_ROUTER=1` (env + recreate, no rebuild); observe scorecard + lane gauge + error rates ~1h+; decide keep/revert. Operator-gated GO (quality + cost bar).
