@@ -24,9 +24,22 @@ import type { Capability } from './manifest.js'
 import type { AvailableProvider } from './selector.js'
 import type { TaskType, WorkspaceAISettings } from '../registry.js'
 
-/** Flag (default OFF). Stays OFF in prod until Phase 5's measured flip. */
+/**
+ * Serving flip (default OFF). When ON, the model-level router's pick is actually
+ * served (Phase 2+ selector integration). Stays OFF in prod until Phase 5.
+ */
 export function isModelRouterEnabled(): boolean {
     return process.env.PLEXO_MODEL_ROUTER === '1'
+}
+
+/**
+ * Observe-only shadow logging (default OFF). Distinct from the serving flip so
+ * shadow would-pick data can accrue in prod (Phases 1–4) with the served model
+ * UNCHANGED. The serving flip implies shadow too, so once flipped (Phase 5)
+ * served-vs-shadow comparison keeps logging.
+ */
+export function isShadowLoggingEnabled(): boolean {
+    return process.env.PLEXO_MODEL_ROUTER_SHADOW === '1' || isModelRouterEnabled()
 }
 
 export interface ShadowChoice {
@@ -97,7 +110,7 @@ async function fetchKnowledge(providers: readonly string[]): Promise<KnowledgeRo
  * Phase 1 (the configured/resolved model is always a candidate).
  */
 export async function computeShadowChoice(input: ShadowInput): Promise<ShadowChoice | null> {
-    if (!isModelRouterEnabled()) return null
+    if (!isShadowLoggingEnabled()) return null
     try {
         const providers = Array.from(new Set(input.available.map(a => a.provider as string)))
         const knowledge = await fetchKnowledge(providers)

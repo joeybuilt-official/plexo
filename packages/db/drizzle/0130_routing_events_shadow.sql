@@ -6,7 +6,8 @@
 -- choice can be A/B-compared (Phase 4 scorecard) before any flip (Phase 5).
 --
 -- `shadow_model_choice` is a JSON string: {chosen, prior, shortlist[], reason}.
--- Written only when the PLEXO_MODEL_ROUTER flag is on; NULL otherwise. The
+-- Written only when the observe-only PLEXO_MODEL_ROUTER_SHADOW flag is on (or
+-- the PLEXO_MODEL_ROUTER serving flip, which implies it); NULL otherwise. The
 -- served `provider`/`model` columns are unaffected — shadow logging never
 -- changes the model served.
 --
