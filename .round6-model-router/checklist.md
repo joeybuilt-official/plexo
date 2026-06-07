@@ -20,8 +20,9 @@
 - [x] flag PLEXO_MODEL_ROUTER (default OFF) gates shadow logging — isModelRouterEnabled()
 - [x] migration: add shadow_model_choice column to routing_events — 0130_routing_events_shadow.sql
 - [x] code tests + tsc green — shadow.test.ts 9 tests; full router-v2 suite 118 green
-- [ ] migration applied to prod plexo DB (BEFORE recreate)
-- [ ] deployed (build+recreate plexo-api); prod shadow logs show would-pick vs served
+- [x] migration applied to prod plexo DB (BEFORE recreate) — routing_events.shadow_model_choice live
+- [x] deployed (build+recreate plexo-api); shadow flag wired (PLEXO_MODEL_ROUTER_SHADOW=1, serving PLEXO_MODEL_ROUTER=0)
+- [x] prod shadow logs show would-pick vs served — verified extraction + summarization (served cerebras/ollama_cloud; shadow deepseek/deepseek-v4-flash; full shortlist + model.shadow log line). Bug fixed mid-deploy: drizzle array-binding (inArray) — see plan decisions log.
 
 ## Phase 2 — Weighted scorer + selector integration ⚠ behavior (flag-gated)
 - [ ] scoreModelCandidate over {task-fit prior, live stats success/p95, reliability, cost} w/ objective weights
