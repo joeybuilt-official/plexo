@@ -4,6 +4,11 @@ Date: 2026-06-07
 Status: ACCEPTED — SHIPPED + VERIFIED (commit 7fbf48e → prod img 213006e9)
 Project: Plexo Round-5 (follow-on; surfaced by the 2026-06-07 browser sims)
 
+## Follow-up shipped (prod img 2bbfd92b, commit 563d9f8) + verified
+- Stripped maxLength/numeric-bound constraints from `FactSchema` (small models hard-fail strict output on them); validate loosely + truncate/clamp in the consumer.
+- Graceful degradation: extract-worker skips cleanly (non-fatal) instead of throwing `NO_PROVIDER` when no provider can satisfy the schema.
+- Verified on prod: `required must include domain` = 0 over 3 min (was every turn); extraction runs (14 summarization routes) without the deterministic schema-reject; remaining errors are unrelated (task Bad Request). gpt-oss fact-production not directly observed this window (async inngest; 0-fact extraction is also a valid outcome) — but the deterministic blocker is gone and failures now degrade cleanly. extract tests 13/13.
+
 ## Verification (prod, 2026-06-07)
 - ✅ The deterministic schema-rejection (`invalid JSON schema for response_format: required must include domain`) is GONE — groq/cerebras now ACCEPT the structured-output schema.
 - ✅ Chat conversation reply works reliably via provider fallback (free-text path → ollama_cloud); test messages got full, well-formatted replies honoring user instructions.
