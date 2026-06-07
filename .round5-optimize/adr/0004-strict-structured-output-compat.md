@@ -1,8 +1,14 @@
 # ADR 0004 — Strict-mode structured-output schema compatibility (provider fallback fix)
 
 Date: 2026-06-07
-Status: ACCEPTED — implementing
+Status: ACCEPTED — SHIPPED + VERIFIED (commit 7fbf48e → prod img 213006e9)
 Project: Plexo Round-5 (follow-on; surfaced by the 2026-06-07 browser sims)
+
+## Verification (prod, 2026-06-07)
+- ✅ The deterministic schema-rejection (`invalid JSON schema for response_format: required must include domain`) is GONE — groq/cerebras now ACCEPT the structured-output schema.
+- ✅ Chat conversation reply works reliably via provider fallback (free-text path → ollama_cloud); test messages got full, well-formatted replies honoring user instructions.
+- ⚠ RESIDUAL (model-quality, softer, handled by repair/fallback): groq/cerebras `gpt-oss-120b` still sometimes fails OUTPUT validation (`AI_APICallError: Failed to validate JSON`) for the Facts extraction — i.e. the schema is now valid but the small model doesn't always emit conforming JSON. Extraction degrades to ollama_cloud. Follow-ups: use a stronger extraction model for these providers, or simplify the Facts schema; consider relaxing the extract-worker `resolveModelFromEnv()` fallback which throws `NO_PROVIDER` in the inngest context (minor noisy secondary bug).
+- 🔴 OPERATOR: deepseek "Insufficient Balance" (the root reason the primary can't serve; fallback masks it). Top up deepseek or change the workspace primary.
 
 ## Context
 
