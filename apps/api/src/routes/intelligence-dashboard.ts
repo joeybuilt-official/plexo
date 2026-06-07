@@ -28,7 +28,7 @@ import pino from 'pino'
 import { db, sql } from '@plexo/db'
 import { pgRows } from '../lib/pg-rows.js'
 import { requireWorkspaceMember } from '../middleware/workspace-access.js'
-import { getWorkspaceSpend } from '../lib/intelligence-spend.js'
+import { getWorkspaceSpend, loadAppSpend } from '../lib/intelligence-spend.js'
 import { invalidateIntelligenceSettings } from '../lib/intelligence-cache.js'
 
 const logger = pino({ name: 'intel-dashboard' })
@@ -358,6 +358,13 @@ router.get('/:workspaceId/cost-summary', async (req: any, res: any) => {
             ?? (Array.isArray(breakdownResult) ? (breakdownResult as any[]) : [])
         const row = breakdownRows?.[0] ?? {}
 
+        // Round-5 Phase 6: per-app attribution (graphiti/Fonto/agent/...) for the
+        // dashboard. Best-effort — a failure here shouldn't sink the cost summary.
+        const appSpend = await loadAppSpend(workspaceId).catch((err) => {
+            logger.warn({ err, workspaceId }, 'cost-summary: loadAppSpend failed (non-fatal)')
+            return []
+        })
+
         return res.json({
             spend,
             topModel: row.top_model ? {
@@ -370,10 +377,52 @@ router.get('/:workspaceId/cost-summary', async (req: any, res: any) => {
                 costUsd: Number(row.top_task_cost ?? 0),
                 requests: Number(row.top_task_requests ?? 0),
             } : null,
+            appSpend,
         })
     } catch (err) {
         logger.error({ err, workspaceId }, 'Failed to load cost summary')
         return res.status(500).json({ error: 'Failed to load cost summary' })
+    }
+})
+
+// ── GET /router-stats ──────────────────────────────────────────────────────
+//
+// Round-5 Phase 9: surface the persisted router-v2 per-bucket stats so a
+// dashboard can read them (they survive deploys via the 30-min snapshot cron).
+// Returns the latest snapshot per (provider, model, task_type) within a recent
+// window — i.e. the current routing health, with success rate + p50/p95 latency
+// + cooldown state. router_v2_stats is process-global (workspace_id may be NULL),
+// so this is a fleet view, not workspace-scoped.
+
+router.get('/:workspaceId/router-stats', async (req: any, res: any) => {
+    const workspaceId = getWsId(req)
+    if (!workspaceId) return res.status(400).json({ error: 'workspaceId required' })
+
+    try {
+        const result = await db.execute(sql`
+            SELECT DISTINCT ON (provider, model, task_type)
+                provider, model, task_type, sample_count, success_rate,
+                latency_p50_ms, latency_p95_ms, cooldown_end_at, snapshot_at
+            FROM router_v2_stats
+            WHERE snapshot_at > NOW() - INTERVAL '2 hours'
+            ORDER BY provider, model, task_type, snapshot_at DESC
+        `)
+        const rows = pgRows(result) ?? (Array.isArray(result) ? (result as any[]) : [])
+        const buckets = rows.map((r: any) => ({
+            provider: String(r.provider),
+            model: String(r.model),
+            taskType: String(r.task_type),
+            sampleCount: Number(r.sample_count ?? 0),
+            successRate: Number(r.success_rate ?? 0),
+            latencyP50Ms: Number(r.latency_p50_ms ?? 0),
+            latencyP95Ms: Number(r.latency_p95_ms ?? 0),
+            cooldownEndAt: r.cooldown_end_at ?? null,
+            snapshotAt: r.snapshot_at,
+        }))
+        return res.json({ buckets, snapshotWindow: '2h', count: buckets.length })
+    } catch (err) {
+        logger.error({ err, workspaceId }, 'Failed to load router stats')
+        return res.status(500).json({ error: 'Failed to load router stats' })
     }
 })
 
