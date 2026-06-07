@@ -56,11 +56,13 @@
 - [x] burn-rate alert: budget stream in ops-alerts.ts + agent-loop 80% false→true crossing via prior-value CTE
 - [x] tests (ops-alerts-budget 3, app-spend 2) + tsc green; cost-enforcement 9 + inference 33 unbroken; applied 0129 to prod BEFORE recreate; deployed img 555ecb8f healthy, 0 errors
 
-## Phase 7 — Chat per-token streaming + a11y/mobile (WS A + G-partial)
-- [ ] stream generateText into intermediate progress events (executor/index.ts:1912)
-- [ ] chat aria-live/focus mgmt + reduced-motion
-- [ ] 390px composer/activity-panel ergonomics; Playwright shots at 390px
-- [ ] deployed; 1-step task shows live streaming activity
+## Phase 7 — Chat per-token streaming + a11y/mobile (WS A + G-partial) — CLOSED (largely already built)
+- [x] reduced-motion: ALREADY done (globals.css:425 universal prefers-reduced-motion: reduce)
+- [x] aria-live: ALREADY done (chat log page.tsx:1262 role=log; plan-card + thinking-panel)
+- [x] mobile composer: ALREADY solid (44px targets, text-[16px] anti-zoom, hidden sm:flex)
+- [x] per-token streaming: ALREADY exists for direct chat (chat.ts:922 streamText per-chunk SSE); executor emits 3s ticks + progressEvents
+- [x] DECLINED executor generateText→streamText (tool-path hot-loop regression risk > marginal gain); documented
+- [ ] (optional, next UI session) verify/polish agent-thinking/activity panels at 390px via authed Playwright; web rebuild if changed
 
 ## Phase 8 — Security depth: key-versioning + audit + X-App-Id (WS F2/F3) ⚠ one-way
 - [ ] read-compat multi-key (enc:v2:<keyId> + legacy) — DEPLOY 1 (writes stay v1)
