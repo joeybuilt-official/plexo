@@ -67,7 +67,9 @@ interface ExistingFact {
 
 const ResolutionSchema = z.object({
     action: z.enum(['UPDATE', 'SCOPE', 'NONE']),
-    rationale: z.string().optional(),
+    // ADR 0004: `.nullable()` not `.optional()` — strict providers require all
+    // properties in `required`.
+    rationale: z.string().nullable(),
 })
 
 const RESOLVE_SYSTEM = `You are a memory conflict resolver. Compare two facts about the same user and return the relationship.
