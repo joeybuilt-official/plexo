@@ -155,6 +155,29 @@ export function isWriteCypher(cypher: string): boolean {
     return CYPHER_WRITE_RE.test(stripCypherComments(cypher))
 }
 
+// Server-side row cap (ADR 0002, defense-in-depth): a service-key caller must
+// not be able to pull an unbounded result set out of the shared FalkorDB. We
+// clamp the query's final LIMIT to MAX_CYPHER_LIMIT, and append one if absent.
+// Conservative: comments are stripped before scanning so a commented-out LIMIT
+// can't fool the clamp; the real query text is what we rewrite.
+export const MAX_CYPHER_LIMIT = 5000
+
+export function clampCypherLimit(cypher: string): string {
+    // Operate on the comment-stripped text: comments are no-ops in cypher, so
+    // returning the stripped query is safe and avoids offset drift (and a
+    // commented-out LIMIT can't fool the clamp).
+    const clean = stripCypherComments(cypher)
+    const re = /\blimit\s+(\d+)\b/gi
+    let m: RegExpExecArray | null
+    let last: RegExpExecArray | null = null
+    while ((m = re.exec(clean)) !== null) last = m
+    if (!last) {
+        return `${clean.replace(/[\s;]+$/, '')} LIMIT ${MAX_CYPHER_LIMIT}`
+    }
+    if (parseInt(last[1] ?? '0', 10) <= MAX_CYPHER_LIMIT) return clean
+    return clean.slice(0, last.index) + `LIMIT ${MAX_CYPHER_LIMIT}` + clean.slice(last.index + last[0].length)
+}
+
 interface CypherBody {
     workspaceId?: string
     cypher?: string
@@ -182,7 +205,7 @@ router.post('/cypher', async (req, res) => {
     try {
         const result = await graphCypher({
             workspace_id: body.workspaceId,
-            cypher: body.cypher,
+            cypher: clampCypherLimit(body.cypher),
             params: body.params ?? {},
         })
         res.json(result)
