@@ -167,10 +167,27 @@ async function runDataRetention(): Promise<void> {
         DELETE FROM work_ledger WHERE completed_at < NOW() - INTERVAL '1 day' * ${days}
     `)
 
+    // Prune PROCESSED node_events (Round-5 Phase 1). These are append-only
+    // operational federation/telemetry events with no value once processed
+    // (e.g. high-volume ext.fonto.asset.* dropped as unhandled). Unprocessed
+    // rows are pending work and are NEVER deleted. Shorter, independent window
+    // (NODE_EVENTS_RETENTION_DAYS, default 7, 0 = disabled) so it doesn't couple
+    // to the 90-day log retention.
+    const neDays = parseInt(process.env.NODE_EVENTS_RETENTION_DAYS ?? '7', 10)
+    let nodeEventsDeleted = 0
+    if (neDays > 0) {
+        const neResult = await db.execute(sql`
+            DELETE FROM node_events WHERE processed = true AND created_at < NOW() - INTERVAL '1 day' * ${neDays}
+        `)
+        nodeEventsDeleted = neResult.length ?? 0
+    }
+
     logger.info({
         sessionLogsDeleted: sessionResult.length ?? 0,
         workLedgerDeleted: ledgerResult.length ?? 0,
+        nodeEventsDeleted,
         retentionDays: days,
+        nodeEventsRetentionDays: neDays,
     }, 'Data retention cleanup complete')
 }
 
