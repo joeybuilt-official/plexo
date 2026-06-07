@@ -27,11 +27,17 @@ Sasha (Security), Pat (Performance), Mort (Maintainability), Uma (UX), Maya (ML/
 
 ## Phases
 
-## Phase 1 — Reliability + log hygiene quick wins (WS D)
-- Scope: (a) add processed-`node_events` pruning to `runDataRetention()` (`cron.ts:161-175`) — `DELETE WHERE processed=true AND created_at < NOW()-INTERVAL retention`; (b) normalize `unhandledRejection`/`uncaughtException` logging to an Error (`index.ts:852-854`, mirror `cc-ingest.ts:27-29`) so `reason:{}` becomes diagnosable; (c) remove the dead fylo-bridge plugin (or fix `plexo.json:10` entry) — confirm zero workspaces enable it first. No redis change (by-design).
-- Deps: none. Subagents: none (≤3 files each, surgical).
-- Exit: unit/tsc green; deploy; verify post-deploy: node_events row count bounded after a retention tick; a forced rejection logs a real stack; no fylo-bridge "Cannot find module" on tool-set build.
-- Status: pending
+## Phase 1 — Reliability + log hygiene quick wins (WS D) — DONE (commit a3f89bc, prod img 8339f3fd)
+- Scope: (a) processed-`node_events` pruning in `runDataRetention()`; (b) normalize `unhandledRejection` logging; (c) fylo-bridge.
+- Shipped: (a) `NODE_EVENTS_RETENTION_DAYS` default 7 (0=off), deletes `processed=true AND created_at<window`, never touches unprocessed; prod read-only check 58227 total / 2237 prunable@7d / 0 pending. (b) `index.ts:852` normalizes non-Error reason→Error (msg+stack) mirroring cc-ingest. (c) fylo-bridge CLOSED as non-issue — it's ENABLED in prod (ws 69d1), loader degrades gracefully (`plugins/bridge.ts:196` warn+skip), 0 module errors in current image; the audit's "dead plugin" was a stale-image artifact — no change (deleting would remove a live extension).
+- Verify: api tsc green; deployed img 8339f3fd healthy; retention runs on the daily 3am cron (prune count will show in the "Data retention cleanup complete" log then).
+- Status: DONE
+
+## Phase 2 — HTTP backpressure + payload safety (WS F1) — DONE (commit 0a8dc1f, prod img 994250e4) ⚠ behavior
+- Scope: rate-limit the service routes + cap embeddings batch.
+- Shipped: `serviceLimiter` (app-id-keyed via X-App-Id, `PLEXO_SERVICE_RATE_MAX` default 1200/min, 0=off) on `/api/inference` + `/api/v1/events`; `generalLimiter` now SKIPS those paths (the coarse 2000/15min-per-IP limit was wrong for high-volume single-IP internal callers); embeddings `PLEXO_EMBEDDINGS_MAX_BATCH` default 256 (0=off) → 413 before the Promise.all fan-out (OOM guard). NOTE: app-id keying is spoofable (Phase 8 hardens) — acceptable for backpressure.
+- Verify: inference 33/33 (incl 413 batch test) + api tsc green; deployed img 994250e4 healthy; 0 spurious 429 (quiet window — no live traffic to watch pass, but limiter is generous + IP-exempt).
+- Status: DONE
 
 ## Phase 2 — HTTP backpressure + payload safety (WS F1) ⚠ behavior-affecting
 - Scope: apply rate limiting to the uncovered high-cost routes — `/api/inference` (chat/completions + embeddings, `index.ts:506`) and `/api/v1/events` (`index.ts:408`); add an embeddings batch-size cap (reject `input[]` over N before hitting the provider, `inference.ts:152`). Service-key callers: use a generous per-app/workspace limit (not per-IP) so legit graphiti/Fonto traffic isn't throttled — size from observed rates (graphiti ~bgAcquired/min from the lane gauge).
@@ -43,7 +49,15 @@ Sasha (Security), Pat (Performance), Mort (Maintainability), Uma (UX), Maya (ML/
 - Scope: ADR 0001. Add nullable `routed_provider`/`routed_model` to `tasks` (additive migration ⚠); write them at dispatch; replace console `model.routed` with a persisted sink (+ add it to Phase-1 retention); a read-only scorecard query reusing `ab-variants.ts` Welch t-test over `qualityScore` by `routed_model` for `extraction`; pick the cheap graphiti extraction-quality proxy.
 - Deps: Phase 1 (retention for the new event table). Subagents: general-purpose for migration+wiring+tests.
 - Exit: scorecard query returns per-model mean qualityScore + sample counts + t-stat; migration applied cleanly (no lock incident); tsc green; deployed.
-- Status: pending
+- Status: pending — discovery DONE (entry points below); STOPPED at the ⚠ migration operator-gate.
+
+### Phase 3 entry points (discovery done, skip the search next session)
+- **tasks schema**: `packages/db/src/schema.ts:318` — `qualityScore: real('quality_score')` already exists. Migrations = MANUAL SQL files in `packages/db/drizzle/`; latest = `0127_router_v2_stats.sql` → **next = `0128_*.sql`**. Add nullable `routed_provider TEXT`, `routed_model TEXT` (additive, no backfill, no NOT NULL).
+- **Cleanest dispatch write-site**: `packages/agent/src/providers/router-v2/index.ts:~236-240` — right after the successful `doCall()` on the chosen branch, where `chosen.provider`/`chosen.model` are known. BUT `routeAndCall` does NOT currently receive a `taskId`. Two options: (a) thread `taskId?` into `RouteAndCallInput` and write `tasks.routed_provider/model` there; OR (b) cleaner — write it from the executor where the task id is in scope after the route returns. Prefer wiring via the executor/agent-loop dispatch path (`apps/api/src/agent-loop.ts` + `packages/agent/src/executor/index.ts`) to avoid coupling the pure router to the tasks table.
+- **qualityScore write (judge)**: `packages/agent/src/executor/index.ts:~2632` — `db.update(tasks).set({ qualityScore })` after `judgeQuality()` (~:2613), runs detached. The scorecard joins on this.
+- **Routing telemetry**: `packages/agent/src/providers/router-v2/telemetry.ts:17-60` — `RoutedEvent` (has `chosen{provider,model}`, no taskId) emitted console-only (`:57`), called from `index.ts:196,250,286,322`. To persist: add `taskId?` to RoutedEvent + a table-backed sink (and add that table to `runDataRetention()`).
+- **A/B stats reuse**: `packages/agent/src/memory/ab-variants.ts` — `welchsTTest(a:number[], b:number[]) → {pValue,tStat,meanA,meanB}` (~:212, currently internal; extract/export to reuse). Also `assignVariant`/`recordVariantOutcome` patterns. Scorecard = `SELECT routed_model, AVG(quality_score), COUNT(*) FROM tasks WHERE task_type='extraction' AND routed_model IS NOT NULL GROUP BY routed_model` → Welch between arms (≥100/arm).
+- **Graphiti is task-less**: the inference proxy (`apps/api/src/routes/inference.ts`) does NOT create task rows — it calls `routeAndCall` directly and returns. ∴ graphiti extraction quality CANNOT use the tasks join; needs the cheap proxy from ADR 0001 (parse-fail rate / entity-edge counts), or a separate per-proxy-call quality table. This is the open ADR-0001 decision for the operator at Phase 3 kickoff.
 
 ## Phase 4 — D2 flip A/B execution (WS B) ⚠ operator gate (extraction quality)
 - Scope: with the Phase-3 scorecard live, flip `PLEXO_INFERENCE_BG_MODEL=cerebras/gpt-oss-120b` (env+recreate, no rebuild); observe gauge + scorecard ~1h+; decide keep/revert. Operator-gated GO.
@@ -94,3 +108,4 @@ Kickoff suggested B→A+D→C→F→E→G. Audit reshapes to: **1 (D quick wins)
 
 ## Decisions log
 - 2026-06-06 — Plan created from 25-sim/12-expert panel. 5 parallel read-only audits reshaped scope (overrides above). ADRs 0001 (routing→quality+A/B), 0002 (lane reservation), 0003 (key-versioning) written for the one-way doors.
+- 2026-06-06 — Operator approved (recs 1-4 stood). Phase 1 shipped (a3f89bc → img 8339f3fd): node_events retention + rejection logging; fylo-bridge closed as non-issue (live extension, not dead). Phase 2 shipped (0a8dc1f → img 994250e4): serviceLimiter + embeddings batch cap. Phase 3 discovery done (entry points recorded). STOPPED at the Phase 3 ⚠ migration operator-gate (additive `routed_provider`/`routed_model` columns on `tasks`). Note: a concurrent session ran `docker builder prune -f` mid-Phase-1-build → forced a full rebuild (slow but clean).
