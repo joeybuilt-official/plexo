@@ -1,16 +1,16 @@
 # Plexo Round-6 — Model-level router — checklist
 
 ## Operator gate (kickoff)
-- [ ] Decide objective default: quality-first (cost tiebreaker) vs cost-first
-- [ ] Decide user-model precedence: auto-route only when no explicit override vs full auto-override
-- [ ] Decide candidate source: (configured ∪ discovered) ∩ models_knowledge vs catalog-only vs configured-only
-- [ ] Approve plan
+- [x] Objective default: **quality-first (cost tiebreaker)** [2026-06-06]
+- [x] User-model precedence: **explicit choice always wins; auto only when no per-task override** [2026-06-06]
+- [x] Candidate source: **(configured ∪ discovered) ∩ models_knowledge** [2026-06-06]
+- [x] Approve plan — **APPROVED, start Phase 0** [2026-06-06]
 
-## Phase 0 — Candidate model + capability foundation
-- [ ] ModelCandidate type + capability-derivation (strengths[] + manifest Capability + quirks → normalized set) + unit tests
-- [ ] Explore: models_knowledge coverage per connected provider + discovery path inventory; report gaps
-- [ ] confirm router_v2_stats is model-keyed (per-model live stats available)
-- [ ] no behavior change
+## Phase 0 — Candidate model + capability foundation ✅ 2026-06-06
+- [x] ModelCandidate type + capability-derivation (strengths[] + manifest Capability + quirks → normalized set) + unit tests — candidate.ts + candidate.test.ts (12 tests green)
+- [x] Explore: models_knowledge coverage per connected provider + discovery path inventory; report gaps — phase0-coverage-report.md
+- [x] confirm router_v2_stats is model-keyed — CONFIRMED (workspace,provider,model,task_type)
+- [x] no behavior change — new files only, nothing imports them; tsc green
 
 ## Phase 1 — Candidate enumeration + capability gate (shadow/log-only)
 - [ ] pure enumerateModelCandidates (capped; configured + discovered ∩ knowledge)
