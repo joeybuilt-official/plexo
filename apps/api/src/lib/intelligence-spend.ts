@@ -86,6 +86,9 @@ export async function loadWorkspaceSpend(workspaceId: string): Promise<Workspace
             WHERE il.workspace_id = ${workspaceId}::uuid
               AND il.created_at >= ${start.toISOString()}::timestamptz
               AND il.success = true
+              -- Round-5 Phase 6 (attribution-only): exclude app/proxy rows so
+              -- graphiti/Fonto spend does NOT count toward the enforcement gate.
+              AND il.app_id IS NULL
         ),
         priced AS (
             SELECT
@@ -136,6 +139,74 @@ export async function loadWorkspaceSpend(workspaceId: string): Promise<Workspace
         unpricedOutputTokens: Number(row.unpriced_output_tokens ?? 0),
         computedAt: new Date().toISOString(),
     }
+}
+
+export interface AppSpendRow {
+    /** X-App-Id, or 'agent' for internal (app_id IS NULL) rows. */
+    appId: string
+    pricedUsd: number
+    inputTokens: number
+    outputTokens: number
+    requests: number
+}
+
+/**
+ * Round-5 Phase 6 — per-app spend attribution for the current calendar month.
+ * Groups inference_logs by app_id (NULL → 'agent') and prices via models_knowledge,
+ * mirroring loadWorkspaceSpend. Read-only; unlike the enforcement query it counts
+ * ALL rows (app + internal) so Fonto/graphiti/chat/memory are each attributable.
+ */
+export async function loadAppSpend(workspaceId: string): Promise<AppSpendRow[]> {
+    const start = monthStartUtc()
+    const result = await db.execute(sql`
+        WITH this_month AS (
+            SELECT
+                COALESCE(il.app_id, 'agent') AS app_id,
+                il.provider,
+                il.model,
+                COALESCE(il.input_tokens, 0) AS input_tokens,
+                COALESCE(il.output_tokens, 0) AS output_tokens
+            FROM inference_logs il
+            WHERE il.workspace_id = ${workspaceId}::uuid
+              AND il.created_at >= ${start.toISOString()}::timestamptz
+              AND il.success = true
+        ),
+        priced AS (
+            SELECT
+                tm.app_id,
+                tm.input_tokens,
+                tm.output_tokens,
+                mk.cost_per_m_in,
+                mk.cost_per_m_out
+            FROM this_month tm
+            LEFT JOIN models_knowledge mk
+              ON mk.model_id = tm.model
+             AND (tm.provider IS NULL OR mk.provider = tm.provider)
+        )
+        SELECT
+            app_id,
+            COUNT(*)::int AS requests,
+            COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+            COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
+            COALESCE(SUM(
+                CASE WHEN cost_per_m_in IS NOT NULL
+                     THEN (input_tokens::numeric / 1000000.0) * cost_per_m_in ELSE 0 END
+              + CASE WHEN cost_per_m_out IS NOT NULL
+                     THEN (output_tokens::numeric / 1000000.0) * cost_per_m_out ELSE 0 END
+            ), 0)::float8 AS priced_usd
+        FROM priced
+        GROUP BY app_id
+        ORDER BY priced_usd DESC
+    `)
+
+    const rows = (pgRows(result) ?? (Array.isArray(result) ? (result as any[]) : [])) as any[]
+    return rows.map((r) => ({
+        appId: String(r.app_id),
+        pricedUsd: Number(r.priced_usd ?? 0),
+        inputTokens: Number(r.input_tokens ?? 0),
+        outputTokens: Number(r.output_tokens ?? 0),
+        requests: Number(r.requests ?? 0),
+    }))
 }
 
 /** Bust the spend cache for one workspace. */

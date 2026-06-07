@@ -1238,26 +1238,59 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         // Uses Postgres date_trunc to avoid JS timezone drift in week_start calculation.
         if (result.totalCostUsd > 0) {
             try {
-                await db.execute(sql`
-                    INSERT INTO api_cost_tracking (id, workspace_id, week_start, cost_usd, ceiling_usd, alerted_80)
-                    VALUES (
-                        gen_random_uuid(),
-                        ${taskWorkspaceId ?? ''}::uuid,
-                        date_trunc('week', NOW())::date,
-                        ${result.totalCostUsd},
-                        ${API_COST_CEILING},
-                        false
+                // Round-5 Phase 6: capture the prior alerted_80 so we can detect
+                // the false→true crossing and fire a pre-ceiling alert exactly
+                // once per workspace per week (not once per task past 80%).
+                const costRows = await db.execute<{
+                    cost_usd: number; ceiling_usd: number; now_alerted: boolean; was_alerted: boolean
+                }>(sql`
+                    WITH prev AS (
+                        SELECT alerted_80 AS was
+                        FROM api_cost_tracking
+                        WHERE workspace_id = ${taskWorkspaceId ?? ''}::uuid
+                          AND week_start = date_trunc('week', NOW())::date
+                    ),
+                    upserted AS (
+                        INSERT INTO api_cost_tracking (id, workspace_id, week_start, cost_usd, ceiling_usd, alerted_80)
+                        VALUES (
+                            gen_random_uuid(),
+                            ${taskWorkspaceId ?? ''}::uuid,
+                            date_trunc('week', NOW())::date,
+                            ${result.totalCostUsd},
+                            ${API_COST_CEILING},
+                            false
+                        )
+                        ON CONFLICT (workspace_id, week_start)
+                        DO UPDATE SET
+                            cost_usd = api_cost_tracking.cost_usd + EXCLUDED.cost_usd,
+                            alerted_80 = CASE
+                                WHEN (api_cost_tracking.cost_usd + EXCLUDED.cost_usd) >= (api_cost_tracking.ceiling_usd * 0.8)
+                                THEN true
+                                ELSE api_cost_tracking.alerted_80
+                            END
+                        RETURNING cost_usd, ceiling_usd, alerted_80
                     )
-                    ON CONFLICT (workspace_id, week_start)
-                    DO UPDATE SET
-                        cost_usd = api_cost_tracking.cost_usd + EXCLUDED.cost_usd,
-                        alerted_80 = CASE
-                            WHEN (api_cost_tracking.cost_usd + EXCLUDED.cost_usd) >= (api_cost_tracking.ceiling_usd * 0.8)
-                            THEN true
-                            ELSE api_cost_tracking.alerted_80
-                        END
+                    SELECT u.cost_usd, u.ceiling_usd,
+                           u.alerted_80 AS now_alerted,
+                           COALESCE(p.was, false) AS was_alerted
+                    FROM upserted u LEFT JOIN prev p ON true
                 `)
                 logger.info({ taskId: task.id, costUsd: result.totalCostUsd }, 'api_cost_tracking updated')
+
+                const costRow = costRows[0]
+                if (costRow && costRow.now_alerted && !costRow.was_alerted) {
+                    try {
+                        const { recordBudgetAlertForAlert } = await import('./ops-alerts.js')
+                        recordBudgetAlertForAlert({
+                            workspaceId: taskWorkspaceId ?? '',
+                            costUsd: Number(costRow.cost_usd),
+                            ceilingUsd: Number(costRow.ceiling_usd),
+                        })
+                        logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId, costUsd: Number(costRow.cost_usd), ceilingUsd: Number(costRow.ceiling_usd) }, 'workspace crossed 80% weekly cost ceiling — ops alert queued')
+                    } catch (alertErr) {
+                        logger.warn({ err: alertErr, taskId: task.id }, 'budget alert enqueue failed — non-fatal')
+                    }
+                }
             } catch (costWriteErr) {
                 logger.warn({ err: costWriteErr, taskId: task.id }, 'api_cost_tracking upsert failed — non-fatal')
             }
