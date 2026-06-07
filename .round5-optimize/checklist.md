@@ -32,7 +32,8 @@
 - [x] scorecard: eval/routing-scorecard.ts — routingScorecard() (Welch via exported ab-variants.welchsTTest, qualityScore by routed_model) + shadowExtractionScorecard()
 - [x] graphiti SHADOW re-extraction: routes/shadow-extraction.ts — sampled (PLEXO_SHADOW_EXTRACTION_RATE default 0=OFF), background-app + schema-mode only, agreement + field-count → shadow_extraction_results
 - [x] tests (4 scorecard) + tsc green (db/agent/api); inference 33/33, router-v2 87/87, executor+judge 36, cron 30 — no regressions
-- [ ] migration clean in prod; deployed + verified
+- [x] deployed + verified: prod img 5042e794, healthy; cols routed_provider/model + routing_events + shadow_extraction_results present; 0 errors
+- [x] INCIDENT (resolved): this deploy does NOT auto-run drizzle migrations on startup. New schema cols are referenced by the queue batch-claim select, so recreating plexo-api BEFORE applying 0128 broke the queue ("column routed_provider does not exist" every 2s for ~1-2min). Fix: applied 0128 SQL directly via `docker exec postgres psql -d plexo` (additive IF NOT EXISTS). FUTURE migration phases (6, 8) MUST apply the SQL to prod BEFORE/at recreate, not rely on startup.
 
 ## Phase 4 — D2 flip A/B execution (WS B) ⚠ operator GO
 - [ ] operator GO; set PLEXO_INFERENCE_BG_MODEL=cerebras/gpt-oss-120b + recreate
