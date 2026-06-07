@@ -316,6 +316,10 @@ export const tasks = pgTable('tasks', {
     parentId: text('parent_id').references((): any => tasks.id, { onDelete: 'set null' }), // eslint-disable-line @typescript-eslint/no-explicit-any -- self-ref
     context: jsonb('context').notNull(),
     qualityScore: real('quality_score'),
+    /** Round-5 Phase 3: provider/model the router actually dispatched to. Written
+     *  once at dispatch; joined to qualityScore by the routing scorecard. */
+    routedProvider: text('routed_provider'),
+    routedModel: text('routed_model'),
     confidenceScore: real('confidence_score'),
     tokensIn: integer('tokens_in'),
     tokensOut: integer('tokens_out'),

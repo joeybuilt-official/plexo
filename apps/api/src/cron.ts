@@ -182,12 +182,33 @@ async function runDataRetention(): Promise<void> {
         nodeEventsDeleted = neResult.length ?? 0
     }
 
+    // Prune routing_events + shadow_extraction_results (Round-5 Phase 3).
+    // Both are append-only telemetry/eval streams; bounded here so neither
+    // becomes the next unbounded node_events (ADR 0001 pre-mortem #3). Their own
+    // window (ROUTING_EVENTS_RETENTION_DAYS, default 30, 0 = disabled).
+    const reDays = parseInt(process.env.ROUTING_EVENTS_RETENTION_DAYS ?? '30', 10)
+    let routingEventsDeleted = 0
+    let shadowResultsDeleted = 0
+    if (reDays > 0) {
+        const reResult = await db.execute(sql`
+            DELETE FROM routing_events WHERE created_at < NOW() - INTERVAL '1 day' * ${reDays}
+        `)
+        routingEventsDeleted = reResult.length ?? 0
+        const seResult = await db.execute(sql`
+            DELETE FROM shadow_extraction_results WHERE created_at < NOW() - INTERVAL '1 day' * ${reDays}
+        `)
+        shadowResultsDeleted = seResult.length ?? 0
+    }
+
     logger.info({
         sessionLogsDeleted: sessionResult.length ?? 0,
         workLedgerDeleted: ledgerResult.length ?? 0,
         nodeEventsDeleted,
+        routingEventsDeleted,
+        shadowResultsDeleted,
         retentionDays: days,
         nodeEventsRetentionDays: neDays,
+        routingEventsRetentionDays: reDays,
     }, 'Data retention cleanup complete')
 }
 

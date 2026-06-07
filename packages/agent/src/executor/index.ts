@@ -1906,6 +1906,7 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                         // with the provider that actually served the step.
                         result = await routeAndCall({
                             workspaceId: ctx.workspaceId,
+                            taskId: ctx.taskId,
                             taskType: taskTier,
                             settings: effectiveSettings,
                             doCall: async (model) => {
@@ -2631,6 +2632,12 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
         // null this out; the jsonb merge mirrors what agent-loop did inline.
         await db.update(tasks).set({
             qualityScore: verifiedQuality,
+            // Round-5 Phase 3: denormalize the provider/model that actually
+            // served the final step (resolvedMeta tracks fallback) so the
+            // routing scorecard can join model → qualityScore without a
+            // routing_events join. Write-once here alongside the settled score.
+            routedProvider: resolvedMeta.provider,
+            routedModel: resolvedMeta.id,
             context: sql`COALESCE(context, '{}'::jsonb) || ${JSON.stringify({ _judge: judgeMeta })}::jsonb`,
         }).where(eq(tasks.id, ctx.taskId))
             .catch((err) => logger.warn({ err, taskId: ctx.taskId }, 'judge score/meta patch failed (non-fatal)'))

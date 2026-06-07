@@ -32,6 +32,7 @@ import { callModel, CallModelError } from '@plexo/agent/providers/call-model'
 import { resolveModelFromEnv, type FallbackOptions } from '@plexo/agent/providers/registry'
 import { routeAndCall, RouterV2NoCandidateError } from '@plexo/agent/providers/router-v2'
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
+import { maybeShadowExtraction } from './shadow-extraction.js'
 
 const logger = pino({ name: 'inference-routes' })
 
@@ -384,6 +385,27 @@ async function chatCompletionsHandler(req: Request, res: Response): Promise<void
                 total_tokens: result.inputTokens + result.outputTokens,
             },
         })
+
+        // Round-5 Phase 3 (ADR 0001): graphiti shadow re-extraction. After the
+        // response is sent, sampled background-app extraction calls re-run the
+        // same episode on the D2 candidate model to measure quality drift.
+        // Default OFF (PLEXO_SHADOW_EXTRACTION_RATE=0); fire-and-forget.
+        if (aiSettings && useSchema && 'object' in result && backgroundLaneOverride(req) === 'background') {
+            const appIdHdr = req.headers['x-app-id']
+            maybeShadowExtraction({
+                appId: typeof appIdHdr === 'string' ? appIdHdr : undefined,
+                workspaceId,
+                aiSettings,
+                system,
+                conversational,
+                zodSchema,
+                schemaName,
+                schemaDescription,
+                maxTokens,
+                primaryModel: result.model,
+                primaryObject: result.object,
+            })
+        }
     } catch (err) {
         if (err instanceof CallModelError) {
             const status = mapCallModelErrorStatus(err.code)
