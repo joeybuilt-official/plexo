@@ -850,8 +850,11 @@ process.on('uncaughtException', (err) => {
 })
 
 process.on('unhandledRejection', (reason) => {
-    logger.error({ reason }, 'Unhandled promise rejection')
-    trackError(reason, { context: 'unhandledRejection' })
+    // Normalize non-Error rejections so the log carries a message + stack
+    // instead of an empty `reason:{}` (Round-5 Phase 1; mirrors cc-ingest.ts).
+    const err = reason instanceof Error ? reason : new Error(String(reason))
+    logger.error({ err }, 'Unhandled promise rejection')
+    trackError(err, { context: 'unhandledRejection' })
 })
 
 export { app }
