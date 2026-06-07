@@ -35,21 +35,26 @@
 - [x] deployed + verified: prod img 5042e794, healthy; cols routed_provider/model + routing_events + shadow_extraction_results present; 0 errors
 - [x] INCIDENT (resolved): this deploy does NOT auto-run drizzle migrations on startup. New schema cols are referenced by the queue batch-claim select, so recreating plexo-api BEFORE applying 0128 broke the queue ("column routed_provider does not exist" every 2s for ~1-2min). Fix: applied 0128 SQL directly via `docker exec plexo-postgres psql -d plexo` (additive IF NOT EXISTS). FUTURE migration phases (6, 8) MUST apply the SQL to prod BEFORE/at recreate, not rely on startup.
 
-## Phase 4 — D2 flip A/B execution (WS B) ⚠ operator GO
-- [ ] operator GO; set PLEXO_INFERENCE_BG_MODEL=cerebras/gpt-oss-120b + recreate
-- [ ] observe gauge + scorecard ~1h+; record measured keep/revert decision
+## Phase 4 — D2 flip A/B execution (WS B) ⚠ operator GO — EVAL WINDOW LIVE
+- [x] confirmed cerebras/gpt-oss-120b enabled on ws 69d1f1f1 (vs deepseek-v4-flash)
+- [x] enabled shadow eval in prod: compose PLEXO_SHADOW_EXTRACTION_MODEL=cerebras/gpt-oss-120b + PLEXO_SHADOW_EXTRACTION_RATE=0.1, recreated (live img 5042e794, healthy, 0 errors)
+- [ ] WAIT for shadow_extraction_results to accrue usable n (graphiti is low-volume ~1-2/day → slow); read shadowExtractionScorecard()
+- [ ] operator GO + high agreement + spot-check → set PLEXO_INFERENCE_BG_MODEL=cerebras/gpt-oss-120b + recreate; observe ~1h+; record keep/revert
 
-## Phase 5 — Planner-starvation: lane reservation (WS C) ⚠
-- [ ] Explore: enumerate background-origin extraction call sites
-- [ ] laneOverride=background on extract-worker/reflect/self-improvement extraction (Option B); flag-gated
-- [ ] unit test: background-origin extraction acquires bg semaphore; interactive extraction does not
-- [ ] deployed; lane gauge shows added bg traffic; planning unaffected
+## Phase 5 — Planner-starvation: lane reservation (WS C) ⚠ — CLOSED (already implemented)
+- [x] enumerated background-origin call sites: extract-worker/reflect/self-improvement/store ALL use taskType:'summarization' (already background lane); graphiti uses Round-4 D1 laneOverride. NO background-origin 'extraction' site exists — ADR 0002 premise was stale.
+- [x] Option B requires no code (already satisfied by existing taskType classification)
+- [x] flag PLEXO_AI_LANE_ISOLATION=1 ALREADY enabled in prod (BG_MAX=2) — starvation mitigation is live
+- [x] no deploy needed; escalate to Option A (reserved planning slot) ONLY if planning starves under observed load (no current evidence)
 
-## Phase 6 — Per-app cost attribution + burn-rate alert (WS E) ⚠ migration
-- [ ] migration: app_id (+task_type) on inference_logs (operator OK)
-- [ ] record X-App-Id at log time; per-app monthly spend query
-- [ ] burn-rate / pre-ceiling alert via ops-alert path
-- [ ] tests + tsc green; deployed; attribution verified on real data
+## Phase 6 — Per-app cost attribution + burn-rate alert (WS E) ⚠ migration — PAUSED at operator decision
+- [x] discovery: inference_logs already has task_type; written ONLY by agent-loop:1197; proxy (graphiti/Fonto) does NOT write it → per-app needs a NEW proxy-side write
+- [x] discovery: getWorkspaceSpend() reads inference_logs + backs the cost-enforcement gate → adding proxy rows risks BLOCKING over-budget ws 69d1. ops-alert = batched buffer (ops-alerts.ts); alerted_80 set but never consumed.
+- [ ] OPERATOR DECISION: does proxy/app inference count toward the $50 enforcement ceiling? (a) attribution-only (exclude app rows from enforcement query) [safe] vs (b) count it (needs ceiling/policy change first)
+- [ ] migration 0129: app_id on inference_logs (additive); schema.ts appId
+- [ ] proxy fire-and-forget inference_logs write w/ app_id (capture provider in dispatch); per-app spend query (loadAppSpend grouping by app_id, mirror intelligence-spend pricing)
+- [ ] burn-rate alert: add budget stream to ops-alerts.ts + wire agent-loop 80% false→true crossing via prior-value CTE
+- [ ] tests + tsc green; APPLY 0129 SQL to prod BEFORE recreate (see reference_plexo_deploy_migrations); deployed; attribution verified
 
 ## Phase 7 — Chat per-token streaming + a11y/mobile (WS A + G-partial)
 - [ ] stream generateText into intermediate progress events (executor/index.ts:1912)
