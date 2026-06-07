@@ -87,7 +87,7 @@ Sasha (Security), Pat (Performance), Mort (Maintainability), Uma (UX), Maya (ML/
 - Scope: ADR 0003. Read-compat multi-key (`enc:v2:<keyId>...` + legacy) FIRST deploy; flip writes to v2 in a SECOND deploy after read-compat verified; audit provider-credential mutations + super-admin; decide X-App-Id integrity option (sign vs document trust model).
 - Deps: none. Subagents: general-purpose. Two-deploy sequence is mandatory (pre-mortem #2).
 - Exit: legacy + v2 ciphertext both decrypt in prod; provider-key change writes an `audit_log` row; tsc/tests green.
-- Status: pending
+- Status: DEPLOY 1 SHIPPED 2026-06-06 (commit ac97381) — read-compat (v1 multi-key + v2 keyId) + provider.update audit; writes still v1 (PLEXO_ENC_WRITE_V2 unset = zero behavior change). 8 crypto tests + 30 adjacent green. Super-admin audit + X-App-Id signing deferred per ADR 0003 decisions (option b). DEPLOY 2 (the ⚠ one-way write-v2 flip) = set PLEXO_ENC_WRITE_V2=1 + recreate, ONLY after a read-compat soak confirms prod v1 creds decrypt cleanly. crypto-util.ts twin noted (unaffected; current secret retained).
 
 ## Phase 9 — QA load/chaos + observability dashboards (WS G)
 - Scope: inference-proxy load + cascade fault-injection tests; chat SSE e2e (reconnect/cancel mid-stream); router_v2_stats dashboard (data now persists) + SLO/alerting on `/metrics`.
