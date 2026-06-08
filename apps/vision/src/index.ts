@@ -44,10 +44,12 @@ const PORT = parseInt(process.env.PORT ?? '7000', 10)
 
 const app = express()
 
-// 20 MB body cap — images are base64-encoded, which inflates ~33%, so a
-// raw 12 MB JPEG fits comfortably. apps/embeddings uses 2 MB for text;
-// vision needs the headroom for image uploads.
-app.use(express.json({ limit: '20mb' }))
+// 512 MB body cap — images are base64-encoded (inflates ~33%), so a raw
+// 12 MB JPEG fits comfortably and the per-image routes only need ~20 MB.
+// The headroom is for POST /v1/faces/cluster, which can take up to
+// VISION_CLUSTER_MAX_N (default 50 000) 512-d float32 vectors JSON-encoded
+// — at N=20 000 that's already ~205 MB. apps/embeddings uses 2 MB for text.
+app.use(express.json({ limit: '512mb' }))
 
 // Health + model metadata — unauthenticated, same convention as
 // apps/embeddings /health so docker probes work without service keys.
