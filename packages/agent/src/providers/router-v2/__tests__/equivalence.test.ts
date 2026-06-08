@@ -110,6 +110,23 @@ describe('router-v2 manifest', () => {
         }
     })
 
+    it('groq is modeled strict-not-lenient for json-gated tasks (no lenient json-mode)', () => {
+        // groq's structured-output validator rejects non-strict schemas
+        // (additionalProperties:false required); cerebras/ollama_cloud accept the
+        // same. So groq must NOT carry lenient 'json-mode' for extraction/judging
+        // (else the json-mode gate routes lenient schemas to it) — it carries
+        // 'function-calling-strict' + the groq-strict-json-schema quirk instead.
+        for (const tt of ['extraction', 'judging'] as const) {
+            const groq = MANIFEST[tt].groq!
+            expect(groq.capabilities).not.toContain('json-mode')
+            expect(groq.capabilities).toContain('function-calling-strict')
+            expect(groq.quirks).toContain('groq-strict-json-schema')
+        }
+        // The lenient gpt-oss hosts keep json-mode so they pass the gate.
+        expect(MANIFEST.extraction.cerebras!.capabilities).toContain('json-mode')
+        expect(MANIFEST.extraction.ollama_cloud!.capabilities).toContain('json-mode')
+    })
+
     it('every entry has priorScore 1..5 + capabilities + quirks arrays + ISO lastValidatedAt', () => {
         const isoDate = /^\d{4}-\d{2}-\d{2}$/
         for (const tt of Object.keys(MANIFEST)) {

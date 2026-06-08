@@ -58,7 +58,10 @@
 - [x] observed → **REVERTED within ~2min**. Regression: model-router routed extraction to groq-hosted gpt-oss-120b → groq strict JSON-schema (`additionalProperties:false must be set on every object`) rejected the request (400, non-retryable → hard fail, no cascade) + groq TPD rate limit (200k tokens/day). Reverted to PLEXO_MODEL_ROUTER=0 (known-good legacy); verified healthy. Reversible via flag — done.
 - Measured decision: **REVERT** — groq is the scorer's tiebreak winner for extraction (cost-known + low-latency) but is functionally worse there (strict-schema incompat + TPD cap). The scorer has no signal for these. SHADOW stays ON (data keeps accruing).
 
-## Follow-ups (next round, NOT done)
-- [ ] error-classifier: classify "invalid JSON schema / additionalProperties" as fallback-able so the cascade moves OFF the strict provider instead of hard-failing (robustness gap — affects legacy too when it picks groq).
-- [ ] manifest: a groq strict-json quirk/capability so the gate/scorer downranks groq for schema-mode extraction; OR mark a 'function-calling-strict'-style requirement.
-- [ ] backfill models_knowledge cost for cerebras/ollama_cloud so the extraction tiebreak prefers them (no groq issues) over groq.
+## Follow-ups
+- [x] error-classifier: classify "invalid JSON schema / additionalProperties / response_format" as fallback-able (parse-malformed → fallback-next) so the cascade moves OFF the strict provider instead of hard-failing — affects legacy too. Commit 7723375 (pushed, NOT deployed). +2 classifier tests.
+- [x] manifest: groq modeled strict-not-lenient for json-gated tasks — groq extraction/judging now 'function-calling-strict' (not lenient 'json-mode') + 'groq-strict-json-schema' quirk, so the json-mode gate excludes groq for lenient extraction schemas; lenient gpt-oss hosts (cerebras/ollama_cloud) keep json-mode. +1 manifest invariant test. (NOT deployed.)
+- [ ] backfill models_knowledge cost for cerebras/ollama_cloud so the extraction tiebreak reflects real cost (Phase 0: they have 0 knowledge rows → cost unknown → lose ties). Needs real per-token pricing (cerebras public; ollama_cloud managed-pool — pricing model TBD).
+
+## Re-flip readiness (after follow-ups deploy)
+With #1 (cascade off strict provider) + #2 (gate excludes groq for lenient extraction), a re-flip should route extraction to cerebras/ollama_cloud (same hosts legacy uses) → low divergence + no groq schema hard-fail. Deploy #1+#2, re-measure shadow divergence, then re-request operator GO for the flip.

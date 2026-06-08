@@ -38,6 +38,13 @@ export type ProviderQuirk =
     | 'google-content-policy-returns-200-with-refusal-string'
     | 'deepseek-slow-on-long-prompts'
     | 'openai-strict-json-mode'
+    // groq's structured-output validator is strict: it rejects a response_format
+    // schema unless `additionalProperties:false` is set on every object
+    // ("invalid JSON schema for response_format ..."). Lenient hosts of the same
+    // model (cerebras/ollama_cloud) accept the schema. So groq is modeled as
+    // function-calling-strict, NOT lenient json-mode — it's excluded from the
+    // json-mode extraction/judging gate to avoid routing lenient schemas to it.
+    | 'groq-strict-json-schema'
     | 'ollama-cloud-managed-pool-rate-limit'
     | 'ollama-cloud-cold-start-latency'
 
@@ -183,7 +190,7 @@ export const MANIFEST: ManifestTable = {
         anthropic: { priorScore: 4, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
         deepseek: { priorScore: 4, capabilities: [...BASE, 'json-mode'], quirks: [], lastValidatedAt: '2026-06-08' },
         google: { priorScore: 3, capabilities: [...BASE, 'json-mode'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
-        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-06-08' },
+        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'function-calling-strict'], quirks: ['groq-strict-json-schema'], lastValidatedAt: '2026-06-08' },
         cerebras: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-06-08' },
         ollama_cloud: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-06-08' },
     },
@@ -192,7 +199,7 @@ export const MANIFEST: ManifestTable = {
         openai: { priorScore: 5, capabilities: [...BASE, 'json-mode', 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
         google: { priorScore: 4, capabilities: [...BASE, 'json-mode', 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
         deepseek: { priorScore: 3, capabilities: [...BASE, 'json-mode'], quirks: [], lastValidatedAt: '2026-06-08' },
-        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'function-calling-strict'], quirks: ['groq-strict-json-schema'], lastValidatedAt: '2026-06-08' },
         cerebras: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-06-05' },
         ollama_cloud: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-06-08' },
     },
