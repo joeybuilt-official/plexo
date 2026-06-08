@@ -30,6 +30,7 @@ import { lessonsInvalidateFn } from '@plexo/agent/memory/inngest/lessons-invalid
 import { inferenceRouter } from './routes/inference.js'
 import { graphRouter } from './routes/graph.js'
 import { themesRouter } from './routes/themes.js'
+import { synthesisRouter } from './routes/synthesis.js'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
 installCCHandlers()
 import express, { type Express } from 'express'
@@ -513,6 +514,10 @@ app.use('/api/v1/graph', jsonDefault, graphRouter)
 // Phase 8 themes-forest — Nexalog /app/graph clustered thematic view.
 // On-demand label-propagation clustering of the workspace Entity graph.
 app.use('/api/v1/themes', jsonDefault, themesRouter)
+
+// Phase 8 synthesis inbox — Nexalog /app/synthesis. Suggestions derived
+// from the same cached forest (stateless v1, no persistence table yet).
+app.use('/api/v1/synthesis', jsonDefault, synthesisRouter)
 
 // A2A spec — agent discovery at /.well-known/agent.json (no API prefix)
 app.use('/.well-known', wellKnownAgentHandler())
