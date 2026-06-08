@@ -181,20 +181,20 @@ export const MANIFEST: ManifestTable = {
     extraction: {
         openai: { priorScore: 5, capabilities: [...BASE, 'json-mode', 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
         anthropic: { priorScore: 4, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
-        deepseek: { priorScore: 4, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 4, capabilities: [...BASE, 'json-mode'], quirks: [], lastValidatedAt: '2026-06-08' },
         google: { priorScore: 3, capabilities: [...BASE, 'json-mode'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
-        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
-        cerebras: { priorScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-06-05' },
-        ollama_cloud: { priorScore: 2, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-05-13' },
+        groq: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-06-08' },
+        cerebras: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-06-08' },
+        ollama_cloud: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-06-08' },
     },
     judging: {
         anthropic: { priorScore: 5, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
         openai: { priorScore: 5, capabilities: [...BASE, 'json-mode', 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
         google: { priorScore: 4, capabilities: [...BASE, 'json-mode', 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
-        deepseek: { priorScore: 3, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
+        deepseek: { priorScore: 3, capabilities: [...BASE, 'json-mode'], quirks: [], lastValidatedAt: '2026-06-08' },
         groq: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-05-13' },
         cerebras: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-06-05' },
-        ollama_cloud: { priorScore: 2, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-05-13' },
+        ollama_cloud: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-06-08' },
     },
 }
 
