@@ -52,7 +52,13 @@
 - [x] deployed shadow-only (serving OFF); verified extraction shadow gated 1→4 (gpt-oss now pass); residual divergence is honest cost-tiebreak
 - [ ] let shadow re-measure over fresh traffic; re-run modelRouterScorecard before flip
 
-## Phase 5 — Measured flip ⚠ operator GO  (NOT executed — awaiting GO)
-- [ ] sufficient shadow samples accrued (post-fix)
-- [ ] operator GO; set PLEXO_MODEL_ROUTER=1 + recreate (no rebuild)
-- [ ] observe scorecard + errors ~1h+; record measured keep/revert decision
+## Phase 5 — Measured flip ⚠ operator GO  ✅ EXECUTED → REVERTED 2026-06-08
+- [x] sufficient shadow samples accrued (post-fix): summarization n=407 div 0.5%, extraction n=285, conversation n=24
+- [x] operator GO; set PLEXO_MODEL_ROUTER=1 + recreate (06:13 UTC)
+- [x] observed → **REVERTED within ~2min**. Regression: model-router routed extraction to groq-hosted gpt-oss-120b → groq strict JSON-schema (`additionalProperties:false must be set on every object`) rejected the request (400, non-retryable → hard fail, no cascade) + groq TPD rate limit (200k tokens/day). Reverted to PLEXO_MODEL_ROUTER=0 (known-good legacy); verified healthy. Reversible via flag — done.
+- Measured decision: **REVERT** — groq is the scorer's tiebreak winner for extraction (cost-known + low-latency) but is functionally worse there (strict-schema incompat + TPD cap). The scorer has no signal for these. SHADOW stays ON (data keeps accruing).
+
+## Follow-ups (next round, NOT done)
+- [ ] error-classifier: classify "invalid JSON schema / additionalProperties" as fallback-able so the cascade moves OFF the strict provider instead of hard-failing (robustness gap — affects legacy too when it picks groq).
+- [ ] manifest: a groq strict-json quirk/capability so the gate/scorer downranks groq for schema-mode extraction; OR mark a 'function-calling-strict'-style requirement.
+- [ ] backfill models_knowledge cost for cerebras/ollama_cloud so the extraction tiebreak prefers them (no groq issues) over groq.
