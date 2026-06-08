@@ -63,5 +63,13 @@
 - [x] manifest: groq modeled strict-not-lenient for json-gated tasks — groq extraction/judging now 'function-calling-strict' (not lenient 'json-mode') + 'groq-strict-json-schema' quirk, so the json-mode gate excludes groq for lenient extraction schemas; lenient gpt-oss hosts (cerebras/ollama_cloud) keep json-mode. +1 manifest invariant test. (NOT deployed.)
 - [ ] backfill models_knowledge cost for cerebras/ollama_cloud so the extraction tiebreak reflects real cost (Phase 0: they have 0 knowledge rows → cost unknown → lose ties). Needs real per-token pricing (cerebras public; ollama_cloud managed-pool — pricing model TBD).
 
-## Re-flip readiness (after follow-ups deploy)
-With #1 (cascade off strict provider) + #2 (gate excludes groq for lenient extraction), a re-flip should route extraction to cerebras/ollama_cloud (same hosts legacy uses) → low divergence + no groq schema hard-fail. Deploy #1+#2, re-measure shadow divergence, then re-request operator GO for the flip.
+## Re-flip readiness — follow-ups DEPLOYED 2026-06-08 ~23:18 UTC
+Deployed: #1 classifier cascade-off-strict-schema (7723375), #2 groq strict-json manifest (98d30ac), #2b candidate.ts quirk STRIPS lenient json-mode (1f04207 — necessary because groq's models_knowledge structured_output strength re-derived json-mode; manifest change alone was insufficient). Flag still OFF (ROUTER=0/SHADOW=1).
+
+Post-deploy shadow re-measure (rows since 23:18):
+- **extraction: divergence ~0% (n=39), was 75–99%** — groq now gate-excluded (gated 4→3); router routes extraction to cerebras/gpt-oss-120b = the lenient host legacy serves. DANGEROUS case (groq strict-schema hard-fail) RESOLVED.
+- summarization: router prefers groq-hosted gpt-oss-120b over cerebras/ollama_cloud-hosted (same model, groq faster + cost-known) — BENIGN (no strict-schema on summarization). Small live sample; historical ~1.5% over n=646.
+- conversation: ~12–16% (same benign host preference).
+- A/B quality arms still 0 (flag OFF — no post-flip data, expected).
+
+**Readiness:** dangerous divergence resolved; remaining divergence is benign host-shifting to groq for non-structured tasks, with the #1 classifier as a safety net (groq TPD/failure → cascade off). Ready to re-request operator GO for the Phase 5 flip. Note: flipping concentrates summarization on groq → may hit groq TPD (200k/day) at volume, which #1 now cascades gracefully.
