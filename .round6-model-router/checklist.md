@@ -73,3 +73,10 @@ Post-deploy shadow re-measure (rows since 23:18):
 - A/B quality arms still 0 (flag OFF — no post-flip data, expected).
 
 **Readiness:** dangerous divergence resolved; remaining divergence is benign host-shifting to groq for non-structured tasks, with the #1 classifier as a safety net (groq TPD/failure → cascade off). Ready to re-request operator GO for the Phase 5 flip. Note: flipping concentrates summarization on groq → may hit groq TPD (200k/day) at volume, which #1 now cascades gracefully.
+
+## Phase 5 RE-FLIP — EXECUTED 2026-06-08 23:30 UTC (operator GO #2), observing ~1h
+Set PLEXO_MODEL_ROUTER=1 + recreate. T+5min: HEALTHY (vs prior flip which failed in 2min).
+- extraction → ollama_cloud/gpt-oss:120b (cerebras degraded → cascades cleanly), ALL 200, ZERO groq schema failures (groq gate-excluded as designed).
+- summarization → groq/openai/gpt-oss-120b, benign, succeeds (no TPD/schema errors).
+- 0 no-candidate; only error = recreate AbortError (transient). model_routed=t rows accruing for A/B.
+- NEXT: observe ~1h → record keep/revert (A/B quality once judge scores router-served rows). Instant revert = flag=0 + recreate.
