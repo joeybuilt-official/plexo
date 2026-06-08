@@ -92,14 +92,17 @@ const MAX_MEMBERS_PER_THEME = 40
  * looks like an operational artifact. Conservative: only obvious infra
  * noise is matched; a missed item just stays in the forest.
  */
+// Leading word-boundary only — stems must match regardless of suffix
+// ("stabiliz" → "stabilization", "cron" → "cronjob").
 const NOISE_NAME_RE =
-    /(\.(md|json|ya?ml|ts|js|mjs|cjs|log|txt|csv|sh)$)|\b(cron|cronjob|stabiliz|flush[_ ]?retrieval|retrieval[_ ]?counts|__internal|smoke[_ -]?test|ts-node|tsx?\b|execution[_ ]?log|poll(ing)? (job|cron)|agent[_ ]?(run|log|execution)|routine:)\b/i
+    /(\.(md|json|ya?ml|ts|js|mjs|cjs|log|txt|csv|sh)$)|\b(cron|stabiliz|flush[_ ]?retrieval|retrieval[_ ]?count|__internal|smoke[_ -]?test|ts-node|execution[_ ]?log|poll(ing)?[_ ]?(job|cron)|agent[_ ]?(run|log|execution|task)|routine:)/i
 
 const NOISE_EXACT = new Set([
     'task: general',
     'gmail poll cron job',
     'flushretrievalcounts',
     'ts-node',
+    'assistant',
 ])
 
 export function isNoiseEntity(name: string): boolean {
