@@ -105,10 +105,16 @@ const NOISE_EXACT = new Set([
     'assistant',
 ])
 
+// Garbage LLM-extraction artifacts: a short group repeated many times
+// ("NONONONO…", "hahaha"), or a single char run. These surface as junk
+// theme labels otherwise.
+const GARBAGE_RE = /(.{1,3})\1{4,}|(.)\2{7,}/i
+
 export function isNoiseEntity(name: string): boolean {
     const t = name.trim().toLowerCase()
     if (!t) return false
     if (NOISE_EXACT.has(t)) return true
+    if (GARBAGE_RE.test(name)) return true
     return NOISE_NAME_RE.test(name)
 }
 
