@@ -65,6 +65,16 @@ describe('deriveCapabilities', () => {
         expect(caps.has('json-mode')).toBe(true)
     })
 
+    it('groq-strict-json-schema strips lenient json-mode even when strengths assert it', () => {
+        // groq structured_output → json-mode, but the strict quirk overrides it.
+        const caps = deriveCapabilities({
+            strengths: ['structured_output'],
+            quirks: ['groq-strict-json-schema'],
+        })
+        expect(caps.has('json-mode')).toBe(false)
+        expect(caps.has('function-calling-strict')).toBe(true)
+    })
+
     it('returns empty set for no signals', () => {
         expect(deriveCapabilities({}).size).toBe(0)
     })

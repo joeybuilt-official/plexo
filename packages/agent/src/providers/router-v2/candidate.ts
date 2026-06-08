@@ -60,6 +60,18 @@ export const STRENGTH_TO_CAPABILITY: Readonly<Record<string, Capability>> = {
  */
 const QUIRK_TO_CAPABILITY: Readonly<Partial<Record<ProviderQuirk, Capability[]>>> = {
     'openai-strict-json-mode': ['function-calling-strict', 'json-mode'],
+    'groq-strict-json-schema': ['function-calling-strict'],
+}
+
+/**
+ * Quirks that STRIP a capability that other signals (manifest/strengths) might
+ * assert. groq's `structured_output` strength would otherwise derive lenient
+ * `json-mode`, but groq's validator is strict-only (rejects non-strict schemas);
+ * the strip makes the strict quirk authoritative so the json-mode gate excludes
+ * groq for lenient extraction schemas. Applied AFTER all adds.
+ */
+const QUIRK_STRIPS_CAPABILITY: Readonly<Partial<Record<ProviderQuirk, Capability[]>>> = {
+    'groq-strict-json-schema': ['json-mode'],
 }
 
 /** Context-window thresholds → long-context capability flags. */
@@ -97,6 +109,12 @@ export function deriveCapabilities(input: DeriveCapabilitiesInput): Set<Capabili
 
     for (const q of input.quirks ?? []) {
         for (const cap of QUIRK_TO_CAPABILITY[q] ?? []) caps.add(cap)
+    }
+
+    // Strips run last so a strict quirk overrides any lenient capability that
+    // manifest/strengths asserted (e.g. groq structured_output → json-mode).
+    for (const q of input.quirks ?? []) {
+        for (const cap of QUIRK_STRIPS_CAPABILITY[q] ?? []) caps.delete(cap)
     }
 
     return caps
