@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest'
 import {
     labelPropagation,
     buildForest,
+    isNoiseEntity,
     type EntityEdge,
     type EntityMeta,
     type MentionEdge,
@@ -104,6 +105,28 @@ describe('buildForest', () => {
         expect(member.id).toBe('ep1')
         expect(member.themeId).toBe(theme.id)
         expect(member.regionId).toBe(theme.parentId)
+    })
+
+    it('drops agent-operational noise entities before clustering', () => {
+        // A clean clique of real entities plus a noise clique that would
+        // otherwise be its own theme.
+        const realEdges = clique('r', 4)
+        const noiseEdges = clique('n', 4)
+        const ids = [...new Set([...realEdges, ...noiseEdges].flatMap((e) => [e.a, e.b]))]
+        const metaMap = new Map<string, EntityMeta>(
+            ids.map((id) => [
+                id,
+                { uuid: id, name: id.startsWith('n') ? `cron-job-report-${id}.json` : `Real Topic ${id}` },
+            ]),
+        )
+        const forest = buildForest({
+            ...base,
+            entityEdges: [...realEdges, ...noiseEdges],
+            entityMeta: metaMap,
+            mentions: [],
+        })
+        expect(forest.themes).toHaveLength(1) // noise clique filtered out
+        expect(forest.themes[0]!.label).toMatch(/Real Topic/)
     })
 
     it('carries runId/generatedAt through', () => {

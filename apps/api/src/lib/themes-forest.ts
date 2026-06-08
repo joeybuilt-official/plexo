@@ -84,6 +84,32 @@ const MAX_MEMBERS = 2000
 const MAX_MEMBERS_PER_THEME = 40
 
 /**
+ * The shared workspace graph is polluted with Plexo's own agent-operational
+ * memory (cron logs, stabilization runs, internal file artifacts) which
+ * otherwise dominate the largest themes and bury the user's real knowledge.
+ * We can't filter by episode source — all episodes share one
+ * `app:plexo|src:storeMemory` source — so we drop entities whose *name*
+ * looks like an operational artifact. Conservative: only obvious infra
+ * noise is matched; a missed item just stays in the forest.
+ */
+const NOISE_NAME_RE =
+    /(\.(md|json|ya?ml|ts|js|mjs|cjs|log|txt|csv|sh)$)|\b(cron|cronjob|stabiliz|flush[_ ]?retrieval|retrieval[_ ]?counts|__internal|smoke[_ -]?test|ts-node|tsx?\b|execution[_ ]?log|poll(ing)? (job|cron)|agent[_ ]?(run|log|execution)|routine:)\b/i
+
+const NOISE_EXACT = new Set([
+    'task: general',
+    'gmail poll cron job',
+    'flushretrievalcounts',
+    'ts-node',
+])
+
+export function isNoiseEntity(name: string): boolean {
+    const t = name.trim().toLowerCase()
+    if (!t) return false
+    if (NOISE_EXACT.has(t)) return true
+    return NOISE_NAME_RE.test(name)
+}
+
+/**
  * Deterministic synchronous label propagation. Communities are seeded to
  * each node's own id; each round a node adopts the most frequent community
  * among its neighbours, ties broken by lexicographically smallest id so
@@ -172,7 +198,17 @@ export interface BuildForestInput {
 }
 
 export function buildForest(input: BuildForestInput): ThemesForest {
-    const { entityEdges, entityMeta, mentions, runId, generatedAt } = input
+    const { entityMeta, runId, generatedAt } = input
+
+    // Drop agent-operational noise entities before clustering so they don't
+    // form (and dominate) themes.
+    const noise = new Set<string>()
+    for (const [uuid, meta] of entityMeta) {
+        if (isNoiseEntity(meta.name)) noise.add(uuid)
+    }
+    const entityEdges = input.entityEdges.filter((e) => !noise.has(e.a) && !noise.has(e.b))
+    const mentions = input.mentions.filter((m) => !noise.has(m.entityId))
+
     const adj = buildAdjacency(entityEdges)
     const connected = [...adj.keys()]
 
