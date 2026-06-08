@@ -23,6 +23,8 @@
  *   POST /vision/faces/detect     — RetinaFace bboxes
  *   POST /vision/faces/embed      — ArcFace 512-dim vector
  *   POST /vision/ocr              — RapidOCR text recognition
+ *   POST /v1/faces/detect         — combined detect+embed (Fonto path)
+ *   POST /v1/faces/cluster        — GPU cosine-edge builder for clustering
  *
  * All POST routes require Authorization: Bearer ${PLEXO_SERVICE_KEY}.
  */
@@ -34,6 +36,7 @@ import { metaRouter } from './routes/meta.js'
 import { clipRouter } from './routes/clip.js'
 import { facesRouter } from './routes/faces.js'
 import { facesV1Router } from './routes/faces-v1.js'
+import { facesClusterRouter } from './routes/facesCluster.js'
 import { ocrRouter } from './routes/ocr.js'
 import { labelRouter } from './routes/label.js'
 
@@ -61,6 +64,13 @@ app.use('/vision/label', requireServiceKey, labelRouter)
 // `lib/processing/detectFaces.ts` hits this path directly. Same auth
 // gate as the granular routes above.
 app.use('/v1/faces', requireServiceKey, facesV1Router)
+
+// GPU-accelerated cosine-edge builder used by Fonto's face clusterer.
+// Same /v1/faces prefix + auth as the combined detect+embed route, but
+// the heavy lifting (O(N²) cosine matmul over up to 50 k vectors) runs
+// on the CUDA EP through a singleton MatMul session
+// (apps/vision/src/lib/matmulSession.ts).
+app.use('/v1/faces', requireServiceKey, facesClusterRouter)
 
 app.listen(PORT, '0.0.0.0', () => {
     rootLogger.info({ port: PORT }, 'Plexo vision service listening')
