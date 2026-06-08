@@ -179,16 +179,29 @@ export function classifyError(err: unknown): Classification {
         return { class: 'empty-output', shouldFallback: true, suggestedAction: 'retry-same' }
     }
 
-    // Malformed STRUCTURED output — the model couldn't emit valid JSON/schema
-    // (AI_NoObjectGeneratedError, one word apart from the empty-output case
-    // above). This is a capability gap, not transient — retrying the same model
-    // won't help, so advance to a JSON-capable model.
+    // Malformed STRUCTURED output OR a provider rejecting the response_format
+    // schema. Two sub-cases, same handling (advance to another provider):
+    //   1. The model couldn't emit valid JSON/schema (AI_NoObjectGeneratedError,
+    //      one word apart from the empty-output case above) — a capability gap.
+    //   2. The provider REJECTED the request schema as invalid for ITS stricter
+    //      validator (e.g. groq: "invalid JSON schema for response_format ...
+    //      `additionalProperties:false` must be set on every object"), while a
+    //      more lenient provider (cerebras/ollama_cloud, same model) accepts it.
+    // Both are non-transient for the SAME model, so use fallback-next (NOT
+    // retry-same): the router cools this provider and advances to the next
+    // candidate. Bounded by MAX_CASCADE + per-candidate cooldown — a genuinely
+    // malformed schema that every provider rejects walks the candidates once and
+    // then cascade-exhausts rather than looping.
     if (
         msg.includes('call_model_parse') ||
         msg.includes('json parsing failed') ||
         msg.includes('no object generated') ||
         msg.includes('json_schema') ||
+        msg.includes('json schema') ||
         msg.includes('response format') ||
+        msg.includes('response_format') ||
+        msg.includes('additionalproperties') ||
+        msg.includes('invalid schema') ||
         msg.includes('structured')
     ) {
         return { class: 'parse-malformed', shouldFallback: true, suggestedAction: 'fallback-next' }

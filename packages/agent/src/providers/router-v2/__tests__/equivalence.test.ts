@@ -414,6 +414,7 @@ describe('router-v2 error-classifier', () => {
         ['Insufficient Balance', 'quota'],
         ['Insufficient Balance: Insufficient Balance', 'quota'],
         ['No object generated: response did not match schema', 'parse-malformed'],
+        ["invalid JSON schema for response_format: 'ExtractedEntities': /properties/extracted_entities/items: `additionalProperties:false` must be set on every object", 'parse-malformed'],
         ['No output generated. Check the stream for errors.', 'empty-output'],
         ['AI_NoOutputGeneratedError: No output generated', 'empty-output'],
         ['some unrelated bug', 'unknown'],
@@ -442,6 +443,17 @@ describe('router-v2 error-classifier', () => {
     it('parse-malformed (structured) → fallback-next, not retry-same', () => {
         const c = classifyError(new Error('No object generated: schema mismatch'))
         expect(c.class).toBe('parse-malformed')
+        expect(c.suggestedAction).toBe('fallback-next')
+    })
+
+    it("provider strict-schema rejection (groq additionalProperties) → fallback-next so the cascade leaves the strict provider", () => {
+        // Groq's stricter response_format validator rejects a schema that
+        // cerebras/ollama_cloud (same model) accept. Must cascade, not hard-fail.
+        const c = classifyError(new Error(
+            "invalid JSON schema for response_format: 'ExtractedEntities': /properties/extracted_entities/items: `additionalProperties:false` must be set on every object",
+        ))
+        expect(c.class).toBe('parse-malformed')
+        expect(c.shouldFallback).toBe(true)
         expect(c.suggestedAction).toBe('fallback-next')
     })
 
