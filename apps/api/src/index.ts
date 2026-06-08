@@ -29,6 +29,7 @@ import { lessonsWriteFn } from '@plexo/agent/memory/inngest/lessons-write-fn'
 import { lessonsInvalidateFn } from '@plexo/agent/memory/inngest/lessons-invalidate-fn'
 import { inferenceRouter } from './routes/inference.js'
 import { graphRouter } from './routes/graph.js'
+import { themesRouter } from './routes/themes.js'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
 installCCHandlers()
 import express, { type Express } from 'express'
@@ -508,6 +509,10 @@ app.use('/api/inference', serviceLimiter, jsonDefault, inferenceRouter)
 // Phase 8 graph routes — public surface for @joeybuilt/plexo-sdk 1.1.0.
 // Proxies addEpisode + searchFacts through the bridge to the Graphiti sidecar.
 app.use('/api/v1/graph', jsonDefault, graphRouter)
+
+// Phase 8 themes-forest — Nexalog /app/graph clustered thematic view.
+// On-demand label-propagation clustering of the workspace Entity graph.
+app.use('/api/v1/themes', jsonDefault, themesRouter)
 
 // A2A spec — agent discovery at /.well-known/agent.json (no API prefix)
 app.use('/.well-known', wellKnownAgentHandler())
