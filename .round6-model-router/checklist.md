@@ -80,3 +80,11 @@ Set PLEXO_MODEL_ROUTER=1 + recreate. T+5min: HEALTHY (vs prior flip which failed
 - summarization → groq/openai/gpt-oss-120b, benign, succeeds (no TPD/schema errors).
 - 0 no-candidate; only error = recreate AbortError (transient). model_routed=t rows accruing for A/B.
 - NEXT: observe ~1h → record keep/revert (A/B quality once judge scores router-served rows). Instant revert = flag=0 + recreate.
+
+### RE-FLIP REVERTED 2026-06-08 23:43 UTC (2nd revert) — NEW root cause found via real browser test
+Browser-driven validation on app.getplexo.com (operator session) sent real web chats. The synthetic proxy calls (extraction/summarization) looked healthy, but the REAL web chat FAILED ("Failed" in UI; POST /api/v1/chat/message → 500).
+Root cause: post-flip the model-router pulled high-volume chat/inference traffic OFF the workspace's **local `ollama` primary** (chain: ollama→deepseek→ollama_cloud→cerebras→groq) onto rate-limited CLOUD gpt-oss hosts (deepseek/cerebras/groq) → "Too Many Requests" → mostly cascaded to ollama_cloud ("served by fallback") but SOME terminal-failed (CALL_MODEL_UNKNOWN) → user-facing chat failures. Evidence: 0 such failures in the 90min before flip, 13 after (start 23:34, ramping); stopped immediately on revert (0 after 23:44). Post-revert: chat works, 0 fallback, 0 no-candidate.
+The model-router's quality+cost scoring does NOT value the local primary's UNLIMITED/free capacity → it concentrates load on rate-limited cloud providers. This is the blocker, separate from the groq-schema fixes.
+
+### NEW follow-up (blocks any future flip)
+- [ ] Model-router must account for local/unlimited-capacity providers. Options: prefer the workspace's configured local primary (ollama) for high-volume non-structured tasks; OR add a capacity/rate-limit-headroom signal to scoring (down-rank providers near their rate/TPD limits); OR keep ollama primary unless it's actually unavailable. Without this, flipping trades the local primary's free unlimited capacity for cloud rate limits → user-facing failures. Re-measure shadow with a capacity-aware scorer before re-attempting Phase 5.
