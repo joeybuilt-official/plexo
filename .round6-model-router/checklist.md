@@ -46,7 +46,13 @@
 - [x] tests + tsc green — model-router-scorecard.test (3); router-v2+eval 165 green
 - [x] deployed — migration 0131 applied; rebuilt+recreated; verified model_routed persists (f, flag off) + scorecard runs on live prod data (extraction div 98%, summarization 25%, conversation 14%; A/B arms 0 pre-flip)
 
-## Phase 5 — Measured flip ⚠ operator GO
-- [ ] sufficient shadow samples accrued
+## Pre-Phase-5 — capability-metadata fix (operator chose) ✅ 2026-06-08
+- [x] Phase 4 scorecard surfaced extraction 98% divergence = json-mode gate artifact (gpt-oss/deepseek lacked json-mode metadata)
+- [x] add json-mode to deepseek/groq/cerebras/ollama_cloud (extraction) + deepseek/ollama_cloud (judging); 137 green; tsc clean
+- [x] deployed shadow-only (serving OFF); verified extraction shadow gated 1→4 (gpt-oss now pass); residual divergence is honest cost-tiebreak
+- [ ] let shadow re-measure over fresh traffic; re-run modelRouterScorecard before flip
+
+## Phase 5 — Measured flip ⚠ operator GO  (NOT executed — awaiting GO)
+- [ ] sufficient shadow samples accrued (post-fix)
 - [ ] operator GO; set PLEXO_MODEL_ROUTER=1 + recreate (no rebuild)
 - [ ] observe scorecard + errors ~1h+; record measured keep/revert decision
