@@ -23,6 +23,7 @@ export type VisionTask =
     | 'clip-text'
     | 'faces-detect'
     | 'faces-embed'
+    | 'faces-cluster'
     | 'ocr'
     | 'label'
 
@@ -91,7 +92,7 @@ export interface TaskMetrics {
 }
 
 export function summarize(): Record<VisionTask, TaskMetrics> {
-    const tasks: VisionTask[] = ['clip-image', 'clip-text', 'faces-detect', 'faces-embed', 'ocr', 'label']
+    const tasks: VisionTask[] = ['clip-image', 'clip-text', 'faces-detect', 'faces-embed', 'faces-cluster', 'ocr', 'label']
     const out = {} as Record<VisionTask, TaskMetrics>
     for (const task of tasks) {
         const durations = buffer

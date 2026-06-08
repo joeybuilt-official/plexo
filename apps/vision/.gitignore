@@ -5,6 +5,9 @@ models/**/*.txt
 models/**/*.bin
 !models/README.md
 !models/.gitkeep
+# Exception: matmul_t.onnx is a ~140-byte hand-built MatMul-only graph
+# shipped in-repo (no weights, dynamic shapes). Used by /v1/faces/cluster.
+!models/matmul_t.onnx
 
 # Build artifacts
 dist/
