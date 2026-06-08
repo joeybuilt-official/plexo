@@ -71,8 +71,12 @@ export function buildSuggestions(forest: ThemesForest, opts: BuildSuggestionsOpt
     const { kinds, limit = 15 } = opts
     if (kinds && kinds.length && !kinds.includes('theme.page_draft')) return []
 
+    // Biggest themes first — theme.size (entity count) reflects real
+    // prominence; member counts are capped so they don't discriminate.
+    const themes = [...forest.themes].sort((a, b) => b.size - a.size)
+
     const out: Suggestion[] = []
-    for (const theme of forest.themes) {
+    for (const theme of themes) {
         const { ids, labels } = themeMembers(forest, theme.id)
         if (ids.length < MIN_MEMBERS_FOR_PAGE) continue
         const score = theme.coherence != null ? theme.coherence : Math.min(1, theme.size / 20)
@@ -88,15 +92,9 @@ export function buildSuggestions(forest: ThemesForest, opts: BuildSuggestionsOpt
             surfaced_at: forest.generatedAt,
             status: 'pending',
         })
+        if (out.length >= limit) break
     }
-    // Strongest first — more members, then tighter coherence.
-    out.sort((a, b) => {
-        const am = (a.payload.memberIds as string[]).length
-        const bm = (b.payload.memberIds as string[]).length
-        if (bm !== am) return bm - am
-        return b.score - a.score
-    })
-    return out.slice(0, limit)
+    return out
 }
 
 /** Reconstruct an accepted suggestion from its id + the (recomputed) forest.
