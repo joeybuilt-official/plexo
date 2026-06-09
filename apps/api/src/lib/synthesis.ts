@@ -22,6 +22,7 @@ export interface Suggestion {
     score: number
     surfaced_at: string | null
     status?: string | null
+    snoozed_until?: string | null
 }
 
 const MIN_MEMBERS_FOR_PAGE = 3
@@ -97,10 +98,16 @@ export function buildSuggestions(forest: ThemesForest, opts: BuildSuggestionsOpt
     return out
 }
 
-/** Reconstruct an accepted suggestion from its id + the (recomputed) forest.
- *  Falls back to id-encoded label only when the theme has shifted out of the
- *  current forest, so the page title is always present. */
-export function acceptedSuggestion(id: string, forest: ThemesForest): Suggestion | null {
+/** Reconstruct a suggestion from its id + the (recomputed) forest, with a
+ *  given status. Falls back to the id-encoded label only when the theme has
+ *  shifted out of the current forest, so the title is always present. Used by
+ *  accept (returns the page-draft payload) and by the snoozed/history tabs. */
+export function reconstructSuggestion(
+    id: string,
+    forest: ThemesForest,
+    status: string,
+    snoozedUntil: string | null = null
+): Suggestion | null {
     const decoded = decodeSuggestionId(id)
     if (!decoded) return null
     const { ids, labels } = themeMembers(forest, decoded.themeId)
@@ -114,6 +121,12 @@ export function acceptedSuggestion(id: string, forest: ThemesForest): Suggestion
         },
         score: 0,
         surfaced_at: null,
-        status: 'accepted',
-    }
+        status,
+        ...(snoozedUntil ? { snoozed_until: snoozedUntil } : {}),
+    } as Suggestion
+}
+
+/** Accept = reconstruct with status "accepted". */
+export function acceptedSuggestion(id: string, forest: ThemesForest): Suggestion | null {
+    return reconstructSuggestion(id, forest, 'accepted')
 }
