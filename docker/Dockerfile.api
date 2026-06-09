@@ -78,6 +78,9 @@ RUN mkdir -p /app/packages/sdk/node_modules /app/packages/graphiti-bridge/node_m
 COPY packages/sdk/src                  ./packages/sdk/src
 COPY packages/sdk/tsconfig.json        ./packages/sdk/
 COPY packages/sdk/tsup.config.ts       ./packages/sdk/
+# packages/sdk/tsconfig.json extends ../../tsconfig.base.json — the DTS build
+# (tsup) needs it present in THIS stage, not just the runtime stage below.
+COPY tsconfig.base.json                ./
 RUN pnpm install --frozen-lockfile --filter @joeybuilt/plexo-sdk \
  && pnpm -C packages/sdk run build
 
