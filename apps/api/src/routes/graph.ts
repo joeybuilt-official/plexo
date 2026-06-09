@@ -60,6 +60,9 @@ interface AddEpisodeBody {
     sourceDescription?: string
     referenceTime?: string
     metadata?: Record<string, unknown>
+    /** Route extraction through this workspace's providers while writing the
+     *  graph under workspaceId. See GraphitiClient.addEpisode. */
+    inferenceWorkspaceId?: string
 }
 
 router.post('/episodes', async (req, res) => {
@@ -70,6 +73,10 @@ router.post('/episodes', async (req, res) => {
     }
     if (typeof body.content !== 'string' || body.content.trim().length === 0) {
         res.status(400).json({ error: { code: 'EMPTY_CONTENT', message: 'content must be a non-empty string' } })
+        return
+    }
+    if (body.inferenceWorkspaceId !== undefined && !UUID_RE.test(body.inferenceWorkspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_INFERENCE_WORKSPACE_ID', message: 'inferenceWorkspaceId must be a UUID' } })
         return
     }
     const client = getClient()
@@ -93,6 +100,7 @@ router.post('/episodes', async (req, res) => {
         referenceTime: body.referenceTime,
         sourceMetadata,
         episodeType: 'message',
+        inferenceWorkspaceId: body.inferenceWorkspaceId,
     })
     if (!result) {
         logger.warn({ workspaceId: body.workspaceId }, 'graph.episodes: bridge returned null')

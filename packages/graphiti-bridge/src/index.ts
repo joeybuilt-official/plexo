@@ -61,6 +61,13 @@ export interface AddEpisodeRequest {
     /** ISO-8601 reference time for bi-temporal placement. Default: server's now(). */
     referenceTime?: string
     sourceMetadata?: Record<string, unknown>
+    /**
+     * Route extraction LLM/embedder calls through this workspace's providers
+     * while still writing the graph under `workspaceId` (own DB + own write
+     * lock). Lets an app keep an isolated graph yet borrow another workspace's
+     * connected providers. Defaults server-side to `workspaceId`.
+     */
+    inferenceWorkspaceId?: string
 }
 
 export interface AddEpisodeResult {
@@ -163,6 +170,7 @@ export class GraphitiClient {
             episode_type: req.episodeType ?? 'message',
             reference_time: req.referenceTime,
             source_metadata: req.sourceMetadata ?? {},
+            ...(req.inferenceWorkspaceId ? { inference_workspace_id: req.inferenceWorkspaceId } : {}),
         })
         const raw = await this.postSigned<{ episode_id: string | null; extracted_facts_count: number; extracted_nodes_count: number }>('/v1/episodes', body, episodeDispatcher())
         if (!raw) return null
