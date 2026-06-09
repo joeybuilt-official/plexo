@@ -39,6 +39,8 @@ interface GrantsResponse {
     items: Grant[]
     total: number
     apps?: RegisteredApp[]
+    availableConnectors?: string[]
+    availableCapabilities?: string[]
 }
 
 type MemberRole = 'owner' | 'admin' | 'member' | 'viewer'
@@ -59,7 +61,7 @@ function StatusBadge({ status }: { status: GrantStatus }) {
 // ── Tag editor ────────────────────────────────────────────────────────────────
 
 function TagInput({
-    label, description, placeholder, tags, onChange, disabled, icon,
+    label, description, placeholder, tags, onChange, disabled, icon, suggestions,
 }: {
     label: string
     description?: string
@@ -68,6 +70,7 @@ function TagInput({
     onChange: (next: string[]) => void
     disabled?: boolean
     icon?: React.ReactNode
+    suggestions?: string[]
 }) {
     const [draft, setDraft] = useState('')
 
@@ -78,6 +81,9 @@ function TagInput({
         onChange(next)
         setDraft('')
     }
+
+    // Suggestions from this workspace's real vocabulary, minus already-added tags.
+    const unused = (suggestions ?? []).filter((s) => !tags.includes(s))
 
     return (
         <div className="flex flex-col gap-1.5">
@@ -113,6 +119,21 @@ function TagInput({
                     />
                 )}
             </div>
+            {!disabled && unused.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-text-muted">In this workspace:</span>
+                    {unused.map((s) => (
+                        <button
+                            key={s}
+                            type="button"
+                            onClick={() => onChange([...new Set([...tags, s])])}
+                            className="inline-flex items-center gap-1 rounded-sm border border-dashed border-border px-2 py-0.5 text-xs font-mono text-text-muted hover:border-azure/50 hover:text-azure transition-colors"
+                        >
+                            <Plus className="h-3 w-3" />{s}
+                        </button>
+                    ))}
+                </div>
+            )}
             {description && <p className="text-xs text-text-muted">{description}</p>}
         </div>
     )
@@ -126,6 +147,8 @@ export default function AppGrantsPage() {
 
     const [grants, setGrants] = useState<Grant[]>([])
     const [apps, setApps] = useState<RegisteredApp[]>([])
+    const [availConnectors, setAvailConnectors] = useState<string[]>([])
+    const [availCapabilities, setAvailCapabilities] = useState<string[]>([])
     const [loading, setLoading] = useState(true)
     const [canEdit, setCanEdit] = useState(false)
 
@@ -149,6 +172,8 @@ export default function AppGrantsPage() {
                 const data = await res.json() as GrantsResponse
                 setGrants(data.items ?? [])
                 setApps(data.apps ?? [])
+                setAvailConnectors(data.availableConnectors ?? [])
+                setAvailCapabilities(data.availableCapabilities ?? [])
             }
         } finally {
             setLoading(false)
@@ -395,6 +420,7 @@ export default function AppGrantsPage() {
                                 tags={connectors}
                                 onChange={setConnectors}
                                 disabled={!canEdit}
+                                suggestions={availConnectors}
                             />
 
                             <TagInput
@@ -405,6 +431,7 @@ export default function AppGrantsPage() {
                                 tags={capabilities}
                                 onChange={setCapabilities}
                                 disabled={!canEdit}
+                                suggestions={availCapabilities}
                             />
 
                             {error && (

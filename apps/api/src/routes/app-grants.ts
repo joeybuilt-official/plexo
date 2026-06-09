@@ -15,7 +15,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { z } from 'zod'
 import { db, eq, and, desc } from '@plexo/db'
-import { workspaceAppGrants, appProfiles } from '@plexo/db'
+import { workspaceAppGrants, appProfiles, installedConnections, extensions } from '@plexo/db'
 import { logger } from '../logger.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 
@@ -33,7 +33,7 @@ appGrantsRouter.get('/:workspaceId', async (req, res) => {
     const workspaceId = req.params.workspaceId as string
     if (!(await ensureWorkspaceAccess(req, res, workspaceId))) return
     try {
-        const [rows, apps] = await Promise.all([
+        const [rows, apps, conns, exts] = await Promise.all([
             db
                 .select()
                 .from(workspaceAppGrants)
@@ -45,8 +45,30 @@ appGrantsRouter.get('/:workspaceId', async (req, res) => {
                 .select({ appId: appProfiles.appId, displayName: appProfiles.displayName })
                 .from(appProfiles)
                 .orderBy(appProfiles.appId),
+            // The real connector vocabulary in THIS workspace — exactly the
+            // registryIds enforcement matches grant.allowedConnectors against.
+            db
+                .select({ registryId: installedConnections.registryId })
+                .from(installedConnections)
+                .where(eq(installedConnections.workspaceId, workspaceId)),
+            // The real capability vocabulary — manifest.capabilities of the enabled
+            // extensions; enforcement (loadPluginTools) checks these exact tokens
+            // against grant.capabilities, so suggesting them keeps grants correct.
+            db
+                .select({ manifest: extensions.manifest })
+                .from(extensions)
+                .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.enabled, true))),
         ])
-        return res.json({ items: rows, total: rows.length, apps })
+
+        const availableConnectors = [...new Set(conns.map((c) => c.registryId).filter(Boolean))].sort()
+        const availableCapabilities = [...new Set(
+            exts.flatMap((e) => {
+                const caps = (e.manifest as { capabilities?: unknown } | null)?.capabilities
+                return Array.isArray(caps) ? caps.filter((c): c is string => typeof c === 'string') : []
+            }),
+        )].sort()
+
+        return res.json({ items: rows, total: rows.length, apps, availableConnectors, availableCapabilities })
     } catch (err) {
         logger.error({ err, workspaceId }, 'GET /app-grants failed')
         return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list grants' } })
