@@ -36,10 +36,17 @@ vi.mock('@plexo/db', () => ({
 
 // From __tests__/, providers are at ../../providers/
 vi.mock('../../providers/call-model.js', () => ({ callModel: (...args: unknown[]) => mockCallModel(...args) }))
-vi.mock('../../providers/registry.js', () => ({
-    resolveModel: vi.fn(async () => ({ model: 'test-model', meta: { provider: 'test' } })),
-    resolveModelFromEnv: vi.fn(() => 'test-model'),
-}))
+// Spread the real module so runtime exports the router-v2 chain now pulls in
+// (e.g. DEFAULT_MODEL_ROUTING via enumerate.ts) stay present; override only the
+// two resolver fns the worker calls.
+vi.mock('../../providers/registry.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../providers/registry.js')>()
+    return {
+        ...actual,
+        resolveModel: vi.fn(async () => ({ model: 'test-model', meta: { provider: 'test' } })),
+        resolveModelFromEnv: vi.fn(() => 'test-model'),
+    }
+})
 vi.mock('../../providers/settings-from-instances.js', () => ({
     loadSettingsFromInstances: vi.fn(async () => null),
 }))
