@@ -18,6 +18,8 @@ import { db, eq, sql } from '@plexo/db'
 import { appProfiles, extensionRegistry } from '@plexo/db'
 import { logger } from '../logger.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
+import { negotiateProfile } from '../profile-negotiation.js'
+import { UUID_RE } from '../validation.js'
 
 export const profilesRouter: RouterType = Router()
 
@@ -41,6 +43,16 @@ export const profileRegisterSchema = z.object({
 })
 
 export type ProfileRegisterBody = z.infer<typeof profileRegisterSchema>
+
+const profileSchema = z.object({
+    connectors: z.array(z.string()).default([]),
+    capabilities: z.array(z.string()).default([]),
+})
+
+export const negotiateSchema = z.object({
+    workspaceId: z.string().regex(UUID_RE, 'workspaceId must be a valid UUID'),
+    requestedProfile: profileSchema.optional(),
+})
 
 // ── GET / — list registered profiles ─────────────────────────────────────────
 
@@ -139,5 +151,36 @@ profilesRouter.post('/register', requireServiceKey, async (req, res) => {
     } catch (err) {
         logger.error({ err }, 'Profile registration failed')
         return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Registration failed' } })
+    }
+})
+
+// ── POST /negotiate ───────────────────────────────────────────────────────────
+// Connection & Profile Standard (ADR 0001 §3). The app (identified by X-App-Id)
+// declares a requestedProfile for a workspace; the server returns the effective
+// profile = intersection(requested, granted), default-deny. No grant yet → a
+// 'pending' proposal is captured for the operator and an empty profile returned.
+
+profilesRouter.post('/negotiate', requireServiceKey, async (req, res) => {
+    try {
+        const appId = req.serviceContext?.appId
+        if (!appId) {
+            return res.status(400).json({ error: { code: 'MISSING_APP_ID', message: 'X-App-Id header required' } })
+        }
+        const parsed = negotiateSchema.safeParse(req.body)
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: { code: 'VALIDATION_ERROR', message: 'Invalid request body', details: parsed.error.flatten().fieldErrors },
+            })
+        }
+        const result = await negotiateProfile({
+            appId,
+            workspaceId: parsed.data.workspaceId,
+            requestedProfile: parsed.data.requestedProfile ?? null,
+        })
+        logger.info({ event: 'profile_negotiate', appId, workspaceId: parsed.data.workspaceId, status: result.status }, 'Profile negotiated')
+        return res.json(result)
+    } catch (err) {
+        logger.error({ err }, 'Profile negotiation failed')
+        return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Negotiation failed' } })
     }
 })

@@ -32,6 +32,8 @@ export default defineConfig({
             '@plexo/agent/connections/bridge': resolve(root, 'packages/agent/src/connections/bridge.ts'),
             '@plexo/agent/connections/crypto-util': resolve(root, 'packages/agent/src/connections/crypto-util.ts'),
             '@plexo/agent/embeddings/adapters': resolve(root, 'packages/agent/src/embeddings/adapters.ts'),
+            '@plexo/agent/profile/resolve': resolve(root, 'packages/agent/src/profile/resolve.ts'),
+            '@plexo/agent/profile/grant': resolve(root, 'packages/agent/src/profile/grant.ts'),
             '@plexo/db/work-kind': resolve(root, 'packages/db/src/work-kind.ts'),
             '@plexo/db/auth/config': resolve(root, 'packages/db/src/auth/config.ts'),
             '@plexo/db': resolve(root, 'packages/db/src/index.ts'),

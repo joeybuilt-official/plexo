@@ -1666,6 +1666,32 @@ export const userAppAuthorizations = pgTable('user_app_authorizations', {
     index('user_app_auth_app_idx').on(table.appId),
 ])
 
+// ── Connection & Profile Standard (ADR 0001 §3) ───────────────────────────────
+// Per-(app×workspace) capability grant. Default-deny: the absence of an active
+// 'granted' row means the app gets nothing in that workspace. An app's connect()
+// requestedProfile is advisory; this table is authoritative. Only the operator
+// may widen a grant. `status` of 'pending' surfaces the app's request to the
+// operator without granting anything yet.
+
+export const workspaceAppGrants = pgTable('workspace_app_grants', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    appId: text('app_id').notNull(),
+    workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+    allowedConnectors: text('allowed_connectors').array().notNull().default(sql`'{}'`),
+    capabilities: text('capabilities').array().notNull().default(sql`'{}'`),
+    status: text('status').notNull().default('granted'), // 'granted' | 'pending' | 'revoked'
+    grantedBy: text('granted_by'),
+    grantedAt: timestamp('granted_at', { mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table: any) => [
+    uniqueIndex('workspace_app_grants_uq').on(table.appId, table.workspaceId),
+    index('workspace_app_grants_ws_idx').on(table.workspaceId),
+    index('workspace_app_grants_app_idx').on(table.appId),
+])
+
+export type WorkspaceAppGrant = typeof workspaceAppGrants.$inferSelect
+export type NewWorkspaceAppGrant = typeof workspaceAppGrants.$inferInsert
+
 // ── SCL Foundation ──────────────────────────────────────────────────
 
 export const inferenceLogs = pgTable('inference_logs', {

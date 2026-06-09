@@ -764,6 +764,10 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         })(),
         // FUN-014: checkpoint resume from a prior task's steps
         resumeFromTaskId: (task.context as Record<string, unknown> | null)?.resumeFromTaskId as string | undefined,
+        // Connection & Profile Standard (ADR 0001 §3): app identity for per-(app×workspace)
+        // capability enforcement. Set only when the task was dispatched by a registered app.
+        // Absent for interactive/cron/dashboard tasks → tool-load enforcement is skipped.
+        appId: (task.context as Record<string, unknown> | null)?.appId as string | undefined,
         // L5b (ADR 0006 §D5): metric callback for executor-side approval guard.
         // Layering: agent package owns the wrap helper; API layer owns metrics.
         onOutboundUncovered: ({ tool, provider }) => incrementCounter('plexo_outbound_tool_call_uncovered_total', { tool, provider }),
