@@ -218,3 +218,25 @@ export function classifyError(err: unknown): Classification {
 export function shouldFallbackFromError(err: unknown): boolean {
     return classifyError(err).shouldFallback
 }
+
+/**
+ * Hard funds-depletion subset of the 'quota' class — the durable "add money to
+ * fix" states, distinct from a daily/per-minute rate cap (which resets on its
+ * own and classifies as 'rate-limit'). Used to persist a provider as
+ * balance-exhausted and surface a site-wide notice, so a dead primary (e.g. an
+ * out-of-credit deepseek returning "Insufficient Balance" at HTTP 402) is pulled
+ * from the routing chain instead of being re-tried every cooldown cycle.
+ */
+export function isBalanceExhaustedError(err: unknown): boolean {
+    if (!(err instanceof Error)) return false
+    const msg = err.message.toLowerCase()
+    return (
+        msg.includes('insufficient balance') ||
+        msg.includes('insufficient_balance') ||
+        msg.includes('insufficient_quota') ||
+        msg.includes('insufficient quota') ||
+        msg.includes('credit balance') ||
+        msg.includes('billing') ||
+        msg.includes('402')
+    )
+}

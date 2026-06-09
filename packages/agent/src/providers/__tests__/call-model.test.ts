@@ -150,6 +150,14 @@ describe('callModel — retry on transient errors', () => {
         expect(result.attempts).toBe(2)
     })
 
+    it('retries on a bare "Too Many Requests" error with no parseable status (ollama_cloud shape)', async () => {
+        generateTextMock
+            .mockRejectedValueOnce(new Error('Too Many Requests'))
+            .mockResolvedValueOnce(makeSuccess())
+        const result = await callModel({ model: 'm', prompt: 'p' })
+        expect(result.attempts).toBe(2)
+    })
+
     it('retries on network error with no status', async () => {
         generateTextMock
             .mockRejectedValueOnce(new Error('fetch failed: ECONNRESET'))
