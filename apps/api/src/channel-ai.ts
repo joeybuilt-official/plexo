@@ -123,11 +123,11 @@ export async function buildConversationSystemPromptForWorkspace(
     extraContext?: string,
     opts?: { reactionsAvailable?: boolean },
 ): Promise<string> {
-    // Lazy import so the sync builder (and its callers in tests that mock
-    // @plexo/agent modules) don't pull in the connections-factory module
-    // until the async variant is actually used.
-    const { getLevioUserTimezone } = await import('@plexo/agent/connections/factories/levio')
-    const userTimezone = (await getLevioUserTimezone(workspaceId)) ?? undefined
+    // Resolve via the app-supplied user-timezone port (ADR 0001) — same source
+    // the executor uses, wired once at boot — instead of reaching into a
+    // specific connector here. Lazy import keeps sync-builder test mocks simple.
+    const { resolveUserTimezone } = await import('@plexo/agent/user-timezone-port')
+    const userTimezone = (await resolveUserTimezone(workspaceId)) ?? undefined
     return buildConversationSystemPrompt(channel, extraContext, { ...opts, userTimezone })
 }
 

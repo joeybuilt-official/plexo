@@ -96,6 +96,8 @@ import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
 import { initSprintLogger } from '@plexo/agent/sprint/logger'
 import { setOutboundAttachmentsHandler } from '@plexo/agent/channels/outbound-attachments-port'
+import { setUserTimezoneResolver } from '@plexo/agent/user-timezone-port'
+import { getLevioUserTimezone } from '@plexo/agent/connections/factories/levio'
 import { resolveOutboundAttachments } from './lib/outbound-attachment-resolver.js'
 import { emitAttachmentSent, emitAttachmentOutboundBlocked } from './lib/attachment-audit.js'
 
@@ -129,6 +131,11 @@ setOutboundAttachmentsHandler({
             },
         ),
 })
+
+// ADR 0001: keep the core executor domain-agnostic — the user-timezone source
+// (currently the Levio connector) is wired here at the composition root, not
+// imported by core. Other connectors can override by setting the resolver.
+setUserTimezoneResolver((workspaceId) => getLevioUserTimezone(workspaceId))
 
 
 import { debugRouter } from './routes/debug.js'

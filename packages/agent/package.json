@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./user-timezone-port": "./src/user-timezone-port.ts",
     "./constants": "./src/constants.ts",
     "./principles": "./src/principles.ts",
     "./types": "./src/types.ts",

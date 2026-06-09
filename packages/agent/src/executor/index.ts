@@ -49,7 +49,7 @@ import type { JudgeMeta } from './quality-judge.js'
 import { classifyCapabilityGap } from '../tasks/classify-capability-gap.js'
 import { buildWebTools } from '../tools/web-tools.js'
 import { buildConversationalTaskPrompt, buildTaskPrompt } from '../prompts/build-system-prompt.js'
-import { getLevioUserTimezone } from '../connections/factories/levio.js'
+import { resolveUserTimezone } from '../user-timezone-port.js'
 
 import { compactStaleToolResults, compactStaleAssistantMessages } from './context-projector.js'
 export { compactStaleToolResults, compactStaleAssistantMessages }
@@ -1375,11 +1375,11 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     const migrationTools = buildMigrationTools(ctx.workspaceId)
 
     // For conversational tasks, restrict to task_complete + connections + plugins + self-knowledge + env.
-    // Connection tools (levio__list_emails, levio__list_events, etc.) are included so the
-    // agent can answer data questions ("what's on my calendar?") inline without spawning a
-    // full task. Plugin tools are included because bridge extensions (fonto-bridge, nexalog-bridge,
-    // levio-bridge) supersede factory connection tools via the dedup map — excluding pluginTools
-    // would leave those connections with zero callable tools in conversational mode.
+    // Connection tools (e.g. an installed email/calendar connector's list tools) are included so
+    // the agent can answer data questions ("what's on my calendar?") inline without spawning a
+    // full task. Plugin tools are included because bridge extensions supersede factory connection
+    // tools via the dedup map — excluding pluginTools would leave those connections with zero
+    // callable tools in conversational mode.
     // Base task-management tools remain off for conversational mode.
     const allTools = isConversational
         ? { task_complete: baseTools.task_complete, ...connectionTools, ...pluginTools, ...selfKnowledgeTools, ...environmentTools, ...migrationTools }
@@ -1645,10 +1645,11 @@ ${ctx.sclContext.suggestedTools.length > 0 ? `Suggested tools: ${ctx.sclContext.
 ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContext.domainKnowledge.join('; ')}` : ''}`
         : ''
 
-    // Timezone injection — when a Levio connection exists, surface the user's
-    // IANA timezone in the system prompt so the model interprets and reports
-    // times in their local zone. Silent no-op when Levio is not connected.
-    const userTimezone = (await getLevioUserTimezone(ctx.workspaceId)) ?? undefined
+    // Timezone injection — surface the user's IANA timezone in the system
+    // prompt so the model interprets and reports times in their local zone.
+    // The source is app-supplied via the user-timezone port (ADR 0001); silent
+    // no-op when no resolver is wired or no timezone is available.
+    const userTimezone = (await resolveUserTimezone(ctx.workspaceId)) ?? undefined
 
     const systemPrompt = isConversational
         ? buildConversationalTaskPrompt({
