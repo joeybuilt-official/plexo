@@ -1263,6 +1263,14 @@ export const providerInstances = pgTable('provider_instances', {
     modelCompatStatus: text('model_compat_status'),
     /** Phase I — last time the synthetic generateObject test was run for this instance. */
     modelCompatValidatedAt: timestamp('model_compat_validated_at', { mode: 'date', withTimezone: true }),
+    /**
+     * Set when this provider returned a hard funds-depletion error ("Insufficient
+     * Balance" / 402). The router excludes a balance-exhausted instance from the
+     * routing chain (so it stops wasting cascade slots + latency), and the web app
+     * surfaces a site-wide dismissible notice. Cleared on operator dismissal,
+     * which re-arms the provider. NULL = healthy.
+     */
+    balanceExhaustedAt: timestamp('balance_exhausted_at', { mode: 'date', withTimezone: true }),
 }, (table: any) => [
     index('idx_provider_instances_workspace').on(table.workspaceId, table.preferenceOrder),
     index('idx_provider_instances_type').on(table.workspaceId, table.providerType),

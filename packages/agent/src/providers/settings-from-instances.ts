@@ -9,7 +9,7 @@
  * that the LLM and embedding routers consume.
  */
 
-import { db, eq, asc } from '@plexo/db'
+import { db, eq, and, asc, isNull, isNotNull } from '@plexo/db'
 import { providerInstances, workspaces } from '@plexo/db'
 import type { WorkspaceAISettings, ProviderKey, AIProviderConfig } from './registry.js'
 import { createHmac, createDecipheriv } from 'crypto'
@@ -74,6 +74,72 @@ export function invalidateSettingsCache(workspaceId?: string): void {
     else settingsCache.clear()
 }
 
+// ── Provider balance-exhaustion state (Fix A) ─────────────────────────────────
+
+export interface BalanceExhaustedProvider {
+    providerType: string
+    nickname: string
+    exhaustedAt: Date
+}
+
+/**
+ * Mark every enabled instance of `providerType` in a workspace as balance-
+ * exhausted (funds-depleted). Idempotent: only sets the timestamp on rows where
+ * it's still NULL, so the "first seen" time is preserved across repeated
+ * failures. Fire-and-forget from the router failure path — never throws.
+ */
+export async function markProviderBalanceExhausted(workspaceId: string, providerType: string): Promise<void> {
+    try {
+        const res = await db.update(providerInstances)
+            .set({ balanceExhaustedAt: new Date() })
+            .where(and(
+                eq(providerInstances.workspaceId, workspaceId),
+                eq(providerInstances.providerType, providerType),
+                isNull(providerInstances.balanceExhaustedAt),
+            ))
+            .returning({ id: providerInstances.id })
+        if (res.length > 0) {
+            invalidateSettingsCache(workspaceId)
+            logger.warn({ workspaceId, providerType, marked: res.length }, 'provider marked balance-exhausted — pulled from routing chain')
+        }
+    } catch (err) {
+        logger.warn({ workspaceId, providerType, err: err instanceof Error ? err.message : String(err) }, 'markProviderBalanceExhausted failed (non-fatal)')
+    }
+}
+
+/** Clear the balance-exhausted flag for a provider (operator dismissal → re-arm). */
+export async function clearProviderBalanceExhausted(workspaceId: string, providerType: string): Promise<void> {
+    await db.update(providerInstances)
+        .set({ balanceExhaustedAt: null })
+        .where(and(
+            eq(providerInstances.workspaceId, workspaceId),
+            eq(providerInstances.providerType, providerType),
+        ))
+    invalidateSettingsCache(workspaceId)
+}
+
+/** List the workspace's currently balance-exhausted providers (for the site-wide notice). */
+export async function listBalanceExhaustedProviders(workspaceId: string): Promise<BalanceExhaustedProvider[]> {
+    const rows = await db.select({
+        providerType: providerInstances.providerType,
+        nickname: providerInstances.nickname,
+        exhaustedAt: providerInstances.balanceExhaustedAt,
+    })
+        .from(providerInstances)
+        .where(and(
+            eq(providerInstances.workspaceId, workspaceId),
+            isNotNull(providerInstances.balanceExhaustedAt),
+        ))
+    const out: BalanceExhaustedProvider[] = []
+    const seen = new Set<string>()
+    for (const r of rows) {
+        if (!r.exhaustedAt || seen.has(r.providerType)) continue
+        seen.add(r.providerType)
+        out.push({ providerType: r.providerType, nickname: r.nickname, exhaustedAt: r.exhaustedAt })
+    }
+    return out
+}
+
 // ── Main function ────────────────────────────────────────────────────────────
 
 /**
@@ -107,6 +173,10 @@ async function loadSettingsFromInstancesUncached(workspaceId: string): Promise<W
 
     for (const row of rows) {
         if (!row.enabled) continue
+        // Funds-depleted instances are pulled from the routing chain entirely so
+        // they stop wasting a cascade slot + latency on a dead provider. Cleared
+        // on operator dismissal of the site-wide notice (Fix A).
+        if (row.balanceExhaustedAt) continue
 
         const key = row.providerType as ProviderKey
 

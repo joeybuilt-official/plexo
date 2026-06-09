@@ -10,6 +10,7 @@ import { WorkspaceProvider } from '@web/context/workspace'
 import { UpdateModal } from '@web/components/update-modal'
 import { IntegrationsNudgeModal } from '@web/components/integrations-nudge-modal'
 import { FirstRunBanner } from '@web/components/first-run-banner'
+import { ProviderBalanceBanner } from '@web/components/provider-balance-banner'
 import { PersonalityModalGate } from '@web/components/onboarding/personality-modal'
 import { DashboardMain } from './_components/dashboard-main'
 import { CommandPaletteMount } from './_components/command-palette-mount'
@@ -85,6 +86,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                             <IntegrationsNudgeModal />
                             <CommandPaletteMount />
                             <FirstRunBanner />
+                            <ProviderBalanceBanner />
                             <PersonalityModalGate>
                             {children}
                             </PersonalityModalGate>

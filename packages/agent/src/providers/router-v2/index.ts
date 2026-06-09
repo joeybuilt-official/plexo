@@ -27,7 +27,8 @@ import {
 } from '../registry.js'
 import { selectModel, resolveModelId, type AvailableProvider, type SelectionResult } from './selector.js'
 import { recordCall, recordCooldown } from './stats.js'
-import { classifyError } from './error-classifier.js'
+import { classifyError, isBalanceExhaustedError } from './error-classifier.js'
+import { markProviderBalanceExhausted } from '../settings-from-instances.js'
 import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
 import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
@@ -312,6 +313,14 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             )
 
             const cls = classifyError(err)
+            // Hard funds-depletion: persist the provider as balance-exhausted so
+            // it's pulled from the routing chain (stops wasting a cascade slot on
+            // a dead primary) and the web app surfaces a site-wide notice. Only
+            // when a workspace is known (skip the env-fallback path). Fire-and-
+            // forget — never block or fail the cascade. (Fix A)
+            if (workspaceId && isBalanceExhaustedError(err)) {
+                void markProviderBalanceExhausted(workspaceId, chosen.provider)
+            }
             if (cls.class === 'auth' && err instanceof Error) {
                 recordAuthFailure({
                     workspaceId,
