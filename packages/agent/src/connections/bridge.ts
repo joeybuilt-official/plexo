@@ -896,6 +896,7 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
         const { isConnectorAllowed } = await import('../profile/resolve.js')
         const enforcedProfile = await resolveEnforcedProfile(workspaceId, appId)
         const enforcementMode = getEnforcementMode()
+        const monitorHits: string[] = [] // connector registryIds we'd have excluded (monitor mode)
         // Read workspace settings for read-only mode flag (Phase 9).
         // On any error reading the workspace, default to NOT-read-only so
         // we don't accidentally cripple a workspace that already worked.
@@ -967,6 +968,7 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
             if (enforcedProfile && !isConnectorAllowed(enforcedProfile, row.registryId)) {
                 if (enforcementMode === 'monitor') {
                     logger.warn({ event: 'profile.monitor.would_exclude', kind: 'connector', workspaceId, appId, registryId: row.registryId }, 'Profile monitor: connector WOULD be excluded (not enforced)')
+                    monitorHits.push(row.registryId)
                     // fall through — keep the connection in monitor mode
                 } else {
                     logger.info({ workspaceId, appId, registryId: row.registryId }, 'Connection excluded by app profile')
@@ -1057,6 +1059,13 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
             },
         })
 
+
+        // Monitor mode: persist what we would have excluded (best-effort,
+        // fire-and-forget) so the App Grants UI can surface real coverage gaps.
+        if (enforcementMode === 'monitor' && appId && monitorHits.length > 0) {
+            const { recordMonitorObservations } = await import('../profile/monitor.js')
+            void recordMonitorObservations(workspaceId, appId, monitorHits.map((t) => ({ kind: 'connector', token: t })))
+        }
 
         return merged
     } catch {

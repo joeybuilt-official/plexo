@@ -1692,6 +1692,28 @@ export const workspaceAppGrants = pgTable('workspace_app_grants', {
 export type WorkspaceAppGrant = typeof workspaceAppGrants.$inferSelect
 export type NewWorkspaceAppGrant = typeof workspaceAppGrants.$inferInsert
 
+// Connection & Profile Standard (ADR 0001 §3) — monitor-mode observations.
+// Durable record of what enforcement WOULD have excluded for an app in a
+// workspace while PROFILE_ENFORCEMENT_MODE=monitor. Powers the App Grants UI so
+// operators seed grants from real gaps before switching to enforce.
+export const profileMonitorObservations = pgTable('profile_monitor_observations', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    kind: text('kind').notNull(), // 'connector' | 'capability'
+    token: text('token').notNull(),
+    extName: text('ext_name'),
+    observedCount: integer('observed_count').notNull().default(1),
+    firstSeenAt: timestamp('first_seen_at', { mode: 'date' }).defaultNow().notNull(),
+    lastSeenAt: timestamp('last_seen_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table: any) => [
+    uniqueIndex('profile_monitor_obs_uq').on(table.workspaceId, table.appId, table.kind, table.token),
+    index('profile_monitor_obs_ws_idx').on(table.workspaceId),
+])
+
+export type ProfileMonitorObservation = typeof profileMonitorObservations.$inferSelect
+export type NewProfileMonitorObservation = typeof profileMonitorObservations.$inferInsert
+
 // ── SCL Foundation ──────────────────────────────────────────────────
 
 export const inferenceLogs = pgTable('inference_logs', {
