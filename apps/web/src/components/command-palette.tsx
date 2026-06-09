@@ -85,6 +85,7 @@ const DESTINATIONS: PaletteItem[] = [
     { id: 'settings-voice', label: 'Voice', section: 'Settings', href: '/app/settings/voice', icon: Settings, keywords: ['stt', 'tts', 'deepgram'] },
     { id: 'settings-integrations', label: 'Integrations Settings', section: 'Settings', href: '/app/settings/connections', icon: Plug, keywords: ['oauth', 'credentials', 'connections'] },
     { id: 'settings-users', label: 'Users', section: 'Settings', href: '/app/settings/users', icon: Settings, keywords: ['members', 'roles', 'invites'] },
+    { id: 'settings-app-grants', label: 'App Grants', section: 'Settings', href: '/app/settings/app-grants', icon: Settings, keywords: ['grants', 'capabilities', 'connectors', 'permissions', 'profile', 'apps'] },
     { id: 'settings-privacy', label: 'Privacy', section: 'Settings', href: '/app/settings/privacy', icon: Settings, keywords: ['data', 'retention', 'pii'] },
     { id: 'settings-search', label: 'Search', section: 'Settings', href: '/app/settings/search', icon: Search, keywords: ['brave', 'ddg'] },
     { id: 'settings-webhooks', label: 'Webhooks', section: 'Settings', href: '/app/settings?section=webhooks', icon: Settings, keywords: ['webhook', 'trigger', 'http'] },
