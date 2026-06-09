@@ -8,6 +8,8 @@ import type {
     AddEpisodeOptions,
     AddEpisodeResult,
     AiCompleteOptions,
+    AnalyzeImageOptions,
+    AnalyzeImageResult,
     AppProfile,
     ChatOptions,
     ChatReply,
@@ -451,6 +453,50 @@ export class PlexoClient {
             }
         } catch {
             return null
+        }
+    }
+
+    /**
+     * Unified per-asset image analysis — ONE multimodal LLM call that
+     * returns classification, sub-class, confidence, caption, OCR text,
+     * salient labels, and suggested tags. Collapses the legacy 5-call
+     * chain (classify + label + ocr + describe + suggest-tags) into a
+     * single round-trip against a local Ollama VLM (qwen2.5vl:7b by
+     * default). Used by Fonto's worker; see Fonto ADR 0002.
+     *
+     * Does NOT silently swallow errors (unlike `visionOcr`): callers
+     * branching on `USE_UNIFIED_ANALYZE` need to detect failure and
+     * fall back to the legacy chain. Throws `PlexoApiError` (with the
+     * structured error.code from the route) or `PlexoUnreachableError`.
+     *
+     * Server-side wall-clock is bounded to 90 s; this client sets a
+     * matching 120 s timeout to give headroom for network + parse.
+     */
+    async visionAnalyzeImage(opts: AnalyzeImageOptions): Promise<AnalyzeImageResult> {
+        const data = await this.#post<Partial<AnalyzeImageResult>>(
+            '/api/v1/vision/analyze-image',
+            {
+                workspaceId: opts.workspaceId,
+                imageUrl: opts.imageUrl,
+                mimeType: opts.mimeType,
+                filename: opts.filename,
+                hints: opts.hints,
+            },
+            { workspaceId: opts.workspaceId },
+            120_000,
+        )
+        // Validate the shape minimally — the server already enforced the
+        // zod schema, but a defensive cast keeps TS callers honest.
+        return {
+            classification: (data.classification ?? 'photo') as AnalyzeImageResult['classification'],
+            subClassification: data.subClassification ?? null,
+            confidence: typeof data.confidence === 'number' ? data.confidence : 0,
+            description: typeof data.description === 'string' ? data.description : '',
+            ocrText: data.ocrText ?? null,
+            labels: Array.isArray(data.labels) ? data.labels.filter((s): s is string => typeof s === 'string') : [],
+            suggestedTags: Array.isArray(data.suggestedTags) ? data.suggestedTags.filter((s): s is string => typeof s === 'string') : [],
+            model: typeof data.model === 'string' ? data.model : 'unknown',
+            latencyMs: typeof data.latencyMs === 'number' ? data.latencyMs : 0,
         }
     }
 

@@ -275,6 +275,63 @@ export interface OcrResult {
 }
 
 // ---------------------------------------------------------------------------
+// Unified analyze-image — SDK 1.4.0 (Plexo Core endpoint
+// POST /api/v1/vision/analyze-image; see Fonto ADR 0002).
+// Collapses 5 LLM calls (classify + label + ocr + describe + suggest-tags)
+// into one structured response. Caller passes a presigned imageUrl and
+// optional grounding hints (CLIP top class, EXIF flags, dimensions).
+// ---------------------------------------------------------------------------
+
+export interface AnalyzeImageHints {
+    /** CLIP's top class (lowercase taxonomy key) — used as a soft prior. */
+    topClipClass?: string
+    /** CLIP's top-1 cosine score, [0..1]. */
+    clipConfidence?: number
+    /** EXIF camera-make string ("Apple", "Google", etc.). Used as a soft signal. */
+    cameraMake?: string
+    /** True if any positive camera-evidence EXIF field (exposureTime, fNumber, iso, focalLength) is set. */
+    hasExposureExif?: boolean
+    widthPx?: number
+    heightPx?: number
+}
+
+export interface AnalyzeImageOptions {
+    workspaceId: string
+    /** Presigned (http/https) URL the model can fetch. */
+    imageUrl: string
+    /** Mime type — used only for the prompt hint. */
+    mimeType?: string
+    /** Filename — used only for the prompt hint. */
+    filename?: string
+    /** Optional grounding hints. */
+    hints?: AnalyzeImageHints
+}
+
+export interface AnalyzeImageResult {
+    /** Top-level taxonomy key (matches fonto's TAXONOMY top-keys). */
+    classification:
+        | 'photo' | 'document' | 'screenshot' | 'logo' | 'mockup' | 'icon'
+        | 'sticker' | 'clipart' | 'meme' | 'art' | 'cover-art' | 'wallpaper'
+        | 'diagram' | 'whiteboard'
+    /** Slug-cased child label (e.g. 'portrait', 'receipt'). null if unsure. */
+    subClassification: string | null
+    /** Overall confidence in classification + sub-classification, [0..1]. */
+    confidence: number
+    /** Caption — 1-3 sentences, max ~60 words. */
+    description: string
+    /** Verbatim transcription of visible text. null if no text. */
+    ocrText: string | null
+    /** Salient object/scene labels (lowercase nouns). */
+    labels: string[]
+    /** User-facing tag names (title-case). */
+    suggestedTags: string[]
+    /** Model id used (for telemetry). */
+    model: string
+    /** End-to-end latency on the server side, ms. */
+    latencyMs: number
+}
+
+// ---------------------------------------------------------------------------
 // Tools — gmessages sync invoke (SDK 1.2.0 — Levio↔gmessages bridge)
 // ---------------------------------------------------------------------------
 

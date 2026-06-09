@@ -48,6 +48,9 @@ export { verifyInboundSignature } from './inbound.js'
 export type {
     AiCompleteOptions,
     AiMessage,
+    AnalyzeImageHints,
+    AnalyzeImageOptions,
+    AnalyzeImageResult,
     AppChannelConfig,
     AppConnectorConfig,
     AppExtension,
