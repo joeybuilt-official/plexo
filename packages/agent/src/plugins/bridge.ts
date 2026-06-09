@@ -23,7 +23,7 @@ import { z } from 'zod'
 import { db, eq, and } from '@plexo/db'
 import { extensions, workspaces } from '@plexo/db'
 import type { ToolSet } from '../connections/bridge.js'
-import { getWorker, invokeTool } from './persistent-pool.js'
+import { getWorker, invokeTool, isWorkerLive } from './persistent-pool.js'
 import pino from 'pino'
 import type { ExtensionManifest, JSONSchema } from '@joeybuilt/plexo-sdk'
 import { eventBus, TOPICS } from './event-bus.js'
@@ -128,6 +128,17 @@ function shouldEscalateToolCall(params: {
 }
 
 /**
+ * ADR 0001 §4 (4d) mid-call reconnect replay policy. After a worker restarts
+ * during a tool call, the call may be replayed on the fresh worker ONLY when the
+ * tool declares it is safe to: idempotent, or explicitly free of side effects.
+ * Absent/ambiguous hints → NOT replayable (fail-loud) so a partially-run side
+ * effect is never duplicated.
+ */
+export function canReplayOnReconnect(hints: { idempotent?: unknown; hasSideEffects?: unknown; [k: string]: unknown } | undefined): boolean {
+    return hints?.idempotent === true || hints?.hasSideEffects === false
+}
+
+/**
  * Load enabled PEX extensions via the persistent pool.
  * Returns an AI SDK ToolSet with all successfully registered tools.
  *
@@ -205,16 +216,19 @@ export async function loadPluginTools(workspaceId: string, appId?: string): Prom
                 continue
             }
 
+            // Captured so the per-call path can re-acquire (re-spawn + re-activate
+            // → re-register the toolset) if the worker restarts mid-session (4d).
+            const activationInput = {
+                pluginName: ext.name,
+                entry: ext.entry,
+                permissions: capabilities,
+                settings,
+                workspaceId,
+                activateTimeoutMs: Math.min(timeoutMs, 30_000),
+            }
             let handle
             try {
-                handle = await getWorker({
-                    pluginName: ext.name,
-                    entry: ext.entry,
-                    permissions: capabilities,
-                    settings,
-                    workspaceId,
-                    activateTimeoutMs: Math.min(timeoutMs, 30_000),
-                })
+                handle = await getWorker(activationInput)
             } catch (err) {
                 logger.warn({ ext: ext.name, err }, 'Persistent worker activation failed — skipping')
                 eventBus.emitSystem(TOPICS.EXTENSION_CRASHED, {
@@ -240,7 +254,7 @@ export async function loadPluginTools(workspaceId: string, appId?: string): Prom
                 const extVersion = ext.version
                 const toolName = toolDef.name
                 const toolTimeout = toolDef.hints?.timeoutMs ?? timeoutMs
-                const workerHandle = handle
+                const capturedActivationInput = activationInput
                 const capturedManifest = manifest
                 const capturedThreshold = autoApproveThreshold
                 const capturedHints = toolDef.hints as Record<string, unknown> | undefined
@@ -286,13 +300,40 @@ export async function loadPluginTools(workspaceId: string, appId?: string): Prom
                             }
                         }
 
-                        const result = await invokeTool(
-                            workerHandle,
+                        // Re-acquire the worker each call (ADR 0001 §4 — 4d session
+                        // contract): getWorker returns the cached live worker, or
+                        // re-spawns + re-activates → RE-REGISTERS the toolset when the
+                        // worker died between calls. So tool registration is renewed on
+                        // reconnect with no orchestration.
+                        const activeHandle = await getWorker(capturedActivationInput)
+                        let result = await invokeTool(
+                            activeHandle,
                             toolName,
                             args as Record<string, unknown>,
                             workspaceId,
                             toolTimeout,
                         )
+
+                        // Mid-call restart: the worker died DURING this invocation
+                        // (crash/timeout → removed from the pool). Re-acquire (which
+                        // re-registers), then replay ONLY when the tool declares it is
+                        // safe to — idempotent, or no side effects. Side-effecting
+                        // tools fail-loud so a partially-run effect is not duplicated.
+                        if (!result.ok && !isWorkerLive(extName)) {
+                            const canReplay = canReplayOnReconnect(capturedHints)
+                            try {
+                                const fresh = await getWorker(capturedActivationInput)
+                                if (canReplay) {
+                                    logger.warn({ ext: extName, tool: toolName }, 'PEX worker restarted mid-call — toolset re-registered, replaying safe (idempotent/no-side-effect) call')
+                                    result = await invokeTool(fresh, toolName, args as Record<string, unknown>, workspaceId, toolTimeout)
+                                } else {
+                                    logger.warn({ ext: extName, tool: toolName }, 'PEX worker restarted mid-call — toolset re-registered, NOT replaying side-effecting call (fail-loud)')
+                                    result = { ok: false, error: 'PEX worker restarted during the call; the tool was re-registered but not replayed because it may have side effects. Re-run the tool.', durationMs: result.durationMs }
+                                }
+                            } catch (reErr) {
+                                logger.error({ ext: extName, tool: toolName, err: reErr }, 'PEX worker reconnect failed — keeping original failure')
+                            }
+                        }
 
                         if (!result.ok) {
                             logger.warn({ ext: extName, tool: toolName, error: result.error, timedOut: result.timedOut }, 'PEX tool failed')
