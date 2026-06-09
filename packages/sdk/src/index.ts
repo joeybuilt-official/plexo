@@ -293,6 +293,11 @@ export type {
 } from './types/discovery.js'
 
 // ---------------------------------------------------------------------------
+// ADR 0001 §5 — Connection & Profile Standard contract version
+// ---------------------------------------------------------------------------
+export { PEX_CONTRACT_VERSION, isContractCompatible } from './contract.js'
+
+// ---------------------------------------------------------------------------
 // §3.3 — Manifest validation
 // ---------------------------------------------------------------------------
 export { validateManifest } from './validation/manifest.js'

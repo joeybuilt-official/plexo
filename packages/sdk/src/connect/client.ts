@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { PlexoApiError, PlexoAuthError, PlexoRateLimitedError, PlexoUnreachableError } from './errors.js'
+import { PlexoApiError, PlexoAuthError, PlexoProtocolError, PlexoRateLimitedError, PlexoUnreachableError } from './errors.js'
 import { createInboundRouter } from './inbound.js'
 import { register } from './registration.js'
+import { PEX_CONTRACT_VERSION, isContractCompatible } from '../contract.js'
 import type {
     AddEpisodeOptions,
     AddEpisodeResult,
@@ -13,6 +14,8 @@ import type {
     AppProfile,
     ChatOptions,
     ChatReply,
+    ConnectOptions,
+    ConnectProfile,
     DispatchContext,
     DispatchOptions,
     DispatchResult,
@@ -23,7 +26,9 @@ import type {
     GmessagesThread,
     InboundHandlers,
     InstallConnectionOptions,
+    LocalInstanceDescriptor,
     MemorySearchResult,
+    NegotiatedSession,
     OcrResult,
     PlexoClientOptions,
     PlexoConnection,
@@ -40,7 +45,9 @@ import type {
 
 export class PlexoClient {
     readonly #opts: PlexoClientOptions
-    readonly #base: string
+    // Mutable: connect()'s resolution ladder may attach to a reused/launched
+    // local instance whose URL differs from the configured one.
+    #base: string
 
     /** Agent-loop operations. EP1: caller-provided systemPrompt + tools via HTTP callback. */
     readonly agents: {
@@ -86,6 +93,124 @@ export class PlexoClient {
             eventContracts: this.#opts.eventContracts ?? [],
         }
         await register(this.#opts, profile)
+    }
+
+    // -----------------------------------------------------------------------
+    // Connection & Profile Standard (ADR 0001) — connect() handshake
+    // -----------------------------------------------------------------------
+
+    /**
+     * Run the resolution ladder (configured → reuse-running → launch-local),
+     * then handshake with the server: negotiate a common contract MAJOR and (when
+     * a workspaceId is given) the effective profile. Returns the NegotiatedSession.
+     *
+     * Throws PlexoUnreachableError when no instance can be resolved, and
+     * PlexoProtocolError when the server's contract major is incompatible.
+     */
+    async connect(opts: ConnectOptions = {}): Promise<NegotiatedSession> {
+        const via = await this.#resolveBase()
+        const clientVersion = this.#opts.contractVersion ?? PEX_CONTRACT_VERSION
+        const requestedProfile = opts.requestedProfile ?? this.#opts.requestedProfile
+
+        const resp = await this.#post<{
+            serverContractVersion: string
+            status?: NegotiatedSession['status']
+            effectiveProfile?: ConnectProfile
+        }>(
+            '/api/v1/profiles/connect',
+            { contractVersion: clientVersion, workspaceId: opts.workspaceId, requestedProfile },
+            opts.workspaceId ? { workspaceId: opts.workspaceId } : {},
+        )
+
+        if (!isContractCompatible(clientVersion, resp.serverContractVersion)) {
+            throw new PlexoProtocolError(clientVersion, resp.serverContractVersion)
+        }
+
+        return {
+            url: this.#base,
+            via,
+            serverContractVersion: resp.serverContractVersion,
+            status: resp.status ?? 'unscoped',
+            effectiveProfile: resp.effectiveProfile ?? { connectors: [], capabilities: [] },
+        }
+    }
+
+    /**
+     * Negotiate (or re-negotiate) the effective profile for a specific workspace
+     * (ADR 0001 §3). When no operator grant exists yet, the request is captured
+     * as a pending proposal and an empty profile is returned (default-deny).
+     */
+    async negotiateProfile(workspaceId: string, requestedProfile?: ConnectProfile): Promise<{
+        status: 'granted' | 'pending' | 'revoked'
+        effectiveProfile: ConnectProfile
+    }> {
+        const data = await this.#post<{
+            status: 'granted' | 'pending' | 'revoked'
+            effectiveProfile: ConnectProfile
+        }>(
+            '/api/v1/profiles/negotiate',
+            { workspaceId, requestedProfile: requestedProfile ?? this.#opts.requestedProfile },
+            { workspaceId },
+        )
+        return data
+    }
+
+    /**
+     * Resolution ladder (ADR 0001 §1). Sets #base and returns which rung resolved.
+     *   1. configured  — plexoUrl + serviceKey present → use it.
+     *   2. reuse-running — read the local instance descriptor lockfile, health-check, attach.
+     *   3. launch-local — call the opts.launchLocal seam, health-check, attach.
+     * Fails loud (PlexoUnreachableError) when none resolve.
+     */
+    async #resolveBase(): Promise<NegotiatedSession['via']> {
+        if (this.#opts.plexoUrl && this.#opts.serviceKey) {
+            this.#base = this.#opts.plexoUrl.replace(/\/$/, '')
+            return 'configured'
+        }
+
+        // rung 2 — reuse a running local instance via its descriptor lockfile
+        const descriptor = await this.#readInstanceDescriptor()
+        if (descriptor?.url && await this.#healthy(descriptor.url)) {
+            this.#base = descriptor.url.replace(/\/$/, '')
+            return 'reuse-running'
+        }
+
+        // rung 3 — launch-local seam (host-provided; single-writer guard is the
+        // launcher's responsibility, ADR 0001 §1 + pre-mortem #1)
+        if (this.#opts.launchLocal) {
+            const url = await this.#opts.launchLocal()
+            if (url && await this.#healthy(url)) {
+                this.#base = url.replace(/\/$/, '')
+                return 'launch-local'
+            }
+            throw new PlexoUnreachableError(url || '(launch-local)')
+        }
+
+        throw new PlexoUnreachableError(this.#base || '(unresolved)')
+    }
+
+    async #healthy(url: string): Promise<boolean> {
+        const fetchImpl = this.#opts.fetchImpl ?? fetch
+        try {
+            const res = await fetchImpl(`${url.replace(/\/$/, '')}/api/v1/health`, { signal: AbortSignal.timeout(5_000) })
+            return res.ok
+        } catch {
+            return false
+        }
+    }
+
+    /** Read the rung-2 local instance descriptor lockfile, if present. Node-only. */
+    async #readInstanceDescriptor(): Promise<LocalInstanceDescriptor | null> {
+        try {
+            const { readFile } = await import('node:fs/promises')
+            const path = this.#opts.instanceDescriptorPath
+                ?? `${process.env.XDG_RUNTIME_DIR ?? '/tmp'}/plexo/instance.json`
+            const raw = await readFile(path, 'utf8')
+            const d = JSON.parse(raw) as LocalInstanceDescriptor
+            return d?.url ? d : null
+        } catch {
+            return null
+        }
     }
 
     // -----------------------------------------------------------------------

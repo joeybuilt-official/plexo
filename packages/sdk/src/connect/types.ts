@@ -55,6 +55,75 @@ export interface PlexoClientOptions {
     resilience?: ResilienceOptions
     /** Override fetch for testing or custom retry logic. */
     fetchImpl?: typeof fetch
+    /**
+     * PEX contract version this client speaks. Defaults to PEX_CONTRACT_VERSION.
+     * connect() negotiates to a common major with the server (ADR 0001 §5).
+     */
+    contractVersion?: string
+    /**
+     * Profile this app requests at connect() (ADR 0001 §3). Advisory — the
+     * effective profile is intersection(requested, operator-granted). May also
+     * be passed per-call to connect().
+     */
+    requestedProfile?: ConnectProfile
+    /**
+     * Resolution-ladder rung 2 (reuse-running): path to a local Plexo instance
+     * descriptor lockfile. Only consulted when no plexoUrl is configured.
+     * Defaults to $XDG_RUNTIME_DIR/plexo/instance.json (or /tmp fallback).
+     */
+    instanceDescriptorPath?: string
+    /**
+     * Resolution-ladder rung 3 (launch-local) seam. When no configured URL and
+     * no running instance is found, connect() calls this to spawn/obtain a local
+     * Plexo and returns its base URL. Hosts that support full launch-local
+     * (desktop topology) provide it; the single-writer guard (OS file-lock + PG
+     * advisory lock, attach-on-lose) is the launcher's responsibility. When
+     * omitted, connect() fails loud with PlexoUnreachableError.
+     */
+    launchLocal?: () => Promise<string>
+}
+
+// ---------------------------------------------------------------------------
+// ADR 0001 — Connection & Profile Standard (connect handshake)
+// ---------------------------------------------------------------------------
+
+/** A profile an app requests, or is granted (ADR 0001 §3). */
+export interface ConnectProfile {
+    connectors: string[]
+    capabilities: string[]
+}
+
+/**
+ * Local Plexo instance descriptor for rung-2 "reuse-running" discovery
+ * (ADR 0001 §1). Written by a running local Plexo at an OS-conventional path.
+ */
+export interface LocalInstanceDescriptor {
+    url: string
+    pid?: number
+    contractVersion?: string
+    startedAt?: string
+}
+
+/** The negotiated session connect() returns. */
+export interface NegotiatedSession {
+    /** Resolved base URL the client attached to. */
+    url: string
+    /** How the URL was resolved (which ladder rung). */
+    via: 'configured' | 'reuse-running' | 'launch-local'
+    /** The server's PEX contract version. */
+    serverContractVersion: string
+    /** Grant status for this app×workspace. 'unscoped' = no workspace negotiated. */
+    status: 'granted' | 'pending' | 'revoked' | 'unscoped'
+    /** Effective profile = intersection(requested, granted). Empty unless granted. */
+    effectiveProfile: ConnectProfile
+}
+
+/** Options for a single connect() call. */
+export interface ConnectOptions {
+    /** Negotiate a per-workspace profile during connect (ADR 0001 §3). */
+    workspaceId?: string
+    /** Profile to request; overrides PlexoClientOptions.requestedProfile. */
+    requestedProfile?: ConnectProfile
 }
 
 // ---------------------------------------------------------------------------

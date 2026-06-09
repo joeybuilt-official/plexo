@@ -20,6 +20,7 @@ import { logger } from '../logger.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { negotiateProfile } from '../profile-negotiation.js'
 import { UUID_RE } from '../validation.js'
+import { PEX_CONTRACT_VERSION, isContractCompatible } from '@joeybuilt/plexo-sdk'
 
 export const profilesRouter: RouterType = Router()
 
@@ -51,6 +52,12 @@ const profileSchema = z.object({
 
 export const negotiateSchema = z.object({
     workspaceId: z.string().regex(UUID_RE, 'workspaceId must be a valid UUID'),
+    requestedProfile: profileSchema.optional(),
+})
+
+export const connectSchema = z.object({
+    contractVersion: z.string().min(1),
+    workspaceId: z.string().regex(UUID_RE, 'workspaceId must be a valid UUID').optional(),
     requestedProfile: profileSchema.optional(),
 })
 
@@ -182,5 +189,48 @@ profilesRouter.post('/negotiate', requireServiceKey, async (req, res) => {
     } catch (err) {
         logger.error({ err }, 'Profile negotiation failed')
         return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Negotiation failed' } })
+    }
+})
+
+// ── POST /connect ─────────────────────────────────────────────────────────────
+// Connection & Profile Standard (ADR 0001 §5) — the connect() handshake. The app
+// declares its contract version; the server advertises its own (the client
+// negotiates to a common MAJOR and fails loud on mismatch). When a workspaceId is
+// supplied AND the versions are compatible, the effective profile is negotiated
+// in the same round-trip (default-deny; pending proposal captured if ungranted).
+
+profilesRouter.post('/connect', requireServiceKey, async (req, res) => {
+    try {
+        const appId = req.serviceContext?.appId
+        if (!appId) {
+            return res.status(400).json({ error: { code: 'MISSING_APP_ID', message: 'X-App-Id header required' } })
+        }
+        const parsed = connectSchema.safeParse(req.body)
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: { code: 'VALIDATION_ERROR', message: 'Invalid request body', details: parsed.error.flatten().fieldErrors },
+            })
+        }
+        const { contractVersion, workspaceId, requestedProfile } = parsed.data
+        const compatible = isContractCompatible(contractVersion, PEX_CONTRACT_VERSION)
+
+        const empty = { connectors: [], capabilities: [] }
+        if (!compatible) {
+            // Fail-loud signal: client checks serverContractVersion + this code.
+            logger.warn({ event: 'profile_connect', appId, contractVersion, serverContractVersion: PEX_CONTRACT_VERSION }, 'Connect rejected — incompatible contract major')
+            return res.json({ serverContractVersion: PEX_CONTRACT_VERSION, compatible, code: 'PROTOCOL_VERSION_UNSUPPORTED', status: 'unscoped', effectiveProfile: empty })
+        }
+
+        if (workspaceId) {
+            const result = await negotiateProfile({ appId, workspaceId, requestedProfile: requestedProfile ?? null })
+            logger.info({ event: 'profile_connect', appId, workspaceId, status: result.status }, 'Connected + profile negotiated')
+            return res.json({ serverContractVersion: PEX_CONTRACT_VERSION, compatible, status: result.status, effectiveProfile: result.effectiveProfile })
+        }
+
+        logger.info({ event: 'profile_connect', appId }, 'Connected (no workspace — unscoped)')
+        return res.json({ serverContractVersion: PEX_CONTRACT_VERSION, compatible, status: 'unscoped', effectiveProfile: empty })
+    } catch (err) {
+        logger.error({ err }, 'Profile connect failed')
+        return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Connect failed' } })
     }
 })

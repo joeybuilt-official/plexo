@@ -41,10 +41,12 @@ export {
     PlexoApiError,
     PlexoAuthError,
     PlexoNotConfiguredError,
+    PlexoProtocolError,
     PlexoRateLimitedError,
     PlexoUnreachableError,
 } from './errors.js'
 export { verifyInboundSignature } from './inbound.js'
+export { PEX_CONTRACT_VERSION, isContractCompatible } from '../contract.js'
 export type {
     AiCompleteOptions,
     AiMessage,
@@ -58,6 +60,10 @@ export type {
     AppToolConfig,
     ChatOptions,
     ChatReply,
+    ConnectOptions,
+    ConnectProfile,
+    LocalInstanceDescriptor,
+    NegotiatedSession,
     DataQuery,
     DataResponse,
     DispatchContext,
