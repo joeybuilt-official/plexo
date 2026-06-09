@@ -48,6 +48,12 @@ export class PlexoClient {
     // Mutable: connect()'s resolution ladder may attach to a reused/launched
     // local instance whose URL differs from the configured one.
     #base: string
+    // The last negotiated session (null until connect() succeeds). autoReconnect
+    // only engages once this is set — a plain remote client that never calls
+    // connect() keeps the exact pre-Phase-4e behavior.
+    #session: NegotiatedSession | null = null
+    // Args of the most recent connect(), replayed by reconnect().
+    #lastConnectOpts: ConnectOptions = {}
 
     /** Agent-loop operations. EP1: caller-provided systemPrompt + tools via HTTP callback. */
     readonly agents: {
@@ -108,31 +114,66 @@ export class PlexoClient {
      * PlexoProtocolError when the server's contract major is incompatible.
      */
     async connect(opts: ConnectOptions = {}): Promise<NegotiatedSession> {
+        this.#lastConnectOpts = opts
+        return this.#handshake(opts)
+    }
+
+    /**
+     * Re-establish a long-lived connection after the attached instance restarted
+     * (ADR 0001 §1 + Phase 4e). Re-runs the resolution ladder + version/profile
+     * handshake using the last connect() args, then re-runs register() so a
+     * restarted local instance re-learns this app's toolset. Returns the fresh
+     * NegotiatedSession. Throws if no instance can be resolved (PlexoUnreachableError)
+     * or the server major is now incompatible (PlexoProtocolError).
+     *
+     * Safe to call explicitly from a host that detects a restart; also invoked
+     * automatically (once, then retry) when `autoReconnect` is enabled.
+     */
+    async reconnect(): Promise<NegotiatedSession> {
+        const session = await this.#handshake(this.#lastConnectOpts)
+        // Re-register the app profile/toolset on the (possibly restarted) instance.
+        // Best-effort: a registration hiccup must not mask a recovered data path.
+        try { await this.register() } catch { /* non-fatal — handshake already succeeded */ }
+        return session
+    }
+
+    /**
+     * Shared connect/reconnect core: resolve the base, POST the handshake (via the
+     * RAW layer so a reconnect-triggered handshake can never recurse), verify the
+     * contract major, and cache the session. Does NOT register() — connect()
+     * leaves registration to the caller; reconnect() adds it.
+     */
+    async #handshake(opts: ConnectOptions): Promise<NegotiatedSession> {
         const via = await this.#resolveBase()
         const clientVersion = this.#opts.contractVersion ?? PEX_CONTRACT_VERSION
         const requestedProfile = opts.requestedProfile ?? this.#opts.requestedProfile
 
-        const resp = await this.#post<{
+        const resp = await this.#raw<{
             serverContractVersion: string
             status?: NegotiatedSession['status']
             effectiveProfile?: ConnectProfile
         }>(
+            'POST',
             '/api/v1/profiles/connect',
-            { contractVersion: clientVersion, workspaceId: opts.workspaceId, requestedProfile },
-            opts.workspaceId ? { workspaceId: opts.workspaceId } : {},
+            {
+                body: { contractVersion: clientVersion, workspaceId: opts.workspaceId, requestedProfile },
+                extra: opts.workspaceId ? { workspaceId: opts.workspaceId } : {},
+            },
         )
 
         if (!isContractCompatible(clientVersion, resp.serverContractVersion)) {
             throw new PlexoProtocolError(clientVersion, resp.serverContractVersion)
         }
 
-        return {
+        const session: NegotiatedSession = {
             url: this.#base,
             via,
             serverContractVersion: resp.serverContractVersion,
             status: resp.status ?? 'unscoped',
             effectiveProfile: resp.effectiveProfile ?? { connectors: [], capabilities: [] },
         }
+        this.#session = session
+        return session
     }
 
     /**
@@ -684,18 +725,7 @@ export class PlexoClient {
     }
 
     async #get<T>(path: string): Promise<T> {
-        const fetchImpl = this.#opts.fetchImpl ?? fetch
-        const timeout = this.#opts.resilience?.timeoutMs ?? 15_000
-        let res: Response
-        try {
-            res = await fetchImpl(`${this.#base}${path}`, {
-                headers: this.#headers(),
-                signal: AbortSignal.timeout(timeout),
-            })
-        } catch (err) {
-            throw new PlexoUnreachableError(this.#base, err)
-        }
-        return this.#parse<T>(res, path)
+        return this.#withReconnect(() => this.#raw<T>('GET', path))
     }
 
     async #post<T>(
@@ -709,37 +739,61 @@ export class PlexoClient {
         } = {},
         timeoutMs?: number,
     ): Promise<T> {
+        return this.#withReconnect(() => this.#raw<T>('POST', path, { body, extra, timeoutMs }))
+    }
+
+    async #delete(path: string): Promise<void> {
+        await this.#withReconnect(() => this.#raw<void>('DELETE', path, { tolerate404: true }))
+    }
+
+    /**
+     * Raw single-shot request: fetch + parse, no reconnect. The handshake during
+     * (re)connect() goes through here so a reconnect-triggered handshake cannot
+     * recurse into another reconnect.
+     */
+    async #raw<T>(
+        method: 'GET' | 'POST' | 'DELETE',
+        path: string,
+        opts: {
+            body?: unknown
+            extra?: { userId?: string; tenantId?: string; workspaceId?: string; traceId?: string }
+            timeoutMs?: number
+            tolerate404?: boolean
+        } = {},
+    ): Promise<T> {
         const fetchImpl = this.#opts.fetchImpl ?? fetch
-        const timeout = timeoutMs ?? this.#opts.resilience?.timeoutMs ?? 15_000
+        const timeout = opts.timeoutMs ?? this.#opts.resilience?.timeoutMs ?? 15_000
         let res: Response
         try {
             res = await fetchImpl(`${this.#base}${path}`, {
-                method: 'POST',
-                headers: this.#headers(extra),
-                body: JSON.stringify(body),
+                method,
+                headers: this.#headers(opts.extra),
+                ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
                 signal: AbortSignal.timeout(timeout),
             })
         } catch (err) {
             throw new PlexoUnreachableError(this.#base, err)
+        }
+        if (method === 'DELETE' && opts.tolerate404 && (res.ok || res.status === 404)) {
+            return undefined as T
         }
         return this.#parse<T>(res, path)
     }
 
-    async #delete(path: string): Promise<void> {
-        const fetchImpl = this.#opts.fetchImpl ?? fetch
-        const timeout = this.#opts.resilience?.timeoutMs ?? 15_000
-        let res: Response
+    /**
+     * Wrap a request so that, when `autoReconnect` is on and a connect() session
+     * exists, a transport failure (PlexoUnreachableError) triggers ONE reconnect()
+     * + a single retry. Any other error, or a second failure, propagates (fail-loud).
+     */
+    async #withReconnect<T>(fn: () => Promise<T>): Promise<T> {
         try {
-            res = await fetchImpl(`${this.#base}${path}`, {
-                method: 'DELETE',
-                headers: this.#headers(),
-                signal: AbortSignal.timeout(timeout),
-            })
+            return await fn()
         } catch (err) {
-            throw new PlexoUnreachableError(this.#base, err)
-        }
-        if (!res.ok && res.status !== 404) {
-            await this.#parse<void>(res, path)
+            if (!(this.#opts.autoReconnect && this.#session && err instanceof PlexoUnreachableError)) {
+                throw err
+            }
+            await this.reconnect() // re-resolve + handshake + register; throws propagate
+            return fn() // retry once — a second failure is not re-reconnected
         }
     }
 
