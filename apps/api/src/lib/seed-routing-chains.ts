@@ -23,11 +23,14 @@ import { db, sql } from '@plexo/db'
 import { pgRows } from './pg-rows.js'
 import {
     computeDefaultChainsForWorkspace,
+    reconcileChain,
+    chainsEqual,
     ROUTING_TASK_TYPES,
     type CatalogModel,
     type EnabledProvider,
     type RoutingTaskType,
     type DefaultChain,
+    type StoredChainEntry,
 } from './routing-defaults.js'
 
 const log = (msg: string, ctx?: Record<string, unknown>) => {
@@ -216,6 +219,103 @@ export async function seedRoutingChainDefaults(opts?: {
             log(`seeded ${rowsInserted} rows for workspace ${ws.id}`)
         } catch (err) {
             log(`workspace ${ws.id} failed`, { err: String(err) })
+        }
+    }
+    return summary
+}
+
+// ── Reconcile (self-heal stale chains) ───────────────────────────────────────
+
+interface ChainRowDb {
+    task_type: string
+    provider_id: string
+    model_id: string
+    position: number
+}
+
+async function loadChainsForWorkspace(workspaceId: string): Promise<Map<string, StoredChainEntry[]>> {
+    const result = await db.execute(sql`
+        SELECT task_type, provider_id, model_id, position
+        FROM routing_chains
+        WHERE workspace_id = ${workspaceId}::uuid
+        ORDER BY task_type, position
+    `)
+    const rows = pgRows<ChainRowDb>(result)
+    const map = new Map<string, StoredChainEntry[]>()
+    for (const r of rows) {
+        const list = map.get(r.task_type) ?? []
+        list.push({ providerId: r.provider_id, modelId: r.model_id })
+        map.set(r.task_type, list)
+    }
+    return map
+}
+
+async function rewriteChain(workspaceId: string, taskType: string, entries: StoredChainEntry[]): Promise<void> {
+    await db.execute(sql`
+        DELETE FROM routing_chains WHERE workspace_id = ${workspaceId}::uuid AND task_type = ${taskType}
+    `)
+    let position = 0
+    for (const e of entries) {
+        await db.execute(sql`
+            INSERT INTO routing_chains (workspace_id, task_type, provider_id, model_id, position)
+            VALUES (${workspaceId}::uuid, ${taskType}, ${e.providerId}::uuid, ${e.modelId}, ${position})
+            ON CONFLICT (workspace_id, task_type, position) DO NOTHING
+        `)
+        position++
+    }
+}
+
+export interface ReconcileSummary {
+    workspacesScanned: number
+    chainsRewritten: number
+}
+
+/**
+ * Reconcile every workspace's existing chains against the currently-enabled
+ * providers so chains stop going stale when providers are added/removed.
+ * Append-only (per `reconcileChain`): operator ordering is preserved, newly
+ * available providers are appended as fallbacks, gone/disabled providers are
+ * pruned. Workspaces with NO chains are left to `seedRoutingChainDefaults`
+ * (first-boot path). Safe to run at every API boot.
+ */
+export async function reconcileRoutingChains(opts?: { workspaceId?: string }): Promise<ReconcileSummary> {
+    const summary: ReconcileSummary = { workspacesScanned: 0, chainsRewritten: 0 }
+    const workspaces = opts?.workspaceId ? [{ id: opts.workspaceId }] : await loadAllWorkspaces()
+    summary.workspacesScanned = workspaces.length
+    if (workspaces.length === 0) return summary
+
+    let catalog: CatalogModel[] = []
+    try {
+        catalog = await loadCatalog()
+    } catch (err) {
+        log('reconcile: catalog load failed; using synthesized rows', { err: String(err) })
+    }
+
+    for (const ws of workspaces) {
+        try {
+            const providers = await loadProvidersForWorkspace(ws.id)
+            if (providers.length === 0) continue
+            const existing = await loadChainsForWorkspace(ws.id)
+            if (existing.size === 0) continue // first-boot path owned by the seeder
+            const defaults = computeDefaultChainsForWorkspace(providers, catalog)
+            for (const taskType of ROUTING_TASK_TYPES) {
+                const cur = existing.get(taskType) ?? []
+                const defaultChain = defaults[taskType].map((e) => ({ providerId: e.providerId, modelId: e.modelId }))
+                if (cur.length === 0) {
+                    if (defaultChain.length > 0) {
+                        await rewriteChain(ws.id, taskType, defaultChain)
+                        summary.chainsRewritten += 1
+                    }
+                    continue
+                }
+                const reconciled = reconcileChain(cur, providers, defaults[taskType])
+                if (!chainsEqual(cur, reconciled)) {
+                    await rewriteChain(ws.id, taskType, reconciled)
+                    summary.chainsRewritten += 1
+                }
+            }
+        } catch (err) {
+            log(`reconcile workspace ${ws.id} failed`, { err: String(err) })
         }
     }
     return summary

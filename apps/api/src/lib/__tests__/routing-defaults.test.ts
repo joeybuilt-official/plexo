@@ -22,12 +22,65 @@ import {
     buildCandidates,
     scoreCandidate,
     isReasonerModelId,
+    reconcileChain,
+    chainsEqual,
     REASONER_NEVER_TIERS,
     ROUTING_TASK_TYPES,
     type EnabledProvider,
     type CatalogModel,
+    type StoredChainEntry,
+    type DefaultChain,
 } from '../routing-defaults.js'
 import { computeModelAttributes } from '../model-attributes.js'
+
+describe('reconcileChain (self-heal)', () => {
+    const provs: EnabledProvider[] = [
+        { id: 'p-ollama', providerType: 'ollama_cloud', enabled: true, chatModels: ['gpt-oss:120b'], selectedModel: 'gpt-oss:120b' },
+        { id: 'p-cerebras', providerType: 'cerebras', enabled: true, chatModels: ['gpt-oss-120b'], selectedModel: 'gpt-oss-120b' },
+        { id: 'p-groq', providerType: 'groq', enabled: true, chatModels: ['openai/gpt-oss-120b'], selectedModel: 'openai/gpt-oss-120b' },
+    ]
+    const computed: DefaultChain = [
+        { providerId: 'p-cerebras', providerType: 'cerebras', modelId: 'gpt-oss-120b', score: 9 },
+        { providerId: 'p-groq', providerType: 'groq', modelId: 'openai/gpt-oss-120b', score: 8 },
+    ]
+
+    it('appends newly-available providers as fallbacks, preserving the existing primary', () => {
+        const existing: StoredChainEntry[] = [{ providerId: 'p-ollama', modelId: 'gpt-oss:120b' }]
+        const out = reconcileChain(existing, provs, computed)
+        expect(out.map((e) => e.providerId)).toEqual(['p-ollama', 'p-cerebras', 'p-groq'])
+        expect(out[0]!.providerId).toBe('p-ollama') // operator's primary untouched
+    })
+
+    it('prunes entries whose provider is no longer enabled', () => {
+        const existing: StoredChainEntry[] = [
+            { providerId: 'p-gone', modelId: 'x' },
+            { providerId: 'p-cerebras', modelId: 'gpt-oss-120b' },
+        ]
+        const out = reconcileChain(existing, provs, computed)
+        expect(out.find((e) => e.providerId === 'p-gone')).toBeUndefined()
+        expect(out[0]!.providerId).toBe('p-cerebras')
+    })
+
+    it('is a no-op (chainsEqual) when every enabled provider is already present', () => {
+        const existing: StoredChainEntry[] = [
+            { providerId: 'p-cerebras', modelId: 'gpt-oss-120b' },
+            { providerId: 'p-groq', modelId: 'openai/gpt-oss-120b' },
+            { providerId: 'p-ollama', modelId: 'gpt-oss:120b' },
+        ]
+        const out = reconcileChain(existing, provs, computed)
+        expect(chainsEqual(existing, out)).toBe(true)
+    })
+
+    it('never reorders existing entries (appends only)', () => {
+        const existing: StoredChainEntry[] = [
+            { providerId: 'p-groq', modelId: 'openai/gpt-oss-120b' },
+            { providerId: 'p-ollama', modelId: 'gpt-oss:120b' },
+        ]
+        const out = reconcileChain(existing, provs, computed)
+        expect(out.slice(0, 2)).toEqual(existing) // front preserved
+        expect(out[2]!.providerId).toBe('p-cerebras') // appended
+    })
+})
 
 const PROVIDERS: EnabledProvider[] = [
     {
