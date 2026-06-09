@@ -161,6 +161,7 @@ import { stabilizationRouter } from './routes/stabilization.js'
 import { parallelRouter } from './routes/parallel.js'
 import { paxRouter } from './routes/pax.js'
 import { profilesRouter } from './routes/profiles.js'
+import { appGrantsRouter } from './routes/app-grants.js'
 import { agentsRunRouter } from './routes/agents-run.js'
 import { agentsRunCustomRouter } from './routes/agents-run-custom.js'
 import { nodesRouter } from './routes/nodes.js'
@@ -361,6 +362,7 @@ v1.use('/dashboard', requireWorkspaceMember('workspaceId'), dashboardRouter)
 v1.use('/approvals', owdRouter)
 v1.use('/memory', requireWorkspaceMember('workspaceId'), memoryRouter)
 v1.use('/connections', connectionsRouter) // some endpoints have no workspaceId (registry); per-handler checks
+v1.use('/app-grants', appGrantsRouter) // ADR 0001 §3 — operator per-(app×workspace) capability grants
 v1.use('/connections/gmessages', connectionsGmessagesRouter) // ADR-0005: pairing lifecycle, NOT subscription
 // ADR 0013 §D9 — draft attachments. Mounted BEFORE conversationsRouter so
 // the more specific /:conversationId/draft-attachments path matches first.

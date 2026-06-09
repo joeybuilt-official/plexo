@@ -873,8 +873,13 @@ async function maybeRefreshGoogleToken(
  *   this list. Connections not in the list are not loaded — their tools are
  *   completely unreachable, not merely hidden. When undefined or empty, all
  *   active workspace connections are loaded (current default behavior).
+ * @param appId - Connection & Profile Standard (ADR 0001 §3): when set and
+ *   profile enforcement is enabled, connections are further restricted to the
+ *   registry IDs in the operator-granted (app×workspace) profile (default-deny).
+ *   This is orthogonal to `allowedIds` (per-task scope) — both must permit a
+ *   connection for its tools to load.
  */
-export async function loadConnectionTools(workspaceId: string, allowedIds?: string[]): Promise<ToolSet> {
+export async function loadConnectionTools(workspaceId: string, allowedIds?: string[], appId?: string): Promise<ToolSet> {
     // Explicit empty allowlist = deny-all: no connections loaded.
     // Automated sources (cron, github) use this to fail-closed when no connector
     // scope is configured. Interactive tasks pass undefined to allow-all.
@@ -883,6 +888,13 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
     }
 
     try {
+        // Connection & Profile Standard (ADR 0001 §3): when an app dispatched this
+        // task and enforcement is on, resolve the granted profile once. null →
+        // enforcement does not apply (allow-all). A profile (incl. EMPTY) → filter
+        // connections to its allowed registry IDs below.
+        const { resolveEnforcedProfile } = await import('../profile/grant.js')
+        const { isConnectorAllowed } = await import('../profile/resolve.js')
+        const enforcedProfile = await resolveEnforcedProfile(workspaceId, appId)
         // Read workspace settings for read-only mode flag (Phase 9).
         // On any error reading the workspace, default to NOT-read-only so
         // we don't accidentally cripple a workspace that already worked.
@@ -948,6 +960,14 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
         }
 
         for (const row of rows) {
+            // Profile enforcement (ADR 0001 §3): drop connections whose registry
+            // ID is not in the app's effective profile. enforcedProfile is null
+            // when enforcement does not apply.
+            if (enforcedProfile && !isConnectorAllowed(enforcedProfile, row.registryId)) {
+                logger.info({ workspaceId, appId, registryId: row.registryId }, 'Connection excluded by app profile')
+                continue
+            }
+
             // Skip factory when a bridge extension supersedes it.
             if (bridgeSuperseded.has(row.registryId)) continue
 

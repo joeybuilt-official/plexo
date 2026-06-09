@@ -1325,9 +1325,12 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         : ctx.connectorIds.length === 0
             ? ':deny-all'                                                  // automated, no allowlist → no connectors
             : `:scoped:${[...ctx.connectorIds].sort().join(',')}`          // explicit allowlist
+    // Profile enforcement (ADR 0001 §3) is per-app, so different apps must not
+    // share a cached tool set for the same workspace.
+    const appScopeKey = ctx.appId ? `:app:${ctx.appId}` : ''
     const connectionToolsRaw = await getCachedToolSet(
-        `connections:${ctx.workspaceId}${connectorScopeKey}`,
-        () => loadConnectionTools(ctx.workspaceId, ctx.connectorIds),
+        `connections:${ctx.workspaceId}${connectorScopeKey}${appScopeKey}`,
+        () => loadConnectionTools(ctx.workspaceId, ctx.connectorIds, ctx.appId),
     )
     // L5b (ADR 0006 §D5): wrap each outbound connection tool with an
     // executor-side approval guard. Plan.oneWayDoors[] coverage is checked
@@ -1345,8 +1348,8 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         onDenialLoop: ctx.onOutboundDenialLoop,
     })
     const pluginTools = await getCachedToolSet(
-        `plugins:${ctx.workspaceId}`,
-        () => loadPluginTools(ctx.workspaceId),
+        `plugins:${ctx.workspaceId}${appScopeKey}`,
+        () => loadPluginTools(ctx.workspaceId, ctx.appId),
     )
     // Phase 7 — per-extension identity for audit enrichment.
     const extensionIdentities = await getCachedToolSet(

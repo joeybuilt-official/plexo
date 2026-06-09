@@ -130,12 +130,23 @@ function shouldEscalateToolCall(params: {
 /**
  * Load enabled PEX extensions via the persistent pool.
  * Returns an AI SDK ToolSet with all successfully registered tools.
+ *
+ * @param appId - Connection & Profile Standard (ADR 0001 §3): when set and
+ *   profile enforcement is enabled, an extension's tools load only when ALL the
+ *   capabilities it declares in its manifest are covered by the operator-granted
+ *   (app×workspace) effective profile (default-deny).
  */
-export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
+export async function loadPluginTools(workspaceId: string, appId?: string): Promise<ToolSet> {
     const toolSet: ToolSet = {}
 
     try {
         const autoApproveThreshold = await resolveAutoApproveThreshold(workspaceId)
+
+        // Profile enforcement (ADR 0001 §3): resolve the granted profile once.
+        // null → enforcement does not apply (allow-all).
+        const { resolveEnforcedProfile } = await import('../profile/grant.js')
+        const { isCapabilityAllowed } = await import('../profile/resolve.js')
+        const enforcedProfile = await resolveEnforcedProfile(workspaceId, appId)
 
         const wsRows = await db.select({ ownerId: workspaces.ownerId }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
         const workspaceOwnerId = wsRows[0]?.ownerId ?? null
@@ -148,6 +159,17 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
         for (const ext of enabledExtensions) {
             const manifest = ext.manifest as ExtensionManifest
             const capabilities = manifest.capabilities ?? []
+
+            // Profile enforcement (ADR 0001 §3): skip an extension whose declared
+            // capabilities are not all covered by the app's effective profile.
+            if (enforcedProfile) {
+                const uncovered = capabilities.filter((cap) => !isCapabilityAllowed(enforcedProfile, cap))
+                if (uncovered.length > 0) {
+                    logger.info({ workspaceId, appId, ext: ext.name, uncovered }, 'Extension excluded by app profile')
+                    continue
+                }
+            }
+
             const settings: Record<string, unknown> = {
                 ...(workspaceOwnerId ? { _workspaceOwnerId: workspaceOwnerId } : {}),
                 ...(ext.settings as Record<string, unknown>),

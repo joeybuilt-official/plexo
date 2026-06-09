@@ -536,6 +536,14 @@ export interface ExecutionContext {
     /** Source channel that submitted this task — used to mark external-channel tasks as untrusted input. */
     taskSource?: TaskSource
     /**
+     * Connection & Profile Standard (ADR 0001 §3) — identity of the registered
+     * app that dispatched this task, when any. Set from task.context.appId.
+     * When present AND profile enforcement is enabled, tool-load is filtered to
+     * the operator-granted (app×workspace) profile (default-deny). When absent
+     * (interactive / cron / dashboard tasks), enforcement is skipped (allow-all).
+     */
+    appId?: string
+    /**
      * Connector allowlist for this task run.
      * When non-empty, only connections whose `installed_connections.id` appears
      * in this list will have their tools loaded. Connections outside the list

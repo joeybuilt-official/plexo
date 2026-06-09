@@ -6,6 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./user-timezone-port": "./src/user-timezone-port.ts",
+    "./profile/resolve": "./src/profile/resolve.ts",
+    "./profile/grant": "./src/profile/grant.ts",
     "./constants": "./src/constants.ts",
     "./principles": "./src/principles.ts",
     "./types": "./src/types.ts",
