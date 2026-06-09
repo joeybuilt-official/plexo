@@ -50,8 +50,10 @@ export async function recordMonitorObservations(
                     profileMonitorObservations.token,
                 ],
                 set: {
-                    observedCount: sql`${profileMonitorObservations.observedCount} + 1`,
-                    lastSeenAt: new Date(),
+                    // Literal table-qualified column (proven SQL) — avoids the
+                    // column-object interpolation that silently failed the SET.
+                    observedCount: sql`profile_monitor_observations.observed_count + 1`,
+                    lastSeenAt: sql`now()`,
                 },
             })
     } catch {
