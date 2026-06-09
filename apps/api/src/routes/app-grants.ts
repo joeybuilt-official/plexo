@@ -15,7 +15,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { z } from 'zod'
 import { db, eq, and, desc } from '@plexo/db'
-import { workspaceAppGrants, appProfiles, installedConnections, extensions } from '@plexo/db'
+import { workspaceAppGrants, appProfiles, installedConnections, extensions, profileMonitorObservations } from '@plexo/db'
 import { logger } from '../logger.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 
@@ -33,7 +33,7 @@ appGrantsRouter.get('/:workspaceId', async (req, res) => {
     const workspaceId = req.params.workspaceId as string
     if (!(await ensureWorkspaceAccess(req, res, workspaceId))) return
     try {
-        const [rows, apps, conns, exts] = await Promise.all([
+        const [rows, apps, conns, exts, obs] = await Promise.all([
             db
                 .select()
                 .from(workspaceAppGrants)
@@ -58,6 +58,21 @@ appGrantsRouter.get('/:workspaceId', async (req, res) => {
                 .select({ manifest: extensions.manifest })
                 .from(extensions)
                 .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.enabled, true))),
+            // Monitor-mode observations — what enforcement WOULD have excluded per
+            // app in this workspace (ADR 0001 §3 rollout). Lets the operator seed
+            // grants from real coverage gaps before switching to enforce.
+            db
+                .select({
+                    appId: profileMonitorObservations.appId,
+                    kind: profileMonitorObservations.kind,
+                    token: profileMonitorObservations.token,
+                    extName: profileMonitorObservations.extName,
+                    observedCount: profileMonitorObservations.observedCount,
+                    lastSeenAt: profileMonitorObservations.lastSeenAt,
+                })
+                .from(profileMonitorObservations)
+                .where(eq(profileMonitorObservations.workspaceId, workspaceId))
+                .orderBy(profileMonitorObservations.appId),
         ])
 
         const availableConnectors = [...new Set(conns.map((c) => c.registryId).filter(Boolean))].sort()
@@ -68,7 +83,7 @@ appGrantsRouter.get('/:workspaceId', async (req, res) => {
             }),
         )].sort()
 
-        return res.json({ items: rows, total: rows.length, apps, availableConnectors, availableCapabilities })
+        return res.json({ items: rows, total: rows.length, apps, availableConnectors, availableCapabilities, observations: obs })
     } catch (err) {
         logger.error({ err, workspaceId }, 'GET /app-grants failed')
         return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list grants' } })

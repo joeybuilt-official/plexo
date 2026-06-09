@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
-    ShieldCheck, RefreshCw, Plus, X, Check, AlertCircle, Plug, KeyRound, Lock,
+    ShieldCheck, RefreshCw, Plus, X, Check, AlertCircle, Plug, KeyRound, Lock, Eye, ArrowRight,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { authClient } from '@web/lib/auth-client'
@@ -35,12 +35,22 @@ interface RegisteredApp {
     displayName: string | null
 }
 
+interface MonitorObservation {
+    appId: string
+    kind: 'connector' | 'capability'
+    token: string
+    extName: string | null
+    observedCount: number
+    lastSeenAt: string
+}
+
 interface GrantsResponse {
     items: Grant[]
     total: number
     apps?: RegisteredApp[]
     availableConnectors?: string[]
     availableCapabilities?: string[]
+    observations?: MonitorObservation[]
 }
 
 type MemberRole = 'owner' | 'admin' | 'member' | 'viewer'
@@ -149,6 +159,7 @@ export default function AppGrantsPage() {
     const [apps, setApps] = useState<RegisteredApp[]>([])
     const [availConnectors, setAvailConnectors] = useState<string[]>([])
     const [availCapabilities, setAvailCapabilities] = useState<string[]>([])
+    const [observations, setObservations] = useState<MonitorObservation[]>([])
     const [loading, setLoading] = useState(true)
     const [canEdit, setCanEdit] = useState(false)
 
@@ -174,6 +185,7 @@ export default function AppGrantsPage() {
                 setApps(data.apps ?? [])
                 setAvailConnectors(data.availableConnectors ?? [])
                 setAvailCapabilities(data.availableCapabilities ?? [])
+                setObservations(data.observations ?? [])
             }
         } finally {
             setLoading(false)
@@ -256,6 +268,40 @@ export default function AppGrantsPage() {
         }
     }
 
+    // Monitor-mode observations grouped by app → {connectors, capabilities}.
+    const obsByApp = useMemo(() => {
+        const m = new Map<string, { connectors: string[]; capabilities: string[] }>()
+        for (const o of observations) {
+            const e = m.get(o.appId) ?? { connectors: [], capabilities: [] }
+            const arr = o.kind === 'connector' ? e.connectors : e.capabilities
+            if (!arr.includes(o.token)) arr.push(o.token)
+            m.set(o.appId, e)
+        }
+        return [...m.entries()].map(([appId, v]) => ({ appId, ...v }))
+    }, [observations])
+
+    // Open the editor for an app pre-filled with its monitor-observed gaps
+    // (merged onto any existing grant). Operator reviews, then saves.
+    function prefillFromObservations(targetAppId: string) {
+        const o = obsByApp.find((x) => x.appId === targetAppId)
+        if (!o) return
+        const existing = grants.find((g) => g.appId === targetAppId)
+        if (existing) {
+            selectGrant(existing)
+            setConnectors([...new Set([...(existing.allowedConnectors ?? []), ...o.connectors])])
+            setCapabilities([...new Set([...(existing.capabilities ?? []), ...o.capabilities])])
+        } else {
+            setCreating(true)
+            setSelectedAppId('')
+            setDraftAppId(targetAppId)
+            setConnectors(o.connectors)
+            setCapabilities(o.capabilities)
+            setStatus('granted')
+        }
+        setError(null)
+        setSaved(false)
+    }
+
     const pendingCount = useMemo(() => grants.filter((g) => g.status === 'pending').length, [grants])
     // Apps with no grant row yet — candidates for a proactive grant.
     const ungranted = useMemo(() => {
@@ -309,6 +355,38 @@ export default function AppGrantsPage() {
                 <div className="flex items-center gap-2 rounded-sm border border-yellow-800/30 bg-amber-dim/10 px-3 py-2.5 text-xs text-yellow-500/80">
                     <Lock className="h-3.5 w-3.5 shrink-0" />
                     Read-only — changing grants requires the workspace owner or an admin.
+                </div>
+            )}
+
+            {/* Monitor observations — what enforcement WOULD deny (rollout aid) */}
+            {obsByApp.length > 0 && (
+                <div className="rounded-sm border border-azure/30 bg-azure/5 p-4 flex flex-col gap-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                        <Eye className="h-4 w-4 text-azure" />
+                        Monitor: apps requesting uncovered access
+                    </div>
+                    <p className="text-xs text-text-muted -mt-1">
+                        Enforcement is in monitor mode — these were observed but <span className="font-medium">not</span> denied. Review and grant before switching to enforce.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                        {obsByApp.map((o) => (
+                            <div key={o.appId} className="flex items-center justify-between gap-3 rounded-sm border border-border bg-surface-1/60 px-3 py-2">
+                                <div className="min-w-0">
+                                    <span className="text-sm font-mono text-text-primary">{o.appId}</span>
+                                    <span className="ml-2 text-[11px] text-text-muted">
+                                        {o.connectors.length} connector{o.connectors.length !== 1 ? 's' : ''} · {o.capabilities.length} capabilit{o.capabilities.length !== 1 ? 'ies' : 'y'}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => prefillFromObservations(o.appId)}
+                                    disabled={!canEdit}
+                                    className="flex items-center gap-1 shrink-0 rounded-sm border border-azure/50 bg-azure/10 px-2.5 py-1 text-xs text-azure hover:bg-azure/20 disabled:opacity-50 transition-colors"
+                                >
+                                    Review &amp; grant <ArrowRight className="h-3 w-3" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
 

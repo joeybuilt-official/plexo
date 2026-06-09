@@ -159,6 +159,7 @@ export async function loadPluginTools(workspaceId: string, appId?: string): Prom
         const { isCapabilityAllowed } = await import('../profile/resolve.js')
         const enforcedProfile = await resolveEnforcedProfile(workspaceId, appId)
         const enforcementMode = getEnforcementMode()
+        const monitorHits: Array<{ kind: 'capability'; token: string; extName?: string }> = []
 
         const wsRows = await db.select({ ownerId: workspaces.ownerId }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
         const workspaceOwnerId = wsRows[0]?.ownerId ?? null
@@ -179,6 +180,7 @@ export async function loadPluginTools(workspaceId: string, appId?: string): Prom
                 if (uncovered.length > 0) {
                     if (enforcementMode === 'monitor') {
                         logger.warn({ event: 'profile.monitor.would_exclude', kind: 'extension', workspaceId, appId, ext: ext.name, uncovered }, 'Profile monitor: extension WOULD be excluded (not enforced)')
+                        for (const cap of uncovered) monitorHits.push({ kind: 'capability', token: cap, extName: ext.name })
                         // fall through — keep the extension in monitor mode
                     } else {
                         logger.info({ workspaceId, appId, ext: ext.name, uncovered }, 'Extension excluded by app profile')
@@ -387,6 +389,13 @@ export async function loadPluginTools(workspaceId: string, appId?: string): Prom
                 toolCount: handle.registeredTools.length,
                 workspaceId,
             })
+        }
+
+        // Monitor mode: persist would-exclude capability gaps (best-effort,
+        // fire-and-forget) for the App Grants UI.
+        if (enforcementMode === 'monitor' && appId && monitorHits.length > 0) {
+            const { recordMonitorObservations } = await import('../profile/monitor.js')
+            void recordMonitorObservations(workspaceId, appId, monitorHits)
         }
     } catch (err) {
         logger.error({ err, workspaceId }, 'loadPluginTools failed — continuing without plugin tools')
