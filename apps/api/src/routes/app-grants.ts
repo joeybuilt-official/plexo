@@ -15,7 +15,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { z } from 'zod'
 import { db, eq, and, desc } from '@plexo/db'
-import { workspaceAppGrants } from '@plexo/db'
+import { workspaceAppGrants, appProfiles } from '@plexo/db'
 import { logger } from '../logger.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 
@@ -33,12 +33,20 @@ appGrantsRouter.get('/:workspaceId', async (req, res) => {
     const workspaceId = req.params.workspaceId as string
     if (!(await ensureWorkspaceAccess(req, res, workspaceId))) return
     try {
-        const rows = await db
-            .select()
-            .from(workspaceAppGrants)
-            .where(eq(workspaceAppGrants.workspaceId, workspaceId))
-            .orderBy(desc(workspaceAppGrants.updatedAt))
-        return res.json({ items: rows, total: rows.length })
+        const [rows, apps] = await Promise.all([
+            db
+                .select()
+                .from(workspaceAppGrants)
+                .where(eq(workspaceAppGrants.workspaceId, workspaceId))
+                .orderBy(desc(workspaceAppGrants.updatedAt)),
+            // Registered apps — lets the operator UI offer a picker when creating a
+            // grant for an app that has not negotiated yet (no grant row exists).
+            db
+                .select({ appId: appProfiles.appId, displayName: appProfiles.displayName })
+                .from(appProfiles)
+                .orderBy(appProfiles.appId),
+        ])
+        return res.json({ items: rows, total: rows.length, apps })
     } catch (err) {
         logger.error({ err, workspaceId }, 'GET /app-grants failed')
         return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list grants' } })

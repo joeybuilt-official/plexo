@@ -39,6 +39,7 @@ import {
     FileText,
     Bug,
     Calendar,
+    ShieldCheck,
 } from 'lucide-react'
 import { ArrowUpCircle } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
@@ -120,6 +121,7 @@ const NAV_SYSTEM: NavItem[] = [
 
 // System — operator-only items (appended to NAV_SYSTEM when user is workspace owner)
 const NAV_SYSTEM_OPERATOR: NavItem[] = [
+    { label: 'App Grants', href: '/app/settings/app-grants', icon: ShieldCheck },
     { label: 'Debug', href: '/app/debug', icon: Bug },
 ]
 
