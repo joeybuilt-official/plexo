@@ -64,6 +64,11 @@ agentsRunRouter.post('/run', async (req, res) => {
             context: {
                 agentId,
                 ...context,
+                // Connection & Profile Standard (ADR 0001 §3): stamp the dispatching
+                // app's identity from the service-key context for per-(app×workspace)
+                // capability enforcement. Placed after the spread so a client-supplied
+                // context.appId can never spoof it. Absent only when no service key.
+                ...(req.serviceContext?.appId ? { appId: req.serviceContext.appId } : {}),
             },
         })
 
