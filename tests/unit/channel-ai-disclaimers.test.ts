@@ -12,11 +12,18 @@ import { describe, it, expect, vi } from 'vitest'
 
 // Mock all heavy dependencies before importing channel-ai
 vi.mock('ai', () => ({ generateText: vi.fn() }))
-vi.mock('@plexo/agent/providers/registry', () => ({
-    withFallback: vi.fn(),
-    PROVIDER_DEFAULT_MODELS: {},
-    buildModel: vi.fn(),
-}))
+// Spread the real module so runtime exports the router-v2 chain now pulls in
+// (e.g. DEFAULT_MODEL_ROUTING via enumerate.ts) stay present; override only the
+// few resolver fns this test stubs.
+vi.mock('@plexo/agent/providers/registry', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@plexo/agent/providers/registry')>()
+    return {
+        ...actual,
+        withFallback: vi.fn(),
+        PROVIDER_DEFAULT_MODELS: {},
+        buildModel: vi.fn(),
+    }
+})
 vi.mock('@plexo/agent/providers/vision', () => ({
     modelSupportsVision: vi.fn(() => false),
     findVisionCapableModel: vi.fn(() => null),
