@@ -81,6 +81,16 @@ export interface PlexoClientOptions {
      * omitted, connect() fails loud with PlexoUnreachableError.
      */
     launchLocal?: () => Promise<string>
+    /**
+     * Long-lived connection resilience (ADR 0001 §1 + Phase 4e). When true AND a
+     * `connect()` session has been established, a call that fails with
+     * PlexoUnreachableError triggers ONE transparent `reconnect()` (re-run the
+     * resolution ladder + handshake + `register()`) and a single retry. This
+     * matters for the desktop topology where a reused/launched local instance can
+     * restart and lose its in-memory toolset registration. Default: false (off) —
+     * remote HTTP consumers that never call `connect()` are unaffected.
+     */
+    autoReconnect?: boolean
 }
 
 // ---------------------------------------------------------------------------
