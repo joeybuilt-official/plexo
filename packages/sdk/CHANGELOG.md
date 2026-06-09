@@ -1,5 +1,28 @@
 # @joeybuilt/plexo-sdk — changelog
 
+## 1.5.0 — 2026-06-08 — **`/connect` universal client**
+
+Adds the `@joeybuilt/plexo-sdk/connect` module: a single `PlexoClient`
+(`createPlexoClient`) that lets any app register with Plexo Core and use it
+without hand-rolling HTTP calls.
+
+### Added
+
+- **`createPlexoClient` / `PlexoClient`** — app registration (`register`),
+  per-user workspace provisioning (`ensureWorkspace`), AI completion
+  (`aiComplete`), chat (`chatMessage`), image analysis (`analyzeImage`),
+  OCR, memory (store/search), event publish + dispatch, and an inbound
+  handler (`inbound().handle`) for events and data queries.
+- **Typed surface** — `PlexoClientOptions`, `AppExtension`,
+  `AnalyzeImage*`, `Ocr*`, `Memory*`, `Inbound*`, `Dispatch*`, and related
+  types exported from `@joeybuilt/plexo-sdk/connect`.
+- **Errors** — `PlexoApiError`, `PlexoAuthError`,
+  `PlexoNotConfiguredError`, `PlexoRateLimitedError`,
+  `PlexoUnreachableError`.
+- **Inbound signature verification** — `verifyInboundSignature`.
+
+Additive minor per the 1.4.0 breakage policy — no host migration required.
+
 ## 1.4.0 — 2026-05-23 — **PEX 0.4.0 spec freeze**
 
 This release marks the **freeze of the PEX 0.4.0 manifest surface**. Sprint A′

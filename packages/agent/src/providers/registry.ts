@@ -708,6 +708,39 @@ export class ProviderResolutionError extends Error {
     }
 }
 
+/**
+ * Direct Ollama model factory — bypasses the workspace router. Used by
+ * service-key endpoints that target the local Ollama install
+ * (OLLAMA_INTERNAL_URL) for a specific multimodal model rather than the
+ * workspace's configured provider cascade.
+ *
+ * Returns an AI-SDK language model the caller can pass to `callModel({ model })`.
+ *
+ * Defaults `baseUrl` from OLLAMA_INTERNAL_URL (matches the `case 'ollama'`
+ * branch above), preserving the docker-host rewrite behaviour.
+ */
+export function buildOllamaModel(
+    modelId: string,
+    opts?: { baseUrl?: string },
+): AnyLanguageModel {
+    const base = resolveBaseUrl(
+        (opts?.baseUrl ?? process.env.OLLAMA_INTERNAL_URL ?? 'http://localhost:11434').replace(/\/+$/, ''),
+    )
+    // NOTE: the workspace router's `case 'ollama'` branch auto-upgrades
+    // http://→https:// for non-localhost hosts. That's correct for
+    // user-configured remote Ollama URLs behind reverse proxies, but
+    // WRONG for in-cluster Docker DNS names (e.g. http://ollama:11434).
+    // The unified analyze-image endpoint is always called against the
+    // platform-owned OLLAMA_INTERNAL_URL — never a user-configured remote —
+    // so we skip the upgrade here. If a future caller needs the upgrade,
+    // they should rewrite the env var.
+    const ol = createOpenAICompatible({
+        name: 'ollama',
+        baseURL: base + '/v1',
+    })
+    return ol(modelId)
+}
+
 
 
 // Stale-key and circuit-breaker state used to live here, attached to the
