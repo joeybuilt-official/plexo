@@ -17,6 +17,28 @@ export function isProfileEnforcementEnabled(): boolean {
     return process.env.PROFILE_ENFORCEMENT_ENABLED === 'true'
 }
 
+export type EnforcementMode = 'off' | 'monitor' | 'enforce'
+
+/**
+ * Rollout safety (ADR 0001 §3). Three states:
+ *   - 'off'     — gate disabled (or dev-autogrant): no profile is computed.
+ *   - 'monitor' — gate ON + PROFILE_ENFORCEMENT_MODE=monitor: the effective
+ *                 profile IS computed and tool-loaders LOG what they *would*
+ *                 exclude, but exclude nothing. Zero behavior change — safe to
+ *                 turn on in prod (incl. brand-new workspaces) to gather the real
+ *                 (app×workspace) coverage data before seeding grants.
+ *   - 'enforce' — gate ON (default mode): uncovered connectors/capabilities are
+ *                 actually dropped (default-deny).
+ *
+ * Enabling the gate WITHOUT setting the mode defaults to 'enforce', preserving
+ * the original semantics; monitor is an explicit opt-in for the rollout window.
+ */
+export function getEnforcementMode(): EnforcementMode {
+    if (!isProfileEnforcementEnabled()) return 'off'
+    if (isDevAutogrant()) return 'off'
+    return process.env.PROFILE_ENFORCEMENT_MODE === 'monitor' ? 'monitor' : 'enforce'
+}
+
 /**
  * Dev convenience (pre-mortem #2 fallback): bypass default-deny so local dev
  * isn't blocked before any grant exists. NEVER honored in production.

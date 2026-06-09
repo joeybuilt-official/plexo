@@ -892,9 +892,10 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
         // task and enforcement is on, resolve the granted profile once. null →
         // enforcement does not apply (allow-all). A profile (incl. EMPTY) → filter
         // connections to its allowed registry IDs below.
-        const { resolveEnforcedProfile } = await import('../profile/grant.js')
+        const { resolveEnforcedProfile, getEnforcementMode } = await import('../profile/grant.js')
         const { isConnectorAllowed } = await import('../profile/resolve.js')
         const enforcedProfile = await resolveEnforcedProfile(workspaceId, appId)
+        const enforcementMode = getEnforcementMode()
         // Read workspace settings for read-only mode flag (Phase 9).
         // On any error reading the workspace, default to NOT-read-only so
         // we don't accidentally cripple a workspace that already worked.
@@ -964,8 +965,13 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
             // ID is not in the app's effective profile. enforcedProfile is null
             // when enforcement does not apply.
             if (enforcedProfile && !isConnectorAllowed(enforcedProfile, row.registryId)) {
-                logger.info({ workspaceId, appId, registryId: row.registryId }, 'Connection excluded by app profile')
-                continue
+                if (enforcementMode === 'monitor') {
+                    logger.warn({ event: 'profile.monitor.would_exclude', kind: 'connector', workspaceId, appId, registryId: row.registryId }, 'Profile monitor: connector WOULD be excluded (not enforced)')
+                    // fall through — keep the connection in monitor mode
+                } else {
+                    logger.info({ workspaceId, appId, registryId: row.registryId }, 'Connection excluded by app profile')
+                    continue
+                }
             }
 
             // Skip factory when a bridge extension supersedes it.

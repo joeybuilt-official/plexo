@@ -25,7 +25,7 @@ vi.mock('@plexo/db', () => {
     }
 })
 
-import { resolveEnforcedProfile, loadGrantedProfile } from '../grant.js'
+import { resolveEnforcedProfile, loadGrantedProfile, getEnforcementMode } from '../grant.js'
 
 const WS = 'ws-1'
 const APP = 'fylo'
@@ -35,6 +35,7 @@ const ORIGINAL_ENV = { ...process.env }
 beforeEach(() => {
     grantRows = []
     delete process.env.PROFILE_ENFORCEMENT_ENABLED
+    delete process.env.PROFILE_ENFORCEMENT_MODE
     delete process.env.PLEXO_DEV_AUTOGRANT
     delete process.env.NODE_ENV
 })
@@ -93,6 +94,45 @@ describe('resolveEnforcedProfile — enforcement gate', () => {
     it('enforcing + pending grant → deny-all (not yet approved)', async () => {
         process.env.PROFILE_ENFORCEMENT_ENABLED = 'true'
         grantRows = [{ allowedConnectors: ['github'], capabilities: [], status: 'pending' }]
+        expect(await resolveEnforcedProfile(WS, APP)).toEqual({ connectors: [], capabilities: [] })
+    })
+})
+
+describe('getEnforcementMode — rollout states', () => {
+    it("'off' when the flag is unset (default)", () => {
+        expect(getEnforcementMode()).toBe('off')
+    })
+
+    it("'off' under dev autogrant", () => {
+        process.env.PROFILE_ENFORCEMENT_ENABLED = 'true'
+        process.env.PLEXO_DEV_AUTOGRANT = '1'
+        process.env.NODE_ENV = 'development'
+        expect(getEnforcementMode()).toBe('off')
+    })
+
+    it("'enforce' when the flag is on with no mode set", () => {
+        process.env.PROFILE_ENFORCEMENT_ENABLED = 'true'
+        expect(getEnforcementMode()).toBe('enforce')
+    })
+
+    it("'monitor' when the flag is on and mode=monitor", () => {
+        process.env.PROFILE_ENFORCEMENT_ENABLED = 'true'
+        process.env.PROFILE_ENFORCEMENT_MODE = 'monitor'
+        expect(getEnforcementMode()).toBe('monitor')
+    })
+
+    it("'enforce' for any non-monitor mode value", () => {
+        process.env.PROFILE_ENFORCEMENT_ENABLED = 'true'
+        process.env.PROFILE_ENFORCEMENT_MODE = 'enforce'
+        expect(getEnforcementMode()).toBe('enforce')
+    })
+
+    it('monitor still resolves the real profile (so bridges can compute would-exclude)', async () => {
+        process.env.PROFILE_ENFORCEMENT_ENABLED = 'true'
+        process.env.PROFILE_ENFORCEMENT_MODE = 'monitor'
+        grantRows = []
+        // No grant → deny-all profile is still computed; the bridge decides not to
+        // enforce it in monitor mode.
         expect(await resolveEnforcedProfile(WS, APP)).toEqual({ connectors: [], capabilities: [] })
     })
 })

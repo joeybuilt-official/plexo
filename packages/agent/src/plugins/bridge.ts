@@ -155,9 +155,10 @@ export async function loadPluginTools(workspaceId: string, appId?: string): Prom
 
         // Profile enforcement (ADR 0001 §3): resolve the granted profile once.
         // null → enforcement does not apply (allow-all).
-        const { resolveEnforcedProfile } = await import('../profile/grant.js')
+        const { resolveEnforcedProfile, getEnforcementMode } = await import('../profile/grant.js')
         const { isCapabilityAllowed } = await import('../profile/resolve.js')
         const enforcedProfile = await resolveEnforcedProfile(workspaceId, appId)
+        const enforcementMode = getEnforcementMode()
 
         const wsRows = await db.select({ ownerId: workspaces.ownerId }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
         const workspaceOwnerId = wsRows[0]?.ownerId ?? null
@@ -176,8 +177,13 @@ export async function loadPluginTools(workspaceId: string, appId?: string): Prom
             if (enforcedProfile) {
                 const uncovered = capabilities.filter((cap) => !isCapabilityAllowed(enforcedProfile, cap))
                 if (uncovered.length > 0) {
-                    logger.info({ workspaceId, appId, ext: ext.name, uncovered }, 'Extension excluded by app profile')
-                    continue
+                    if (enforcementMode === 'monitor') {
+                        logger.warn({ event: 'profile.monitor.would_exclude', kind: 'extension', workspaceId, appId, ext: ext.name, uncovered }, 'Profile monitor: extension WOULD be excluded (not enforced)')
+                        // fall through — keep the extension in monitor mode
+                    } else {
+                        logger.info({ workspaceId, appId, ext: ext.name, uncovered }, 'Extension excluded by app profile')
+                        continue
+                    }
                 }
             }
 

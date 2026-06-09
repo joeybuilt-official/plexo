@@ -47,6 +47,7 @@ beforeEach(() => {
     ]
     hoisted.grantRows = []
     delete process.env.PROFILE_ENFORCEMENT_ENABLED
+    delete process.env.PROFILE_ENFORCEMENT_MODE
 })
 
 afterEach(() => { process.env = { ...ORIGINAL_ENV } })
@@ -75,6 +76,16 @@ describe('loadConnectionTools — profile enforcement', () => {
         const keys = Object.keys(tools)
         expect(keys.some(k => k.startsWith('github__'))).toBe(false)
         expect(keys.some(k => k.startsWith('slack__'))).toBe(false)
+    })
+
+    it('monitor mode, no grant → nothing excluded (would-deny logged, both load)', async () => {
+        process.env.PROFILE_ENFORCEMENT_ENABLED = 'true'
+        process.env.PROFILE_ENFORCEMENT_MODE = 'monitor'
+        hoisted.grantRows = []
+        const tools = await loadConnectionTools(WS, undefined, 'fylo')
+        const keys = Object.keys(tools)
+        expect(keys.some(k => k.startsWith('github__'))).toBe(true)
+        expect(keys.some(k => k.startsWith('slack__'))).toBe(true)
     })
 
     it('enforcing but no appId → no enforcement (both load)', async () => {
