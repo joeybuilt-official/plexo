@@ -195,7 +195,10 @@ def _schema_check_node(app: str, label: str, properties: dict | None) -> None:
 #   workspaces run concurrently. This is the change that unblocks backfill
 #   without crippling user chat latency.
 
-_GRAPHITI_INSTANCES: dict[str, Graphiti] = {}
+# Keyed by (graph_workspace_id, inference_workspace_id). The two differ only
+# when a caller writes to its own isolated graph while borrowing another
+# workspace's providers for extraction; otherwise both are the same id.
+_GRAPHITI_INSTANCES: dict[tuple[str, str], Graphiti] = {}
 _WORKSPACE_LOCKS: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
@@ -231,7 +234,7 @@ def _is_read_only_cypher(cypher: str) -> bool:
     return _CYPHER_WRITE_RE.search(_CYPHER_COMMENT_RE.sub(" ", cypher)) is None
 
 
-async def _get_graphiti(workspace_id: str) -> Graphiti:
+async def _get_graphiti(workspace_id: str, inference_workspace_id: str | None = None) -> Graphiti:
     """Resolve (and cache) a per-workspace Graphiti instance.
 
     All workspaces coexist in-process; FalkorDriver targets database=
@@ -241,7 +244,16 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
     MUST be called while holding _ws_lock(workspace_id).
     """
     _validate_workspace_id(workspace_id)
-    cached = _GRAPHITI_INSTANCES.get(workspace_id)
+    # The graph database is keyed by workspace_id, but extraction LLM + embedder
+    # calls route through inference_workspace_id's providers when given — so a
+    # caller can keep its own isolated graph (own DB + own write lock) while
+    # borrowing another workspace's connected providers. Defaults to
+    # workspace_id (unchanged behavior for every existing caller).
+    if inference_workspace_id is not None:
+        _validate_workspace_id(inference_workspace_id)
+    inference_ws = inference_workspace_id or workspace_id
+    cache_key = (workspace_id, inference_ws)
+    cached = _GRAPHITI_INSTANCES.get(cache_key)
     if cached is not None:
         return cached
 
@@ -251,7 +263,7 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
         database=workspace_id,
     )
 
-    ws_base_url = f"{PLEXO_INFERENCE_BASE}/ws/{workspace_id}/v1"
+    ws_base_url = f"{PLEXO_INFERENCE_BASE}/ws/{inference_ws}/v1"
     embedder = OpenAIEmbedder(
         config=OpenAIEmbedderConfig(
             api_key=SERVICE_KEY,
@@ -283,10 +295,10 @@ async def _get_graphiti(workspace_id: str) -> Graphiti:
     # FalkorDriver auto-schedules build_indices_and_constraints in __init__;
     # call again to ensure it ran in our event loop context (idempotent).
     await graphiti.build_indices_and_constraints()
-    _GRAPHITI_INSTANCES[workspace_id] = graphiti
+    _GRAPHITI_INSTANCES[cache_key] = graphiti
     logger.info(
         "graphiti.instance.created",
-        extra={"workspace_id": workspace_id, "backend": "falkordb"},
+        extra={"workspace_id": workspace_id, "inference_workspace_id": inference_ws, "backend": "falkordb"},
     )
     return graphiti
 
@@ -326,6 +338,11 @@ class EpisodeCreate(BaseModel):
     episode_type: str = Field(default="message")  # one of EpisodeType values
     reference_time: str | None = None  # ISO timestamp; defaults to now()
     source_metadata: dict = Field(default_factory=dict)
+    # When set, the graph is written under workspace_id (own DB + own write
+    # lock) but extraction LLM/embedder calls route through this workspace's
+    # providers. Lets an app keep an isolated graph yet reuse another
+    # workspace's connected providers. Defaults to workspace_id.
+    inference_workspace_id: str | None = None
     # Phase F: optional explicit app identity. Defaults to header X-Plexo-App
     # else "plexo" (back-compat for the existing bridge).
     app: str | None = None
@@ -368,7 +385,7 @@ async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
     async with _ws_lock(body.workspace_id):
         lock_wait_ms = _now_monotonic_ms() - lock_wait_start
         write_start = _now_monotonic_ms()
-        graphiti = await _get_graphiti(body.workspace_id)
+        graphiti = await _get_graphiti(body.workspace_id, body.inference_workspace_id)
         result = await graphiti.add_episode(
             name=body.name,
             episode_body=body.content,
