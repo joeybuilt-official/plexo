@@ -13,6 +13,26 @@
  */
 
 import { createHmac } from 'node:crypto'
+import { Agent } from 'undici'
+
+// add_episode runs LLM entity-extraction under a per-workspace write lock in
+// the sidecar, so a single call routinely takes 60–180s and, when the lock is
+// contended, the client must also wait out the queue ahead of it. undici's
+// default `headersTimeout` (300s) aborts those writes — the sidecar sends no
+// response headers until the episode is fully committed — which fails the call
+// for EVERY caller (storeMemory included). Use a dedicated dispatcher with an
+// extended timeout for the episodes write only; cypher/search keep the default.
+const ADD_EPISODE_TIMEOUT_MS = Number(process.env.PLEXO_ADD_EPISODE_TIMEOUT_MS) || 660_000
+let _episodeDispatcher: Agent | null = null
+function episodeDispatcher(): Agent {
+    if (!_episodeDispatcher) {
+        _episodeDispatcher = new Agent({
+            headersTimeout: ADD_EPISODE_TIMEOUT_MS,
+            bodyTimeout: ADD_EPISODE_TIMEOUT_MS,
+        })
+    }
+    return _episodeDispatcher
+}
 
 export interface GraphitiClientConfig {
     baseUrl: string
@@ -144,7 +164,7 @@ export class GraphitiClient {
             reference_time: req.referenceTime,
             source_metadata: req.sourceMetadata ?? {},
         })
-        const raw = await this.postSigned<{ episode_id: string | null; extracted_facts_count: number; extracted_nodes_count: number }>('/v1/episodes', body)
+        const raw = await this.postSigned<{ episode_id: string | null; extracted_facts_count: number; extracted_nodes_count: number }>('/v1/episodes', body, episodeDispatcher())
         if (!raw) return null
         return {
             episodeId: raw.episode_id,
@@ -192,7 +212,7 @@ export class GraphitiClient {
         return this.postSigned<SearchResult>('/v1/search', body)
     }
 
-    private async postSigned<T>(path: string, body: string): Promise<T | null> {
+    private async postSigned<T>(path: string, body: string, dispatcher?: Agent): Promise<T | null> {
         const { sig, ts } = sign(this.serviceKey, body)
         try {
             const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
@@ -204,7 +224,9 @@ export class GraphitiClient {
                     'X-Plexo-Signature': sig,
                 },
                 body,
-            })
+                // undici-only option; ignored by non-undici fetch impls (tests).
+                ...(dispatcher ? { dispatcher } : {}),
+            } as RequestInit)
             if (!res.ok) return null
             return (await res.json()) as T
         } catch {
