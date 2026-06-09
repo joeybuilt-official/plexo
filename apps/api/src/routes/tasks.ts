@@ -136,7 +136,10 @@ tasksRouter.post('/', async (req, res) => {
             workspaceId,
             type: type as Parameters<typeof push>[0]['type'],
             source: source as Parameters<typeof push>[0]['source'],
-            context,
+            // Connection & Profile Standard (ADR 0001 §3): stamp the dispatching app's
+            // identity from the service-key context (anti-spoof: overrides any
+            // client-supplied context.appId). Undefined for session/dashboard callers.
+            context: req.serviceContext?.appId ? { ...context, appId: req.serviceContext.appId } : context,
             priority,
             projectId,
         })
