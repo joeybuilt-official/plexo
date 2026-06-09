@@ -62,7 +62,10 @@ export interface RegisteredTool {
     name: string
     description: string
     parameters?: unknown
-    hints?: { timeoutMs?: number }
+    // The worker forwards the full ToolRegistration.hints (sandbox-worker.ts);
+    // these mirror the SDK ToolRegistration hints. idempotent / hasSideEffects
+    // drive the mid-task reconnect replay policy (ADR 0001 §4 — 4d).
+    hints?: { timeoutMs?: number; estimatedMs?: number; hasSideEffects?: boolean; idempotent?: boolean; requiresEscalation?: boolean }
 }
 
 export interface InvokeResult {
@@ -815,6 +818,16 @@ function cleanupWorker(pluginName: string) {
         for (const unsub of unsubs) unsub()
         _workerSubscriptions.delete(pluginName)
     }
+}
+
+/**
+ * Is a persistent worker currently live (activated + not crashed/terminated)?
+ * Used by the bridge's mid-task reconnect path (ADR 0001 §4 — 4d): a failed
+ * invocation against a no-longer-live worker signals a restart, after which the
+ * toolset is re-registered (via getWorker) and idempotent calls may be replayed.
+ */
+export function isWorkerLive(pluginName: string): boolean {
+    return _workers.has(pluginName)
 }
 
 export function terminateWorker(pluginName: string): void {
