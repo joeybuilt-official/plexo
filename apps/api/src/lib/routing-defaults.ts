@@ -343,3 +343,59 @@ export function computeDefaultChainsForWorkspace(
     }
     return out
 }
+
+// ── Chain reconciliation (self-heal) ─────────────────────────────────────────
+//
+// The seeder only seeds a workspace that has ZERO chains, so a chain seeded
+// early (when fewer providers existed) never picks up providers added later —
+// it goes stale and the router can't reach the newly-available providers. This
+// reconciles a stored chain against the currently-enabled providers WITHOUT
+// discarding operator ordering:
+//   1. Keep stored entries whose provider is still enabled (preserve order).
+//   2. Drop entries whose provider is gone/disabled.
+//   3. Append every enabled provider not yet represented — best-ranked models
+//      first (from the freshly computed default), then any remaining enabled
+//      provider on its selected/first model — as lower-priority fallbacks.
+// Appends only ever go to the END, so the reasoner-never-at-position-0
+// invariant is preserved. Returns null when the result is identical to the
+// input (so the caller can skip a pointless rewrite).
+export interface StoredChainEntry {
+    providerId: string
+    modelId: string
+}
+
+export function reconcileChain(
+    existing: StoredChainEntry[],
+    enabledProviders: EnabledProvider[],
+    computed: DefaultChain,
+): StoredChainEntry[] {
+    const enabledIds = new Set(enabledProviders.filter((p) => p.enabled).map((p) => p.id))
+    const kept: StoredChainEntry[] = existing.filter((e) => enabledIds.has(e.providerId))
+    const seenProviders = new Set(kept.map((e) => e.providerId))
+    const out: StoredChainEntry[] = [...kept]
+
+    // Best-ranked missing providers first (quality).
+    for (const c of computed) {
+        if (!enabledIds.has(c.providerId) || seenProviders.has(c.providerId)) continue
+        out.push({ providerId: c.providerId, modelId: c.modelId })
+        seenProviders.add(c.providerId)
+    }
+    // Then guarantee every remaining enabled provider is reachable (availability).
+    for (const p of enabledProviders) {
+        if (!p.enabled || seenProviders.has(p.id)) continue
+        const model = p.selectedModel ?? p.chatModels[0]
+        if (!model) continue
+        out.push({ providerId: p.id, modelId: model })
+        seenProviders.add(p.id)
+    }
+    return out
+}
+
+/** True when two chains are identical in provider/model and order. */
+export function chainsEqual(a: StoredChainEntry[], b: StoredChainEntry[]): boolean {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+        if (a[i]!.providerId !== b[i]!.providerId || a[i]!.modelId !== b[i]!.modelId) return false
+    }
+    return true
+}

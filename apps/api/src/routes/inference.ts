@@ -100,6 +100,7 @@ function flattenContent(content: OAIMessage['content']): string {
 
 function mapCallModelErrorStatus(code: CallModelError['code']): number {
     switch (code) {
+        case 'CALL_MODEL_RATE_LIMIT': return 429
         case 'CALL_MODEL_PARSE': return 502
         case 'CALL_MODEL_4XX': return 502
         case 'CALL_MODEL_5XX': return 502

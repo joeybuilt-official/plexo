@@ -166,6 +166,7 @@ export interface CallModelObjectResult<T> extends CallModelResultBase {
 export type CallModelErrorCode =
     | 'CALL_MODEL_ABORTED'
     | 'CALL_MODEL_TIMEOUT'
+    | 'CALL_MODEL_RATE_LIMIT'
     | 'CALL_MODEL_4XX'
     | 'CALL_MODEL_5XX'
     | 'CALL_MODEL_PARSE'
@@ -231,6 +232,11 @@ function classifyError(err: unknown, timedOut: boolean): CallModelErrorCode {
     if (timedOut) return 'CALL_MODEL_TIMEOUT'
     if (isAbortError(err)) return 'CALL_MODEL_ABORTED'
     if (isParseError(err)) return 'CALL_MODEL_PARSE'
+    // Rate-limit BEFORE the generic 4xx bucket: a 429 (or a bare "Too Many
+    // Requests" with no parseable status, as managed pools like ollama_cloud
+    // surface) must carry the dedicated code so the router/agent-loop treat it
+    // as transient + fallback-worthy rather than a terminal CALL_MODEL_UNKNOWN.
+    if (isRateLimitError(err)) return 'CALL_MODEL_RATE_LIMIT'
     const status = extractStatus(err)
     if (status !== null) {
         if (status >= 400 && status < 500) return 'CALL_MODEL_4XX'
@@ -240,6 +246,23 @@ function classifyError(err: unknown, timedOut: boolean): CallModelErrorCode {
     const msg = err instanceof Error ? err.message : String(err ?? '')
     if (/ECONNRESET|ENOTFOUND|ETIMEDOUT|socket/i.test(msg)) return 'CALL_MODEL_5XX'
     return 'CALL_MODEL_UNKNOWN'
+}
+
+const RATE_LIMIT_MSG_RE = /rate.?limit|too many requests|\b429\b/i
+
+function isRateLimitError(err: unknown): boolean {
+    if (extractStatus(err) === 429) return true
+    const msg = err instanceof Error ? err.message : String(err ?? '')
+    return RATE_LIMIT_MSG_RE.test(msg)
+}
+
+/** Parse a provider-supplied retry-after hint (seconds or ms) to ms. */
+function retryAfterMs(err: unknown): number | undefined {
+    const msg = err instanceof Error ? err.message : String(err ?? '')
+    const m = msg.match(/retry[- ]after[:\s]*(\d+(?:\.\d+)?)/i)
+    if (!m) return undefined
+    const v = parseFloat(m[1]!)
+    return v < 100 ? v * 1000 : v
 }
 
 function isRetryable(err: unknown): boolean {
@@ -253,15 +276,29 @@ function isRetryable(err: unknown): boolean {
         if (status >= 500) return true
         if (status >= 400) return false
     }
+    // Some managed pools (e.g. ollama_cloud) surface a rate-limit as a bare
+    // "Too Many Requests" Error with NO parseable HTTP status, so extractStatus
+    // returns null above. Catch it by message so a transient 429 is retried in
+    // place instead of falling straight through to terminal failure + a dropped
+    // background extraction episode.
+    if (isRateLimitError(err)) return true
     // Network-layer errors without a status: retry
     const msg = err instanceof Error ? err.message : String(err ?? '')
     if (/ECONNRESET|ENOTFOUND|ETIMEDOUT|socket|fetch failed/i.test(msg)) return true
     return false
 }
 
-function backoffDelayMs(attempt: number): number {
-    // attempt is 1-indexed (1 = first retry). 500ms, then 1500ms.
-    return attempt === 1 ? 500 : 1500
+function backoffDelayMs(attempt: number, err?: unknown): number {
+    // attempt is 1-indexed (1 = first retry). Honor a provider retry-after hint
+    // when given. Otherwise rate-limit errors back off longer than generic
+    // transients. Full jitter (+0..base) de-synchronizes concurrent retries so
+    // they don't re-hammer a shared managed pool in lockstep.
+    const hint = retryAfterMs(err)
+    if (hint !== undefined) return hint + Math.random() * 250
+    const base = isRateLimitError(err)
+        ? (attempt === 1 ? 1000 : 2000)
+        : (attempt === 1 ? 500 : 1500)
+    return base + Math.random() * base
 }
 
 // ── schema_relaxed telemetry ──────────────────────────────────────────
@@ -980,12 +1017,13 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
 
             // Retry path: only on transient errors, and only once.
             if (attempts < 2 && isRetryable(err) && !timedOut) {
+                const delayMs = backoffDelayMs(attempts, err)
                 logger.debug({
                     event: 'call_model.retry',
                     attempts,
-                    delayMs: backoffDelayMs(attempts),
+                    delayMs,
                 }, 'callModel transient failure — retrying')
-                await new Promise(resolve => setTimeout(resolve, backoffDelayMs(attempts)))
+                await new Promise(resolve => setTimeout(resolve, delayMs))
                 continue
             }
 

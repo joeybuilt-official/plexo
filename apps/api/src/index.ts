@@ -172,6 +172,7 @@ import { adminRouter } from './routes/admin.js'
 import { adminTasksRouter } from './routes/admin/tasks.js'
 import ollamaAdminRouter from './routes/ollama-admin.js'
 import { providerInstancesRouter } from './routes/provider-instances.js'
+import { providerAlertsRouter } from './routes/provider-alerts.js'
 import { embeddingsRouter } from './routes/embeddings.js'
 import { intelligenceRouter } from './routes/intelligence.js'
 import { intelligenceDashboardRouter } from './routes/intelligence-dashboard.js'
@@ -410,6 +411,7 @@ v1.use('/federation', federationRouter)
 v1.use('/events', serviceLimiter, nodeEventsRouter)
 v1.use('/workspaces/:id/apps', requireWorkspaceMember('id'), workspaceAppsRouter)
 v1.use('/workspaces/:id/providers', requireWorkspaceMember('id'), providerInstancesRouter)
+v1.use('/workspaces/:id/provider-alerts', requireWorkspaceMember('id'), providerAlertsRouter)
 v1.use('/embeddings', embeddingsRouter)
 v1.use('/intelligence', intelligenceRouter)
 v1.use('/intel-dashboard', intelligenceDashboardRouter)
@@ -671,15 +673,21 @@ const server = app.listen(port, '0.0.0.0', async () => {
     // the seed is gated by ON CONFLICT DO NOTHING on the unique index.
     void (async () => {
         try {
-            const { seedRoutingChainDefaults } = await import('./lib/seed-routing-chains.js')
+            const { seedRoutingChainDefaults, reconcileRoutingChains } = await import('./lib/seed-routing-chains.js')
             const summary = await seedRoutingChainDefaults()
             if (summary.workspacesSeeded > 0) {
                 logger.info(summary, 'Routing chain defaults seeded')
             } else {
                 logger.info(summary, 'Routing chain defaults — nothing to seed')
             }
+            // Self-heal: chains seeded earlier (when fewer providers existed) go
+            // stale — newly-added providers never enter them. Reconcile appends
+            // available providers as fallbacks + prunes disabled ones, preserving
+            // operator ordering. Runs every boot.
+            const recon = await reconcileRoutingChains()
+            logger.info(recon, 'Routing chains reconciled')
         } catch (err) {
-            logger.warn({ err }, 'Routing chain default seeding failed — non-fatal')
+            logger.warn({ err }, 'Routing chain default seeding/reconcile failed — non-fatal')
         }
     })()
 
