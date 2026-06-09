@@ -221,11 +221,18 @@ export function shouldFallbackFromError(err: unknown): boolean {
 
 /**
  * Hard funds-depletion subset of the 'quota' class — the durable "add money to
- * fix" states, distinct from a daily/per-minute rate cap (which resets on its
- * own and classifies as 'rate-limit'). Used to persist a provider as
- * balance-exhausted and surface a site-wide notice, so a dead primary (e.g. an
- * out-of-credit deepseek returning "Insufficient Balance" at HTTP 402) is pulled
- * from the routing chain instead of being re-tried every cooldown cycle.
+ * fix" states only. Triggers a PERSISTENT pull (provider excluded until the
+ * operator dismisses the notice), so the signature must be unambiguous.
+ *
+ * Deliberately NOT matched: a bare `insufficient_quota` token. It is ambiguous —
+ * OpenAI uses it for genuine billing exhaustion, but OpenAI-compatible providers
+ * like Groq reuse the same error envelope for a DAILY token cap (TPD) that
+ * resets on its own. A daily cap must NOT persist-pull (it would exclude a
+ * provider that recovers at the next reset); it falls through to the normal
+ * 'quota'/'rate-limit' cooldown instead. Genuine OpenAI billing exhaustion still
+ * matches here because its message also carries "billing" ("check your plan and
+ * billing details"); deepseek's "Insufficient Balance" and any HTTP 402 match
+ * too. Net: only unambiguous funds depletion gets the durable pull.
  */
 export function isBalanceExhaustedError(err: unknown): boolean {
     if (!(err instanceof Error)) return false
@@ -233,8 +240,6 @@ export function isBalanceExhaustedError(err: unknown): boolean {
     return (
         msg.includes('insufficient balance') ||
         msg.includes('insufficient_balance') ||
-        msg.includes('insufficient_quota') ||
-        msg.includes('insufficient quota') ||
         msg.includes('credit balance') ||
         msg.includes('billing') ||
         msg.includes('402')
