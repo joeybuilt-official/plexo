@@ -18,6 +18,17 @@ export class PlexoUnreachableError extends Error {
     }
 }
 
+export class PlexoProtocolError extends Error {
+    override readonly name = 'PlexoProtocolError'
+    readonly clientVersion: string
+    readonly serverVersion: string
+    constructor(clientVersion: string, serverVersion: string) {
+        super(`PEX contract version mismatch: client ${clientVersion} vs server ${serverVersion} (incompatible major)`)
+        this.clientVersion = clientVersion
+        this.serverVersion = serverVersion
+    }
+}
+
 export class PlexoApiError extends Error {
     override readonly name: string = 'PlexoApiError'
     readonly status: number
