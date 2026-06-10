@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CheckCircle, XCircle, Clock, RefreshCw, Shield } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
+import { authClient } from '@web/lib/auth-client'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
@@ -52,12 +53,12 @@ export default function InvitePage() {
     async function accept() {
         setStatus('accepting')
         try {
-            // Resolve current user — fetch first user as fallback until auth is wired
-            const usersRes = await fetch(`${API_BASE}/api/v1/users`)
-            const usersData = await usersRes.json() as { items: { id: string }[] }
-            const userId = usersData.items?.[0]?.id
+            // Resolve the *authenticated* user from the session — never list-first,
+            // which could bind the invite to the wrong account.
+            const session = await authClient.getSession()
+            const userId = session.data?.user?.id
             if (!userId) {
-                setErrorMsg('No user account found. Please sign in first.')
+                setErrorMsg('Please sign in with the account you want to add to this workspace, then open the invite link again.')
                 setStatus('error')
                 return
             }
