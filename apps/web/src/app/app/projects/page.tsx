@@ -304,7 +304,7 @@ export default function ProjectsPage() {
                     <h1 className="text-2xl font-medium text-text-primary">Projects</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
                         {loading
-                            ? '…'
+                            ? 'Loading…'
                             : `${displayed.length}${displayed.length !== sprints.length ? ` of ${sprints.length}` : ''} project${sprints.length === 1 ? '' : 's'}`}
                     </p>
                 </div>
