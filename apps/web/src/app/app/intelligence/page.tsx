@@ -30,6 +30,7 @@ import {
     useFlow, useHealth, useLogs, useCostSummary,
     type LogEntry,
 } from '@web/lib/intelligence-dashboard-client'
+import { PageError } from '@web/components/ui/page-error'
 
 type TabKey = 'flow' | 'health' | 'logs'
 
@@ -340,7 +341,7 @@ function HealthView({ workspaceId }: { workspaceId: string }) {
 function LogsView({ workspaceId }: { workspaceId: string }) {
     const [taskType, setTaskType] = useState('')
     const [model, setModel] = useState('')
-    const { data, isLoading } = useLogs(workspaceId, {
+    const { data, isLoading, error, mutate } = useLogs(workspaceId, {
         taskType: taskType || undefined,
         model: model || undefined,
         limit: 200,
@@ -373,7 +374,13 @@ function LogsView({ workspaceId }: { workspaceId: string }) {
                     </button>
                 )}
             </div>
-            {isLoading ? (
+            {error ? (
+                <PageError
+                    message="Couldn't load inference logs"
+                    detail="There was a problem reaching the server. Check your connection and try again."
+                    onRetry={() => void mutate()}
+                />
+            ) : isLoading ? (
                 <div className="flex items-center justify-center py-8 text-xs text-text-muted">
                     <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Loading logs…
                 </div>

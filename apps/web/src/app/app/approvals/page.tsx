@@ -131,6 +131,7 @@ export default function ApprovalsPage() {
 
     const [items, setItems] = useState<Approval[]>([])
     const [standingApprovals, setStandingApprovals] = useState<StandingApproval[]>([])
+    const [standingError, setStandingError] = useState(false)
     const [loading, setLoading] = useState(true)
     const [fetchError, setFetchError] = useState<string | null>(null)
     const [acting, setActing] = useState<Record<string, boolean>>({})
@@ -165,13 +166,16 @@ export default function ApprovalsPage() {
 
     const fetchStandingApprovals = useCallback(async () => {
         if (!WS_ID) return
+        setStandingError(false)
         try {
             const res = await fetch(`${API_BASE}/api/v1/standing-approvals?workspaceId=${WS_ID}`)
             if (res.ok) {
                 const data = await res.json() as { items: StandingApproval[] }
                 setStandingApprovals(data.items ?? [])
+            } else {
+                setStandingError(true)
             }
-        } catch { /* optional */ }
+        } catch { setStandingError(true) }
     }, [WS_ID])
 
     useEffect(() => {
@@ -606,6 +610,16 @@ export default function ApprovalsPage() {
             </div>
 
             {/* Standing Approvals (§23) */}
+            {standingError && (
+                <div className="rounded-sm border border-border bg-surface-1/30 p-4">
+                    <p className="text-xs font-medium text-text-secondary mb-3">Standing Approvals</p>
+                    <PageError
+                        message="Couldn't load standing approvals"
+                        detail="There was a problem reaching the server. Check your connection and try again."
+                        onRetry={() => void fetchStandingApprovals()}
+                    />
+                </div>
+            )}
             {standingApprovals.length > 0 && (
                 <div className="rounded-sm border border-border bg-surface-1/30 p-4">
                     <p className="text-xs font-medium text-text-secondary mb-3">Standing Approvals</p>

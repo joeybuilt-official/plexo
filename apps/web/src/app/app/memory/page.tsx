@@ -26,6 +26,7 @@ import { toast } from 'sonner'
 import { useWorkspaceId } from '@web/context/workspace'
 import { ViewModeToggle } from '@web/components/view-mode-toggle'
 import { PlexoAwarenessBadge } from '@web/components/plexo-awareness-badge'
+import { PageError } from '@web/components/ui/page-error'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
@@ -108,6 +109,7 @@ export default function MemoryPage() {
     const [searchQ, setSearchQ] = useState('')
     const [searching, setSearching] = useState(false)
     const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
+    const [searchError, setSearchError] = useState(false)
 
     // ── Browse ────────────────────────────────────────────────────────────────
 
@@ -121,7 +123,7 @@ export default function MemoryPage() {
         return `${API_BASE}/api/v1/memory/entries?${params.toString()}`
     }, [WS_ID, typeFilter, tierFilter])
 
-    const { data: entriesData, isLoading: entriesLoading, mutate: mutateEntries } = useSWR<{ items: MemoryEntry[]; total: number }>(
+    const { data: entriesData, error: entriesError, isLoading: entriesLoading, mutate: mutateEntries } = useSWR<{ items: MemoryEntry[]; total: number }>(
         entriesKey,
         jsonFetcher,
         { dedupingInterval: 30_000, revalidateOnFocus: true, keepPreviousData: true },
@@ -199,13 +201,16 @@ export default function MemoryPage() {
     const handleSearch = async () => {
         if (!searchQ.trim() || !WS_ID) return
         setSearching(true)
+        setSearchError(false)
         try {
             const res = await fetch(`${API_BASE}/api/v1/memory/search?workspaceId=${WS_ID}&q=${encodeURIComponent(searchQ)}&limit=10`)
             if (res.ok) {
                 const data = await res.json() as { results: SearchResult[] }
                 setSearchResults(data.results)
+            } else {
+                setSearchError(true)
             }
-        } catch { /* silent */ }
+        } catch { setSearchError(true) }
         setSearching(false)
     }
 
@@ -367,7 +372,13 @@ export default function MemoryPage() {
                     </div>
 
                     {/* Entry list */}
-                    {loading ? (
+                    {entriesError && !entriesData ? (
+                        <PageError
+                            message="Couldn't load memory"
+                            detail="There was a problem reaching the server. Check your connection and try again."
+                            onRetry={() => void loadEntries()}
+                        />
+                    ) : loading ? (
                         <div className="space-y-3">
                             {Array.from({ length: 5 }).map((_, i) => (
                                 <div key={i} className="h-20 rounded-sm bg-surface-1/40 animate-pulse" />
@@ -487,7 +498,13 @@ export default function MemoryPage() {
                         </button>
                     </form>
 
-                    {searchResults === null ? (
+                    {searchError ? (
+                        <PageError
+                            message="Couldn't run search"
+                            detail="There was a problem reaching the server. Check your connection and try again."
+                            onRetry={() => void handleSearch()}
+                        />
+                    ) : searchResults === null ? (
                         <div className="flex flex-col items-center py-12 text-center">
                             <Search className="h-10 w-10 text-text-muted mb-3" />
                             <p className="text-sm text-text-muted">Search uses vector similarity to find relevant memories</p>

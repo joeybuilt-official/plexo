@@ -16,6 +16,7 @@ import { useWorkspaceId } from '@web/context/workspace'
 import { useListFilter } from '@web/components/list-toolbar'
 import type { FilterDimension } from '@web/components/list-toolbar'
 import { ConfigListLayout } from '@web/components/config-list-layout'
+import { PageError } from '@web/components/ui/page-error'
 
 import type {
     RegistryItem, InstalledConnection, ChannelSummary, LiveTool, LiveToolsResponse,
@@ -48,6 +49,7 @@ function IntegrationsContent() {
     const [installed, setInstalled] = useState<InstalledConnection[]>([])
     const [selected, setSelected] = useState<RegistryItem | null>(null)
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(false)
     const [channels, setChannels] = useState<ChannelSummary[]>([])
     const initialSelectionMade = useRef(false)
 
@@ -102,12 +104,17 @@ function IntegrationsContent() {
 
     const fetchData = useCallback(async () => {
         setLoading(true)
+        setLoadError(false)
         try {
             const [regRes, instRes, chanRes] = await Promise.all([
                 fetch(`${API_BASE}/api/v1/connections/registry`),
                 WS_ID ? fetch(`${API_BASE}/api/v1/connections/installed?workspaceId=${WS_ID}`) : Promise.resolve(null),
                 WS_ID ? fetch(`${API_BASE}/api/v1/channels?workspaceId=${WS_ID}`) : Promise.resolve(null),
             ])
+            if (!regRes.ok) {
+                setLoadError(true)
+                return
+            }
             if (regRes.ok) {
                 const d = await regRes.json() as { items: RegistryItem[] }
                 setRegistry(d.items)
@@ -131,7 +138,7 @@ function IntegrationsContent() {
                 setChannels(d.items ?? [])
             }
         } catch {
-            setError('Failed to load integrations')
+            setLoadError(true)
         } finally {
             setLoading(false)
         }
@@ -617,6 +624,18 @@ function IntegrationsContent() {
             </div>
         </div>
     )
+
+    if (loadError && registry.length === 0) {
+        return (
+            <div className="flex flex-1 flex-col p-6">
+                <PageError
+                    message="Couldn't load connections"
+                    detail="There was a problem reaching the server. Check your connection and try again."
+                    onRetry={() => void fetchData()}
+                />
+            </div>
+        )
+    }
 
     return (
         <>

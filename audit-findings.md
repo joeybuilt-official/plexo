@@ -36,7 +36,9 @@ Evidence: **[live]** `/app/settings/intelligence/scl` → 404.
 
 ## P1 — works but wrong (error handling / states / a11y)
 
-### [P1] Multiple data screens silently swallow fetch failures (no error state, no retry)
+### [P1] ✅ FIXED — Multiple data screens silently swallow fetch failures (no error state, no retry)
+> Fixed: added scoped `PageError` + retry to channels, memory (browse + search), connections (only when registry empty — populated list not blanked), intelligence/logs (scoped to Logs tab), approvals (standing-approvals section). agents/extensions already had a scoped `role="alert"` error block — no change needed. Typecheck exit 0.
+
 Screen/route: channels, memory, memory-search, connections, intelligence/logs, agents/extensions, approvals (standing-approvals sub-fetch)
 Repro: cause the underlying fetch to fail (network drop / API 500). The screen renders blank or stale instead of an actionable error + retry.
 Expected: error state with message + retry (the app already has `components/ui/page-error.tsx` for this).
@@ -74,7 +76,9 @@ Actual:
 Fix approach: add `aria-label`s + `id`/`htmlFor` bindings.
 Evidence: **[static]**.
 
-### [P1] Channels empty state CTA doesn't explain the first step
+### [P1] ⤓ DOWNGRADED (live review) — Channels empty state CTA doesn't explain the first step
+> On reading the actual component, the empty state already has a headline ("No channels yet") + description ("Pair a connector that produces messages to see your threads here.") + the pair CTA. It IS guided. Static finding overstated. No change.
+
 Screen/route: `/app/channels` with zero channels
 Expected: guided empty state explaining how to connect a channel.
 Actual: jumps straight to "Pair your phone" → `/app/connections/gmessages/pair` with no framing of what channels are or why.
