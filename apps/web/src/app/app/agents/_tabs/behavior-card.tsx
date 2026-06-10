@@ -36,7 +36,7 @@ export function SourceBadge({ source }: { source: RuleSource }) {
     return <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wide ${map[source]}`}>{source}</span>
 }
 
-function RuleValueEditor({ val, locked, onChange }: { val: RuleValue; locked: boolean; onChange: (v: RuleValue) => void }) {
+function RuleValueEditor({ val, label, locked, onChange }: { val: RuleValue; label?: string; locked: boolean; onChange: (v: RuleValue) => void }) {
     if (locked) {
         return <span className="text-sm text-text-muted font-mono">{val.type === 'boolean' ? (val.value ? 'enabled' : 'disabled') : String(val.value)}</span>
     }
@@ -45,27 +45,27 @@ function RuleValueEditor({ val, locked, onChange }: { val: RuleValue; locked: bo
             return <Toggle checked={!!val.value} onChange={() => onChange({ ...val, value: !val.value })} />
         case 'number':
             return (
-                <input type="number" value={val.value as number} min={val.min} max={val.max}
+                <input type="number" aria-label={label} value={val.value as number} min={val.min} max={val.max}
                     onChange={e => onChange({ ...val, value: parseFloat(e.target.value) })}
                     className="w-full sm:w-24 min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring"
                 />
             )
         case 'enum':
             return (
-                <select value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
+                <select aria-label={label} value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
                     className="w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring">
                     {(val.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
             )
         case 'string':
             return (
-                <input type="text" value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
+                <input type="text" aria-label={label} value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
                     className="flex-1 w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring"
                 />
             )
         case 'text_block':
             return (
-                <textarea value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })} rows={3}
+                <textarea aria-label={label} value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })} rows={3}
                     className="flex-1 w-full resize-none min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring leading-relaxed"
                 />
             )
@@ -126,7 +126,7 @@ function RuleRow({ rule, onUpdate, onDelete, showSource = false, overriddenBy }:
                 </div>
                 <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
                     <div className="flex-1 sm:flex-initial">
-                        <RuleValueEditor val={localVal} locked={rule.locked} onChange={handleChange} />
+                        <RuleValueEditor val={localVal} label={rule.label} locked={rule.locked} onChange={handleChange} />
                     </div>
                     {needsTextSave && dirty && (
                         <button onClick={() => void handleSave()} disabled={saving}
@@ -175,7 +175,7 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-3">
                 <div className="flex-1">
                     <label className="text-xs text-text-muted mb-1 block">Label</label>
-                    <input type="text" value={label} onChange={e => setLabel(e.target.value)} autoFocus
+                    <input type="text" aria-label="Rule label" value={label} onChange={e => setLabel(e.target.value)} autoFocus
                         placeholder="e.g. Always use TypeScript strict mode"
                         className="w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                     />
@@ -183,7 +183,7 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                 </div>
                 <div>
                     <label className="text-xs text-text-muted mb-1 block">Type</label>
-                    <select value={valueType} onChange={e => setValueType(e.target.value as RuleValue['type'])}
+                    <select aria-label="Rule value type" value={valueType} onChange={e => setValueType(e.target.value as RuleValue['type'])}
                         className="w-full sm:w-auto min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary focus:border-azure focus-ring">
                         <option value="text_block">Text block</option>
                         <option value="string">Short string</option>
@@ -198,12 +198,12 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                     {valueType === 'text_block' ? 'Content' : valueType === 'enum' ? 'Options (comma-separated)' : 'Value'}
                 </label>
                 {valueType === 'text_block' ? (
-                    <textarea rows={3} value={value} onChange={e => setValue(e.target.value)}
+                    <textarea rows={3} aria-label="Rule content" value={value} onChange={e => setValue(e.target.value)}
                         placeholder="Enter the rule content…"
                         className="w-full resize-none min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                     />
                 ) : (
-                    <input type={valueType === 'number' ? 'number' : 'text'} value={value} onChange={e => setValue(e.target.value)}
+                    <input type={valueType === 'number' ? 'number' : 'text'} aria-label={valueType === 'enum' ? 'Rule options' : 'Rule value'} value={value} onChange={e => setValue(e.target.value)}
                         placeholder={valueType === 'enum' ? 'option1, option2, option3' : ''}
                         className="w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                     />
@@ -211,7 +211,7 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
             </div>
             <div>
                 <label className="text-xs text-text-muted mb-1 block">Description (optional)</label>
-                <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+                <input type="text" aria-label="Rule description" value={description} onChange={e => setDescription(e.target.value)}
                     placeholder="What does this rule do?"
                     className="w-full min-h-[44px] rounded-sm border border-border bg-surface-1 px-4 py-2.5 text-[16px] sm:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus-ring"
                 />
