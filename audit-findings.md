@@ -117,19 +117,20 @@ Evidence: **[static]** (sanctioned scale read from `globals.css`).
 
 ### [P2] Four separate modal implementations + four error displays (no shared base)
 Detail: modals (`confirm-dialog`, `update-modal`, `AnalyticsPreviewModal`, `integrations-nudge-modal`) each re-implement backdrop/focus-trap/Escape with divergent chrome (`rounded-sm` vs `rounded`); error displays (`global-error`, `page-error`, `error-fallback`, `session-error-boundary`) diverge — `global-error.tsx` uses bare inline styles, no tokens.
-Fix approach: not a redesign — at minimum align `global-error.tsx` to tokens; longer term consolidate. Flag, don't over-fix.
+Fix approach: not a redesign — longer term consolidate. Flag, don't over-fix.
+> CAUTION (verified): do NOT convert `global-error.tsx` to Tailwind tokens. It replaces the root layout in Next's error boundary, where the app stylesheet may not be loaded — the inline styles are intentional/defensive. The `#888`/`#3b82f6` there are a deliberate self-contained fallback, not a token violation to "fix".
 Evidence: **[static]**.
 
-### [P2] a11y — clickable divs + modal backdrops lack roles; animations lack reduced-motion guards
-Detail: onClick on `<div>`/`<span>` without role/tabindex/keyboard (`approvals:474`, `hub/HubClient:1025`, `artifact-panel:550`, `settings/privacy:126`); modal backdrops without `role="presentation"` (`confirm-dialog:107`, `repo-picker:64,242`, `artifact-panel:545`); `animate-*` + custom keyframes (`globals.css` terminal-cursor/fadeSlideIn, quick-send, dashboard-cards) with no `prefers-reduced-motion`.
-Fix approach: convert interactive divs to buttons or add role+key handlers; add `role="presentation"` to backdrops; wrap animations in `motion-safe:` / a reduced-motion media query.
-Evidence: **[static]**.
+### [P2] ⤓ MOSTLY FALSE-POSITIVE (verified) — a11y clickable divs / reduced-motion
+> **Reduced-motion: already handled.** `globals.css:425` has a global `@media (prefers-reduced-motion: reduce)` block that zeroes animation + transition duration on `*, *::before, *::after`. The static sweep missed it (end of file). No fix needed.
+> **Clickable divs: mostly acceptable.** The flagged `onClick` divs (`approvals:474`, `hub/HubClient:1025`, `artifact-panel:550`, `settings/privacy:126`) are `stopPropagation` content-wrappers inside a clickable parent — not interactive controls themselves, so they don't need role/tabindex. Modal backdrops use the standard click-to-close pattern alongside a real accessible close button + Escape; adding `role="presentation"` is optional polish, not a blocker.
+> Net: no action taken — would be churn on non-issues. Remaining genuine a11y items were the P1 icon-button labels (already fixed).
+Evidence: **[live/source-verified]**.
 
-### [P2] Projects loading state shows a bare "…" placeholder
+### [P2] ✅ FIXED (right-sized) — Projects loading subtitle showed a bare "…"
 Screen/route: `/app/projects`
-Actual: during load the heading area renders literal "…" then content (observed live).
-File(s): `app/app/projects/page.tsx:204`.
-Fix approach: use the existing `PageSkeleton`.
+> On inspection the "…" is only the transient subtitle count (the main list already shows a proper `Loader2` spinner at `:341`), not a missing loading state. Changed the subtitle to "Loading…" — right-sized fix, no skeleton needed.
+File(s): `app/app/projects/page.tsx:307`.
 Evidence: **[live]**.
 
 ### [P2] Routes reachable only by typing the URL (orphaned)
