@@ -69,8 +69,8 @@ File(s): `apps/web/src/components/works/renderers/MockupRenderer.tsx:71`; `HtmlR
 Fix approach: render a disabled state instead of `#` when `blobUrl` is null.
 Evidence: **[static]**.
 
-### [P1] ◑ PARTIALLY FIXED — a11y blockers — unlabeled / unnamed controls
-> Fixed: users invite copy-button now has `aria-label`; integrations-nudge-modal API-key Eye/EyeOff toggle now has `aria-label`+`aria-pressed`. STILL OPEN: `settings/behavior` RuleValueEditor dynamic inputs (`behavior-card.tsx:48-70`) need label bindings — deferred to next batch (more involved, dynamic field set).
+### [P1] ✅ FIXED — a11y blockers — unlabeled / unnamed controls
+> Fixed: users invite copy-button `aria-label`; integrations-nudge-modal Eye/EyeOff toggle `aria-label`+`aria-pressed`; behavior-card RuleValueEditor now takes the rule label and aria-labels every native input/select/textarea, and the add-rule form fields (Label/Type/Content/Value/Description) got aria-labels. Typecheck clean.
 
 Screen/route: behavior settings, users settings, integrations modal
 Repro: navigate with a screen reader / keyboard.
