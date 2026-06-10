@@ -68,11 +68,12 @@ export function MockupRenderer({ work }: WorkRendererProps) {
                 </div>
                 <div className="flex items-center gap-1.5">
                     <a
-                        href={blobUrl ?? '#'}
+                        href={blobUrl ?? undefined}
+                        aria-disabled={!blobUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-md px-2.5 py-1 text-[11px] font-medium text-text-muted hover:text-text-primary flex items-center gap-1.5"
-                        title="Open mockup in a new tab"
+                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium text-text-muted hover:text-text-primary flex items-center gap-1.5 ${blobUrl ? '' : 'pointer-events-none opacity-40'}`}
+                        title={blobUrl ? 'Open mockup in a new tab' : 'Preview not available'}
                     >
                         <ExternalLink className="h-3 w-3" />
                         Open in new tab

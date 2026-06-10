@@ -190,7 +190,7 @@ function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: (
                     </p>
                     <div className="flex items-center gap-2 rounded-sm border border-border bg-canvas pl-3">
                         <span className="flex-1 truncate font-mono text-[16px] md:text-sm text-text-secondary">{invite.inviteUrl}</span>
-                        <button onClick={copyLink} className="shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] text-text-muted hover:text-text-secondary transition-colors">
+                        <button onClick={copyLink} aria-label={copied ? 'Invite link copied' : 'Copy invite link'} className="shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] text-text-muted hover:text-text-secondary transition-colors">
                             {copied ? <Check className="h-4 w-4 text-azure" /> : <Copy className="h-4 w-4" />}
                         </button>
                     </div>
