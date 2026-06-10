@@ -29,7 +29,17 @@ Known stubs to verify live: subscription Stripe portal "coming soon"; scheduling
 - [x] /workspace/plexo/audit-findings.md written (P0–P3)
 - [ ] Operator approval — HARD STOP (here now)
 
-## Phase 3 — Fix (post-approval)
-- [ ] Fixes applied in severity order, verified in running app
-- [ ] Findings-doc status updated per issue
-- [ ] Ship Gate green before any push
+## Phase 3 — Fix — ALL P0 + ALL P1 DONE (branch ui-audit-fixes, 5 commits, NOT pushed)
+- [x] P0 #1 dead /app/audit links removed (9f6e501)
+- [x] P0 #2 SCL flow-step repointed (9f6e501)
+- [x] P1 silent fetch-failure → PageError+retry: channels/memory/memory-search/connections/intelligence-logs/approvals; agents/extensions already scoped (47f27fb)
+- [x] P1 invite first-user fallback → authClient.getSession() (b8f2725) — NEEDS live invite smoke
+- [x] P1 inert href="#" → disabled on null blobUrl (b73d738)
+- [x] P1 a11y aria-labels: users copy, integrations Eye, behavior-card all inputs (b73d738, db75d7e)
+- [~] P1 channels empty-state CTA → DOWNGRADED (already guided; no change)
+- [ ] P2 batch — NON-gated: hex/spacing token swaps, projects "…" skeleton, clickable-div roles, reduced-motion guards, modal/error dedup (global-error tokens), orphan routes. GATED: terminology (Work vs Task + Tasks/Works split), coming-soon stubs/Stripe scope
+- [ ] P3 batch (generic error copy, landing font sizes, badge radius, handshake TODO, optimistic-UI note)
+- [ ] Lens 6 responsive: stand up Playwright 360/768 mobile harness, then audit
+- [ ] Ship Gate full build+test before any push; deploy operator-gated
+- NOTE: live-verify blocked — deployed app is OLD build; in-app verification of fixes needs a (gated) deploy. Per-commit typecheck = exit 0 throughout.
+- DECISIONS OPEN: terminology noun; Tasks vs Works nav (merge?); Stripe scope; dedicated SCL settings page y/n
