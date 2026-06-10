@@ -96,12 +96,19 @@ Evidence: **[static]**.
 
 ## P2 — inconsistency / confusion / polish
 
-### [P2] "Task" vs "Work" vs "Works" — terminology + two competing nav items
+### [P2] ✅ RESOLVED (no change) — "Task" vs "Work" terminology
+> Operator clarified the model: a **Work is the output** of a Task/Project; **Task/Project is the unit** that produces Works. So "Send Task" on the composer and the *separate* Tasks vs Works nav items are both CORRECT — they're genuinely different concepts, not an inconsistency. Original flag was a false alarm. No rename. (Operator open to future renaming, but the current model is coherent — not churning it now.)
+
+<details><summary>original finding (kept for record)</summary>
+
+#### "Task" vs "Work" vs "Works" — terminology + two competing nav items
 Screen/route: global (sidebar, home composer, projects, chat)
 Detail: The product's canonical vocabulary (landing page + sidebar section) is **WORK**, but the UI mixes "task": composer placeholder "Message your agent to start a **task**…", send button "Send **Task**", while aria-labels say "Open **work** detail page" and the empty state says "No **work** yet". Separately, the sidebar exposes **both** "Tasks" (`/app/tasks`) and "Works" (`/app/works`) as distinct nav items with no clear distinction — a real mental-model ambiguity.
 File(s): `components/layout/sidebar.tsx:85-86`; `app/_components/quick-send.tsx:347`; `app/chat/_components/message-bubble.tsx:370`; `app/projects/[id]/page.tsx:785`.
 Fix approach: pick one user-facing noun (canonical = "Work"/"Task" — operator's call) and apply consistently; clarify or merge the Tasks vs Works nav split. **Naming decision — confirm with operator.**
 Evidence: **[live]** composer/sidebar observed; **[static]** call sites.
+
+</details>
 
 ### [P2] "Coming soon" stubs shipped to users
 Screen/route: subscription, scheduling, embed
