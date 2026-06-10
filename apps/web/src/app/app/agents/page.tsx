@@ -1095,18 +1095,9 @@ function AgentCard({ agent, onToggle }: { agent: Extension; onToggle: (id: strin
 
                     {/* Phase 7 — Audit preview */}
                     <div className="rounded-sm border border-border/60 bg-surface-2/30 p-3 flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <History className="h-3.5 w-3.5 text-text-muted" />
-                                <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted">Recent activity</p>
-                            </div>
-                            <a
-                                href={`/app/audit?extensionId=${encodeURIComponent(agent.name)}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-[11px] text-azure hover:underline"
-                            >
-                                View all
-                            </a>
+                        <div className="flex items-center gap-2">
+                            <History className="h-3.5 w-3.5 text-text-muted" />
+                            <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted">Recent activity</p>
                         </div>
                         {auditLoading ? (
                             <div className="flex items-center gap-1.5 py-1 text-[11px] text-text-muted">

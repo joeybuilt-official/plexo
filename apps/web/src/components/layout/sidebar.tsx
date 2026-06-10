@@ -161,7 +161,6 @@ function sectionForPath(pathname: string): SectionId | null {
     ) return 'system'
     if (pathname === '/app/scheduling' || pathname.startsWith('/app/scheduling/')) return 'system'
     if (pathname === '/app/cron' || pathname.startsWith('/app/cron/')) return 'system'
-    if (pathname === '/app/audit' || pathname.startsWith('/app/audit/')) return 'system'
     if (pathname === '/app/logs' || pathname.startsWith('/app/logs/')) return 'system'
     if (pathname === '/app/intelligence' || pathname.startsWith('/app/intelligence/')) return 'system'
     if (pathname === '/app/debug' || pathname.startsWith('/app/debug/')) return 'system'

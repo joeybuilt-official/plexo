@@ -20,7 +20,6 @@ import {
     Store,
     Clock,
     Settings,
-    ScrollText,
     Search,
     ArrowRight,
     Plus,
@@ -70,8 +69,7 @@ const DESTINATIONS: PaletteItem[] = [
     // System
     { id: 'settings', label: 'Settings', section: 'Navigate', href: '/app/settings', icon: Settings },
     { id: 'federation', label: 'Federation', section: 'Navigate', href: '/app/settings/federation', icon: Network, keywords: ['peer', 'nodes', 'cluster'] },
-    { id: 'logs', label: 'Logs', section: 'Navigate', href: '/app/logs', icon: FileText, keywords: ['task', 'execution', 'history'] },
-    { id: 'audit', label: 'Audit', section: 'Navigate', href: '/app/audit', icon: ScrollText, keywords: ['trail', 'history'] },
+    { id: 'logs', label: 'Logs', section: 'Navigate', href: '/app/logs', icon: FileText, keywords: ['task', 'execution', 'history', 'audit', 'trail'] },
     { id: 'debug', label: 'Debug', section: 'Navigate', href: '/app/debug', icon: Bug, keywords: ['diagnostics', 'health', 'system'] },
 
     // Actions
