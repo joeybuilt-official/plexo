@@ -20,6 +20,7 @@ import Link from 'next/link'
 import { AlertTriangle, ChevronRight, Loader2, MessageSquare } from 'lucide-react'
 import { useWorkspaceId } from '@web/context/workspace'
 import { EmptyState } from '@web/components/ui/empty-state'
+import { PageError } from '@web/components/ui/page-error'
 import { API_BASE } from '@web/app/app/connections/_components/types'
 
 type ConnectionState = 'paired' | 'active' | 'refreshing' | 'expired' | 'revoked' | 'errored' | null
@@ -39,17 +40,24 @@ export default function ChannelsListPage() {
     const workspaceId = useWorkspaceId()
     const [items, setItems] = useState<ChannelRow[]>([])
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(false)
 
     const load = useCallback(async () => {
         if (!workspaceId) return
         setLoading(true)
+        setError(false)
         try {
             const res = await fetch(`${API_BASE}/api/v1/channels?workspaceId=${encodeURIComponent(workspaceId)}`, {
                 credentials: 'include',
             })
-            if (!res.ok) return
+            if (!res.ok) {
+                setError(true)
+                return
+            }
             const data = await res.json() as { items: ChannelRow[] }
             setItems(data.items ?? [])
+        } catch {
+            setError(true)
         } finally {
             setLoading(false)
         }
@@ -61,6 +69,18 @@ export default function ChannelsListPage() {
         return (
             <div className="flex flex-1 items-center justify-center p-6">
                 <Loader2 className="h-6 w-6 animate-spin text-text-muted" />
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-1 flex-col p-6">
+                <PageError
+                    message="Couldn't load channels"
+                    detail="There was a problem reaching the server. Check your connection and try again."
+                    onRetry={() => void load()}
+                />
             </div>
         )
     }
