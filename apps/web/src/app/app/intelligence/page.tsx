@@ -231,7 +231,7 @@ function FlowView({ workspaceId }: { workspaceId: string }) {
                     title="SCL"
                     primary="Enabled"
                     secondary={`Drift threshold ${data.scl.driftThreshold.toFixed(2)}`}
-                    href="/app/settings/intelligence/scl"
+                    href="/app/settings/intelligence"
                 />
                 <FlowStep
                     icon={Network}
