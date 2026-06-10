@@ -157,8 +157,13 @@ Evidence: **[static]**.
 
 ---
 
+## Lens 6 — Responsive ✅ DONE (Playwright, 2026-06-09) — PASS
+Ran Playwright headless (`/tmp/ff-pw/plexo-responsive.mjs`) against live app.getplexo.com, authed, 15 key routes × {360px, 768px}:
+- **0/30 routes had horizontal overflow** (scrollWidth > clientWidth). No clipping/overlap pushing content off-screen.
+- 360px home render confirmed: nav collapses to a hamburger menu; banners, consent modal, and cookie banner are responsive; data routes (tasks/logs/projects/settings) showed no overflow → tables/wide content have a working mobile strategy.
+- No responsive defects found. (Consent/cookie banners were NOT accepted — left to the user.)
+
 ## Deferred / needs follow-up before this audit is fully complete
-1. **Responsive lens (lens 6)** — not executed at true mobile widths (webtop Chrome won't reflow). Needs the Playwright 360/768 mobile-emulation harness. Recommend running before sign-off.
 2. **Live reproduction** of the P1 [static] items (silent fetch failures, invite first-user fallback, blob `href="#"`) — confirm in-app before fixing roots.
 3. **Setup/onboarding circular redirect** (`/setup` ↔ `/app/home`) — flow agent flagged; needs a fresh-account walk to confirm (prod account is already onboarded).
 
