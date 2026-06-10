@@ -47,7 +47,9 @@ File(s): `app/app/channels/page.tsx:50`; `app/app/memory/page.tsx:124` + search 
 Fix approach: add an error branch rendering `<PageError onRetry=…>` where each already tracks an error but doesn't surface it.
 Evidence: **[static]**.
 
-### [P1] Invite acceptance resolves "current user" by picking the first API user
+### [P1] ✅ FIXED (needs live smoke) — Invite acceptance resolves "current user" by picking the first API user
+> Fixed: now resolves the accepting user via `authClient.getSession()` (same pattern as account-client) instead of `/api/v1/users`→`items[0]`. Unauthenticated users get a "sign in first" message. NEEDS a live invite-flow smoke before sign-off (couldn't generate an invite during audit).
+
 Screen/route: `/invite/[token]`
 Repro: accept an invite while the user-resolution path falls through.
 Expected: bind the invite to the authenticated session user.
