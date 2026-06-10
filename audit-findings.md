@@ -56,7 +56,9 @@ File(s): `apps/web/src/app/invite/[token]/page.tsx` (user-lookup fallback).
 Fix approach: resolve the accepting user from the session (better-auth) rather than list-first. **Verify live before fixing** (single-user prod may mask it).
 Evidence: **[static]** — not reproduced live.
 
-### [P1] Inert `href="#"` links when a blob URL fails to generate
+### [P1] ✅ FIXED — Inert `href="#"` links when a blob URL fails to generate
+> Fixed: `href={blobUrl ?? undefined}` + `aria-disabled` + `pointer-events-none opacity-40` when no blob (MockupRenderer, HtmlRenderer). A missing blob now renders a visibly-disabled control instead of a dead "#" that scrolls to top.
+
 Screen/route: Work renderers (mockup / HTML output)
 Repro: open a Work whose blob URL generation returns null.
 Expected: download/open control is disabled or shows an error.
@@ -65,7 +67,9 @@ File(s): `apps/web/src/components/works/renderers/MockupRenderer.tsx:71`; `HtmlR
 Fix approach: render a disabled state instead of `#` when `blobUrl` is null.
 Evidence: **[static]**.
 
-### [P1] a11y blockers — unlabeled / unnamed controls
+### [P1] ◑ PARTIALLY FIXED — a11y blockers — unlabeled / unnamed controls
+> Fixed: users invite copy-button now has `aria-label`; integrations-nudge-modal API-key Eye/EyeOff toggle now has `aria-label`+`aria-pressed`. STILL OPEN: `settings/behavior` RuleValueEditor dynamic inputs (`behavior-card.tsx:48-70`) need label bindings — deferred to next batch (more involved, dynamic field set).
+
 Screen/route: behavior settings, users settings, integrations modal
 Repro: navigate with a screen reader / keyboard.
 Expected: every input has an accessible name; icon-only buttons have `aria-label`.

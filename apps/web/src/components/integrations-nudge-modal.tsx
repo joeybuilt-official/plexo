@@ -110,6 +110,8 @@ function IntegrationCard({
                     <button
                         type="button"
                         onClick={() => setShowKey(v => !v)}
+                        aria-label={showKey ? 'Hide API key' : 'Show API key'}
+                        aria-pressed={showKey}
                         className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-text-muted hover:text-text-secondary"
                         tabIndex={-1}
                     >
