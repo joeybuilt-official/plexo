@@ -41,6 +41,11 @@ Known stubs to verify live: subscription Stripe portal "coming soon"; scheduling
 - [~] P2 REMAINING = not-worth-churning or gated: hex swaps in ChartRenderer(#3b82f6 series color)/code-renderers(#0d0d0d intentional dark)/spacing micro-nudges = intentional, leave. modal/error dedup = refactor, out of "not a redesign" scope. orphan routes = need operator intent. GATED: terminology, Stripe stubs.
 - [~] P3 = intentional/marginal (badge radius valid, landing fonts intentional, handshake TODO=feature stub, no-optimistic-UI=design choice). Only maybe: cause line on generic error boundaries — low value.
 - [ ] Lens 6 responsive: stand up Playwright 360/768 mobile harness, then audit — REAL remaining COVERAGE gap, needs fresh context budget
-- [x] Ship Gate: typecheck exit 0 every commit + full `@plexo/web build` exit 0 (68 routes). Push/deploy operator-gated (not done).
+- [x] Ship Gate: typecheck exit 0 every commit + full `@plexo/web build` exit 0 (68 routes).
+- [x] MERGED to main (ff, 24cc98e) + PUSHED to origin (public joeybuilt-official/plexo) — operator authorized.
+- [x] DEPLOYED + LIVE-VERIFIED on app.getplexo.com: P0#2 SCL link now /app/settings/intelligence (DOM confirmed, no /scl); P0#1 no /app/audit href anywhere in DOM. App home + getplexo.com both healthy.
+  - DEPLOY GOTCHA (cost me a wrong rebuild): app.getplexo.com = `plexo-saas` (compose /data/appdata/appdata, `docker compose build plexo-saas && docker compose up -d --no-deps plexo-saas`). `plexo-web` is RETIRED (I rebuilt+recreated it by mistake — harmless, same patched code; it's an orphan, operator may stop it). Already in memory [[reference_plexo_deploy_migrations]] L30 — CHECK MEMORY BEFORE DEPLOY.
+  - Version label still shows de0c7f8 (cosmetic — git HEAD on the prod-snapshot tree unchanged; overlay deploy).
+- [ ] Lens 6 responsive — STILL the one real coverage gap; use the existing Playwright E2E system at mobile viewports (next session).
 - NOTE: live-verify blocked — deployed app is OLD build; in-app verification of fixes needs a (gated) deploy. Per-commit typecheck = exit 0 throughout.
 - DECISIONS OPEN: terminology noun; Tasks vs Works nav (merge?); Stripe scope; dedicated SCL settings page y/n
