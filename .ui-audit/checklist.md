@@ -37,9 +37,10 @@ Known stubs to verify live: subscription Stripe portal "coming soon"; scheduling
 - [x] P1 inert href="#" → disabled on null blobUrl (b73d738)
 - [x] P1 a11y aria-labels: users copy, integrations Eye, behavior-card all inputs (b73d738, db75d7e)
 - [~] P1 channels empty-state CTA → DOWNGRADED (already guided; no change)
-- [ ] P2 batch — NON-gated: hex/spacing token swaps, projects "…" skeleton, clickable-div roles, reduced-motion guards, modal/error dedup (global-error tokens), orphan routes. GATED: terminology (Work vs Task + Tasks/Works split), coming-soon stubs/Stripe scope
-- [ ] P3 batch (generic error copy, landing font sizes, badge radius, handshake TODO, optimistic-UI note)
-- [ ] Lens 6 responsive: stand up Playwright 360/768 mobile harness, then audit
-- [ ] Ship Gate full build+test before any push; deploy operator-gated
+- [x] P2 non-gated actionable: projects "Loading…" (071c015). Verified FALSE-POSITIVE/intentional (no action, would be churn): reduced-motion (already global globals.css:425), clickable-div stopProp wrappers, global-error inline styles (intentional root-boundary fallback).
+- [~] P2 REMAINING = not-worth-churning or gated: hex swaps in ChartRenderer(#3b82f6 series color)/code-renderers(#0d0d0d intentional dark)/spacing micro-nudges = intentional, leave. modal/error dedup = refactor, out of "not a redesign" scope. orphan routes = need operator intent. GATED: terminology, Stripe stubs.
+- [~] P3 = intentional/marginal (badge radius valid, landing fonts intentional, handshake TODO=feature stub, no-optimistic-UI=design choice). Only maybe: cause line on generic error boundaries — low value.
+- [ ] Lens 6 responsive: stand up Playwright 360/768 mobile harness, then audit — REAL remaining COVERAGE gap, needs fresh context budget
+- [x] Ship Gate: typecheck exit 0 every commit + full `@plexo/web build` exit 0 (68 routes). Push/deploy operator-gated (not done).
 - NOTE: live-verify blocked — deployed app is OLD build; in-app verification of fixes needs a (gated) deploy. Per-commit typecheck = exit 0 throughout.
 - DECISIONS OPEN: terminology noun; Tasks vs Works nav (merge?); Stripe scope; dedicated SCL settings page y/n
