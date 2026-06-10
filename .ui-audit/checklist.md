@@ -46,6 +46,7 @@ Known stubs to verify live: subscription Stripe portal "coming soon"; scheduling
 - [x] DEPLOYED + LIVE-VERIFIED on app.getplexo.com: P0#2 SCL link now /app/settings/intelligence (DOM confirmed, no /scl); P0#1 no /app/audit href anywhere in DOM. App home + getplexo.com both healthy.
   - DEPLOY GOTCHA (cost me a wrong rebuild): app.getplexo.com = `plexo-saas` (compose /srv/plexo, `docker compose build plexo-saas && docker compose up -d --no-deps plexo-saas`). `plexo-web` is RETIRED (I rebuilt+recreated it by mistake — harmless, same patched code; it's an orphan, operator may stop it). Already in memory [[reference_plexo_deploy_migrations]] L30 — CHECK MEMORY BEFORE DEPLOY.
   - Version label still shows de0c7f8 (cosmetic — git HEAD on the prod-snapshot tree unchanged; overlay deploy).
-- [ ] Lens 6 responsive — STILL the one real coverage gap; use the existing Playwright E2E system at mobile viewports (next session).
+- [x] Lens 6 responsive — DONE via Playwright (/tmp/ff-pw/plexo-responsive.mjs), authed, 15 routes × 360/768: 0/30 horizontal overflow; hamburger nav + responsive modals confirmed. PASS, no defects.
+- [x] plexo-web / marketing site RESTORED (was clobbered by my wrong rebuild): re-tagged plexo-web:latest → plexo-marketing image 58a3ad852d86 + recreated; getplexo.com marketing verified live. Memory updated [[reference_plexo_deploy_migrations]].
 - NOTE: live-verify blocked — deployed app is OLD build; in-app verification of fixes needs a (gated) deploy. Per-commit typecheck = exit 0 throughout.
 - DECISIONS OPEN: terminology noun; Tasks vs Works nav (merge?); Stripe scope; dedicated SCL settings page y/n
