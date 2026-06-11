@@ -56,6 +56,7 @@ from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
 from graphiti_core.llm_client.config import LLMConfig
 from graphiti_core.nodes import EntityNode, EpisodeType
+from graphiti_core.errors import NodeNotFoundError
 
 # Escape hyphenated-UUID group_ids in the vendored graphiti-core RediSearch
 # fulltext query (graphiti-core==0.29.0). Without this, /v1/search 500s on every
@@ -426,6 +427,45 @@ async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
             "extracted_nodes_count": len(nodes),
         }
     )
+
+
+# ---------- /v1/episodes/delete ----------
+
+class EpisodeDelete(BaseModel):
+    workspace_id: str
+    episode_id: str
+
+
+@app.post("/v1/episodes/delete")
+async def delete_episode(request: Request, body: EpisodeDelete) -> JSONResponse:
+    """Remove an episode (and the nodes/edges it solely supports) via
+    graphiti-core's remove_episode. Idempotent: a missing episode returns
+    ok with removed=false rather than an error, so a caller cascading a
+    note/bookmark delete needn't care whether the episode still exists."""
+    await _require_hmac(request)
+    _validate_workspace_id(body.workspace_id)
+    if not body.episode_id or not body.episode_id.strip():
+        raise HTTPException(status_code=400, detail="episode_id must be a non-empty string")
+    lock_wait_start = _now_monotonic_ms()
+    async with _ws_lock(body.workspace_id):
+        lock_wait_ms = _now_monotonic_ms() - lock_wait_start
+        write_start = _now_monotonic_ms()
+        graphiti = await _get_graphiti(body.workspace_id)
+        try:
+            await graphiti.remove_episode(body.episode_id)
+            removed = True
+        except NodeNotFoundError:
+            removed = False
+        write_ms = _now_monotonic_ms() - write_start
+    _emit_write_telemetry(
+        request=request,
+        workspace_id=body.workspace_id,
+        endpoint="/v1/episodes/delete",
+        lock_wait_ms=lock_wait_ms,
+        write_ms=write_ms,
+        result_size=0,
+    )
+    return JSONResponse({"ok": True, "removed": removed})
 
 
 # ---------- /v1/search ----------

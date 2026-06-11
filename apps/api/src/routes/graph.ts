@@ -114,6 +114,35 @@ router.post('/episodes', async (req, res) => {
     })
 })
 
+interface RemoveEpisodeBody {
+    workspaceId?: string
+    episodeId?: string
+}
+
+router.post('/episodes/delete', async (req, res) => {
+    const body = req.body as RemoveEpisodeBody | undefined
+    if (!body || typeof body.workspaceId !== 'string' || !UUID_RE.test(body.workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE_ID', message: 'workspaceId must be a UUID' } })
+        return
+    }
+    if (typeof body.episodeId !== 'string' || body.episodeId.trim().length === 0) {
+        res.status(400).json({ error: { code: 'INVALID_EPISODE_ID', message: 'episodeId must be a non-empty string' } })
+        return
+    }
+    const client = getClient()
+    if (!client) {
+        res.status(503).json({ error: { code: 'BRIDGE_UNCONFIGURED', message: 'graphiti sidecar URL or service key not set' } })
+        return
+    }
+    const ok = await client.removeEpisode({ workspaceId: body.workspaceId, episodeId: body.episodeId })
+    if (!ok) {
+        logger.warn({ workspaceId: body.workspaceId }, 'graph.episodes.delete: bridge returned false')
+        res.status(502).json({ error: { code: 'BRIDGE_ERROR', message: 'graphiti remove_episode failed' } })
+        return
+    }
+    res.json({ ok: true })
+})
+
 router.get('/facts/search', async (req, res) => {
     const workspaceId = req.query.workspaceId
     const query = req.query.q

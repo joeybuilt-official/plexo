@@ -76,6 +76,12 @@ export interface AddEpisodeResult {
     extractedNodesCount: number
 }
 
+export interface RemoveEpisodeRequest {
+    workspaceId: string
+    /** Episode UUID returned by addEpisode (Episodic node uuid). */
+    episodeId: string
+}
+
 export interface SearchRequest {
     workspaceId: string
     query: string
@@ -179,6 +185,22 @@ export class GraphitiClient {
             extractedFactsCount: raw.extracted_facts_count,
             extractedNodesCount: raw.extracted_nodes_count,
         }
+    }
+
+    /**
+     * Remove an episode (and the nodes/edges it solely supports) via the
+     * sidecar's Graphiti.remove_episode wrapper. Idempotent — the sidecar
+     * returns ok for a missing episode. Resolves true on a 2xx ack, false
+     * on any sidecar/transport failure so the caller can leave its ingestion
+     * bookkeeping in place for a later retry.
+     */
+    async removeEpisode(req: RemoveEpisodeRequest): Promise<boolean> {
+        const body = JSON.stringify({
+            workspace_id: req.workspaceId,
+            episode_id: req.episodeId,
+        })
+        const raw = await this.postSigned<{ ok: boolean; removed: boolean }>('/v1/episodes/delete', body)
+        return raw?.ok === true
     }
 
     /**
