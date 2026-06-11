@@ -20,7 +20,7 @@ Fix approach: remove the dead command-palette entry + the agents-page audit link
 Evidence: **[live]** `/app/audit` → 404.
 
 ### [P0] ✅ FIXED (interim) — Intelligence dashboard links to a 404 (SCL settings)
-> Fixed by pointing the SCL FlowStep to `/app/settings/intelligence` (matches sibling Embeddings/Router FlowSteps). Open Q remains: if a dedicated SCL settings page is wanted, that's separate net-new work.
+> Fixed by pointing the SCL FlowStep to `/app/settings/intelligence` (matches sibling Embeddings/Router FlowSteps). **Decision resolved 2026-06-09: operator wants NO dedicated SCL page — already the live state (the `/scl` route never existed; nothing to delete). SCL step links to the hub like its siblings.**
 
 Screen/route: `/app/intelligence` → "SCL" / domain-reasoning link
 Repro: from the intelligence dashboard, follow the link to `/app/settings/intelligence/scl`.
@@ -170,6 +170,6 @@ Ran Playwright headless (`/tmp/ff-pw/plexo-responsive.mjs`) against live app.get
 ---
 
 ## Open decisions for operator (do not self-resolve)
-- P0 SCL link: what is the correct target for `/app/settings/intelligence/scl`? (fix target vs remove link)
-- P2 terminology: canonical user-facing noun — "Work" or "Task"? And: are Tasks and Works genuinely different concepts, or should the nav be merged?
-- P2 subscription Stripe: in-scope to wire, or leave stubbed?
+- ✅ RESOLVED — P0 SCL link: no dedicated SCL page; link points to intelligence hub (operator 2026-06-09).
+- ✅ RESOLVED — P2 terminology: Work = output, Task/Project = unit; both nav items correct, no rename (operator 2026-06-09).
+- ⬜ OPEN — P2 subscription Stripe: in-scope to wire, or leave stubbed?
