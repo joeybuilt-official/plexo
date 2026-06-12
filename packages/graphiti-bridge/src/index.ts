@@ -68,6 +68,13 @@ export interface AddEpisodeRequest {
      * connected providers. Defaults server-side to `workspaceId`.
      */
     inferenceWorkspaceId?: string
+    /**
+     * Optional custom entity taxonomy. Forwarded to graphiti's `add_episode`
+     * so extracted entities are classified into these types (each adds a node
+     * label) rather than left as the bare generic `Entity` (P9c). Omit to keep
+     * graphiti's default untyped extraction.
+     */
+    entityTypes?: Array<{ name: string; description: string }>
 }
 
 export interface AddEpisodeResult {
@@ -177,6 +184,7 @@ export class GraphitiClient {
             reference_time: req.referenceTime,
             source_metadata: req.sourceMetadata ?? {},
             ...(req.inferenceWorkspaceId ? { inference_workspace_id: req.inferenceWorkspaceId } : {}),
+            ...(req.entityTypes && req.entityTypes.length > 0 ? { entity_types: req.entityTypes } : {}),
         })
         const raw = await this.postSigned<{ episode_id: string | null; extracted_facts_count: number; extracted_nodes_count: number }>('/v1/episodes', body, episodeDispatcher())
         if (!raw) return null

@@ -347,6 +347,37 @@ class EpisodeCreate(BaseModel):
     # Phase F: optional explicit app identity. Defaults to header X-Plexo-App
     # else "plexo" (back-compat for the existing bridge).
     app: str | None = None
+    # P9c: optional custom entity taxonomy. Each {name, description} becomes a
+    # graphiti entity type so extracted nodes are typed (the type name is added
+    # as a node label) instead of bare `Entity`. Omitted/empty → default
+    # untyped extraction (existing behavior for every other caller).
+    entity_types: list[dict] | None = None
+
+
+_ENTITY_TYPE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+_MAX_ENTITY_TYPES = 24
+
+
+def _build_entity_types(specs: list[dict] | None) -> dict[str, type[BaseModel]] | None:
+    """Turn a [{name, description}] taxonomy into the dict[str, BaseModel]
+    graphiti-core's add_episode expects. Each type is an attribute-less model
+    whose docstring guides the extraction LLM's classification; graphiti adds
+    the dict key as a label on matching nodes. Invalid names are skipped (the
+    name is interpolated as a Cypher label downstream), so a malformed entry
+    degrades to fewer types rather than failing the whole episode."""
+    if not specs:
+        return None
+    built: dict[str, type[BaseModel]] = {}
+    for spec in specs[:_MAX_ENTITY_TYPES]:
+        if not isinstance(spec, dict):
+            continue
+        name = spec.get("name")
+        if not isinstance(name, str) or not _ENTITY_TYPE_NAME_RE.match(name):
+            continue
+        desc = spec.get("description")
+        doc = desc if isinstance(desc, str) and desc.strip() else name
+        built[name] = type(name, (BaseModel,), {"__doc__": doc, "__module__": __name__})
+    return built or None
 
 
 def _episode_type(name: str) -> EpisodeType:
@@ -387,7 +418,8 @@ async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
         lock_wait_ms = _now_monotonic_ms() - lock_wait_start
         write_start = _now_monotonic_ms()
         graphiti = await _get_graphiti(body.workspace_id, body.inference_workspace_id)
-        result = await graphiti.add_episode(
+        entity_types = _build_entity_types(body.entity_types)
+        add_kwargs: dict = dict(
             name=body.name,
             episode_body=body.content,
             source_description=body.source_description,
@@ -395,6 +427,9 @@ async def add_episode(request: Request, body: EpisodeCreate) -> JSONResponse:
             source=_episode_type(body.episode_type),
             group_id=body.workspace_id,
         )
+        if entity_types:
+            add_kwargs["entity_types"] = entity_types
+        result = await graphiti.add_episode(**add_kwargs)
         # A3 S1 — lift plexo_memory_id onto the Episodic node so cardinality
         # reports + future RECALL queries can see it. Same workspace lock
         # holds; idempotent on retry via SET.
