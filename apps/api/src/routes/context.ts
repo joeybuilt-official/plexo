@@ -13,10 +13,9 @@
 
 import { Router, type IRouter } from 'express'
 import type { Request, Response } from 'express'
-import { db, eq, and, isNull, sql } from '@plexo/db'
-import { extensionContexts } from '@plexo/db'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
+import * as contextRepo from '../repositories/context.repository.js'
 
 /** Sentinel extension name for user-created contexts */
 const USER_SENTINEL = '_user'
@@ -48,21 +47,8 @@ contextRouter.get('/', async (req: Request, res: Response) => {
     const offset = Number(req.query['offset'] ?? 0)
 
     try {
-        const conditions = [
-            eq(extensionContexts.workspaceId, workspaceId),
-            isNull(extensionContexts.deletedAt),
-        ]
-        if (enabled === 'true') conditions.push(eq(extensionContexts.enabled, true))
-        if (enabled === 'false') conditions.push(eq(extensionContexts.enabled, false))
-        if (extensionName) conditions.push(eq(extensionContexts.extensionName, extensionName))
-
-        const rows = await db
-            .select()
-            .from(extensionContexts)
-            .where(and(...conditions))
-            .orderBy(extensionContexts.priority, extensionContexts.extensionName)
-            .limit(limit)
-            .offset(offset)
+        const enabledFilter = enabled === 'true' ? true : enabled === 'false' ? false : undefined
+        const rows = await contextRepo.listContexts({ workspaceId, enabled: enabledFilter, extensionName, limit, offset })
 
         // Annotate with computed fields
         const items = rows.map((r) => {
@@ -121,14 +107,8 @@ contextRouter.post('/', async (req: Request, res: Response) => {
 
     try {
         // Enforce 10-context cap per user
-        const [countRow] = await db.select({ count: sql<number>`count(*)` })
-            .from(extensionContexts)
-            .where(and(
-                eq(extensionContexts.workspaceId, workspaceId),
-                eq(extensionContexts.extensionName, USER_SENTINEL),
-                isNull(extensionContexts.deletedAt),
-            ))
-        if (Number(countRow?.count ?? 0) >= MAX_CONTEXTS_PER_SOURCE) {
+        const userContextCount = await contextRepo.countForExtension(workspaceId, USER_SENTINEL)
+        if (userContextCount >= MAX_CONTEXTS_PER_SOURCE) {
             res.status(400).json({ error: { code: 'CONTEXT_LIMIT', message: `Maximum ${MAX_CONTEXTS_PER_SOURCE} user contexts allowed` } })
             return
         }
@@ -137,7 +117,7 @@ contextRouter.post('/', async (req: Request, res: Response) => {
         const validPriorities = ['low', 'normal', 'high', 'critical']
         const resolvedPriority = (priority && validPriorities.includes(priority) ? priority : 'normal') as 'low' | 'normal' | 'high' | 'critical'
 
-        const [row] = await db.insert(extensionContexts).values({
+        const row = await contextRepo.createContext({
             workspaceId,
             extensionName: USER_SENTINEL,
             contextId,
@@ -150,7 +130,7 @@ contextRouter.post('/', async (req: Request, res: Response) => {
             tags: Array.isArray(tags) ? tags.map(String).slice(0, 10) : [],
             estimatedTokens: Math.ceil(content.length / 4),
             enabled: true,
-        }).onConflictDoNothing().returning()
+        })
 
         if (!row) {
             res.status(409).json({ error: { code: 'DUPLICATE', message: 'A context with this name already exists' } })
@@ -174,14 +154,7 @@ contextRouter.delete('/:contextId', async (req: Request, res: Response) => {
     if (!UUID_RE.test(contextId)) return void badId(res, 'contextId')
 
     try {
-        const [existing] = await db.select({ extensionName: extensionContexts.extensionName })
-            .from(extensionContexts)
-            .where(and(
-                eq(extensionContexts.id, contextId),
-                eq(extensionContexts.workspaceId, workspaceId),
-                isNull(extensionContexts.deletedAt),
-            ))
-            .limit(1)
+        const existing = await contextRepo.getScoped(contextId, workspaceId)
 
         if (!existing) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Context block not found' } })
@@ -192,9 +165,7 @@ contextRouter.delete('/:contextId', async (req: Request, res: Response) => {
             return
         }
 
-        await db.update(extensionContexts)
-            .set({ deletedAt: new Date(), updatedAt: new Date() })
-            .where(eq(extensionContexts.id, contextId))
+        await contextRepo.softDelete(contextId)
 
         logger.info({ workspaceId, contextId }, 'User context deleted')
         res.json({ ok: true })
@@ -224,15 +195,7 @@ contextRouter.patch('/:contextId', async (req: Request, res: Response) => {
     }
 
     try {
-        const [existing] = await db
-            .select()
-            .from(extensionContexts)
-            .where(and(
-                eq(extensionContexts.id, contextId),
-                eq(extensionContexts.workspaceId, workspaceId),
-                isNull(extensionContexts.deletedAt),
-            ))
-            .limit(1)
+        const existing = await contextRepo.getScoped(contextId, workspaceId)
 
         if (!existing) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Context block not found' } })
@@ -272,7 +235,7 @@ contextRouter.patch('/:contextId', async (req: Request, res: Response) => {
             if (ttl !== undefined) update.ttl = ttl
         }
 
-        await db.update(extensionContexts).set(update).where(eq(extensionContexts.id, contextId))
+        await contextRepo.update(contextId, update)
 
         logger.info({ contextId, workspaceId, isUser: existing.extensionName === USER_SENTINEL }, 'Context updated')
         res.json({ ok: true })
@@ -289,14 +252,7 @@ contextRouter.get('/budget', async (req: Request, res: Response) => {
     if (!UUID_RE.test(workspaceId)) return void badId(res)
 
     try {
-        const rows = await db
-            .select()
-            .from(extensionContexts)
-            .where(and(
-                eq(extensionContexts.workspaceId, workspaceId),
-                eq(extensionContexts.enabled, true),
-                isNull(extensionContexts.deletedAt),
-            ))
+        const rows = await contextRepo.listEnabled(workspaceId)
 
         // Filter out expired context
         const now = Date.now()
