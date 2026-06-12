@@ -2,10 +2,9 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, sql, desc } from '@plexo/db'
-import { tasks } from '@plexo/db'
 import { logger } from '../logger.js'
 import { connectedCount } from '../sse-emitter.js'
+import * as dashboardRepo from '../repositories/dashboard.repository.js'
 
 export const dashboardRouter: RouterType = Router()
 
@@ -32,12 +31,7 @@ dashboardRouter.get('/summary', async (req, res) => {
 
     try {
         // Task counts by status
-        const statusRows = await db.execute<{ status: string; count: string }>(sql`
-      SELECT status, COUNT(*) as count
-      FROM tasks
-      WHERE workspace_id = ${workspaceId}
-      GROUP BY status
-    `)
+        const statusRows = await dashboardRepo.getTaskStatusCounts(workspaceId)
 
         const byStatus: Record<string, number> = {}
         for (const row of statusRows) {
@@ -48,40 +42,14 @@ dashboardRouter.get('/summary', async (req, res) => {
         // api_cost_tracking: current ISO week accumulator (same source as Intelligence page)
         // work_ledger: completed_at-based 7d rolling sum for all-time display
         const costCeiling = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
-        const [weekCostRow] = await db.execute<{ cost_usd: string | null; ceiling_usd: string | null }>(sql`
-            SELECT cost_usd, COALESCE(ceiling_usd, ${costCeiling}) AS ceiling_usd
-            FROM api_cost_tracking
-            WHERE workspace_id = ${workspaceId}::uuid
-              AND week_start = date_trunc('week', NOW())::date
-            LIMIT 1
-        `)
-        const [allTimeCostRow] = await db.execute<{ total: string }>(sql`
-            SELECT COALESCE(SUM(cost_usd), 0)::text AS total
-            FROM work_ledger
-            WHERE workspace_id = ${workspaceId}::uuid
-        `)
+        const weekCostRow = await dashboardRepo.getWeekCost(workspaceId, costCeiling)
+        const allTimeCostRow = await dashboardRepo.getAllTimeCost(workspaceId)
 
         // Most recent activity (last 5 task completions)
-        const recentTasks = await db.select({
-            id: tasks.id,
-            type: tasks.type,
-            status: tasks.status,
-            outcomeSummary: tasks.outcomeSummary,
-            qualityScore: tasks.qualityScore,
-            completedAt: tasks.completedAt,
-        }).from(tasks)
-            .where(sql`workspace_id = ${workspaceId} AND completed_at IS NOT NULL`)
-            .orderBy(desc(tasks.completedAt))
-            .limit(5)
+        const recentTasks = await dashboardRepo.getRecentCompletedTasks(workspaceId)
 
         // Total steps run this week
-        const stepRows = await db.execute<{ count: string; tokens: string }>(sql`
-      SELECT COUNT(*) as count, COALESCE(SUM(ts.tokens_in + ts.tokens_out), 0)::text as tokens
-      FROM task_steps ts
-      JOIN tasks t ON t.id = ts.task_id
-      WHERE t.workspace_id = ${workspaceId}
-        AND ts.created_at > NOW() - INTERVAL '7 days'
-    `)
+        const stepRows = await dashboardRepo.getWeekStepStats(workspaceId)
 
         const weekCost = parseFloat(weekCostRow?.cost_usd ?? '0')
         const totalCost = parseFloat(allTimeCostRow?.total ?? '0')
@@ -90,23 +58,7 @@ dashboardRouter.get('/summary', async (req, res) => {
         const queued = byStatus['queued'] ?? 0
 
         // Ensemble quality coverage — count tasks by judge mode stored in context JSONB
-        const ensembleRows = await db.execute<{ mode: string; count: string; avg_delta: string }>(sql`
-          SELECT
-            context->'_judge'->>'mode' as mode,
-            COUNT(*) as count,
-            AVG(
-              CASE
-                WHEN (context->'_judge'->>'selfScore')::float IS NOT NULL
-                  AND quality_score IS NOT NULL
-                THEN (quality_score - (context->'_judge'->>'selfScore')::float)
-              END
-            )::text as avg_delta
-          FROM tasks
-          WHERE workspace_id = ${workspaceId}
-            AND status = 'complete'
-            AND context ? '_judge'
-          GROUP BY context->'_judge'->>'mode'
-        `)
+        const ensembleRows = await dashboardRepo.getEnsembleStats(workspaceId)
 
         const byMode: Record<string, number> = {}
         let avgDelta: number | null = null
@@ -145,8 +97,8 @@ dashboardRouter.get('/summary', async (req, res) => {
                 percentUsed: costCeiling > 0 ? Math.min(100, (weekCost / costCeiling) * 100) : 0,
             },
             steps: {
-                thisWeek: parseInt(stepRows[0]?.count ?? '0', 10),
-                tokensThisWeek: parseInt(stepRows[0]?.tokens ?? '0', 10),
+                thisWeek: parseInt(stepRows?.count ?? '0', 10),
+                tokensThisWeek: parseInt(stepRows?.tokens ?? '0', 10),
             },
             ensemble: {
                 total: ensembleTotal,
@@ -177,22 +129,7 @@ dashboardRouter.get('/activity', async (req, res) => {
     }
 
     try {
-        const items = await db.select({
-            id: tasks.id,
-            type: tasks.type,
-            status: tasks.status,
-            source: tasks.source,
-            priority: tasks.priority,
-            outcomeSummary: tasks.outcomeSummary,
-            qualityScore: tasks.qualityScore,
-            costUsd: tasks.costUsd,
-            createdAt: tasks.createdAt,
-            completedAt: tasks.completedAt,
-            projectId: tasks.projectId,
-        }).from(tasks)
-            .where(sql`workspace_id = ${workspaceId}`)
-            .orderBy(desc(tasks.createdAt))
-            .limit(Math.min(parseInt(limit, 10) || 20, 100))
+        const items = await dashboardRepo.getActivity(workspaceId, Math.min(parseInt(limit, 10) || 20, 100))
 
         res.json({ items })
     } catch (err) {

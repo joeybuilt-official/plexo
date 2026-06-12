@@ -9,11 +9,10 @@
  * DELETE /api/v1/standing-approvals/:id
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and } from '@plexo/db'
-import { standingApprovals } from '@plexo/db'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
+import * as standingApprovalsRepo from '../repositories/standing-approvals.repository.js'
 
 export const standingApprovalsRouter: RouterType = Router()
 
@@ -26,9 +25,7 @@ standingApprovalsRouter.get('/', async (req, res) => {
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
     try {
-        const rows = await db.select()
-            .from(standingApprovals)
-            .where(eq(standingApprovals.workspaceId, workspaceId))
+        const rows = await standingApprovalsRepo.listForWorkspace(workspaceId)
         res.json({ items: rows })
     } catch (err) {
         logger.error({ err }, 'GET /api/v1/standing-approvals failed')
@@ -54,14 +51,12 @@ standingApprovalsRouter.post('/', async (req, res) => {
         return
     }
     try {
-        const [row] = await db.insert(standingApprovals)
-            .values({
-                workspaceId,
-                trigger,
-                actionPattern,
-                expiresAt: expiresAt ? new Date(expiresAt) : undefined,
-            })
-            .returning()
+        const row = await standingApprovalsRepo.create({
+            workspaceId,
+            trigger,
+            actionPattern,
+            expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+        })
         res.status(201).json(row)
     } catch (err) {
         logger.error({ err }, 'POST /api/v1/standing-approvals failed')
@@ -83,9 +78,7 @@ standingApprovalsRouter.delete('/:id', async (req, res) => {
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
     try {
-        const [deleted] = await db.delete(standingApprovals)
-            .where(and(eq(standingApprovals.id, id), eq(standingApprovals.workspaceId, workspaceId)))
-            .returning()
+        const deleted = await standingApprovalsRepo.deleteScoped(id, workspaceId)
         if (!deleted) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Standing approval not found' } })
             return
