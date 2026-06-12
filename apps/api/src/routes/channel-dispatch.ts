@@ -31,8 +31,7 @@
 
 import { Router, type Router as RouterType, type Request } from 'express'
 import { timingSafeEqual as cryptoTimingSafeEqual } from 'node:crypto'
-import { db, eq } from '@plexo/db'
-import { appProfiles } from '@plexo/db'
+import * as channelDispatchRepo from '../repositories/channel-dispatch.repository.js'
 import pino from 'pino'
 import {
     dispatchChannel,
@@ -56,9 +55,7 @@ function timingSafeStrEqual(a: string, b: string): boolean {
 async function isRegisteredApp(appId: string): Promise<boolean> {
     const cached = profileCache.get(appId)
     if (cached && cached > Date.now()) return true
-    const [row] = await db.select({ appId: appProfiles.appId })
-        .from(appProfiles).where(eq(appProfiles.appId, appId)).limit(1)
-    if (!row) return false
+    if (!await channelDispatchRepo.appExists(appId)) return false
     profileCache.set(appId, Date.now() + PROFILE_CACHE_TTL_MS)
     return true
 }

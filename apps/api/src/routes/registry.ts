@@ -15,8 +15,7 @@
  * then POST /api/v1/extensions with the resolved manifest.
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, ilike, and, ne } from '@plexo/db'
-import { extensionRegistry } from '@plexo/db'
+import * as registryRepo from '../repositories/registry.repository.js'
 import { logger } from '../logger.js'
 import { validateManifest } from '@joeybuilt/plexo-sdk'
 import type { ExtensionManifest } from '@joeybuilt/plexo-sdk'
@@ -35,28 +34,7 @@ registryRouter.get('/', async (req, res) => {
         const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20))
         const offset = (pageNum - 1) * limitNum
 
-        const conditions = [
-            eq(extensionRegistry.deprecated, false),
-            ...(q ? [ilike(extensionRegistry.name, `%${q}%`)] : []),
-            ...(publisher ? [eq(extensionRegistry.publisher, publisher)] : []),
-        ]
-
-        const rows = await db
-            .select({
-                name: extensionRegistry.name,
-                displayName: extensionRegistry.displayName,
-                description: extensionRegistry.description,
-                publisher: extensionRegistry.publisher,
-                latestVersion: extensionRegistry.latestVersion,
-                tags: extensionRegistry.tags,
-                installCount: extensionRegistry.installCount,
-                publishedAt: extensionRegistry.publishedAt,
-                updatedAt: extensionRegistry.updatedAt,
-            })
-            .from(extensionRegistry)
-            .where(and(...conditions))
-            .limit(limitNum)
-            .offset(offset)
+        const rows = await registryRepo.search({ q, publisher, limit: limitNum, offset })
 
         // Filter by tag in-process (array column — Drizzle doesn't support array contains natively)
         const filtered = tag
@@ -79,11 +57,7 @@ registryRouter.get('/:name', async (req, res) => {
     try {
         const name = decodeURIComponent(String(req.params.name ?? ''))
 
-        const [entry] = await db
-            .select()
-            .from(extensionRegistry)
-            .where(eq(extensionRegistry.name, name))
-            .limit(1)
+        const entry = await registryRepo.getByName(name)
 
         if (!entry) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: `Tool "${name}" not found in registry` } })
@@ -173,14 +147,9 @@ registryRouter.post('/', requireAuth, async (req, res) => {
         }
         const signedAt = signedAtRaw ? new Date(signedAtRaw) : null
 
-        const existing = await db
-            .select({ id: extensionRegistry.id, versions: extensionRegistry.versions, publisher: extensionRegistry.publisher })
-            .from(extensionRegistry)
-            .where(eq(extensionRegistry.name, name))
-            .limit(1)
+        const record = await registryRepo.getPublishMeta(name)
 
-        if (existing.length > 0) {
-            const record = existing[0]!
+        if (record) {
             // Verify publisher ownership — only the original publisher may update this tool
             if (record.publisher !== userId) {
                 res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only the original publisher may update this tool' } })
@@ -190,29 +159,26 @@ registryRouter.post('/', requireAuth, async (req, res) => {
             const versions = record.versions ?? []
             if (!versions.includes(version)) versions.unshift(version)
 
-            await db
-                .update(extensionRegistry)
-                .set({
-                    latestVersion: version,
-                    versions,
-                    manifest,
-                    displayName: body.displayName ?? manifest.name,
-                    description: (manifest as unknown as Record<string, unknown>).description as string ?? '',
-                    tags: body.tags ?? [],
-                    repositoryUrl: body.repositoryUrl ?? null,
-                    checksum,
-                    signature: signaturePayload,
-                    signatureType,
-                    signerIdentity,
-                    signedAt,
-                    updatedAt: new Date(),
-                })
-                .where(eq(extensionRegistry.id, record.id))
+            await registryRepo.updateById(record.id, {
+                latestVersion: version,
+                versions,
+                manifest,
+                displayName: body.displayName ?? manifest.name,
+                description: (manifest as unknown as Record<string, unknown>).description as string ?? '',
+                tags: body.tags ?? [],
+                repositoryUrl: body.repositoryUrl ?? null,
+                checksum,
+                signature: signaturePayload,
+                signatureType,
+                signerIdentity,
+                signedAt,
+                updatedAt: new Date(),
+            })
 
             logger.info({ name, version, publisher: userId }, 'Registry tool updated')
             res.status(200).json({ ok: true, action: 'updated', name, version })
         } else {
-            await db.insert(extensionRegistry).values({
+            await registryRepo.insertEntry({
                 name,
                 displayName: body.displayName ?? name,
                 description: (manifest as unknown as Record<string, unknown>).description as string ?? '',
@@ -250,11 +216,7 @@ registryRouter.delete('/:name', requireAuth, async (req, res) => {
 
         const name = decodeURIComponent(String(req.params.name ?? ''))
 
-        const [entry] = await db
-            .select({ id: extensionRegistry.id, publisher: extensionRegistry.publisher })
-            .from(extensionRegistry)
-            .where(and(eq(extensionRegistry.name, name), ne(extensionRegistry.deprecated, true)))
-            .limit(1)
+        const entry = await registryRepo.getActiveByName(name)
 
         if (!entry) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Tool not found or already deprecated' } })
@@ -266,10 +228,7 @@ registryRouter.delete('/:name', requireAuth, async (req, res) => {
             return
         }
 
-        await db
-            .update(extensionRegistry)
-            .set({ deprecated: true, updatedAt: new Date() })
-            .where(eq(extensionRegistry.id, entry.id))
+        await registryRepo.updateById(entry.id, { deprecated: true, updatedAt: new Date() })
 
         logger.info({ name, userId: userId }, 'Registry tool deprecated')
         res.json({ ok: true, deprecated: true, name })

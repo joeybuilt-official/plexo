@@ -11,8 +11,7 @@
  * GET    /api/sprints/:id/logs       Activity log
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, asc, inArray } from '@plexo/db'
-import { sprints, sprintTasks, sprintLogs, tasks } from '@plexo/db'
+import * as sprintsRepo from '../repositories/sprints.repository.js'
 import { runSprint } from '@plexo/agent/sprint/runner'
 import { detectDynamicConflicts } from '@plexo/agent/sprint/conflicts'
 import { loadWorkspaceAISettings, cancelActiveTask } from '../agent-loop.js'
@@ -36,7 +35,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         return
     }
 
-    const [sprint] = await db.select().from(sprints).where(eq(sprints.id, sprintId)).limit(1)
+    const sprint = await sprintsRepo.getSprint(sprintId)
     if (!sprint) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
         return
@@ -68,9 +67,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
     // Pre-flight: fail immediately if there's no usable AI credential.
     // Without this check, the sprint runs, creates N tasks, all fail within minutes with $0 cost.
     if (!hasCredential) {
-        await db.update(sprints)
-            .set({ status: 'failed' })
-            .where(eq(sprints.id, sprintId))
+        await sprintsRepo.updateSprint(sprintId, { status: 'failed' })
         await logSprintEvent({
             sprintId,
             level: 'error',
@@ -149,7 +146,7 @@ import { UUID_RE } from '../validation.js'
 sprintRunnerRouter.post('/:id/retry', async (req, res) => {
     const { id: sprintId } = req.params
 
-    const [sprint] = await db.select().from(sprints).where(eq(sprints.id, sprintId)).limit(1)
+    const sprint = await sprintsRepo.getSprint(sprintId)
     if (!sprint) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
         return
@@ -197,11 +194,7 @@ sprintRunnerRouter.delete('/:id', async (req, res) => {
     const hardDelete = req.query.hardDelete === 'true'
 
     try {
-        const [sprint] = await db
-            .select({ id: sprints.id, status: sprints.status, workspaceId: sprints.workspaceId })
-            .from(sprints)
-            .where(eq(sprints.id, sprintId))
-            .limit(1)
+        const sprint = await sprintsRepo.getSprintCancelMeta(sprintId)
 
         if (!sprint) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
@@ -210,11 +203,7 @@ sprintRunnerRouter.delete('/:id', async (req, res) => {
 
         if (hardDelete) {
             // Cancel any actively running task to prevent background ghost execution
-            const allTaskIds = await db
-                .select({ id: tasks.id })
-                .from(tasks)
-                .where(eq(tasks.projectId, sprintId))
-                .then((rows) => rows.map((r) => r.id))
+            const allTaskIds = await sprintsRepo.getTaskIdsForSprint(sprintId)
 
             for (const taskId of allTaskIds) {
                 cancelActiveTask(taskId)
@@ -222,8 +211,8 @@ sprintRunnerRouter.delete('/:id', async (req, res) => {
 
             // Hard delete the sprint row (cascade triggers on sprintTasks and sprintLogs)
             // Note: tasks.projectId is SET NULL by the db so tasks themselves aren't deleted.
-            await db.delete(sprints).where(eq(sprints.id, sprintId))
-            
+            await sprintsRepo.deleteSprint(sprintId)
+
             logger.info({ sprintId }, 'Sprint hard deleted')
             emitToWorkspace(sprint.workspaceId ?? '', { type: 'sprint_deleted', sprintId })
             res.json({ ok: true, hardDeleted: true })
@@ -232,23 +221,15 @@ sprintRunnerRouter.delete('/:id', async (req, res) => {
 
         // 1. Tombstone the sprint — waitForWave in runner.ts polls sprints.status
         //    and will throw 'Sprint cancelled by user' on its next iteration.
-        await db.update(sprints)
-            .set({ status: 'cancelled', completedAt: new Date() })
-            .where(eq(sprints.id, sprintId))
+        await sprintsRepo.updateSprint(sprintId, { status: 'cancelled', completedAt: new Date() })
 
         // 2. Fetch all tasks that belong to this sprint, cancel them
-        const allTaskIds = await db
-            .select({ id: tasks.id })
-            .from(tasks)
-            .where(eq(tasks.projectId, sprintId))
-            .then((rows) => rows.map((r) => r.id))
+        const allTaskIds = await sprintsRepo.getTaskIdsForSprint(sprintId)
 
         let abortedCount = 0
         if (allTaskIds.length > 0) {
             // Only cancel tasks in cancellable states — don't overwrite complete/failed/cancelled
-            await db.update(tasks)
-                .set({ status: 'cancelled' })
-                .where(and(inArray(tasks.id, allTaskIds), inArray(tasks.status, ['queued', 'claimed', 'running', 'blocked'] as any[])))
+            await sprintsRepo.cancelCancellableTasks(allTaskIds)
 
             // Immediately signal the executor if any of these tasks is actively running
             for (const taskId of allTaskIds) {
@@ -259,19 +240,14 @@ sprintRunnerRouter.delete('/:id', async (req, res) => {
         }
 
         // 3. Mark in-flight sprint_tasks rows as failed
-        const stRows = await db
-            .select({ id: sprintTasks.id, status: sprintTasks.status })
-            .from(sprintTasks)
-            .where(eq(sprintTasks.sprintId, sprintId))
+        const stRows = await sprintsRepo.listSprintTaskStatuses(sprintId)
 
         const stInFlight = stRows
             .filter((t) => t.status === 'queued' || t.status === 'running')
             .map((t) => t.id)
 
         if (stInFlight.length > 0) {
-            await db.update(sprintTasks)
-                .set({ status: 'failed' })
-                .where(inArray(sprintTasks.id, stInFlight))
+            await sprintsRepo.failSprintTasks(stInFlight)
         }
 
         // 4. Log + emit
@@ -305,16 +281,13 @@ sprintRunnerRouter.get('/:id/tasks', async (req, res) => {
     const { id: sprintId } = req.params
 
     try {
-        const [sprint] = await db.select().from(sprints).where(eq(sprints.id, sprintId)).limit(1)
+        const sprint = await sprintsRepo.getSprint(sprintId)
         if (!sprint) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
             return
         }
 
-        const taskRows = await db.select().from(sprintTasks)
-            .where(eq(sprintTasks.sprintId, sprintId))
-            .orderBy(sprintTasks.priority)
-            .limit(500)
+        const taskRows = await sprintsRepo.listSprintTasks(sprintId)
 
         res.json({
             sprint: {
@@ -362,8 +335,7 @@ sprintRunnerRouter.get('/:id/conflicts', async (req, res) => {
     const { id: sprintId } = req.params
 
     try {
-        const [sprint] = await db.select({ repo: sprints.repo }).from(sprints)
-            .where(eq(sprints.id, sprintId)).limit(1)
+        const sprint = await sprintsRepo.getSprintRepo(sprintId)
 
         if (!sprint) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
@@ -393,10 +365,7 @@ sprintRunnerRouter.get('/:id/logs', async (req, res) => {
     const { limit = '200' } = req.query as Record<string, string>
 
     try {
-        const rows = await db.select().from(sprintLogs)
-            .where(eq(sprintLogs.sprintId, sprintId))
-            .orderBy(asc(sprintLogs.createdAt))
-            .limit(Math.min(parseInt(limit, 10) || 200, 500))
+        const rows = await sprintsRepo.listSprintLogs(sprintId, Math.min(parseInt(limit, 10) || 200, 500))
 
         res.json({ logs: rows, total: rows.length })
     } catch (err) {

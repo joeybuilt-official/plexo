@@ -2,8 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, sql, isNull, desc } from '@plexo/db'
-import { artifacts, artifactVersions, artifactShares } from '@plexo/db'
+import * as sharesRepo from '../repositories/shares.repository.js'
 import { logger } from '../logger.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import type { Request, Response } from 'express'
@@ -23,14 +22,13 @@ export const sharesRouter: RouterType = Router()
 
 /** Look up an artifact's workspace and verify caller access. */
 async function ensureArtifactWorkspaceAccess(req: Request, res: Response, artifactId: string): Promise<string | null> {
-    const [row] = await db.select({ workspaceId: artifacts.workspaceId })
-        .from(artifacts).where(eq(artifacts.id, artifactId)).limit(1)
-    if (!row) {
+    const workspaceId = await sharesRepo.getArtifactWorkspaceId(artifactId)
+    if (!workspaceId) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Artifact not found' } })
         return null
     }
-    const ok = await ensureWorkspaceAccess(req, res, row.workspaceId)
-    return ok ? row.workspaceId : null
+    const ok = await ensureWorkspaceAccess(req, res, workspaceId)
+    return ok ? workspaceId : null
 }
 
 // POST /api/v1/shares/:artifactId — create share link
@@ -51,21 +49,15 @@ sharesRouter.post('/:artifactId', async (req: Request, res: Response) => {
         }
 
         // Check for existing active share
-        const [existing] = await db.select({ id: artifactShares.id })
-            .from(artifactShares)
-            .where(and(
-                eq(artifactShares.artifactId, artifactId),
-                isNull(artifactShares.revokedAt),
-            ))
-            .limit(1)
+        const existingId = await sharesRepo.getActiveShareIdByArtifact(artifactId)
 
-        if (existing) {
-            res.json({ shareId: existing.id, url: `${PUBLIC_URL}/s/${existing.id}` })
+        if (existingId) {
+            res.json({ shareId: existingId, url: `${PUBLIC_URL}/s/${existingId}` })
             return
         }
 
         const shareId = generateShareId()
-        await db.insert(artifactShares).values({
+        await sharesRepo.createShare({
             id: shareId,
             artifactId,
             workspaceId,
@@ -88,12 +80,7 @@ sharesRouter.delete('/:artifactId', async (req: Request, res: Response) => {
         const workspaceId = await ensureArtifactWorkspaceAccess(req, res, artifactId)
         if (!workspaceId) return
 
-        const result = await db.update(artifactShares)
-            .set({ revokedAt: new Date() })
-            .where(and(
-                eq(artifactShares.artifactId, artifactId),
-                isNull(artifactShares.revokedAt),
-            ))
+        await sharesRepo.revokeShareByArtifact(artifactId)
 
         res.json({ ok: true })
     } catch (err) {
@@ -109,13 +96,7 @@ sharesRouter.get('/:artifactId', async (req: Request, res: Response) => {
         const workspaceId = await ensureArtifactWorkspaceAccess(req, res, artifactId)
         if (!workspaceId) return
 
-        const [share] = await db.select()
-            .from(artifactShares)
-            .where(and(
-                eq(artifactShares.artifactId, artifactId),
-                isNull(artifactShares.revokedAt),
-            ))
-            .limit(1)
+        const share = await sharesRepo.getActiveShareByArtifact(artifactId)
 
         if (!share) {
             res.json({ share: null })
@@ -153,13 +134,7 @@ publicShareRouter.get('/:shareId', async (req: Request, res: Response) => {
         }
 
         // Look up share — must be active (not revoked, not expired)
-        const [share] = await db.select()
-            .from(artifactShares)
-            .where(and(
-                eq(artifactShares.id, shareId),
-                isNull(artifactShares.revokedAt),
-            ))
-            .limit(1)
+        const share = await sharesRepo.getActiveShareById(shareId)
 
         if (!share) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Share not found or revoked' } })
@@ -173,16 +148,11 @@ publicShareRouter.get('/:shareId', async (req: Request, res: Response) => {
         }
 
         // Increment view count (fire-and-forget)
-        void db.update(artifactShares)
-            .set({ viewCount: sql`${artifactShares.viewCount} + 1` })
-            .where(eq(artifactShares.id, shareId))
+        void sharesRepo.incrementViewCount(shareId)
             .catch((err: unknown) => logger.debug({ err, shareId }, 'view count increment failed'))
 
         // Fetch artifact
-        const [artifact] = await db.select()
-            .from(artifacts)
-            .where(eq(artifacts.id, share.artifactId))
-            .limit(1)
+        const artifact = await sharesRepo.getArtifactById(share.artifactId)
 
         if (!artifact) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Artifact no longer exists' } })
@@ -190,26 +160,9 @@ publicShareRouter.get('/:shareId', async (req: Request, res: Response) => {
         }
 
         // Fetch version content
-        let version
-        if (share.versionPin) {
-            // Pinned version
-            const [v] = await db.select()
-                .from(artifactVersions)
-                .where(and(
-                    eq(artifactVersions.artifactId, share.artifactId),
-                    eq(artifactVersions.version, share.versionPin),
-                ))
-                .limit(1)
-            version = v
-        } else {
-            // Latest version
-            const [v] = await db.select()
-                .from(artifactVersions)
-                .where(eq(artifactVersions.artifactId, share.artifactId))
-                .orderBy(desc(artifactVersions.version))
-                .limit(1)
-            version = v
-        }
+        const version = share.versionPin
+            ? await sharesRepo.getPinnedVersion(share.artifactId, share.versionPin)
+            : await sharesRepo.getLatestVersion(share.artifactId)
 
         if (!version) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Artifact version not found' } })

@@ -31,8 +31,7 @@
  * Token isolation: completely separate from LLM providers — different budget, different service
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import { encrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -89,18 +88,14 @@ voiceRouter.put('/settings', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [ws] = await db
-            .select({ settings: workspaces.settings })
-            .from(workspaces)
-            .where(eq(workspaces.id, workspaceId))
-            .limit(1)
+        const settings = await workspacesRepo.getSettings(workspaceId)
 
-        if (!ws) {
+        if (settings === undefined) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })
             return
         }
 
-        const currentSettings = (ws.settings ?? {}) as Record<string, unknown>
+        const currentSettings = (settings ?? {}) as Record<string, unknown>
         const currentVoice = (currentSettings.voice ?? {}) as VoiceSettings
 
         const updatedVoice: VoiceSettings = { ...currentVoice }
@@ -120,7 +115,7 @@ voiceRouter.put('/settings', async (req, res) => {
         }
 
         const newSettings = { ...currentSettings, voice: updatedVoice }
-        await db.update(workspaces).set({ settings: newSettings }).where(eq(workspaces.id, workspaceId))
+        await workspacesRepo.updateSettings(workspaceId, newSettings)
 
         logger.info({ workspaceId, hasKey: !!updatedVoice.deepgramApiKey }, 'Voice settings updated')
         res.json({ ok: true })

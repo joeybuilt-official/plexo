@@ -8,8 +8,7 @@
  */
 
 import { Router, type Router as RouterType } from 'express'
-import { db, desc, asc, eq, and, sql } from '@plexo/db'
-import { artifacts, artifactVersions, tasks } from '@plexo/db'
+import * as worksRepo from '../repositories/works.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -41,45 +40,7 @@ worksRouter.get('/', async (req, res) => {
     const cap = Math.min(parseInt(limit, 10) || 50, 100)
 
     try {
-        // Build WHERE conditions
-        const conditions = [eq(artifacts.workspaceId, workspaceId)]
-        if (kind) conditions.push(eq(artifacts.kind, kind))
-        if (source) conditions.push(sql`${tasks.source} = ${source}`)
-
-        // Cursor-based pagination: filter by id < cursor (works for ulid ordering)
-        if (cursor) conditions.push(sql`${artifacts.id} < ${cursor}`)
-
-        // Determine ordering
-        const orderBy = sort === 'oldest'
-            ? [asc(artifacts.createdAt)]
-            : sort === 'largest'
-                ? [desc(sql`length(${artifactVersions.content})`)]
-                : [desc(artifacts.createdAt)]
-
-        const rows = await db.select({
-            id:             artifacts.id,
-            filename:       artifacts.filename,
-            kind:           artifacts.kind,
-            type:           artifacts.type,
-            meta:           artifacts.meta,
-            currentVersion: artifacts.currentVersion,
-            taskId:         artifacts.taskId,
-            projectId:      artifacts.projectId,
-            createdAt:      artifacts.createdAt,
-            updatedAt:      artifacts.updatedAt,
-            contentLength:  sql<number>`length(${artifactVersions.content})`,
-            taskSource:     tasks.source,
-            taskSummary:    tasks.outcomeSummary,
-        })
-        .from(artifacts)
-        .leftJoin(artifactVersions, and(
-            eq(artifactVersions.artifactId, artifacts.id),
-            eq(artifactVersions.version, artifacts.currentVersion),
-        ))
-        .leftJoin(tasks, eq(tasks.id, artifacts.taskId))
-        .where(and(...conditions))
-        .orderBy(...orderBy)
-        .limit(cap)
+        const rows = await worksRepo.listWorks({ workspaceId, kind, source, cursor, sort, cap })
 
         const items = rows.map(r => ({
             id:             r.id,
