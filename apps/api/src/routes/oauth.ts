@@ -4,8 +4,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { randomBytes } from 'node:crypto'
 import { logger } from '../logger.js'
-import { db, eq, and } from '@plexo/db'
-import { installedConnections } from '@plexo/db'
+import * as oauthRepo from '../repositories/oauth.repository.js'
 import { encrypt } from '../crypto.js'
 
 export const oauthRouter: RouterType = Router()
@@ -348,14 +347,7 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
         // apps/web/src/app/app/settings/channels/page.tsx (gmailEmailFromConnection).
         // Do NOT change this without updating the frontend.
         const connectionLabel = connectedEmail ?? 'default'
-        const existing = await db.select({ id: installedConnections.id })
-            .from(installedConnections)
-            .where(and(
-                eq(installedConnections.workspaceId, workspaceId),
-                eq(installedConnections.registryId, effectiveRegistryId),
-                eq(installedConnections.label, connectionLabel),
-            ))
-            .limit(1)
+        const existingId = await oauthRepo.findConnectionId(workspaceId, effectiveRegistryId, connectionLabel)
 
         const encrypted = { encrypted: encrypt(JSON.stringify(credentials), workspaceId) }
         const scopesGranted = typeof credentials.scope === 'string'
@@ -366,12 +358,10 @@ oauthRouter.get('/:provider/callback', async (req, res) => {
             ? `${connectedEmail}`
             : `${provider} (connected ${new Date().toLocaleDateString()})`
 
-        if (existing[0]) {
-            await db.update(installedConnections)
-                .set({ credentials: encrypted, scopesGranted, name: connectionName, label: connectionLabel, status: 'active', lastVerifiedAt: new Date() })
-                .where(eq(installedConnections.id, existing[0].id))
+        if (existingId) {
+            await oauthRepo.updateConnection(existingId, { credentials: encrypted, scopesGranted, name: connectionName, label: connectionLabel, status: 'active', lastVerifiedAt: new Date() })
         } else {
-            await db.insert(installedConnections).values({
+            await oauthRepo.insertConnection({
                 workspaceId,
                 registryId: effectiveRegistryId,
                 name: connectionName,

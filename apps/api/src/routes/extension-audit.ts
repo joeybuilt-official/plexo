@@ -24,25 +24,11 @@
  * rendering without a join.
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, desc } from '@plexo/db'
-import { extensionAuditLog } from '@plexo/db'
-import { sql } from '@plexo/db'
+import * as auditRepo from '../repositories/extension-audit.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 
 export const extensionAuditRouter: RouterType = Router()
-
-function buildConditions(q: Record<string, string | undefined>): any[] {
-    const conditions: any[] = [eq(extensionAuditLog.workspaceId, q.workspaceId!)]
-    if (q.extensionId) conditions.push(eq(extensionAuditLog.extensionId, q.extensionId))
-    if (q.agentId) conditions.push(eq(extensionAuditLog.agentId, q.agentId))
-    if (q.tool) conditions.push(eq(extensionAuditLog.target, q.tool))
-    if (q.action) conditions.push(eq(extensionAuditLog.action, q.action))
-    if (q.outcome) conditions.push(eq(extensionAuditLog.outcome, q.outcome))
-    if (q.from) conditions.push(sql`${extensionAuditLog.createdAt} >= ${new Date(q.from)}`)
-    if (q.to) conditions.push(sql`${extensionAuditLog.createdAt} <= ${new Date(q.to)}`)
-    return conditions
-}
 
 extensionAuditRouter.get('/', async (req, res) => {
     const q = req.query as Record<string, string | undefined>
@@ -61,24 +47,12 @@ extensionAuditRouter.get('/', async (req, res) => {
     const offset = parseInt(offsetStr ?? '0', 10) || 0
 
     try {
-        const conditions = buildConditions(q)
-
-        const [rows, countResult] = await Promise.all([
-            db.select()
-                .from(extensionAuditLog)
-                .where(and(...conditions))
-                .orderBy(desc(extensionAuditLog.createdAt))
-                .limit(limit)
-                .offset(offset),
-            db.select({ count: sql<number>`count(*)::int` })
-                .from(extensionAuditLog)
-                .where(and(...conditions)),
+        const [rows, total] = await Promise.all([
+            auditRepo.listAuditLog(q as auditRepo.AuditFilters, limit, offset),
+            auditRepo.countAuditLog(q as auditRepo.AuditFilters),
         ])
 
-        res.json({
-            items: rows,
-            total: countResult[0]?.count ?? 0,
-        })
+        res.json({ items: rows, total })
     } catch (err) {
         logger.error({ err }, 'GET /api/v1/extension-audit failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch tool audit log' } })
@@ -105,14 +79,9 @@ extensionAuditRouter.get('/by-extension', async (req, res) => {
     const perGroup = Math.min(parseInt(perGroupStr, 10) || 5, 50)
 
     try {
-        const conditions = buildConditions(q)
         // Pull last 500 rows matching filters, then bucket in memory.
         // Cheap vs a window function and good enough for UI preview scale.
-        const rows = await db.select()
-            .from(extensionAuditLog)
-            .where(and(...conditions))
-            .orderBy(desc(extensionAuditLog.createdAt))
-            .limit(500)
+        const rows = await auditRepo.listForGrouping(q as auditRepo.AuditFilters, 500)
 
         type Row = typeof rows[number]
         const groups = new Map<string, { extensionId: string; extensionName: string | null; count: number; items: Row[] }>()
