@@ -2,9 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db } from '@plexo/db'
-import { standingApprovals } from '@plexo/db'
 import { listPending, getDecision, resolveDecision } from '@plexo/agent/one-way-door'
+import * as standingApprovalsRepo from '../repositories/standing-approvals.repository.js'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
@@ -127,13 +126,11 @@ owdRouter.post('/:id/approve-and-remember', async (req, res) => {
         // identical operation in the same workspace will match.
         let standingApprovalId: string | null = null
         try {
-            const [row] = await db.insert(standingApprovals)
-                .values({
-                    workspaceId: updated.workspaceId,
-                    trigger: updated.operation,
-                    actionPattern: updated.operation,
-                })
-                .returning({ id: standingApprovals.id })
+            const row = await standingApprovalsRepo.create({
+                workspaceId: updated.workspaceId,
+                trigger: updated.operation,
+                actionPattern: updated.operation,
+            })
             standingApprovalId = row?.id ?? null
         } catch (insertErr) {
             // Log but don't fail — the approve half already succeeded and
