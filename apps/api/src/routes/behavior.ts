@@ -15,8 +15,7 @@
 
 import { Router, type IRouter } from 'express'
 import type { Request, Response } from 'express'
-import { db, eq, and, isNull, isNotNull, desc, or } from '@plexo/db'
-import { behaviorRules, behaviorSnapshots } from '@plexo/db'
+import * as behaviorRepo from '../repositories/behavior.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 
@@ -55,27 +54,7 @@ behaviorRouter.get('/', async (req: Request, res: Response) => {
     if (projectId && !UUID_RE.test(projectId)) return void badId(res, 'projectId')
 
     try {
-        let rows
-        if (projectId) {
-            rows = await db.select().from(behaviorRules).where(
-                and(
-                    eq(behaviorRules.workspaceId, workspaceId),
-                    isNull(behaviorRules.deletedAt),
-                    or(
-                        isNull(behaviorRules.projectId),
-                        eq(behaviorRules.projectId, projectId),
-                    ),
-                )
-            ).orderBy(behaviorRules.createdAt).limit(500)
-        } else {
-            rows = await db.select().from(behaviorRules).where(
-                and(
-                    eq(behaviorRules.workspaceId, workspaceId),
-                    isNull(behaviorRules.projectId),
-                    isNull(behaviorRules.deletedAt),
-                )
-            ).orderBy(behaviorRules.createdAt).limit(500)
-        }
+        const rows = await behaviorRepo.listRules(workspaceId, projectId, 500)
         res.json({ rules: rows })
     } catch (err) {
         logger.error({ err }, 'GET /behavior failed')
@@ -121,18 +100,7 @@ behaviorRouter.get('/snapshots', async (req: Request, res: Response) => {
     const limit = Math.min(parseInt((req.query['limit'] as string) ?? '20'), 50)
 
     try {
-        const rows = await db.select({
-            id: behaviorSnapshots.id,
-            workspaceId: behaviorSnapshots.workspaceId,
-            projectId: behaviorSnapshots.projectId,
-            compiledPrompt: behaviorSnapshots.compiledPrompt,
-            triggeredBy: behaviorSnapshots.triggeredBy,
-            triggerResourceId: behaviorSnapshots.triggerResourceId,
-            createdAt: behaviorSnapshots.createdAt,
-        }).from(behaviorSnapshots)
-            .where(eq(behaviorSnapshots.workspaceId, workspaceId))
-            .orderBy(desc(behaviorSnapshots.createdAt))
-            .limit(limit)
+        const rows = await behaviorRepo.listSnapshots(workspaceId, limit)
         res.json({ snapshots: rows })
     } catch (err) {
         logger.error({ err }, 'GET /behavior/snapshots failed')
@@ -174,7 +142,7 @@ behaviorRouter.post('/rules', async (req: Request, res: Response) => {
     if (projectId && !UUID_RE.test(projectId)) return void badId(res, 'projectId')
 
     try {
-        const [rule] = await db.insert(behaviorRules).values({
+        const rule = await behaviorRepo.insertRule({
             workspaceId,
             projectId: projectId ?? null,
             type: type as 'safety_constraint' | 'operational_rule' | 'communication_style' | 'domain_knowledge' | 'persona_trait' | 'tool_preference' | 'quality_gate',
@@ -184,7 +152,7 @@ behaviorRouter.post('/rules', async (req: Request, res: Response) => {
             value,
             source: projectId ? 'project' : 'workspace',
             tags: tags ?? [],
-        }).returning()
+        })
         res.status(201).json(rule)
     } catch (err) {
         logger.error({ err }, 'POST /behavior/rules failed')
@@ -207,9 +175,7 @@ behaviorRouter.patch('/rules/:ruleId', async (req: Request, res: Response) => {
     }
 
     try {
-        const [existing] = await db.select().from(behaviorRules).where(
-            and(eq(behaviorRules.id, ruleId), eq(behaviorRules.workspaceId, workspaceId))
-        ).limit(1)
+        const existing = await behaviorRepo.getRule(workspaceId, ruleId)
 
         if (!existing) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Rule not found' } })
@@ -226,11 +192,7 @@ behaviorRouter.patch('/rules/:ruleId', async (req: Request, res: Response) => {
         if (value !== undefined) updates['value'] = value
         if (tags !== undefined) updates['tags'] = tags
 
-        const [updated] = await db.update(behaviorRules)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .set(updates as any)
-            .where(eq(behaviorRules.id, ruleId))
-            .returning()
+        const updated = await behaviorRepo.updateRule(ruleId, updates)
         res.json(updated)
     } catch (err) {
         logger.error({ err }, 'PATCH /behavior/rules/:ruleId failed')
@@ -247,9 +209,7 @@ behaviorRouter.delete('/rules/:ruleId', async (req: Request, res: Response) => {
     if (!UUID_RE.test(ruleId)) return void badId(res, 'ruleId')
 
     try {
-        const [existing] = await db.select().from(behaviorRules).where(
-            and(eq(behaviorRules.id, ruleId), eq(behaviorRules.workspaceId, workspaceId))
-        ).limit(1)
+        const existing = await behaviorRepo.getRule(workspaceId, ruleId)
 
         if (!existing) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Rule not found' } })
@@ -260,10 +220,7 @@ behaviorRouter.delete('/rules/:ruleId', async (req: Request, res: Response) => {
             return
         }
 
-        await db.update(behaviorRules)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .set({ deletedAt: new Date(), updatedAt: new Date() } as any)
-            .where(eq(behaviorRules.id, ruleId))
+        await behaviorRepo.updateRule(ruleId, { deletedAt: new Date(), updatedAt: new Date() })
 
         res.json({ ok: true })
     } catch (err) {
@@ -312,7 +269,7 @@ behaviorRouter.post('/rules/import', async (req: Request, res: Response) => {
             return
         }
 
-        const inserted = await db.insert(behaviorRules).values(inserts).returning()
+        const inserted = await behaviorRepo.insertRules(inserts)
         res.status(201).json({ message: `Imported ${inserted.length} rules`, rules: inserted })
     } catch (err) {
         logger.error({ err }, 'POST /behavior/rules/import failed')
@@ -329,27 +286,7 @@ behaviorRouter.get('/rules/export', async (req: Request, res: Response) => {
     if (projectId && !UUID_RE.test(projectId)) return void badId(res, 'projectId')
 
     try {
-        let rows
-        if (projectId) {
-            rows = await db.select().from(behaviorRules).where(
-                and(
-                    eq(behaviorRules.workspaceId, workspaceId),
-                    isNull(behaviorRules.deletedAt),
-                    or(
-                        isNull(behaviorRules.projectId),
-                        eq(behaviorRules.projectId, projectId),
-                    ),
-                )
-            ).orderBy(behaviorRules.createdAt)
-        } else {
-            rows = await db.select().from(behaviorRules).where(
-                and(
-                    eq(behaviorRules.workspaceId, workspaceId),
-                    isNull(behaviorRules.projectId),
-                    isNull(behaviorRules.deletedAt),
-                )
-            ).orderBy(behaviorRules.createdAt)
-        }
+        const rows = await behaviorRepo.listRules(workspaceId, projectId)
 
         const generateAgentsMd = await getExportGenerator()
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -363,6 +300,3 @@ behaviorRouter.get('/rules/export', async (req: Request, res: Response) => {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to export rules' } })
     }
 })
-
-// Suppress unused import warning — or is used for combined conditions
-void isNotNull

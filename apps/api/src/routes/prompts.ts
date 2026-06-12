@@ -11,8 +11,7 @@
 
 import { Router, type IRouter } from 'express'
 import type { Request, Response } from 'express'
-import { db, eq, and, isNull } from '@plexo/db'
-import { extensionPrompts } from '@plexo/db'
+import * as promptsRepo from '../repositories/prompts.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 
@@ -35,21 +34,7 @@ promptsRouter.get('/', async (req: Request, res: Response) => {
     const offset = Number(req.query['offset'] ?? 0)
 
     try {
-        const conditions = [
-            eq(extensionPrompts.workspaceId, workspaceId),
-            isNull(extensionPrompts.deletedAt),
-        ]
-        if (enabled === 'true') conditions.push(eq(extensionPrompts.enabled, true))
-        if (enabled === 'false') conditions.push(eq(extensionPrompts.enabled, false))
-        if (extensionName) conditions.push(eq(extensionPrompts.extensionName, extensionName))
-
-        let rows = await db
-            .select()
-            .from(extensionPrompts)
-            .where(and(...conditions))
-            .orderBy(extensionPrompts.extensionName, extensionPrompts.promptId)
-            .limit(limit)
-            .offset(offset)
+        let rows = await promptsRepo.listPrompts({ workspaceId, enabled, extensionName, limit, offset })
 
         // Tag filtering in-app since Drizzle array contains is verbose
         if (tag) {
@@ -77,15 +62,7 @@ promptsRouter.patch('/:promptId', async (req: Request, res: Response) => {
     }
 
     try {
-        const [existing] = await db
-            .select()
-            .from(extensionPrompts)
-            .where(and(
-                eq(extensionPrompts.id, promptId),
-                eq(extensionPrompts.workspaceId, workspaceId),
-                isNull(extensionPrompts.deletedAt),
-            ))
-            .limit(1)
+        const existing = await promptsRepo.getPrompt(workspaceId, promptId)
 
         if (!existing) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Prompt not found' } })
@@ -96,7 +73,7 @@ promptsRouter.patch('/:promptId', async (req: Request, res: Response) => {
         if (typeof enabled === 'boolean') update.enabled = enabled
         if (variableDefaults) update.variableDefaults = variableDefaults
 
-        await db.update(extensionPrompts).set(update).where(eq(extensionPrompts.id, promptId))
+        await promptsRepo.updatePrompt(promptId, update)
 
         logger.info({ promptId, enabled, workspaceId }, 'Tool prompt updated')
         res.json({ ok: true })
@@ -117,15 +94,7 @@ promptsRouter.post('/:promptId/resolve', async (req: Request, res: Response) => 
     const { variables = {} } = req.body as { variables?: Record<string, unknown> }
 
     try {
-        const [prompt] = await db
-            .select()
-            .from(extensionPrompts)
-            .where(and(
-                eq(extensionPrompts.id, promptId),
-                eq(extensionPrompts.workspaceId, workspaceId),
-                isNull(extensionPrompts.deletedAt),
-            ))
-            .limit(1)
+        const prompt = await promptsRepo.getPrompt(workspaceId, promptId)
 
         if (!prompt) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Prompt not found' } })

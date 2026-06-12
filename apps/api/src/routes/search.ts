@@ -21,8 +21,7 @@
  * Fallback: if no workspace key, falls back to BRAVE_SEARCH_API_KEY env var.
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
@@ -44,13 +43,8 @@ type SearchSettings = {
 }
 
 async function loadSearchSettings(workspaceId: string): Promise<SearchSettings> {
-    const [ws] = await db
-        .select({ settings: workspaces.settings })
-        .from(workspaces)
-        .where(eq(workspaces.id, workspaceId))
-        .limit(1)
-
-    return ((ws?.settings as Record<string, unknown>)?.search ?? {}) as SearchSettings
+    const settings = await workspacesRepo.getSettings(workspaceId)
+    return ((settings ?? {}).search ?? {}) as SearchSettings
 }
 
 export async function getDecryptedBraveKey(workspaceId: string): Promise<string | null> {
@@ -111,18 +105,14 @@ searchRouter.put('/settings', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [ws] = await db
-            .select({ settings: workspaces.settings })
-            .from(workspaces)
-            .where(eq(workspaces.id, workspaceId))
-            .limit(1)
+        const settings = await workspacesRepo.getSettings(workspaceId)
 
-        if (!ws) {
+        if (settings === undefined) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })
             return
         }
 
-        const currentSettings = (ws.settings ?? {}) as Record<string, unknown>
+        const currentSettings = (settings ?? {}) as Record<string, unknown>
         const currentSearch = (currentSettings.search ?? {}) as SearchSettings
         const updatedSearch: SearchSettings = { ...currentSearch }
 
@@ -137,7 +127,7 @@ searchRouter.put('/settings', async (req, res) => {
         }
 
         const newSettings = { ...currentSettings, search: updatedSearch }
-        await db.update(workspaces).set({ settings: newSettings }).where(eq(workspaces.id, workspaceId))
+        await workspacesRepo.updateSettings(workspaceId, newSettings)
 
         logger.info({ workspaceId, hasKey: !!updatedSearch.braveApiKey }, 'Search settings updated')
         res.json({ ok: true })

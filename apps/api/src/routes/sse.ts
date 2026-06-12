@@ -4,8 +4,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { registerClient, unregisterClient } from '../sse-emitter.js'
 import { requireAuth } from '../middleware/auth.js'
-import { db, eq, and } from '@plexo/db'
-import { workspaceMembers } from '@plexo/db'
+import * as membersRepo from '../repositories/members.repository.js'
 import { logger } from '../logger.js'
 
 export const sseRouter: RouterType = Router()
@@ -22,11 +21,8 @@ sseRouter.get('/', requireAuth, async (req, res) => {
         }
     } else {
         try {
-            const [membership] = await db.select({ userId: workspaceMembers.userId })
-                .from(workspaceMembers)
-                .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, user.id)))
-                .limit(1)
-            if (!membership) {
+            const member = await membersRepo.isMember(workspaceId, user.id)
+            if (!member) {
                 res.status(403).json({ error: 'Not a member of this workspace' })
                 return
             }

@@ -17,8 +17,7 @@
  */
 
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and } from '@plexo/db'
-import { extensions } from '@plexo/db'
+import * as toolsRepo from '../repositories/tools.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -48,20 +47,9 @@ toolsRouter.post('/invoke', async (req, res) => {
     try {
         // Find an installed, enabled extension whose manifest declares this
         // tool. The extension name or one of its declared tools must match.
-        const installed = await db.select({
-            id: extensions.id,
-            name: extensions.name,
-            enabled: extensions.enabled,
-            manifest: extensions.manifest,
-        })
-        .from(extensions)
-        .where(and(
-            eq(extensions.workspaceId, workspaceId),
-            eq(extensions.name, toolName),
-        ))
-        .limit(1)
+        const ext = await toolsRepo.findInstalledByName(workspaceId, toolName)
 
-        if (installed.length === 0) {
+        if (!ext) {
             res.status(404).json({
                 error: {
                     code: 'TOOL_NOT_INSTALLED',
@@ -71,7 +59,6 @@ toolsRouter.post('/invoke', async (req, res) => {
             })
             return
         }
-        const ext = installed[0]!
         if (!ext.enabled) {
             res.status(409).json({
                 error: {

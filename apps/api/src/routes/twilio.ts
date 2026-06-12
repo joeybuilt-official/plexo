@@ -19,8 +19,7 @@
  */
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
-import { db, eq } from '@plexo/db'
-import { channels } from '@plexo/db'
+import * as channelsRepo from '../repositories/channels.repository.js'
 import { push as pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
@@ -130,7 +129,7 @@ twilioRouter.post('/events/:channelId', async (req: Request, res: Response) => {
     // Look up the channel row to resolve workspace + auth token
     let channelRow: { id: string; workspaceId: string; type: string; config: unknown; enabled: boolean } | undefined
     try {
-        const [row] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1)
+        const row = await channelsRepo.getById(channelId)
         channelRow = row as typeof channelRow
     } catch (err) {
         logger.error({ err, channelId }, 'Twilio: channel lookup failed')

@@ -44,6 +44,15 @@ export async function listMembersWithUser(workspaceId: string): Promise<MemberWi
         .limit(500) as Promise<MemberWithUser[]>
 }
 
+/** True when a user is a member of a workspace. */
+export async function isMember(workspaceId: string, userId: string): Promise<boolean> {
+    const [membership] = await db.select({ userId: workspaceMembers.userId })
+        .from(workspaceMembers)
+        .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
+        .limit(1)
+    return !!membership
+}
+
 /** Resolve a user id by email, or undefined. */
 export async function findUserIdByEmail(email: string): Promise<string | undefined> {
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
