@@ -364,6 +364,9 @@ export const tasks = pgTable('tasks', {
     index('tasks_project_id_idx').on(table.projectId),
     index('tasks_parent_id_idx').on(table.parentId),
     index('tasks_status_retry_idx').on(table.status, table.retryAfter),
+    // Poller orders the queued set by (priority, createdAt); without this the
+    // scheduler sorts the whole queued set in memory every tick (arch-findings P1).
+    index('tasks_status_priority_created_idx').on(table.status, table.priority, table.createdAt),
 ])
 
 /**
@@ -657,7 +660,11 @@ export const cronJobs = pgTable('cron_jobs', {
     connectorIds: text('connector_ids').array().notNull().default([]),
     notifyChannel: text('notify_channel'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-})
+}, (table: any) => [
+    // Scheduler polls `enabled AND next_run_at <= NOW()` every tick — was a seq
+    // scan (table had only a PK). arch-findings P1.
+    index('cron_jobs_enabled_next_run_idx').on(table.enabled, table.nextRunAt),
+])
 
 export const memoryEntries = pgTable('memory_entries', {
     id: uuid('id').defaultRandom().primaryKey(),
@@ -1364,7 +1371,13 @@ export const sessionLogs = pgTable('session_logs', {
     outputType: varchar('output_type', { length: 64 }),
     outputSummary: text('output_summary'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table: any) => [
+    // Append-only request log (worst-growing table) had zero secondary indexes —
+    // every by-session / by-user / time-range read was a full scan. arch-findings P1.
+    index('session_logs_session_created_idx').on(table.sessionId, table.createdAt),
+    index('session_logs_user_idx').on(table.userId),
+    index('session_logs_created_idx').on(table.createdAt),
+])
 
 // ── Artifacts System (Phase 4) ────────────────────────────────────────────────
 

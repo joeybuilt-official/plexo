@@ -14,12 +14,11 @@
 import { Router, type Router as RouterType } from 'express'
 import { randomBytes } from 'crypto'
 import { z } from 'zod'
-import { db, eq, and } from '@plexo/db'
-import { nodes, nodeTrust } from '@plexo/db'
 import { logger } from '../logger.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireSuperAdmin } from '../middleware/super-admin.js'
 import { UUID_RE } from '../validation.js'
+import * as nodesRepo from '../repositories/nodes.repository.js'
 
 export const nodesRouter: RouterType = Router()
 
@@ -28,36 +27,16 @@ const guard = [requireAuth, requireSuperAdmin]
 
 // ── GET / — list all known nodes ─────────────────────────────────────────────
 
-nodesRouter.get('/', ...guard, async (_req, res) => {
+nodesRouter.get('/', ...guard, async (req, res) => {
     try {
-        const [self] = await db
-            .select({ id: nodes.id })
-            .from(nodes)
-            .where(eq(nodes.isSelf, true))
-            .limit(1)
+        const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '200'), 10) || 200, 1), 500)
+        const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0)
 
-        const rows = await db
-            .select({
-                id: nodes.id,
-                did: nodes.did,
-                displayName: nodes.displayName,
-                url: nodes.url,
-                isSelf: nodes.isSelf,
-                status: nodes.status,
-                lastPingAt: nodes.lastPingAt,
-                createdAt: nodes.createdAt,
-            })
-            .from(nodes)
-            .orderBy(nodes.createdAt)
+        const selfId = await nodesRepo.getSelfNodeId()
+        const rows = await nodesRepo.listNodes({ limit, offset })
 
         // Attach trust edges (from self's perspective) for each remote node
-        const trustEdges = self
-            ? await db
-                .select()
-                .from(nodeTrust)
-                .where(eq(nodeTrust.localNodeId, self.id))
-            : []
-
+        const trustEdges = selfId ? await nodesRepo.getTrustEdgesForLocal(selfId) : []
         const trustByRemoteId = Object.fromEntries(trustEdges.map(e => [e.remoteNodeId, e]))
 
         const items = rows.map(node => ({
@@ -65,7 +44,9 @@ nodesRouter.get('/', ...guard, async (_req, res) => {
             trust: node.isSelf ? null : (trustByRemoteId[node.id] ?? null),
         }))
 
-        return res.json({ items, total: items.length })
+        const total = await nodesRepo.countNodes()
+
+        return res.json({ items, total, limit, offset })
     } catch (err) {
         logger.error({ err }, 'GET /api/v1/nodes failed')
         return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list nodes' } })
@@ -76,11 +57,7 @@ nodesRouter.get('/', ...guard, async (_req, res) => {
 
 nodesRouter.get('/self', ...guard, async (_req, res) => {
     try {
-        const [self] = await db
-            .select()
-            .from(nodes)
-            .where(eq(nodes.isSelf, true))
-            .limit(1)
+        const self = await nodesRepo.getSelfNode()
 
         if (!self) {
             return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Self-node not initialised' } })
@@ -125,51 +102,27 @@ nodesRouter.post('/pair', ...guard, async (req, res) => {
         const syncToken = randomBytes(32).toString('hex')
 
         // Get self-node id for trust edges
-        const [self] = await db
-            .select({ id: nodes.id })
-            .from(nodes)
-            .where(eq(nodes.isSelf, true))
-            .limit(1)
+        const selfId = await nodesRepo.getSelfNodeId()
 
-        if (!self) {
+        if (!selfId) {
             return res.status(500).json({ error: { code: 'NO_SELF_NODE', message: 'Self-node not initialised' } })
         }
 
         // Upsert the remote node with a fresh sync token
-        const [remote] = await db
-            .insert(nodes)
-            .values({ did, displayName: displayName ?? null, url: url ?? null, isSelf: false, status: 'active', syncToken })
-            .onConflictDoUpdate({
-                target: nodes.did,
-                set: {
-                    displayName: displayName ?? null,
-                    url: url ?? null,
-                    status: 'active',
-                    syncToken,
-                },
-            })
-            .returning()
+        const remote = await nodesRepo.upsertRemoteNode({
+            did,
+            displayName: displayName ?? null,
+            url: url ?? null,
+            syncToken,
+        })
 
         // Upsert trust edge if requested
         if (trust && remote) {
-            await db
-                .insert(nodeTrust)
-                .values({
-                    localNodeId: self.id,
-                    remoteNodeId: remote.id,
-                    memorySync: trust.memorySync,
-                    agentRouting: trust.agentRouting,
-                    eventPropagation: trust.eventPropagation,
-                })
-                .onConflictDoUpdate({
-                    target: [nodeTrust.localNodeId, nodeTrust.remoteNodeId],
-                    set: {
-                        memorySync: trust.memorySync,
-                        agentRouting: trust.agentRouting,
-                        eventPropagation: trust.eventPropagation,
-                        revokedAt: null,
-                    },
-                })
+            await nodesRepo.upsertTrustFull(selfId, remote.id, {
+                memorySync: trust.memorySync,
+                agentRouting: trust.agentRouting,
+                eventPropagation: trust.eventPropagation,
+            })
         }
 
         if (!remote) {
@@ -215,13 +168,9 @@ nodesRouter.patch('/:id/trust', ...guard, async (req, res) => {
 
         const { memorySync, agentRouting, eventPropagation, revoke } = parsed.data
 
-        const [self] = await db
-            .select({ id: nodes.id })
-            .from(nodes)
-            .where(eq(nodes.isSelf, true))
-            .limit(1)
+        const selfId = await nodesRepo.getSelfNodeId()
 
-        if (!self) {
+        if (!selfId) {
             return res.status(500).json({ error: { code: 'NO_SELF_NODE', message: 'Self-node not initialised' } })
         }
 
@@ -230,27 +179,7 @@ nodesRouter.patch('/:id/trust', ...guard, async (req, res) => {
         }
 
         // Upsert: create the trust edge if it doesn't exist, then apply the patch
-        const [upserted] = await db
-            .insert(nodeTrust)
-            .values({
-                localNodeId: self.id,
-                remoteNodeId: id,
-                memorySync: memorySync ?? false,
-                agentRouting: agentRouting ?? false,
-                eventPropagation: eventPropagation ?? false,
-                revokedAt: revoke === true ? new Date() : null,
-            })
-            .onConflictDoUpdate({
-                target: [nodeTrust.localNodeId, nodeTrust.remoteNodeId],
-                set: {
-                    ...(memorySync !== undefined && { memorySync }),
-                    ...(agentRouting !== undefined && { agentRouting }),
-                    ...(eventPropagation !== undefined && { eventPropagation }),
-                    ...(revoke === true && { revokedAt: new Date() }),
-                    ...(revoke === false && { revokedAt: null }),
-                },
-            })
-            .returning()
+        const upserted = await nodesRepo.upsertTrustPatch(selfId, id, { memorySync, agentRouting, eventPropagation, revoke })
 
         return res.json({ ok: true, trust: upserted })
     } catch (err) {
@@ -268,7 +197,7 @@ nodesRouter.delete('/:id', ...guard, async (req, res) => {
     }
 
     try {
-        const [node] = await db.select({ isSelf: nodes.isSelf }).from(nodes).where(eq(nodes.id, id)).limit(1)
+        const node = await nodesRepo.getNodeIsSelf(id)
 
         if (!node) {
             return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Node not found' } })
@@ -278,7 +207,7 @@ nodesRouter.delete('/:id', ...guard, async (req, res) => {
             return res.status(400).json({ error: { code: 'CANNOT_DELETE_SELF', message: 'Cannot delete the self-node' } })
         }
 
-        await db.delete(nodes).where(eq(nodes.id, id))
+        await nodesRepo.deleteNode(id)
 
         logger.info({ event: 'node_removed', nodeId: id }, 'Node removed')
         return res.json({ ok: true })

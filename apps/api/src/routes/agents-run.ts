@@ -7,6 +7,7 @@ import { workspaces } from '@plexo/db'
 import { push } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
+import { loadGrantedProfile, getEnforcementMode } from '@plexo/agent/profile/grant'
 
 export const agentsRunRouter: RouterType = Router()
 
@@ -55,6 +56,28 @@ agentsRunRouter.post('/run', async (req, res) => {
         if (!workspace) {
             res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'No workspace found for this user' } })
             return
+        }
+
+        // Cross-tenant binding (arch-findings P1): the service key authenticates the
+        // *app*, but X-User-Id (→ target workspace) is fully caller-controlled. Bind
+        // the dispatch to the operator-managed app→workspace grant so an app can only
+        // dispatch into workspaces it's been granted. Rollout-safe via the same gate
+        // as the rest of the profile system: under 'enforce' an ungranted dispatch is
+        // rejected; under 'monitor'/'off' it's logged (visibility) but allowed, so
+        // nothing breaks before grants are seeded. The IDOR closes operationally when
+        // PROFILE_ENFORCEMENT_MODE=enforce + grants exist.
+        const callerAppId = req.serviceContext?.appId
+        if (callerAppId) {
+            const grant = await loadGrantedProfile(workspace.id, callerAppId)
+            if (!grant) {
+                const mode = getEnforcementMode()
+                if (mode === 'enforce') {
+                    logger.warn({ appId: callerAppId, workspaceId: workspace.id, userId }, 'Agent dispatch denied — app not granted for target workspace')
+                    res.status(403).json({ error: { code: 'APP_NOT_GRANTED', message: 'This app is not granted access to the target workspace' } })
+                    return
+                }
+                logger.warn({ appId: callerAppId, workspaceId: workspace.id, userId, mode }, 'Agent dispatch into ungranted workspace (allowed — enforcement not in enforce mode)')
+            }
         }
 
         const taskId = await push({
