@@ -14,11 +14,13 @@
  * No interface/port ceremony yet (single implementation, pragmatism clause) —
  * just centralised, typed queries.
  */
-import { db, eq, count } from '@plexo/db'
-import { nodes, nodeTrust } from '@plexo/db'
+import { db, eq, and, desc, count } from '@plexo/db'
+import { nodes, nodeTrust, nodeEvents } from '@plexo/db'
 
 type Node = typeof nodes.$inferSelect
 type NodeTrust = typeof nodeTrust.$inferSelect
+type NodeEvent = typeof nodeEvents.$inferSelect
+type NewNodeEvent = typeof nodeEvents.$inferInsert
 
 export interface ListNodesOpts {
     limit: number
@@ -165,4 +167,57 @@ export async function getNodeIsSelf(id: string): Promise<{ isSelf: boolean } | u
 /** Delete a node by id (trust edges cascade at the DB level). */
 export async function deleteNode(id: string): Promise<void> {
     await db.delete(nodes).where(eq(nodes.id, id))
+}
+
+// ── Federation runtime (events + trust checks + pairing) ──────────────────────
+
+/** The trust edge between local and a remote node, or undefined. */
+export async function getTrustEdge(localNodeId: string, remoteNodeId: string): Promise<NodeTrust | undefined> {
+    const [edge] = await db
+        .select()
+        .from(nodeTrust)
+        .where(and(eq(nodeTrust.localNodeId, localNodeId), eq(nodeTrust.remoteNodeId, remoteNodeId)))
+        .limit(1)
+    return edge
+}
+
+/** Register an inbound remote node as `pending` (admin must approve trust). */
+export async function upsertPendingNode(input: { did: string; displayName: string | null; url: string | null; syncToken: string }): Promise<void> {
+    await db
+        .insert(nodes)
+        .values({ ...input, isSelf: false, status: 'pending' })
+        .onConflictDoUpdate({
+            target: nodes.did,
+            set: { displayName: input.displayName, url: input.url, syncToken: input.syncToken },
+        })
+}
+
+/** Insert a node event; returns the created row. */
+export async function insertNodeEvent(values: NewNodeEvent): Promise<NodeEvent | undefined> {
+    const [event] = await db.insert(nodeEvents).values(values).returning()
+    return event
+}
+
+/** Stamp a node's last-ping time (federation liveness). */
+export async function touchNodeLastPing(nodeId: string): Promise<void> {
+    await db.update(nodes).set({ lastPingAt: new Date() }).where(eq(nodes.id, nodeId))
+}
+
+export interface ListNodeEventsOpts {
+    processed?: boolean
+    limit: number
+    offset: number
+}
+
+/** Recent node events, newest first, optionally filtered by processed state. */
+export async function listNodeEvents({ processed, limit, offset }: ListNodeEventsOpts): Promise<NodeEvent[]> {
+    return processed !== undefined
+        ? db.select().from(nodeEvents).where(eq(nodeEvents.processed, processed)).orderBy(desc(nodeEvents.createdAt)).limit(limit).offset(offset)
+        : db.select().from(nodeEvents).orderBy(desc(nodeEvents.createdAt)).limit(limit).offset(offset)
+}
+
+/** Mark a node event processed; returns the updated row (undefined if missing). */
+export async function markNodeEventProcessed(id: string): Promise<NodeEvent | undefined> {
+    const [updated] = await db.update(nodeEvents).set({ processed: true }).where(eq(nodeEvents.id, id)).returning()
+    return updated
 }

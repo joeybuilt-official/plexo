@@ -11,13 +11,12 @@
 
 import { Router, type Router as RouterType } from 'express'
 import { z } from 'zod'
-import { db, eq, desc } from '@plexo/db'
-import { nodeEvents } from '@plexo/db'
 import { logger } from '../logger.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireSuperAdmin } from '../middleware/super-admin.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { UUID_RE } from '../validation.js'
+import * as nodesRepo from '../repositories/nodes.repository.js'
 
 export const nodeEventsRouter: RouterType = Router()
 
@@ -45,13 +44,13 @@ nodeEventsRouter.post('/', requireServiceKey, async (req, res) => {
         const { eventType, payload, workspaceId } = parsed.data
         const selfDid = `did:plexo:${process.env.PLEXO_INSTANCE_ID ?? 'unknown'}`
 
-        const [event] = await db.insert(nodeEvents).values({
+        const event = await nodesRepo.insertNodeEvent({
             sourceNodeDid: selfDid,
             eventType,
             payload,
             workspaceId: workspaceId ?? null,
             processed: false,
-        }).returning()
+        })
 
         logger.info({ event: 'node_event_emitted', eventType }, 'Local node event emitted')
         return res.json({ ok: true, eventId: event?.id })
@@ -69,10 +68,7 @@ nodeEventsRouter.get('/', requireAuth, requireSuperAdmin, async (req, res) => {
         const offset = Math.max(parseInt((req.query.offset as string | undefined) ?? '0', 10), 0)
         const processed = req.query.processed === 'true' ? true : req.query.processed === 'false' ? false : undefined
 
-        // Drizzle v0.39: filter via where clause when processed filter set
-        const rows = processed !== undefined
-            ? await db.select().from(nodeEvents).where(eq(nodeEvents.processed, processed)).orderBy(desc(nodeEvents.createdAt)).limit(limit).offset(offset)
-            : await db.select().from(nodeEvents).orderBy(desc(nodeEvents.createdAt)).limit(limit).offset(offset)
+        const rows = await nodesRepo.listNodeEvents({ processed, limit, offset })
 
         return res.json({ items: rows, total: rows.length, pagination: { limit, offset } })
     } catch (err) {
@@ -90,11 +86,7 @@ nodeEventsRouter.patch('/:id/processed', requireAuth, requireSuperAdmin, async (
     }
 
     try {
-        const [updated] = await db
-            .update(nodeEvents)
-            .set({ processed: true })
-            .where(eq(nodeEvents.id, id))
-            .returning()
+        const updated = await nodesRepo.markNodeEventProcessed(id)
 
         if (!updated) {
             return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Event not found' } })
