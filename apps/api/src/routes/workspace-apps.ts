@@ -15,8 +15,7 @@
 
 import { Router, type Router as RouterType } from 'express'
 import { z } from 'zod'
-import { db, eq, and } from '@plexo/db'
-import { appProfiles, userAppAuthorizations, workspaces } from '@plexo/db'
+import * as workspaceAppsRepo from '../repositories/workspace-apps.repository.js'
 import { logger } from '../logger.js'
 import { requireAuth } from '../middleware/auth.js'
 import { UUID_RE } from '../validation.js'
@@ -43,27 +42,12 @@ workspaceAppsRouter.get('/', async (req, res) => {
 
     try {
         // Verify workspace exists
-        const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
-        if (!ws) {
+        if (!await workspaceAppsRepo.workspaceExists(workspaceId)) {
             return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })
         }
 
         // Return all registered app profiles that have any authorization in this workspace
-        const rows = await db
-            .selectDistinctOn([appProfiles.appId], {
-                appId: appProfiles.appId,
-                schemaNamespace: appProfiles.schemaNamespace,
-                displayName: appProfiles.displayName,
-                lastSeenAt: appProfiles.lastSeenAt,
-            })
-            .from(appProfiles)
-            .innerJoin(
-                userAppAuthorizations,
-                and(
-                    eq(userAppAuthorizations.appId, appProfiles.appId),
-                    eq(userAppAuthorizations.workspaceId, workspaceId),
-                )
-            )
+        const rows = await workspaceAppsRepo.listWorkspaceApps(workspaceId)
 
         return res.json({ items: rows, total: rows.length })
     } catch (err) {
@@ -99,19 +83,11 @@ workspaceAppsRouter.post('/', async (req, res) => {
         const { appId, userId, scopes } = parsed.data
 
         // Verify app profile exists
-        const [profile] = await db.select({ appId: appProfiles.appId }).from(appProfiles).where(eq(appProfiles.appId, appId)).limit(1)
-        if (!profile) {
+        if (!await workspaceAppsRepo.appProfileExists(appId)) {
             return res.status(404).json({ error: { code: 'APP_NOT_FOUND', message: 'App profile not registered on this node' } })
         }
 
-        const [auth] = await db
-            .insert(userAppAuthorizations)
-            .values({ userId, appId, workspaceId, scopes, revokedAt: null })
-            .onConflictDoUpdate({
-                target: [userAppAuthorizations.userId, userAppAuthorizations.appId, userAppAuthorizations.workspaceId],
-                set: { scopes, revokedAt: null, grantedAt: new Date() },
-            })
-            .returning()
+        const auth = await workspaceAppsRepo.upsertAuthorization({ userId, appId, workspaceId, scopes })
 
         logger.info({ event: 'workspace_app_connected', appId, workspaceId }, 'App connected to workspace')
         return res.json({ ok: true, authorization: auth })
@@ -130,17 +106,7 @@ workspaceAppsRouter.delete('/:appId', async (req, res) => {
     const { appId } = req.params as { appId: string }
 
     try {
-        const now = new Date()
-        const result = await db
-            .update(userAppAuthorizations)
-            .set({ revokedAt: now })
-            .where(
-                and(
-                    eq(userAppAuthorizations.workspaceId, workspaceId),
-                    eq(userAppAuthorizations.appId, appId),
-                )
-            )
-            .returning()
+        const result = await workspaceAppsRepo.revokeApp(workspaceId, appId)
 
         if (result.length === 0) {
             return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'App not connected to this workspace' } })
@@ -163,15 +129,7 @@ workspaceAppsRouter.get('/:appId/authorizations', async (req, res) => {
     const { appId } = req.params as { appId: string }
 
     try {
-        const rows = await db
-            .select()
-            .from(userAppAuthorizations)
-            .where(
-                and(
-                    eq(userAppAuthorizations.workspaceId, workspaceId),
-                    eq(userAppAuthorizations.appId, appId),
-                )
-            )
+        const rows = await workspaceAppsRepo.listAuthorizations(workspaceId, appId)
 
         return res.json({ items: rows, total: rows.length })
     } catch (err) {
@@ -207,14 +165,7 @@ workspaceAppsRouter.post('/:appId/authorizations', async (req, res) => {
 
         const { userId, scopes } = parsed.data
 
-        const [auth] = await db
-            .insert(userAppAuthorizations)
-            .values({ userId, appId, workspaceId, scopes, revokedAt: null })
-            .onConflictDoUpdate({
-                target: [userAppAuthorizations.userId, userAppAuthorizations.appId, userAppAuthorizations.workspaceId],
-                set: { scopes, revokedAt: null, grantedAt: new Date() },
-            })
-            .returning()
+        const auth = await workspaceAppsRepo.upsertAuthorization({ userId, appId, workspaceId, scopes })
 
         return res.json({ ok: true, authorization: auth })
     } catch (err) {
@@ -235,17 +186,7 @@ workspaceAppsRouter.delete('/:appId/authorizations/:userId', async (req, res) =>
     }
 
     try {
-        const [updated] = await db
-            .update(userAppAuthorizations)
-            .set({ revokedAt: new Date() })
-            .where(
-                and(
-                    eq(userAppAuthorizations.workspaceId, workspaceId),
-                    eq(userAppAuthorizations.appId, appId),
-                    eq(userAppAuthorizations.userId, userId),
-                )
-            )
-            .returning()
+        const updated = await workspaceAppsRepo.revokeUser(workspaceId, appId, userId)
 
         if (!updated) {
             return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Authorization not found' } })
