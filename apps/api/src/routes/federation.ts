@@ -16,35 +16,19 @@
 import { Router, type Router as RouterType } from 'express'
 import { randomBytes } from 'crypto'
 import { z } from 'zod'
-import { db, eq, and } from '@plexo/db'
-import { nodes, nodeTrust, nodeEvents } from '@plexo/db'
 import { logger } from '../logger.js'
 import { requireNodeAuth } from '../middleware/node-auth.js'
+import * as nodesRepo from '../repositories/nodes.repository.js'
 
 export const federationRouter: RouterType = Router()
 
 // ── Trust scope helper ────────────────────────────────────────────────────────
 
 async function hasTrustScope(remoteNodeId: string, scope: 'memorySync' | 'agentRouting' | 'eventPropagation') {
-    const [self] = await db
-        .select({ id: nodes.id })
-        .from(nodes)
-        .where(eq(nodes.isSelf, true))
-        .limit(1)
+    const selfId = await nodesRepo.getSelfNodeId()
+    if (!selfId) return false
 
-    if (!self) return false
-
-    const [edge] = await db
-        .select()
-        .from(nodeTrust)
-        .where(
-            and(
-                eq(nodeTrust.localNodeId, self.id),
-                eq(nodeTrust.remoteNodeId, remoteNodeId),
-            )
-        )
-        .limit(1)
-
+    const edge = await nodesRepo.getTrustEdge(selfId, remoteNodeId)
     if (!edge || edge.revokedAt) return false
     return edge[scope] === true
 }
@@ -72,12 +56,7 @@ federationRouter.post('/pair', async (req, res) => {
 
         const { did, displayName, url } = parsed.data
 
-        const [self] = await db
-            .select({ id: nodes.id, did: nodes.did })
-            .from(nodes)
-            .where(eq(nodes.isSelf, true))
-            .limit(1)
-
+        const self = await nodesRepo.getSelfNode()
         if (!self) {
             return res.status(500).json({ error: { code: 'NO_SELF_NODE', message: 'Self-node not initialised' } })
         }
@@ -86,13 +65,7 @@ federationRouter.post('/pair', async (req, res) => {
         const syncToken = randomBytes(32).toString('hex')
 
         // Register the remote node as pending — local admin must approve trust
-        await db
-            .insert(nodes)
-            .values({ did, displayName: displayName ?? null, url: url ?? null, isSelf: false, status: 'pending', syncToken })
-            .onConflictDoUpdate({
-                target: nodes.did,
-                set: { displayName: displayName ?? null, url: url ?? null, syncToken },
-            })
+        await nodesRepo.upsertPendingNode({ did, displayName: displayName ?? null, url: url ?? null, syncToken })
 
         logger.info({ event: 'federation_pair_inbound', did }, 'Inbound pairing request received')
 
@@ -137,7 +110,7 @@ federationRouter.post('/events', requireNodeAuth, async (req, res) => {
             return res.status(403).json({ error: { code: 'SCOPE_DENIED', message: 'Event propagation not trusted for this node' } })
         }
 
-        await db.insert(nodeEvents).values({
+        await nodesRepo.insertNodeEvent({
             sourceNodeDid: remote.did,
             eventType,
             payload,
@@ -145,7 +118,7 @@ federationRouter.post('/events', requireNodeAuth, async (req, res) => {
             processed: false,
         })
 
-        await db.update(nodes).set({ lastPingAt: new Date() }).where(eq(nodes.id, remote.id))
+        await nodesRepo.touchNodeLastPing(remote.id)
 
         logger.info({ event: 'federation_event_received', sourceDid: remote.did, eventType }, 'Federated event stored')
         return res.json({ ok: true })
@@ -186,7 +159,7 @@ federationRouter.post('/memory/push', requireNodeAuth, async (req, res) => {
             return res.status(403).json({ error: { code: 'SCOPE_DENIED', message: 'Memory sync not trusted for this node' } })
         }
 
-        await db.insert(nodeEvents).values({
+        await nodesRepo.insertNodeEvent({
             sourceNodeDid: remote.did,
             eventType: 'memory.push',
             payload: { workspaceId, content, type, tags, metadata },
@@ -194,7 +167,7 @@ federationRouter.post('/memory/push', requireNodeAuth, async (req, res) => {
             processed: false,
         })
 
-        await db.update(nodes).set({ lastPingAt: new Date() }).where(eq(nodes.id, remote.id))
+        await nodesRepo.touchNodeLastPing(remote.id)
 
         logger.info({ event: 'federation_memory_push', sourceDid: remote.did, workspaceId }, 'Federated memory push received')
         return res.json({ ok: true })
@@ -234,15 +207,15 @@ federationRouter.post('/agent/route', requireNodeAuth, async (req, res) => {
             return res.status(403).json({ error: { code: 'SCOPE_DENIED', message: 'Agent routing not trusted for this node' } })
         }
 
-        const [event] = await db.insert(nodeEvents).values({
+        const event = await nodesRepo.insertNodeEvent({
             sourceNodeDid: remote.did,
             eventType: 'agent.route',
             payload: { workspaceId, prompt, context, callbackUrl },
             workspaceId,
             processed: false,
-        }).returning()
+        })
 
-        await db.update(nodes).set({ lastPingAt: new Date() }).where(eq(nodes.id, remote.id))
+        await nodesRepo.touchNodeLastPing(remote.id)
 
         logger.info({ event: 'federation_agent_route', sourceDid: remote.did, workspaceId }, 'Federated agent route received')
         return res.json({ ok: true, eventId: event?.id })
