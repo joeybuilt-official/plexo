@@ -2,12 +2,11 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, desc, eq, sql, asc } from '@plexo/db'
-import { conversations } from '@plexo/db'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { graphCypher, isGraphSidecarConfigured } from '../lib/graph-sidecar.js'
+import * as conversationsRepo from '../repositories/conversations.repository.js'
 
 export const conversationsRouter: RouterType = Router()
 
@@ -84,8 +83,7 @@ conversationsRouter.get('/:id', async (req, res) => {
                 // We need workspaceId to scope the cypher graph. Fetch from postgres
                 // (cheap, indexed lookup) so the cypher query knows which graph DB to
                 // target; then run cypher and trust the result.
-                const [auth] = await db.select({ workspaceId: conversations.workspaceId })
-                    .from(conversations).where(eq(conversations.id, id)).limit(1)
+                const auth = await conversationsRepo.getConversationWorkspaceId(id)
                 if (!auth) {
                     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Conversation not found' } })
                     return
@@ -107,9 +105,7 @@ conversationsRouter.get('/:id', async (req, res) => {
             }
         }
 
-        const [item] = await db.select().from(conversations)
-            .where(eq(conversations.id, id))
-            .limit(1)
+        const item = await conversationsRepo.getConversationById(id)
         if (!item) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Conversation not found' } })
             return
@@ -170,10 +166,7 @@ conversationsRouter.get('/', async (req, res) => {
                     logger.warn({ err, workspaceId, sessionId }, 'cypher session read failed — falling back to postgres')
                 }
             }
-            const items = await db.select().from(conversations)
-                .where(sql`workspace_id = ${workspaceId} AND session_id = ${sessionId}`)
-                .orderBy(asc(conversations.createdAt))
-                .limit(lim)
+            const items = await conversationsRepo.listSessionTurns(workspaceId, sessionId, lim)
             res.json({ items, nextCursor: null, sessionId })
             return
         }
@@ -238,26 +231,7 @@ conversationsRouter.get('/', async (req, res) => {
             }
             // Use a window function to get the latest turn per session
             // plus a count of total turns per session.
-            const rawRows = await db.execute(sql`
-                WITH bounded AS (
-                    SELECT * FROM conversations
-                    WHERE workspace_id = ${workspaceId}
-                    ${cursor ? sql`AND created_at < (SELECT created_at FROM conversations WHERE id = ${cursor})` : sql``}
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT 500
-                ),
-                ranked AS (
-                    SELECT *,
-                           -- ADR-0021 §74: explicit id DESC tiebreaker so SQL parity-matches the cypher
-                           -- reduce()-fallback path under tied created_at.
-                           ROW_NUMBER() OVER (PARTITION BY COALESCE(session_id, id) ORDER BY created_at DESC, id DESC) AS rn,
-                           COUNT(*) OVER (PARTITION BY COALESCE(session_id, id)) AS turn_count
-                    FROM bounded
-                )
-                SELECT * FROM ranked WHERE rn = 1
-                ORDER BY created_at DESC, id DESC
-                LIMIT ${lim}
-            `)
+            const rawRows = await conversationsRepo.listGroupedBySession(workspaceId, cursor, lim)
             // Raw execute returns snake_case columns. Map them to camelCase to match the frontend ConversationItem type.
             const items = (rawRows as Array<Record<string, unknown>>).map((row) => ({
                 id: row.id,
@@ -319,15 +293,7 @@ conversationsRouter.get('/', async (req, res) => {
             }
         }
 
-        const items = cursor
-            ? await db.select().from(conversations)
-                .where(sql`workspace_id = ${workspaceId} AND id < ${cursor}`)
-                .orderBy(desc(conversations.createdAt))
-                .limit(lim)
-            : await db.select().from(conversations)
-                .where(sql`workspace_id = ${workspaceId}`)
-                .orderBy(desc(conversations.createdAt))
-                .limit(lim)
+        const items = await conversationsRepo.listFlat(workspaceId, cursor, lim)
 
         const nextCursor = items.length === lim ? (items[items.length - 1]?.id ?? null) : null
 

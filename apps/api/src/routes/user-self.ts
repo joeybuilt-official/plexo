@@ -8,11 +8,10 @@
  * PATCH /api/v1/user-self
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq } from '@plexo/db'
-import { userSelf } from '@plexo/db'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
+import * as userSelfRepo from '../repositories/user-self.repository.js'
 
 export const userSelfRouter: RouterType = Router()
 
@@ -25,9 +24,7 @@ userSelfRouter.get('/', async (req, res) => {
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
     try {
-        const [row] = await db.select()
-            .from(userSelf)
-            .where(eq(userSelf.workspaceId, workspaceId))
+        const row = await userSelfRepo.getByWorkspace(workspaceId)
         if (!row) {
             res.json({
                 identity: {},
@@ -69,13 +66,7 @@ userSelfRouter.patch('/', async (req, res) => {
     if (fields.communicationStyle !== undefined) updateFields.communicationStyle = fields.communicationStyle
 
     try {
-        const [row] = await db.insert(userSelf)
-            .values({ workspaceId, ...updateFields })
-            .onConflictDoUpdate({
-                target: userSelf.workspaceId,
-                set: updateFields,
-            })
-            .returning()
+        const row = await userSelfRepo.upsert(workspaceId, updateFields)
         res.json(row)
     } catch (err) {
         logger.error({ err }, 'PATCH /api/v1/user-self failed')
