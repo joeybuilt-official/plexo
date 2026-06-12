@@ -63,6 +63,28 @@ interface AddEpisodeBody {
     /** Route extraction through this workspace's providers while writing the
      *  graph under workspaceId. See GraphitiClient.addEpisode. */
     inferenceWorkspaceId?: string
+    /** Optional custom entity taxonomy forwarded to graphiti so extracted
+     *  nodes are typed instead of bare `Entity` (P9c). Each {name, description}
+     *  becomes a graphiti entity type; name must be a valid label identifier. */
+    entityTypes?: Array<{ name?: unknown; description?: unknown }>
+}
+
+// Entity-type names become FalkorDB node labels, so constrain them to a safe
+// identifier shape (the sidecar interpolates the name as a label). Reject
+// anything else rather than silently dropping it.
+const ENTITY_TYPE_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
+const MAX_ENTITY_TYPES = 24
+
+function sanitizeEntityTypes(
+    raw: Array<{ name?: unknown; description?: unknown }> | undefined,
+): Array<{ name: string; description: string }> | undefined {
+    if (!Array.isArray(raw) || raw.length === 0) return undefined
+    const out: Array<{ name: string; description: string }> = []
+    for (const t of raw.slice(0, MAX_ENTITY_TYPES)) {
+        if (!t || typeof t.name !== 'string' || !ENTITY_TYPE_NAME_RE.test(t.name)) continue
+        out.push({ name: t.name, description: typeof t.description === 'string' ? t.description : '' })
+    }
+    return out.length > 0 ? out : undefined
 }
 
 router.post('/episodes', async (req, res) => {
@@ -101,6 +123,7 @@ router.post('/episodes', async (req, res) => {
         sourceMetadata,
         episodeType: 'message',
         inferenceWorkspaceId: body.inferenceWorkspaceId,
+        entityTypes: sanitizeEntityTypes(body.entityTypes),
     })
     if (!result) {
         logger.warn({ workspaceId: body.workspaceId }, 'graph.episodes: bridge returned null')
