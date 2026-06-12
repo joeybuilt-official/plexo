@@ -12,11 +12,10 @@
  * The source workspace's key is never copied; only a verified pointer is stored.
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and } from '@plexo/db'
-import { workspaceKeyShares, workspaces } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
+import * as keySharesRepo from '../repositories/key-shares.repository.js'
 
 export const keySharesRouter: RouterType = Router({ mergeParams: true })
 
@@ -35,25 +34,8 @@ keySharesRouter.get('/', async (req, res) => {
     }
 
     try {
-        const lending = await db
-            .select({
-                id: workspaceKeyShares.id,
-                providerKey: workspaceKeyShares.providerKey,
-                grantedAt: workspaceKeyShares.grantedAt,
-                targetWsId: workspaceKeyShares.targetWsId,
-            })
-            .from(workspaceKeyShares)
-            .where(eq(workspaceKeyShares.sourceWsId, id))
-
-        const borrowing = await db
-            .select({
-                id: workspaceKeyShares.id,
-                providerKey: workspaceKeyShares.providerKey,
-                grantedAt: workspaceKeyShares.grantedAt,
-                sourceWsId: workspaceKeyShares.sourceWsId,
-            })
-            .from(workspaceKeyShares)
-            .where(eq(workspaceKeyShares.targetWsId, id))
+        const lending = await keySharesRepo.listLending(id)
+        const borrowing = await keySharesRepo.listBorrowing(id)
 
         const wsIds = [
             ...new Set([
@@ -62,12 +44,7 @@ keySharesRouter.get('/', async (req, res) => {
             ])
         ]
 
-        const wsRows = wsIds.length
-            ? await db.select({ id: workspaces.id, name: workspaces.name }).from(workspaces)
-                .then(rows => rows.filter(r => wsIds.includes(r.id)))
-            : []
-
-        const wsMap = Object.fromEntries(wsRows.map(r => [r.id, r.name]))
+        const wsMap = await keySharesRepo.getWorkspaceNamesByIds(wsIds)
 
         res.json({
             lending: lending.map(r => ({
@@ -116,15 +93,13 @@ keySharesRouter.post('/', async (req, res) => {
     }
 
     try {
-        const [srcWs] = await db.select({ id: workspaces.id, ownerId: workspaces.ownerId })
-            .from(workspaces).where(eq(workspaces.id, sourceWsId)).limit(1)
+        const srcWs = await keySharesRepo.getWorkspaceOwner(sourceWsId)
         if (!srcWs) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Source workspace not found' } })
             return
         }
 
-        const [tgtWs] = await db.select({ id: workspaces.id, name: workspaces.name, ownerId: workspaces.ownerId })
-            .from(workspaces).where(eq(workspaces.id, targetWorkspaceId)).limit(1)
+        const tgtWs = await keySharesRepo.getWorkspaceForShare(targetWorkspaceId)
         if (!tgtWs) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Target workspace not found' } })
             return
@@ -137,20 +112,20 @@ keySharesRouter.post('/', async (req, res) => {
         }
 
         const shareId = ulid()
-        await db.insert(workspaceKeyShares).values({
+        await keySharesRepo.insertKeyShareIgnore({
             id: shareId,
             sourceWsId,
             targetWsId: targetWorkspaceId,
             providerKey,
             grantedBy: srcWs.ownerId,  // using owner as granting user (Phase 1; Phase 2 uses session user)
-        }).onConflictDoNothing()
+        })
 
         // Update the target workspace's aiProviders settings to add the keySource reference.
         // Also copy non-sensitive config (baseUrl, selectedModel, dynamicModels) from the
         // source so the borrowing workspace shows the correct URL and ensemble info.
-        const [[tgtWsSettings], [srcWsSettings]] = await Promise.all([
-            db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, targetWorkspaceId)).limit(1),
-            db.select({ settings: workspaces.settings, name: workspaces.name }).from(workspaces).where(eq(workspaces.id, sourceWsId)).limit(1),
+        const [tgtWsSettings, srcWsSettings] = await Promise.all([
+            keySharesRepo.getWorkspaceSettings(targetWorkspaceId),
+            keySharesRepo.getWorkspaceSettingsAndName(sourceWsId),
         ])
 
         if (tgtWsSettings) {
@@ -171,9 +146,7 @@ keySharesRouter.post('/', async (req, res) => {
                 keySource: { workspaceId: sourceWsId, workspaceName: srcWsSettings?.name ?? sourceWsId },
             }
 
-            await db.update(workspaces).set({
-                settings: { ...settings, aiProviders: { ...aiProviders, providers } },
-            }).where(eq(workspaces.id, targetWorkspaceId))
+            await keySharesRepo.updateWorkspaceSettings(targetWorkspaceId, { ...settings, aiProviders: { ...aiProviders, providers } })
         }
 
         logger.info({ sourceWsId, targetWorkspaceId, providerKey, shareId }, 'key-share: created')
@@ -200,24 +173,16 @@ keySharesRouter.delete('/:shareId', async (req, res) => {
     }
 
     try {
-        const [share] = await db.select()
-            .from(workspaceKeyShares)
-            .where(and(
-                eq(workspaceKeyShares.id, shareId.toUpperCase()),
-                eq(workspaceKeyShares.sourceWsId, sourceWsId),
-            ))
-            .limit(1)
+        const share = await keySharesRepo.getShareScoped(shareId.toUpperCase(), sourceWsId)
 
         if (!share) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Share not found or not owned by this workspace' } })
             return
         }
 
-        await db.delete(workspaceKeyShares)
-            .where(eq(workspaceKeyShares.id, share.id))
+        await keySharesRepo.deleteShare(share.id)
 
-        const [tgtWsSettings] = await db.select({ settings: workspaces.settings })
-            .from(workspaces).where(eq(workspaces.id, share.targetWsId)).limit(1)
+        const tgtWsSettings = await keySharesRepo.getWorkspaceSettings(share.targetWsId)
 
         if (tgtWsSettings) {
             const settings = (tgtWsSettings.settings ?? {}) as Record<string, unknown>
@@ -231,9 +196,7 @@ keySharesRouter.delete('/:shareId', async (req, res) => {
                 providers[share.providerKey] = providerEntry
             }
 
-            await db.update(workspaces).set({
-                settings: { ...settings, aiProviders: { ...aiProviders, providers } },
-            }).where(eq(workspaces.id, share.targetWsId))
+            await keySharesRepo.updateWorkspaceSettings(share.targetWsId, { ...settings, aiProviders: { ...aiProviders, providers } })
         }
 
         logger.info({ shareId, sourceWsId, targetWsId: share.targetWsId, providerKey: share.providerKey }, 'key-share: revoked')
