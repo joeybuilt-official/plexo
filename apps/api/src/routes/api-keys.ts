@@ -4,10 +4,9 @@
 import { Router, type Router as RouterType } from 'express'
 import crypto from 'crypto'
 import { z } from 'zod'
-import { db, eq, and, desc } from '@plexo/db'
-import { mcpTokens } from '@plexo/db'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
+import * as apiKeysRepo from '../repositories/api-keys.repository.js'
 
 export const apiKeysRouter: RouterType = Router({ mergeParams: true })
 
@@ -27,23 +26,7 @@ apiKeysRouter.get('/', async (req, res) => {
     }
 
     try {
-        const rows = await db
-            .select({
-                id: mcpTokens.id,
-                name: mcpTokens.name,
-                scopes: mcpTokens.scopes,
-                type: mcpTokens.type,
-                createdAt: mcpTokens.createdAt,
-                lastUsedAt: mcpTokens.lastUsedAt,
-            })
-            .from(mcpTokens)
-            .where(
-                and(
-                    eq(mcpTokens.workspaceId, workspaceId),
-                    eq(mcpTokens.revoked, false)
-                )
-            )
-            .orderBy(desc(mcpTokens.createdAt))
+        const rows = await apiKeysRepo.listActiveKeys(workspaceId)
 
         res.json({ items: rows, total: rows.length })
     } catch (err) {
@@ -78,17 +61,12 @@ apiKeysRouter.post('/', async (req, res) => {
         const salt = crypto.randomBytes(16).toString('hex')
         const hash = crypto.createHash('sha256').update(fullToken + salt).digest('hex')
 
-        const [created] = await db.insert(mcpTokens).values({
+        const created = await apiKeysRepo.createKey({
             workspaceId,
             name: parse.data.name,
             tokenHash: hash,
             tokenSalt: salt,
             scopes: parse.data.scopes,
-            type: 'mcp'
-        }).returning({
-            id: mcpTokens.id,
-            name: mcpTokens.name,
-            createdAt: mcpTokens.createdAt,
         })
 
         logger.info({ workspaceId, keyId: created!.id }, 'Created new API key')
@@ -115,14 +93,7 @@ apiKeysRouter.delete('/:keyId', async (req, res) => {
     }
 
     try {
-        await db.update(mcpTokens)
-            .set({ revoked: true })
-            .where(
-                and(
-                    eq(mcpTokens.id, keyId),
-                    eq(mcpTokens.workspaceId, workspaceId)
-                )
-            )
+        await apiKeysRepo.revokeKey(workspaceId, keyId)
 
         logger.info({ workspaceId, keyId }, 'Revoked API key')
         res.json({ ok: true })
