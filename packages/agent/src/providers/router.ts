@@ -113,7 +113,14 @@ export class IntelligentRouter {
         const proxyUrl = process.env.PLEXO_PROXY_URL || 'https://proxy.plexo.ai/v1/infer'
         const proxyKey = process.env.PLEXO_API_KEY || ''
         const instanceId = process.env.PLEXO_INSTANCE_ID || '00000000-0000-0000-0000-000000000000'
-        const signingSecret = process.env.PLEXO_SIGNING_SECRET || 'dev-secret'
+        // Fail closed: never sign managed-proxy requests with a known constant.
+        // A missing secret must abort the proxy path, not silently degrade to a
+        // forgeable signature (arch-findings P1). The previous `|| 'dev-secret'`
+        // fallback meant an unset prod env signed with a public string.
+        const signingSecret = process.env.PLEXO_SIGNING_SECRET
+        if (!signingSecret) {
+            throw new Error('PLEXO_SIGNING_SECRET is not set — refusing to sign managed-proxy inference requests')
+        }
         const workspaceId = this.workspaceId || 'system'
         
         const proxyFetch = async (url: string | URL | globalThis.Request, init?: RequestInit): Promise<Response> => {

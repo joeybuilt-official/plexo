@@ -13,7 +13,7 @@
  * POST   /api/invites/:token/accept            Accept invite, create membership
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, desc } from '@plexo/db'
+import { db, eq, and, desc, isNull } from '@plexo/db'
 import { workspaceMembers, workspaceInvites, users, workspaces } from '@plexo/db'
 import { randomBytes } from 'crypto'
 import { logger } from '../logger.js'
@@ -326,22 +326,26 @@ invitesRouter.post('/:token/accept', async (req, res) => {
             return
         }
 
-        await db.insert(workspaceMembers).values({
-            workspaceId: invite.workspaceId,
-            userId,
-            role: invite.role,
-        }).onConflictDoUpdate({
-            target: [workspaceMembers.workspaceId, workspaceMembers.userId],
-            set: { role: invite.role },
+        // Atomic: seat the member and consume the invite in one transaction so a
+        // crash between the two writes can't leave membership-without-consumed-invite
+        // or invite-consumed-without-membership. The invite is marked used only when
+        // still unused, closing the double-accept race.
+        await db.transaction(async (tx) => {
+            await tx.insert(workspaceMembers).values({
+                workspaceId: invite.workspaceId,
+                userId,
+                role: invite.role,
+            }).onConflictDoUpdate({
+                target: [workspaceMembers.workspaceId, workspaceMembers.userId],
+                set: { role: invite.role },
+            })
+            await tx
+                .update(workspaceInvites)
+                .set({ usedAt: new Date(), usedByUserId: userId })
+                .where(and(eq(workspaceInvites.token, token), isNull(workspaceInvites.usedAt)))
         })
         // Phase C1 (ADR 0022) shadow-write — invite acceptance.
         void mirrorMembershipUpsert({ workspaceId: invite.workspaceId, userId, role: invite.role })
-
-        // Mark invite as used
-        await db
-            .update(workspaceInvites)
-            .set({ usedAt: new Date(), usedByUserId: userId })
-            .where(eq(workspaceInvites.token, token))
 
         logger.info({ tokenPrefix: token.slice(0, 8) + '...', userId, workspaceId: invite.workspaceId }, 'Invite accepted')
         audit(req, { workspaceId: invite.workspaceId, userId, action: 'invite.accept', resource: 'workspace_invites', resourceId: token, metadata: { role: invite.role } })

@@ -118,14 +118,14 @@ profilesRouter.post('/register', requireServiceKey, async (req, res) => {
                 },
             })
 
-        // Upsert each extension into the extension_registry (append-never-overwrite).
-        // We register them under the app's namespace so they're discoverable.
-        for (const ext of exts) {
-            const registryName = `@${appId}/${ext.id}`
+        // Upsert all extensions into the extension_registry (append-never-overwrite)
+        // in a single batched statement — was N sequential round-trips (one per
+        // extension). Conflict updates pull from the incoming row via `excluded.*`.
+        if (exts.length > 0) {
             await db
                 .insert(extensionRegistry)
-                .values({
-                    name: registryName,
+                .values(exts.map((ext) => ({
+                    name: `@${appId}/${ext.id}`,
                     displayName: ext.name,
                     description: `${ext.type} extension from ${displayName}`,
                     publisher: appId,
@@ -133,14 +133,14 @@ profilesRouter.post('/register', requireServiceKey, async (req, res) => {
                     versions: ['0.0.0'],
                     manifest: { type: ext.type, config: ext.config },
                     tags: [ext.type, appId],
-                })
+                })))
                 .onConflictDoUpdate({
                     target: extensionRegistry.name,
                     set: {
-                        displayName: ext.name,
-                        description: `${ext.type} extension from ${displayName}`,
-                        manifest: { type: ext.type, config: ext.config },
-                        tags: [ext.type, appId],
+                        displayName: sql`excluded.display_name`,
+                        description: sql`excluded.description`,
+                        manifest: sql`excluded.manifest`,
+                        tags: sql`excluded.tags`,
                         updatedAt: new Date(),
                     },
                 })
