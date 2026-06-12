@@ -13,13 +13,12 @@
  * POST   /api/invites/:token/accept            Accept invite, create membership
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, desc, isNull } from '@plexo/db'
-import { workspaceMembers, workspaceInvites, users, workspaces } from '@plexo/db'
 import { randomBytes } from 'crypto'
 import { logger } from '../logger.js'
 import { audit } from '../audit.js'
 import { UUID_RE } from '../validation.js'
 import { mirrorMembershipUpsert, mirrorMembershipDelete } from '../lib/permission-graph.js'
+import * as membersRepo from '../repositories/members.repository.js'
 
 export const membersRouter: RouterType = Router({ mergeParams: true })
 export const invitesRouter: RouterType = Router({ mergeParams: true })
@@ -36,20 +35,7 @@ membersRouter.get('/', async (req, res) => {
         return
     }
     try {
-        const rows = await db
-            .select({
-                id: workspaceMembers.id,
-                userId: workspaceMembers.userId,
-                role: workspaceMembers.role,
-                joinedAt: workspaceMembers.joinedAt,
-                name: users.name,
-                email: users.email,
-            })
-            .from(workspaceMembers)
-            .innerJoin(users, eq(workspaceMembers.userId, users.id))
-            .where(eq(workspaceMembers.workspaceId, workspaceId))
-            .orderBy(desc(workspaceMembers.joinedAt))
-            .limit(500)
+        const rows = await membersRepo.listMembersWithUser(workspaceId)
 
         res.json({ items: rows, total: rows.length })
     } catch (err) {
@@ -84,26 +70,19 @@ membersRouter.post('/', async (req, res) => {
     }
 
     try {
-        const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
-        if (!user) {
+        const foundUserId = await membersRepo.findUserIdByEmail(email)
+        if (!foundUserId) {
             res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: 'No user with that email' } })
             return
         }
 
-        await db.insert(workspaceMembers).values({
-            workspaceId,
-            userId: user.id,
-            role: role as MemberRole,
-        }).onConflictDoUpdate({
-            target: [workspaceMembers.workspaceId, workspaceMembers.userId],
-            set: { role: role as MemberRole },
-        })
+        await membersRepo.upsertMember(workspaceId, foundUserId, role as MemberRole)
         // Phase C1 (ADR 0022) shadow-write to permission graph.
-        void mirrorMembershipUpsert({ workspaceId, userId: user.id, role })
+        void mirrorMembershipUpsert({ workspaceId, userId: foundUserId, role })
 
-        logger.info({ workspaceId, userId: user.id, role }, 'Member added')
-        audit(req, { workspaceId, action: 'member.add', resource: 'workspace_members', resourceId: user.id, metadata: { role, email } })
-        res.status(201).json({ ok: true, userId: user.id })
+        logger.info({ workspaceId, userId: foundUserId, role }, 'Member added')
+        audit(req, { workspaceId, action: 'member.add', resource: 'workspace_members', resourceId: foundUserId, metadata: { role, email } })
+        res.status(201).json({ ok: true, userId: foundUserId })
     } catch (err) {
         logger.error({ err }, 'POST members failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to add member' } })
@@ -137,10 +116,7 @@ membersRouter.patch('/:userId', async (req, res) => {
     }
 
     try {
-        await db
-            .update(workspaceMembers)
-            .set({ role: role as MemberRole })
-            .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
+        await membersRepo.updateMemberRole(workspaceId, userId, role as MemberRole)
         // Phase C1 (ADR 0022) shadow-write — role change.
         void mirrorMembershipUpsert({ workspaceId, userId, role })
 
@@ -171,15 +147,13 @@ membersRouter.delete('/:userId', async (req, res) => {
 
     try {
         // Prevent removing the owner
-        const [ws] = await db.select({ ownerId: workspaces.ownerId }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
-        if (ws?.ownerId === userId) {
+        const ownerId = await membersRepo.getWorkspaceOwnerId(workspaceId)
+        if (ownerId === userId) {
             res.status(400).json({ error: { code: 'CANNOT_REMOVE_OWNER', message: 'Cannot remove workspace owner' } })
             return
         }
 
-        await db
-            .delete(workspaceMembers)
-            .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
+        await membersRepo.deleteMember(workspaceId, userId)
         // Phase C1 (ADR 0022) shadow-write — membership deletion.
         void mirrorMembershipDelete({ workspaceId, userId })
 
@@ -223,7 +197,7 @@ membersRouter.post('/invite', async (req, res) => {
         const token = randomBytes(24).toString('hex')
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
 
-        await db.insert(workspaceInvites).values({
+        await membersRepo.createInvite({
             workspaceId,
             token,
             invitedEmail: email ?? null,
@@ -250,20 +224,7 @@ invitesRouter.get('/:token', async (req, res) => {
     const { token } = req.params
 
     try {
-        const [invite] = await db
-            .select({
-                id: workspaceInvites.id,
-                role: workspaceInvites.role,
-                invitedEmail: workspaceInvites.invitedEmail,
-                expiresAt: workspaceInvites.expiresAt,
-                usedAt: workspaceInvites.usedAt,
-                workspaceId: workspaceInvites.workspaceId,
-                workspaceName: workspaces.name,
-            })
-            .from(workspaceInvites)
-            .innerJoin(workspaces, eq(workspaceInvites.workspaceId, workspaces.id))
-            .where(eq(workspaceInvites.token, token))
-            .limit(1)
+        const invite = await membersRepo.getInviteWithWorkspace(token)
 
         if (!invite) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Invite not found' } })
@@ -307,11 +268,7 @@ invitesRouter.post('/:token/accept', async (req, res) => {
     }
 
     try {
-        const [invite] = await db
-            .select()
-            .from(workspaceInvites)
-            .where(eq(workspaceInvites.token, token))
-            .limit(1)
+        const invite = await membersRepo.getInviteByToken(token)
 
         if (!invite) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Invite not found' } })
@@ -326,24 +283,10 @@ invitesRouter.post('/:token/accept', async (req, res) => {
             return
         }
 
-        // Atomic: seat the member and consume the invite in one transaction so a
-        // crash between the two writes can't leave membership-without-consumed-invite
-        // or invite-consumed-without-membership. The invite is marked used only when
-        // still unused, closing the double-accept race.
-        await db.transaction(async (tx) => {
-            await tx.insert(workspaceMembers).values({
-                workspaceId: invite.workspaceId,
-                userId,
-                role: invite.role,
-            }).onConflictDoUpdate({
-                target: [workspaceMembers.workspaceId, workspaceMembers.userId],
-                set: { role: invite.role },
-            })
-            await tx
-                .update(workspaceInvites)
-                .set({ usedAt: new Date(), usedByUserId: userId })
-                .where(and(eq(workspaceInvites.token, token), isNull(workspaceInvites.usedAt)))
-        })
+        // Atomic seat-member + consume-invite (transaction + isNull guard) lives in
+        // the repository so a crash between the two writes can't leave inconsistent
+        // membership/invite state and the double-accept race stays closed.
+        await membersRepo.acceptInviteTx({ token, userId, role: invite.role, workspaceId: invite.workspaceId })
         // Phase C1 (ADR 0022) shadow-write — invite acceptance.
         void mirrorMembershipUpsert({ workspaceId: invite.workspaceId, userId, role: invite.role })
 
