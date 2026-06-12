@@ -27,8 +27,8 @@
 
 import { Router } from 'express'
 import pino from 'pino'
-import { db, eq, sql } from '@plexo/db'
-import { providerInstances, workspaces } from '@plexo/db'
+import { providerInstances } from '@plexo/db'
+import * as embeddingsRepo from '../repositories/embeddings.repository.js'
 import { invalidateIntelligenceSettings } from '../lib/intelligence-cache.js'
 import { requireWorkspaceMember } from '../middleware/workspace-access.js'
 import {
@@ -70,9 +70,7 @@ router.get('/:workspaceId/providers', async (req: any, res: any) => {
     if (!workspaceId) return res.status(400).json({ error: 'workspaceId required' })
 
     try {
-        const rows = await db.select()
-            .from(providerInstances)
-            .where(eq(providerInstances.workspaceId, workspaceId))
+        const rows = await embeddingsRepo.listProviderInstances(workspaceId)
 
         const items = rows
             .filter(r => r.enabled !== false)
@@ -128,10 +126,7 @@ router.patch('/:workspaceId/providers/:instanceId/model', async (req: any, res: 
     }
 
     try {
-        const [row] = await db.select()
-            .from(providerInstances)
-            .where(eq(providerInstances.id, instanceId))
-            .limit(1)
+        const row = await embeddingsRepo.getProviderInstance(instanceId)
         if (!row) return res.status(404).json({ error: 'provider instance not found' })
         if (row.workspaceId !== workspaceId) {
             return res.status(403).json({ error: 'workspace mismatch' })
@@ -141,14 +136,7 @@ router.patch('/:workspaceId/providers/:instanceId/model', async (req: any, res: 
         const dims = typeof dimensions === 'number' ? dimensions : defaults?.dimensions ?? null
         const previousDims = row.embeddingDimensions ?? defaults?.dimensions ?? null
 
-        const [updated] = await db.update(providerInstances)
-            .set({
-                embeddingModel: model,
-                embeddingDimensions: dims,
-                updatedAt: new Date(),
-            })
-            .where(eq(providerInstances.id, instanceId))
-            .returning()
+        const updated = await embeddingsRepo.updateEmbeddingModel(instanceId, model, dims)
 
         invalidateIntelligenceSettings(workspaceId)
 
@@ -277,16 +265,7 @@ router.post('/:workspaceId/reembed', async (req: any, res: any) => {
 
         // Persist the in-progress jobId on the workspace so the UI shows
         // resumable state across page reloads.
-        await db.execute(sql`
-            UPDATE workspaces
-            SET intelligence_settings = jsonb_set(
-                COALESCE(intelligence_settings, '{}'::jsonb),
-                '{reembed,inProgressJobId}',
-                ${JSON.stringify(report.jobId)}::jsonb,
-                true
-            )
-            WHERE id = ${workspaceId}::uuid
-        `)
+        await embeddingsRepo.setReembedInProgressJobId(workspaceId, report.jobId)
         invalidateIntelligenceSettings(workspaceId)
 
         return res.json({ ok: true, jobId: report.jobId, status: report.status })
@@ -312,10 +291,7 @@ router.get('/:workspaceId/reembed/:jobId', async (req: any, res: any) => {
 
     // Fall back to persisted last-report
     try {
-        const [row] = await db.select({ settings: workspaces.intelligenceSettings })
-            .from(workspaces)
-            .where(eq(workspaces.id, workspaceId))
-            .limit(1)
+        const row = await embeddingsRepo.getIntelligenceSettings(workspaceId)
         const settings = (row?.settings ?? {}) as { reembed?: { lastReport?: ReembedJobReport } }
         const report = settings.reembed?.lastReport
         if (!report || report.jobId !== jobId) {
