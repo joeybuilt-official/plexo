@@ -30,8 +30,7 @@
 import { Router, type Router as RouterType } from 'express'
 import express from 'express'
 import { createHash } from 'node:crypto'
-import { db, eq, sql } from '@plexo/db'
-import { conversations, attachmentScanQueue } from '@plexo/db'
+import * as draftAttachmentsRepo from '../repositories/draft-attachments.repository.js'
 import { uploadToKey } from '@plexo/storage'
 import {
     validateSingleAttachment,
@@ -134,10 +133,7 @@ draftAttachmentsRouter.post(
         }
 
         // Conversation lookup → workspace check
-        const [conv] = await db.select({ id: conversations.id, workspaceId: conversations.workspaceId, attachments: conversations.attachments })
-            .from(conversations)
-            .where(eq(conversations.id, conversationId))
-            .limit(1)
+        const conv = await draftAttachmentsRepo.getConversationForAttachment(conversationId)
         if (!conv) {
             res.status(404).json({ error: 'Conversation not found', code: 'not_found' })
             return
@@ -223,11 +219,7 @@ draftAttachmentsRouter.post(
             draft: true,
         }
         try {
-            await db.update(conversations)
-                .set({
-                    attachments: sql`COALESCE(${conversations.attachments}, '[]'::jsonb) || ${JSON.stringify([newAttachment])}::jsonb`,
-                })
-                .where(eq(conversations.id, conversationId))
+            await draftAttachmentsRepo.appendAttachment(conversationId, newAttachment)
         } catch (err) {
             // Don't fail the upload — the file is in MinIO and the contentHash
             // is the durable handle. Worst case: the conversation row lacks
@@ -238,14 +230,14 @@ draftAttachmentsRouter.post(
         // Enqueue clamd scan — UNIQUE(content_hash) dedupes if this hash was
         // already enqueued for an inbound attachment. Failure is non-fatal.
         try {
-            await db.insert(attachmentScanQueue).values({
+            await draftAttachmentsRepo.enqueueScan({
                 workspaceId: conv.workspaceId,
                 conversationId,
                 contentHash,
                 storageUrl,
                 mimeType,
                 sizeBytes,
-            }).onConflictDoNothing({ target: attachmentScanQueue.contentHash })
+            })
         } catch (err) {
             logger.warn({ err, contentHash }, 'draft-attachments: enqueueScan failed (non-fatal)')
         }
