@@ -2,8 +2,9 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, desc, eq, and, sprintStatusEnum } from '@plexo/db'
-import { sprints, tasks } from '@plexo/db'
+import { eq, sprintStatusEnum } from '@plexo/db'
+import { sprints } from '@plexo/db'
+import * as sprintsRepo from '../repositories/sprints.repository.js'
 import { logger } from '../logger.js'
 import { ulid } from 'ulid'
 import { UUID_RE } from '../validation.js'
@@ -41,10 +42,7 @@ sprintsRouter.get('/', async (req, res) => {
             conditions.push(eq(sprints.status, status as typeof sprints.$inferSelect.status))
         }
 
-        const items = await db.select().from(sprints)
-            .where(and(...conditions))
-            .orderBy(desc(sprints.createdAt))
-            .limit(Math.min(parseInt(limit, 10) || 25, 100))
+        const items = await sprintsRepo.listSprints(conditions, Math.min(parseInt(limit, 10) || 25, 100))
 
         res.json({ items, total: items.length })
     } catch (err) {
@@ -121,7 +119,7 @@ sprintsRouter.post('/', async (req, res) => {
         if (typeof enrichedMetadata.name !== 'string' || enrichedMetadata.name.trim().length === 0) {
             enrichedMetadata.name = await nameProject(workspaceId, request)
         }
-        const [sprint] = await db.insert(sprints).values({
+        const sprint = await sprintsRepo.insertSprint({
             id,
             workspaceId,
             repo: repo ?? null,
@@ -130,7 +128,7 @@ sprintsRouter.post('/', async (req, res) => {
             metadata: enrichedMetadata,
             status: 'planning',
             costCeilingUsd: costCeilingUsd ?? null,
-        }).returning()
+        })
 
         res.status(201).json(sprint)
     } catch (err) {
@@ -148,27 +146,14 @@ sprintsRouter.get('/:id', async (req, res) => {
         return
     }
     try {
-        const [sprint] = await db.select().from(sprints).where(eq(sprints.id, id)).limit(1)
+        const sprint = await sprintsRepo.getSprint(id)
         if (!sprint) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
             return
         }
         if (!await ensureWorkspaceAccess(req, res, sprint.workspaceId)) return
         // Tasks linked to sprint via project field — select key columns, cap at 200
-        const sprintTasks = await db.select({
-            id: tasks.id,
-            type: tasks.type,
-            status: tasks.status,
-            source: tasks.source,
-            outcomeSummary: tasks.outcomeSummary,
-            qualityScore: tasks.qualityScore,
-            costUsd: tasks.costUsd,
-            createdAt: tasks.createdAt,
-            completedAt: tasks.completedAt,
-        }).from(tasks)
-            .where(eq(tasks.project, id))
-            .orderBy(desc(tasks.createdAt))
-            .limit(200)
+        const sprintTasks = await sprintsRepo.listTasksForSprintProject(id)
         let criticalPath: string[] | null = null
         if (process.env.FALKORDB_PLANNER_WAVES === 'true') {
             const chain = await criticalPathToCompletion(sprint.workspaceId, id)
@@ -197,7 +182,7 @@ sprintsRouter.patch('/:id', async (req, res) => {
     }
 
     try {
-        const [existing] = await db.select({ workspaceId: sprints.workspaceId }).from(sprints).where(eq(sprints.id, id)).limit(1)
+        const existing = await sprintsRepo.getSprintWorkspaceId(id)
         if (!existing) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
             return
@@ -208,10 +193,7 @@ sprintsRouter.patch('/:id', async (req, res) => {
         if (status) updates.status = status as typeof sprints.$inferInsert.status
         if (status === 'complete') updates.completedAt = new Date()
 
-        const [updated] = await db.update(sprints)
-            .set(updates)
-            .where(eq(sprints.id, id))
-            .returning()
+        const updated = await sprintsRepo.updateSprintReturning(id, updates)
 
         if (!updated) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })

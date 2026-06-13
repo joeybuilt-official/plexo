@@ -23,8 +23,7 @@
 
 import { Router } from 'express'
 import pino from 'pino'
-import { db, eq, sql } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import * as intelligenceRepo from '../repositories/intelligence.repository.js'
 import { pgRows } from '../lib/pg-rows.js'
 import {
     invalidateIntelligenceSettings,
@@ -55,10 +54,7 @@ function getWorkspaceId(req: any): string | null {
 }
 
 async function readSettings(workspaceId: string): Promise<IntelligenceSettings> {
-    const [row] = await db.select({ s: workspaces.intelligenceSettings })
-        .from(workspaces)
-        .where(eq(workspaces.id, workspaceId))
-        .limit(1)
+    const row = await intelligenceRepo.getIntelligenceSettingsRow(workspaceId)
     return (row?.s ?? {}) as IntelligenceSettings
 }
 
@@ -102,16 +98,7 @@ router.patch('/:workspaceId/settings/inference-mode', async (req: any, res: any)
     }
 
     try {
-        await db.execute(sql`
-            UPDATE workspaces
-            SET intelligence_settings = jsonb_set(
-                COALESCE(intelligence_settings, '{}'::jsonb),
-                '{inferenceMode}',
-                ${JSON.stringify(mode)}::jsonb,
-                true
-            )
-            WHERE id = ${workspaceId}::uuid
-        `)
+        await intelligenceRepo.setInferenceMode(workspaceId, JSON.stringify(mode))
         invalidateIntelligenceSettings(workspaceId)
         return res.json({ ok: true, inferenceMode: mode })
     } catch (err) {
@@ -142,32 +129,9 @@ router.patch('/:workspaceId/settings/cost-ceiling', async (req: any, res: any) =
         // decision helper treats as no ceiling).
         const ceilingJson = ceilingUsd == null ? 'null' : JSON.stringify(ceilingUsd)
         if (mode != null) {
-            await db.execute(sql`
-                UPDATE workspaces
-                SET intelligence_settings = jsonb_set(
-                    jsonb_set(
-                        COALESCE(intelligence_settings, '{}'::jsonb),
-                        '{costCeilingUsd}',
-                        ${ceilingJson}::jsonb,
-                        true
-                    ),
-                    '{costCeilingMode}',
-                    ${JSON.stringify(mode)}::jsonb,
-                    true
-                )
-                WHERE id = ${workspaceId}::uuid
-            `)
+            await intelligenceRepo.setCostCeilingWithMode(workspaceId, ceilingJson, JSON.stringify(mode))
         } else {
-            await db.execute(sql`
-                UPDATE workspaces
-                SET intelligence_settings = jsonb_set(
-                    COALESCE(intelligence_settings, '{}'::jsonb),
-                    '{costCeilingUsd}',
-                    ${ceilingJson}::jsonb,
-                    true
-                )
-                WHERE id = ${workspaceId}::uuid
-            `)
+            await intelligenceRepo.setCostCeiling(workspaceId, ceilingJson)
         }
 
         invalidateIntelligenceSettings(workspaceId)
@@ -199,16 +163,7 @@ router.patch('/:workspaceId/settings/step-budget', async (req: any, res: any) =>
     }
 
     try {
-        await db.execute(sql`
-            UPDATE workspaces
-            SET intelligence_settings = jsonb_set(
-                COALESCE(intelligence_settings, '{}'::jsonb),
-                '{stepBudget}',
-                ${JSON.stringify(budget)}::jsonb,
-                true
-            )
-            WHERE id = ${workspaceId}::uuid
-        `)
+        await intelligenceRepo.setStepBudget(workspaceId, JSON.stringify(budget))
         invalidateIntelligenceSettings(workspaceId)
         return res.json({ ok: true, stepBudget: budget })
     } catch (err) {
@@ -241,12 +196,7 @@ interface ChainEntryView {
 }
 
 async function loadChainsForWorkspace(workspaceId: string): Promise<Record<string, ChainEntryView[]>> {
-    const result = await db.execute(sql`
-        SELECT id, task_type, provider_id, model_id, position
-        FROM routing_chains
-        WHERE workspace_id = ${workspaceId}::uuid
-        ORDER BY task_type, position
-    `)
+    const result = await intelligenceRepo.selectChainsForWorkspace(workspaceId)
     const rows = pgRows<ChainRow>(result)
     const out: Record<string, ChainEntryView[]> = {}
     for (const tier of ROUTING_TASK_TYPES) out[tier] = []
@@ -315,26 +265,7 @@ router.patch('/:workspaceId/chains/:taskType', async (req: any, res: any) => {
     try {
         // Atomic replace: delete existing rows + re-insert in a transaction
         // so a mid-sequence failure doesn't leave a partial chain.
-        await db.transaction(async (tx) => {
-            await tx.execute(sql`
-                DELETE FROM routing_chains
-                WHERE workspace_id = ${workspaceId}::uuid AND task_type = ${taskType}
-            `)
-            let position = 0
-            for (const entry of entries) {
-                await tx.execute(sql`
-                    INSERT INTO routing_chains (workspace_id, task_type, provider_id, model_id, position)
-                    VALUES (
-                        ${workspaceId}::uuid,
-                        ${taskType},
-                        ${entry.providerId}::uuid,
-                        ${entry.modelId},
-                        ${position}
-                    )
-                `)
-                position += 1
-            }
-        })
+        await intelligenceRepo.replaceChain(workspaceId, taskType, entries as Array<{ providerId: string; modelId: string }>)
         invalidateIntelligenceSettings(workspaceId)
         await invalidateAgentChainCache(workspaceId)
         return res.json({ ok: true, taskType, length: entries.length })

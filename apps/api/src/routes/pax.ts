@@ -12,8 +12,7 @@
  */
 import { Router, type Router as RouterType } from 'express'
 import { createHash, randomBytes } from 'node:crypto'
-import { db, eq, and, sql } from '@plexo/db'
-import { paxRegistrations, mcpTokens, workspaces } from '@plexo/db'
+import * as paxRepo from '../repositories/pax.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -155,7 +154,7 @@ paxRouter.post('/register', async (req, res) => {
         if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
         // Verify workspace exists
-        const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
+        const ws = await paxRepo.getWorkspaceId(workspaceId)
         if (!ws) {
             return res.status(404).json({ error: { code: 'PAX_WORKSPACE_NOT_FOUND', message: 'Workspace not found' } })
         }
@@ -188,11 +187,7 @@ paxRouter.post('/register', async (req, res) => {
         }
 
         // Check registration conflict
-        const [existing] = await db
-            .select({ id: paxRegistrations.id })
-            .from(paxRegistrations)
-            .where(and(eq(paxRegistrations.workspaceId, workspaceId), eq(paxRegistrations.appName, m.name)))
-            .limit(1)
+        const existing = await paxRepo.getRegistrationId(workspaceId, m.name)
 
         if (existing) {
             return res.status(409).json({
@@ -205,7 +200,7 @@ paxRouter.post('/register', async (req, res) => {
         const expiresAt = defaultExpiry()
         const scopes = caps.length > 0 ? caps : ['ai:complete']
 
-        const [tokenRow] = await db.insert(mcpTokens).values({
+        const tokenRow = await paxRepo.insertMcpToken({
             workspaceId,
             name: `pax:${m.name}`,
             tokenHash: hash,
@@ -213,10 +208,10 @@ paxRouter.post('/register', async (req, res) => {
             scopes,
             type: 'pax',
             expiresAt,
-        }).returning({ id: mcpTokens.id })
+        })
 
         // Store PAX registration
-        await db.insert(paxRegistrations).values({
+        await paxRepo.insertRegistration({
             appName: m.name,
             workspaceId,
             version: m.version,
@@ -276,11 +271,7 @@ paxRouter.get('/status/:appName', async (req, res) => {
         if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
         const { appName } = req.params
-        const [reg] = await db
-            .select()
-            .from(paxRegistrations)
-            .where(and(eq(paxRegistrations.workspaceId, workspaceId), eq(paxRegistrations.appName, appName!)))
-            .limit(1)
+        const reg = await paxRepo.getRegistration(workspaceId, appName!)
 
         if (!reg) {
             return res.status(404).json({ error: { code: 'PAX_WORKSPACE_NOT_FOUND', message: `App '${appName}' not found` } })
@@ -319,11 +310,7 @@ paxRouter.post('/rotate', async (req, res) => {
 
         if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
-        const [reg] = await db
-            .select()
-            .from(paxRegistrations)
-            .where(and(eq(paxRegistrations.workspaceId, workspaceId), eq(paxRegistrations.appName, appName)))
-            .limit(1)
+        const reg = await paxRepo.getRegistration(workspaceId, appName)
 
         if (!reg) {
             return res.status(404).json({ error: { code: 'PAX_WORKSPACE_NOT_FOUND', message: `App '${appName}' not found` } })
@@ -334,13 +321,13 @@ paxRouter.post('/rotate', async (req, res) => {
         }
 
         // Revoke old token
-        await db.update(mcpTokens).set({ revoked: true }).where(eq(mcpTokens.id, reg.tokenId))
+        await paxRepo.revokeMcpToken(reg.tokenId)
 
         // Generate new token
         const { rawToken, hash, salt } = generatePaxToken()
         const expiresAt = defaultExpiry()
 
-        const [newTokenRow] = await db.insert(mcpTokens).values({
+        const newTokenRow = await paxRepo.insertMcpToken({
             workspaceId,
             name: `pax:${appName}`,
             tokenHash: hash,
@@ -348,13 +335,13 @@ paxRouter.post('/rotate', async (req, res) => {
             scopes: reg.capabilities,
             type: 'pax',
             expiresAt,
-        }).returning({ id: mcpTokens.id })
+        })
 
         // Update registration
-        await db.update(paxRegistrations).set({
+        await paxRepo.updateRegistration(reg.id, {
             tokenId: newTokenRow!.id,
             tokenExpiresAt: expiresAt,
-        }).where(eq(paxRegistrations.id, reg.id))
+        })
 
         logger.info({ event: 'pax_rotate', appName, workspaceId }, 'PAX token rotated')
 
@@ -383,21 +370,17 @@ paxRouter.delete('/register/:appName', async (req, res) => {
         if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
         const { appName } = req.params
-        const [reg] = await db
-            .select()
-            .from(paxRegistrations)
-            .where(and(eq(paxRegistrations.workspaceId, workspaceId), eq(paxRegistrations.appName, appName!)))
-            .limit(1)
+        const reg = await paxRepo.getRegistration(workspaceId, appName!)
 
         if (!reg) {
             return res.status(404).json({ error: { code: 'PAX_WORKSPACE_NOT_FOUND', message: `App '${appName}' not found` } })
         }
 
         // Revoke token
-        await db.update(mcpTokens).set({ revoked: true }).where(eq(mcpTokens.id, reg.tokenId))
+        await paxRepo.revokeMcpToken(reg.tokenId)
 
         // Mark registration as revoked
-        await db.update(paxRegistrations).set({ revokedAt: new Date() }).where(eq(paxRegistrations.id, reg.id))
+        await paxRepo.updateRegistration(reg.id, { revokedAt: new Date() })
 
         logger.info({ event: 'pax_revoke', appName, workspaceId }, 'PAX app revoked')
 
