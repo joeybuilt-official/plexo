@@ -30,8 +30,8 @@
  */
 
 import { Router, type Router as RouterType, type Request } from 'express'
-import { timingSafeEqual as cryptoTimingSafeEqual } from 'node:crypto'
 import * as channelDispatchRepo from '../repositories/channel-dispatch.repository.js'
+import { resolveServiceAuth } from '../middleware/service-key-auth.js'
 import pino from 'pino'
 import {
     dispatchChannel,
@@ -46,11 +46,6 @@ export const channelDispatchRouter: RouterType = Router()
 const APP_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 const profileCache = new Map<string, number>()
 const PROFILE_CACHE_TTL_MS = 60_000
-
-function timingSafeStrEqual(a: string, b: string): boolean {
-    if (a.length !== b.length) return false
-    return cryptoTimingSafeEqual(Buffer.from(a, 'utf-8'), Buffer.from(b, 'utf-8'))
-}
 
 async function isRegisteredApp(appId: string): Promise<boolean> {
     const cached = profileCache.get(appId)
@@ -71,15 +66,12 @@ async function resolveAppForDispatch(req: Request): Promise<AppAuth> {
         return { ok: false, status: 401, error: 'Malformed Authorization header' }
     }
     const token = authHeader.slice(7)
-    const serviceKey = process.env.PLEXO_SERVICE_KEY
-    if (!serviceKey || !timingSafeStrEqual(token, serviceKey)) {
+    // A3 dual-accept: shared PLEXO_SERVICE_KEY OR per-app key
+    const resolved = await resolveServiceAuth(token, req.headers['x-app-id'] as string | undefined)
+    if (!resolved) {
         return { ok: false, status: 401, error: 'Invalid service key' }
     }
-
-    const appId = req.headers['x-app-id'] as string | undefined
-    if (!appId) {
-        return { ok: false, status: 401, error: 'Missing X-App-Id header' }
-    }
+    const appId = resolved.appId
     if (!APP_ID_RE.test(appId)) {
         return { ok: false, status: 400, error: 'Invalid X-App-Id header' }
     }

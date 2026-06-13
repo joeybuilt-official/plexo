@@ -22,8 +22,8 @@ import {
 } from './config.js'
 import { db, eq, sql } from '@plexo/db'
 import { workspaces, appProfiles } from '@plexo/db'
+import { resolveServiceAuth } from '../middleware/service-key-auth.js'
 import pino from 'pino'
-import { timingSafeEqual as cryptoTimingSafeEqual } from 'node:crypto'
 
 const logger = pino({ name: 'analytics-router' })
 export const analyticsRouter: RouterType = Router()
@@ -224,11 +224,6 @@ const APP_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 const profileCache = new Map<string, number>()  // appId → expiry ms
 const PROFILE_CACHE_TTL_MS = 60_000
 
-function timingSafeStrEqual(a: string, b: string): boolean {
-    if (a.length !== b.length) return false
-    return cryptoTimingSafeEqual(Buffer.from(a, 'utf-8'), Buffer.from(b, 'utf-8'))
-}
-
 async function isRegisteredApp(appId: string): Promise<boolean> {
     const cached = profileCache.get(appId)
     if (cached && cached > Date.now()) return true
@@ -249,13 +244,13 @@ async function resolveAppForIngest(req: import('express').Request): Promise<AppA
         return { ok: false, status: 401, error: 'Malformed Authorization header' }
     }
     const token = authHeader.slice(7)
-    const serviceKey = process.env.PLEXO_SERVICE_KEY
-    if (!serviceKey || !timingSafeStrEqual(token, serviceKey)) {
+    // A3 dual-accept: shared PLEXO_SERVICE_KEY OR per-app key
+    const resolved = await resolveServiceAuth(token, req.headers['x-app-id'] as string | undefined)
+    if (!resolved) {
         return { ok: false, status: 401, error: 'Invalid service key' }
     }
-
-    const appId = req.headers['x-app-id'] as string | undefined
-    if (!appId || !APP_ID_RE.test(appId)) {
+    const appId = resolved.appId
+    if (!APP_ID_RE.test(appId)) {
         return { ok: false, status: 400, error: 'Missing or invalid X-App-Id header' }
     }
     if (appId === 'plexo') return { ok: true, appId }  // first-party shortcut

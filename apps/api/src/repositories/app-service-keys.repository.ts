@@ -8,7 +8,7 @@
  * shared PLEXO_SERVICE_KEY. Raw token is shown ONCE on issue; only the hash
  * + salt persist. listKeys() never returns hash/salt.
  */
-import { db, eq, desc } from '@plexo/db'
+import { db, eq, and, desc } from '@plexo/db'
 import { appServiceKeys } from '@plexo/db'
 
 /** List keys, optionally filtered by appId. Never returns tokenHash/tokenSalt. */
@@ -29,6 +29,31 @@ export async function listKeys(opts: { appId?: string } = {}) {
         ? await base.where(eq(appServiceKeys.appId, opts.appId)).orderBy(desc(appServiceKeys.createdAt))
         : await base.orderBy(desc(appServiceKeys.createdAt))
     return rows
+}
+
+/**
+ * Phase 8 dual-accept: list non-revoked keys (optionally for one app) with the
+ * hash+salt so the auth path can constant-time match an incoming raw token.
+ * Salt is per-row, so the caller must iterate + recompute sha256(token+salt)
+ * (findByHash is unusable for validation — you can't know the salt up front).
+ */
+export async function listActiveForAuth(appId?: string) {
+    const cols = {
+        id: appServiceKeys.id,
+        appId: appServiceKeys.appId,
+        tokenHash: appServiceKeys.tokenHash,
+        tokenSalt: appServiceKeys.tokenSalt,
+        expiresAt: appServiceKeys.expiresAt,
+    }
+    const where = appId
+        ? and(eq(appServiceKeys.revoked, false), eq(appServiceKeys.appId, appId))
+        : eq(appServiceKeys.revoked, false)
+    return db.select(cols).from(appServiceKeys).where(where)
+}
+
+/** Phase 8: stamp lastUsedAt on a successful per-app key auth. */
+export async function touchLastUsed(id: string): Promise<void> {
+    await db.update(appServiceKeys).set({ lastUsedAt: new Date() }).where(eq(appServiceKeys.id, id))
 }
 
 /** Lookup by token hash for Phase 8 dual-accept auth path. Includes salt. */

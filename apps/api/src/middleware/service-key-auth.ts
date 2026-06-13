@@ -16,13 +16,55 @@
  */
 
 import type { Request, Response, NextFunction } from 'express'
-import { timingSafeEqual as cryptoTimingSafeEqual } from 'crypto'
+import { createHash, timingSafeEqual as cryptoTimingSafeEqual } from 'crypto'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
+import { listActiveForAuth, touchLastUsed } from '../repositories/app-service-keys.repository.js'
 
 export interface ServiceContext {
     appId: string
     userId?: string  // User ID if provided via X-User-Id header
+    viaSharedKey?: boolean  // true = legacy shared PLEXO_SERVICE_KEY; false = per-app key (A3)
+}
+
+/**
+ * A3 dual-accept core. Validates an incoming Bearer token as EITHER the legacy
+ * shared PLEXO_SERVICE_KEY (X-App-Id required to name the caller) OR a per-app
+ * key (`psk_…` from app_service_keys; the key itself identifies the app, so
+ * X-App-Id is optional but must match if supplied). Constant-time throughout.
+ * Returns the resolved appId, or null when the token is not valid.
+ */
+export async function resolveServiceAuth(
+    token: string,
+    headerAppId: string | undefined,
+): Promise<{ appId: string; viaSharedKey: boolean } | null> {
+    // Legacy shared key path
+    const serviceKey = process.env.PLEXO_SERVICE_KEY
+    if (serviceKey && timingSafeEqual(token, serviceKey)) {
+        if (!headerAppId) return null
+        return { appId: headerAppId, viaSharedKey: true }
+    }
+    // Per-app key path (A3). Only psk_-prefixed tokens hit the DB.
+    if (token.startsWith('psk_')) {
+        try {
+            const candidates = await listActiveForAuth(headerAppId)
+            const now = Date.now()
+            for (const k of candidates) {
+                if (k.expiresAt && k.expiresAt.getTime() < now) continue
+                const hash = createHash('sha256').update(token + k.tokenSalt).digest('hex')
+                if (hash.length === k.tokenHash.length
+                    && cryptoTimingSafeEqual(Buffer.from(hash, 'utf-8'), Buffer.from(k.tokenHash, 'utf-8'))) {
+                    if (headerAppId && headerAppId !== k.appId) return null
+                    void touchLastUsed(k.id).catch((err: unknown) =>
+                        logger.warn({ err }, 'app-service-key touchLastUsed failed'))
+                    return { appId: k.appId, viaSharedKey: false }
+                }
+            }
+        } catch (err) {
+            logger.error({ err }, 'per-app service key validation failed')
+        }
+    }
+    return null
 }
 
 // Extend Express Request
@@ -38,14 +80,7 @@ declare global {
  * Validates the PLEXO_SERVICE_KEY and extracts app identity.
  * Returns 401 if key is missing/invalid, 400 if X-App-Id is missing.
  */
-export function requireServiceKey(req: Request, res: Response, next: NextFunction): void {
-    const serviceKey = process.env.PLEXO_SERVICE_KEY
-    if (!serviceKey) {
-        logger.error('PLEXO_SERVICE_KEY not configured — service key auth unavailable')
-        res.status(503).json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'Service key auth not configured' } })
-        return
-    }
-
+export async function requireServiceKey(req: Request, res: Response, next: NextFunction): Promise<void> {
     const authHeader = req.headers.authorization
     if (!authHeader?.startsWith('Bearer ')) {
         res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Missing Bearer token' } })
@@ -53,16 +88,12 @@ export function requireServiceKey(req: Request, res: Response, next: NextFunctio
     }
 
     const token = authHeader.slice(7)
+    const headerAppId = req.headers['x-app-id'] as string | undefined
 
-    // Constant-time comparison to prevent timing attacks
-    if (!timingSafeEqual(token, serviceKey)) {
+    // A3 dual-accept: shared PLEXO_SERVICE_KEY OR a per-app key
+    const resolved = await resolveServiceAuth(token, headerAppId)
+    if (!resolved) {
         res.status(401).json({ error: { code: 'INVALID_KEY', message: 'Invalid service key' } })
-        return
-    }
-
-    const appId = req.headers['x-app-id'] as string | undefined
-    if (!appId) {
-        res.status(400).json({ error: { code: 'MISSING_APP_ID', message: 'X-App-Id header required' } })
         return
     }
 
@@ -72,7 +103,7 @@ export function requireServiceKey(req: Request, res: Response, next: NextFunctio
         return
     }
 
-    req.serviceContext = { appId, userId }
+    req.serviceContext = { appId: resolved.appId, userId, viaSharedKey: resolved.viaSharedKey }
     next()
 }
 
