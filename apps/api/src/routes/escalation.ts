@@ -16,8 +16,7 @@
  * Events so the inbox view refreshes without polling.
  */
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
-import { db, and, eq, desc } from '@plexo/db'
-import { escalationRequests } from '@plexo/db'
+import * as escalationRepo from '../repositories/escalation.repository.js'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { approveEscalation, rejectEscalation } from '@plexo/agent/escalation/manager'
 import { logger } from '../logger.js'
@@ -37,15 +36,7 @@ escalationRouter.get('/', async (req: Request, res: Response) => {
     }
 
     try {
-        const rows = await db
-            .select()
-            .from(escalationRequests)
-            .where(and(
-                eq(escalationRequests.workspaceId, workspaceId),
-                eq(escalationRequests.status, status),
-            ))
-            .orderBy(desc(escalationRequests.requestedAt))
-            .limit(200)
+        const rows = await escalationRepo.listEscalations(workspaceId, status)
 
         res.json({ items: rows, total: rows.length })
     } catch (err) {

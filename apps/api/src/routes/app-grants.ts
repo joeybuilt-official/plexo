@@ -14,8 +14,7 @@
  */
 import { Router, type Router as RouterType } from 'express'
 import { z } from 'zod'
-import { db, eq, and, desc } from '@plexo/db'
-import { workspaceAppGrants, appProfiles, installedConnections, extensions, profileMonitorObservations } from '@plexo/db'
+import * as appGrantsRepo from '../repositories/app-grants.repository.js'
 import { logger } from '../logger.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 
@@ -34,45 +33,21 @@ appGrantsRouter.get('/:workspaceId', async (req, res) => {
     if (!(await ensureWorkspaceAccess(req, res, workspaceId))) return
     try {
         const [rows, apps, conns, exts, obs] = await Promise.all([
-            db
-                .select()
-                .from(workspaceAppGrants)
-                .where(eq(workspaceAppGrants.workspaceId, workspaceId))
-                .orderBy(desc(workspaceAppGrants.updatedAt)),
+            appGrantsRepo.listGrants(workspaceId),
             // Registered apps — lets the operator UI offer a picker when creating a
             // grant for an app that has not negotiated yet (no grant row exists).
-            db
-                .select({ appId: appProfiles.appId, displayName: appProfiles.displayName })
-                .from(appProfiles)
-                .orderBy(appProfiles.appId),
+            appGrantsRepo.listAppProfiles(),
             // The real connector vocabulary in THIS workspace — exactly the
             // registryIds enforcement matches grant.allowedConnectors against.
-            db
-                .select({ registryId: installedConnections.registryId })
-                .from(installedConnections)
-                .where(eq(installedConnections.workspaceId, workspaceId)),
+            appGrantsRepo.listInstalledConnectorRegistryIds(workspaceId),
             // The real capability vocabulary — manifest.capabilities of the enabled
             // extensions; enforcement (loadPluginTools) checks these exact tokens
             // against grant.capabilities, so suggesting them keeps grants correct.
-            db
-                .select({ manifest: extensions.manifest })
-                .from(extensions)
-                .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.enabled, true))),
+            appGrantsRepo.listEnabledExtensionManifests(workspaceId),
             // Monitor-mode observations — what enforcement WOULD have excluded per
             // app in this workspace (ADR 0001 §3 rollout). Lets the operator seed
             // grants from real coverage gaps before switching to enforce.
-            db
-                .select({
-                    appId: profileMonitorObservations.appId,
-                    kind: profileMonitorObservations.kind,
-                    token: profileMonitorObservations.token,
-                    extName: profileMonitorObservations.extName,
-                    observedCount: profileMonitorObservations.observedCount,
-                    lastSeenAt: profileMonitorObservations.lastSeenAt,
-                })
-                .from(profileMonitorObservations)
-                .where(eq(profileMonitorObservations.workspaceId, workspaceId))
-                .orderBy(profileMonitorObservations.appId),
+            appGrantsRepo.listMonitorObservations(workspaceId),
         ])
 
         const availableConnectors = [...new Set(conns.map((c) => c.registryId).filter(Boolean))].sort()
@@ -116,13 +91,7 @@ appGrantsRouter.put('/:workspaceId/:appId', async (req, res) => {
     const { allowedConnectors, capabilities, status } = parsed.data
 
     try {
-        await db
-            .insert(workspaceAppGrants)
-            .values({ appId, workspaceId, allowedConnectors, capabilities, status, grantedBy: req.user.id })
-            .onConflictDoUpdate({
-                target: [workspaceAppGrants.appId, workspaceAppGrants.workspaceId],
-                set: { allowedConnectors, capabilities, status, grantedBy: req.user.id, updatedAt: new Date() },
-            })
+        await appGrantsRepo.upsertGrant({ appId, workspaceId, allowedConnectors, capabilities, status, grantedBy: req.user.id })
         logger.info({ event: 'app_grant_set', workspaceId, appId, status, by: req.user.id }, 'App grant updated')
         return res.json({ ok: true, appId, workspaceId, status, allowedConnectors, capabilities })
     } catch (err) {

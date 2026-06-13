@@ -11,8 +11,7 @@
  *   Queues the user's chosen alternative as a new task.
  */
 import { Router, type Router as ExpressRouter } from 'express'
-import { db, eq } from '@plexo/db'
-import { tasks } from '@plexo/db'
+import * as tasksRepo from '../repositories/tasks.repository.js'
 import { push } from '@plexo/queue'
 import type { ClarificationRequest } from '@plexo/agent/types'
 import { trackEvent } from '../event-tracker.js'
@@ -28,11 +27,7 @@ clarificationRouter.get('/', async (req, res) => {
         return
     }
     try {
-        const [row] = await db
-            .select({ context: tasks.context, status: tasks.status, workspaceId: tasks.workspaceId })
-            .from(tasks)
-            .where(eq(tasks.id, taskId))
-            .limit(1)
+        const row = await tasksRepo.getTaskWorkspaceStatusContext(taskId)
 
         if (!row) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
@@ -73,11 +68,7 @@ clarificationRouter.post('/respond', async (req, res) => {
     }
 
     try {
-        const [row] = await db
-            .select({ context: tasks.context, status: tasks.status, workspaceId: tasks.workspaceId, type: tasks.type })
-            .from(tasks)
-            .where(eq(tasks.id, taskId))
-            .limit(1)
+        const row = await tasksRepo.getTaskWorkspaceStatusContextType(taskId)
 
         if (!row) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })

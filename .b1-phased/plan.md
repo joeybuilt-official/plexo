@@ -66,9 +66,16 @@ PLAN.md B1 → done; then surface (not execute) the gated A2/A3/A5/A6/B3 items.
 - Exit: both clean; tsc; committed + pushed. Deploy to prod + verify.
 - Status: pending
 
-## Phase 6 — Close-out
-- Scope: final grep sweep (zero route files with direct query calls); flip PLAN.md B1 row → ✅ done with final count; commit + push + final prod deploy/verify.
-- Deps: Phases 1–5
+## Phase 6 — DISCOVERED multi-line-style files (16)
+- Scope: the ranking grep `db\.(select|...)` only matches SINGLE-LINE calls; routes using multi-line `await db\n.select(...)` counted as ZERO and were never migrated. Accurate detector (excl tests): `grep -cE "\bawait db\b|\bdb\.(select|selectDistinct|insert|update|delete|execute|transaction)"`. 16 routes remain (all 1–4 calls): agents-run, app-grants, audit, escalation, webhooks, agents-active-stream, clarification, code, outcomes, revision-decision, users, webhooks-github, task-inject, task-stream, billing, profiles. (Everything migrated in Phases 1–5 + the 52 prior verified clean under the multi-line-aware grep.)
+- Deps: none
+- Subagents: 2 batches of 8 via general-purpose; same recipe.
+- Exit: all 16 clean under the multi-line-aware grep; tsc clean; committed + pushed + deployed.
+- Status: in-progress
+
+## Phase 7 — Close-out
+- Scope: final multi-line-aware sweep (zero non-test route files with direct db usage); flip PLAN.md B1 row → ✅ done with final count + note the counting-method fix; commit + push + final prod deploy/verify.
+- Deps: Phases 1–6
 - Exit: PLAN.md updated; prod healthy on final HEAD.
 - Status: pending
 

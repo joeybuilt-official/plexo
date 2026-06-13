@@ -10,9 +10,7 @@
  * Supports filtering by action prefix (e.g. action=member will match member.add, member.remove).
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, desc } from '@plexo/db'
-import { auditLog, users } from '@plexo/db'
-import { sql } from '@plexo/db'
+import * as auditRepo from '../repositories/audit.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 
@@ -56,35 +54,12 @@ auditRouter.get('/', async (req, res) => {
     const limit = Math.min(parseInt(limitStr, 10) || 50, 200)
 
     try {
-        const conditions = [eq(auditLog.workspaceId, workspaceId)]
-
-        if (actionFilter) {
+        const rows = await auditRepo.listAuditEntries(workspaceId, {
             // Prefix match: 'member' matches 'member.add', 'member.remove', etc.
-            conditions.push(sql`${auditLog.action} LIKE ${actionFilter + '%'}`)
-        }
-
-        if (before) {
-            conditions.push(sql`${auditLog.createdAt} < ${new Date(before)}`)
-        }
-
-        const rows = await db
-            .select({
-                id: auditLog.id,
-                action: auditLog.action,
-                resource: auditLog.resource,
-                resourceId: auditLog.resourceId,
-                metadata: auditLog.metadata,
-                ip: auditLog.ip,
-                createdAt: auditLog.createdAt,
-                userId: auditLog.userId,
-                userName: users.name,
-                userEmail: users.email,
-            })
-            .from(auditLog)
-            .leftJoin(users, eq(auditLog.userId, users.id))
-            .where(and(...conditions))
-            .orderBy(desc(auditLog.createdAt))
-            .limit(limit)
+            actionPrefix: actionFilter,
+            before: before ? new Date(before) : undefined,
+            limit,
+        })
 
         res.json({
             items: rows,

@@ -46,6 +46,20 @@ export async function getTaskWorkspaceStatusContext(id: string): Promise<{ works
     return task
 }
 
+/** Workspace id + status + context + type for a task (clarification respond), or undefined. */
+export async function getTaskWorkspaceStatusContextType(id: string): Promise<{ workspaceId: string; status: string; context: unknown; type: string } | undefined> {
+    const [task] = await db.select({ workspaceId: tasks.workspaceId, status: tasks.status, context: tasks.context, type: tasks.type })
+        .from(tasks).where(eq(tasks.id, id)).limit(1)
+    return task
+}
+
+/** Workspace id + context for a task scoped to a workspace (Code Mode cross-tenant guard), or undefined. */
+export async function getTaskWorkspaceContextScoped(id: string, workspaceId: string): Promise<{ workspaceId: string; context: unknown } | undefined> {
+    const [task] = await db.select({ workspaceId: tasks.workspaceId, context: tasks.context })
+        .from(tasks).where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId))).limit(1)
+    return task
+}
+
 /** Steps for a task (full rows), ordered by step number, capped. */
 export function selectTaskSteps(taskId: string) {
     return db.select().from(taskSteps)

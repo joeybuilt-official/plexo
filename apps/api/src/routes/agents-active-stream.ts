@@ -20,8 +20,7 @@
  */
 
 import { Router, type Router as ExpressRouter } from 'express'
-import { db, eq, and, inArray, desc } from '@plexo/db'
-import { taskSteps, tasks } from '@plexo/db'
+import * as agentsActiveRepo from '../repositories/agents-active.repository.js'
 import { logger } from '../logger.js'
 
 export const agentsActiveStreamRouter: ExpressRouter = Router()
@@ -109,33 +108,12 @@ agentsActiveStreamRouter.get('/active/stream', async (req, res) => {
     async function poll() {
         if (closed) return
         try {
-            const active = await db
-                .select({
-                    id: tasks.id,
-                    role: tasks.type,
-                    status: tasks.status,
-                    parentId: tasks.parentId,
-                    outcomeSummary: tasks.outcomeSummary,
-                })
-                .from(tasks)
-                .where(and(eq(tasks.workspaceId, wsId), inArray(tasks.status, [...ACTIVE_STATUSES])))
-                .orderBy(tasks.createdAt)
+            const active = await agentsActiveRepo.listActiveTasks(wsId, [...ACTIVE_STATUSES])
 
             const latestByTask = new Map<string, LatestStep>()
             if (active.length > 0) {
                 const ids = active.map((t) => t.id)
-                const steps = await db
-                    .select({
-                        taskId: taskSteps.taskId,
-                        stepNumber: taskSteps.stepNumber,
-                        stepType: taskSteps.stepType,
-                        state: taskSteps.state,
-                        outcome: taskSteps.outcome,
-                        error: taskSteps.error,
-                    })
-                    .from(taskSteps)
-                    .where(inArray(taskSteps.taskId, ids))
-                    .orderBy(taskSteps.taskId, desc(taskSteps.stepNumber))
+                const steps = await agentsActiveRepo.listStepsForTasks(ids)
                 for (const s of steps) {
                     // First row per taskId wins (steps are ordered stepNumber DESC).
                     if (!latestByTask.has(s.taskId)) {
