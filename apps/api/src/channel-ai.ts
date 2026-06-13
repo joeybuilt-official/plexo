@@ -12,6 +12,7 @@ import { generateText, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
 import { PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/providers/registry'
 import { routeAndCall } from '@plexo/agent/providers/router-v2'
+import { callModel } from '@plexo/agent/providers/call-model'
 import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } from '@plexo/agent/providers/vision'
 import { enforceSmallestAction, forceConversationOverrideWithContext, isObviousTaskRequest } from '@plexo/agent/principles'
 import { emitClassifierDecision } from './analytics/events.js'
@@ -965,21 +966,50 @@ async function postErrorFlagToCommandEngine(args: {
 /**
  * Generate a short, official project name for a sprint request via the
  * workspace's configured AI provider (routed through Plexo). Returns a clean
- * ≤6-word title; falls back to a truncated request when the model is
- * unavailable or returns something unusable. Used by every project-creation
- * path so projects get real names instead of the raw request sentence.
+ * 2–6 word title. Used by every project-creation path so projects get real
+ * names instead of the raw request sentence.
+ *
+ * Deliberately uses a focused, tool-free routed call — NOT chatWithAI — because
+ * chatWithAI injects the full workspace context (tools, memory, capability
+ * summary, introspection) which derails small models into echoing the request.
+ * A tight prompt + small token cap keeps the output to a real title; the
+ * fallback derives a short name from the request's leading words and is never
+ * the full sentence.
  */
+const NAME_PROJECT_SYSTEM =
+    'You name work/software projects. Given a request, reply with ONLY a concise Title Case project name of 2 to 6 words. '
+    + 'No quotes, no punctuation, no explanation, and never restate the full request. '
+    + 'Examples: "Q2 Social Media Campaign", "HTML Snake Game", "Landing Page Build".'
+
+function fallbackProjectName(request: string): string {
+    const cleaned = request.replace(/[\s.]+$/, '').trim()
+    const words = cleaned.split(/\s+/).slice(0, 6).join(' ')
+    return words.slice(0, 60) || 'Untitled Project'
+}
+
 export async function nameProject(workspaceId: string, request: string): Promise<string> {
-    const fallback = request.trim().slice(0, 80)
+    const fallback = fallbackProjectName(request)
     try {
-        const result = await chatWithAI(
+        const { aiSettings } = await loadWorkspaceAISettings(workspaceId)
+        if (!aiSettings) return fallback
+        const result = await routeAndCall({
             workspaceId,
-            [{ role: 'user', content: request }],
-            'Create a short, descriptive project name (max 6 words) for this request. Return ONLY the name, no quotes, no trailing punctuation. Example: "Q2 Social Media Campaign"',
-        )
-        const name = result.text?.replace(/^["']|["']$/g, '').trim()
-        if (name && name.length > 2 && name.length < 100) return name
-    } catch { /* fall through to truncated request */ }
+            taskType: 'conversation',
+            settings: aiSettings,
+            doCall: (model) => callModel({
+                model,
+                workspaceId,
+                taskType: 'project-naming',
+                maxTokens: 16,
+                system: NAME_PROJECT_SYSTEM,
+                prompt: request,
+            }),
+        })
+        const name = (result.text ?? '').replace(/["']/g, '').replace(/[\s.]+$/, '').trim()
+        const wordCount = name ? name.split(/\s+/).length : 0
+        const echoed = name.toLowerCase() === request.replace(/[\s.]+$/, '').trim().toLowerCase()
+        if (name.length >= 3 && name.length <= 60 && wordCount <= 8 && !echoed) return name
+    } catch { /* fall through to derived fallback */ }
     return fallback
 }
 
