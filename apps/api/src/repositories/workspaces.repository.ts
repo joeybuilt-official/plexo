@@ -131,6 +131,12 @@ export async function listIds(limit: number): Promise<string[]> {
     return rows.map((r) => r.id)
 }
 
+/** First workspace {id}, or undefined (telegram env-default auto-resolve). */
+export async function getFirstId(): Promise<{ id: string } | undefined> {
+    const [row] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
+    return row
+}
+
 /** Ids of running/claimed tasks in a workspace (for executor cancellation). */
 export async function listRunningTaskIds(workspaceId: string): Promise<string[]> {
     const rows = await db.select({ id: tasks.id })

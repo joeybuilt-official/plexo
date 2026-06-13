@@ -15,3 +15,11 @@ export async function getById(channelId: string) {
     const [row] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1)
     return row
 }
+
+/** {id,config,workspaceId,enabled} rows for all channels of a given type. */
+export async function listByType(type: string) {
+    return db
+        .select({ id: channels.id, config: channels.config, workspaceId: channels.workspaceId, enabled: channels.enabled })
+        .from(channels)
+        .where(eq(channels.type, type))
+}

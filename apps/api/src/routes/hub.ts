@@ -29,8 +29,7 @@
  */
 
 import { Router, type Router as RouterType } from 'express'
-import { db, sql as rawSql, eq, and } from '@plexo/db'
-import { extensionRegistry, extensions, extensionVotes } from '@plexo/db'
+import * as hubRepo from '../repositories/hub.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -85,19 +84,8 @@ function deriveType(manifest: unknown, fallback = 'tool'): string {
     return typeof t === 'string' && t.length > 0 ? t : fallback
 }
 
-interface VoteCountRow {
-    extension_id: string
-    upvotes: number
-    downvotes: number
-    score: number
-    [k: string]: unknown
-}
-
 async function loadVoteCounts(): Promise<Map<string, { upvotes: number; downvotes: number; score: number }>> {
-    const list = await db.execute<VoteCountRow>(rawSql`
-        SELECT extension_id, upvotes::int AS upvotes, downvotes::int AS downvotes, score::int AS score
-        FROM extension_vote_counts
-    `)
+    const list = await hubRepo.getAllVoteCounts()
     const m = new Map<string, { upvotes: number; downvotes: number; score: number }>()
     for (const r of list) {
         m.set(r.extension_id, {
@@ -110,10 +98,7 @@ async function loadVoteCounts(): Promise<Map<string, { upvotes: number; downvote
 }
 
 async function loadUserVotes(userId: string): Promise<Map<string, 'up' | 'down'>> {
-    const rows = await db
-        .select({ extensionId: extensionVotes.extensionId, voteType: extensionVotes.voteType })
-        .from(extensionVotes)
-        .where(eq(extensionVotes.userId, userId))
+    const rows = await hubRepo.getUserVotes(userId)
     const m = new Map<string, 'up' | 'down'>()
     for (const r of rows) {
         if (r.voteType === 'up' || r.voteType === 'down') m.set(r.extensionId, r.voteType)
@@ -127,11 +112,7 @@ async function voteSummary(extensionId: string, userId: string | null): Promise<
     score: number
     userVote: 'up' | 'down' | null
 }> {
-    const list = await db.execute<VoteCountRow>(rawSql`
-        SELECT extension_id, upvotes::int AS upvotes, downvotes::int AS downvotes, score::int AS score
-        FROM extension_vote_counts
-        WHERE extension_id = ${extensionId}
-    `)
+    const list = await hubRepo.getVoteCountsForExtension(extensionId)
     const row = list[0]
     const upvotes = row ? Number(row.upvotes) || 0 : 0
     const downvotes = row ? Number(row.downvotes) || 0 : 0
@@ -139,11 +120,7 @@ async function voteSummary(extensionId: string, userId: string | null): Promise<
 
     let userVote: 'up' | 'down' | null = null
     if (userId) {
-        const uv = await db
-            .select({ voteType: extensionVotes.voteType })
-            .from(extensionVotes)
-            .where(and(eq(extensionVotes.userId, userId), eq(extensionVotes.extensionId, extensionId)))
-            .limit(1)
+        const uv = await hubRepo.getUserVoteForExtension(userId, extensionId)
         const vt = uv[0]?.voteType
         if (vt === 'up' || vt === 'down') userVote = vt
     }
@@ -181,33 +158,10 @@ hubRouter.get('/catalog', async (req, res) => {
     try {
         // Pull full registry rows — the catalog is small (tens/hundreds of entries);
         // filtering and sorting happen in-process for correctness against manifest JSON.
-        const conditions = [eq(extensionRegistry.deprecated, false)]
-        if (type && type !== 'all') {
-            conditions.push(rawSql`manifest->>'type' = ${type}`)
-        }
-        if (q && q.trim()) {
-            const pat = `%${q.trim()}%`
-            conditions.push(rawSql`(
-                ${extensionRegistry.name} ILIKE ${pat}
-                OR ${extensionRegistry.displayName} ILIKE ${pat}
-                OR ${extensionRegistry.description} ILIKE ${pat}
-            )`)
-        }
-
-        const rows = await db
-            .select()
-            .from(extensionRegistry)
-            .where(and(...conditions))
+        const rows = await hubRepo.listRegistry({ type, q })
 
         // Fetch installed items for this workspace to determine install status.
-        const installed = await db
-            .select({
-                id: extensions.id,
-                name: extensions.name,
-                enabled: extensions.enabled,
-            })
-            .from(extensions)
-            .where(eq(extensions.workspaceId, workspaceId))
+        const installed = await hubRepo.listInstalled(workspaceId)
 
         const installedByName = new Map<string, { id: string; enabled: boolean }>()
         for (const inst of installed) {
@@ -333,28 +287,15 @@ hubRouter.post('/extensions/:extensionId/vote', async (req, res) => {
 
     try {
         // Verify the extension actually exists — prevent orphan votes.
-        const regRow = await db
-            .select({ name: extensionRegistry.name })
-            .from(extensionRegistry)
-            .where(eq(extensionRegistry.name, extensionId))
-            .limit(1)
-        if (regRow.length === 0) {
+        if (!await hubRepo.registryExists(extensionId)) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found' } })
             return
         }
 
         if (voteType === null) {
-            await db
-                .delete(extensionVotes)
-                .where(and(eq(extensionVotes.userId, userId), eq(extensionVotes.extensionId, extensionId)))
+            await hubRepo.deleteUserVote(userId, extensionId)
         } else {
-            // UPSERT via raw SQL keyed on (user_id, extension_id).
-            await db.execute(rawSql`
-                INSERT INTO extension_votes (extension_id, user_id, vote_type, created_at, updated_at)
-                VALUES (${extensionId}, ${userId}, ${voteType}, now(), now())
-                ON CONFLICT (user_id, extension_id)
-                DO UPDATE SET vote_type = EXCLUDED.vote_type, updated_at = now()
-            `)
+            await hubRepo.upsertVote(extensionId, userId, voteType)
         }
 
         const summary = await voteSummary(extensionId, userId)
