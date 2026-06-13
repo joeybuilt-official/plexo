@@ -1,5 +1,13 @@
 # @joeybuilt/plexo-sdk — changelog
 
+## 1.5.1 — 2026-06-13 — republish of 1.5.0
+
+No source changes. The 1.5.0 publish never reached npm: the release workflow
+failed with `ENEEDAUTH` (`pnpm publish` did not pick up the env-only auth token).
+`release.yml` now writes the token to `~/.npmrc` explicitly, and this bump
+re-triggers the pipeline so the `/connect` universal client below is actually
+installable from npm.
+
 ## 1.5.0 — 2026-06-08 — **`/connect` universal client**
 
 Adds the `@joeybuilt/plexo-sdk/connect` module: a single `PlexoClient`
