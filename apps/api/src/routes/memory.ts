@@ -16,7 +16,7 @@
  * POST /api/memory/rules/import                        Import behavior rules (from repo/export)
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, sql } from '@plexo/db'
+import * as memoryRepo from '../repositories/memory.repository.js'
 import { searchMemory, storeMemory, embed as embedMemory, type MemoryType } from '@plexo/agent/memory/store'
 import { getPreferences } from '@plexo/agent/memory/preferences'
 import { runSelfImprovementCycle, getImprovementLog } from '@plexo/agent/memory/self-improvement'
@@ -92,24 +92,9 @@ memoryRouter.get('/entries', async (req, res) => {
         const lim = Math.min(parseInt(limit ?? '50', 10), 200)
         const off = parseInt(offset ?? '0', 10)
 
-        let query = sql`
-            SELECT id, type, content, shorthand, metadata, tier, confidence, namespace, created_at
-            FROM memory_entries
-            WHERE workspace_id = ${workspaceId}::uuid
-        `
-        if (type) query = sql`${query} AND type = ${type}::memory_type`
-        if (tier) query = sql`${query} AND tier = ${tier}`
-        if (namespace) query = sql`${query} AND namespace = ${namespace}`
-        if (q && q.trim()) query = sql`${query} AND content ILIKE ${'%' + q.trim().slice(0, 200) + '%'}`
-        query = sql`${query} ORDER BY created_at DESC LIMIT ${lim} OFFSET ${off}`
-
-        const [rows, countResult] = await Promise.all([
-            db.execute(query).then(r => Array.from(r)),
-            db.execute<{ total: number }>(
-                sql`SELECT count(*)::int as total FROM memory_entries WHERE workspace_id = ${workspaceId}::uuid`
-            ).then(r => Array.from(r)),
-        ])
-        const total = countResult[0]?.total ?? 0
+        const { rows, total } = await memoryRepo.listMemoryEntries({
+            workspaceId, type, tier, namespace, q, limit: lim, offset: off,
+        })
 
         res.json({ items: rows, total, mode: q ? 'text' : 'list' })
     } catch (err: unknown) {
@@ -188,10 +173,7 @@ memoryRouter.post('/entries', async (req, res) => {
             // Update metadata with attachment references
             if (uploaded.length > 0) {
                 const meta = { ...(metadata ?? { source: 'user', manual: true }), attachments: uploaded }
-                await db.execute(sql`
-                    UPDATE memory_entries SET metadata = ${JSON.stringify(meta)}::jsonb
-                    WHERE id = ${entryId}::uuid
-                `)
+                await memoryRepo.updateMemoryEntryMetadata(entryId, meta)
             }
         }
 
@@ -230,11 +212,7 @@ memoryRouter.put('/entries/:id', async (req, res) => {
     }
 
     try {
-        const result = Array.from(await db.execute<{ id: string }>(sql`
-            UPDATE memory_entries SET content = ${content.trim()}
-            WHERE id = ${id}::uuid AND workspace_id = ${workspaceId}::uuid
-            RETURNING id
-        `))
+        const result = await memoryRepo.updateMemoryEntryContent(id, workspaceId, content.trim())
         if (result.length === 0) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Memory entry not found' } })
             return
@@ -245,7 +223,7 @@ memoryRouter.put('/entries/:id', async (req, res) => {
         void embedMemory(content.trim(), workspaceId).then(async (vector) => {
             if (!vector) return
             const vecStr = `[${vector.join(',')}]`
-            await db.execute(sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`)
+            await memoryRepo.updateMemoryEntryEmbedding(id, vecStr)
         }).catch((err) => logger.error({ err, id }, 'Failed to re-embed memory entry after edit'))
 
         res.json({ ok: true })
@@ -272,11 +250,7 @@ memoryRouter.delete('/entries/:id', async (req, res) => {
     }
 
     try {
-        const result = Array.from(await db.execute<{ id: string }>(sql`
-            DELETE FROM memory_entries
-            WHERE id = ${id}::uuid AND workspace_id = ${workspaceId}::uuid
-            RETURNING id
-        `))
+        const result = await memoryRepo.deleteMemoryEntry(id, workspaceId)
         if (result.length === 0) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Memory entry not found' } })
             return
@@ -433,28 +407,8 @@ memoryRouter.get('/rules/export', async (req, res) => {
     }
 
     try {
-        const rows = await db.execute<{
-            id: string
-            key: string
-            type: string
-            label: string
-            description: string
-            value: unknown
-            source: string
-            tags: string[]
-            locked: boolean
-            created_at: string
-            updated_at: string
-        }>(sql`
-            SELECT id, key, type, label, description, value, source, tags, locked, created_at, updated_at
-            FROM behavior_rules
-            WHERE workspace_id = ${workspaceId}::uuid
-              AND deleted_at IS NULL
-            ORDER BY type, key
-        `)
-
         // Convert to plain array for easy manipulation
-        const rules = Array.from(rows)
+        const rules = await memoryRepo.exportBehaviorRules(workspaceId)
 
         // Group by source for readability
         const grouped: Record<string, typeof rules> = {}
@@ -527,26 +481,7 @@ memoryRouter.post('/rules/import', async (req, res) => {
         for (const rule of rules) {
             if (!rule.key || !rule.type || !rule.label) continue
 
-            const result = await db.execute(sql`
-                INSERT INTO behavior_rules
-                    (id, workspace_id, type, key, label, description, value, source, tags, locked)
-                VALUES
-                    (gen_random_uuid(), ${workspaceId}::uuid,
-                     ${rule.type}, ${rule.key}, ${rule.label},
-                     ${rule.description ?? ''},
-                     ${JSON.stringify(rule.value ?? {})}::jsonb,
-                     ${rule.source ?? 'import'},
-                     ${sql`ARRAY[${sql.join((rule.tags ?? ['imported']).map(t => sql`${t}`), sql`,`)}]::text[]`},
-                     ${rule.locked ?? false})
-                ON CONFLICT (workspace_id, key) WHERE deleted_at IS NULL
-                DO UPDATE SET
-                    label = EXCLUDED.label,
-                    description = EXCLUDED.description,
-                    value = EXCLUDED.value,
-                    source = EXCLUDED.source,
-                    tags = EXCLUDED.tags,
-                    updated_at = now()
-            `)
+            const result = await memoryRepo.upsertBehaviorRule(workspaceId, rule)
             // Drizzle returns affected row count — 0 = conflict ignored, >0 = insert or update
             if (result && (result as any).rowCount > 0) {
                 imported++
@@ -605,15 +540,7 @@ memoryRouter.post('/improvements/:id/apply', async (req, res) => {
     }
 
     try {
-        const rows = await db.execute<{
-            pattern_type: string
-            applied: boolean
-        }>(sql`
-            SELECT pattern_type, applied FROM agent_improvement_log
-            WHERE id = ${id}::uuid AND workspace_id = ${workspaceId}::uuid
-            LIMIT 1
-        `)
-        const row = rows[0]
+        const row = await memoryRepo.getImprovementLogEntry(id as string, workspaceId)
         if (!row) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Improvement log entry not found' } })
             return
@@ -629,10 +556,7 @@ memoryRouter.post('/improvements/:id/apply', async (req, res) => {
             res.json({ ok: true, message: 'Prompt patch applied and active' })
         } else {
             // Informational proposals — just mark acknowledged/applied
-            await db.execute(sql`
-                UPDATE agent_improvement_log SET applied = true
-                WHERE id = ${id}::uuid AND workspace_id = ${workspaceId}::uuid
-            `)
+            await memoryRepo.markImprovementLogApplied(id as string, workspaceId)
             res.json({ ok: true, message: 'Proposal acknowledged' })
         }
     } catch (err: unknown) {
@@ -660,12 +584,7 @@ memoryRouter.patch('/entries/:id/tier', async (req, res) => {
         return
     }
     try {
-        const rows = Array.from(await db.execute<{ id: string }>(sql`
-            UPDATE memory_entries
-            SET tier = ${tier}
-            WHERE id = ${entryId}::uuid AND workspace_id = ${workspaceId}::uuid
-            RETURNING id
-        `))
+        const rows = await memoryRepo.updateMemoryEntryTier(entryId, workspaceId, tier)
         if (rows.length === 0) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Memory entry not found' } })
             return
@@ -685,19 +604,7 @@ memoryRouter.get('/namespaces', async (req, res) => {
         return
     }
     try {
-        const rows = Array.from(await db.execute<{
-            namespace: string; total: number; hot: number; active: number; cold: number
-        }>(sql`
-            SELECT namespace,
-                   COUNT(*)::int AS total,
-                   COUNT(*) FILTER (WHERE tier = 'hot')::int AS hot,
-                   COUNT(*) FILTER (WHERE tier = 'active')::int AS active,
-                   COUNT(*) FILTER (WHERE tier = 'cold')::int AS cold
-            FROM memory_entries
-            WHERE workspace_id = ${workspaceId}::uuid
-            GROUP BY namespace
-            ORDER BY total DESC, namespace ASC
-        `))
+        const rows = await memoryRepo.getNamespaceStats(workspaceId)
         res.json({ namespaces: rows.map(r => ({
             namespace: String(r.namespace),
             total: Number(r.total ?? 0),
@@ -746,12 +653,7 @@ memoryRouter.get('/eviction', async (req, res) => {
         return
     }
     try {
-        const rows = Array.from(await db.execute<{ s: Record<string, unknown> | null }>(sql`
-            SELECT intelligence_settings AS s
-            FROM workspaces
-            WHERE id = ${workspaceId}::uuid
-            LIMIT 1
-        `))
+        const rows = await memoryRepo.getWorkspaceIntelligenceSettings(workspaceId)
         const view = readEvictionFromIntelligence(rows[0]?.s)
         res.json({ eviction: view, defaults: MEMORY_EVICTION_DEFAULTS, bounds: MEMORY_EVICTION_BOUNDS })
     } catch (err) {
@@ -794,25 +696,13 @@ memoryRouter.patch('/eviction', async (req, res) => {
         return
     }
     try {
-        const rows = Array.from(await db.execute<{ s: Record<string, unknown> | null }>(sql`
-            SELECT intelligence_settings AS s FROM workspaces
-            WHERE id = ${workspaceId}::uuid LIMIT 1
-        `))
+        const rows = await memoryRepo.getWorkspaceIntelligenceSettings(workspaceId)
         const existing = (rows[0]?.s ?? {}) as Record<string, any>
         const memoryBlock = (existing.memory ?? {}) as Record<string, any>
         const evictionBlock = (memoryBlock.eviction ?? {}) as Record<string, any>
         const merged = { ...evictionBlock, ...patch }
 
-        await db.execute(sql`
-            UPDATE workspaces
-            SET intelligence_settings = jsonb_set(
-                COALESCE(intelligence_settings, '{}'::jsonb),
-                '{memory,eviction}',
-                ${JSON.stringify(merged)}::jsonb,
-                true
-            )
-            WHERE id = ${workspaceId}::uuid
-        `)
+        await memoryRepo.updateWorkspaceEvictionSettings(workspaceId, merged)
         try {
             const cache = await import('../lib/intelligence-cache.js')
             cache.invalidateIntelligenceSettings(workspaceId)
@@ -837,18 +727,7 @@ memoryRouter.get('/heatmap', async (req, res) => {
         return
     }
     try {
-        const rows = await db.execute<{
-            tier: string
-            confidence_band: string
-            count: number
-            last_decay_at: string | null
-        }>(sql`
-            SELECT tier, confidence_band, count, last_decay_at
-            FROM memory_tier_stats
-            WHERE workspace_id = ${workspaceId}::uuid
-            ORDER BY tier, confidence_band
-        `)
-        const buckets = Array.from(rows)
+        const buckets = await memoryRepo.getMemoryHeatmap(workspaceId)
         const lastUpdated = buckets.reduce<string | null>((acc, r) => {
             if (!r.last_decay_at) return acc
             if (!acc || r.last_decay_at > acc) return r.last_decay_at

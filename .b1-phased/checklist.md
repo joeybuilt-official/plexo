@@ -14,13 +14,13 @@
 - [x] channels.ts → extend channels.repository
 - [x] tsc clean + grep clean
 - [x] commit + push Phase 2
-- [ ] deploy Phases 1+2 to prod + verify (health + gate-check)
+- [x] deploy Phases 1+2 to prod + verify (health + gate-check) — eb386d2, sprints route 401
 
 ## Phase 3 — memory + tasks
-- [ ] memory.ts → memory.repository
-- [ ] tasks.ts → tasks.repository
-- [ ] tsc clean + grep clean
-- [ ] commit + push Phase 3
+- [x] memory.ts → memory.repository
+- [x] tasks.ts → tasks.repository
+- [x] tsc clean + grep clean
+- [x] commit + push Phase 3
 
 ## Phase 4 — auth + extensions
 - [ ] auth.ts → auth.repository
