@@ -46,7 +46,9 @@
 ## Phase 7 — close-out
 - [x] final multi-line-aware sweep: zero non-test route files with direct db usage
 - [x] PLAN.md B1 row → ✅ done (final count + counting-method-fix note)
-- [ ] commit + push + final prod deploy/verify
+- [x] commit + push + final prod deploy/verify — ed5fba0 live on plexo-api; users/profiles/outcomes 401
+
+## B1 COMPLETE. Remaining = ⚠ operator-gated only (A2/A3/A5/A6/B3).
 
 ## Gated (do NOT do without operator sign-off)
 - [ ] ⚠ A2 activation
