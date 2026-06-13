@@ -24,8 +24,7 @@
  * which loads enabled tools and runs them in sandboxed workers.
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, sql as rawSql } from '@plexo/db'
-import { extensions, workspaces, extensionPrompts, extensionContexts, extensionRegistry } from '@plexo/db'
+import * as extensionsRepo from '../repositories/extensions.repository.js'
 import { logger } from '../logger.js'
 import { audit } from '../audit.js'
 import { validateManifest } from '@joeybuilt/plexo-sdk'
@@ -239,18 +238,7 @@ extensionsRouter.get('/', async (req, res) => {
     const offset = Math.max(parseInt((req.query.offset as string | undefined) ?? '0', 10), 0)
 
     try {
-        const conditions = [eq(extensions.workspaceId, workspaceId)]
-        if (type) {
-            conditions.push(eq(extensions.type, type as any))
-        }
-
-        const rows = await db
-            .select()
-            .from(extensions)
-            .where(and(...conditions))
-            .orderBy(extensions.installedAt)
-            .limit(limit)
-            .offset(offset)
+        const rows = await extensionsRepo.listExtensions(workspaceId, type, limit, offset)
 
         const items = rows.map((row) => {
             const m = row.manifest as Record<string, unknown> | null
@@ -280,7 +268,7 @@ extensionsRouter.get('/:id', async (req, res) => {
         return
     }
     try {
-        const [plugin] = await db.select().from(extensions).where(eq(extensions.id, req.params.id)).limit(1)
+        const plugin = await extensionsRepo.getExtensionById(req.params.id)
         if (!plugin) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found' } })
             return
@@ -337,11 +325,7 @@ extensionsRouter.post('/', async (req, res) => {
     let isCatalogManifest = false
     if (typeof candidateName === 'string' && candidateName.length > 0) {
         try {
-            const [registryRow] = await db
-                .select({ name: extensionRegistry.name })
-                .from(extensionRegistry)
-                .where(eq(extensionRegistry.name, candidateName))
-                .limit(1)
+            const registryRow = await extensionsRepo.getRegistryRowByName(candidateName)
             isCatalogManifest = Boolean(registryRow)
         } catch (lookupErr) {
             // A registry lookup failure should not block strict-mode installs.
@@ -393,104 +377,20 @@ extensionsRouter.post('/', async (req, res) => {
     }
 
     try {
-        const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
+        const ws = await extensionsRepo.getWorkspaceId(workspaceId)
         if (!ws) {
             res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' } })
             return
         }
 
         // FUN-027: Duplicate check — prevent re-installing same extension name in workspace
-        const [existing] = await db.select({ id: extensions.id }).from(extensions)
-            .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.name, m.name)))
-            .limit(1)
+        const existing = await extensionsRepo.getExtensionByWorkspaceAndName(workspaceId, m.name)
         if (existing) {
             res.status(409).json({ error: { code: 'ALREADY_INSTALLED', message: `Extension "${m.name}" is already installed in this workspace` } })
             return
         }
 
-        const inserted = await db.transaction(async (tx) => {
-            const [ext] = await tx.insert(extensions).values({
-                workspaceId,
-                name: m.name,
-                version: m.version,
-                type: m.type,
-                pexVersion: m.plexo ?? '0.4.0',
-                entry: m.entry,
-                manifest: m as object,
-                enabled: false,      // always starts disabled (§9.1 — activate called on enable)
-                settings,
-            }).returning()
-
-            if (!ext) throw new Error('Insert returned no data')
-
-            // §5d: Auto-register behavior rules from tool manifest
-            if (m.behaviorRules && m.behaviorRules.length > 0) {
-                const { behaviorRules: dbBehaviorRules } = await import('@plexo/db')
-                const rulesToInsert = m.behaviorRules.map((rule) => ({
-                    workspaceId,
-                    projectId: null,
-                    type: rule.type,
-                    key: rule.key,
-                    label: rule.label,
-                    description: rule.description,
-                    value: rule.defaultValue,
-                    locked: rule.locked,
-                    source: 'workspace' as const,
-                    tags: [`extension:${ext.id}`],
-                }))
-                await tx.insert(dbBehaviorRules).values(rulesToInsert)
-            }
-
-            // §7.6: Extract prompt artifacts from tool manifest and persist (disabled by default)
-            if (m.prompts && Array.isArray(m.prompts) && m.prompts.length > 0) {
-                try {
-                    const promptRows = m.prompts.map((p: any) => ({
-                        workspaceId,
-                        extensionName: m.name,
-                        promptId: String(p.id),
-                        name: String(p.name ?? ''),
-                        description: String(p.description ?? ''),
-                        template: String(p.template ?? ''),
-                        variables: (p.variables ?? []) as object,
-                        tags: Array.isArray(p.tags) ? p.tags.map(String) : [],
-                        version: String(p.version ?? '1.0.0'),
-                        priority: (['low', 'normal', 'high', 'critical'].includes(String(p.priority)) ? String(p.priority) : 'normal') as 'low' | 'normal' | 'high' | 'critical',
-                        dependencies: Array.isArray(p.dependencies) ? p.dependencies.map(String) : [],
-                        enabled: false,
-                    }))
-                    await tx.insert(extensionPrompts).values(promptRows).onConflictDoNothing()
-                    logger.info({ extensionName: m.name, count: promptRows.length }, 'Extracted prompt artifacts from tool')
-                } catch (promptErr) {
-                    logger.warn({ err: promptErr, extensionName: m.name }, 'Failed to extract prompt artifacts from tool — non-fatal')
-                }
-            }
-
-            // §7.7: Extract context artifacts from tool manifest and persist (disabled by default)
-            if (m.contexts && Array.isArray(m.contexts) && m.contexts.length > 0) {
-                try {
-                    const contextRows = m.contexts.slice(0, 10).map((c: any) => ({
-                        workspaceId,
-                        extensionName: m.name,
-                        contextId: String(c.id),
-                        name: String(c.name ?? ''),
-                        description: String(c.description ?? ''),
-                        content: String(c.content ?? '').slice(0, 50_000),
-                        contentType: String(c.contentType ?? 'text/plain'),
-                        priority: (['low', 'normal', 'high', 'critical'].includes(String(c.priority)) ? String(c.priority) : 'normal') as 'low' | 'normal' | 'high' | 'critical',
-                        ttl: typeof c.ttl === 'number' ? c.ttl : null,
-                        tags: Array.isArray(c.tags) ? c.tags.map(String).slice(0, 10) : [],
-                        estimatedTokens: typeof c.estimatedTokens === 'number' ? c.estimatedTokens : null,
-                        enabled: false, // disabled by default — user opts in
-                    }))
-                    await tx.insert(extensionContexts).values(contextRows).onConflictDoNothing()
-                    logger.info({ extensionName: m.name, count: contextRows.length }, 'Extracted context artifacts from tool')
-                } catch (contextErr) {
-                    logger.warn({ err: contextErr, extensionName: m.name }, 'Failed to extract context artifacts from tool — non-fatal')
-                }
-            }
-
-            return ext
-        })
+        const inserted = await extensionsRepo.installExtensionTx(workspaceId, m, settings)
 
         if (!inserted) {
             res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Insert returned no data' } })
@@ -673,7 +573,7 @@ extensionsRouter.post('/sideload', async (req, res) => {
     }
 
     try {
-        const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
+        const ws = await extensionsRepo.getWorkspaceId(workspaceId)
         if (!ws) {
             res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' } })
             return
@@ -695,18 +595,7 @@ extensionsRouter.post('/sideload', async (req, res) => {
             },
         }
 
-        const [inserted] = await db.insert(extensions).values({
-            workspaceId,
-            name: m.name,
-            version: m.version,
-            type: m.type as any,
-            pexVersion: m.plexo ?? '0.4.0',
-            entry: m.entry,
-            manifest: sideloadedManifest as object,
-            enabled: false,
-            settings,
-            source: 'sideloaded' as any,
-        }).returning()
+        const inserted = await extensionsRepo.insertSideloadedExtension({ workspaceId, m, sideloadedManifest, settings })
 
         if (!inserted) {
             res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Insert returned no data' } })
@@ -785,27 +674,20 @@ extensionsRouter.post('/skill', async (req, res) => {
     const manifest = synthesizeManifest(parsed)
 
     try {
-        const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
+        const ws = await extensionsRepo.getWorkspaceId(workspaceId)
         if (!ws) {
             res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' } })
             return
         }
 
-        const [inserted] = await db.insert(extensions).values({
+        const inserted = await extensionsRepo.insertSkillExtension({
             workspaceId,
-            name: manifest.name,
-            version: manifest.version,
-            type: manifest.type as 'skill',
-            pexVersion: '0.4.0',
-            entry: manifest.entry,
-            manifest: manifest as object,
-            enabled: false,
+            manifest: manifest as { name: string; version: string; type: string; entry: string } & Record<string, unknown>,
             settings,
-            source: 'skillmd',
             skillPath: skillPath ?? null,
             skillContent: parsed.markdownBody,
             skillFrontmatter: parsed.frontmatter as object,
-        }).returning()
+        })
 
         if (!inserted) {
             res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Insert returned no data' } })
@@ -915,26 +797,19 @@ extensionsRouter.post('/skill/install-url', async (req, res) => {
     const manifest = synthesizeManifest(parsed)
 
     try {
-        const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
+        const ws = await extensionsRepo.getWorkspaceId(workspaceId)
         if (!ws) {
             res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' } })
             return
         }
 
-        const [inserted] = await db.insert(extensions).values({
+        const inserted = await extensionsRepo.insertSkillUrlExtension({
             workspaceId,
-            name: manifest.name,
-            version: manifest.version,
-            type: manifest.type as 'skill',
-            pexVersion: '0.4.0',
-            entry: manifest.entry,
-            manifest: manifest as object,
-            enabled: false,
-            source: 'skillmd',
+            manifest: manifest as { name: string; version: string; type: string; entry: string } & Record<string, unknown>,
             skillPath: url,
             skillContent: parsed.markdownBody,
             skillFrontmatter: parsed.frontmatter as object,
-        }).returning()
+        })
 
         if (!inserted) {
             res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Insert failed' } })
@@ -971,7 +846,7 @@ extensionsRouter.patch('/:id', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [existing] = await db.select().from(extensions).where(eq(extensions.id, req.params.id)).limit(1)
+        const existing = await extensionsRepo.getFullExtensionById(req.params.id)
         if (!existing || existing.workspaceId !== workspaceId) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Tool not found in workspace' } })
             return
@@ -986,7 +861,7 @@ extensionsRouter.patch('/:id', async (req, res) => {
             return
         }
 
-        await db.update(extensions).set(update).where(eq(extensions.id, req.params.id))
+        await extensionsRepo.updateExtension(req.params.id, update)
         logger.info({ id: req.params.id, update }, 'Tool updated')
         // Any settings or enabled change should bust the workspace tool cache
         // so the next chat turn re-loads fresh tool definitions.
@@ -1044,7 +919,7 @@ extensionsRouter.put('/:id/upgrade', async (req, res) => {
 
     try {
         // 1. Load existing extension
-        const [existing] = await db.select().from(extensions).where(eq(extensions.id, req.params.id)).limit(1)
+        const existing = await extensionsRepo.getFullExtensionById(req.params.id)
         if (!existing || existing.workspaceId !== workspaceId) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found in workspace' } })
             return
@@ -1057,11 +932,7 @@ extensionsRouter.put('/:id/upgrade', async (req, res) => {
             newManifestRaw = incomingManifest as Record<string, unknown>
         } else {
             // Try fetching latest from extension_registry by name
-            const [registryRow] = await db
-                .select({ manifest: extensionRegistry.manifest })
-                .from(extensionRegistry)
-                .where(eq(extensionRegistry.name, existing.name))
-                .limit(1)
+            const registryRow = await extensionsRepo.getRegistryManifestByName(existing.name)
 
             if (!registryRow?.manifest) {
                 res.status(404).json({ error: { code: 'NO_UPDATE_SOURCE', message: 'No manifest provided and extension not found in Hub registry. Pass { manifest } in the request body.' } })
@@ -1077,11 +948,7 @@ extensionsRouter.put('/:id/upgrade', async (req, res) => {
         // Check if catalog manifest that needs normalization
         let isCatalog = false
         try {
-            const [regRow] = await db
-                .select({ name: extensionRegistry.name })
-                .from(extensionRegistry)
-                .where(eq(extensionRegistry.name, existing.name))
-                .limit(1)
+            const regRow = await extensionsRepo.getRegistryRowByName(existing.name)
             isCatalog = Boolean(regRow)
         } catch { /* non-fatal */ }
 
@@ -1118,15 +985,12 @@ extensionsRouter.put('/:id/upgrade', async (req, res) => {
         terminateWorker(existing.name)
 
         // 5. Update extension row — preserve user settings
-        await db.update(extensions)
-            .set({
-                version: m.version,
-                pexVersion: m.plexo ?? existing.pexVersion,
-                entry: m.entry ?? existing.entry,
-                manifest: m as object,
-                // settings is intentionally NOT overwritten — user config preserved
-            })
-            .where(eq(extensions.id, req.params.id))
+        await extensionsRepo.updateExtensionForUpgrade(req.params.id, {
+            version: m.version,
+            pexVersion: m.plexo ?? existing.pexVersion,
+            entry: m.entry ?? existing.entry,
+            manifest: m as object,
+        })
 
         logger.info({ id: req.params.id, name: existing.name, oldVersion: existing.version, newVersion: m.version }, 'Extension upgraded')
         invalidateWorkspaceToolSets(workspaceId)
@@ -1168,11 +1032,7 @@ extensionsRouter.delete('/:id', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [existing] = await db
-            .select({ id: extensions.id, workspaceId: extensions.workspaceId, name: extensions.name, pexVersion: extensions.pexVersion })
-            .from(extensions)
-            .where(eq(extensions.id, req.params.id))
-            .limit(1)
+        const existing = await extensionsRepo.getExtensionForDelete(req.params.id)
 
         if (!existing || existing.workspaceId !== workspaceId) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Tool not found in workspace' } })
@@ -1181,20 +1041,14 @@ extensionsRouter.delete('/:id', async (req, res) => {
 
         // Terminate persistent worker + delete record
         terminateWorker(existing.name)
-        await db.delete(extensions).where(eq(extensions.id, req.params.id))
-        
+        await extensionsRepo.deleteExtension(req.params.id)
+
         // §5d: Cleanup — soft-delete associated behavior rules using raw SQL
         // instead of fetching all rules and filtering/updating in JS (N+1)
         // Tags use "extension:<id>" format (DB column name preserved)
         try {
             const extensionTag = `extension:${req.params.id}`
-            await db.execute(rawSql`
-                UPDATE behavior_rules
-                SET deleted_at = NOW()
-                WHERE workspace_id = ${workspaceId}
-                  AND ${extensionTag} = ANY(tags)
-                  AND deleted_at IS NULL
-            `)
+            await extensionsRepo.softDeleteBehaviorRules(workspaceId, extensionTag)
             logger.info({ id: req.params.id }, 'Soft-deleted tool behavior rules')
         } catch (ruleErr) {
             logger.warn({ err: ruleErr, id: req.params.id }, 'Failed to cleanup tool behavior rules — non-fatal')
@@ -1202,20 +1056,7 @@ extensionsRouter.delete('/:id', async (req, res) => {
 
         // §7.6/§7.7: Soft-delete tool prompts and context blocks
         try {
-            await db.execute(rawSql`
-                UPDATE extension_prompts
-                SET deleted_at = NOW()
-                WHERE workspace_id = ${workspaceId}
-                  AND extension_name = ${existing.name}
-                  AND deleted_at IS NULL
-            `)
-            await db.execute(rawSql`
-                UPDATE extension_contexts
-                SET deleted_at = NOW()
-                WHERE workspace_id = ${workspaceId}
-                  AND extension_name = ${existing.name}
-                  AND deleted_at IS NULL
-            `)
+            await extensionsRepo.softDeletePromptsAndContexts(workspaceId, existing.name)
             logger.info({ id: req.params.id, name: existing.name }, 'Soft-deleted tool prompts and context')
         } catch (pcErr) {
             logger.warn({ err: pcErr, id: req.params.id }, 'Failed to cleanup tool prompts/context — non-fatal')
@@ -1263,11 +1104,7 @@ extensionsRouter.post('/invoke', async (req, res) => {
             entryPath = BUILTIN_OPS_EXTENSIONS[extensionName]!
         } else {
             // Look up the extension in DB
-            const [ext] = await db
-                .select({ id: extensions.id, name: extensions.name, entry: extensions.entry, enabled: extensions.enabled, manifest: extensions.manifest, settings: extensions.settings })
-                .from(extensions)
-                .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.name, extensionName)))
-                .limit(1)
+            const ext = await extensionsRepo.getExtensionForInvoke(workspaceId, extensionName)
 
             if (!ext) {
                 res.status(404).json({ error: { code: 'NOT_FOUND', message: `Extension "${extensionName}" not found` } })

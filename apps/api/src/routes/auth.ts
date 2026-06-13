@@ -2,18 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, sql, inArray, and } from '@plexo/db'
-import {
-    workspaces,
-    workspaceMembers,
-    installedConnections,
-    connectionsRegistry,
-    extensions,
-    extensionRegistry,
-    appProfiles,
-    DEFAULT_INTELLIGENCE_SETTINGS,
-    DEFAULT_WORKSPACE_SETTINGS,
-} from '@plexo/db'
+import * as authRepo from '../repositories/auth.repository.js'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
@@ -35,9 +24,7 @@ authRouter.delete('/account-cleanup', requireServiceKey, async (req, res) => {
     }
 
     try {
-        const owned = await db.select({ id: workspaces.id })
-            .from(workspaces)
-            .where(eq(workspaces.ownerId, userId))
+        const owned = await authRepo.listOwnedWorkspaceIds(userId)
 
         if (owned.length === 0) {
             logger.info({ userId }, 'Account cleanup: no workspaces found for user')
@@ -45,7 +32,7 @@ authRouter.delete('/account-cleanup', requireServiceKey, async (req, res) => {
             return
         }
 
-        await db.delete(workspaces).where(inArray(workspaces.id, owned.map(w => w.id)))
+        await authRepo.deleteWorkspacesByIds(owned.map(w => w.id))
         for (const ws of owned) {
             trackEvent('workspace.deleted', 'warning', { workspaceId: ws.id, reason: 'account_deletion' })
         }
@@ -62,7 +49,7 @@ authRouter.delete('/account-cleanup', requireServiceKey, async (req, res) => {
 // GET /api/auth/setup-status — returns whether initial setup is needed
 // Now checks if any workspace exists (users are managed by Better Auth)
 authRouter.get('/setup-status', async (_req, res) => {
-    const rows = await db.select({ count: sql<number>`count(*)` }).from(workspaces)
+    const rows = await authRepo.countWorkspaces()
     const needsSetup = Number(rows[0]?.count || 0) === 0
     res.json({ needsSetup })
 })
@@ -85,10 +72,7 @@ authRouter.post('/workspace/ensure', requireServiceKey, async (req, res) => {
         void wsEmail
 
         // Check for existing workspace owned by this user
-        const [existing] = await db.select({ id: workspaces.id, name: workspaces.name })
-            .from(workspaces)
-            .where(eq(workspaces.ownerId, userId))
-            .limit(1)
+        const existing = await authRepo.getOwnedWorkspaceIdName(userId)
 
         if (existing) {
             res.json({ workspaceId: existing.id, name: existing.name, created: false })
@@ -97,24 +81,14 @@ authRouter.post('/workspace/ensure', requireServiceKey, async (req, res) => {
 
         // Create a new personal workspace for this user.
         const displayName = (wsName?.trim() ?? 'My Workspace').slice(0, 200) || 'My Workspace'
-        const [ws] = await db.insert(workspaces).values({
-            name: displayName,
-            ownerId: userId,
-            settings: DEFAULT_WORKSPACE_SETTINGS,
-            // Phase 6 — flag for first-run wizard.
-            intelligenceSettings: DEFAULT_INTELLIGENCE_SETTINGS,
-        }).returning({ workspaceId: workspaces.id, name: workspaces.name })
+        const ws = await authRepo.createWorkspaceReturningIdName(displayName, userId)
 
         if (!ws) {
             res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create workspace' } })
             return
         }
 
-        await db.insert(workspaceMembers).values({
-            workspaceId: ws.workspaceId,
-            userId,
-            role: 'owner',
-        }).onConflictDoNothing()
+        await authRepo.insertOwnerMember(ws.workspaceId, userId)
         // Phase C1 (ADR 0022) shadow-write — owner seed on workspace create.
         void mirrorMembershipUpsert({ workspaceId: ws.workspaceId, userId, role: 'owner' })
 
@@ -163,31 +137,19 @@ authRouter.post('/profiles/auto-attach-user', requireServiceKey, async (req, res
     try {
         // ── Step 1: get-or-create workspace ────────────────────────────
         let workspaceId: string | null = null
-        const [existing] = await db.select({ id: workspaces.id })
-            .from(workspaces)
-            .where(eq(workspaces.ownerId, userId))
-            .limit(1)
+        const existing = await authRepo.getOwnedWorkspaceId(userId)
 
         if (existing) {
             workspaceId = existing.id
         } else {
             const displayName = (wsName?.trim() ?? 'Personal').slice(0, 200) || 'Personal'
-            const [ws] = await db.insert(workspaces).values({
-                name: displayName,
-                ownerId: userId,
-                settings: DEFAULT_WORKSPACE_SETTINGS,
-                intelligenceSettings: DEFAULT_INTELLIGENCE_SETTINGS,
-            }).returning({ id: workspaces.id })
+            const ws = await authRepo.createWorkspaceReturningId(displayName, userId)
             if (!ws) {
                 res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Workspace create failed' } })
                 return
             }
             workspaceId = ws.id
-            await db.insert(workspaceMembers).values({
-                workspaceId: ws.id,
-                userId,
-                role: 'owner',
-            }).onConflictDoNothing()
+            await authRepo.insertOwnerMember(ws.id, userId)
             // Phase C1 (ADR 0022) shadow-write — auto-attach owner seed.
             void mirrorMembershipUpsert({ workspaceId: ws.id, userId, role: 'owner' })
             trackEvent('workspace.created', 'info', { workspaceId: ws.id, source: appId, reason: 'auto-attach' })
@@ -197,50 +159,26 @@ authRouter.post('/profiles/auto-attach-user', requireServiceKey, async (req, res
         // ── Step 2: ensure connections_registry row exists for this app ──
         // Fallback for fresh installs where 0098_joeybuilt_apps_auto_connect
         // hasn't run yet, or for apps registered after the migration.
-        const [profile] = await db.select({
-            displayName: appProfiles.displayName,
-        }).from(appProfiles).where(eq(appProfiles.appId, appId)).limit(1)
+        const profile = await authRepo.getAppProfileDisplayName(appId)
 
         if (!profile) {
             res.status(404).json({ error: { code: 'APP_NOT_REGISTERED', message: `App "${appId}" must call /api/v1/profiles/register first` } })
             return
         }
 
-        const [registryRow] = await db.select({ id: connectionsRegistry.id })
-            .from(connectionsRegistry)
-            .where(eq(connectionsRegistry.id, appId))
-            .limit(1)
+        const registryRow = await authRepo.getConnectionsRegistryRow(appId)
 
         if (!registryRow) {
             // Insert a minimal connections_registry row so the FK on
             // installed_connections is satisfied. Auth type is 'none' —
             // the bridge uses _workspaceOwnerId for identity.
-            await db.insert(connectionsRegistry).values({
-                id: appId,
-                name: profile.displayName,
-                description: `${profile.displayName} (Joeybuilt app — auto-connected)`,
-                category: 'productivity',
-                authType: 'none',
-                oauthScopes: [],
-                setupFields: [],
-                toolsProvided: [],
-                cardsProvided: [],
-                isCore: false,
-            }).onConflictDoNothing()
+            await authRepo.insertConnectionsRegistryRow(appId, profile.displayName)
         }
 
         // ── Step 3: idempotent insert of installed_connections row ───────
         let installedCreated = false
         try {
-            const insertResult = await db.insert(installedConnections).values({
-                workspaceId,
-                registryId: appId,
-                name: profile.displayName,
-                credentials: {},
-                label: 'default',
-                status: 'active',
-                scopesGranted: [],
-            }).onConflictDoNothing().returning({ id: installedConnections.id })
+            const insertResult = await authRepo.insertInstalledConnection(workspaceId, appId, profile.displayName)
             installedCreated = insertResult.length > 0
         } catch (err) {
             logger.warn({ err, workspaceId, appId }, 'installed_connections insert raced — non-fatal')
@@ -255,16 +193,11 @@ authRouter.post('/profiles/auto-attach-user', requireServiceKey, async (req, res
         const bridgeEntry = `/app/extensions/core/${appId}-bridge/dist/index.js`
         let bridgeEnabled = false
 
-        const [existingBridge] = await db.select({ id: extensions.id, enabled: extensions.enabled })
-            .from(extensions)
-            .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.name, bridgeName)))
-            .limit(1)
+        const existingBridge = await authRepo.getBridgeExtension(workspaceId, bridgeName)
 
         if (existingBridge) {
             if (!existingBridge.enabled) {
-                await db.update(extensions)
-                    .set({ enabled: true })
-                    .where(eq(extensions.id, existingBridge.id))
+                await authRepo.enableBridgeExtension(existingBridge.id)
             }
             bridgeEnabled = true
         } else {
@@ -272,27 +205,12 @@ authRouter.post('/profiles/auto-attach-user', requireServiceKey, async (req, res
             // happens lazily — if the dist file is missing, the executor
             // logs a warning and proceeds without these tools (no crash).
             try {
-                await db.insert(extensions).values({
+                await authRepo.insertBridgeExtension({
                     workspaceId,
-                    name: bridgeName,
-                    version: '1.0.0',
-                    type: 'tool',
-                    pexVersion: '0.4.0',
-                    entry: bridgeEntry,
-                    manifest: {
-                        plexo: '0.4.0',
-                        name: bridgeName,
-                        type: 'tool',
-                        version: '1.0.0',
-                        displayName: `${profile.displayName} Bridge`,
-                        description: `Proxies tool calls to ${profile.displayName}'s data API.`,
-                        entry: bridgeEntry,
-                        capabilities: ['storage:read'],
-                    },
-                    enabled: true,
-                    settings: {},
-                    source: 'sideloaded',
-                }).onConflictDoNothing()
+                    bridgeName,
+                    bridgeEntry,
+                    displayName: profile.displayName,
+                })
                 bridgeEnabled = true
             } catch (err) {
                 logger.warn({ err, workspaceId, appId }, 'bridge extension insert failed — degrading without bridge')
@@ -336,13 +254,7 @@ authRouter.post('/workspace', optionalAuth, async (req, res) => {
         // SEC-007: Owner is always the authenticated user — ignore bodyOwnerId entirely
         const resolvedOwnerId = req.user.id
 
-        const [ws] = await db.insert(workspaces).values({
-            name: name.trim(),
-            ownerId: resolvedOwnerId,
-            settings: DEFAULT_WORKSPACE_SETTINGS,
-            // Phase 6 — flag for first-run wizard.
-            intelligenceSettings: DEFAULT_INTELLIGENCE_SETTINGS,
-        }).returning({ workspaceId: workspaces.id })
+        const ws = await authRepo.createWorkspaceReturningWorkspaceId(name.trim(), resolvedOwnerId)
 
         if (!ws) {
             res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create workspace' } })
@@ -350,11 +262,7 @@ authRouter.post('/workspace', optionalAuth, async (req, res) => {
         }
 
         // Seed the owner as a member so the Members page shows them immediately
-        await db.insert(workspaceMembers).values({
-            workspaceId: ws.workspaceId,
-            userId: resolvedOwnerId,
-            role: 'owner',
-        }).onConflictDoNothing()
+        await authRepo.insertOwnerMember(ws.workspaceId, resolvedOwnerId)
         // Phase C1 (ADR 0022) shadow-write — setup-wizard owner seed.
         void mirrorMembershipUpsert({ workspaceId: ws.workspaceId, userId: resolvedOwnerId, role: 'owner' })
 
