@@ -47,6 +47,7 @@
     "./connections/crypto-util": "./src/connections/crypto-util.ts",
     "./connections/factories/levio": "./src/connections/factories/levio.ts",
     "./cost-gate": "./src/cost-gate.ts",
+    "./money": "./src/money.ts",
     "./one-way-door": "./src/one-way-door.ts",
     "./persistent-pool": "./src/plugins/persistent-pool.ts",
     "./skills/parser": "./src/skills/parser.ts",

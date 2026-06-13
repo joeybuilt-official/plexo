@@ -116,6 +116,7 @@ export async function syncModelKnowledge() {
         const BATCH_SIZE = 50
         for (let i = 0; i < records.length; i += BATCH_SIZE) {
             const batch = records.slice(i, i + BATCH_SIZE)
+            // A6 cutover: dual-write per-token rates to both real + numeric.
             await db.insert(modelsKnowledge)
                 .values(batch.map(record => ({
                     id: record.id,
@@ -123,7 +124,9 @@ export async function syncModelKnowledge() {
                     modelId: record.modelId,
                     contextWindow: record.contextWindow,
                     costPerMIn: record.costPerMIn,
+                    costPerMInNumeric: String(record.costPerMIn),
                     costPerMOut: record.costPerMOut,
+                    costPerMOutNumeric: String(record.costPerMOut),
                     strengths: record.strengths,
                     lastSyncedAt: new Date(),
                 })))
@@ -132,7 +135,9 @@ export async function syncModelKnowledge() {
                     set: {
                         contextWindow: sql`excluded.context_window`,
                         costPerMIn: sql`excluded.cost_per_m_in`,
+                        costPerMInNumeric: sql`excluded.cost_per_m_in_numeric`,
                         costPerMOut: sql`excluded.cost_per_m_out`,
+                        costPerMOutNumeric: sql`excluded.cost_per_m_out_numeric`,
                         strengths: sql`excluded.strengths`,
                         lastSyncedAt: sql`excluded.last_synced_at`,
                     },
