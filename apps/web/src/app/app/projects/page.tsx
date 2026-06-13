@@ -27,6 +27,7 @@ interface Sprint {
     repo: string | null
     category: string
     request: string
+    metadata?: { name?: string } | null
     status: string
     totalTasks: number
     completedTasks: number
@@ -63,6 +64,8 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
         ? Math.round((sprint.completedTasks / sprint.totalTasks) * 100)
         : 0
     const subtitle = sprint.category === 'code' && sprint.repo ? sprint.repo : null
+    const projectName = sprint.metadata?.name?.trim() || sprint.request
+    const showRequestLine = projectName !== sprint.request
 
     return (
         <div className="relative group/row">
@@ -76,8 +79,13 @@ function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 
                         
                         <div className="min-w-0">
                             <h3 className="truncate text-sm font-medium text-text-primary group-hover:text-azure transition-colors leading-6">
-                                {sprint.request}
+                                {projectName}
                             </h3>
+                            {showRequestLine && (
+                                <p className="mt-0.5 truncate text-[11px] text-text-muted opacity-70">
+                                    {sprint.request}
+                                </p>
+                            )}
                             <div className="mt-1 flex items-center gap-2.5 flex-wrap">
                                 <CategoryBadge label={def.label} iconName={def.icon} />
                                 {subtitle && (
@@ -257,6 +265,7 @@ export default function ProjectsPage() {
             if (q) {
                 return (
                     s.request.toLowerCase().includes(q) ||
+                    (s.metadata?.name?.toLowerCase().includes(q) ?? false) ||
                     s.id.toLowerCase().includes(q) ||
                     (s.repo?.toLowerCase().includes(q) ?? false) ||
                     s.category.toLowerCase().includes(q) ||

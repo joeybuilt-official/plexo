@@ -537,7 +537,10 @@ export default function SprintDetailPage() {
                             <span className="text-text-muted text-[11px]">/</span>
                             <span className="text-[11px] font-mono text-text-muted opacity-60">{formatAge(sprint.createdAt)}</span>
                         </div>
-                        <h1 className="truncate text-2xl font-medium text-text-primary tracking-tight">{sprint.request}</h1>
+                        <h1 className="truncate text-2xl font-medium text-text-primary tracking-tight">{((sprint.metadata?.name as string)?.trim()) || sprint.request}</h1>
+                        {((sprint.metadata?.name as string)?.trim()) && (sprint.metadata?.name as string).trim() !== sprint.request && (
+                            <p className="mt-1 line-clamp-2 text-xs text-text-muted opacity-70">{sprint.request}</p>
+                        )}
                     </div>
                 </div>
                 <div className="flex items-center gap-2">

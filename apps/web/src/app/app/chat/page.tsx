@@ -704,7 +704,7 @@ function ChatContent() {
                 const errMsg = errBody?.error?.message ?? 'Failed to execute action.'
                 throw new Error(errMsg)
             }
-            const data = await res.json() as { taskId?: string; sprintId?: string; status?: string }
+            const data = await res.json() as { taskId?: string; sprintId?: string; status?: string; name?: string }
             if (data.taskId) {
                 setMessages((prev) => prev.map((m) =>
                     m.id === msgId && !isPlanProposalMessage(m) ? { ...m, taskId: data.taskId, status: 'running' as const } : m
@@ -714,7 +714,7 @@ function ChatContent() {
                 setMessages((prev) => prev.map((m) =>
                     m.id === msgId ? {
                         ...m, status: 'complete',
-                        content: `Project created and running. Track progress →`,
+                        content: data.name ? `Project "${data.name}" created and running. Track progress →` : `Project created and running. Track progress →`,
                         fixUrl: `/app/projects/${data.sprintId}`,
                         fixLabel: 'Open project',
                     } : m

@@ -753,7 +753,7 @@ export async function chatWithAI(
                     system: visionSystem,
                     messages: buildMessages(true),
                     tools: conversationalTools,
-                    stopWhen: stepCountIs(5),
+                    stopWhen: stepCountIs(3),
                     abortSignal: AbortSignal.timeout(timeoutMs),
                 })
             } catch (visionErr) {
@@ -783,7 +783,7 @@ export async function chatWithAI(
                         system: finalSystem,
                         messages: buildMessages(false),
                         tools: conversationalTools,
-                        stopWhen: stepCountIs(5),
+                        stopWhen: stepCountIs(3),
                         abortSignal: AbortSignal.timeout(timeoutMs),
                     }),
                     opts: fallbackOpts,
@@ -799,7 +799,7 @@ export async function chatWithAI(
                     system: finalSystem,
                     messages: buildMessages(supportsVision),
                     tools: conversationalTools,
-                    stopWhen: stepCountIs(5),
+                    stopWhen: stepCountIs(3),
                     abortSignal: AbortSignal.timeout(timeoutMs),
                 }),
                 opts: fallbackOpts,
@@ -837,7 +837,7 @@ export async function chatWithAI(
                         system: finalSystem,
                         messages: buildMessages(supportsVision),
                         tools: conversationalTools,
-                        stopWhen: stepCountIs(5),
+                        stopWhen: stepCountIs(3),
                         abortSignal: AbortSignal.timeout(timeoutMs),
                     }),
                     opts: fallbackOpts,
@@ -958,6 +958,29 @@ async function postErrorFlagToCommandEngine(args: {
     } catch (err) {
         logger.debug({ err, workspaceId: args.workspaceId }, 'command-engine flag post failed (non-fatal)')
     }
+}
+
+// ── Project naming ───────────────────────────────────────────────────────────
+
+/**
+ * Generate a short, official project name for a sprint request via the
+ * workspace's configured AI provider (routed through Plexo). Returns a clean
+ * ≤6-word title; falls back to a truncated request when the model is
+ * unavailable or returns something unusable. Used by every project-creation
+ * path so projects get real names instead of the raw request sentence.
+ */
+export async function nameProject(workspaceId: string, request: string): Promise<string> {
+    const fallback = request.trim().slice(0, 80)
+    try {
+        const result = await chatWithAI(
+            workspaceId,
+            [{ role: 'user', content: request }],
+            'Create a short, descriptive project name (max 6 words) for this request. Return ONLY the name, no quotes, no trailing punctuation. Example: "Q2 Social Media Campaign"',
+        )
+        const name = result.text?.replace(/^["']|["']$/g, '').trim()
+        if (name && name.length > 2 && name.length < 100) return name
+    } catch { /* fall through to truncated request */ }
+    return fallback
 }
 
 // ── Intent classification ────────────────────────────────────────────────────
