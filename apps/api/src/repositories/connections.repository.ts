@@ -186,6 +186,18 @@ export async function listActiveCredentials(workspaceId: string, registryId: str
         ))
 }
 
+/** Ids of active installed connections for a workspace + registry (no credentials). */
+export async function listActiveConnectionIds(workspaceId: string, registryId: string) {
+    return db.select({
+        id: installedConnections.id,
+    }).from(installedConnections)
+        .where(and(
+            eq(installedConnections.workspaceId, workspaceId),
+            eq(installedConnections.registryId, registryId),
+            eq(installedConnections.status, 'active'),
+        ))
+}
+
 /** Insert a generated custom registry entry. */
 export async function insertCustomRegistry(values: typeof connectionsRegistry.$inferInsert): Promise<void> {
     await db.insert(connectionsRegistry).values(values)

@@ -17,8 +17,7 @@
  */
 
 import { Router, type Router as ExpressRouter } from 'express'
-import { db, eq, and, gte } from '@plexo/db'
-import { taskSteps, tasks } from '@plexo/db'
+import * as tasksRepo from '../repositories/tasks.repository.js'
 import { logger } from '../logger.js'
 
 export const taskStreamRouter: ExpressRouter = Router()
@@ -35,11 +34,7 @@ taskStreamRouter.get('/:id/steps/stream', async (req, res) => {
     }
 
     // Verify task exists and belongs to workspace
-    const [task] = await db
-        .select({ id: tasks.id, status: tasks.status })
-        .from(tasks)
-        .where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
-        .limit(1)
+    const task = await tasksRepo.getTaskIdStatusScoped(id, workspaceId)
 
     if (!task) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
@@ -58,11 +53,7 @@ taskStreamRouter.get('/:id/steps/stream', async (req, res) => {
         if (done) return
         try {
             // Fetch new steps since lastStep
-            const steps = await db
-                .select()
-                .from(taskSteps)
-                .where(and(eq(taskSteps.taskId, id), gte(taskSteps.stepNumber, lastStep + 1)))
-                .orderBy(taskSteps.stepNumber)
+            const steps = await tasksRepo.getStepsSince(id, lastStep + 1)
 
             for (const step of steps) {
                 if (done) return
@@ -71,11 +62,7 @@ taskStreamRouter.get('/:id/steps/stream', async (req, res) => {
             }
 
             // Check task terminal state
-            const [current] = await db
-                .select({ status: tasks.status })
-                .from(tasks)
-                .where(eq(tasks.id, id))
-                .limit(1)
+            const current = await tasksRepo.getTaskStatus(id)
 
             if (current && TERMINAL_STATUSES.has(current.status)) {
                 done = true

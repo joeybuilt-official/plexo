@@ -14,7 +14,7 @@
  * checks. Only the SQL moves here. Workspace scoping and object-level
  * ownership filters are preserved verbatim; all filters stay parameterised.
  */
-import { db, desc, asc, eq, and, sql } from '@plexo/db'
+import { db, desc, asc, eq, and, gte, sql } from '@plexo/db'
 import { tasks, taskSteps, plexoOpsTaskEvents, artifacts, artifactVersions } from '@plexo/db'
 
 type Task = typeof tasks.$inferSelect
@@ -192,4 +192,47 @@ export async function updateArtifactMeta(artifactId: string, merged: Record<stri
         .where(eq(artifacts.id, artifactId))
         .returning({ meta: artifacts.meta })
     return updated
+}
+
+/** Task id by id, scoped to workspace (existence check for inject), or undefined. */
+export async function getTaskIdScoped(id: string, workspaceId: string): Promise<{ id: string } | undefined> {
+    const [task] = await db.select({ id: tasks.id })
+        .from(tasks).where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId))).limit(1)
+    return task
+}
+
+/** Task id + status by id, scoped to workspace (stream gate), or undefined. */
+export async function getTaskIdStatusScoped(id: string, workspaceId: string): Promise<{ id: string; status: string } | undefined> {
+    const [task] = await db.select({ id: tasks.id, status: tasks.status })
+        .from(tasks).where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId))).limit(1)
+    return task
+}
+
+/** Task status only by id, or undefined (stream terminal-state poll). */
+export async function getTaskStatus(id: string): Promise<{ status: string } | undefined> {
+    const [current] = await db.select({ status: tasks.status })
+        .from(tasks).where(eq(tasks.id, id)).limit(1)
+    return current
+}
+
+/** Highest step_number for a task, or undefined (inject sequencing). */
+export async function getMaxStepNumber(taskId: string): Promise<{ stepNumber: number } | undefined> {
+    const [maxRow] = await db.select({ stepNumber: taskSteps.stepNumber })
+        .from(taskSteps).where(eq(taskSteps.taskId, taskId))
+        .orderBy(desc(taskSteps.stepNumber)).limit(1)
+    return maxRow
+}
+
+/** Insert an injected task step; returns its step_number, or undefined. */
+export async function insertTaskStep(values: typeof taskSteps.$inferInsert): Promise<{ stepNumber: number } | undefined> {
+    const [inserted] = await db.insert(taskSteps).values(values)
+        .returning({ stepNumber: taskSteps.stepNumber })
+    return inserted
+}
+
+/** Full step rows for a task with step_number ≥ minStepNumber, ordered (stream poll). */
+export async function getStepsSince(taskId: string, minStepNumber: number) {
+    return db.select().from(taskSteps)
+        .where(and(eq(taskSteps.taskId, taskId), gte(taskSteps.stepNumber, minStepNumber)))
+        .orderBy(taskSteps.stepNumber)
 }
