@@ -11,6 +11,7 @@ import { routeAndBuild, routeAndCall, RouterV2CallError } from '../providers/rou
 import type { ResolvedModelMeta } from '../providers/router.js'
 import { modelSupportsVision, findVisionCapableModel } from '../providers/vision.js'
 import { assertAgentCostCeilingOk, CostCeilingExceededError } from '../cost-gate.js'
+import { toMicro, addMicro, cmpMicro, fmtMicroUsd } from '../money.js'
 import { ensureArtifactShareUrl } from '../tasks/artifact-share.js'
 import { getResumeStep, buildResumeMessages, hasTaskComplete } from './step-builder.js'
 import { SAFETY_LIMITS } from '../constants.js'
@@ -958,6 +959,11 @@ async function executeTaskInner(
     let totalTokensIn = 0
     let totalTokensOut = 0
     let totalCost = 0
+    // A6 cutover: parallel integer-cents accumulator for the cost-ceiling gate.
+    // Float totalCost stays the canonical return value (dual-written into
+    // api_cost_tracking via SQL cast in agent-loop). Compares use this micro
+    // accumulator so edge-of-ceiling decisions don't drift on roundoff.
+    let totalCostMicro: bigint = 0n
     let finalSummary = ''
     let finalQuality = 0.5
 
@@ -1415,9 +1421,9 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     }
 
     // Per-task pre-flight: block if already at task ceiling from prior retries
-    if (ctx.taskCostCeilingUsd != null && totalCost >= ctx.taskCostCeilingUsd) {
+    if (ctx.taskCostCeilingUsd != null && cmpMicro(totalCostMicro, toMicro(ctx.taskCostCeilingUsd)) >= 0) {
         throw new PlexoError(
-            `Task cost ceiling reached: $${totalCost.toFixed(4)} >= $${ctx.taskCostCeilingUsd.toFixed(4)}`,
+            `Task cost ceiling reached: $${fmtMicroUsd(totalCostMicro, 4)} >= $${fmtMicroUsd(toMicro(ctx.taskCostCeilingUsd), 4)}`,
             'TASK_COST_CEILING',
             'system',
             429,
@@ -2452,11 +2458,13 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
     totalTokensIn += tokensIn
     totalTokensOut += tokensOut
     totalCost += costUsd
+    totalCostMicro = addMicro(totalCostMicro, toMicro(costUsd))
 
-    // Per-task cost ceiling check (mid-run, after accumulation)
-    if (ctx.taskCostCeilingUsd != null && totalCost >= ctx.taskCostCeilingUsd) {
+    // Per-task cost ceiling check (mid-run, after accumulation).
+    // A6 cutover: compare via integer micro-USD so edge-of-ceiling is exact.
+    if (ctx.taskCostCeilingUsd != null && cmpMicro(totalCostMicro, toMicro(ctx.taskCostCeilingUsd)) >= 0) {
         throw new PlexoError(
-            `Task cost ceiling reached: $${totalCost.toFixed(4)} >= $${ctx.taskCostCeilingUsd.toFixed(4)}`,
+            `Task cost ceiling reached: $${fmtMicroUsd(totalCostMicro, 4)} >= $${fmtMicroUsd(toMicro(ctx.taskCostCeilingUsd), 4)}`,
             'TASK_COST_CEILING',
             'system',
             429,
@@ -2697,16 +2705,21 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
         const { inferDomainTag } = await import('../domain-mastery/index.js')
         const domainTag = inferDomainTag(ctx.taskType ?? 'general', plan.goal ?? '')
 
+        // A6 cutover: dual-write cost_usd (real) + cost_usd_numeric (numeric).
+        // Old col stays in lockstep until the Phase 4 contract drops/renames.
         void db.execute(sql`
             INSERT INTO work_ledger
                 (id, workspace_id, task_id, type, source, tokens_in, tokens_out, cost_usd,
+                 cost_usd_numeric,
                  quality_score, deliverables, wall_clock_ms, domain_tag, context_hash,
                  context_rule_keys, completed_at)
             VALUES
                 (gen_random_uuid(), ${ctx.workspaceId}::uuid, ${ctx.taskId},
                  ${ctx.taskType ?? 'automation'}, ${'agent'},
                  ${executionResult.totalTokensIn}, ${executionResult.totalTokensOut},
-                 ${executionResult.totalCostUsd}, ${verifiedQuality},
+                 ${executionResult.totalCostUsd},
+                 ${executionResult.totalCostUsd}::numeric,
+                 ${verifiedQuality},
                  ${JSON.stringify(filesWritten)}::jsonb, ${executionResult.totalDurationMs},
                  ${domainTag}, ${resolvedContextHash},
                  ${resolvedContextRuleKeys.length > 0 ? JSON.stringify(resolvedContextRuleKeys) : null}::jsonb,

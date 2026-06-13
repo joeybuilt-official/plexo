@@ -80,8 +80,14 @@ async function loadProvidersForWorkspace(workspaceId: string): Promise<EnabledPr
 }
 
 async function loadCatalog(): Promise<CatalogModel[]> {
+    // A6 cutover: prefer the numeric columns; fall back to the legacy real
+    // columns when a row predates the expand backfill. Routing-tier
+    // classification is float-fine, so Number() at the edge is acceptable.
     const result = await db.execute(sql`
-        SELECT id, provider, model_id, context_window, cost_per_m_in, cost_per_m_out, strengths, reliability_score
+        SELECT id, provider, model_id, context_window,
+               cost_per_m_in, cost_per_m_out,
+               cost_per_m_in_numeric, cost_per_m_out_numeric,
+               strengths, reliability_score
         FROM models_knowledge
     `)
     const rows = pgRows(result)
@@ -90,8 +96,8 @@ async function loadCatalog(): Promise<CatalogModel[]> {
         provider: String(r.provider),
         modelId: String(r.model_id),
         contextWindow: Number(r.context_window ?? 128_000),
-        costPerMIn: Number(r.cost_per_m_in ?? 0),
-        costPerMOut: Number(r.cost_per_m_out ?? 0),
+        costPerMIn: Number(r.cost_per_m_in_numeric ?? r.cost_per_m_in ?? 0),
+        costPerMOut: Number(r.cost_per_m_out_numeric ?? r.cost_per_m_out ?? 0),
         strengths: Array.isArray(r.strengths) ? (r.strengths as string[]) : [],
         reliabilityScore: Number(r.reliability_score ?? 1),
     }))

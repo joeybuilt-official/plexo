@@ -13,6 +13,7 @@ import { classifyCapabilityGap } from '@plexo/agent/tasks/classify-capability-ga
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { reflectAndPromote } from '@plexo/agent/behavior/reflect'
 import { storeMemory } from '@plexo/agent/memory/store'
+import { toMicro, cmpMicro, fmtMicroUsd, microToNumber } from '@plexo/agent/money'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import { emitToWorkspace } from './sse-emitter.js'
 import { channelSupportsConfirmation } from './channel-delivery.js'
@@ -496,7 +497,12 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
         if (ceilingMode !== 'off') {
             const [costRow] = await db
-                .select({ costUsd: apiCostTracking.costUsd, ceilingUsd: apiCostTracking.ceilingUsd })
+                .select({
+                    costUsd: apiCostTracking.costUsd,
+                    ceilingUsd: apiCostTracking.ceilingUsd,
+                    costUsdNumeric: apiCostTracking.costUsdNumeric,
+                    ceilingUsdNumeric: apiCostTracking.ceilingUsdNumeric,
+                })
                 .from(apiCostTracking)
                 .where(and(
                     eq(apiCostTracking.workspaceId, taskWorkspaceId ?? ''),
@@ -504,9 +510,13 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 ))
                 .limit(1)
 
-            if (costRow && costRow.costUsd >= costRow.ceilingUsd) {
+            // A6 cutover: decimal-safe compare via numeric column when present.
+            // Falls back to the real columns if a row predates the expand backfill.
+            const costMicro = toMicro(costRow?.costUsdNumeric ?? costRow?.costUsd ?? null)
+            const ceilMicro = toMicro(costRow?.ceilingUsdNumeric ?? costRow?.ceilingUsd ?? null)
+            if (costRow && cmpMicro(costMicro, ceilMicro) >= 0) {
                 if (ceilingMode === 'hard_block') {
-                    const costMsg = `Workspace weekly cost ceiling reached: $${costRow.costUsd.toFixed(4)} / $${costRow.ceilingUsd.toFixed(2)}`
+                    const costMsg = `Workspace weekly cost ceiling reached: $${fmtMicroUsd(costMicro, 4)} / $${fmtMicroUsd(ceilMicro, 2)}`
                     const costCtx = (task.context as Record<string, unknown>) ?? {}
                     const costDesc = (costCtx.description as string) ?? (costCtx.message as string) ?? task.type ?? 'task'
                     const costFail = await markTaskFailed({
@@ -519,13 +529,13 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                     })
                     await syncSprintTaskBlocked(task, costMsg)
                     emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING', summary: costFail.summary })
-                    trackEvent('task.failed', 'warning', { taskId: task.id, reason: 'cost_ceiling', costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd, workspaceId: taskWorkspaceId })
-                    logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd }, 'Workspace ceiling — task failed (permanent)')
+                    trackEvent('task.failed', 'warning', { taskId: task.id, reason: 'cost_ceiling', costUsd: microToNumber(costMicro), ceilingUsd: microToNumber(ceilMicro), workspaceId: taskWorkspaceId })
+                    logger.warn({ taskId: task.id, costUsd: microToNumber(costMicro), ceilingUsd: microToNumber(ceilMicro) }, 'Workspace ceiling — task failed (permanent)')
                     await releaseSlot(task.id)
                     return
                 }
                 // soft_warn: log only
-                logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd, mode: ceilingMode }, 'Workspace ceiling exceeded — soft_warn, continuing')
+                logger.warn({ taskId: task.id, costUsd: microToNumber(costMicro), ceilingUsd: microToNumber(ceilMicro), mode: ceilingMode }, 'Workspace ceiling exceeded — soft_warn, continuing')
             }
         }
     } catch (costErr) {
@@ -1245,8 +1255,14 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 // Round-5 Phase 6: capture the prior alerted_80 so we can detect
                 // the false→true crossing and fire a pre-ceiling alert exactly
                 // once per workspace per week (not once per task past 80%).
+                // A6 cutover: dual-write cost_usd + cost_usd_numeric, ceiling_usd
+                // + ceiling_usd_numeric. SQL accumulation uses the numeric path
+                // for the 80% trigger so roundoff at edge-of-ceiling stays exact.
+                // Old real cols are kept in lockstep until the Phase 4 contract.
                 const costRows = await db.execute<{
-                    cost_usd: number; ceiling_usd: number; now_alerted: boolean; was_alerted: boolean
+                    cost_usd: number; ceiling_usd: number;
+                    cost_usd_numeric: string | null; ceiling_usd_numeric: string | null;
+                    now_alerted: boolean; was_alerted: boolean
                 }>(sql`
                     WITH prev AS (
                         SELECT alerted_80 AS was
@@ -1255,26 +1271,31 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                           AND week_start = date_trunc('week', NOW())::date
                     ),
                     upserted AS (
-                        INSERT INTO api_cost_tracking (id, workspace_id, week_start, cost_usd, ceiling_usd, alerted_80)
+                        INSERT INTO api_cost_tracking (id, workspace_id, week_start, cost_usd, ceiling_usd, cost_usd_numeric, ceiling_usd_numeric, alerted_80)
                         VALUES (
                             gen_random_uuid(),
                             ${taskWorkspaceId ?? ''}::uuid,
                             date_trunc('week', NOW())::date,
                             ${result.totalCostUsd},
                             ${API_COST_CEILING},
+                            ${result.totalCostUsd}::numeric,
+                            ${API_COST_CEILING}::numeric,
                             false
                         )
                         ON CONFLICT (workspace_id, week_start)
                         DO UPDATE SET
                             cost_usd = api_cost_tracking.cost_usd + EXCLUDED.cost_usd,
+                            cost_usd_numeric = COALESCE(api_cost_tracking.cost_usd_numeric, 0::numeric) + EXCLUDED.cost_usd_numeric,
+                            ceiling_usd_numeric = COALESCE(api_cost_tracking.ceiling_usd_numeric, EXCLUDED.ceiling_usd_numeric),
                             alerted_80 = CASE
-                                WHEN (api_cost_tracking.cost_usd + EXCLUDED.cost_usd) >= (api_cost_tracking.ceiling_usd * 0.8)
+                                WHEN (COALESCE(api_cost_tracking.cost_usd_numeric, 0::numeric) + EXCLUDED.cost_usd_numeric)
+                                     >= (COALESCE(api_cost_tracking.ceiling_usd_numeric, EXCLUDED.ceiling_usd_numeric) * 0.8)
                                 THEN true
                                 ELSE api_cost_tracking.alerted_80
                             END
-                        RETURNING cost_usd, ceiling_usd, alerted_80
+                        RETURNING cost_usd, ceiling_usd, cost_usd_numeric, ceiling_usd_numeric, alerted_80
                     )
-                    SELECT u.cost_usd, u.ceiling_usd,
+                    SELECT u.cost_usd, u.ceiling_usd, u.cost_usd_numeric, u.ceiling_usd_numeric,
                            u.alerted_80 AS now_alerted,
                            COALESCE(p.was, false) AS was_alerted
                     FROM upserted u LEFT JOIN prev p ON true
@@ -1285,12 +1306,15 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 if (costRow && costRow.now_alerted && !costRow.was_alerted) {
                     try {
                         const { recordBudgetAlertForAlert } = await import('./ops-alerts.js')
+                        // A6 cutover: prefer numeric col; fall back to real if backfill missed a row.
+                        const alertCostMicro = toMicro(costRow.cost_usd_numeric ?? costRow.cost_usd)
+                        const alertCeilMicro = toMicro(costRow.ceiling_usd_numeric ?? costRow.ceiling_usd)
                         recordBudgetAlertForAlert({
                             workspaceId: taskWorkspaceId ?? '',
-                            costUsd: Number(costRow.cost_usd),
-                            ceilingUsd: Number(costRow.ceiling_usd),
+                            costUsd: microToNumber(alertCostMicro),
+                            ceilingUsd: microToNumber(alertCeilMicro),
                         })
-                        logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId, costUsd: Number(costRow.cost_usd), ceilingUsd: Number(costRow.ceiling_usd) }, 'workspace crossed 80% weekly cost ceiling — ops alert queued')
+                        logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId, costUsd: microToNumber(alertCostMicro), ceilingUsd: microToNumber(alertCeilMicro) }, 'workspace crossed 80% weekly cost ceiling — ops alert queued')
                     } catch (alertErr) {
                         logger.warn({ err: alertErr, taskId: task.id }, 'budget alert enqueue failed — non-fatal')
                     }
