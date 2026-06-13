@@ -13,7 +13,7 @@
  */
 
 import { Router, type Router as ExpressRouter } from 'express'
-import { db, and, or, eq, desc, promptRevisions, cronJobs, tasks, outcomeRecords } from '@plexo/db'
+import * as learningRepo from '../repositories/learning.repository.js'
 import { logger } from '../logger.js'
 
 const MAX_OUTCOMES = 200
@@ -93,44 +93,14 @@ outcomesRouter.get('/', async (req, res) => {
 
     try {
         // An outcome belongs to the workspace via its routine OR its task.
-        const rows = (await db
-            .select({
-                id: outcomeRecords.id,
-                ts: outcomeRecords.ts,
-                trigger: outcomeRecords.trigger,
-                summary: outcomeRecords.summary,
-                routineId: outcomeRecords.routineId,
-                routineName: cronJobs.name,
-                taskId: outcomeRecords.taskId,
-                taskType: tasks.type,
-                taskStatus: tasks.status,
-                automatedOutcome: outcomeRecords.automatedOutcome,
-                humanVerdict: outcomeRecords.humanVerdict,
-            })
-            .from(outcomeRecords)
-            .leftJoin(cronJobs, eq(outcomeRecords.routineId, cronJobs.id))
-            .leftJoin(tasks, eq(outcomeRecords.taskId, tasks.id))
-            .where(or(eq(cronJobs.workspaceId, workspaceId), eq(tasks.workspaceId, workspaceId)))
-            .orderBy(desc(outcomeRecords.ts))
-            .limit(MAX_OUTCOMES)) as OutcomeRow[]
+        const rows = (await learningRepo.getOutcomesForWorkspace(workspaceId, MAX_OUTCOMES)) as OutcomeRow[]
 
         const outcomeIds = new Set(rows.map((r) => r.id))
 
         // Revisions distilled from these outcomes (sparse when distillation off).
         const lessonsByOutcomeId = new Map<string, LinkedLesson[]>()
         if (outcomeIds.size > 0) {
-            const revisions = await db
-                .select({
-                    id: promptRevisions.id,
-                    routineId: promptRevisions.routineId,
-                    version: promptRevisions.version,
-                    status: promptRevisions.status,
-                    rationale: promptRevisions.rationale,
-                    sourceOutcomeIds: promptRevisions.sourceOutcomeIds,
-                })
-                .from(promptRevisions)
-                .innerJoin(cronJobs, eq(promptRevisions.routineId, cronJobs.id))
-                .where(eq(cronJobs.workspaceId, workspaceId))
+            const revisions = await learningRepo.getRevisionsForWorkspace(workspaceId)
 
             for (const r of revisions) {
                 const lesson: LinkedLesson = {

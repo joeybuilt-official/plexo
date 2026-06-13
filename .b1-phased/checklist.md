@@ -38,14 +38,14 @@
 
 ## Phase 6 — discovered multi-line-style files (16)
 - [x] Batch A (8): agents-run, app-grants, audit, escalation, webhooks, agents-active-stream, clarification, code
-- [ ] Batch B (8): outcomes, revision-decision, users, webhooks-github, task-inject, task-stream, billing, profiles
-- [ ] tsc clean + multi-line-aware grep clean (both batches)
-- [ ] commit + push Phase 6
+- [x] Batch B (8): outcomes, revision-decision, users, webhooks-github, task-inject, task-stream, billing, profiles
+- [x] tsc clean + multi-line-aware grep clean (both batches)
+- [x] commit + push Phase 6
 - [ ] deploy Phase 6 to prod + verify
 
 ## Phase 7 — close-out
-- [ ] final multi-line-aware sweep: zero non-test route files with direct db usage
-- [ ] PLAN.md B1 row → ✅ done (final count + counting-method-fix note)
+- [x] final multi-line-aware sweep: zero non-test route files with direct db usage
+- [x] PLAN.md B1 row → ✅ done (final count + counting-method-fix note)
 - [ ] commit + push + final prod deploy/verify
 
 ## Gated (do NOT do without operator sign-off)

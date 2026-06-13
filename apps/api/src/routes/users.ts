@@ -13,8 +13,7 @@
  * When RBAC lands, this will filter by workspace membership.
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, desc } from '@plexo/db'
-import { users } from '@plexo/db'
+import * as usersRepo from '../repositories/users.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 
@@ -31,17 +30,7 @@ usersRouter.get('/', async (req, res) => {
     }
 
     try {
-        const rows = await db
-            .select({
-                id: users.id,
-                email: users.email,
-                name: users.name,
-                role: users.role,
-                createdAt: users.createdAt,
-            })
-            .from(users)
-            .orderBy(desc(users.createdAt))
-            .limit(100)
+        const rows = await usersRepo.listUsers(100)
 
         res.json({ items: rows, total: rows.length })
     } catch (err) {
@@ -64,17 +53,7 @@ usersRouter.get('/:id', async (req, res) => {
         return
     }
     try {
-        const [user] = await db
-            .select({
-                id: users.id,
-                email: users.email,
-                name: users.name,
-                role: users.role,
-                createdAt: users.createdAt,
-            })
-            .from(users)
-            .where(eq(users.id, req.params.id))
-            .limit(1)
+        const user = await usersRepo.getUserById(req.params.id)
 
         if (!user) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } })

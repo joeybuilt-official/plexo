@@ -14,8 +14,7 @@
 
 import { Router, type Router as RouterType } from 'express'
 import { z } from 'zod'
-import { db, eq, sql } from '@plexo/db'
-import { appProfiles, extensionRegistry } from '@plexo/db'
+import * as profilesRepo from '../repositories/profiles.repository.js'
 import { logger } from '../logger.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { negotiateProfile } from '../profile-negotiation.js'
@@ -65,15 +64,7 @@ export const connectSchema = z.object({
 
 profilesRouter.get('/', requireServiceKey, async (_req, res) => {
     try {
-        const rows = await db
-            .select({
-                appId: appProfiles.appId,
-                schemaNamespace: appProfiles.schemaNamespace,
-                displayName: appProfiles.displayName,
-                lastSeenAt: appProfiles.lastSeenAt,
-            })
-            .from(appProfiles)
-            .orderBy(appProfiles.registeredAt)
+        const rows = await profilesRepo.listProfiles()
 
         return res.json({ items: rows, total: rows.length })
     } catch (err) {
@@ -100,57 +91,26 @@ profilesRouter.post('/register', requireServiceKey, async (req, res) => {
         const { appId, schemaNamespace, displayName, extensions: exts, eventContracts } = parsed.data
 
         // Upsert app_profiles on app_id
-        await db
-            .insert(appProfiles)
-            .values({
-                appId,
-                schemaNamespace,
-                displayName,
-                eventContracts: eventContracts,
-                lastSeenAt: new Date(),
-            })
-            .onConflictDoUpdate({
-                target: appProfiles.appId,
-                set: {
-                    displayName,
-                    eventContracts: eventContracts,
-                    lastSeenAt: new Date(),
-                },
-            })
+        await profilesRepo.upsertProfile({ appId, schemaNamespace, displayName, eventContracts })
 
         // Upsert all extensions into the extension_registry (append-never-overwrite)
         // in a single batched statement — was N sequential round-trips (one per
         // extension). Conflict updates pull from the incoming row via `excluded.*`.
         if (exts.length > 0) {
-            await db
-                .insert(extensionRegistry)
-                .values(exts.map((ext) => ({
-                    name: `@${appId}/${ext.id}`,
-                    displayName: ext.name,
-                    description: `${ext.type} extension from ${displayName}`,
-                    publisher: appId,
-                    latestVersion: '0.0.0',
-                    versions: ['0.0.0'],
-                    manifest: { type: ext.type, config: ext.config },
-                    tags: [ext.type, appId],
-                })))
-                .onConflictDoUpdate({
-                    target: extensionRegistry.name,
-                    set: {
-                        displayName: sql`excluded.display_name`,
-                        description: sql`excluded.description`,
-                        manifest: sql`excluded.manifest`,
-                        tags: sql`excluded.tags`,
-                        updatedAt: new Date(),
-                    },
-                })
+            await profilesRepo.upsertExtensions(exts.map((ext) => ({
+                name: `@${appId}/${ext.id}`,
+                displayName: ext.name,
+                description: `${ext.type} extension from ${displayName}`,
+                publisher: appId,
+                latestVersion: '0.0.0',
+                versions: ['0.0.0'],
+                manifest: { type: ext.type, config: ext.config },
+                tags: [ext.type, appId],
+            })))
         }
 
         // Update last_seen_at (redundant with upsert above but ensures timing accuracy)
-        await db
-            .update(appProfiles)
-            .set({ lastSeenAt: new Date() })
-            .where(eq(appProfiles.appId, appId))
+        await profilesRepo.touchLastSeen(appId)
 
         logger.info({ event: 'profile_register', appId, schemaNamespace }, 'App profile registered')
 

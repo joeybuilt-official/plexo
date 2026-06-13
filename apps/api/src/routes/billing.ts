@@ -21,8 +21,7 @@
  */
 
 import { Router, type Router as RouterType, type Request, type Response, type RequestHandler } from 'express'
-import { db, eq, sql } from '@plexo/db'
-import { userSubscriptions } from '@plexo/db'
+import * as billingRepo from '../repositories/billing.repository.js'
 import { logger } from '../logger.js'
 import { requireAuth } from '../middleware/auth.js'
 
@@ -54,28 +53,13 @@ async function getStripe(): Promise<any | null> {
 }
 
 async function getOrCreateSubscriptionRow(userId: string) {
-    const existing = await db
-        .select()
-        .from(userSubscriptions)
-        .where(eq(userSubscriptions.userId, userId))
-        .limit(1)
+    const existing = await billingRepo.getByUserId(userId)
+    if (existing) return existing
 
-    if (existing.length > 0) return existing[0]!
-
-    const [row] = await db
-        .insert(userSubscriptions)
-        .values({ userId, tier: 'free', status: 'active' })
-        .onConflictDoNothing()
-        .returning()
-
+    const row = await billingRepo.insertDefault(userId)
     if (row) return row
     // Race — another request inserted first. Re-read.
-    const [again] = await db
-        .select()
-        .from(userSubscriptions)
-        .where(eq(userSubscriptions.userId, userId))
-        .limit(1)
-    return again!
+    return (await billingRepo.getByUserId(userId))!
 }
 
 // ── GET /subscription — read the caller's subscription ───────────────────────
@@ -225,29 +209,15 @@ async function handleWebhookEvent(event: StripeEvent): Promise<void> {
             const tier = type === 'customer.subscription.deleted' ? 'free' : tierFromPrice
             const status = mapStripeStatus(sub.status)
 
-            await db
-                .insert(userSubscriptions)
-                .values({
-                    userId: plexoUserId,
-                    tier,
-                    status,
-                    stripeCustomerId: sub.customer,
-                    stripeSubscriptionId: sub.id,
-                    currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : null,
-                    trialEndsAt: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
-                })
-                .onConflictDoUpdate({
-                    target: userSubscriptions.userId,
-                    set: {
-                        tier,
-                        status,
-                        stripeCustomerId: sub.customer,
-                        stripeSubscriptionId: sub.id,
-                        currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : null,
-                        trialEndsAt: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
-                        updatedAt: sql`now()`,
-                    },
-                })
+            await billingRepo.upsertFromStripe({
+                userId: plexoUserId,
+                tier,
+                status,
+                stripeCustomerId: sub.customer,
+                stripeSubscriptionId: sub.id,
+                currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : null,
+                trialEndsAt: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+            })
 
             logger.info({ plexoUserId, tier, status, type }, '[billing] subscription updated')
             return

@@ -15,8 +15,7 @@
  */
 
 import { Router, type Router as ExpressRouter } from 'express'
-import { db, eq, and, desc } from '@plexo/db'
-import { taskSteps, tasks } from '@plexo/db'
+import * as tasksRepo from '../repositories/tasks.repository.js'
 import { logger } from '../logger.js'
 
 export const taskInjectRouter: ExpressRouter = Router()
@@ -35,11 +34,7 @@ taskInjectRouter.post('/:id/inject', async (req, res) => {
     }
 
     // Verify task exists and belongs to workspace
-    const [task] = await db
-        .select({ id: tasks.id })
-        .from(tasks)
-        .where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
-        .limit(1)
+    const task = await tasksRepo.getTaskIdScoped(id, workspaceId)
 
     if (!task) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
@@ -47,26 +42,18 @@ taskInjectRouter.post('/:id/inject', async (req, res) => {
     }
 
     // Find current max step_number for this task
-    const [maxRow] = await db
-        .select({ stepNumber: taskSteps.stepNumber })
-        .from(taskSteps)
-        .where(eq(taskSteps.taskId, id))
-        .orderBy(desc(taskSteps.stepNumber))
-        .limit(1)
+    const maxRow = await tasksRepo.getMaxStepNumber(id)
 
     const nextStepNumber = (maxRow?.stepNumber ?? 0) + 1000
 
-    const [inserted] = await db
-        .insert(taskSteps)
-        .values({
-            taskId: id,
-            stepNumber: nextStepNumber,
-            state: 'pending',
-            stepType: 'confirmation',
-            stepSpec: { role: 'user', content: message },
-            outcome: message,
-        })
-        .returning({ stepNumber: taskSteps.stepNumber })
+    const inserted = await tasksRepo.insertTaskStep({
+        taskId: id,
+        stepNumber: nextStepNumber,
+        state: 'pending',
+        stepType: 'confirmation',
+        stepSpec: { role: 'user', content: message },
+        outcome: message,
+    })
 
     if (!inserted) {
         res.status(500).json({ error: { code: 'INSERT_FAILED', message: 'Failed to insert step' } })

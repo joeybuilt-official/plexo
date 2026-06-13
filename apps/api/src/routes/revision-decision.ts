@@ -14,7 +14,7 @@
  */
 
 import { Router, type Router as ExpressRouter } from 'express'
-import { db, and, eq, inArray, promptRevisions, cronJobs, outcomeRecords } from '@plexo/db'
+import * as learningRepo from '../repositories/learning.repository.js'
 import { applyDecision, defaultDecisionHandlers } from '../channels/decision.js'
 import { webAdapter } from '../channels/adapters/web-adapter.js'
 import { logger } from '../logger.js'
@@ -97,33 +97,12 @@ revisionDecisionRouter.get('/pending', async (req, res) => {
     }
 
     try {
-        const rows = (await db
-            .select({
-                id: promptRevisions.id,
-                routineId: promptRevisions.routineId,
-                routineName: cronJobs.name,
-                version: promptRevisions.version,
-                proposedDiff: promptRevisions.proposedDiff,
-                rationale: promptRevisions.rationale,
-                sourceOutcomeIds: promptRevisions.sourceOutcomeIds,
-                expiresAt: promptRevisions.expiresAt,
-            })
-            .from(promptRevisions)
-            .innerJoin(cronJobs, eq(promptRevisions.routineId, cronJobs.id))
-            .where(and(eq(cronJobs.workspaceId, workspaceId), eq(promptRevisions.status, 'pending')))) as RevisionRow[]
+        const rows = (await learningRepo.getPendingRevisionsForWorkspace(workspaceId)) as RevisionRow[]
 
         const allIds = [...new Set(rows.flatMap((r) => r.sourceOutcomeIds))]
         const outcomeById = new Map<string, SourceOutcome>()
         if (allIds.length > 0) {
-            const outcomes = await db
-                .select({
-                    id: outcomeRecords.id,
-                    summary: outcomeRecords.summary,
-                    automatedOutcome: outcomeRecords.automatedOutcome,
-                    humanVerdict: outcomeRecords.humanVerdict,
-                })
-                .from(outcomeRecords)
-                .where(inArray(outcomeRecords.id, allIds))
+            const outcomes = await learningRepo.getOutcomesByIds(allIds)
             for (const o of outcomes) outcomeById.set(o.id, o)
         }
 

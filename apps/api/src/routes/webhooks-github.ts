@@ -14,9 +14,9 @@ import { Router, type Router as RouterType } from 'express'
 import express from 'express'
 import * as crypto from 'crypto'
 import { timingSafeEqual } from 'crypto'
-import { db, eq, and } from '@plexo/db'
-import { workspaces, installedConnections } from '@plexo/db'
 import { push } from '@plexo/queue'
+import * as workspacesRepo from '../repositories/workspaces.repository.js'
+import * as connectionsRepo from '../repositories/connections.repository.js'
 import { logger } from '../logger.js'
 
 export const githubWebhooksRouter: RouterType = Router()
@@ -59,11 +59,7 @@ githubWebhooksRouter.post(
         // 4. Workspace lookup
         const workspaceId = req.params.workspaceId as string
         try {
-            const [ws] = await db
-                .select({ id: workspaces.id })
-                .from(workspaces)
-                .where(eq(workspaces.id, workspaceId))
-                .limit(1)
+            const ws = await workspacesRepo.getIdById(workspaceId)
 
             if (!ws) {
                 res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })
@@ -105,14 +101,7 @@ githubWebhooksRouter.post(
                 let criticConnectorIds: string[] | undefined
                 if (isCriticEvent) {
                     try {
-                        const connRows = await db
-                            .select({ id: installedConnections.id })
-                            .from(installedConnections)
-                            .where(and(
-                                eq(installedConnections.workspaceId, workspaceId),
-                                eq(installedConnections.registryId, 'github'),
-                                eq(installedConnections.status, 'active'),
-                            ))
+                        const connRows = await connectionsRepo.listActiveConnectionIds(workspaceId, 'github')
                         criticConnectorIds = connRows.map(r => r.id)
                     } catch {
                         // non-fatal — task will be dispatched but with deny-all connectors
