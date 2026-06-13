@@ -9,11 +9,11 @@
 - [x] commit + push Phase 1
 
 ## Phase 2 — mid tail
-- [ ] intelligence-dashboard.ts → repository
-- [ ] stabilization.ts → repository
-- [ ] channels.ts → extend channels.repository
-- [ ] tsc clean + grep clean
-- [ ] commit + push Phase 2
+- [x] intelligence-dashboard.ts → repository
+- [x] stabilization.ts → repository
+- [x] channels.ts → extend channels.repository
+- [x] tsc clean + grep clean
+- [x] commit + push Phase 2
 - [ ] deploy Phases 1+2 to prod + verify (health + gate-check)
 
 ## Phase 3 — memory + tasks

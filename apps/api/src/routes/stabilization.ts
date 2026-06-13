@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType, type Request, type Response, type NextFunction } from 'express'
-import { db, sql } from '@plexo/db'
 import { timingSafeEqual } from 'crypto'
 import { logger } from '../logger.js'
+import * as stabilizationRepo from '../repositories/stabilization.repository.js'
 
 export const stabilizationRouter: RouterType = Router()
 
@@ -41,65 +41,14 @@ stabilizationRouter.use(requireServiceKey)
 stabilizationRouter.get('/dashboard', async (_req, res, next) => {
     try {
         const results = await Promise.all([
-                // Latest cycle
-                db.execute(sql`
-                    SELECT * FROM eval_results
-                    WHERE eval_type = 'cycle'
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                `),
-                // Last 20 cycles
-                db.execute(sql`
-                    SELECT * FROM eval_results
-                    WHERE eval_type = 'cycle'
-                    ORDER BY created_at DESC
-                    LIMIT 20
-                `),
-                // Latest batch of workload results (all rows sharing the most recent created_at)
-                db.execute(sql`
-                    SELECT * FROM eval_results
-                    WHERE eval_type = 'workload'
-                      AND created_at = (
-                          SELECT MAX(created_at) FROM eval_results WHERE eval_type = 'workload'
-                      )
-                    ORDER BY metric_name
-                `),
-                // Latest SCL eval metrics
-                db.execute(sql`
-                    SELECT * FROM eval_results
-                    WHERE eval_type IN ('scl_retrieval', 'scl_promotion', 'scl_drift')
-                    ORDER BY created_at DESC
-                    LIMIT 20
-                `),
-                // Latest fixer dispatches
-                db.execute(sql`
-                    SELECT * FROM eval_results
-                    WHERE eval_type = 'fixer'
-                    ORDER BY created_at DESC
-                    LIMIT 20
-                `),
-                // Open findings (not yet resolved)
-                db.execute(sql`
-                    SELECT * FROM eval_results
-                    WHERE eval_type = 'finding'
-                      AND (metadata->>'resolved') IS NULL
-                    ORDER BY created_at DESC
-                    LIMIT 50
-                `),
-                // Proactive agent activity
-                db.execute(sql`
-                    SELECT * FROM eval_results
-                    WHERE eval_type = 'proactive_agent'
-                    ORDER BY created_at DESC
-                    LIMIT 20
-                `),
-                // Latest conversation quality evals
-                db.execute(sql`
-                    SELECT * FROM eval_results
-                    WHERE eval_type = 'conversation_quality'
-                    ORDER BY created_at DESC
-                    LIMIT 10
-                `),
+                stabilizationRepo.getLatestCycle(),
+                stabilizationRepo.getCycleHistory(),
+                stabilizationRepo.getLatestWorkloads(),
+                stabilizationRepo.getSclEval(),
+                stabilizationRepo.getFixerActivity(),
+                stabilizationRepo.getOpenFindings(),
+                stabilizationRepo.getProactiveAgents(),
+                stabilizationRepo.getConversationQuality(),
             ])
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw SQL result typing
@@ -161,10 +110,7 @@ stabilizationRouter.post('/cycle', async (req, res, next) => {
         // Conversation quality eval — different eval_type
         if (body._conversationQuality) {
             const cq = body._conversationQuality
-            await db.execute(sql`
-                INSERT INTO eval_results (workspace_id, eval_type, metric_name, metric_value, metadata, created_at)
-                VALUES (${wsId}::uuid, 'conversation_quality', ${'cq_' + ts.getTime()}, ${cq.passed ?? 0}, ${JSON.stringify(cq)}::jsonb, ${ts.toISOString()}::timestamptz)
-            `)
+            await stabilizationRepo.insertConversationQuality(wsId, 'cq_' + ts.getTime(), cq.passed ?? 0, JSON.stringify(cq), ts.toISOString())
             logger.info({ passed: cq.passed, failed: cq.failed, wsId }, 'Conversation quality eval recorded')
             return res.status(201).json({ ok: true, conversationQuality: true })
         }
@@ -172,10 +118,7 @@ stabilizationRouter.post('/cycle', async (req, res, next) => {
         // Fix dispatch results — store as 'fixer' eval_type, not a regular cycle
         if (body._fixDispatch) {
             const fd = body._fixDispatch
-            await db.execute(sql`
-                INSERT INTO eval_results (workspace_id, eval_type, metric_name, metric_value, metadata, created_at)
-                VALUES (${wsId}::uuid, 'fixer', ${'fd_' + ts.getTime()}, ${fd.improved ?? 0}, ${JSON.stringify(fd)}::jsonb, ${ts.toISOString()}::timestamptz)
-            `)
+            await stabilizationRepo.insertFixDispatch(wsId, 'fd_' + ts.getTime(), fd.improved ?? 0, JSON.stringify(fd), ts.toISOString())
             logger.info({ total: fd.total, improved: fd.improved, wsId }, 'Fix dispatch results recorded')
             return res.status(201).json({ ok: true, fixDispatch: true })
         }
@@ -183,10 +126,7 @@ stabilizationRouter.post('/cycle', async (req, res, next) => {
         // Proactive agent activity — different eval_type
         if (body._proactiveAgent) {
             const agentData = body._proactiveAgent
-            await db.execute(sql`
-                INSERT INTO eval_results (workspace_id, eval_type, metric_name, metric_value, metadata, created_at)
-                VALUES (${wsId}::uuid, 'proactive_agent', ${agentData.id}, ${agentData.status === 'completed' ? 1 : 0}, ${JSON.stringify(agentData)}::jsonb, ${ts.toISOString()}::timestamptz)
-            `)
+            await stabilizationRepo.insertProactiveAgent(wsId, agentData.id, agentData.status === 'completed' ? 1 : 0, JSON.stringify(agentData), ts.toISOString())
             logger.info({ agent: agentData.id, status: agentData.status, wsId }, 'Proactive agent activity recorded')
             return res.status(201).json({ ok: true, agent: agentData.id })
         }
@@ -207,10 +147,7 @@ stabilizationRouter.post('/cycle', async (req, res, next) => {
             sloBreaches: Array.isArray(body.sloBreaches) ? body.sloBreaches.length : (body.sloBreaches ?? 0),
         }
 
-        await db.execute(sql`
-            INSERT INTO eval_results (workspace_id, eval_type, metric_name, metric_value, metadata, created_at)
-            VALUES (${wsId}::uuid, 'cycle', ${'cycle_' + body.cycle}, ${body.scenarios?.failed === 0 ? 1 : 0}, ${JSON.stringify(metadata)}::jsonb, ${ts.toISOString()}::timestamptz)
-        `)
+        await stabilizationRepo.insertCycle(wsId, 'cycle_' + body.cycle, body.scenarios?.failed === 0 ? 1 : 0, JSON.stringify(metadata), ts.toISOString())
 
         logger.info({ cycle: body.cycle, wsId }, 'Stabilization cycle recorded')
         res.status(201).json({ ok: true, cycle: body.cycle })
@@ -251,10 +188,7 @@ stabilizationRouter.post('/workload', async (req, res, next) => {
                 quality: r.quality,
                 ...(r.error ? { error: r.error } : {}),
             }
-            await db.execute(sql`
-                INSERT INTO eval_results (workspace_id, eval_type, metric_name, metric_value, metadata, created_at)
-                VALUES (${wsId}::uuid, 'workload', ${r.name}, ${r.quality ?? 0}, ${JSON.stringify(metadata)}::jsonb, ${now.toISOString()}::timestamptz)
-            `)
+            await stabilizationRepo.insertWorkload(wsId, r.name, r.quality ?? 0, JSON.stringify(metadata), now.toISOString())
         }
 
         logger.info({ wsId, count: body.results.length }, 'Stabilization workload results recorded')
