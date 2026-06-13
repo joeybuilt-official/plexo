@@ -75,10 +75,12 @@ jobs:
         if: steps.bump.outputs.bumped == 'true'
         run: pnpm --filter @joeybuilt/plexo-sdk build
 
-      # pnpm publish does not expand the `${NODE_AUTH_TOKEN}` placeholder that
-      # actions/setup-node writes into ~/.npmrc, so env-only auth failed with
-      # ENEEDAUTH (the 1.4.0 + 1.5.0 releases never shipped to npm). Write the
-      # resolved token into ~/.npmrc literally so pnpm picks it up.
+      # Write the resolved token into ~/.npmrc literally. Two prior failures led
+      # here: (1) env-only NODE_AUTH_TOKEN was never expanded -> ENEEDAUTH;
+      # (2) even with ~/.npmrc present, `pnpm publish` did not apply the token to
+      # the scoped-package PUT (npm answers an unauthenticated write to an
+      # existing scoped package with a misleading 404), so 1.4.0 + 1.5.0 never
+      # shipped. `npm publish` reads this ~/.npmrc reliably; use it instead.
       - name: Configure npm auth
         if: steps.bump.outputs.bumped == 'true'
         run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
@@ -87,7 +89,8 @@ jobs:
 
       - name: Publish to npm
         if: steps.bump.outputs.bumped == 'true'
-        run: pnpm publish --filter @joeybuilt/plexo-sdk --no-git-checks --access public
+        run: npm publish --access public
+        working-directory: packages/sdk
 
       - name: Extract CHANGELOG section for this version
         if: steps.bump.outputs.bumped == 'true'
