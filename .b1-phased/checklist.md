@@ -23,10 +23,10 @@
 - [x] commit + push Phase 3
 
 ## Phase 4 — auth + extensions
-- [ ] auth.ts → auth.repository
-- [ ] extensions.ts → extensions.repository
-- [ ] tsc clean + grep clean
-- [ ] commit + push Phase 4
+- [x] auth.ts → auth.repository
+- [x] extensions.ts → extensions.repository
+- [x] tsc clean + grep clean
+- [x] commit + push Phase 4
 - [ ] deploy Phases 3+4 to prod + verify
 
 ## Phase 5 — heavies
