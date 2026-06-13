@@ -19,8 +19,8 @@
  * This lets agent-loop.ts decrypt them transparently.
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and } from '@plexo/db'
-import { workspaces, workspaceKeyShares } from '@plexo/db'
+import * as workspacesRepo from '../repositories/workspaces.repository.js'
+import * as keySharesRepo from '../repositories/key-shares.repository.js'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { invalidateIntrospectCache } from './introspect.js'
@@ -96,7 +96,7 @@ export function getDecoupledSettings(workspaceId: string, settings: Record<strin
         // Persist migration asynchronously
         const newSettings = { ...settings, vault, arbiter } as Record<string, unknown>
         delete newSettings.aiProviders
-        void db.update(workspaces).set({ settings: newSettings }).where(eq(workspaces.id, workspaceId)).catch(err => {
+        void workspacesRepo.updateSettings(workspaceId, newSettings).catch(err => {
             logger.error({ err, workspaceId }, 'Failed to persist zero-downtime vault/arbiter migration')
         })
     }
@@ -184,11 +184,7 @@ aiProviderCredsRouter.get('/', async (req, res) => {
     }
 
     try {
-        const [ws] = await db
-            .select({ settings: workspaces.settings })
-            .from(workspaces)
-            .where(eq(workspaces.id, id))
-            .limit(1)
+        const ws = await workspacesRepo.getSettingsRow(id)
 
         if (!ws) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })
@@ -222,11 +218,7 @@ aiProviderCredsRouter.put('/', async (req, res) => {
     }
 
     try {
-        const [ws] = await db
-            .select({ settings: workspaces.settings })
-            .from(workspaces)
-            .where(eq(workspaces.id, id))
-            .limit(1)
+        const ws = await workspacesRepo.getSettingsRow(id)
 
         if (!ws) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })
@@ -269,7 +261,7 @@ aiProviderCredsRouter.put('/', async (req, res) => {
 
         const newSettings = { ...currentSettings, vault: toWriteVault, arbiter: mergedArbiter } as Record<string, unknown>
         delete newSettings.aiProviders
-        await db.update(workspaces).set({ settings: newSettings }).where(eq(workspaces.id, id))
+        await workspacesRepo.updateSettings(id, newSettings)
 
         const providerCount = Object.keys(toWriteVault).length
         logger.info({ workspaceId: id, providers: providerCount }, 'AI provider credentials updated (encrypted and decoupled)')
@@ -311,13 +303,7 @@ aiProviderCredsRouter.put('/', async (req, res) => {
  */
 export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIProvidersBlob | null> {
     try {
-        const [ws] = await db
-            .select({ settings: workspaces.settings })
-            .from(workspaces)
-            .where(eq(workspaces.id, workspaceId))
-            .limit(1)
-
-        const settings = ws?.settings as Record<string, unknown> | null
+        const settings = (await workspacesRepo.getSettings(workspaceId)) as Record<string, unknown> | null
         if (!settings) return null
 
         const { vault, arbiter } = getDecoupledSettings(workspaceId, settings)
@@ -332,17 +318,9 @@ export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIP
             const sourceWsId = entry.keySource.workspaceId
 
             // Verify the share still exists
-            const [shareRow] = await db
-                .select({ id: workspaceKeyShares.id })
-                .from(workspaceKeyShares)
-                .where(and(
-                    eq(workspaceKeyShares.sourceWsId, sourceWsId),
-                    eq(workspaceKeyShares.targetWsId, workspaceId),
-                    eq(workspaceKeyShares.providerKey, providerKey),
-                ))
-                .limit(1)
+            const shareStillExists = await keySharesRepo.shareExists(sourceWsId, workspaceId, providerKey)
 
-            if (!shareRow) {
+            if (!shareStillExists) {
                 logger.warn({ workspaceId, providerKey, sourceWsId }, 'key-share: share not found (revoked?) — treating as unconfigured')
                 decryptedVault[providerKey] = { ...entry, status: 'unconfigured' }
                 delete decryptedVault[providerKey]!.apiKey
@@ -351,13 +329,7 @@ export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIP
 
             // Decrypt from the source workspace
             try {
-                const [srcWs] = await db
-                    .select({ settings: workspaces.settings })
-                    .from(workspaces)
-                    .where(eq(workspaces.id, sourceWsId))
-                    .limit(1)
-
-                const srcSettings = srcWs?.settings as Record<string, unknown> | null
+                const srcSettings = (await workspacesRepo.getSettings(sourceWsId)) as Record<string, unknown> | null
                 if (!srcSettings) continue
 
                 const { vault: srcVault } = getDecoupledSettings(sourceWsId, srcSettings)

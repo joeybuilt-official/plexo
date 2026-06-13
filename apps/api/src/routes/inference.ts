@@ -33,7 +33,7 @@ import { resolveModelFromEnv, type FallbackOptions } from '@plexo/agent/provider
 import { routeAndCall, RouterV2NoCandidateError } from '@plexo/agent/providers/router-v2'
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 import { maybeShadowExtraction } from './shadow-extraction.js'
-import { db, sql } from '@plexo/db'
+import * as inferenceRepo from '../repositories/inference.repository.js'
 
 const logger = pino({ name: 'inference-routes' })
 
@@ -172,17 +172,7 @@ function logAppInference(args: {
 }): void {
     void (async () => {
         try {
-            await db.execute(sql`
-                INSERT INTO inference_logs
-                    (instance_uuid, workspace_id, model, provider, input_tokens, output_tokens, latency_ms, task_type, app_id, success)
-                VALUES (
-                    ${process.env.PLEXO_INSTANCE_ID ?? 'unknown'},
-                    ${args.workspaceId}::uuid,
-                    ${args.model}, ${args.provider},
-                    ${Math.round(args.inputTokens)}, ${Math.round(args.outputTokens)}, ${Math.round(args.latencyMs)},
-                    ${args.taskType}, ${args.appId}, ${args.success}
-                )
-            `)
+            await inferenceRepo.insertAppInferenceLog(args)
         } catch (err) {
             logger.warn({ err, workspaceId: args.workspaceId, appId: args.appId }, 'inference.chat: app inference_logs write failed (non-fatal)')
         }
