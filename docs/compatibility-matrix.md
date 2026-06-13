@@ -24,6 +24,7 @@ The matrix tracks three coordinates:
 | SDK version | Plexo Core (min commit / version) | DB schema state                                      | Notes                                                                                          |
 |-------------|-----------------------------------|------------------------------------------------------|------------------------------------------------------------------------------------------------|
 | `1.3.0`     | commit `34470cdf` or later        | migrations `0001`–`0117` (latest: `0117_gmessages_phase2_schema`) | Adds `agents.runCustom`. Requires `PLEXO_RUN_JWT_SECRET` (≥32 chars) on Plexo API container. `runCustom` itself is schema-agnostic; the `0117` floor reflects the full set of migrations shipped on `34470cdf`. |
+| `1.5.1`     | commit `fe11242` or later         | migrations `0001`–`0137` (latest: `0137_app_service_keys`) | First npm-published build of the `/connect` universal client (ADR 0001 §2): resolution-ladder discovery, `connect()` handshake + `contractVersion` negotiation, profile declaration, and `register()`/reconnect. Profile **negotiation** (`effectiveProfile`) needs the `workspace_app_grants` table (`0134`) + server-side enforcement; without it apps still connect but get an `unscoped`/`pending` status. 1.4.0 + 1.5.0 were never published (release-auth bug). |
 
 ## How to read a row
 
