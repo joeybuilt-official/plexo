@@ -9,7 +9,7 @@
  */
 import { Router, type Router as RouterType } from 'express'
 import { timingSafeEqual as cryptoTimingSafeEqual } from 'crypto'
-import { db, sql } from '@plexo/db'
+import * as debugRepo from '../repositories/debug.repository.js'
 import { connectedCount } from '../sse-emitter.js'
 import { logger } from '../logger.js'
 
@@ -42,42 +42,9 @@ debugRouter.use((req, res, next) => {
 debugRouter.get('/snapshot', async (_req, res) => {
     try {
         // Query queue state
-        const [queueStats] = await db.execute<{
-            running: string
-            queued: string
-            total: string
-        }>(sql`
-            SELECT
-                COUNT(*) FILTER (WHERE status = 'running') AS running,
-                COUNT(*) FILTER (WHERE status = 'queued')  AS queued,
-                COUNT(*)                                   AS total
-            FROM tasks
-        `)
-
-        const [sprintStats] = await db.execute<{
-            pending: string
-            in_progress: string
-            total: string
-        }>(sql`
-            SELECT
-                COUNT(*) FILTER (WHERE status = 'queued')   AS pending,
-                COUNT(*) FILTER (WHERE status = 'running')  AS in_progress,
-                COUNT(*)                                    AS total
-            FROM sprint_tasks
-        `)
-
-        const [ledgerStats] = await db.execute<{
-            rows: string
-            avg_quality: string | null
-            total_tokens: string
-        }>(sql`
-            SELECT
-                COUNT(*)            AS rows,
-                AVG(quality_score)  AS avg_quality,
-                SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)) AS total_tokens
-            FROM work_ledger
-            WHERE completed_at > NOW() - INTERVAL '7 days'
-        `)
+        const [queueStats] = await debugRepo.getQueueStats()
+        const [sprintStats] = await debugRepo.getSprintTaskStats()
+        const [ledgerStats] = await debugRepo.getLedger7dStats()
 
         const snapshot = {
             timestamp: new Date().toISOString(),
@@ -158,22 +125,12 @@ debugRouter.post('/rpc', async (req, res) => {
                 break
             }
             case 'queue.stats': {
-                const [stats] = await db.execute<{ running: string; queued: string }>(sql`
-                    SELECT
-                        COUNT(*) FILTER (WHERE status = 'running') AS running,
-                        COUNT(*) FILTER (WHERE status = 'queued')  AS queued
-                    FROM tasks
-                `)
+                const [stats] = await debugRepo.getQueueRunningQueued()
                 result = { running: Number(stats?.running ?? 0), queued: Number(stats?.queued ?? 0) }
                 break
             }
             case 'memory.list': {
-                const rows = await db.execute<{ id: string; pattern_type: string; description: string; created_at: Date }>(sql`
-                    SELECT id, pattern_type, description, created_at
-                    FROM agent_improvement_log
-                    ORDER BY created_at DESC
-                    LIMIT 10
-                `)
+                const rows = await debugRepo.listImprovements()
                 result = { improvements: rows }
                 break
             }
