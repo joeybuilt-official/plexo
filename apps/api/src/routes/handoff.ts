@@ -18,7 +18,7 @@
 
 import { Router, type Router as RouterType } from 'express'
 import { randomBytes } from 'crypto'
-import { db, sql } from '@plexo/db'
+import * as handoffRepo from '../repositories/handoff.repository.js'
 import { requireAuth } from '../middleware/auth.js'
 import { logger } from '../logger.js'
 
@@ -57,10 +57,7 @@ handoffRouter.post('/generate', requireAuth, async (req, res) => {
     const expiresAt = new Date(Date.now() + 30_000) // 30 seconds
 
     try {
-        await db.execute(sql`
-            INSERT INTO auth.cross_app_tokens (token, user_id, source_app, target_app, expires_at)
-            VALUES (${token}, ${user.id}::uuid, 'plexo', ${targetApp}, ${expiresAt.toISOString()})
-        `)
+        await handoffRepo.insertToken(token, user.id, targetApp, expiresAt.toISOString())
 
         const redirectUrl = `${KNOWN_APPS[targetApp]}/auth/handshake?token=${token}&from=plexo`
         logger.info({ userId: user.id, targetApp }, 'Cross-app handoff token generated')
@@ -97,10 +94,7 @@ handoffRouter.get('/initiate', async (req, res, next) => {
         const token = randomBytes(32).toString('hex')
         const expiresAt = new Date(Date.now() + 30_000)
         try {
-            await db.execute(sql`
-                INSERT INTO auth.cross_app_tokens (token, user_id, source_app, target_app, expires_at)
-                VALUES (${token}, ${user.id}::uuid, 'plexo', ${targetApp}, ${expiresAt.toISOString()})
-            `)
+            await handoffRepo.insertToken(token, user.id, targetApp, expiresAt.toISOString())
             const redirectUrl = `${KNOWN_APPS[targetApp]}/auth/handshake?token=${token}&from=plexo`
             logger.info({ userId: user.id, targetApp }, 'Cross-app SSO initiation redirect')
             res.redirect(302, redirectUrl)
@@ -110,12 +104,6 @@ handoffRouter.get('/initiate', async (req, res, next) => {
         }
     })
 })
-
-interface TokenRow extends Record<string, unknown> {
-    user_id: string
-    source_app: string
-    target_app: string
-}
 
 /**
  * POST /api/auth/handoff/consume
@@ -131,14 +119,7 @@ handoffRouter.post('/consume', async (req, res) => {
     }
 
     try {
-        const rows = await db.execute<TokenRow>(sql`
-            UPDATE auth.cross_app_tokens
-            SET used = true
-            WHERE token = ${token}
-              AND used = false
-              AND expires_at > now()
-            RETURNING user_id, source_app, target_app
-        `)
+        const rows = await handoffRepo.consumeToken(token)
 
         if (rows.length === 0) {
             res.status(401).json({ error: { code: 'TOKEN_INVALID', message: 'Token expired, used, or not found' } })

@@ -19,6 +19,12 @@ export async function getSprint(sprintId: string) {
     return sprint
 }
 
+/** Insert a sprint, returning the full inserted row. */
+export async function createSprint(values: typeof sprints.$inferInsert) {
+    const [sprint] = await db.insert(sprints).values(values).returning()
+    return sprint
+}
+
 /** Lightweight {id,status,workspaceId} snapshot for the cancel flow. */
 export async function getSprintCancelMeta(sprintId: string) {
     const [sprint] = await db

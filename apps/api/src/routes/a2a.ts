@@ -13,8 +13,7 @@
  *   GET  /api/v1/a2a/:agentId/tasks/:id — task status with artifacts + children
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and } from '@plexo/db'
-import { extensions, tasks, workspaces, mcpTokens } from '@plexo/db'
+import * as a2aRepo from '../repositories/a2a.repository.js'
 import { push } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { timingSafeEqual as cryptoTimingSafeEqual } from 'crypto'
@@ -94,10 +93,7 @@ a2aRouter.get('/agents', async (req, res) => {
 
     if (workspaceId) {
         try {
-            const agents = await db
-                .select()
-                .from(extensions)
-                .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.type, 'agent'), eq(extensions.enabled, true)))
+            const agents = await a2aRepo.listAgentExtensions(workspaceId)
             cards.push(...agents.map(buildAgentCard))
         } catch (err) {
             logger.error({ err }, 'GET /a2a/agents failed to query extensions')
@@ -116,11 +112,7 @@ a2aRouter.get('/agents/:id/card', async (req, res) => {
     }
 
     try {
-        const [ext] = await db
-            .select()
-            .from(extensions)
-            .where(and(eq(extensions.id, req.params.id), eq(extensions.type, 'agent')))
-            .limit(1)
+        const ext = await a2aRepo.getAgentExtension(req.params.id)
 
         if (!ext) {
             res.status(404).json({ error: { code: 'AGENT_NOT_FOUND', message: 'Agent not found' } })
@@ -165,10 +157,7 @@ async function authenticateA2A(req: import('express').Request, res: import('expr
     // Path 2: Workspace API key (plx_...)
     if (token.startsWith('plx_')) {
         try {
-            const allKeys = await db
-                .select({ tokenHash: mcpTokens.tokenHash, tokenSalt: mcpTokens.tokenSalt, workspaceId: mcpTokens.workspaceId })
-                .from(mcpTokens)
-                .where(eq(mcpTokens.revoked, false))
+            const allKeys = await a2aRepo.listActiveTokens()
 
             for (const key of allKeys) {
                 const hash = crypto.createHash('sha256').update(token + key.tokenSalt).digest('hex')
@@ -178,9 +167,7 @@ async function authenticateA2A(req: import('express').Request, res: import('expr
                         res.status(403).json({ error: { code: 'FORBIDDEN', message: 'API key does not belong to the specified workspace' } })
                         return null
                     }
-                    await db.update(mcpTokens)
-                        .set({ lastUsedAt: new Date() })
-                        .where(and(eq(mcpTokens.tokenHash, key.tokenHash), eq(mcpTokens.tokenSalt, key.tokenSalt)))
+                    await a2aRepo.touchTokenLastUsed(key.tokenHash, key.tokenSalt)
                         .catch((err: unknown) => logger.warn({ err }, 'failed to update token lastUsedAt — audit trail may be incomplete'))
                     return { workspaceId: key.workspaceId }
                 }
@@ -261,11 +248,7 @@ a2aRouter.get('/:agentId/tasks/:id', async (req, res) => {
         const auth = await authenticateA2A(req, res)
         if (!auth) return
 
-        const [task] = await db
-            .select()
-            .from(tasks)
-            .where(eq(tasks.id, req.params.id))
-            .limit(1)
+        const task = await a2aRepo.getTask(req.params.id)
 
         if (!task) {
             res.status(404).json({ error: { code: 'TASK_NOT_FOUND', message: 'Task not found' } })
@@ -278,10 +261,7 @@ a2aRouter.get('/:agentId/tasks/:id', async (req, res) => {
         }
 
         // Query child tasks (sub-agent delegation)
-        const children = await db
-            .select({ id: tasks.id, status: tasks.status, outcomeSummary: tasks.outcomeSummary })
-            .from(tasks)
-            .where(eq(tasks.parentId, req.params.id))
+        const children = await a2aRepo.listChildTasks(req.params.id)
 
         // Map Plexo status → A2A status
         const statusMap: Record<string, string> = {
@@ -351,24 +331,15 @@ a2aRouter.post('/agents/external', async (req, res) => {
 
         const agentName = `a2a-external:${String(card.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`
 
-        const [existing] = await db
-            .select({ id: extensions.id })
-            .from(extensions)
-            .where(and(eq(extensions.workspaceId, workspaceId), eq(extensions.name, agentName)))
-            .limit(1)
+        const existing = await a2aRepo.getExtensionByName(workspaceId, agentName)
 
         if (existing) {
-            await db.update(extensions)
-                .set({
-                    manifest: { ...card, externalUrl: url, bearerToken: bearerToken ?? null },
-                    enabled: true,
-                })
-                .where(eq(extensions.id, existing.id))
+            await a2aRepo.updateExternalAgent(existing.id, { ...card, externalUrl: url, bearerToken: bearerToken ?? null })
             res.json({ id: existing.id, name: agentName, updated: true })
             return
         }
 
-        const [row] = await db.insert(extensions).values({
+        const row = await a2aRepo.insertExternalAgent({
             workspaceId,
             name: agentName,
             version: String(card.version ?? '1.0.0'),
@@ -377,9 +348,9 @@ a2aRouter.post('/agents/external', async (req, res) => {
             manifest: { ...card, externalUrl: url, source: 'a2a-external', bearerToken: bearerToken ?? null },
             enabled: true,
             source: 'a2a-external',
-        }).returning({ id: extensions.id })
+        })
 
-        res.status(201).json({ id: row!.id, name: agentName, card })
+        res.status(201).json({ id: row.id, name: agentName, card })
     } catch (err) {
         logger.error({ err }, 'POST /a2a/agents/external failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal error' } })
@@ -402,12 +373,9 @@ export function wellKnownAgentHandler(): RouterType {
 
         // If there's a default workspace, include its agents
         try {
-            const [ws] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
+            const ws = await a2aRepo.getFirstWorkspaceId()
             if (ws) {
-                const agents = await db
-                    .select()
-                    .from(extensions)
-                    .where(and(eq(extensions.workspaceId, ws.id), eq(extensions.type, 'agent'), eq(extensions.enabled, true)))
+                const agents = await a2aRepo.listAgentExtensions(ws.id)
                 cards.push(...agents.map(buildAgentCard))
             }
         } catch (err) {

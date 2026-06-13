@@ -14,7 +14,7 @@
  */
 
 import { Router, type Request, type Response } from 'express'
-import { db, sql } from '@plexo/db'
+import * as trainingDataRepo from '../repositories/training-data.repository.js'
 import { logger } from '../logger.js'
 
 export const trainingDataRouter: ReturnType<typeof Router> = Router()
@@ -99,10 +99,8 @@ trainingDataRouter.get('/sources', async (_req: Request, res: Response) => {
             DATA_SOURCES.map(async (src) => {
                 try {
                     const [[row], [range]] = await Promise.all([
-                        db.execute<{ count: string }>(sql.raw(src.countSql)),
-                        db.execute<{ min_date: string | null; max_date: string | null }>(
-                            sql`SELECT MIN(created_at) AS min_date, MAX(created_at) AS max_date FROM ${sql.identifier(src.table)}`
-                        ),
+                        trainingDataRepo.countRows(src.countSql),
+                        trainingDataRepo.getDateRange(src.table),
                     ])
                     const count = Number(row?.count ?? 0)
 
@@ -165,7 +163,7 @@ trainingDataRouter.get('/sources/:source/sample', async (req: Request, res: Resp
         // The semicolon check is a defensive guard against future maintenance mistakes.
         const baseQuery = src.sampleSql.replace(/\s+LIMIT\s+\$1\s*$/i, '')
         if (/;/.test(baseQuery)) throw new Error('Unsafe query structure detected')
-        const rows = await db.execute(sql`${sql.raw(baseQuery)} LIMIT ${limit}`)
+        const rows = await trainingDataRepo.sampleRows(baseQuery, limit)
         res.json({ source: sourceId, rows, count: (rows as unknown[]).length })
     } catch (err) {
         logger.error({ err, source: sourceId }, 'Failed to sample training data')
@@ -205,7 +203,7 @@ trainingDataRouter.post('/export', async (req: Request, res: Response) => {
             const src = DATA_SOURCES.find(s => s.id === sourceId)!
 
             const baseQuery = src.sampleSql.replace(/\s+LIMIT\s+\$1\s*$/i, '')
-            const rows = await db.execute(sql`${sql.raw(baseQuery)} LIMIT ${cappedLimit}`)
+            const rows = await trainingDataRepo.sampleRows(baseQuery, cappedLimit)
 
             for (const row of rows as Record<string, unknown>[]) {
                 if (format === 'jsonl_raw') {

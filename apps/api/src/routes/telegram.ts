@@ -34,8 +34,10 @@ import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
 import { telegramAdapter } from '../channels/adapters/telegram-adapter.js'
 import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
-import { db, eq, sql } from '@plexo/db'
-import { channels, sprints } from '@plexo/db'
+import * as telegramRepo from '../repositories/telegram.repository.js'
+import * as sprintsRepo from '../repositories/sprints.repository.js'
+import * as channelsRepo from '../repositories/channels.repository.js'
+import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { ulid } from 'ulid'
 import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
@@ -722,8 +724,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
             return
         }
         try {
-            const [sprint] = await db.select({ id: sprints.id, workspaceId: sprints.workspaceId })
-                .from(sprints).where(eq(sprints.id, sprintId)).limit(1)
+            const sprint = await sprintsRepo.getSprint(sprintId)
             if (!sprint) {
                 await sendMessage(token, chatId, `Sprint \`${sprintId}\` not found.`, { workspaceId })
                 return
@@ -745,17 +746,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
 
     if (text === '/memoryheatmap') {
         try {
-            const rows = await db.execute<{
-                tier: string
-                confidence_band: string
-                count: number
-                last_decay_at: string | null
-            }>(sql`
-                SELECT tier, confidence_band, count, last_decay_at
-                FROM memory_tier_stats
-                WHERE workspace_id = ${workspaceId}::uuid
-                ORDER BY tier, confidence_band
-            `)
+            const rows = await telegramRepo.getMemoryHeatmap(workspaceId)
             const buckets = Array.from(rows)
             if (buckets.length === 0) {
                 await sendMessage(token, chatId, 'No heatmap data yet — the decay cron has not run for this workspace.', { workspaceId })
@@ -1406,14 +1397,14 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                 }
             } catch { /* fallback */ }
 
-            const [sprint] = await db.insert(sprints).values({
+            const sprint = await sprintsRepo.createSprint({
                 id,
                 workspaceId,
                 request: taskDescription,
                 category: 'general',
                 status: 'planning',
                 metadata: { name: projectName, source: 'telegram', ...(imageUrls.length > 0 ? { imageUrls } : {}) },
-            }).returning()
+            })
 
             await sendMessage(token, chatId, `Started: *${projectName}*`, { workspaceId })
 
@@ -1641,7 +1632,7 @@ export async function initTelegramWebhook(): Promise<void> {
         if (!wsId) {
             // Auto-resolve: pick the first workspace so conversations are always linked
             try {
-                const [row] = await db.execute<{ id: string }>(sql`SELECT id FROM workspaces LIMIT 1`)
+                const row = await workspacesRepo.getFirstId()
                 if (row?.id) wsId = row.id
             } catch { /* fall through with empty wsId */ }
             if (wsId) logger.info({ workspaceId: wsId }, 'Telegram env-default: auto-resolved workspace from DB')
@@ -1654,10 +1645,7 @@ export async function initTelegramWebhook(): Promise<void> {
     // Retry up to 3 times with 2s delay — the DB pool may not be ready at cold start
     for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-            const rows = await db
-                .select({ id: channels.id, config: channels.config, workspaceId: channels.workspaceId, enabled: channels.enabled })
-                .from(channels)
-                .where(eq(channels.type, 'telegram'))
+            const rows = await channelsRepo.listByType('telegram')
 
             logger.info({ attempt, totalRows: rows.length, enabledRows: rows.filter(r => r.enabled).length }, 'Telegram init — DB query result')
 
