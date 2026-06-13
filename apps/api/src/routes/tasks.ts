@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, desc, asc, eq, and, sql } from '@plexo/db'
-import { tasks, taskSteps, plexoOpsTaskEvents, artifacts, artifactVersions, inferKind, type WorkKind } from '@plexo/db'
+import { inferKind, type WorkKind } from '@plexo/db'
+import * as tasksRepo from '../repositories/tasks.repository.js'
 import { push, list, cancel as queueCancel } from '@plexo/queue'
 import { getResumeStep } from '@plexo/agent/executor/step-builder'
 import { resolveDecision, getDecision, type PendingDecision } from '@plexo/agent/one-way-door'
@@ -21,8 +21,7 @@ export const tasksRouter: RouterType = Router()
 
 /** Look up a task's workspace id and verify caller has access. */
 async function ensureTaskWorkspaceAccess(req: Request, res: Response, taskId: string): Promise<boolean> {
-    const [row] = await db.select({ workspaceId: tasks.workspaceId })
-        .from(tasks).where(eq(tasks.id, taskId)).limit(1)
+    const row = await tasksRepo.getTaskWorkspaceId(taskId)
     if (!row) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
         return false
@@ -179,35 +178,18 @@ tasksRouter.get('/:id', async (req, res) => {
         return
     }
     try {
-        const [task] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1)
+        const task = await tasksRepo.getTaskById(id)
         if (!task) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
             return
         }
         if (!await ensureWorkspaceAccess(req, res, task.workspaceId)) return
-        const stepsQuery = db.select().from(taskSteps)
-            .where(eq(taskSteps.taskId, id))
-            .orderBy(taskSteps.stepNumber)
-            .limit(500)
+        const stepsQuery = tasksRepo.selectTaskSteps(id)
 
         // Lifecycle timeline (Phase F2). Filtered by both taskId AND
         // workspaceId — defense in depth so a guessable task id can't
         // surface another workspace's events.
-        const eventsQuery = db.select({
-            id: plexoOpsTaskEvents.id,
-            eventType: plexoOpsTaskEvents.eventType,
-            fromState: plexoOpsTaskEvents.fromState,
-            toState: plexoOpsTaskEvents.toState,
-            metadata: plexoOpsTaskEvents.metadata,
-            recordedAt: plexoOpsTaskEvents.recordedAt,
-        }).from(plexoOpsTaskEvents)
-            .where(and(
-                eq(plexoOpsTaskEvents.taskId, id),
-                eq(plexoOpsTaskEvents.workspaceId, task.workspaceId),
-            ))
-            .orderBy(asc(plexoOpsTaskEvents.recordedAt))
-            // hard cap; UI must paginate if exceeded
-            .limit(200)
+        const eventsQuery = tasksRepo.selectTaskEvents(id, task.workspaceId)
 
         // Phase K (Item 21): collapse the awaiting-approval Redis lookup into the
         // same Promise.all as steps/events so all three round-trips run in
@@ -270,16 +252,7 @@ tasksRouter.get('/:id/steps/raw', async (req, res) => {
     if (!await ensureTaskWorkspaceAccess(req, res, id)) return
 
     try {
-        const rows = await db.select({
-            stepNumber: taskSteps.stepNumber,
-            toolCalls: taskSteps.toolCalls,
-            stepState: taskSteps.stepState,
-            createdAt: taskSteps.createdAt,
-        })
-            .from(taskSteps)
-            .where(eq(taskSteps.taskId, id))
-            .orderBy(taskSteps.stepNumber)
-            .limit(RAW_STEPS_LIMIT)
+        const rows = await tasksRepo.getRawTaskSteps(id, RAW_STEPS_LIMIT)
 
         res.json({
             taskId: id,
@@ -303,8 +276,7 @@ tasksRouter.delete('/:id', async (req, res) => {
     }
     try {
         // Fetch workspace id before we tombstone the row (for SSE emit)
-        const [existing] = await db.select({ workspaceId: tasks.workspaceId, status: tasks.status })
-            .from(tasks).where(eq(tasks.id, id)).limit(1)
+        const existing = await tasksRepo.getTaskWorkspaceAndStatus(id)
 
         if (!existing) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
@@ -347,8 +319,7 @@ tasksRouter.post('/:id/confirm', async (req, res) => {
         return
     }
     try {
-        const [task] = await db.select({ workspaceId: tasks.workspaceId, status: tasks.status, context: tasks.context })
-            .from(tasks).where(eq(tasks.id, id)).limit(1)
+        const task = await tasksRepo.getTaskWorkspaceStatusContext(id)
         if (!task) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
             return
@@ -392,8 +363,7 @@ tasksRouter.post('/:id/cancel', async (req, res) => {
         return
     }
     try {
-        const [existing] = await db.select({ workspaceId: tasks.workspaceId, status: tasks.status, context: tasks.context })
-            .from(tasks).where(eq(tasks.id, id)).limit(1)
+        const existing = await tasksRepo.getTaskWorkspaceStatusContext(id)
         if (!existing) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
             return
@@ -448,7 +418,7 @@ tasksRouter.post('/:id/retry', async (req, res) => {
         return
     }
     try {
-        const [task] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1)
+        const task = await tasksRepo.getTaskById(id)
         if (!task) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } })
             return
@@ -522,22 +492,7 @@ tasksRouter.get('/:id/assets', async (req, res) => {
 
     try {
         // 1. Fetch from DB first (Phase 4 + Phase 2 works taxonomy)
-        const dbArtifacts = await db.select({
-            id: artifacts.id,
-            filename: artifacts.filename,
-            type: artifacts.type,
-            kind: artifacts.kind,
-            meta: artifacts.meta,
-            currentVersion: artifacts.currentVersion,
-            updatedAt: artifacts.updatedAt,
-            content: artifactVersions.content,
-        })
-        .from(artifacts)
-        .innerJoin(artifactVersions, and(
-            eq(artifactVersions.artifactId, artifacts.id),
-            eq(artifactVersions.version, artifacts.currentVersion)
-        ))
-        .where(eq(artifacts.taskId, id))
+        const dbArtifacts = await tasksRepo.getTaskArtifacts(id)
 
         if (dbArtifacts.length > 0) {
             res.json({
@@ -616,15 +571,7 @@ tasksRouter.get('/:id/artifacts/:artifactId/versions', async (req, res) => {
     }
     if (!await ensureTaskWorkspaceAccess(req, res, id)) return
     try {
-        const versions = await db.select({
-            version: artifactVersions.version,
-            changeDescription: artifactVersions.changeDescription,
-            createdAt: artifactVersions.createdAt,
-            // Don't return full content in list
-        })
-        .from(artifactVersions)
-        .where(eq(artifactVersions.artifactId, artifactId))
-        .orderBy(desc(artifactVersions.version))
+        const versions = await tasksRepo.getArtifactVersions(artifactId)
 
         res.json({ versions })
     } catch (err) {
@@ -648,13 +595,7 @@ tasksRouter.get('/:id/artifacts/:artifactId/versions/:version', async (req, res)
         return
     }
     try {
-        const [ver] = await db.select()
-            .from(artifactVersions)
-            .where(and(
-                eq(artifactVersions.artifactId, artifactId),
-                eq(artifactVersions.version, versionNum)
-            ))
-            .limit(1)
+        const ver = await tasksRepo.getArtifactVersion(artifactId, versionNum)
 
         if (!ver) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Version not found' } })
@@ -801,12 +742,7 @@ tasksRouter.get('/stats/summary', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const rows = await db.execute<{ status: string; count: string }>(sql`
-      SELECT status, COUNT(*) as count
-      FROM tasks
-      WHERE workspace_id = ${workspaceId}
-      GROUP BY status
-    `)
+        const rows = await tasksRepo.getTaskStatusCounts(workspaceId)
 
         const stats: Record<string, number> = {}
         for (const row of rows) {
@@ -814,18 +750,8 @@ tasksRouter.get('/stats/summary', async (req, res) => {
         }
 
         const costCeiling = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
-        const [weekCostRow] = await db.execute<{ cost_usd: string | null }>(sql`
-            SELECT cost_usd
-            FROM api_cost_tracking
-            WHERE workspace_id = ${workspaceId}::uuid
-              AND week_start = date_trunc('week', NOW())::date
-            LIMIT 1
-        `)
-        const [allTimeCostRow] = await db.execute<{ total: string }>(sql`
-            SELECT COALESCE(SUM(cost_usd), 0)::text AS total
-            FROM work_ledger
-            WHERE workspace_id = ${workspaceId}::uuid
-        `)
+        const weekCostRow = await tasksRepo.getWeekCost(workspaceId)
+        const allTimeCostRow = await tasksRepo.getAllTimeCost(workspaceId)
 
         res.json({
             byStatus: stats,
@@ -872,8 +798,7 @@ tasksRouter.patch('/:id/artifacts/:artifactId/meta', async (req, res) => {
     if (!await ensureTaskWorkspaceAccess(req, res, id)) return
 
     try {
-        const [art] = await db.select({ id: artifacts.id, meta: artifacts.meta, taskId: artifacts.taskId })
-            .from(artifacts).where(eq(artifacts.id, artifactId)).limit(1)
+        const art = await tasksRepo.getArtifactForMeta(artifactId)
         if (!art || art.taskId !== id) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Artifact not found on this task' } })
             return
@@ -882,10 +807,7 @@ tasksRouter.patch('/:id/artifacts/:artifactId/meta', async (req, res) => {
             ...((art.meta as Record<string, unknown> | null) ?? {}),
             ...patch,
         }
-        const [updated] = await db.update(artifacts)
-            .set({ meta: merged, updatedAt: new Date() })
-            .where(eq(artifacts.id, artifactId))
-            .returning({ meta: artifacts.meta })
+        const updated = await tasksRepo.updateArtifactMeta(artifactId, merged)
         res.json({ meta: updated?.meta ?? merged })
     } catch (err) {
         logger.error({ err, artifactId }, 'PATCH artifact meta failed')
