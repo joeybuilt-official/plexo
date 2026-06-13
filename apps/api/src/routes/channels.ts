@@ -10,9 +10,9 @@
  * DELETE /api/channels/:id            Delete channel
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, desc, inArray, sql } from '@plexo/db'
-import { channels, conversations, installedConnections, pairedSessions } from '@plexo/db'
+import type { pairedSessions, conversations } from '@plexo/db'
 import { ulid } from 'ulid'
+import * as channelsRepo from '../repositories/channels.repository.js'
 import { logger } from '../logger.js'
 import { registerTelegramChannel } from './telegram.js'
 import { UUID_RE } from '../validation.js'
@@ -32,14 +32,7 @@ type PairedSessionState = (typeof pairedSessions.$inferSelect)['state']
  * (telegram/slack/etc.) are absent from the map.
  */
 async function loadLatestSessionStates(workspaceId: string): Promise<Map<string, PairedSessionState>> {
-    const rows = await db
-        .select({
-            channelId: pairedSessions.channelId,
-            state: pairedSessions.state,
-            stateChangedAt: pairedSessions.stateChangedAt,
-        })
-        .from(pairedSessions)
-        .where(eq(pairedSessions.workspaceId, workspaceId))
+    const rows = await channelsRepo.getPairedSessionsForWorkspace(workspaceId)
     const out = new Map<string, PairedSessionState>()
     const seenAt = new Map<string, Date>()
     for (const r of rows) {
@@ -94,7 +87,7 @@ channelsRouter.get('/', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
     try {
         const [rows, sessionStates] = await Promise.all([
-            db.select().from(channels).where(eq(channels.workspaceId, workspaceId)).limit(200),
+            channelsRepo.listByWorkspace(workspaceId),
             loadLatestSessionStates(workspaceId),
         ])
         const items = rows.map((r) => ({ ...r, state: sessionStates.get(r.id) ?? null }))
@@ -128,10 +121,7 @@ channelsRouter.get('/:id', async (req, res) => {
         return
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
-    const [row] = await db.select()
-        .from(channels)
-        .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
-        .limit(1)
+    const row = await channelsRepo.getScopedFull(id, workspaceId)
     if (!row) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
         return
@@ -148,10 +138,7 @@ channelsRouter.get('/:id/threads', async (req, res) => {
         return
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
-    const [row] = await db.select({ id: channels.id, type: channels.type })
-        .from(channels)
-        .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
-        .limit(1)
+    const row = await channelsRepo.getTypeScoped(id, workspaceId)
     if (!row) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
         return
@@ -164,23 +151,7 @@ channelsRouter.get('/:id/threads', async (req, res) => {
         // doesn't bleed threads across them. For other channel types we
         // fall back to source = channel.type and channelRef.channelId.
         const sourceFilter = row.type === 'gmessages' ? 'gmessages' : row.type
-        const rows = await db
-            .select({
-                sessionId: conversations.sessionId,
-                message: conversations.message,
-                reply: conversations.reply,
-                createdAt: conversations.createdAt,
-                channelRef: conversations.channelRef,
-            })
-            .from(conversations)
-            .where(sql`
-                ${conversations.workspaceId} = ${workspaceId}
-                AND ${conversations.source} = ${sourceFilter}
-                AND ${conversations.sessionId} IS NOT NULL
-                AND ${conversations.channelRef}->>'channelId' = ${id}
-            `)
-            .orderBy(desc(conversations.createdAt))
-            .limit(2000)
+        const rows = await channelsRepo.listThreadConversations(workspaceId, sourceFilter, id)
 
         // Fold: most-recent row per sessionId wins for preview/lastMessageAt;
         // earlier rows in the same session are dropped.
@@ -217,10 +188,7 @@ channelsRouter.get('/:id/threads/:threadId/messages', async (req, res) => {
         return
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
-    const [row] = await db.select({ id: channels.id, type: channels.type })
-        .from(channels)
-        .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
-        .limit(1)
+    const row = await channelsRepo.getTypeScoped(id, workspaceId)
     if (!row) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
         return
@@ -229,21 +197,7 @@ channelsRouter.get('/:id/threads/:threadId/messages', async (req, res) => {
     try {
         const sourceFilter = row.type === 'gmessages' ? 'gmessages' : row.type
         const sessionId = row.type === 'gmessages' ? `gmessages:${threadId}` : threadId
-        const rows = await db.select({
-            id: conversations.id,
-            message: conversations.message,
-            reply: conversations.reply,
-            createdAt: conversations.createdAt,
-            attachments: conversations.attachments,
-        })
-            .from(conversations)
-            .where(and(
-                eq(conversations.workspaceId, workspaceId),
-                eq(conversations.source, sourceFilter),
-                eq(conversations.sessionId, sessionId),
-            ))
-            .orderBy(desc(conversations.createdAt))
-            .limit(200)
+        const rows = await channelsRepo.listThreadMessages(workspaceId, sourceFilter, sessionId)
 
         // Reverse to ASC so the viewer renders oldest → newest.
         const ascRows = rows.reverse()
@@ -300,10 +254,7 @@ channelsRouter.post('/:id/threads/:threadId/messages', async (req, res) => {
         return
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
-    const [row] = await db.select({ id: channels.id, type: channels.type })
-        .from(channels)
-        .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
-        .limit(1)
+    const row = await channelsRepo.getTypeScoped(id, workspaceId)
     if (!row) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
         return
@@ -324,19 +275,7 @@ channelsRouter.post('/:id/threads/:threadId/messages', async (req, res) => {
     }
 
     // Find the most-recent live paired session for this channel.
-    const [session] = await db.select({
-        id: pairedSessions.id,
-        state: pairedSessions.state,
-        stateChangedAt: pairedSessions.stateChangedAt,
-    })
-        .from(pairedSessions)
-        .where(and(
-            eq(pairedSessions.channelId, id),
-            eq(pairedSessions.workspaceId, workspaceId),
-            inArray(pairedSessions.state, ['active', 'paired', 'refreshing']),
-        ))
-        .orderBy(desc(pairedSessions.stateChangedAt))
-        .limit(1)
+    const session = await channelsRepo.getLiveSession(id, workspaceId)
 
     if (!session) {
         res.status(409).json({ error: { code: 'SESSION_NOT_LIVE', message: 'No live paired session for this channel' } })
@@ -359,7 +298,7 @@ channelsRouter.post('/:id/threads/:threadId/messages', async (req, res) => {
     // is non-empty.
     const conversationId = ulid()
     try {
-        await db.insert(conversations).values({
+        await channelsRepo.insertOutboundConversation({
             id: conversationId,
             workspaceId,
             sessionId: `gmessages:${threadId}`,
@@ -424,14 +363,7 @@ channelsRouter.post('/', async (req, res) => {
         }
 
         const { installedConnectionId, emailAddress } = config as { installedConnectionId: string; emailAddress: string }
-        const [conn] = await db.select({ id: installedConnections.id })
-            .from(installedConnections)
-            .where(and(
-                eq(installedConnections.id, installedConnectionId),
-                eq(installedConnections.workspaceId, workspaceId),
-                eq(installedConnections.registryId, 'gmail'),
-            ))
-            .limit(1)
+        const conn = await channelsRepo.getGmailConnection(installedConnectionId, workspaceId)
         if (!conn) {
             res.status(400).json({ error: { code: 'GMAIL_CONNECTION_NOT_FOUND', message: 'Gmail connection not found in this workspace' } })
             return
@@ -445,13 +377,13 @@ channelsRouter.post('/', async (req, res) => {
         // Plaintext effectiveConfig stays in scope for Telegram/Gmail post-insert
         // hooks below; only the DB row carries ciphertext.
         const configToPersist = encryptSensitiveConfigKeys(type as string, effectiveConfig, workspaceId)
-        const [created] = await db.insert(channels).values({
+        const created = await channelsRepo.insertChannel({
             workspaceId,
             type: type as 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'signal' | 'matrix' | 'twilio' | 'gmail',
             name,
             config: configToPersist,
             enabled: true,
-        }).returning()
+        })
         logger.info({ workspaceId, type, name }, 'Channel created')
 
         // Auto-register webhook for Telegram bots so the bot is live immediately
@@ -480,9 +412,7 @@ channelsRouter.post('/', async (req, res) => {
                             { ...effectiveConfig, lastHistoryId: profile.historyId },
                             workspaceId,
                         )
-                        await db.update(channels)
-                            .set({ config: baselined })
-                            .where(eq(channels.id, created.id))
+                        await channelsRepo.updateChannelConfig(created.id, baselined)
                         logger.info({ channelId: created.id, historyId: profile.historyId }, 'Gmail channel baselined')
                     }
                 } catch (err) {
@@ -525,9 +455,7 @@ channelsRouter.patch('/:id', async (req, res) => {
         if (name !== undefined) update.name = name
 
         if (config !== undefined) {
-            const [existing] = await db.select().from(channels)
-                .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
-                .limit(1)
+            const existing = await channelsRepo.getScopedFull(id, workspaceId)
             if (!existing) {
                 res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } })
                 return
@@ -550,15 +478,11 @@ channelsRouter.patch('/:id', async (req, res) => {
             update.config = merged
         }
 
-        await db.update(channels)
-            .set(update)
-            .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+        await channelsRepo.updateScoped(id, workspaceId, update as Parameters<typeof channelsRepo.updateScoped>[2])
 
         // Re-register Telegram webhook if token or config changed
         if (config) {
-            const [updated] = await db.select().from(channels)
-                .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
-                .limit(1)
+            const updated = await channelsRepo.getScopedFull(id, workspaceId)
             if (updated && updated.type === 'telegram') {
                 const { decryptSensitiveConfigKeys } = await import('../lib/channel-config-crypto.js')
                 const cfg = decryptSensitiveConfigKeys('telegram', (updated.config ?? {}) as Record<string, unknown>, workspaceId) as { token?: string; bot_token?: string }
@@ -595,8 +519,7 @@ channelsRouter.delete('/:id', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        await db.delete(channels)
-            .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)))
+        await channelsRepo.deleteScoped(id, workspaceId)
         logger.info({ id, workspaceId }, 'Channel deleted')
         res.json({ ok: true })
     } catch (err) {

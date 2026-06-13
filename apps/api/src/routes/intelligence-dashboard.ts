@@ -25,8 +25,8 @@
 
 import { Router } from 'express'
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
 import { pgRows } from '../lib/pg-rows.js'
+import * as intelDashboardRepo from '../repositories/intelligence-dashboard.repository.js'
 import { requireWorkspaceMember } from '../middleware/workspace-access.js'
 import { getWorkspaceSpend, loadAppSpend } from '../lib/intelligence-spend.js'
 import { invalidateIntelligenceSettings } from '../lib/intelligence-cache.js'
@@ -48,31 +48,10 @@ router.get('/:workspaceId/flow', async (req: any, res: any) => {
 
     try {
         const [providersResult, chainsResult, embeddingsResult, settingsResult] = await Promise.all([
-            db.execute(sql`
-                SELECT id, provider_type, nickname, enabled, managed, selected_model,
-                       embedding_model, embedding_dimensions
-                FROM provider_instances
-                WHERE workspace_id = ${workspaceId}::uuid
-                ORDER BY preference_order, created_at
-            `),
-            db.execute(sql`
-                SELECT task_type, COUNT(*)::int AS length
-                FROM routing_chains
-                WHERE workspace_id = ${workspaceId}::uuid
-                GROUP BY task_type
-                ORDER BY task_type
-            `),
-            db.execute(sql`
-                SELECT COUNT(*) FILTER (WHERE embedding_model IS NOT NULL)::int AS embedding_providers,
-                       COUNT(*)::int AS total_providers
-                FROM provider_instances
-                WHERE workspace_id = ${workspaceId}::uuid AND enabled = true
-            `),
-            db.execute(sql`
-                SELECT intelligence_settings AS s
-                FROM workspaces
-                WHERE id = ${workspaceId}::uuid LIMIT 1
-            `),
+            intelDashboardRepo.getFlowProviders(workspaceId),
+            intelDashboardRepo.getFlowChains(workspaceId),
+            intelDashboardRepo.getFlowEmbeddings(workspaceId),
+            intelDashboardRepo.getWorkspaceIntelligenceSettings(workspaceId),
         ])
 
         const providerRows = pgRows(providersResult)
@@ -167,7 +146,7 @@ router.get('/:workspaceId/health', async (req: any, res: any) => {
         probes.push((async (): Promise<ServiceHealth> => {
             const started = Date.now()
             try {
-                await db.execute(sql`SELECT 1`)
+                await intelDashboardRepo.pingPostgres()
                 return { name: 'postgres', status: 'up', latencyMs: Date.now() - started, detail: null }
             } catch (err: unknown) {
                 return { name: 'postgres', status: 'down', latencyMs: Date.now() - started, detail: (err instanceof Error ? err.message : 'error').slice(0, 120) }
@@ -240,26 +219,7 @@ router.get('/:workspaceId/logs', async (req: any, res: any) => {
     const limit = Math.min(500, Math.max(1, Number(req.query.limit ?? 100) || 100))
 
     try {
-        const taskClause = taskType ? sql`AND il.task_type = ${taskType}` : sql``
-        const modelClause = model ? sql`AND il.model = ${model}` : sql``
-        const fromClause = fromStr ? sql`AND il.created_at >= ${fromStr}::timestamptz` : sql``
-        const toClause = toStr ? sql`AND il.created_at <= ${toStr}::timestamptz` : sql``
-
-        const result = await db.execute(sql`
-            SELECT il.id, il.model, il.provider, il.task_type, il.input_tokens,
-                   il.output_tokens, il.latency_ms, il.success, il.created_at,
-                   mk.cost_per_m_in, mk.cost_per_m_out
-            FROM inference_logs il
-            LEFT JOIN models_knowledge mk
-              ON mk.model_id = il.model AND (il.provider IS NULL OR mk.provider = il.provider)
-            WHERE il.workspace_id = ${workspaceId}::uuid
-              ${taskClause}
-              ${modelClause}
-              ${fromClause}
-              ${toClause}
-            ORDER BY il.created_at DESC
-            LIMIT ${limit}
-        `)
+        const result = await intelDashboardRepo.getInferenceLogs(workspaceId, taskType, model, fromStr, toStr, limit)
         const rows = pgRows(result)
             ?? (Array.isArray(result) ? (result as any[]) : [])
 
@@ -303,57 +263,7 @@ router.get('/:workspaceId/cost-summary', async (req: any, res: any) => {
         // Top model + top task type — single round trip with two
         // aggregates priced via the same join as intelligence-spend.ts.
         const monthStart = spend.monthStart
-        const breakdownResult = await db.execute(sql`
-            WITH priced AS (
-                SELECT il.model, il.task_type, il.input_tokens, il.output_tokens,
-                       mk.cost_per_m_in, mk.cost_per_m_out
-                FROM inference_logs il
-                LEFT JOIN models_knowledge mk
-                  ON mk.model_id = il.model AND (il.provider IS NULL OR mk.provider = il.provider)
-                WHERE il.workspace_id = ${workspaceId}::uuid
-                  AND il.created_at >= ${monthStart}::timestamptz
-                  AND il.success = true
-            ),
-            model_totals AS (
-                SELECT model,
-                       SUM(
-                         CASE WHEN cost_per_m_in IS NOT NULL
-                              THEN (input_tokens::numeric / 1000000.0) * cost_per_m_in
-                              ELSE 0 END
-                       + CASE WHEN cost_per_m_out IS NOT NULL
-                              THEN (output_tokens::numeric / 1000000.0) * cost_per_m_out
-                              ELSE 0 END
-                       )::float8 AS cost_usd,
-                       COUNT(*)::int AS requests
-                FROM priced
-                GROUP BY model
-                ORDER BY cost_usd DESC NULLS LAST
-                LIMIT 1
-            ),
-            task_totals AS (
-                SELECT task_type,
-                       SUM(
-                         CASE WHEN cost_per_m_in IS NOT NULL
-                              THEN (input_tokens::numeric / 1000000.0) * cost_per_m_in
-                              ELSE 0 END
-                       + CASE WHEN cost_per_m_out IS NOT NULL
-                              THEN (output_tokens::numeric / 1000000.0) * cost_per_m_out
-                              ELSE 0 END
-                       )::float8 AS cost_usd,
-                       COUNT(*)::int AS requests
-                FROM priced
-                GROUP BY task_type
-                ORDER BY cost_usd DESC NULLS LAST
-                LIMIT 1
-            )
-            SELECT
-                (SELECT model FROM model_totals) AS top_model,
-                (SELECT cost_usd FROM model_totals) AS top_model_cost,
-                (SELECT requests FROM model_totals) AS top_model_requests,
-                (SELECT task_type FROM task_totals) AS top_task_type,
-                (SELECT cost_usd FROM task_totals) AS top_task_cost,
-                (SELECT requests FROM task_totals) AS top_task_requests
-        `)
+        const breakdownResult = await intelDashboardRepo.getCostBreakdown(workspaceId, monthStart)
         const breakdownRows = pgRows(breakdownResult)
             ?? (Array.isArray(breakdownResult) ? (breakdownResult as any[]) : [])
         const row = breakdownRows?.[0] ?? {}
@@ -399,14 +309,7 @@ router.get('/:workspaceId/router-stats', async (req: any, res: any) => {
     if (!workspaceId) return res.status(400).json({ error: 'workspaceId required' })
 
     try {
-        const result = await db.execute(sql`
-            SELECT DISTINCT ON (provider, model, task_type)
-                provider, model, task_type, sample_count, success_rate,
-                latency_p50_ms, latency_p95_ms, cooldown_end_at, snapshot_at
-            FROM router_v2_stats
-            WHERE snapshot_at > NOW() - INTERVAL '2 hours'
-            ORDER BY provider, model, task_type, snapshot_at DESC
-        `)
+        const result = await intelDashboardRepo.getRouterStats()
         const rows = pgRows(result) ?? (Array.isArray(result) ? (result as any[]) : [])
         const buckets = rows.map((r: any) => ({
             provider: String(r.provider),
@@ -453,12 +356,7 @@ router.get('/:workspaceId/stream', async (req: any, res: any) => {
         if (closed) return
         try {
             const spend = await getWorkspaceSpend(wsIdNonNull)
-            const recentResult = await db.execute(sql`
-                SELECT COUNT(*)::int AS n
-                FROM inference_logs
-                WHERE workspace_id = ${wsIdNonNull}::uuid
-                  AND created_at >= NOW() - INTERVAL '60 seconds'
-            `)
+            const recentResult = await intelDashboardRepo.getRecentLogCount(wsIdNonNull)
             const recentRows = pgRows(recentResult)
                 ?? (Array.isArray(recentResult) ? (recentResult as any[]) : [])
             const recentCount = Number(recentRows?.[0]?.n ?? 0)
@@ -499,18 +397,8 @@ router.get('/:workspaceId/detect', async (req: any, res: any) => {
         const ollamaUrl = process.env.OLLAMA_URL ?? null
 
         const [providersResult, settingsResult, embeddingsProbe, ollamaProbe, postgresProbe] = await Promise.all([
-            db.execute(sql`
-                SELECT id, provider_type, nickname, enabled, managed,
-                       embedding_model, selected_model
-                FROM provider_instances
-                WHERE workspace_id = ${workspaceId}::uuid
-                ORDER BY preference_order, created_at
-            `),
-            db.execute(sql`
-                SELECT intelligence_settings AS s
-                FROM workspaces
-                WHERE id = ${workspaceId}::uuid LIMIT 1
-            `),
+            intelDashboardRepo.getDetectProviders(workspaceId),
+            intelDashboardRepo.getWorkspaceIntelligenceSettings(workspaceId),
             embeddingsUrl
                 ? probeUrl('embeddings', `${embeddingsUrl.replace(/\/$/, '')}/healthz`)
                 : Promise.resolve<ServiceHealth>({ name: 'embeddings', status: 'unknown', latencyMs: null, detail: 'EMBEDDINGS_URL not set' }),
@@ -520,7 +408,7 @@ router.get('/:workspaceId/detect', async (req: any, res: any) => {
             (async (): Promise<ServiceHealth> => {
                 const started = Date.now()
                 try {
-                    await db.execute(sql`SELECT 1`)
+                    await intelDashboardRepo.pingPostgres()
                     return { name: 'postgres', status: 'up', latencyMs: Date.now() - started, detail: null }
                 } catch (err: any) {
                     return { name: 'postgres', status: 'down', latencyMs: Date.now() - started, detail: String(err?.message ?? 'error').slice(0, 120) }
@@ -604,16 +492,7 @@ router.post('/:workspaceId/wizard/complete', async (req: any, res: any) => {
     if (!workspaceId) return res.status(400).json({ error: 'workspaceId required' })
 
     try {
-        await db.execute(sql`
-            UPDATE workspaces
-            SET intelligence_settings = jsonb_set(
-                COALESCE(intelligence_settings, '{}'::jsonb),
-                '{firstRunPending}',
-                'false'::jsonb,
-                true
-            )
-            WHERE id = ${workspaceId}::uuid
-        `)
+        await intelDashboardRepo.markWizardComplete(workspaceId)
         invalidateIntelligenceSettings(workspaceId)
         return res.json({ ok: true, firstRunPending: false })
     } catch (err) {
