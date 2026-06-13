@@ -15,6 +15,7 @@ import { db, eq } from '@plexo/db'
 import { users } from '@plexo/db'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
+import { resolveServiceAuth } from './service-key-auth.js'
 
 function safeEq(a: string, b: string): boolean {
     if (a.length !== b.length) return false
@@ -88,19 +89,20 @@ function isSuperAdminEmail(email: string): boolean {
  * use isServiceKeyRequest() to verify this and skip user-level workspace checks.
  * req.user is NOT set — route handlers must not rely on it for these requests.
  */
-function tryAppServiceKeyAuth(req: Request): boolean {
-    const serviceKey = process.env.PLEXO_SERVICE_KEY
-    if (!serviceKey) return false
+async function tryAppServiceKeyAuth(req: Request): Promise<boolean> {
     const rawToken = String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '')
-    const xAppId = req.headers['x-app-id']
-    if (!rawToken || !xAppId) return false
-    if (rawToken.length !== serviceKey.length) return false
-    if (!cryptoTimingSafeEqual(Buffer.from(rawToken), Buffer.from(serviceKey))) return false
+    if (!rawToken) return false
+    const xAppId = req.headers['x-app-id'] as string | undefined
+
+    // A3 dual-accept: shared PLEXO_SERVICE_KEY (X-App-Id required) OR a per-app key
+    const resolved = await resolveServiceAuth(rawToken, xAppId)
+    if (!resolved) return false
 
     const userId = req.headers['x-user-id'] as string | undefined
     req.serviceContext = {
-        appId: String(xAppId),
+        appId: resolved.appId,
         userId: userId && UUID_RE.test(userId) ? userId : undefined,
+        viaSharedKey: resolved.viaSharedKey,
     }
     return true
 }
@@ -122,7 +124,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     // App-to-Plexo: Levio, Fylo, etc. using Bearer token + X-App-Id
-    if (tryAppServiceKeyAuth(req)) {
+    if (await tryAppServiceKeyAuth(req)) {
         next()
         return
     }
