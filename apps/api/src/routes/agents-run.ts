@@ -2,8 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, eq } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import { push } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
@@ -47,11 +46,7 @@ agentsRunRouter.post('/run', async (req, res) => {
 
     try {
         // Resolve the workspace owned by this user
-        const [workspace] = await db
-            .select({ id: workspaces.id })
-            .from(workspaces)
-            .where(eq(workspaces.ownerId, userId))
-            .limit(1)
+        const workspace = await workspacesRepo.getIdByOwner(userId)
 
         if (!workspace) {
             res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'No workspace found for this user' } })

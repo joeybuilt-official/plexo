@@ -14,8 +14,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { join, resolve, relative, basename, extname } from 'node:path'
 import { stat as statAsync, readFile as readFileAsync, readdir as readdirAsync } from 'node:fs/promises'
-import { db, eq, and } from '@plexo/db'
-import { tasks } from '@plexo/db'
+import * as tasksRepo from '../repositories/tasks.repository.js'
 import { UUID_RE } from '../validation.js'
 import { logger } from '../logger.js'
 
@@ -109,11 +108,7 @@ codeRouter.get('/tree', async (req, res) => {
     // Fallback: look up from DB (e.g. after an API restart during active task)
     if (!sprintWorkDir) {
         try {
-            const [task] = await db
-                .select({ workspaceId: tasks.workspaceId, context: tasks.context })
-                .from(tasks)
-                .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)))
-                .limit(1)
+            const task = await tasksRepo.getTaskWorkspaceContextScoped(taskId, workspaceId)
             if (!task) return void res.status(404).json({ error: 'Task not found' })
             const ctx2 = task.context as Record<string, unknown>
             sprintWorkDir = typeof ctx2.sprintWorkDir === 'string' ? ctx2.sprintWorkDir : undefined
@@ -153,11 +148,7 @@ codeRouter.get('/file', async (req, res) => {
 
     if (!sprintWorkDir) {
         try {
-            const [task] = await db
-                .select({ workspaceId: tasks.workspaceId, context: tasks.context })
-                .from(tasks)
-                .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)))
-                .limit(1)
+            const task = await tasksRepo.getTaskWorkspaceContextScoped(taskId, workspaceId)
             if (!task) return void res.status(404).json({ error: 'Task not found' })
             const ctx2 = task.context as Record<string, unknown>
             sprintWorkDir = typeof ctx2.sprintWorkDir === 'string' ? ctx2.sprintWorkDir : undefined

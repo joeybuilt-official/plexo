@@ -8,8 +8,7 @@
  * Optional HMAC-SHA256 signature verification via X-Plexo-Signature header.
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import { push } from '@plexo/queue'
 import { logger } from '../logger.js'
 import * as crypto from 'crypto'
@@ -24,11 +23,7 @@ webhooksRouter.post('/:workspaceId', async (req, res) => {
 
     // Verify workspace exists
     try {
-        const [ws] = await db
-            .select({ id: workspaces.id })
-            .from(workspaces)
-            .where(eq(workspaces.id, workspaceId))
-            .limit(1)
+        const ws = await workspacesRepo.getIdById(workspaceId)
 
         if (!ws) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })

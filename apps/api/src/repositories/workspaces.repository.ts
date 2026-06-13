@@ -137,6 +137,18 @@ export async function getFirstId(): Promise<{ id: string } | undefined> {
     return row
 }
 
+/** Workspace {id} owned by a user, or undefined (agent-dispatch target resolve). */
+export async function getIdByOwner(ownerId: string): Promise<{ id: string } | undefined> {
+    const [row] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.ownerId, ownerId)).limit(1)
+    return row
+}
+
+/** Workspace {id} by id, or undefined (cheap existence check). */
+export async function getIdById(id: string): Promise<{ id: string } | undefined> {
+    const [row] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, id)).limit(1)
+    return row
+}
+
 /** Ids of running/claimed tasks in a workspace (for executor cancellation). */
 export async function listRunningTaskIds(workspaceId: string): Promise<string[]> {
     const rows = await db.select({ id: tasks.id })
