@@ -16,9 +16,10 @@
  *   ></script>
  */
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, desc, sql } from '@plexo/db'
-import { workspaces, tasks, taskSteps, sprints, sprintTasks, sprintLogs, modelsKnowledge } from '@plexo/db'
 import { ulid } from 'ulid'
+import * as chatRepo from '../repositories/chat.repository.js'
+import * as workspacesRepo from '../repositories/workspaces.repository.js'
+import * as sprintsRepo from '../repositories/sprints.repository.js'
 import { logger } from '../logger.js'
 import { trackDelivery } from '../delivery-tracker.js'
 import { pushTask } from '@plexo/queue'
@@ -267,13 +268,11 @@ chatRouter.post('/message', async (req, res) => {
         // ── Parallel load: workspace + AI settings + session history ──────────
         // These are all independent — run them concurrently instead of sequentially.
         const sid = sessionId ?? 'default'
-        const [wsResult, aiResult] = await Promise.all([
-            db.select({ id: workspaces.id, name: workspaces.name, settings: workspaces.settings })
-                .from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1),
+        const [ws, aiResult] = await Promise.all([
+            workspacesRepo.getIdNameSettings(workspaceId),
             loadWorkspaceAISettings(workspaceId),
         ])
 
-        const [ws] = wsResult
         if (!ws) {
             res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' } })
             return
@@ -752,9 +751,7 @@ chatRouter.post('/message', async (req, res) => {
         if (isComplex && (intent === 'TASK' || intent === 'PROJECT')) {
             const currentModelId = config.model ?? 'default'
 
-            const [kbEntry] = await db.select().from(modelsKnowledge)
-                .where(eq(modelsKnowledge.modelId, currentModelId))
-                .limit(1)
+            const kbEntry = await chatRepo.getModelKnowledge(currentModelId)
 
             const hasReasoning = kbEntry?.strengths?.includes('reasoning') ||
                 currentModelId.includes('sonnet') ||
@@ -763,10 +760,7 @@ chatRouter.post('/message', async (req, res) => {
 
             if (!hasReasoning) {
                 // Find a reasoning model in DB from the same provider if possible, or OpenRouter
-                const [betterMatch] = await db.select().from(modelsKnowledge)
-                    .where(sql`${modelsKnowledge.strengths} @> '["reasoning"]'::jsonb`)
-                    .orderBy(desc(modelsKnowledge.reliabilityScore))
-                    .limit(1)
+                const betterMatch = await chatRepo.getBestReasoningModel()
 
                 if (betterMatch && betterMatch.modelId !== currentModelId) {
                     recommendedSwitch = `\n\nFor this complex task, I recommend switching from your default ${currentModelId} to ${betterMatch.modelId} for better logic and reasoning.`
@@ -845,11 +839,7 @@ chatRouter.post('/message', async (req, res) => {
             // Build real workspace snapshot for self-awareness (direct DB query, no HTTP)
             let workspaceSnapshot = ''
             try {
-                const statusCounts = await db
-                    .select({ status: tasks.status, count: sql<number>`count(*)::int` })
-                    .from(tasks)
-                    .where(eq(tasks.workspaceId, workspaceId))
-                    .groupBy(tasks.status)
+                const statusCounts = await chatRepo.getTaskStatusCounts(workspaceId)
                 const counts: Record<string, number> = {}
                 let total = 0
                 for (const r of statusCounts) { counts[r.status] = r.count; total += r.count }
@@ -1374,7 +1364,7 @@ chatRouter.post('/execute-action', async (req, res) => {
 
             const id = ulid()
             const projectName = await nameProject(workspaceId, description)
-            const [sprint] = await db.insert(sprints).values({
+            const sprint = await sprintsRepo.createSprint({
                 id,
                 workspaceId,
                 request: description,
@@ -1382,7 +1372,7 @@ chatRouter.post('/execute-action', async (req, res) => {
                 repo: repo ?? null,
                 status: 'planning',
                 metadata: { name: projectName },
-            }).returning()
+            })
             if (!sprint) throw new Error('Sprint insert returned no rows')
             logger.info({ workspaceId, sprintId: sprint.id, category: resolvedCategory }, 'Webchat project explicitly confirmed and created')
 
@@ -1445,10 +1435,7 @@ chatRouter.get('/reply/:taskId', async (req, res) => {
 
     const poll = async (): Promise<void> => {
         try {
-            const [task] = await db.select({
-                status: tasks.status,
-                outcomeSummary: tasks.outcomeSummary,
-            }).from(tasks).where(eq(tasks.id, taskId!)).limit(1)
+            const task = await chatRepo.getTaskReplyStatus(taskId!)
 
             if (!task) {
                 res.status(404).json({ error: { code: 'TASK_NOT_FOUND' } })
@@ -1531,13 +1518,7 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
         try {
             const elapsed = Math.round((Date.now() - startedAt) / 1000)
 
-            const [task] = await db.select({
-                status: tasks.status,
-                outcomeSummary: tasks.outcomeSummary,
-                createdAt: tasks.createdAt,
-                projectId: tasks.projectId,
-                plan: tasks.plan,
-            }).from(tasks).where(eq(tasks.id, taskId!)).limit(1)
+            const task = await chatRepo.getTaskTickFields(taskId!)
 
             if (!task) {
                 finish('error', { code: 'TASK_NOT_FOUND' })
@@ -1575,13 +1556,7 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
             } | null
 
             // Still running — fetch latest step for progress detail
-            const [latestStep] = await db.select({
-                stepNumber: taskSteps.stepNumber,
-                outcome: taskSteps.outcome,
-            }).from(taskSteps)
-                .where(eq(taskSteps.taskId, taskId!))
-                .orderBy(desc(taskSteps.stepNumber))
-                .limit(1)
+            const latestStep = await chatRepo.getLatestStep(taskId!)
 
             const stepCount = latestStep?.stepNumber ?? 0
             const lastAction = latestStep?.outcome?.slice(0, 120) ?? null
@@ -1608,18 +1583,7 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
             }> = []
 
             try {
-                const allRows = await db.select({
-                    stepNumber: taskSteps.stepNumber,
-                    toolCalls: taskSteps.toolCalls,
-                    outcome: taskSteps.outcome,
-                    isTerminal: taskSteps.isTerminal,
-                    stepState: taskSteps.stepState,
-                    state: taskSteps.state,
-                    createdAt: taskSteps.createdAt,
-                }).from(taskSteps)
-                    .where(eq(taskSteps.taskId, taskId!))
-                    .orderBy(taskSteps.stepNumber)
-                    .limit(200)
+                const allRows = await chatRepo.getStepRows(taskId!)
 
                 const phaseEvents: Array<{ type: string; phase?: { index: number; total: number; label: string } }> = []
 
@@ -1837,31 +1801,12 @@ chatRouter.get('/reply-stream/:taskId', async (req, res) => {
             } | undefined
             if (task.projectId) {
                 try {
-                    const [sp] = await db.select({
-                        id: sprints.id,
-                        request: sprints.request,
-                        totalTasks: sprints.totalTasks,
-                        completedTasks: sprints.completedTasks,
-                        failedTasks: sprints.failedTasks,
-                    }).from(sprints).where(eq(sprints.id, task.projectId)).limit(1)
+                    const sp = await chatRepo.getSprintProjection(task.projectId)
 
                     if (sp) {
-                        const subRows = await db.select({
-                            id: sprintTasks.id,
-                            description: sprintTasks.description,
-                            branch: sprintTasks.branch,
-                            status: sprintTasks.status,
-                            priority: sprintTasks.priority,
-                        }).from(sprintTasks)
-                            .where(eq(sprintTasks.sprintId, sp.id))
-                            .orderBy(sprintTasks.priority, sprintTasks.createdAt)
-                            .limit(40)
+                        const subRows = await chatRepo.getSprintSubTasks(sp.id)
 
-                        const [lastWave] = await db.select({ metadata: sprintLogs.metadata })
-                            .from(sprintLogs)
-                            .where(and(eq(sprintLogs.sprintId, sp.id), eq(sprintLogs.event, 'wave_start')))
-                            .orderBy(desc(sprintLogs.createdAt))
-                            .limit(1)
+                        const lastWave = await chatRepo.getLastWaveLog(sp.id)
                         const wm = (lastWave?.metadata ?? {}) as { wave?: number; totalWaves?: number }
 
                         sprint = {

@@ -27,13 +27,13 @@
 - [x] extensions.ts → extensions.repository
 - [x] tsc clean + grep clean
 - [x] commit + push Phase 4
-- [ ] deploy Phases 3+4 to prod + verify
+- [x] deploy Phases 3+4 to prod + verify — 78c48f6, tasks/memory/extensions 401
 
 ## Phase 5 — heavies
-- [ ] chat.ts → chat.repository (preserve SSE/job/executor side-effects)
-- [ ] connections.ts → connections.repository
-- [ ] tsc clean + grep clean
-- [ ] commit + push Phase 5
+- [x] chat.ts → chat.repository (preserve SSE/job/executor side-effects)
+- [x] connections.ts → connections.repository
+- [x] tsc clean + grep clean
+- [x] commit + push Phase 5
 - [ ] deploy Phase 5 to prod + verify
 
 ## Phase 6 — close-out
