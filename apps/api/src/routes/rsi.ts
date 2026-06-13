@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { db, rsiProposals, rsiTestResults, eq, and, desc } from '@plexo/db'
+import * as rsiRepo from '../repositories/rsi.repository.js'
 import { logger } from '../logger.js'
 import { emitRsiProposalResolved } from '../analytics/events.js'
 import { UUID_RE } from '../validation.js'
@@ -19,11 +19,7 @@ rsiRouter.get('/proposals', async (req, res, next) => {
             return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid workspace ID' } })
         }
 
-        const proposals = await db.select()
-            .from(rsiProposals)
-            .where(eq(rsiProposals.workspaceId, workspaceId))
-            .orderBy(desc(rsiProposals.createdAt))
-            .limit(50)
+        const proposals = await rsiRepo.listProposals(workspaceId)
 
         res.json({ items: proposals })
     } catch (err) {
@@ -40,10 +36,7 @@ rsiRouter.post('/proposals/:proposalId/approve', async (req, res, next) => {
             return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid workspace or proposal ID' } })
         }
 
-        const [updated] = await db.update(rsiProposals)
-            .set({ status: 'approved', approvedAt: new Date() })
-            .where(and(eq(rsiProposals.id, proposalId), eq(rsiProposals.workspaceId, workspaceId)))
-            .returning()
+        const updated = await rsiRepo.approveProposal(proposalId, workspaceId)
 
         if (!updated) {
             return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Proposal not found' } })
@@ -70,10 +63,7 @@ rsiRouter.post('/proposals/:proposalId/reject', async (req, res, next) => {
             return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid workspace or proposal ID' } })
         }
 
-        const [updated] = await db.update(rsiProposals)
-            .set({ status: 'rejected', rejectedAt: new Date() })
-            .where(and(eq(rsiProposals.id, proposalId), eq(rsiProposals.workspaceId, workspaceId)))
-            .returning()
+        const updated = await rsiRepo.rejectProposal(proposalId, workspaceId)
 
         if (!updated) {
             return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Proposal not found' } })
@@ -96,20 +86,13 @@ rsiRouter.get('/proposals/:proposalId/test-results', async (req, res, next) => {
         }
 
         // Verify the proposal belongs to this workspace
-        const [proposal] = await db.select({ id: rsiProposals.id })
-            .from(rsiProposals)
-            .where(and(eq(rsiProposals.id, proposalId), eq(rsiProposals.workspaceId, workspaceId)))
-            .limit(1)
+        const proposal = await rsiRepo.getProposalScoped(proposalId, workspaceId)
 
         if (!proposal) {
             return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Proposal not found' } })
         }
 
-        const results = await db.select()
-            .from(rsiTestResults)
-            .where(eq(rsiTestResults.proposalId, proposalId))
-            .orderBy(desc(rsiTestResults.createdAt))
-            .limit(50)
+        const results = await rsiRepo.listTestResults(proposalId)
 
         // Compute aggregate summary for the UI
         const withBaseline = results.filter(r => r.baselineQuality !== null)
