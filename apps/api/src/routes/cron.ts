@@ -13,8 +13,9 @@
  */
 import { Router, type Router as RouterType } from 'express'
 import { CronExpressionParser } from 'cron-parser'
-import { db, eq, and, desc, isNull, isNotNull } from '@plexo/db'
-import { cronJobs, channels, taskTypeEnum } from '@plexo/db'
+import { taskTypeEnum } from '@plexo/db'
+import * as cronRepo from '../repositories/cron.repository.js'
+import * as channelsRepo from '../repositories/channels.repository.js'
 import { push } from '@plexo/queue'
 import type { TaskType } from '@plexo/db'
 import { logger } from '../logger.js'
@@ -96,10 +97,7 @@ export function validateReminderContext(ctx: unknown): ReminderValidationError |
 async function channelExistsInWorkspace(channelId: string, workspaceId: string): Promise<boolean> {
     if (!UUID_RE.test(channelId)) return false
     try {
-        const [row] = await db.select({ id: channels.id, enabled: channels.enabled })
-            .from(channels)
-            .where(and(eq(channels.id, channelId), eq(channels.workspaceId, workspaceId)))
-            .limit(1)
+        const row = await channelsRepo.getEnabledScoped(channelId, workspaceId)
         return !!row && row.enabled === true
     } catch (err) {
         logger.warn({ err, channelId, workspaceId }, 'channelExistsInWorkspace lookup failed')
@@ -119,13 +117,9 @@ async function fetchEnabledChannel(
 ): Promise<{ id: string; type: string; config: Record<string, unknown> } | null> {
     if (!UUID_RE.test(channelId)) return null
     try {
-        const [row] = await db
-            .select({ id: channels.id, type: channels.type, config: channels.config, enabled: channels.enabled })
-            .from(channels)
-            .where(and(eq(channels.id, channelId), eq(channels.workspaceId, workspaceId)))
-            .limit(1)
+        const row = await channelsRepo.getEnabledScoped(channelId, workspaceId)
         if (!row || row.enabled !== true) return null
-        return { id: row.id, type: row.type as string, config: (row.config ?? {}) as Record<string, unknown> }
+        return { id: row.id, type: row.type, config: (row.config ?? {}) as Record<string, unknown> }
     } catch (err) {
         logger.warn({ err, channelId, workspaceId }, 'fetchEnabledChannel lookup failed')
         return null
@@ -329,17 +323,7 @@ cronRouter.get('/', async (req, res) => {
     }
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
     try {
-        const wsFilter = eq(cronJobs.workspaceId, workspaceId)
-        const where = type === 'reminder'
-            ? and(wsFilter, isNull(cronJobs.schedule))
-            : type === 'schedule'
-                ? and(wsFilter, isNotNull(cronJobs.schedule))
-                : wsFilter
-        const items = await db
-            .select()
-            .from(cronJobs)
-            .where(where)
-            .orderBy(desc(cronJobs.createdAt))
+        const items = await cronRepo.listCronJobs(workspaceId, (type ?? 'all') as 'reminder' | 'schedule' | 'all')
         res.json({ items, total: items.length })
     } catch (err) {
         logger.error({ err }, 'GET /api/cron failed')
@@ -477,7 +461,7 @@ cronRouter.post('/', async (req, res) => {
     }
 
     try {
-        const [created] = await db.insert(cronJobs).values({
+        const created = await cronRepo.createCronJob({
             workspaceId,
             name,
             schedule: resolvedSchedule,
@@ -490,7 +474,7 @@ cronRouter.post('/', async (req, res) => {
             branchRef: branchRef ?? 'main',
             connectorIds: connectorIds ?? [],
             notifyChannel: notifyChannel ?? null,
-        }).returning()
+        })
         logger.info({ workspaceId, name, schedule: resolvedSchedule, scheduleAt: resolvedNextRunAt?.toISOString(), taskType: resolvedTaskType }, 'Schedule created')
         trackEvent('cron.created', 'info', { workspaceId, name, schedule: resolvedSchedule, taskType: resolvedTaskType })
         res.status(201).json(created)
@@ -553,11 +537,7 @@ cronRouter.patch('/:id', async (req, res) => {
     let effectiveTaskType: string | undefined = taskType
     if (effectiveTaskType === undefined && taskContext !== undefined) {
         try {
-            const [existing] = await db
-                .select({ taskType: cronJobs.taskType })
-                .from(cronJobs)
-                .where(and(eq(cronJobs.id, id), eq(cronJobs.workspaceId, workspaceId)))
-                .limit(1)
+            const existing = await cronRepo.getTaskType(id, workspaceId)
             if (existing) effectiveTaskType = existing.taskType as string
         } catch (err) {
             logger.warn({ err, id }, 'PATCH /api/cron/:id existing-row lookup failed')
@@ -661,9 +641,7 @@ cronRouter.patch('/:id', async (req, res) => {
     }
 
     try {
-        await db.update(cronJobs)
-            .set(update)
-            .where(and(eq(cronJobs.id, id), eq(cronJobs.workspaceId, workspaceId)))
+        await cronRepo.updateCronJob(id, workspaceId, update)
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err, id }, 'PATCH /api/cron/:id failed')
@@ -688,8 +666,7 @@ cronRouter.delete('/:id', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        await db.delete(cronJobs)
-            .where(and(eq(cronJobs.id, id), eq(cronJobs.workspaceId, workspaceId)))
+        await cronRepo.deleteCronJob(id, workspaceId)
         logger.info({ id, workspaceId }, 'Schedule deleted')
         trackEvent('cron.deleted', 'info', { cronId: id, workspaceId })
         res.json({ ok: true })
@@ -717,9 +694,7 @@ cronRouter.post('/:id/trigger', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [job] = await db.select().from(cronJobs)
-            .where(and(eq(cronJobs.id, id), eq(cronJobs.workspaceId, workspaceId)))
-            .limit(1)
+        const job = await cronRepo.getCronJob(id, workspaceId)
 
         if (!job) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Scheduled job not found' } })
@@ -741,9 +716,7 @@ cronRouter.post('/:id/trigger', async (req, res) => {
         })
 
         // Update lastRunAt to now
-        await db.update(cronJobs)
-            .set({ lastRunAt: new Date() })
-            .where(eq(cronJobs.id, id))
+        await cronRepo.touchLastRun(id)
 
         logger.info({ id, workspaceId, name: job.name, taskId }, 'Schedule manually triggered')
         trackEvent('cron.triggered', 'info', { cronId: id, workspaceId, name: job.name })

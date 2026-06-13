@@ -14,8 +14,7 @@
  */
 
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, asc, desc } from '@plexo/db'
-import { workbenchPins, artifacts, artifactVersions } from '@plexo/db'
+import * as workbenchRepo from '../repositories/workbench.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -39,30 +38,7 @@ workbenchRouter.get('/pins', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const rows = await db.select({
-            pinId:         workbenchPins.id,
-            position:      workbenchPins.position,
-            pinnedAt:      workbenchPins.pinnedAt,
-            workId:        workbenchPins.workId,
-            filename:      artifacts.filename,
-            kind:          artifacts.kind,
-            type:          artifacts.type,
-            meta:          artifacts.meta,
-            currentVersion:artifacts.currentVersion,
-            updatedAt:     artifacts.updatedAt,
-            content:       artifactVersions.content,
-        })
-        .from(workbenchPins)
-        .innerJoin(artifacts, eq(artifacts.id, workbenchPins.workId))
-        .innerJoin(artifactVersions, and(
-            eq(artifactVersions.artifactId, artifacts.id),
-            eq(artifactVersions.version, artifacts.currentVersion),
-        ))
-        .where(and(
-            eq(workbenchPins.userId, req.user.id),
-            eq(workbenchPins.workspaceId, workspaceId),
-        ))
-        .orderBy(asc(workbenchPins.position), desc(workbenchPins.pinnedAt))
+        const rows = await workbenchRepo.listPinsWithContent(req.user.id, workspaceId)
 
         res.json({
             items: rows.map(r => ({
@@ -113,10 +89,7 @@ workbenchRouter.post('/pins', async (req, res) => {
     try {
         // Verify the work exists AND belongs to this workspace (prevent
         // cross-workspace pin attacks).
-        const [art] = await db.select({ id: artifacts.id, workspaceId: artifacts.workspaceId })
-            .from(artifacts)
-            .where(eq(artifacts.id, workId))
-            .limit(1)
+        const art = await workbenchRepo.getArtifactWorkspace(workId)
 
         if (!art) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Work not found' } })
@@ -128,25 +101,11 @@ workbenchRouter.post('/pins', async (req, res) => {
         }
 
         // Upsert on unique (user_id, work_id)
-        const [row] = await db.insert(workbenchPins)
-            .values({
-                userId:      req.user.id,
-                workspaceId,
-                workId,
-                position:    0,
-            })
-            .onConflictDoNothing()
-            .returning()
+        const row = await workbenchRepo.insertPinIgnore(req.user.id, workspaceId, workId)
 
         // If conflict-do-nothing returned nothing, fetch the existing pin.
         if (!row) {
-            const [existing] = await db.select()
-                .from(workbenchPins)
-                .where(and(
-                    eq(workbenchPins.userId, req.user.id),
-                    eq(workbenchPins.workId, workId),
-                ))
-                .limit(1)
+            const existing = await workbenchRepo.getPin(req.user.id, workId)
             res.status(200).json(existing ?? null)
             return
         }
@@ -169,12 +128,7 @@ workbenchRouter.delete('/pins/:id', async (req, res) => {
         return
     }
     try {
-        const deleted = await db.delete(workbenchPins)
-            .where(and(
-                eq(workbenchPins.id, id),
-                eq(workbenchPins.userId, req.user.id),
-            ))
-            .returning({ id: workbenchPins.id })
+        const deleted = await workbenchRepo.deletePin(id, req.user.id)
         if (deleted.length === 0) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Pin not found' } })
             return
@@ -204,13 +158,7 @@ workbenchRouter.patch('/pins/:id', async (req, res) => {
         return
     }
     try {
-        const [row] = await db.update(workbenchPins)
-            .set({ position })
-            .where(and(
-                eq(workbenchPins.id, id),
-                eq(workbenchPins.userId, req.user.id),
-            ))
-            .returning()
+        const row = await workbenchRepo.updatePinPosition(id, req.user.id, position)
         if (!row) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Pin not found' } })
             return
