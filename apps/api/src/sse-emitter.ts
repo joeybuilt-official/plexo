@@ -2,11 +2,27 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import type { Response } from 'express'
+import { randomUUID } from 'crypto'
+import pino from 'pino'
 import { getRedis, isRedisAvailable, markRedisDown } from './redis-client.js'
+
+const logger = pino({ name: 'sse-emitter' })
 
 /** Connected SSE clients — keyed by workspace ID, then a unique connection ID */
 const clients = new Map<string, Map<string, Response>>()
 let connId = 0
+
+// ── B3: SSE Redis fan-out for multi-replica ─────────────────────────────
+/** Unique id for THIS process/replica — lets the subscriber skip its own publishes */
+const INSTANCE_ID = randomUUID()
+/** Redis pub/sub channel prefix; one channel per workspace */
+const SSE_CHANNEL_PREFIX = 'plexo:sse:'
+
+interface SseEnvelope {
+    instanceId: string
+    workspaceId: string
+    event: AgentEvent
+}
 
 // ── Connection caps ─────────────────────────────────────────
 const MAX_CONNECTIONS_PER_USER_PER_WORKSPACE = 5
@@ -41,6 +57,9 @@ export function registerClient(workspaceId: string, res: Response, userId?: stri
         }
         userConnCounts.set(userKey, current + 1)
     }
+
+    // B3: lazily bring up the cross-replica subscriber on first register.
+    void initCrossReplicaSubscriber()
 
     const id = String(++connId)
     if (!clients.has(workspaceId)) {
@@ -78,8 +97,14 @@ export interface AgentEvent {
     [key: string]: unknown
 }
 
-/** Emit an event to all connected clients for a workspace */
-export function emitToWorkspace(workspaceId: string, event: AgentEvent): void {
+/**
+ * Deliver an event to all LOCAL connected clients for a workspace.
+ * Single delivery implementation shared by the direct emit path and the
+ * cross-replica Redis subscriber. Returns true if at least one local client
+ * received the frame. Behavior is byte-for-byte identical to the prior
+ * inline loop in emitToWorkspace.
+ */
+function deliverLocal(workspaceId: string, event: AgentEvent): boolean {
     const workspace = clients.get(workspaceId)
     let delivered = false
     if (workspace) {
@@ -94,6 +119,13 @@ export function emitToWorkspace(workspaceId: string, event: AgentEvent): void {
             }
         }
     }
+    return delivered
+}
+
+/** Emit an event to all connected clients for a workspace */
+export function emitToWorkspace(workspaceId: string, event: AgentEvent): void {
+    // Local synchronous delivery — unchanged hot path
+    const delivered = deliverLocal(workspaceId, event)
 
     // Write delivery ack for OWD events when at least one SSE client received it
     if (delivered && event.taskId && (event.type === 'owd_pending' || (event as Record<string, unknown>).operation)) {
@@ -103,6 +135,26 @@ export function emitToWorkspace(workspaceId: string, event: AgentEvent): void {
     // Always notify internal subscribers (Telegram, Slack adapters) regardless
     // of whether any SSE clients are connected.
     notifyInternal(event)
+
+    // B3: additive cross-replica fan-out. Fire-and-forget; never throws into
+    // the caller. The local subscriber will receive this publish and SKIP it
+    // (instanceId match), so there is no double-delivery at one replica.
+    publishCrossReplica(workspaceId, event)
+}
+
+/** B3: publish the emitted event to Redis so other replicas can deliver it to their local clients */
+function publishCrossReplica(workspaceId: string, event: AgentEvent): void {
+    if (!isRedisAvailable()) return // Redis-down → local-only, no publish
+    const envelope: SseEnvelope = { instanceId: INSTANCE_ID, workspaceId, event }
+    void (async () => {
+        try {
+            const redis = await getRedis()
+            await redis.publish(`${SSE_CHANNEL_PREFIX}${workspaceId}`, JSON.stringify(envelope))
+        } catch (err) {
+            markRedisDown()
+            logger.warn({ err, workspaceId }, 'B3: cross-replica SSE publish failed — local delivery unaffected')
+        }
+    })()
 }
 
 /** Write OWD delivery acknowledgment to Redis so the one-way-door service knows SSE delivery succeeded */
@@ -134,9 +186,53 @@ export function emit(event: AgentEvent): void {
 }
 
 export function connectedCount(): number {
+    // B3 follow-up: cross-replica count needs a Redis aggregate
     let total = 0
     for (const workspace of clients.values()) total += workspace.size
     return total
+}
+
+// ── B3: cross-replica subscriber ────────────────────────────────────────
+/** Dedicated Redis subscriber connection (node-redis requires a separate conn for (p)subscribe) */
+let subscriber: Awaited<ReturnType<typeof getRedis>> | null = null
+/** Guard so init runs at most once concurrently / once successfully */
+let subscriberInitializing = false
+
+/**
+ * Lazily create ONE dedicated Redis subscriber and PSUBSCRIBE plexo:sse:*.
+ * Idempotent: skips if already subscribed or currently initializing. If Redis
+ * is unavailable, skips quietly — a later registerClient retries. On any error
+ * it logs and leaves local-only delivery intact (never crashes).
+ */
+async function initCrossReplicaSubscriber(): Promise<void> {
+    if (subscriber || subscriberInitializing) return
+    if (!isRedisAvailable()) return // retry on a later register
+    subscriberInitializing = true
+    try {
+        const sub = (await getRedis()).duplicate()
+        sub.on('error', (err: Error) => {
+            logger.warn({ err }, 'B3: SSE Redis subscriber error — local delivery unaffected')
+        })
+        await sub.connect()
+        await sub.pSubscribe(`${SSE_CHANNEL_PREFIX}*`, (message: string) => {
+            try {
+                const envelope = JSON.parse(message) as SseEnvelope
+                // Skip our own publishes — already delivered locally in emitToWorkspace
+                if (envelope.instanceId === INSTANCE_ID) return
+                if (!envelope.workspaceId) return
+                deliverLocal(envelope.workspaceId, envelope.event)
+            } catch (err) {
+                logger.warn({ err }, 'B3: failed to handle cross-replica SSE message')
+            }
+        })
+        subscriber = sub
+        logger.info({ instanceId: INSTANCE_ID }, 'B3: cross-replica SSE subscriber active')
+    } catch (err) {
+        markRedisDown()
+        logger.warn({ err }, 'B3: cross-replica SSE subscriber init failed — local-only fan-out')
+    } finally {
+        subscriberInitializing = false
+    }
 }
 
 // ── Internal event bus (for non-SSE subscribers like Telegram adapter) ────────
