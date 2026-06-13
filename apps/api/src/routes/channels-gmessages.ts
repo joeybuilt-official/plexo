@@ -14,7 +14,8 @@
  */
 
 import express, { type Request, type Response, type Router } from 'express'
-import { db, channels, conversations, messageDedupe, pairedSessions, installedConnections, eq, inArray, and } from '@plexo/db'
+import * as channelsGmessagesRepo from '../repositories/channels-gmessages.repository.js'
+import * as channelsRepo from '../repositories/channels.repository.js'
 import { ulid } from 'ulid'
 import { requireHmacService } from '../middleware/hmac-service.js'
 import { logger } from '../logger.js'
@@ -38,19 +39,7 @@ channelsGmessagesRouter.use(requireHmacService)
 // sidecar restart instead of requiring a manual psql UPDATE.
 channelsGmessagesRouter.get('/restore-list', async (_req: Request, res: Response) => {
     try {
-        const rows = await db
-            .select({
-                pairedSessionId: pairedSessions.id,
-                workspaceId: pairedSessions.workspaceId,
-                channelId: pairedSessions.channelId,
-                credentials: installedConnections.credentials,
-            })
-            .from(pairedSessions)
-            .innerJoin(installedConnections, eq(installedConnections.id, pairedSessions.installedConnectionId))
-            .where(and(
-                inArray(pairedSessions.state, ['paired', 'active', 'refreshing']),
-                eq(installedConnections.registryId, 'gmessages'),
-            ))
+        const rows = await channelsGmessagesRepo.listRestoreEntries()
 
         const entries = rows.map(r => {
             const creds = r.credentials as { encrypted?: string } | null
@@ -120,14 +109,7 @@ channelsGmessagesRouter.post('/inbound', async (req: Request, res: Response) => 
         }
 
         // Channel must exist + belong to the workspace + be a gmessages channel.
-        const [channel] = await db.select({
-            id: channels.id,
-            workspaceId: channels.workspaceId,
-            type: channels.type,
-        })
-            .from(channels)
-            .where(and(eq(channels.id, channelId), eq(channels.workspaceId, workspaceId)))
-            .limit(1)
+        const channel = await channelsRepo.getEnabledScoped(channelId, workspaceId)
         if (!channel || channel.type !== 'gmessages') {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'channel not found or not gmessages' } })
             return
@@ -135,10 +117,7 @@ channelsGmessagesRouter.post('/inbound', async (req: Request, res: Response) => 
 
         // Dedupe via PK (workspace_id, gmessages_msg_id). RETURNING is empty on
         // conflict — that's the signal the message was already ingested.
-        const dedupeRows = await db.insert(messageDedupe)
-            .values({ workspaceId, gmessagesMsgId, threadId })
-            .onConflictDoNothing({ target: [messageDedupe.workspaceId, messageDedupe.gmessagesMsgId] })
-            .returning({ workspaceId: messageDedupe.workspaceId })
+        const dedupeRows = await channelsGmessagesRepo.insertDedupe(workspaceId, gmessagesMsgId, threadId)
 
         if (dedupeRows.length === 0) {
             logger.info({ workspaceId, channelId, threadId, gmessagesMsgId }, 'gmessages inbound deduped')
@@ -170,7 +149,7 @@ channelsGmessagesRouter.post('/inbound', async (req: Request, res: Response) => 
         }
 
         const conversationId = ulid()
-        await db.insert(conversations).values({
+        await channelsGmessagesRepo.insertConversation({
             id: conversationId,
             workspaceId,
             sessionId: `gmessages:${threadId}`,
@@ -188,9 +167,7 @@ channelsGmessagesRouter.post('/inbound', async (req: Request, res: Response) => 
         // persisted (no senderId column on conversations); Phase 6 ops can
         // join on a future contacts table if needed.
         try {
-            await db.update(channels)
-                .set({ lastMessageAt: sentAtDate })
-                .where(eq(channels.id, channelId))
+            await channelsGmessagesRepo.bumpLastMessageAt(channelId, sentAtDate)
         } catch (err) {
             logger.warn({ err, channelId }, 'gmessages inbound: lastMessageAt update failed')
         }
@@ -217,13 +194,7 @@ channelsGmessagesRouter.post('/state', async (req: Request, res: Response) => {
         return
     }
 
-    await db.update(pairedSessions)
-        .set({
-            state,
-            stateChangedAt: new Date(),
-            errorDetail: errorDetail ?? null,
-        })
-        .where(eq(pairedSessions.id, pairedSessionId))
+    await channelsGmessagesRepo.updateSessionState(pairedSessionId, state, errorDetail ?? null)
 
     res.status(202).json({ accepted: true })
 })
@@ -236,12 +207,11 @@ channelsGmessagesRouter.post('/heartbeat', async (req: Request, res: Response) =
         return
     }
 
-    await db.update(pairedSessions)
-        .set({
-            lastInboundAt: lastInboundAt ? new Date(lastInboundAt) : undefined,
-            decodeErrorCount: typeof decodeErrorCount === 'number' ? decodeErrorCount : undefined,
-        })
-        .where(eq(pairedSessions.id, pairedSessionId))
+    await channelsGmessagesRepo.updateSessionHeartbeat(
+        pairedSessionId,
+        lastInboundAt ? new Date(lastInboundAt) : undefined,
+        typeof decodeErrorCount === 'number' ? decodeErrorCount : undefined,
+    )
 
     res.status(204).end()
 })

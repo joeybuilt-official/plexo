@@ -24,7 +24,7 @@
  */
 
 import express, { type Request, type Response, type Router } from 'express'
-import { db, channels, eq } from '@plexo/db'
+import * as channelsRepo from '../repositories/channels.repository.js'
 import { PEX_VERSION, type ChannelDescriptor, type ChannelScope } from '@joeybuilt/plexo-sdk'
 import { requireHmacService } from '../middleware/hmac-service.js'
 import { logger } from '../logger.js'
@@ -58,16 +58,8 @@ channelsSubscriptionRouter.get('/', async (req: Request, res: Response) => {
     }
 
     const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
-    const where = workspaceId ? eq(channels.workspaceId, workspaceId) : undefined
 
-    const rows = await db.select({
-        id: channels.id,
-        workspaceId: channels.workspaceId,
-        type: channels.type,
-        name: channels.name,
-        enabled: channels.enabled,
-        lastMessageAt: channels.lastMessageAt,
-    }).from(channels).where(where)
+    const rows = await channelsRepo.listDescriptors(workspaceId)
 
     const out: ChannelDescriptor[] = rows.map((r) => ({
         id: r.id,
@@ -100,8 +92,7 @@ channelsSubscriptionRouter.post('/:channelId/subscribe', async (req: Request, re
         return
     }
 
-    const [row] = await db.select({ id: channels.id }).from(channels).where(eq(channels.id, channelId)).limit(1)
-    if (!row) {
+    if (!await channelsRepo.existsById(channelId)) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'channel not found' } })
         return
     }
@@ -131,8 +122,7 @@ channelsSubscriptionRouter.get('/:channelId/threads', async (req: Request, res: 
         return
     }
     const channelId = String(req.params.channelId)
-    const [row] = await db.select({ id: channels.id }).from(channels).where(eq(channels.id, channelId)).limit(1)
-    if (!row) {
+    if (!await channelsRepo.existsById(channelId)) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'channel not found' } })
         return
     }
@@ -149,8 +139,7 @@ channelsSubscriptionRouter.get('/:channelId/threads/:threadId/messages', async (
         return
     }
     const channelId = String(req.params.channelId)
-    const [row] = await db.select({ id: channels.id }).from(channels).where(eq(channels.id, channelId)).limit(1)
-    if (!row) {
+    if (!await channelsRepo.existsById(channelId)) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'channel not found' } })
         return
     }
@@ -175,10 +164,7 @@ channelsSubscriptionRouter.post('/:channelId/threads/:threadId/messages', async 
 
     const channelId = String(req.params.channelId)
     const threadId = String(req.params.threadId)
-    const [row] = await db.select({
-        id: channels.id, workspaceId: channels.workspaceId, type: channels.type,
-    }).from(channels).where(eq(channels.id, channelId)).limit(1)
-    if (!row) {
+    if (!await channelsRepo.existsById(channelId)) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'channel not found' } })
         return
     }
@@ -204,8 +190,7 @@ channelsSubscriptionRouter.get('/:channelId/events', async (req: Request, res: R
         return
     }
     const channelId = String(req.params.channelId)
-    const [row] = await db.select({ id: channels.id }).from(channels).where(eq(channels.id, channelId)).limit(1)
-    if (!row) {
+    if (!await channelsRepo.existsById(channelId)) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'channel not found' } })
         return
     }
