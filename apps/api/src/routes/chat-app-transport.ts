@@ -15,8 +15,7 @@
  */
 
 import { Router, type Router as RouterType } from 'express'
-import { db, eq } from '@plexo/db'
-import { workspaces } from '@plexo/db'
+import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 import { generateText } from 'ai'
@@ -158,13 +157,11 @@ chatAppTransportRouter.post('/app-message', requireServiceKeyOrSession, async (r
     await withSessionLock(lockKey, async () => {
         try {
             // ── Load workspace + AI settings ─────────────────────────────────
-            const [wsResult, aiResult] = await Promise.all([
-                db.select({ id: workspaces.id, name: workspaces.name, settings: workspaces.settings })
-                    .from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1),
+            const [ws, aiResult] = await Promise.all([
+                workspacesRepo.getIdNameSettings(workspaceId),
                 loadWorkspaceAISettings(workspaceId),
             ])
 
-            const [ws] = wsResult
             if (!ws) {
                 res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' } })
                 return

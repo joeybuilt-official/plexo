@@ -120,3 +120,17 @@ export async function getShareScoped(shareId: string, sourceWsId: string): Promi
 export async function deleteShare(shareId: string): Promise<void> {
     await db.delete(workspaceKeyShares).where(eq(workspaceKeyShares.id, shareId))
 }
+
+/** True when a (source → target, providerKey) share still exists. */
+export async function shareExists(sourceWsId: string, targetWsId: string, providerKey: string): Promise<boolean> {
+    const [row] = await db
+        .select({ id: workspaceKeyShares.id })
+        .from(workspaceKeyShares)
+        .where(and(
+            eq(workspaceKeyShares.sourceWsId, sourceWsId),
+            eq(workspaceKeyShares.targetWsId, targetWsId),
+            eq(workspaceKeyShares.providerKey, providerKey),
+        ))
+        .limit(1)
+    return !!row
+}

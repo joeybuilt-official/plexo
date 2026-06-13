@@ -12,7 +12,7 @@
  */
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
-import { db, sql } from '@plexo/db'
+import * as foundryRepo from '../repositories/foundry.repository.js'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 
@@ -21,13 +21,7 @@ export const foundryRouter: RouterType = Router()
 // GET /models
 foundryRouter.get('/models', async (_req: Request, res: Response) => {
     try {
-        const rows = await db.execute(sql`
-            SELECT id, workspace_id, domain_bucket, base_model, training_examples,
-                   trained_at, status, shadow_agreement_rate, shadow_comparisons,
-                   ollama_model_name, provider_model_id, provider, created_at
-            FROM foundry_models
-            ORDER BY created_at DESC
-        `)
+        const rows = await foundryRepo.listModels()
         res.json({ models: rows })
     } catch (err) {
         logger.error({ err }, 'Failed to list foundry models')

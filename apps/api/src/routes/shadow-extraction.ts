@@ -20,7 +20,7 @@
  */
 
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
+import * as shadowExtractionRepo from '../repositories/shadow-extraction.repository.js'
 import { callModel } from '@plexo/agent/providers/call-model'
 import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import type { WorkspaceAISettings } from '@plexo/agent/providers/registry'
@@ -122,19 +122,15 @@ async function runShadow(args: ShadowExtractionArgs, candidate: string): Promise
         const primaryFields = countFields(args.primaryObject)
         const shadowFields = countFields(shadowObject)
 
-        await db.execute(sql`
-            INSERT INTO shadow_extraction_results
-                (workspace_id, app_id, primary_model, shadow_model, agreement_score, primary_field_count, shadow_field_count)
-            VALUES (
-                ${args.workspaceId},
-                ${args.appId ?? null},
-                ${args.primaryModel},
-                ${shadowModelUsed},
-                ${score},
-                ${primaryFields},
-                ${shadowFields}
-            )
-        `)
+        await shadowExtractionRepo.insertShadowResult({
+            workspaceId: args.workspaceId,
+            appId: args.appId ?? null,
+            primaryModel: args.primaryModel,
+            shadowModel: shadowModelUsed,
+            agreementScore: score,
+            primaryFieldCount: primaryFields,
+            shadowFieldCount: shadowFields,
+        })
         logger.debug({ workspaceId: args.workspaceId, candidate, score: score.toFixed(3), primaryFields, shadowFields }, 'shadow extraction logged')
     } catch (err) {
         logger.warn({ err, workspaceId: args.workspaceId, candidate }, 'shadow extraction failed — non-fatal')

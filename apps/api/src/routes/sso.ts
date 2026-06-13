@@ -25,7 +25,7 @@ import { Router, type Router as RouterType } from 'express'
 import { logger } from '../logger.js'
 import { optionalAuth } from '../middleware/auth.js'
 import { getRedis } from '../redis-client.js'
-import { db, sql } from '@plexo/db'
+import * as ssoRepo from '../repositories/sso.repository.js'
 import {
     getSsoSecret,
     isAllowedAppSlug,
@@ -177,9 +177,7 @@ ssoRouter.post('/verify', async (req, res) => {
     // but querying the foreign table directly works the same.
     let email = ''
     try {
-        const rows = await db.execute<{ email: string }>(
-            sql`SELECT email FROM auth.user WHERE id = ${result.payload.userId}::uuid LIMIT 1`,
-        )
+        const rows = await ssoRepo.getUserEmail(result.payload.userId)
         if (rows.length === 0) {
             logger.warn({ userId: result.payload.userId }, 'SSO verify: user not found in auth.user')
             res.status(401).json({ error: { code: 'USER_NOT_FOUND', message: 'User no longer exists' } })

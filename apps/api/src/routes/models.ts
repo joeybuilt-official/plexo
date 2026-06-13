@@ -25,7 +25,7 @@
 
 import { Router } from 'express'
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
+import * as modelsRepo from '../repositories/models.repository.js'
 import { pgRows } from '../lib/pg-rows.js'
 import { computeModelAttributes, type ModelAttributes, type ModelKnowledgeInput } from '../lib/model-attributes.js'
 import {
@@ -100,12 +100,7 @@ router.get('/catalog', async (req: any, res: any) => {
     }
 
     try {
-        const result = await db.execute(sql`
-            SELECT id, provider, model_id, context_window, cost_per_m_in,
-                   cost_per_m_out, strengths, reliability_score, last_synced_at
-            FROM models_knowledge
-            ORDER BY provider, model_id
-        `)
+        const result = await modelsRepo.listCatalogOrdered()
         const rows: CatalogRow[] = pgRows(result)
             ?? (Array.isArray(result) ? (result as any[]) : [])
 
@@ -163,11 +158,7 @@ router.get('/recommended/:taskType', async (req: any, res: any) => {
         return res.status(400).json({ error: `taskType must be one of: ${ROUTING_TASK_TYPES.join(', ')}` })
     }
     try {
-        const result = await db.execute(sql`
-            SELECT id, provider, model_id, context_window, cost_per_m_in,
-                   cost_per_m_out, strengths, reliability_score, last_synced_at
-            FROM models_knowledge
-        `)
+        const result = await modelsRepo.listCatalog()
         const rows: CatalogRow[] = pgRows(result)
             ?? (Array.isArray(result) ? (result as any[]) : [])
 

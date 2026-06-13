@@ -23,6 +23,16 @@ export async function getSettings(workspaceId: string): Promise<Record<string, u
     return ws?.settings as Record<string, unknown> | null | undefined
 }
 
+/** Settings row by id ({settings} or undefined) — preserves workspace-presence distinction. */
+export async function getSettingsRow(workspaceId: string): Promise<{ settings: Record<string, unknown> | null } | undefined> {
+    const [ws] = await db
+        .select({ settings: workspaces.settings })
+        .from(workspaces)
+        .where(eq(workspaces.id, workspaceId))
+        .limit(1)
+    return ws as { settings: Record<string, unknown> | null } | undefined
+}
+
 /** True when a workspace with this id exists. */
 export async function exists(workspaceId: string): Promise<boolean> {
     const [ws] = await db
@@ -65,6 +75,16 @@ export async function listSummaries(ids: string[] | null) {
 export async function getById(id: string) {
     const [ws] = await db
         .select({ id: workspaces.id, name: workspaces.name, ownerId: workspaces.ownerId, settings: workspaces.settings, createdAt: workspaces.createdAt })
+        .from(workspaces)
+        .where(eq(workspaces.id, id))
+        .limit(1)
+    return ws
+}
+
+/** Narrow {id,name,settings} projection for chat transport. */
+export async function getIdNameSettings(id: string) {
+    const [ws] = await db
+        .select({ id: workspaces.id, name: workspaces.name, settings: workspaces.settings })
         .from(workspaces)
         .where(eq(workspaces.id, id))
         .limit(1)

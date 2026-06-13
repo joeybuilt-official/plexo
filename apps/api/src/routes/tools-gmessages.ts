@@ -20,8 +20,7 @@
  */
 
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and, desc, inArray, sql } from '@plexo/db'
-import { channels, conversations, pairedSessions } from '@plexo/db'
+import * as toolsGmessagesRepo from '../repositories/tools-gmessages.repository.js'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
@@ -76,10 +75,7 @@ toolsGmessagesRouter.get('/threads', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const gmChannels = await db
-            .select({ id: channels.id })
-            .from(channels)
-            .where(and(eq(channels.workspaceId, workspaceId), eq(channels.type, 'gmessages')))
+        const gmChannels = await toolsGmessagesRepo.listGmessagesChannelIds(workspaceId)
 
         if (gmChannels.length === 0) {
             res.json({ threads: [] })
@@ -87,24 +83,7 @@ toolsGmessagesRouter.get('/threads', async (req, res) => {
         }
         const channelIds = gmChannels.map(c => c.id)
 
-        const rows = await db
-            .select({
-                sessionId: conversations.sessionId,
-                message: conversations.message,
-                reply: conversations.reply,
-                createdAt: conversations.createdAt,
-                channelRef: conversations.channelRef,
-                attachments: conversations.attachments,
-            })
-            .from(conversations)
-            .where(sql`
-                ${conversations.workspaceId} = ${workspaceId}
-                AND ${conversations.source} = 'gmessages'
-                AND ${conversations.sessionId} IS NOT NULL
-                AND ${conversations.channelRef}->>'channelId' = ANY(${channelIds})
-            `)
-            .orderBy(desc(conversations.createdAt))
-            .limit(2000)
+        const rows = await toolsGmessagesRepo.listGmessagesThreadRows(workspaceId, channelIds)
 
         const seen = new Set<string>()
         const out: ThreadOut[] = []
@@ -170,19 +149,7 @@ toolsGmessagesRouter.post('/send', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [row] = await db.select({
-            sessionId: pairedSessions.id,
-            channelId: pairedSessions.channelId,
-        })
-            .from(pairedSessions)
-            .innerJoin(channels, eq(channels.id, pairedSessions.channelId))
-            .where(and(
-                eq(pairedSessions.workspaceId, workspaceId),
-                eq(channels.type, 'gmessages'),
-                inArray(pairedSessions.state, ['active', 'paired', 'refreshing']),
-            ))
-            .orderBy(desc(pairedSessions.stateChangedAt))
-            .limit(1)
+        const row = await toolsGmessagesRepo.getLiveSession(workspaceId)
 
         if (!row) {
             res.status(409).json({ error: { code: 'SESSION_NOT_LIVE', message: 'No live gmessages session for this workspace' } })
@@ -192,15 +159,7 @@ toolsGmessagesRouter.post('/send', async (req, res) => {
         let resolvedThreadId = threadId
         if (!resolvedThreadId && phoneE164) {
             const norm = phoneE164.replace(/[^\d+]/g, '')
-            const recentRows = await db
-                .select({ channelRef: conversations.channelRef })
-                .from(conversations)
-                .where(and(
-                    eq(conversations.workspaceId, workspaceId),
-                    eq(conversations.source, 'gmessages'),
-                ))
-                .orderBy(desc(conversations.createdAt))
-                .limit(500)
+            const recentRows = await toolsGmessagesRepo.listRecentGmessagesChannelRefs(workspaceId)
             for (const r of recentRows) {
                 const ref = r.channelRef as { chatId?: string } | null
                 const chatId = ref?.chatId
@@ -228,7 +187,7 @@ toolsGmessagesRouter.post('/send', async (req, res) => {
 
         const conversationId = ulid()
         try {
-            await db.insert(conversations).values({
+            await toolsGmessagesRepo.insertConversation({
                 id: conversationId,
                 workspaceId,
                 sessionId: `gmessages:${finalThreadId}`,

@@ -27,7 +27,8 @@
  */
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
-import { db, eq, and, installedConnections, channels, pairedSessions } from '@plexo/db'
+import { eq, and } from '@plexo/db'
+import * as connectionsGmessagesRepo from '../repositories/connections-gmessages.repository.js'
 import { encrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
@@ -136,72 +137,26 @@ async function persistPairedConnection(args: PersistArgs): Promise<PersistResult
     // base64-decode + JSON.unmarshal on restore.
     const encryptedCreds = { encrypted: encrypt(authBlob, workspaceId) }
 
-    return await db.transaction(async (tx) => {
-        // Look up an existing installed_connection for this workspace+gmessages.
-        // The unique index is (workspaceId, registryId, label); we use a
-        // timestamp-suffixed label so multiple paired phones can coexist.
-        const label = `phone-${Date.now().toString(36)}`
-
-        const [installed] = await tx.insert(installedConnections).values({
-            workspaceId,
-            registryId: REGISTRY_ID,
-            name: 'Google Messages',
-            label,
-            credentials: encryptedCreds,
-            status: 'active',
-            lastVerifiedAt: new Date(),
-        }).returning({ id: installedConnections.id })
-
-        if (!installed) throw new Error('failed to insert installed_connection')
-
-        const [channel] = await tx.insert(channels).values({
-            workspaceId,
-            type: 'gmessages',
-            name: 'Google Messages',
-            config: { connectionId: installed.id },
-            enabled: true,
-        }).returning({ id: channels.id })
-
-        if (!channel) throw new Error('failed to insert channel')
-
-        // We insert `state='active'` (not `'paired'`) so the sidecar's
-        // boot-restore picks this row up on its next start and calls
-        // manager.Start with the decrypted AuthBlob — the long-poll
-        // session goes live. Inserting `'paired'` strands the session:
-        // the encrypted credentials sit in installed_connections but the
-        // sidecar never runs manager.Start, leaving `activeSessions=0`
-        // (the Phase 4a/4b gap — Phase 4b was supposed to land a
-        // sidecar `/sessions/start` call here but never did).
-        const [paired] = await tx.insert(pairedSessions).values({
-            workspaceId,
-            installedConnectionId: installed.id,
-            channelId: channel.id,
-            state: 'active',
-            pairStartedAt: new Date(),
-            pairedAt: new Date(),
-        }).returning({ id: pairedSessions.id })
-
-        if (!paired) throw new Error('failed to insert paired_session')
-
-        audit(req, {
-            workspaceId,
-            userId: actorUserId,
-            action: 'gmessages.pair.linked',
-            resource: 'paired_sessions',
-            resourceId: paired.id,
-            metadata: {
-                installedConnectionId: installed.id,
-                channelId: channel.id,
-            },
-        })
-        trackEvent('gmessages.pair.linked', 'info', { workspaceId })
-
-        return {
-            installedConnectionId: installed.id,
-            channelId: channel.id,
-            pairedSessionId: paired.id,
-        }
+    const result = await connectionsGmessagesRepo.insertPairedConnection({
+        workspaceId,
+        registryId: REGISTRY_ID,
+        encryptedCreds,
     })
+
+    audit(req, {
+        workspaceId,
+        userId: actorUserId,
+        action: 'gmessages.pair.linked',
+        resource: 'paired_sessions',
+        resourceId: result.pairedSessionId,
+        metadata: {
+            installedConnectionId: result.installedConnectionId,
+            channelId: result.channelId,
+        },
+    })
+    trackEvent('gmessages.pair.linked', 'info', { workspaceId })
+
+    return result
 }
 
 // Suppress unused-import warning for `and`/`eq` until Phase 4b adds endpoints
