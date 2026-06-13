@@ -10,13 +10,57 @@
  * fire-and-forget runner orchestration, SSE emits, analytics, and the
  * in-process executor abort (cancelActiveTask).
  */
-import { db, eq, and, asc, inArray } from '@plexo/db'
+import { db, eq, and, asc, desc, inArray } from '@plexo/db'
 import { sprints, sprintTasks, sprintLogs, tasks } from '@plexo/db'
 
 /** Full sprint row by id, or undefined. */
 export async function getSprint(sprintId: string) {
     const [sprint] = await db.select().from(sprints).where(eq(sprints.id, sprintId)).limit(1)
     return sprint
+}
+
+/** List sprints matching the given conditions, newest-first, capped. */
+export async function listSprints(conditions: ReturnType<typeof eq>[], limit: number) {
+    return db.select().from(sprints)
+        .where(and(...conditions))
+        .orderBy(desc(sprints.createdAt))
+        .limit(limit)
+}
+
+/** Insert a sprint, returning the full inserted row. (Listing-route variant.) */
+export async function insertSprint(values: typeof sprints.$inferInsert) {
+    const [sprint] = await db.insert(sprints).values(values).returning()
+    return sprint
+}
+
+/** Key task columns linked to a sprint via tasks.project, newest-first (cap 200). */
+export async function listTasksForSprintProject(sprintId: string) {
+    return db.select({
+        id: tasks.id,
+        type: tasks.type,
+        status: tasks.status,
+        source: tasks.source,
+        outcomeSummary: tasks.outcomeSummary,
+        qualityScore: tasks.qualityScore,
+        costUsd: tasks.costUsd,
+        createdAt: tasks.createdAt,
+        completedAt: tasks.completedAt,
+    }).from(tasks)
+        .where(eq(tasks.project, sprintId))
+        .orderBy(desc(tasks.createdAt))
+        .limit(200)
+}
+
+/** Lightweight {workspaceId} snapshot for a sprint, or undefined. */
+export async function getSprintWorkspaceId(sprintId: string) {
+    const [existing] = await db.select({ workspaceId: sprints.workspaceId }).from(sprints).where(eq(sprints.id, sprintId)).limit(1)
+    return existing
+}
+
+/** Apply a partial update to a sprint by id, returning the full updated row. */
+export async function updateSprintReturning(sprintId: string, set: Partial<typeof sprints.$inferInsert>) {
+    const [updated] = await db.update(sprints).set(set).where(eq(sprints.id, sprintId)).returning()
+    return updated
 }
 
 /** Insert a sprint, returning the full inserted row. */

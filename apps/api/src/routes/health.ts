@@ -4,8 +4,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { timingSafeEqual } from 'node:crypto'
 import pkg from '../../package.json' with { type: 'json' }
-import { db, sql, eq, and, isNull } from '@plexo/db'
-import { workspaces, extensionPrompts, extensionContexts, appProfiles } from '@plexo/db'
+import * as healthRepo from '../repositories/health.repository.js'
 import { createClient } from 'redis'
 import { logger } from '../logger.js'
 import { workerStats } from '@plexo/agent/persistent-pool'
@@ -27,7 +26,7 @@ async function getRedis() {
 async function pingPostgres(): Promise<{ ok: boolean; latencyMs: number }> {
     const start = Date.now()
     try {
-        await db.execute(sql`SELECT 1`)
+        await healthRepo.pingDb()
         return { ok: true, latencyMs: Date.now() - start }
     } catch {
         return { ok: false, latencyMs: Date.now() - start }
@@ -107,7 +106,7 @@ async function pingAIProvider(): Promise<{ ok: boolean | null; latencyMs: number
     let workspaceId: string | undefined
 
     try {
-        const rows = await db.select({ id: workspaces.id }).from(workspaces).limit(5)
+        const rows = await healthRepo.listWorkspaceIdsSample(5)
         for (const row of rows) {
             const ap = await loadDecryptedAIProviders(row.id)
             if (!ap) continue
@@ -224,7 +223,7 @@ healthRouter.get('/', async (req, res) => {
     // Count registered app profiles (lightweight, cached per request)
     let registeredProfiles = 0
     try {
-        const [row] = await db.select({ count: sql<number>`count(*)` }).from(appProfiles)
+        const row = await healthRepo.getRegisteredProfileCount()
         registeredProfiles = Number(row?.count ?? 0)
     } catch { /* non-fatal */ }
 
@@ -254,12 +253,7 @@ healthRouter.get('/', async (req, res) => {
         let promptLibrary = { totalPrompts: 0, enabledPrompts: 0 }
         let contextLayer = { totalContexts: 0, enabledContexts: 0 }
         try {
-            const [[pTotal], [pEnabled], [cTotal], [cEnabled]] = await Promise.all([
-                db.select({ count: sql<number>`count(*)` }).from(extensionPrompts).where(isNull(extensionPrompts.deletedAt)),
-                db.select({ count: sql<number>`count(*)` }).from(extensionPrompts).where(and(eq(extensionPrompts.enabled, true), isNull(extensionPrompts.deletedAt))),
-                db.select({ count: sql<number>`count(*)` }).from(extensionContexts).where(isNull(extensionContexts.deletedAt)),
-                db.select({ count: sql<number>`count(*)` }).from(extensionContexts).where(and(eq(extensionContexts.enabled, true), isNull(extensionContexts.deletedAt))),
-            ])
+            const [[pTotal], [pEnabled], [cTotal], [cEnabled]] = await healthRepo.getPexCounts()
             promptLibrary = { totalPrompts: Number(pTotal?.count ?? 0), enabledPrompts: Number(pEnabled?.count ?? 0) }
             contextLayer = { totalContexts: Number(cTotal?.count ?? 0), enabledContexts: Number(cEnabled?.count ?? 0) }
         } catch { /* non-fatal */ }
