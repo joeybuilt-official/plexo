@@ -91,21 +91,6 @@ export function validateReminderContext(ctx: unknown): ReminderValidationError |
 }
 
 /**
- * Verify a channel id exists, is enabled, and belongs to the given workspace.
- * IDOR guard: filter on (id, workspaceId) jointly — never trust the body alone.
- */
-async function channelExistsInWorkspace(channelId: string, workspaceId: string): Promise<boolean> {
-    if (!UUID_RE.test(channelId)) return false
-    try {
-        const row = await channelsRepo.getEnabledScoped(channelId, workspaceId)
-        return !!row && row.enabled === true
-    } catch (err) {
-        logger.warn({ err, channelId, workspaceId }, 'channelExistsInWorkspace lookup failed')
-        return false
-    }
-}
-
-/**
  * Fetch a channel scoped to (id, workspaceId) and require enabled=true.
  * Returns the row's id+type+config or null on miss/disabled/error. Used by
  * reminder validators that need to type-check + extract recipient via the
