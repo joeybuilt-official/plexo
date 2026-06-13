@@ -8,6 +8,7 @@ import { logger } from '../logger.js'
 import { ulid } from 'ulid'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
+import { nameProject } from '../channel-ai.js'
 import { criticalPathToCompletion } from '@plexo/agent/planner/cypher-waves'
 
 export const sprintsRouter: RouterType = Router()
@@ -111,10 +112,14 @@ sprintsRouter.post('/', async (req, res) => {
     try {
         const id = ulid()
         // Merge per-task budget defaults into metadata so the sprint runner can propagate them
-        const enrichedMetadata = {
+        const enrichedMetadata: Record<string, unknown> = {
             ...metadata,
             ...(perTaskCostCeiling != null ? { perTaskCostCeiling } : {}),
             ...(perTaskTokenBudget != null ? { perTaskTokenBudget } : {}),
+        }
+        // Official project name — generated unless the caller supplied one.
+        if (typeof enrichedMetadata.name !== 'string' || enrichedMetadata.name.trim().length === 0) {
+            enrichedMetadata.name = await nameProject(workspaceId, request)
         }
         const [sprint] = await db.insert(sprints).values({
             id,

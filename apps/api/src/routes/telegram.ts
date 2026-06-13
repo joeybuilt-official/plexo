@@ -40,7 +40,7 @@ import * as channelsRepo from '../repositories/channels.repository.js'
 import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { ulid } from 'ulid'
-import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
+import { chatWithAI, nameProject, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import {
     recordConversation,
@@ -1387,15 +1387,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     if (intent === 'PROJECT') {
         try {
             const id = ulid()
-            let projectName = text.slice(0, 80)
-            try {
-                const nameResult = await chatWithAI(workspaceId, [
-                    { role: 'user', content: text },
-                ], 'Create a short, descriptive project name (max 6 words) for this request. Return ONLY the name, no quotes. Example: "Q2 Social Media Campaign"')
-                if (nameResult.text && nameResult.text.length > 2 && nameResult.text.length < 100) {
-                    projectName = nameResult.text.replace(/^["']|["']$/g, '').trim()
-                }
-            } catch { /* fallback */ }
+            const projectName = await nameProject(workspaceId, text)
 
             const sprint = await sprintsRepo.createSprint({
                 id,

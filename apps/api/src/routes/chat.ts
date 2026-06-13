@@ -41,7 +41,7 @@ import {
     getCrossSessionTurns,
 } from '../conversation-log.js'
 import { resolveSessionId as resolveUniversalSession, embedMessage as embedSessionMessage } from '../lib/session-resolver.js'
-import { buildConversationSystemPrompt, translateErrorForUser } from '../channel-ai.js'
+import { buildConversationSystemPrompt, translateErrorForUser, nameProject } from '../channel-ai.js'
 import { WEBCHAT_CLASSIFY_SYSTEM } from '@plexo/agent/prompts/build-system-prompt'
 import { getTelegramToken } from './telegram.js'
 import { preClassifyIntent } from './chat-intent.js'
@@ -1373,6 +1373,7 @@ chatRouter.post('/execute-action', async (req, res) => {
             }
 
             const id = ulid()
+            const projectName = await nameProject(workspaceId, description)
             const [sprint] = await db.insert(sprints).values({
                 id,
                 workspaceId,
@@ -1380,7 +1381,7 @@ chatRouter.post('/execute-action', async (req, res) => {
                 category: resolvedCategory,
                 repo: repo ?? null,
                 status: 'planning',
-                metadata: {},
+                metadata: { name: projectName },
             }).returning()
             if (!sprint) throw new Error('Sprint insert returned no rows')
             logger.info({ workspaceId, sprintId: sprint.id, category: resolvedCategory }, 'Webchat project explicitly confirmed and created')
@@ -1423,7 +1424,7 @@ chatRouter.post('/execute-action', async (req, res) => {
             })
 
             audit(req, { workspaceId, userId: req.user?.id, action: 'sprint.create', resource: 'sprints', resourceId: sprint.id, metadata: { category: resolvedCategory } })
-            res.status(201).json({ sprintId: sprint.id, status: 'created', category: resolvedCategory })
+            res.status(201).json({ sprintId: sprint.id, status: 'created', category: resolvedCategory, name: projectName })
         } else {
             res.status(400).json({ error: { code: 'INVALID_INTENT', message: 'intent must be TASK or PROJECT' } })
         }
