@@ -162,6 +162,7 @@ import { parallelRouter } from './routes/parallel.js'
 import { paxRouter } from './routes/pax.js'
 import { profilesRouter } from './routes/profiles.js'
 import { appGrantsRouter } from './routes/app-grants.js'
+import { appServiceKeysRouter } from './routes/app-service-keys.js'
 import { agentsRunRouter } from './routes/agents-run.js'
 import { agentsRunCustomRouter } from './routes/agents-run-custom.js'
 import { nodesRouter } from './routes/nodes.js'
@@ -394,6 +395,8 @@ v1.use('/billing', billingRouter)
 // matches the more specific prefix first; auth model differs from the
 // super-admin Command Center router below).
 v1.use('/admin/tasks', requireServiceKey, adminTasksRouter)
+// A3 Phase 7 — per-app service keys (replaces shared PLEXO_SERVICE_KEY)
+v1.use('/admin/app-service-keys', requireSuperAdmin, appServiceKeysRouter)
 // Admin routes — super-admin only (Command Center)
 v1.use('/admin', requireSuperAdmin, adminRouter)
 v1.use('/admin/ollama', requireSuperAdmin, ollamaAdminRouter)

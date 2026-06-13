@@ -1179,6 +1179,29 @@ export const mcpTokens = pgTable('mcp_tokens', {
     index('mcp_tokens_hash_idx').on(table.tokenHash),
 ])
 
+// ──────────────────────────────────────────────────────────────────────────────
+// A3 — Per-app service keys (replaces the shared PLEXO_SERVICE_KEY).
+// Hashed per-app keys (SHA-256 + per-token salt), mirrors mcp_tokens.
+// Issued / revoked by admin UI; consumed by service-key-auth middleware in
+// dual-accept phase (Phase 8) so we can retire the shared key in Phase 9.
+// ──────────────────────────────────────────────────────────────────────────────
+export const appServiceKeys = pgTable('app_service_keys', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    appId: text('app_id').notNull(),
+    name: text('name').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    tokenSalt: text('token_salt').notNull(),
+    revoked: boolean('revoked').notNull().default(false),
+    expiresAt: timestamp('expires_at', { mode: 'date' }),
+    lastUsedAt: timestamp('last_used_at', { mode: 'date' }),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+    createdBy: text('created_by'),
+}, (table: any) => [
+    index('app_service_keys_app_id_idx').on(table.appId),
+    index('app_service_keys_hash_idx').on(table.tokenHash),
+    uniqueIndex('app_service_keys_app_id_name_unique').on(table.appId, table.name),
+])
+
 /**
  * behavior_snapshots — version history, one per task/sprint start or manual preview.
  */
