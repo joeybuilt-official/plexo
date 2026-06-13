@@ -844,6 +844,7 @@ connectionsRouter.get('/mcp-config', async (req, res) => {
 //                fetches that exact connection instead of the first match by registryId.
 
 import { requireServiceKey } from '../middleware/service-key-auth.js'
+import { refreshAndPersistCredentials, type GmailCredentials } from '../lib/gmail-client.js'
 
 connectionsRouter.get('/token', requireServiceKey, async (req, res) => {
     const { workspaceId, registryId, connectionId } = req.query as Record<string, string>
@@ -924,7 +925,17 @@ connectionsRouter.get('/tokens', requireServiceKey, async (req, res) => {
             if (!raw.encrypted) continue
             try {
                 const decrypted = decrypt(raw.encrypted as string, workspaceId)
-                const creds = JSON.parse(decrypted) as Record<string, unknown>
+                let creds = JSON.parse(decrypted) as Record<string, unknown>
+                // Lazy refresh-on-read: external apps (Levio/Fylo) get a usable
+                // token even when the stored access token has expired. Google
+                // access tokens last ~1h and nothing else refreshes these for
+                // multi-account consumers, so they'd otherwise receive stale
+                // expired tokens. Refresh + persist when within 60s of expiry.
+                const expMs = creds.expires_at ? Date.parse(creds.expires_at as string) : NaN
+                if (!Number.isNaN(expMs) && expMs - Date.now() < 60_000 && creds.refresh_token) {
+                    const refreshed = await refreshAndPersistCredentials(row.id, workspaceId, creds as unknown as GmailCredentials)
+                    if (refreshed) creds = refreshed as unknown as Record<string, unknown>
+                }
                 tokens.push({
                     connectionId: row.id,
                     access_token: (creds.access_token as string) ?? null,

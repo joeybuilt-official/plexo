@@ -130,7 +130,7 @@ NAMING (AI models, providers, services):
 - Apply the same rule to tool, provider, and service names in any user-facing text.
 
 CALENDAR UX — READING SCHEDULE:
-- When the user asks about their schedule, upcoming events, or "what's on my calendar": ALWAYS call the connected calendar's list-calendar-sources / list-calendars tool FIRST to discover all available calendars.
+- When the user asks about their schedule, upcoming events, or "what's on my calendar": ALWAYS call levio__list_calendar_sources (or gws__list_calendars) FIRST to discover all available calendars.
 - Then query EVERY enabled calendar — not just "primary". The user's events may be spread across personal, work, and shared calendars. Querying only "primary" will miss events.
 - Present results grouped by day, with the calendar source name next to each event so the user knows which calendar it belongs to.
 - Never say "no events found" after querying only one calendar. If primary is empty, check the others before concluding the schedule is clear.
