@@ -16,9 +16,8 @@
  */
 import { timingSafeEqual } from 'node:crypto'
 import { Router, type Router as RouterType } from 'express'
-import { db, eq, and } from '@plexo/db'
 import { isSsrfTarget } from '../utils/ssrf.js'
-import { connectionsRegistry, installedConnections, channels, pairedSessions } from '@plexo/db'
+import * as connectionsRepo from '../repositories/connections.repository.js'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
@@ -117,7 +116,7 @@ export const connectionsRouter: RouterType = Router()
 
 connectionsRouter.get('/registry', async (_req, res) => {
     try {
-        const items = await db.select().from(connectionsRegistry).limit(500)
+        const items = await connectionsRepo.listRegistry()
         // Augment each item with mcpPackage and stub flag from in-memory registry
         const augmented = items.map(item => ({
             ...item,
@@ -143,7 +142,7 @@ connectionsRouter.get('/registry/:id', async (req, res) => {
         return
     }
     try {
-        const [item] = await db.select().from(connectionsRegistry).where(eq(connectionsRegistry.id, id)).limit(1)
+        const item = await connectionsRepo.getRegistryById(id)
         if (!item) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Integration not found in registry' } })
             return
@@ -167,15 +166,7 @@ connectionsRouter.get('/github/repos', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [row] = await db.select({
-            credentials: installedConnections.credentials,
-        }).from(installedConnections)
-            .where(and(
-                eq(installedConnections.workspaceId, workspaceId),
-                eq(installedConnections.registryId, 'github'),
-                eq(installedConnections.status, 'active'),
-            ))
-            .limit(1)
+        const row = await connectionsRepo.getActiveCredentialsByRegistry(workspaceId, 'github')
 
         if (!row) {
             res.status(404).json({ error: { code: 'NOT_CONNECTED', message: 'GitHub not connected for this workspace' } })
@@ -257,15 +248,7 @@ connectionsRouter.get('/github/branches', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [row] = await db.select({
-            credentials: installedConnections.credentials,
-        }).from(installedConnections)
-            .where(and(
-                eq(installedConnections.workspaceId, workspaceId),
-                eq(installedConnections.registryId, 'github'),
-                eq(installedConnections.status, 'active'),
-            ))
-            .limit(1)
+        const row = await connectionsRepo.getActiveCredentialsByRegistry(workspaceId, 'github')
 
         if (!row) {
             res.status(404).json({ error: { code: 'NOT_CONNECTED', message: 'GitHub not connected for this workspace' } })
@@ -375,18 +358,7 @@ connectionsRouter.get('/installed', async (req, res) => {
     if (!isServiceKeyRequest(req) && !await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const items = await db.select({
-            id: installedConnections.id,
-            registryId: installedConnections.registryId,
-            name: installedConnections.name,
-            label: installedConnections.label,
-            status: installedConnections.status,
-            enabledTools: installedConnections.enabledTools,
-            scopesGranted: installedConnections.scopesGranted,
-            lastVerifiedAt: installedConnections.lastVerifiedAt,
-            createdAt: installedConnections.createdAt,
-        }).from(installedConnections)
-            .where(eq(installedConnections.workspaceId, workspaceId))
+        const items = await connectionsRepo.listInstalled(workspaceId)
 
         res.json({ items, total: items.length })
     } catch (err: unknown) {
@@ -425,8 +397,7 @@ connectionsRouter.post('/install', async (req, res) => {
     if (!isServiceKeyRequest(req) && !await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [reg] = await db.select({ id: connectionsRegistry.id, name: connectionsRegistry.name, authType: connectionsRegistry.authType, category: connectionsRegistry.category })
-            .from(connectionsRegistry).where(eq(connectionsRegistry.id, registryId)).limit(1)
+        const reg = await connectionsRepo.getRegistryInstallMeta(registryId)
 
         if (!reg) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Integration not found in registry' } })
@@ -438,14 +409,14 @@ connectionsRouter.post('/install', async (req, res) => {
             ? { encrypted: encrypt(JSON.stringify(credentials), workspaceId) }
             : {}
 
-        const [installed] = await db.insert(installedConnections).values({
+        const installed = await connectionsRepo.insertInstalled({
             workspaceId,
             registryId: reg.id,
             name: name ?? reg.name,
             label: label ?? 'default',
             credentials: encryptedCreds,
             status: 'active',
-        }).returning({ id: installedConnections.id })
+        })
 
         logger.info({ workspaceId, registryId, name: reg.name }, 'Integration installed')
         invalidateWorkspaceToolSets(workspaceId)
@@ -464,13 +435,13 @@ connectionsRouter.post('/install', async (req, res) => {
         if (reg.category === 'communication' && CHANNEL_TYPES.includes(registryId as any)) {
             try {
                 const channelConfig = { ...credentials } // plain-text config for webhook handler
-                const [ch] = await db.insert(channels).values({
+                const ch = await connectionsRepo.insertBridgedChannel({
                     workspaceId,
                     type: registryId as typeof CHANNEL_TYPES[number],
                     name: name ?? reg.name,
                     config: channelConfig,
                     enabled: true,
-                }).onConflictDoNothing().returning({ id: channels.id })
+                })
 
                 if (ch) {
                     logger.info({ workspaceId, channelType: registryId, channelId: ch.id }, 'Auto-created channel from integration')
@@ -508,9 +479,7 @@ connectionsRouter.post('/install', async (req, res) => {
                 mcpTools = tools.map(t => t.name)
                 // Update the installed connection with discovered tools
                 if (mcpTools.length > 0) {
-                    await db.update(installedConnections)
-                        .set({ enabledTools: mcpTools })
-                        .where(eq(installedConnections.id, installed!.id))
+                    await connectionsRepo.setEnabledToolsById(installed!.id, mcpTools)
                 }
                 logger.info({ connectionId: installed!.id, toolCount: mcpTools.length }, 'MCP tools discovered on integration install')
 
@@ -558,9 +527,7 @@ connectionsRouter.patch('/installed/:id', async (req, res) => {
             update.credentials = { encrypted: encrypt(JSON.stringify(credentials), workspaceId) }
         }
 
-        await db.update(installedConnections)
-            .set(update)
-            .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
+        await connectionsRepo.updateInstalledScoped(id, workspaceId, update)
 
         invalidateWorkspaceToolSets(workspaceId)
         if (status) trackEvent('connection.status_updated', 'info', { connectionId: id, workspaceId, status })
@@ -590,14 +557,7 @@ connectionsRouter.get('/installed/:id/tools', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     try {
-        const [row] = await db.select({
-            id: installedConnections.id,
-            registryId: installedConnections.registryId,
-            enabledTools: installedConnections.enabledTools,
-        })
-            .from(installedConnections)
-            .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
-            .limit(1)
+        const row = await connectionsRepo.getInstalledToolsScoped(id, workspaceId)
 
         if (!row) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Installed integration not found' } })
@@ -656,14 +616,7 @@ connectionsRouter.put('/installed/:id/tools', async (req, res) => {
 
     try {
         // Look up the connection so we can validate against the live registry
-        const [row] = await db.select({
-            id: installedConnections.id,
-            registryId: installedConnections.registryId,
-            enabledTools: installedConnections.enabledTools,
-        })
-            .from(installedConnections)
-            .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
-            .limit(1)
+        const row = await connectionsRepo.getInstalledToolsScoped(id, workspaceId)
 
         if (!row) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Installed integration not found' } })
@@ -705,9 +658,7 @@ connectionsRouter.put('/installed/:id/tools', async (req, res) => {
 
         const previous = row.enabledTools as string[] | null
 
-        await db.update(installedConnections)
-            .set({ enabledTools: next })
-            .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
+        await connectionsRepo.setEnabledToolsScoped(id, workspaceId, next)
 
         audit(req, {
             workspaceId,
@@ -758,19 +709,14 @@ connectionsRouter.delete('/installed/:id', async (req, res) => {
 
     try {
         // Read the integration before deleting so we can clean up the channel bridge
-        const [conn] = await db.select({ registryId: installedConnections.registryId })
-            .from(installedConnections)
-            .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
-            .limit(1)
+        const conn = await connectionsRepo.getInstalledRegistryIdScoped(id, workspaceId)
 
-        await db.delete(installedConnections)
-            .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
+        await connectionsRepo.deleteInstalledScoped(id, workspaceId)
 
         // Bridge cleanup: remove the auto-created channel when a communication integration is disconnected
         const CHANNEL_TYPES = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix'] as const
         if (conn && CHANNEL_TYPES.includes(conn.registryId as any)) {
-            await db.delete(channels)
-                .where(and(eq(channels.workspaceId, workspaceId), eq(channels.type, conn.registryId as any)))
+            await connectionsRepo.deleteBridgedChannel(workspaceId, conn.registryId as any)
                 .catch((err: unknown) => logger.warn({ err }, 'Failed to clean up bridged channel — non-fatal'))
         }
 
@@ -801,21 +747,12 @@ connectionsRouter.get('/mcp-config', async (req, res) => {
     const isPreview = preview === '1' || preview === 'true'
 
     try {
-        const rows = await db.select({
-            registryId: installedConnections.registryId,
-            credentials: installedConnections.credentials,
-            status: installedConnections.status,
-        }).from(installedConnections)
-            .where(eq(installedConnections.workspaceId, workspaceId))
+        const rows = await connectionsRepo.listInstalledForMcpConfig(workspaceId)
 
         const mcpServers: Record<string, unknown> = {}
 
         // Look up registry entries for custom MCP integrations
-        const regRows = await db.select({
-            id: connectionsRegistry.id,
-            category: connectionsRegistry.category,
-            isGenerated: connectionsRegistry.isGenerated,
-        }).from(connectionsRegistry)
+        const regRows = await connectionsRepo.listRegistryMcpMeta()
 
         const regMap = new Map(regRows.map(r => [r.id, r]))
 
@@ -922,23 +859,11 @@ connectionsRouter.get('/token', requireServiceKey, async (req, res) => {
 
     try {
         // When connectionId is provided, fetch that exact connection
-        const conditions = [
-            eq(installedConnections.workspaceId, workspaceId),
-            eq(installedConnections.registryId, registryId),
-            eq(installedConnections.status, 'active'),
-        ]
-        if (connectionId && UUID_RE.test(connectionId)) {
-            conditions.push(eq(installedConnections.id, connectionId))
-        }
-
-        const [row] = await db.select({
-            credentials: installedConnections.credentials,
-            status: installedConnections.status,
-            scopesGranted: installedConnections.scopesGranted,
-            lastVerifiedAt: installedConnections.lastVerifiedAt,
-        }).from(installedConnections)
-            .where(and(...conditions))
-            .limit(1)
+        const row = await connectionsRepo.getTokenRow(
+            workspaceId,
+            registryId,
+            connectionId && UUID_RE.test(connectionId) ? connectionId : undefined,
+        )
 
         if (!row) {
             res.status(404).json({ error: { code: 'NOT_CONNECTED', message: `${registryId} not connected for this workspace` } })
@@ -990,15 +915,7 @@ connectionsRouter.get('/tokens', requireServiceKey, async (req, res) => {
     }
 
     try {
-        const rows = await db.select({
-            id: installedConnections.id,
-            credentials: installedConnections.credentials,
-        }).from(installedConnections)
-            .where(and(
-                eq(installedConnections.workspaceId, workspaceId),
-                eq(installedConnections.registryId, registryId),
-                eq(installedConnections.status, 'active'),
-            ))
+        const rows = await connectionsRepo.listActiveCredentials(workspaceId, registryId)
 
         const tokens: Array<{ connectionId: string; access_token: string | null; refresh_token: string | null; expires_at: string | null; email: string | null; scope: string | null }> = []
 
@@ -1091,7 +1008,7 @@ connectionsRouter.post('/custom', async (req, res) => {
             : 'none' as const)
 
         // Create a generated registry entry
-        await db.insert(connectionsRegistry).values({
+        await connectionsRepo.insertCustomRegistry({
             id: registryId,
             name,
             description: description || (type === 'mcp' ? `Custom connector at ${url}` : `Custom API at ${url}`),
@@ -1115,14 +1032,14 @@ connectionsRouter.post('/custom', async (req, res) => {
         const encryptedCreds = { encrypted: encrypt(JSON.stringify(credentials), workspaceId) }
 
         // Install the connection
-        const [installed] = await db.insert(installedConnections).values({
+        const installed = await connectionsRepo.insertInstalled({
             workspaceId,
             registryId,
             name,
             credentials: encryptedCreds,
             status: 'active',
             enabledTools: null,
-        }).returning({ id: installedConnections.id })
+        })
 
         logger.info({ workspaceId, registryId, type, name }, 'Custom integration created')
         trackEvent('connection.custom_created', 'info', { workspaceId, registryId, type, name })
@@ -1157,27 +1074,13 @@ connectionsRouter.post('/test', async (req, res) => {
 
     if (connectionId && workspaceId && UUID_RE.test(connectionId) && UUID_RE.test(workspaceId)) {
         try {
-            const [row] = await db.select({
-                credentials: installedConnections.credentials,
-                registryId: installedConnections.registryId,
-            }).from(installedConnections)
-                .where(and(eq(installedConnections.id, connectionId), eq(installedConnections.workspaceId, workspaceId)))
-                .limit(1)
+            const row = await connectionsRepo.getInstalledForTest(connectionId, workspaceId)
 
             if (row?.registryId === 'gmessages') {
                 // Paired-session connections have no URL — check session state from DB
                 // plus the sidecar's /health to confirm the session is alive in-process,
                 // not just paired-in-DB.
-                const [session] = await db.select({
-                    state: pairedSessions.state,
-                    errorDetail: pairedSessions.errorDetail,
-                    lastInboundAt: pairedSessions.lastInboundAt,
-                }).from(pairedSessions)
-                    .where(and(
-                        eq(pairedSessions.installedConnectionId, connectionId),
-                        eq(pairedSessions.workspaceId, workspaceId),
-                    ))
-                    .limit(1)
+                const session = await connectionsRepo.getPairedSessionForTest(connectionId, workspaceId)
 
                 if (!session) {
                     res.json({ ok: false, status: 0, statusText: 'No paired session found — re-pair your phone', contentType: 'paired_session' })
