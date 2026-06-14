@@ -604,11 +604,20 @@ export class PlexoClient {
      * from Plexo (a signed CDN URL works). Returns null on any failure so
      * callers can mark the asset as `failed` and retry later.
      */
-    async visionOcr(workspaceId: string, imageUrl: string): Promise<OcrResult | null> {
+    async visionOcr(
+        workspaceId: string,
+        image: string | { imageBase64: string; mimeType: string },
+    ): Promise<OcrResult | null> {
         try {
+            // Backward-compatible: a string arg is treated as a fetchable
+            // imageUrl (today's contract). An object arg posts inline base64
+            // bytes for callers with in-memory Buffers and no public URL.
+            const imagePayload = typeof image === 'string'
+                ? { imageUrl: image }
+                : { imageBase64: image.imageBase64, mimeType: image.mimeType }
             const data = await this.#post<Partial<OcrResult>>(
                 '/api/v1/vision/ocr',
-                { workspaceId, imageUrl },
+                { workspaceId, ...imagePayload },
                 {},
                 60_000,
             )

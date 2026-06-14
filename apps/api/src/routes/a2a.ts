@@ -19,6 +19,7 @@ import { logger } from '../logger.js'
 import { timingSafeEqual as cryptoTimingSafeEqual } from 'crypto'
 import crypto from 'crypto'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
+import { resolveServiceAuth } from '../middleware/service-key-auth.js'
 import { isSsrfTarget } from '../utils/ssrf.js'
 
 export const a2aRouter: RouterType = Router()
@@ -140,18 +141,16 @@ async function authenticateA2A(req: import('express').Request, res: import('expr
     }
     const token = authHeader.slice(7)
 
-    // Path 1: PLEXO_SERVICE_KEY — requires workspaceId in body
-    const serviceKey = process.env.PLEXO_SERVICE_KEY
-    if (serviceKey && token.length === serviceKey.length) {
-        try {
-            if (cryptoTimingSafeEqual(Buffer.from(token, 'utf-8'), Buffer.from(serviceKey, 'utf-8'))) {
-                if (!bodyWorkspaceId) {
-                    res.status(400).json({ error: { code: 'MISSING_FIELD', message: 'workspaceId required when using service key auth' } })
-                    return null
-                }
-                return { workspaceId: bodyWorkspaceId }
-            }
-        } catch { /* length mismatch — fall through */ }
+    // Path 1: service auth — dual-accept the legacy shared PLEXO_SERVICE_KEY OR a
+    // per-app key (psk_…). Either way the caller must name the workspace in the body.
+    const headerAppId = req.headers['x-app-id'] as string | undefined
+    const resolved = await resolveServiceAuth(token, headerAppId)
+    if (resolved) {
+        if (!bodyWorkspaceId) {
+            res.status(400).json({ error: { code: 'MISSING_FIELD', message: 'workspaceId required when using service key auth' } })
+            return null
+        }
+        return { workspaceId: bodyWorkspaceId }
     }
 
     // Path 2: Workspace API key (plx_...)

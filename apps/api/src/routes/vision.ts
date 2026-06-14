@@ -87,28 +87,66 @@ const OCR_USER_PROMPT = 'Extract all text from this image. Output only the text 
 
 const MAX_OCR_OUTPUT_TOKENS = 2048
 
+// Decoded-byte ceiling for the inline base64 path. Apps with in-memory image
+// Buffers (no public URL) post the bytes directly; cap to keep a single OCR
+// call's payload + provider upload bounded.
+const MAX_OCR_IMAGE_BYTES = 10 * 1024 * 1024
+
 visionRouter.post('/ocr', requireServiceKey, async (req, res) => {
-    const body = (req.body ?? {}) as { workspaceId?: unknown; imageUrl?: unknown }
+    const body = (req.body ?? {}) as { workspaceId?: unknown; imageUrl?: unknown; imageBase64?: unknown; mimeType?: unknown }
     const workspaceId = typeof body.workspaceId === 'string' ? body.workspaceId : ''
     const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl : ''
+    const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64 : ''
+    const mimeType = typeof body.mimeType === 'string' ? body.mimeType : ''
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
         res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId UUID required' } })
         return
     }
-    if (!imageUrl) {
-        res.status(400).json({ error: { code: 'INVALID_IMAGE_URL', message: 'imageUrl required' } })
+    // Exactly ONE of imageUrl / imageBase64 must be supplied.
+    if ((imageUrl && imageBase64) || (!imageUrl && !imageBase64)) {
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Exactly one of imageUrl or imageBase64 is required' } })
         return
     }
-    let parsedUrl: URL
-    try { parsedUrl = new URL(imageUrl) }
-    catch {
-        res.status(400).json({ error: { code: 'INVALID_IMAGE_URL', message: 'imageUrl must be a valid URL' } })
-        return
-    }
-    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-        res.status(400).json({ error: { code: 'INVALID_IMAGE_URL', message: 'imageUrl protocol must be http or https' } })
-        return
+
+    // The AI-SDK's image message content accepts a URL object (server-side
+    // fetch) or a data: URL (inline bytes). We build whichever the input chose
+    // and hand it to `{ type: 'image', image }` unchanged below.
+    let imageContent: URL | string
+    if (imageUrl) {
+        let parsedUrl: URL
+        try { parsedUrl = new URL(imageUrl) }
+        catch {
+            res.status(400).json({ error: { code: 'INVALID_IMAGE_URL', message: 'imageUrl must be a valid URL' } })
+            return
+        }
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+            res.status(400).json({ error: { code: 'INVALID_IMAGE_URL', message: 'imageUrl protocol must be http or https' } })
+            return
+        }
+        imageContent = parsedUrl
+    } else {
+        // Inline base64 path. mimeType is required to form the data: URL the
+        // provider needs to interpret the bytes.
+        if (!mimeType) {
+            res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'mimeType is required when imageBase64 is provided' } })
+            return
+        }
+        let bytes: Buffer
+        try { bytes = Buffer.from(imageBase64, 'base64') }
+        catch {
+            res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'imageBase64 must be valid base64' } })
+            return
+        }
+        if (bytes.length === 0) {
+            res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'imageBase64 decoded to zero bytes' } })
+            return
+        }
+        if (bytes.length > MAX_OCR_IMAGE_BYTES) {
+            res.status(413).json({ error: { code: 'IMAGE_TOO_LARGE', message: `Image exceeds ${MAX_OCR_IMAGE_BYTES} byte limit` } })
+            return
+        }
+        imageContent = `data:${mimeType};base64,${imageBase64}`
     }
 
     try {
@@ -140,7 +178,7 @@ visionRouter.post('/ocr', requireServiceKey, async (req, res) => {
                 role: 'user' as const,
                 content: [
                     { type: 'text' as const, text: OCR_USER_PROMPT },
-                    { type: 'image' as const, image: parsedUrl },
+                    { type: 'image' as const, image: imageContent },
                 ],
             },
         ]

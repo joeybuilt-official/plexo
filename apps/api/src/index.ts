@@ -37,6 +37,7 @@ import express, { type Express } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import { logger } from './logger.js'
+import { claimLocalInstance, releaseLocalInstance } from './services/instance-descriptor.js'
 import { healthRouter } from './routes/health.js'
 import { metricsRouter } from './routes/metrics.js'
 import { metricsMiddleware, setBuildInfo } from './lib/metrics.js'
@@ -183,6 +184,7 @@ import ollamaAdminRouter from './routes/ollama-admin.js'
 import { providerInstancesRouter } from './routes/provider-instances.js'
 import { providerAlertsRouter } from './routes/provider-alerts.js'
 import { embeddingsRouter } from './routes/embeddings.js'
+import { embeddingsServiceRouter } from './routes/embeddings-service.js'
 import { intelligenceRouter } from './routes/intelligence.js'
 import { intelligenceDashboardRouter } from './routes/intelligence-dashboard.js'
 import { modelsRouter } from './routes/models.js'
@@ -424,6 +426,9 @@ v1.use('/events', serviceLimiter, nodeEventsRouter)
 v1.use('/workspaces/:id/apps', requireWorkspaceMember('id'), workspaceAppsRouter)
 v1.use('/workspaces/:id/providers', requireWorkspaceMember('id'), providerInstancesRouter)
 v1.use('/workspaces/:id/provider-alerts', requireWorkspaceMember('id'), providerAlertsRouter)
+// Service-key /embed (single segment) must mount BEFORE the workspace-scoped
+// settings router (two-segment /:workspaceId/...) so /embed resolves cleanly.
+v1.use('/embeddings', embeddingsServiceRouter)
 v1.use('/embeddings', embeddingsRouter)
 v1.use('/intelligence', intelligenceRouter)
 v1.use('/intel-dashboard', intelligenceDashboardRouter)
@@ -573,6 +578,14 @@ const server = app.listen(port, '0.0.0.0', async () => {
     )
     // Start health monitor (if enabled)
     void import('./health-monitor.js').then(m => m.startHealthMonitor()).catch(err => logger.error({ err }, 'Health monitor failed to start'))
+    // Single-writer local-instance descriptor claim (ADR 0001 §1, default-OFF
+    // behind PLEXO_CLAIM_LOCAL_INSTANCE=1). Guarded so a claim failure never
+    // crashes boot.
+    try {
+        await claimLocalInstance({ url: `http://127.0.0.1:${port}` })
+    } catch (err) {
+        logger.warn({ err }, 'claimLocalInstance threw during boot (ignored)')
+    }
     // Init analytics — defaults off, then sync actual consent from DB
     configureAnalytics({
         instanceId: process.env.PLEXO_INSTANCE_ID ?? crypto.randomUUID(),
@@ -837,6 +850,11 @@ const server = app.listen(port, '0.0.0.0', async () => {
 
 process.on('SIGTERM', async () => {
     logger.info('SIGTERM received — starting graceful shutdown')
+    // Release the local-instance descriptor claim first so a restarting peer can
+    // re-claim promptly. Best-effort, never throws.
+    try {
+        await releaseLocalInstance()
+    } catch { /* release is best-effort */ }
     stopAgentLoop()
     stopEventProcessor()
 

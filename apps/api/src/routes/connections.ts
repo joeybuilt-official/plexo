@@ -23,16 +23,9 @@ import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
 import { audit } from '../audit.js'
-import { CONNECTION_REGISTRY } from '@plexo/agent/connections/registry'
+import { getRegistryStub, liveConnectionTools } from '../services/connections.service.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { invalidateWorkspaceToolSets } from '@plexo/agent/tool-set-cache'
-
-/**
- * Patterns that classify a connection tool as a "write" tool. Used by the
- * PUT /tools ?mode=read-only quick action and by the UI read-only button.
- * Matches the SHORT name (after `{prefix}__`).
- */
-const WRITE_TOOL_PATTERNS = /(create|update|delete|send|write|push|merge|upload|resolve|toggle|trigger|redeploy|run|purge)/i
 
 /** Allow Joeybuilt service apps (Levio, Fylo, etc.) to call workspace-scoped endpoints. */
 function isServiceKeyRequest(req: { headers: Record<string, string | string[] | undefined> }): boolean {
@@ -45,33 +38,6 @@ function isServiceKeyRequest(req: { headers: Record<string, string | string[] | 
     return a.length === b.length && timingSafeEqual(a, b)
 }
 
-
-/**
- * Return the live tool metadata for a connection's registry entry. Reads
- * the in-memory CONNECTION_REGISTRY (single source of truth per Phase 2)
- * rather than the possibly-stale connections_registry table. Includes
- * descriptions used by the Tool Toggle UI and the agent introspection path.
- */
-function liveConnectionTools(registryId: string): Array<{
-    name: string            // fully-qualified, e.g. 'notion__create_page'
-    shortName: string       // suffix after `{prefix}__`, e.g. 'create_page'
-    description: string
-    isWrite: boolean
-    stub: boolean
-}> {
-    const desc = CONNECTION_REGISTRY[registryId]
-    if (!desc) return []
-    return desc.capabilities.map((cap) => {
-        const shortName = cap.name
-        return {
-            name: `${desc.toolPrefix}__${shortName}`,
-            shortName,
-            description: cap.description ?? shortName,
-            isWrite: WRITE_TOOL_PATTERNS.test(shortName),
-            stub: desc.stub === true,
-        }
-    })
-}
 
 /**
  * Maps integration registry IDs → MCP server binding metadata.
@@ -121,7 +87,7 @@ connectionsRouter.get('/registry', async (_req, res) => {
         const augmented = items.map(item => ({
             ...item,
             mcpPackage: MCP_BINDINGS[item.id]?.mcpPackage ?? null,
-            stub: CONNECTION_REGISTRY[item.id]?.stub === true,
+            stub: getRegistryStub(item.id),
         }))
         res.json({ items: augmented, total: augmented.length })
     } catch (err: unknown) {
