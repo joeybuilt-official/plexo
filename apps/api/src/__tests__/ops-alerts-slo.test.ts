@@ -8,6 +8,7 @@ import {
     sloThresholdsFromEnv,
     recordSloBreachForAlert,
     _opsAlertBufferSizes,
+    _resetSloEvaluatorStateForTest,
     flushOpsAlerts,
     type RouterBucketStat,
 } from '../ops-alerts.js'
@@ -20,6 +21,8 @@ const bucket = (over: Partial<RouterBucketStat>): RouterBucketStat => ({
 })
 
 describe('evaluateSloBreaches (Round-5 Phase 9)', () => {
+    beforeEach(() => { _resetSloEvaluatorStateForTest() })
+
     it('flags a low success rate above the sample floor', () => {
         const out = evaluateSloBreaches([bucket({ successRate: 0.7, sampleCount: 50 })], T)
         expect(out).toHaveLength(1)
@@ -43,6 +46,40 @@ describe('evaluateSloBreaches (Round-5 Phase 9)', () => {
 
     it('does not check latency when maxP95Ms is 0', () => {
         expect(evaluateSloBreaches([bucket({ latencyP95Ms: 99999 })], T)).toHaveLength(0)
+    })
+
+    // Regression: an in-memory router-v2 bucket whose model was quietly retired
+    // (e.g. ollama/qwen2.5vl:3b extraction frozen at n=29, success=0, p95=6039)
+    // used to re-fire the SAME breach every snapshot tick because the buffer
+    // never received new samples but the evaluator had no memory of having
+    // already emitted it. The stale-bucket guard suppresses repeats.
+    it('emits a frozen-bucket breach exactly once across repeated cycles', () => {
+        const frozen = bucket({
+            provider: 'ollama', model: 'qwen2.5vl:3b', taskType: 'extraction',
+            successRate: 0, sampleCount: 29, latencyP95Ms: 6039,
+        })
+        // First tick: initial observation, breach fires.
+        expect(evaluateSloBreaches([frozen], T)).toHaveLength(1)
+        // Subsequent ticks: same sampleCount, no new traffic → must not re-emit.
+        expect(evaluateSloBreaches([frozen], T)).toHaveLength(0)
+        expect(evaluateSloBreaches([frozen], T)).toHaveLength(0)
+        expect(evaluateSloBreaches([frozen], T)).toHaveLength(0)
+    })
+
+    it('re-emits when the bucket receives new samples that keep it in breach', () => {
+        const b1 = bucket({ successRate: 0.5, sampleCount: 30 })
+        const b2 = bucket({ successRate: 0.5, sampleCount: 45 })  // new traffic, still breaching
+        expect(evaluateSloBreaches([b1], T)).toHaveLength(1)
+        expect(evaluateSloBreaches([b1], T)).toHaveLength(0)  // frozen
+        expect(evaluateSloBreaches([b2], T)).toHaveLength(1)  // moved → re-emit
+        expect(evaluateSloBreaches([b2], T)).toHaveLength(0)  // frozen again
+    })
+
+    it('flags a previously-healthy bucket that turns into a breach', () => {
+        const healthy = bucket({ successRate: 0.99, sampleCount: 100 })
+        const breaching = bucket({ successRate: 0.5, sampleCount: 150 })
+        expect(evaluateSloBreaches([healthy], T)).toHaveLength(0)
+        expect(evaluateSloBreaches([breaching], T)).toHaveLength(1)
     })
 })
 

@@ -105,27 +105,63 @@ export interface RouterBucketStat {
 }
 
 /**
- * Pure SLO evaluation — returns the breaching buckets (no side effects, no
- * timestamp). The cron maps these into recordSloBreachForAlert. Read thresholds
- * from env via {@link sloThresholdsFromEnv}.
+ * Per-scope record of the last sampleCount observed by the SLO evaluator. Used
+ * to suppress re-firing a breach for a "frozen" bucket — i.e. one whose stats
+ * are stuck at the same sampleCount because no new traffic has hit it since
+ * the previous evaluation tick. Without this, an in-memory bucket whose last
+ * sample failed (e.g. a model that's been quietly retired) would re-emit a
+ * fresh alert on every snapshot tick until the 7-day rolling window finally
+ * ages all samples out.
+ */
+const lastSeenSampleCount = new Map<string, number>()
+
+/** Test-only — wipe stale-bucket suppression state between cases. */
+export function _resetSloEvaluatorStateForTest(): void {
+    lastSeenSampleCount.clear()
+}
+
+/**
+ * SLO evaluation — returns the breaching buckets. Stateful: tracks the
+ * previously observed sampleCount per scope so a bucket whose count hasn't
+ * changed (no new traffic) doesn't re-emit on every cron tick. The cron maps
+ * results into recordSloBreachForAlert. Read thresholds from env via
+ * {@link sloThresholdsFromEnv}.
  */
 export function evaluateSloBreaches(
     buckets: RouterBucketStat[],
     t: SloThresholds,
 ): Omit<SloBreachRecord, 'at'>[] {
     const out: Omit<SloBreachRecord, 'at'>[] = []
+    const seenScopes = new Set<string>()
     for (const b of buckets) {
+        const scope = `${b.provider}/${b.model} (${b.taskType})`
+        seenScopes.add(scope)
+        const prev = lastSeenSampleCount.get(scope)
+        // Update the watermark unconditionally so a healthy bucket that later
+        // turns into a breach (with new traffic) still fires.
+        lastSeenSampleCount.set(scope, b.sampleCount)
+
         if (b.sampleCount < t.minSamples) continue
         const successBreach = b.successRate < t.minSuccess
         const latencyBreach = t.maxP95Ms > 0 && b.latencyP95Ms > t.maxP95Ms
-        if (successBreach || latencyBreach) {
-            out.push({
-                scope: `${b.provider}/${b.model} (${b.taskType})`,
-                successRate: b.successRate,
-                sampleCount: b.sampleCount,
-                p95Ms: b.latencyP95Ms,
-            })
-        }
+        if (!successBreach && !latencyBreach) continue
+
+        // Stale-bucket guard: skip if no new samples since the last evaluation.
+        // A first observation (prev === undefined) is allowed through so the
+        // initial breach still fires.
+        if (prev !== undefined && prev === b.sampleCount) continue
+
+        out.push({
+            scope,
+            successRate: b.successRate,
+            sampleCount: b.sampleCount,
+            p95Ms: b.latencyP95Ms,
+        })
+    }
+    // Garbage-collect watermarks for scopes that no longer appear in the input
+    // (bucket was aged out of router-v2 stats). Prevents unbounded growth.
+    for (const k of lastSeenSampleCount.keys()) {
+        if (!seenScopes.has(k)) lastSeenSampleCount.delete(k)
     }
     return out
 }
