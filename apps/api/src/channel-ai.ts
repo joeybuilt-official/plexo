@@ -607,13 +607,21 @@ export async function chatWithAI(
         const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')?.content ?? ''
         const msgText = typeof lastUserMsg === 'string' ? lastUserMsg : ''
         if (msgText.length >= 10) {
+            // Hard budget — same head-of-line block as the webchat path. Graphiti
+            // is best-effort context; never stall the channel reply on it.
+            const MEMORY_RECALL_BUDGET_MS = Number(process.env.PLEXO_MEMORY_RECALL_BUDGET_MS) || 1500
             try {
                 const { readFromGraphiti } = await import('@plexo/agent/memory/read-backend')
-                const hits = await readFromGraphiti({ workspaceId, queryText: msgText, limit: 5 })
+                const hits = await Promise.race([
+                    readFromGraphiti({ workspaceId, queryText: msgText, limit: 5 }),
+                    new Promise<null>(resolve => setTimeout(() => resolve(null), MEMORY_RECALL_BUDGET_MS)),
+                ])
                 if (hits && hits.length > 0) {
                     const memBlock = hits.map(h => `- ${h.shorthand || h.content.slice(0, 200)}`).join('\n')
                     finalSystem += `\n\n=== RELEVANT MEMORY ===\n${memBlock}\n=== END MEMORY ===`
                     logger.info({ workspaceId, hits: hits.length, query: msgText.slice(0, 60) }, 'channel-ai: injected proactive memory context')
+                } else if (hits === null) {
+                    logger.debug({ workspaceId, budgetMs: MEMORY_RECALL_BUDGET_MS }, 'channel-ai: memory recall over budget — proceeding without')
                 }
             } catch (err) {
                 logger.debug({ err, workspaceId }, 'channel-ai: proactive memory search failed')

@@ -635,17 +635,26 @@ chatRouter.post('/message', async (req, res) => {
         // Non-blocking, non-fatal.
         let memoryContext: string | null = null
         if (!skipRecallForTrivial && trimmedMsg.length >= 10) {
+            // Hard budget: memory recall is best-effort context. If graphiti is
+            // jammed (per-workspace asyncio.Lock held by a heavy add_episode),
+            // do not stall the user's reply waiting for it.
+            const MEMORY_RECALL_BUDGET_MS = Number(process.env.PLEXO_MEMORY_RECALL_BUDGET_MS) || 1500
             try {
-                const hits = await readFromGraphiti({
-                    workspaceId,
-                    queryText: trimmedMsg,
-                    limit: 5,
-                })
+                const hits = await Promise.race([
+                    readFromGraphiti({
+                        workspaceId,
+                        queryText: trimmedMsg,
+                        limit: 5,
+                    }),
+                    new Promise<null>(resolve => setTimeout(() => resolve(null), MEMORY_RECALL_BUDGET_MS)),
+                ])
                 if (hits && hits.length > 0) {
                     memoryContext = '=== RELEVANT MEMORY ===\n' + hits.map(h =>
                         `- ${h.shorthand || h.content.slice(0, 200)}`
                     ).join('\n') + '\n=== END MEMORY ==='
                     logger.info({ workspaceId, hits: hits.length }, 'Webchat: injected memory context')
+                } else if (hits === null) {
+                    logger.debug({ workspaceId, budgetMs: MEMORY_RECALL_BUDGET_MS }, 'Webchat: memory recall over budget — proceeding without')
                 }
             } catch (err) {
                 logger.debug({ err }, 'Webchat: memory search failed — proceeding without')
