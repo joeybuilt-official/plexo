@@ -241,11 +241,53 @@ const TAXONOMY_TOP_KEYS = [
     'clipart', 'meme', 'art', 'cover-art', 'wallpaper', 'diagram', 'whiteboard',
 ] as const
 
+// Common model-output synonyms for the top key. Observed across gemma3 /
+// qwen2.5vl / gpt-oss outputs — the system prompt uses words like "graphics"
+// in description text, so models occasionally generalise to "graphic"
+// (singular) or pluralise valid keys. Without this normaliser those drift
+// into MODEL_PARSE_ERROR and the worker retries to dead-letter, blocking
+// large segments of the Fonto backfill (14k+ assets in production as of
+// 2026-06-22). Maps to the nearest valid bucket; rule 9 of fonto's
+// deriveKind then routes the four "graphics-like" classifications into the
+// Graphics lens as expected.
+const TOP_KEY_SYNONYMS: Record<string, (typeof TAXONOMY_TOP_KEYS)[number]> = {
+    graphic: 'logo',
+    graphics: 'logo',
+    illustration: 'art',
+    illustrations: 'art',
+    painting: 'art',
+    paintings: 'art',
+    poster: 'cover-art',
+    posters: 'cover-art',
+    photograph: 'photo',
+    photographs: 'photo',
+    photos: 'photo',
+    picture: 'photo',
+    pictures: 'photo',
+    image: 'photo',
+    images: 'photo',
+    documents: 'document',
+    screenshots: 'screenshot',
+    logos: 'logo',
+    icons: 'icon',
+    stickers: 'sticker',
+    mockups: 'mockup',
+    memes: 'meme',
+    wallpapers: 'wallpaper',
+    diagrams: 'diagram',
+    whiteboards: 'whiteboard',
+}
+
 // Zod schema is the source of truth. callModel routes structured-output
 // through generateObject and the AI-SDK runs its parse + retry-on-malformed-
 // output loop (already battle-hardened by quality-judge + planner).
 const AnalyzeImageSchema = z.object({
-    classification: z.enum(TAXONOMY_TOP_KEYS),
+    classification: z.preprocess(
+        (v) => (typeof v === 'string'
+            ? TOP_KEY_SYNONYMS[v.toLowerCase().trim()] ?? v
+            : v),
+        z.enum(TAXONOMY_TOP_KEYS),
+    ),
     // Slug-cased child label, persisted into assets.sub_classification. The
     // model MUST emit this field (even as empty string) — `.optional()` would
     // generate JSON Schema that drops the field from `required`, which Groq's
