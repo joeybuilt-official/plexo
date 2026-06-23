@@ -12,11 +12,24 @@ export function CookieConsent() {
     const [visible, setVisible] = useState(false)
 
     useEffect(() => {
-        try {
-            const consent = localStorage.getItem(CONSENT_KEY)
-            if (!consent) setVisible(true)
-        } catch {
-            // localStorage not available — don't show
+        let consent: string | null = null
+        try { consent = localStorage.getItem(CONSENT_KEY) } catch { /* unavailable */ }
+        if (consent) return
+        setVisible(true)
+
+        // UX13: this notice is informational (essential cookies, no opt-out), but
+        // anchored at the bottom it overlays bottom-fixed UI — most visibly the
+        // chat composer at 390px. Dismiss on the user's first interaction so it
+        // never blocks input; they've seen it, and there's nothing to consent to.
+        const dismiss = () => accept()
+        const opts = { once: true, capture: true } as const
+        window.addEventListener('pointerdown', dismiss, opts)
+        window.addEventListener('keydown', dismiss, opts)
+        window.addEventListener('scroll', dismiss, opts)
+        return () => {
+            window.removeEventListener('pointerdown', dismiss, opts)
+            window.removeEventListener('keydown', dismiss, opts)
+            window.removeEventListener('scroll', dismiss, opts)
         }
     }, [])
 
@@ -28,7 +41,9 @@ export function CookieConsent() {
     if (!visible) return null
 
     return (
-        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg rounded border border-border bg-surface-1 px-4 py-3 animate-in slide-in-from-bottom-4 duration-300">
+        // Corner toast on ≥sm so it never covers a centered composer / controls;
+        // full-width pill on mobile but auto-dismissed on first interaction.
+        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg sm:left-auto sm:right-4 sm:mx-0 sm:max-w-sm rounded border border-border bg-surface-1 px-4 py-3 animate-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                     <p className="text-xs text-text-secondary leading-relaxed">
