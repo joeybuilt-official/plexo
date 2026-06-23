@@ -218,6 +218,12 @@ counter('plexo_credential_access_total', 'Credential decrypt operations by works
 counter('plexo_scl_mutation_total', 'SCL mutation operations by result type')
 counter('plexo_embedding_dimension_mismatch_total', 'Embedding dimension mismatch rejections')
 
+// QA-opt ADR 0042: memory recall is best-effort context behind a hard latency
+// budget. A budget_exceeded (graphiti jammed) or error increment means a reply
+// was generated with NO memory context — previously only a debug log, so the
+// degradation was invisible. result ∈ {hit|miss|budget_exceeded|error}.
+counter('plexo_memory_recall_total', 'Memory recall outcomes by result (hit|miss|budget_exceeded|error)')
+
 // Phase K (Item 15b): instruments the policy-only-gate footgun where a
 // workspace standing approval on `general_task` silently bypasses the
 // requireApprovalForGeneralTasks policy gate. Non-zero in production = signal
@@ -336,4 +342,9 @@ export function recordIntrospectionTiming(subsystem: string, durationSec: number
 
 export function recordCredentialAccess(workspaceId: string): void {
     incrementCounter('plexo_credential_access_total', { workspace_id: workspaceId })
+}
+
+export type MemoryRecallResult = 'hit' | 'miss' | 'budget_exceeded' | 'error'
+export function recordMemoryRecall(result: MemoryRecallResult): void {
+    incrementCounter('plexo_memory_recall_total', { result })
 }

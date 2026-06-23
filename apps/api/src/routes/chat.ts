@@ -21,6 +21,7 @@ import * as chatRepo from '../repositories/chat.repository.js'
 import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import * as sprintsRepo from '../repositories/sprints.repository.js'
 import { logger } from '../logger.js'
+import { recordMemoryRecall } from '../lib/metrics.js'
 import { trackDelivery } from '../delivery-tracker.js'
 import { pushTask } from '@plexo/queue'
 import { emitToWorkspace } from '../sse-emitter.js'
@@ -653,11 +654,16 @@ chatRouter.post('/message', async (req, res) => {
                         `- ${h.shorthand || h.content.slice(0, 200)}`
                     ).join('\n') + '\n=== END MEMORY ==='
                     logger.info({ workspaceId, hits: hits.length }, 'Webchat: injected memory context')
+                    recordMemoryRecall('hit')
                 } else if (hits === null) {
                     logger.debug({ workspaceId, budgetMs: MEMORY_RECALL_BUDGET_MS }, 'Webchat: memory recall over budget — proceeding without')
+                    recordMemoryRecall('budget_exceeded')
+                } else {
+                    recordMemoryRecall('miss')
                 }
             } catch (err) {
                 logger.debug({ err }, 'Webchat: memory search failed — proceeding without')
+                recordMemoryRecall('error')
             }
         }
 

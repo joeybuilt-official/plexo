@@ -197,7 +197,19 @@ export async function embedMessage(workspaceId: string, text: string): Promise<n
         if (!result.adapter) return null
         // Cap input to something sensible so we don't blow the gateway on huge messages
         const capped = trimmed.slice(0, 4000)
-        const vec = await result.adapter.embed(capped)
+        // Hard budget: embedding is best-effort (searchability for future recall).
+        // A stalled ollama/gateway must not hang the chat request path — the
+        // sibling memory-recall call is bounded the same way (chat.ts). On
+        // timeout we degrade to time-gap-only, identical to the catch below.
+        const EMBED_BUDGET_MS = Number(process.env.PLEXO_EMBED_BUDGET_MS) || 2000
+        const vec = await Promise.race([
+            result.adapter.embed(capped),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), EMBED_BUDGET_MS)),
+        ])
+        if (vec === null) {
+            logger.debug({ workspaceId, budgetMs: EMBED_BUDGET_MS }, 'session-resolver: embedding over budget — falling back to time-gap only')
+            return null
+        }
         return Array.isArray(vec) && vec.length > 0 ? vec : null
     } catch (err) {
         logger.debug({ err, workspaceId }, 'session-resolver: embedding fetch failed, falling back to time-gap only')

@@ -19,6 +19,7 @@ import { emitClassifierDecision } from './analytics/events.js'
 import { loadWorkspaceAISettings } from './agent-loop.js'
 import { emitToWorkspace } from './sse-emitter.js'
 import { logger } from './logger.js'
+import { recordMemoryRecall } from './lib/metrics.js'
 import { getDecryptedBraveKey } from './routes/search.js'
 import { isSsrfTarget } from './utils/ssrf.js'
 import { buildConversationPrompt, buildClassifierPrompt } from '@plexo/agent/prompts/build-system-prompt'
@@ -620,11 +621,16 @@ export async function chatWithAI(
                     const memBlock = hits.map(h => `- ${h.shorthand || h.content.slice(0, 200)}`).join('\n')
                     finalSystem += `\n\n=== RELEVANT MEMORY ===\n${memBlock}\n=== END MEMORY ===`
                     logger.info({ workspaceId, hits: hits.length, query: msgText.slice(0, 60) }, 'channel-ai: injected proactive memory context')
+                    recordMemoryRecall('hit')
                 } else if (hits === null) {
                     logger.debug({ workspaceId, budgetMs: MEMORY_RECALL_BUDGET_MS }, 'channel-ai: memory recall over budget — proceeding without')
+                    recordMemoryRecall('budget_exceeded')
+                } else {
+                    recordMemoryRecall('miss')
                 }
             } catch (err) {
                 logger.debug({ err, workspaceId }, 'channel-ai: proactive memory search failed')
+                recordMemoryRecall('error')
             }
         }
 
