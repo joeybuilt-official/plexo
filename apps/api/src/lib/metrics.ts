@@ -224,6 +224,14 @@ counter('plexo_embedding_dimension_mismatch_total', 'Embedding dimension mismatc
 // degradation was invisible. result ∈ {hit|miss|budget_exceeded|error}.
 counter('plexo_memory_recall_total', 'Memory recall outcomes by result (hit|miss|budget_exceeded|error)')
 
+// QA-opt ADR 0037: router-v2 decision outcomes. fallback=1 means the selector
+// fell back off its first-choice provider; degraded=1 means it routed to a
+// sub-recommended provider; operator_action=1 means the decision needs operator
+// attention (e.g. all good providers exhausted). Sourced from emitRoutedEvent.
+// NOTE: native-vs-repair rate is NOT here — the selector does not read
+// model_compat_status, so repair is invisible to routing (tracked separately).
+counter('plexo_model_routed_total', 'Router-v2 decisions by task_type, fallback, degraded, operator_action')
+
 // Phase K (Item 15b): instruments the policy-only-gate footgun where a
 // workspace standing approval on `general_task` silently bypasses the
 // requireApprovalForGeneralTasks policy gate. Non-zero in production = signal
@@ -347,4 +355,13 @@ export function recordCredentialAccess(workspaceId: string): void {
 export type MemoryRecallResult = 'hit' | 'miss' | 'budget_exceeded' | 'error'
 export function recordMemoryRecall(result: MemoryRecallResult): void {
     incrementCounter('plexo_memory_recall_total', { result })
+}
+
+export function recordModelRouted(m: { taskType: string; fallback: boolean; degraded: boolean; operatorAction: boolean }): void {
+    incrementCounter('plexo_model_routed_total', {
+        task_type: m.taskType,
+        fallback: m.fallback ? '1' : '0',
+        degraded: m.degraded ? '1' : '0',
+        operator_action: m.operatorAction ? '1' : '0',
+    })
 }

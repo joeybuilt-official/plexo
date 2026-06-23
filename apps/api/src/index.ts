@@ -677,6 +677,25 @@ const server = app.listen(port, '0.0.0.0', async () => {
         }
     })()
 
+    // QA-opt ADR 0037: wire router-v2 decision outcomes into Prometheus counters.
+    void (async () => {
+        try {
+            const { setRoutedEventMetricsHook } = await import('@plexo/agent/providers/router-v2')
+            const { recordModelRouted } = await import('./lib/metrics.js')
+            setRoutedEventMetricsHook((evt) => {
+                recordModelRouted({
+                    taskType: evt.taskType,
+                    fallback: evt.fallbackEngaged,
+                    degraded: evt.degradation_reason !== undefined,
+                    operatorAction: evt.requireOperatorAction,
+                })
+            })
+            logger.info('Router metrics hook wired')
+        } catch (err) {
+            logger.warn({ err }, 'Failed to wire router metrics hook — non-fatal')
+        }
+    })()
+
     // Subscribe TASK_FAILED listeners BEFORE startAgentLoop so that any task
     // failing in the first ms after agent-loop boot still gets channel delivery.
     // In-process EventEmitter has zero buffer — a publish with no subscribers

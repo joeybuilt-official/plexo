@@ -74,7 +74,16 @@ export function buildRoutedEvent(args: {
  */
 export function emitRoutedEvent(evt: RoutedEvent, shadowInput?: ShadowInput): void {
     console.info(JSON.stringify(evt))
+    try { _onRouted?.(evt) } catch { /* metrics must never break routing */ }
     void persistRoutedEvent(evt, shadowInput)
+}
+
+// QA-opt ADR 0037: lets apps/api aggregate routing decisions into Prometheus
+// counters without packages/agent depending on the API's metrics lib — same
+// inversion as setLlmCallMetricsHook. Wired at API boot.
+let _onRouted: ((evt: RoutedEvent) => void) | null = null
+export function setRoutedEventMetricsHook(fn: (evt: RoutedEvent) => void): void {
+    _onRouted = fn
 }
 
 async function persistRoutedEvent(evt: RoutedEvent, shadowInput?: ShadowInput): Promise<void> {

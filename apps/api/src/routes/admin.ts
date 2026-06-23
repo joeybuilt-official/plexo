@@ -11,8 +11,16 @@ import { DEFAULT_INTELLIGENCE_SETTINGS, DEFAULT_WORKSPACE_SETTINGS } from '@plex
 import * as adminRepo from '../repositories/admin.repository.js'
 import { logger } from '../logger.js'
 import { recordAuditEventDirect } from '../audit.js'
+import { getRecentErrors, getErrorRingSize } from '../lib/error-ring.js'
 
 export const adminRouter: RouterType = Router()
+
+// ── GET /admin/recent-errors — bounded in-process error ring (ADR 0038) ──
+// Operator error surface. ?limit=N (1..200). Single-replica, resets on restart.
+adminRouter.get('/recent-errors', (req, res) => {
+    const limit = Number(req.query.limit) || 50
+    res.json({ items: getRecentErrors(limit), ringSize: getErrorRingSize() })
+})
 
 // ── GET /admin/workspaces — list ALL workspaces with stats ──────────────
 adminRouter.get('/workspaces', async (_req, res) => {
