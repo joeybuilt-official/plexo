@@ -34,6 +34,7 @@ import { parseSkillMd, synthesizeManifest } from '@plexo/agent/skills/parser'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { invalidateWorkspaceToolSets } from '@plexo/agent/tool-set-cache'
+import { safeFetch } from '../utils/ssrf.js'
 
 export const extensionsRouter: RouterType = Router()
 
@@ -774,7 +775,8 @@ extensionsRouter.post('/skill/install-url', async (req, res) => {
     // Fetch the SKILL.md content
     let content: string
     try {
-        const response = await fetch(fetchUrl, { signal: AbortSignal.timeout(10_000) })
+        // safeFetch: DNS-validates + manual-redirect re-validation (SEC1 / ADR 0039)
+        const response = await safeFetch(fetchUrl, { signal: AbortSignal.timeout(10_000) })
         if (!response.ok) {
             res.status(400).json({ error: { code: 'FETCH_FAILED', message: `Failed to fetch ${fetchUrl}: ${response.status}` } })
             return

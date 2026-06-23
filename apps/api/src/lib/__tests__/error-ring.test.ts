@@ -17,7 +17,7 @@ describe('error-ring', () => {
             'db ping failed',
         ], 50)
 
-        const [rec] = getRecentErrors(1)
+        const rec = getRecentErrors(1)[0]!
         expect(rec.level).toBe('error')
         expect(rec.msg).toBe('db ping failed')
         expect(rec.errCode).toBe('ECONNREFUSED')
@@ -34,11 +34,11 @@ describe('error-ring', () => {
 
     it('marks fatal at level >= 60 and bounds the ring at 200', () => {
         recordErrorFromArgs([{ err: { message: 'boom' } }, 'fatal thing'], 60)
-        expect(getRecentErrors(1)[0].level).toBe('fatal')
+        expect(getRecentErrors(1)[0]!.level).toBe('fatal')
 
         for (let i = 0; i < 250; i++) recordErrorFromArgs([`spam-${i}`], 50)
         expect(getErrorRingSize()).toBeLessThanOrEqual(200)
         // newest-first ordering
-        expect(getRecentErrors(1)[0].msg).toBe('spam-249')
+        expect(getRecentErrors(1)[0]!.msg).toBe('spam-249')
     })
 })

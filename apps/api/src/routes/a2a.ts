@@ -20,7 +20,7 @@ import { timingSafeEqual as cryptoTimingSafeEqual } from 'crypto'
 import crypto from 'crypto'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { resolveServiceAuth } from '../middleware/service-key-auth.js'
-import { isSsrfTarget } from '../utils/ssrf.js'
+import { isSsrfTarget, safeFetch } from '../utils/ssrf.js'
 
 export const a2aRouter: RouterType = Router()
 
@@ -314,7 +314,8 @@ a2aRouter.post('/agents/external', async (req, res) => {
 
     try {
         const cardUrl = `${url.replace(/\/$/, '')}/.well-known/agent.json`
-        const cardRes = await fetch(cardUrl, {
+        // safeFetch: DNS-validates + manual-redirect re-validation (SEC1 / ADR 0039)
+        const cardRes = await safeFetch(cardUrl, {
             headers: bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {},
             signal: AbortSignal.timeout(10_000),
         })

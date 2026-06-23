@@ -16,7 +16,7 @@
  */
 import { timingSafeEqual } from 'node:crypto'
 import { Router, type Router as RouterType } from 'express'
-import { isSsrfTarget } from '../utils/ssrf.js'
+import { isSsrfTarget, safeFetch } from '../utils/ssrf.js'
 import * as connectionsRepo from '../repositories/connections.repository.js'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
@@ -1129,7 +1129,8 @@ connectionsRouter.post('/test', async (req, res) => {
             }
         }
 
-        const r = await fetch(testUrl, {
+        // safeFetch: DNS-validates + manual-redirect re-validation (SEC1 / ADR 0039)
+        const r = await safeFetch(testUrl, {
             method: 'GET',
             headers,
             signal: AbortSignal.timeout(10_000),
