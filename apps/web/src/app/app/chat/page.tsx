@@ -1265,7 +1265,7 @@ function ChatContent() {
                     className={`flex flex-col gap-8 w-full ${(!isWorkbenchOpen || !isPinned) ? 'max-w-3xl' : ''}`}
                 >
                     {messages.length === 0 && historyLoading && (
-                        <div className="flex items-center justify-center py-16 gap-3 text-text-tertiary animate-in fade-in duration-300" aria-live="polite" aria-label="Loading conversation">
+                        <div className="flex items-center justify-center py-16 gap-3 text-text-muted animate-in fade-in duration-300" aria-live="polite" aria-label="Loading conversation">
                             <span className="font-mono text-azure animate-pulse">_</span>
                             <span className="text-sm">Loading conversation...</span>
                         </div>

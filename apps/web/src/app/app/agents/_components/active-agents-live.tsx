@@ -93,7 +93,7 @@ export function ActiveAgentsLive({ workspaceId }: { workspaceId: string }) {
                     aria-hidden="true"
                     className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}
                 />
-                <span className="text-[11px] uppercase tracking-wider text-text-muted">
+                <span className="text-[11px] uppercase tracking-wider text-text-muted" aria-live="polite">
                     {agents.length === 0
                         ? 'No agents working right now'
                         : `${agents.length} agent${agents.length === 1 ? '' : 's'} in action`}
@@ -108,7 +108,9 @@ export function ActiveAgentsLive({ workspaceId }: { workspaceId: string }) {
             {roots.length === 0 ? (
                 <p className="text-[11px] text-text-muted">Nothing in flight. New work will appear here as it starts.</p>
             ) : (
-                <div className="flex flex-col gap-2">
+                // role=log + aria-live so SR users hear agents enter/leave the
+                // live stream (UX3 — the SSE feed was previously silent to AT).
+                <div className="flex flex-col gap-2" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Active agents">
                     {roots.map((a) => (
                         <AgentNode key={a.id} agent={a} childrenByParent={childrenByParent} workspaceId={workspaceId} depth={0} />
                     ))}
