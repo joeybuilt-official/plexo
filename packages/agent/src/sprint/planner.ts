@@ -9,10 +9,9 @@ import { z } from 'zod'
 import pino from 'pino'
 import { db, eq } from '@plexo/db'
 import { sprints, sprintTasks } from '@plexo/db'
-import { resolveModelFromEnv, AnyLanguageModel } from '../providers/registry.js'
+import { AnyLanguageModel } from '../providers/registry.js'
 import { routeAndCall } from '../providers/router-v2/index.js'
 import { callModel } from '../providers/call-model.js'
-import { MODEL_ROUTING } from '../constants.js'
 import { categoryPlannerPrompt } from './categories.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
 import { SprintIntelligence } from './sprint-intelligence.js'
@@ -154,7 +153,14 @@ export async function planSprint(params: {
             }
             rawPlan = await routeAndCall({ workspaceId, taskType: 'planning', settings: aiSettings, doCall: doPlan })
         } else {
-            rawPlan = await doPlan(resolveModelFromEnv(MODEL_ROUTING.planning))
+            // No workspace AI settings → router-v2 cannot select a provider.
+            // Per the no-hardwired-provider policy, fail loud (the fix is to
+            // configure the workspace) rather than silently falling back to a
+            // pinned Anthropic model that bypasses routing + workspace config.
+            throw new Error(
+                'Sprint planning requires workspace AI settings to route a model. ' +
+                'Go to Settings → AI Providers and configure at least one provider.'
+            )
         }
     } catch (err) {
         logger.error({ err, sprintId }, 'Sprint planner LLM call failed')
