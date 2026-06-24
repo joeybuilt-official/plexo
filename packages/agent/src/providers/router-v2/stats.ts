@@ -27,6 +27,23 @@ interface Bucket {
     cooldownEndAt: number
     /** Structured key, retained so getAllStats() can emit fields without parsing the composite string. */
     key: StatsKey
+    /**
+     * Warm-start baseline (AI7, gated by PLEXO_ROUTER_WARM_START). Read ONLY by
+     * getStats when samples.length === 0, and discarded the instant the first
+     * real sample lands. NEVER mixed into `samples` — percentiles + tail-penalty
+     * stay computed from real samples only. sampleCount is deliberately surfaced
+     * as 0 (the scorer ignores it; this keeps baseline-only buckets below the SLO
+     * minSamples floor so warm-start can't fire spurious breach alerts).
+     */
+    baseline?: BaselineStats
+}
+
+/** Aggregate fallback used as a read-only warm-start before live samples accrue. */
+export interface BaselineStats {
+    successRate: number
+    latencyP50Ms: number
+    latencyP95Ms: number
+    recentFailurePenalty: number
 }
 
 export interface StatsKey {
@@ -55,6 +72,62 @@ function keyOf(k: StatsKey): string {
 
 const store = new Map<string, Bucket>()
 
+const clamp01 = (x: number): number => Math.max(0, Math.min(1, Number.isFinite(x) ? x : 0))
+
+/** Warm-start kill-switch. Default OFF — getStats is byte-identical when unset. */
+export function isWarmStartEnabled(): boolean {
+    return process.env.PLEXO_ROUTER_WARM_START === '1'
+}
+
+/**
+ * One snapshot row to hydrate (latest-per-key from router_v2_stats). Pure data —
+ * packages/agent stays db-free; the API layer reads the table and passes rows in.
+ * cooldownEndAt is epoch ms (0 = none).
+ */
+export interface HydrationEntry {
+    key: StatsKey
+    successRate: number
+    latencyP50Ms: number
+    latencyP95Ms: number
+    recentFailurePenalty: number
+    cooldownEndAt: number
+}
+
+/**
+ * Warm-start hydration (AI7). Seeds a read-only `baseline` + cooldown onto buckets
+ * that have no live samples yet, so the selector doesn't cold-start after a deploy.
+ * Conservative + idempotent: never overwrites a bucket that already has real
+ * samples, and only extends cooldowns (never shortens). Returns the count seeded.
+ * Caller must gate on isWarmStartEnabled().
+ */
+export function hydrateFromSnapshots(entries: readonly HydrationEntry[]): number {
+    const now = Date.now()
+    let touched = 0
+    for (const e of entries) {
+        const k = keyOf(e.key)
+        let b = store.get(k)
+        if (!b) {
+            b = { samples: [], cooldownEndAt: 0, key: e.key }
+            store.set(k, b)
+        }
+        // Cooldown: only ever extend, never shorten; ignore stale/past values.
+        if (e.cooldownEndAt > now && e.cooldownEndAt > b.cooldownEndAt) {
+            b.cooldownEndAt = e.cooldownEndAt
+        }
+        // Baseline: only on still-cold buckets (no live samples yet).
+        if (b.samples.length === 0) {
+            b.baseline = {
+                successRate: clamp01(e.successRate),
+                latencyP50Ms: Math.max(0, e.latencyP50Ms),
+                latencyP95Ms: Math.max(0, e.latencyP95Ms),
+                recentFailurePenalty: clamp01(e.recentFailurePenalty),
+            }
+            touched++
+        }
+    }
+    return touched
+}
+
 function trim(b: Bucket, now: number): void {
     const cutoff = now - WINDOW_MS
     // Drop expired samples
@@ -79,6 +152,8 @@ export function recordCall(key: StatsKey, durationMs: number, success: boolean):
         store.set(k, b)
     }
     b.samples.push({ durationMs, success, at: now })
+    // First real sample → drop any warm-start baseline (hard cutover; frees mem).
+    if (b.baseline) b.baseline = undefined
     trim(b, now)
 }
 
@@ -102,6 +177,21 @@ export function getStats(key: StatsKey): ReadStats {
     trim(b, now)
     const n = b.samples.length
     if (n === 0) {
+        // Warm-start: fall back to the hydrated baseline if present. Reachable
+        // ONLY with zero live samples; the first recordCall makes n>0 and the
+        // baseline is never consulted again. sampleCount stays 0 so the scorer's
+        // success/latency/penalty inputs are warm while the SLO minSamples gate
+        // still skips this bucket (no spurious breach alerts).
+        if (b.baseline) {
+            return {
+                sampleCount: 0,
+                successRate: b.baseline.successRate,
+                latencyP50Ms: b.baseline.latencyP50Ms,
+                latencyP95Ms: b.baseline.latencyP95Ms,
+                cooldownEndAt: b.cooldownEndAt > now ? b.cooldownEndAt : 0,
+                recentFailurePenalty: b.baseline.recentFailurePenalty,
+            }
+        }
         return { sampleCount: 0, successRate: 1, latencyP50Ms: 0, latencyP95Ms: 0, cooldownEndAt: b.cooldownEndAt, recentFailurePenalty: 0 }
     }
     const successes = b.samples.reduce((a, s) => a + (s.success ? 1 : 0), 0)

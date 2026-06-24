@@ -122,6 +122,19 @@ describe('slo ops-alert stream', () => {
     })
 })
 
+describe('warm-start SLO safety (AI7)', () => {
+    beforeEach(() => { _resetSloEvaluatorStateForTest() })
+
+    it('a hydrated baseline-only bucket (sampleCount 0) never breaches, even with bad success/latency', () => {
+        // Router-v2 warm-start surfaces hydrated baselines with sampleCount=0 so
+        // they stay below the minSamples floor. A 0-sample bucket with an awful
+        // successRate + p95 must produce zero breaches across two ticks.
+        const b = bucket({ sampleCount: 0, successRate: 0.1, latencyP95Ms: 99_000 })
+        expect(evaluateSloBreaches([b], { minSuccess: 0.85, minSamples: 20, maxP95Ms: 5000 })).toEqual([])
+        expect(evaluateSloBreaches([b], { minSuccess: 0.85, minSamples: 20, maxP95Ms: 5000 })).toEqual([])
+    })
+})
+
 describe('opsAlertDeliveryConfigured (OBS3/OBS4)', () => {
     beforeEach(() => {
         delete process.env.PLEXO_OPS_ALERT_WORKSPACE_ID

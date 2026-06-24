@@ -158,6 +158,25 @@ export async function getRouterStats() {
     `)
 }
 
+/**
+ * Warm-start hydration source (AI7): latest snapshot per
+ * (workspace_id, provider, model, task_type) within 24h. Unlike getRouterStats
+ * (dashboard, 2h, workspace-collapsed) this KEEPS workspace_id because the
+ * selector is workspace-scoped, and carries recent_failure_penalty. Caller wraps
+ * the result with pgRows().
+ */
+export async function getRouterStatsForWarmStart() {
+    return db.execute(sql`
+        SELECT DISTINCT ON (workspace_id, provider, model, task_type)
+            workspace_id, provider, model, task_type,
+            success_rate, latency_p50_ms, latency_p95_ms,
+            recent_failure_penalty, cooldown_end_at
+        FROM router_v2_stats
+        WHERE snapshot_at > NOW() - INTERVAL '24 hours'
+        ORDER BY workspace_id, provider, model, task_type, snapshot_at DESC
+    `)
+}
+
 /** Count of inference logs in the last 60s for the SSE tick. */
 export async function getRecentLogCount(workspaceId: string) {
     return db.execute(sql`

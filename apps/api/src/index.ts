@@ -201,6 +201,7 @@ import { runCronJobs, scheduleMemoryConsolidation, runRSIMonitor } from './cron.
 import { setProviderFailureSink } from '@plexo/agent/providers/router-v2'
 import { emitProviderFailureEvent } from './analytics/events.js'
 import { recordProviderFailureForAlert, sloThresholdsFromEnv, opsAlertDeliveryConfigured } from './ops-alerts.js'
+import type { ProviderKey, TaskType } from '@plexo/agent/providers/registry'
 import { onboardingCanaryEnabled, runOnboardingCanary } from './onboarding-canary.js'
 import { startCronDispatch } from './cron-dispatch.js'
 import { emitHeartbeat } from './analytics/events.js'
@@ -766,6 +767,37 @@ const server = app.listen(port, '0.0.0.0', async () => {
             '(PLEXO_OPS_ALERT_WORKSPACE_ID + PLEXO_OPS_ALERT_CHAT_ID, or PLEXO_OPS_ALERT_WEBHOOK_URL) — breaches will be log-only',
         )
     }
+
+    // Router-v2 warm-start (AI7): rehydrate selector stats from the last persisted
+    // snapshot so the scorer doesn't cold-start after a deploy. Default OFF — when
+    // PLEXO_ROUTER_WARM_START is unset, getStats is byte-identical to today.
+    // Fire-and-forget + non-fatal (mirrors the routing-chain seed IIFE).
+    void (async () => {
+        const { isWarmStartEnabled, hydrateFromSnapshots } = await import('@plexo/agent/providers/router-v2')
+        if (!isWarmStartEnabled()) return
+        try {
+            const { getRouterStatsForWarmStart } = await import('./repositories/intelligence-dashboard.repository.js')
+            const { pgRows } = await import('./lib/pg-rows.js')
+            const rows = pgRows<Record<string, unknown>>(await getRouterStatsForWarmStart())
+            const entries = rows.map((r) => ({
+                key: {
+                    workspaceId: (r.workspace_id as string | null) ?? undefined,
+                    provider: r.provider as ProviderKey,
+                    model: r.model as string,
+                    taskType: r.task_type as TaskType,
+                },
+                successRate: Number(r.success_rate ?? 1),
+                latencyP50Ms: Number(r.latency_p50_ms ?? 0),
+                latencyP95Ms: Number(r.latency_p95_ms ?? 0),
+                recentFailurePenalty: Number(r.recent_failure_penalty ?? 0),
+                cooldownEndAt: r.cooldown_end_at ? new Date(r.cooldown_end_at as string).getTime() : 0,
+            }))
+            const touched = hydrateFromSnapshots(entries)
+            logger.info({ rows: entries.length, touched }, 'Router-v2 warm-start: hydrated baselines from snapshot')
+        } catch (err) {
+            logger.warn({ err }, 'Router-v2 warm-start hydration failed — non-fatal, selector cold-starts')
+        }
+    })()
 
     // Provider-failure ops sink (Phase 4): the agent router fires cascade-exhaust
     // and auth/quota-streak events into this; we record a privacy-safe analytics
