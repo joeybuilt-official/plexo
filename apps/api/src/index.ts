@@ -200,7 +200,7 @@ import { sprints, nodes } from '@plexo/db'
 import { runCronJobs, scheduleMemoryConsolidation, runRSIMonitor } from './cron.js'
 import { setProviderFailureSink } from '@plexo/agent/providers/router-v2'
 import { emitProviderFailureEvent } from './analytics/events.js'
-import { recordProviderFailureForAlert } from './ops-alerts.js'
+import { recordProviderFailureForAlert, sloThresholdsFromEnv, opsAlertDeliveryConfigured } from './ops-alerts.js'
 import { onboardingCanaryEnabled, runOnboardingCanary } from './onboarding-canary.js'
 import { startCronDispatch } from './cron-dispatch.js'
 import { emitHeartbeat } from './analytics/events.js'
@@ -755,6 +755,16 @@ const server = app.listen(port, '0.0.0.0', async () => {
         setInterval(() => { void runCronJobs() }, 24 * 60 * 60 * 1000).unref()
     } else {
         logger.warn('Background runCronJobs disabled via PLEXO_DISABLE_CRONS=1')
+    }
+
+    // OBS3 boot-assert: the SLO evaluator enqueues breaches for the batched ops
+    // alert, but if no sink is wired those breaches are log-only. Surface the
+    // misconfiguration once at boot rather than letting it pass silently.
+    if (sloThresholdsFromEnv() && !opsAlertDeliveryConfigured()) {
+        logger.warn(
+            'SLO evaluation is enabled (PLEXO_SLO_MIN_SUCCESS>0) but no ops-alert sink is configured ' +
+            '(PLEXO_OPS_ALERT_WORKSPACE_ID + PLEXO_OPS_ALERT_CHAT_ID, or PLEXO_OPS_ALERT_WEBHOOK_URL) — breaches will be log-only',
+        )
     }
 
     // Provider-failure ops sink (Phase 4): the agent router fires cascade-exhaust
