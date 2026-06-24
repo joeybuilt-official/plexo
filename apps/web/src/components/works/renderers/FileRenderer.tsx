@@ -19,7 +19,7 @@ export function FileRenderer({ work }: WorkRendererProps) {
             : `${(work.bytes / (1024 * 1024)).toFixed(1)}MB`
 
     return (
-        <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center text-text-muted bg-[#0d0d0d]">
+        <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center text-text-muted bg-surface-code">
             <FileText className="h-10 w-10 text-text-muted/50" />
             <div>
                 <h3 className="text-text-secondary font-medium mb-1">{work.filename}</h3>

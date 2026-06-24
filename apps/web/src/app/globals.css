@@ -43,6 +43,7 @@
   --color-surface-1:    #161D2C;   /* Blueprint layer one. */
   --color-surface-2:    #1D2640;   /* Active surfaces. */
   --color-surface-3:    #243052;   /* Selected, focused. */
+  --color-surface-code: #0d0d0d;   /* True-black terminal/code/file-viewer surface. */
   --color-border:       #253354;   /* Structural. Construction lines. */
   --color-border-subtle:#1C2744;   /* Grid lines, dividers. */
 

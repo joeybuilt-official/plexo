@@ -33,7 +33,7 @@ export function JsonRenderer({ work }: WorkRendererProps) {
     }
 
     return (
-        <div className="p-4 font-mono text-xs text-text-secondary overflow-auto h-full bg-[#0d0d0d]">
+        <div className="p-4 font-mono text-xs text-text-secondary overflow-auto h-full bg-surface-code">
             <JsonNode value={parsed.value} depth={0} path="$" />
         </div>
     )

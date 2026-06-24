@@ -39,7 +39,7 @@ export function ShareContent({ content, filename, kind, meta }: ShareContentProp
     // Markdown
     if (normalizedKind === 'markdown' || normalizedKind === 'instructions') {
         return (
-            <div className="prose prose-invert max-w-none text-text-primary [&_h1]:text-text-primary [&_h2]:text-text-primary [&_h3]:text-text-primary [&_p]:text-text-secondary [&_li]:text-text-secondary [&_a]:text-azure [&_code]:bg-surface [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_pre]:bg-[#0d0d0d] [&_pre]:rounded-lg [&_blockquote]:border-border [&_blockquote]:text-text-muted [&_hr]:border-border">
+            <div className="prose prose-invert max-w-none text-text-primary [&_h1]:text-text-primary [&_h2]:text-text-primary [&_h3]:text-text-primary [&_p]:text-text-secondary [&_li]:text-text-secondary [&_a]:text-azure [&_code]:bg-surface [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_pre]:bg-surface-code [&_pre]:rounded-lg [&_blockquote]:border-border [&_blockquote]:text-text-muted [&_hr]:border-border">
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
