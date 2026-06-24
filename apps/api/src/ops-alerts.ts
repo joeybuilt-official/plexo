@@ -14,6 +14,10 @@
  * outage). Delivery is env-gated and a no-op when unconfigured:
  *   PLEXO_OPS_ALERT_WORKSPACE_ID — workspace whose registered Telegram bot token is used
  *   PLEXO_OPS_ALERT_CHAT_ID      — chat to deliver the alert to
+ *   PLEXO_OPS_ALERT_WEBHOOK_URL  — OBS4: optional fallback sink. The batched text
+ *                                  is POSTed as {text} JSON alongside Telegram, so
+ *                                  a single-replica Telegram outage doesn't drop the
+ *                                  alert. Either sink alone satisfies delivery.
  */
 
 import { getChannelToken } from './channel-delivery.js'
@@ -266,26 +270,60 @@ export async function flushOpsAlerts(): Promise<void> {
     budgetAlerts.length = 0
     sloBreaches.length = 0
 
-    if (!workspaceId || !chatId || !token) {
+    const counts = { providerCount, canaryCount, budgetCount, sloCount }
+    const webhookUrl = process.env.PLEXO_OPS_ALERT_WEBHOOK_URL
+    const telegramReady = Boolean(workspaceId && chatId && token)
+
+    if (!telegramReady && !webhookUrl) {
         logger.warn(
-            { providerCount, canaryCount, budgetCount, sloCount, hasWorkspace: Boolean(workspaceId), hasChat: Boolean(chatId), hasToken: Boolean(token) },
-            'Ops alert accumulated but delivery is not configured (PLEXO_OPS_ALERT_WORKSPACE_ID / PLEXO_OPS_ALERT_CHAT_ID / registered bot token) — logging only',
+            { ...counts, hasWorkspace: Boolean(workspaceId), hasChat: Boolean(chatId), hasToken: Boolean(token), alertText: text },
+            'Ops alert accumulated but no sink is configured (Telegram trio or PLEXO_OPS_ALERT_WEBHOOK_URL) — logging only',
         )
         return
     }
 
+    // Fan out to every configured sink independently — a failure or absence of
+    // one must not suppress the other (OBS4: no single point of alert loss).
+    await Promise.allSettled([
+        telegramReady ? deliverTelegram(token as string, chatId as string, text, counts) : Promise.resolve(),
+        webhookUrl ? deliverWebhook(webhookUrl, text, counts) : Promise.resolve(),
+    ])
+}
+
+async function deliverTelegram(token: string, chatId: string, text: string, counts: Record<string, number>): Promise<void> {
     try {
         const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chat_id: chatId, text, disable_notification: false }),
         })
-        if (!res.ok) {
-            logger.error({ status: res.status }, 'Ops alert Telegram delivery failed')
-        } else {
-            logger.info({ providerCount, canaryCount, budgetCount, sloCount }, 'Ops alert delivered')
-        }
+        if (!res.ok) logger.error({ status: res.status }, 'Ops alert Telegram delivery failed')
+        else logger.info({ ...counts, sink: 'telegram' }, 'Ops alert delivered')
     } catch (err) {
         logger.error({ err }, 'Ops alert Telegram delivery threw')
     }
+}
+
+async function deliverWebhook(url: string, text: string, counts: Record<string, number>): Promise<void> {
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, ...counts }),
+        })
+        if (!res.ok) logger.error({ status: res.status }, 'Ops alert webhook delivery failed')
+        else logger.info({ ...counts, sink: 'webhook' }, 'Ops alert delivered')
+    } catch (err) {
+        logger.error({ err }, 'Ops alert webhook delivery threw')
+    }
+}
+
+/**
+ * OBS3 boot-assert helper: true when at least one ops-alert sink is wired. The
+ * boot path warns when the SLO evaluator is enabled but this returns false, so
+ * breaches don't silently accrue with nowhere to go.
+ */
+export function opsAlertDeliveryConfigured(): boolean {
+    const telegramReady = Boolean(process.env.PLEXO_OPS_ALERT_WORKSPACE_ID && process.env.PLEXO_OPS_ALERT_CHAT_ID)
+    return telegramReady || Boolean(process.env.PLEXO_OPS_ALERT_WEBHOOK_URL)
 }

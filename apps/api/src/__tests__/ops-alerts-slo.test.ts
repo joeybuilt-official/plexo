@@ -10,6 +10,7 @@ import {
     _opsAlertBufferSizes,
     _resetSloEvaluatorStateForTest,
     flushOpsAlerts,
+    opsAlertDeliveryConfigured,
     type RouterBucketStat,
 } from '../ops-alerts.js'
 
@@ -117,6 +118,56 @@ describe('slo ops-alert stream', () => {
         recordSloBreachForAlert({ scope: 'deepseek/x (extraction)', successRate: 0.6, sampleCount: 40, p95Ms: 800 })
         expect(_opsAlertBufferSizes().slo).toBe(1)
         await flushOpsAlerts()
+        expect(_opsAlertBufferSizes().slo).toBe(0)
+    })
+})
+
+describe('opsAlertDeliveryConfigured (OBS3/OBS4)', () => {
+    beforeEach(() => {
+        delete process.env.PLEXO_OPS_ALERT_WORKSPACE_ID
+        delete process.env.PLEXO_OPS_ALERT_CHAT_ID
+        delete process.env.PLEXO_OPS_ALERT_WEBHOOK_URL
+    })
+    afterEach(() => {
+        delete process.env.PLEXO_OPS_ALERT_WORKSPACE_ID
+        delete process.env.PLEXO_OPS_ALERT_CHAT_ID
+        delete process.env.PLEXO_OPS_ALERT_WEBHOOK_URL
+    })
+
+    it('is false when no sink is set', () => {
+        expect(opsAlertDeliveryConfigured()).toBe(false)
+    })
+    it('is true with the webhook sink alone', () => {
+        process.env.PLEXO_OPS_ALERT_WEBHOOK_URL = 'https://hook.example/ops'
+        expect(opsAlertDeliveryConfigured()).toBe(true)
+    })
+    it('is true with the Telegram trio alone', () => {
+        process.env.PLEXO_OPS_ALERT_WORKSPACE_ID = 'ws-1'
+        process.env.PLEXO_OPS_ALERT_CHAT_ID = 'chat-1'
+        expect(opsAlertDeliveryConfigured()).toBe(true)
+    })
+})
+
+describe('webhook fallback sink (OBS4)', () => {
+    beforeEach(async () => {
+        delete process.env.PLEXO_OPS_ALERT_WORKSPACE_ID
+        delete process.env.PLEXO_OPS_ALERT_CHAT_ID
+        await flushOpsAlerts()
+    })
+    afterEach(() => {
+        delete process.env.PLEXO_OPS_ALERT_WEBHOOK_URL
+        vi.restoreAllMocks()
+    })
+
+    it('POSTs the batched alert to the webhook when Telegram is unconfigured', async () => {
+        process.env.PLEXO_OPS_ALERT_WEBHOOK_URL = 'https://hook.example/ops'
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+        recordSloBreachForAlert({ scope: 'groq/x (extraction)', successRate: 0.5, sampleCount: 30, p95Ms: 900 })
+        await flushOpsAlerts()
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+        expect(url).toBe('https://hook.example/ops')
+        expect(JSON.parse(init.body as string)).toMatchObject({ sloCount: 1 })
         expect(_opsAlertBufferSizes().slo).toBe(0)
     })
 })
