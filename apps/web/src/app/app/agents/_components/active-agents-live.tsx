@@ -4,7 +4,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, WifiOff } from 'lucide-react'
 import { StatusBadge } from '@plexo/ui'
 import { LiveSteps } from '../../tasks/[id]/_live-steps'
 import { useActiveAgentsStream, type ActiveAgent } from './use-active-agents-stream'
@@ -72,7 +72,19 @@ function AgentNode({
  * interactions are visible. Each agent expands to its live step detail.
  */
 export function ActiveAgentsLive({ workspaceId }: { workspaceId: string }) {
-    const { agents, connected, updatedAt } = useActiveAgentsStream(workspaceId)
+    const { agents, connected, updatedAt, phase, error } = useActiveAgentsStream(workspaceId)
+
+    // First connect, no snapshot yet — show a loading state rather than the
+    // "nothing in flight" empty state (which would falsely imply we know it's
+    // empty before the feed has answered).
+    if (phase === 'connecting') {
+        return (
+            <div className="flex items-center gap-2 text-[11px] text-text-muted" role="status" aria-live="polite">
+                <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden="true" />
+                Connecting to the live feed…
+            </div>
+        )
+    }
 
     const activeIds = new Set(agents.map((a) => a.id))
     const childrenByParent = new Map<string, ActiveAgent[]>()
@@ -104,6 +116,26 @@ export function ActiveAgentsLive({ workspaceId }: { workspaceId: string }) {
                     </span>
                 )}
             </div>
+
+            {phase === 'reconnecting' && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    className="flex items-center gap-2 rounded-sm border border-amber-500/30 bg-amber-dim px-3 py-2 text-[11px] font-medium text-amber-300"
+                >
+                    <WifiOff className="h-3.5 w-3.5 shrink-0 text-amber" aria-hidden="true" />
+                    Lost the live feed — reconnecting… (showing the last known state)
+                </div>
+            )}
+
+            {error && (
+                <div
+                    role="alert"
+                    className="rounded-sm border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] font-medium text-red-300"
+                >
+                    {error} — retrying automatically.
+                </div>
+            )}
 
             {roots.length === 0 ? (
                 <p className="text-[11px] text-text-muted">Nothing in flight. New work will appear here as it starts.</p>

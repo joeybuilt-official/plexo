@@ -25,6 +25,15 @@ export interface UseActiveAgentsStream {
     connected: boolean
     /** ms timestamp of the last snapshot, or null before the first. */
     updatedAt: number | null
+    /**
+     * Lifecycle of the feed, for the UI to distinguish first-load from a drop:
+     *  - 'connecting'   — opening, no snapshot yet (show a loading state)
+     *  - 'live'         — connected and receiving snapshots
+     *  - 'reconnecting' — was live, lost the stream, retrying (show a banner)
+     */
+    phase: 'connecting' | 'live' | 'reconnecting'
+    /** Last server-side poll error surfaced by the stream, else null. */
+    error: string | null
 }
 
 /**
@@ -35,6 +44,8 @@ export function useActiveAgentsStream(workspaceId: string): UseActiveAgentsStrea
     const [agents, setAgents] = useState<ActiveAgent[]>([])
     const [connected, setConnected] = useState(false)
     const [updatedAt, setUpdatedAt] = useState<number | null>(null)
+    const [phase, setPhase] = useState<'connecting' | 'live' | 'reconnecting'>('connecting')
+    const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
         if (!workspaceId) return
@@ -42,15 +53,22 @@ export function useActiveAgentsStream(workspaceId: string): UseActiveAgentsStrea
         let es: EventSource | null = null
         let reconnectTimer: ReturnType<typeof setTimeout> | null = null
         let destroyed = false
+        let openedOnce = false
+
+        setPhase('connecting')
 
         function connect() {
             if (destroyed) return
             es = new EventSource(`/api/v1/agents/active/stream?workspaceId=${workspaceId}`)
 
-            es.onopen = () => setConnected(true)
+            es.onopen = () => {
+                openedOnce = true
+                setConnected(true)
+                setPhase('live')
+            }
 
             es.onmessage = (ev) => {
-                let msg: { type?: string; data?: ActiveAgent[]; ts?: number }
+                let msg: { type?: string; data?: ActiveAgent[]; ts?: number; message?: string }
                 try {
                     msg = JSON.parse(ev.data as string)
                 } catch {
@@ -59,11 +77,17 @@ export function useActiveAgentsStream(workspaceId: string): UseActiveAgentsStrea
                 if (msg.type === 'agents' && Array.isArray(msg.data)) {
                     setAgents(msg.data)
                     setUpdatedAt(msg.ts ?? Date.now())
+                    setError(null)
+                } else if (msg.type === 'error') {
+                    // Server poll failed mid-stream — surface it instead of
+                    // freezing on a stale snapshot.
+                    setError(msg.message ?? 'Live feed error')
                 }
             }
 
             es.onerror = () => {
                 setConnected(false)
+                setPhase(openedOnce ? 'reconnecting' : 'connecting')
                 es?.close()
                 es = null
                 if (!destroyed) {
@@ -80,5 +104,5 @@ export function useActiveAgentsStream(workspaceId: string): UseActiveAgentsStrea
         }
     }, [workspaceId])
 
-    return { agents, connected, updatedAt }
+    return { agents, connected, updatedAt, phase, error }
 }
