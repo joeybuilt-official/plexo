@@ -1,9 +1,17 @@
 /**
- * Auth setup — logs in once and saves session state for reuse by browser tests.
+ * Auth setup — produces the session storageState reused by browser tests.
  *
- * Credentials: E2E_EMAIL / E2E_PASSWORD env vars.
- * If credentials are not set or login fails, an empty auth state is saved
- * and browser tests gracefully skip authenticated-only assertions.
+ * Two paths, in priority order:
+ *  1. E2E_SESSION_COOKIE — a pre-provisioned better-auth session token (the
+ *     `__Secure-better-auth.session_token` value). Written straight into the
+ *     storageState, no login flow. This is the preferred CI path: provision a
+ *     long-lived QA session token as a secret, no password ever enters CI.
+ *     E2E_COOKIE_DOMAIN overrides the cookie domain (defaults to the
+ *     E2E_BASE_URL host).
+ *  2. E2E_EMAIL / E2E_PASSWORD — interactive login fallback.
+ *
+ * If neither is set (or login fails), an empty state is saved and browser tests
+ * gracefully skip authenticated-only assertions.
  */
 import { test as setup } from '@playwright/test'
 import fs from 'node:fs'
@@ -11,15 +19,48 @@ import path from 'node:path'
 
 const EMAIL = process.env.E2E_EMAIL
 const PASSWORD = process.env.E2E_PASSWORD
+const SESSION_COOKIE = process.env.E2E_SESSION_COOKIE
 const AUTH_FILE = path.join('tests', '.auth', 'user.json')
 
-setup('authenticate', async ({ page }) => {
+function writeEmptyState(): void {
+    fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true })
+    fs.writeFileSync(AUTH_FILE, JSON.stringify({ cookies: [], origins: [] }))
+}
+
+setup('authenticate', async ({ page, baseURL }) => {
     // Increase timeout for this setup step — login + redirect + networkidle
     setup.setTimeout(60000)
 
-    if (!EMAIL || !PASSWORD) {
+    // Path 1 — inject a pre-provisioned session token, no login flow.
+    if (SESSION_COOKIE) {
+        const base = process.env.E2E_BASE_URL ?? baseURL ?? 'https://app.getplexo.com'
+        const host = process.env.E2E_COOKIE_DOMAIN ?? new URL(base).hostname
+        const secure = base.startsWith('https')
         fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true })
-        fs.writeFileSync(AUTH_FILE, JSON.stringify({ cookies: [], origins: [] }))
+        fs.writeFileSync(AUTH_FILE, JSON.stringify({
+            cookies: [{
+                name: '__Secure-better-auth.session_token',
+                value: SESSION_COOKIE,
+                domain: host,
+                path: '/',
+                expires: -1,
+                httpOnly: true,
+                secure,
+                sameSite: 'Lax',
+            }],
+            origins: [{
+                origin: base,
+                localStorage: [
+                    { name: 'plexo_analytics_ack', value: 'opted-in' },
+                    { name: 'plexo:cookie-consent', value: 'accepted' },
+                ],
+            }],
+        }))
+        return
+    }
+
+    if (!EMAIL || !PASSWORD) {
+        writeEmptyState()
         return
     }
 
@@ -54,7 +95,6 @@ setup('authenticate', async ({ page }) => {
         await page.waitForTimeout(1000)
         await page.context().storageState({ path: AUTH_FILE })
     } catch {
-        fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true })
-        fs.writeFileSync(AUTH_FILE, JSON.stringify({ cookies: [], origins: [] }))
+        writeEmptyState()
     }
 })
