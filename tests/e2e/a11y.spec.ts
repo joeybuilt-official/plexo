@@ -5,9 +5,9 @@
  * WCAG 2.1 AA structural checks (QA-opt FE8, ADR 0040) using Playwright
  * built-ins only — ADR 0033 forbids adding @axe-core. Runs at mobile-390 +
  * desktop-1440. Hard-asserts the high-confidence invariants (named controls,
- * image alts, a heading); soft-reports touch-target debt (UX7, known P2) via
- * test annotations so the harness is adoptable without blocking on accepted
- * pre-existing gaps.
+ * image alts, a heading, disclosure aria-expanded, and WCAG 2.2 AA 24px button
+ * target size); soft-reports the 24-44px AAA/44pt target-size band (UX7) via
+ * test annotations so accepted AAA debt does not block the harness.
  */
 import { test, expect } from '@playwright/test'
 import { ROUTES } from './_helpers/routes'
@@ -81,21 +81,28 @@ for (const route of ROUTES) {
         )
         expect(noExpanded, `disclosure controls missing aria-expanded: ${noExpanded.join(', ')}`).toEqual([])
 
-        // 5. SOFT (UX7, known P2): touch targets < 44px on mobile. Reported as a
-        //    test annotation, not a failure, so accepted pre-existing debt does
-        //    not block the harness.
+        // 5. HARD (UX7): icon/standalone button tap targets must meet WCAG 2.2
+        //    AA Target Size (Minimum, 2.5.8 — 24x24 CSS px) on mobile. Scoped to
+        //    <button>/[role=button] only: <a href> links are exempt as the spec's
+        //    "inline" / navigation-in-text case (breadcrumbs, "View all", inline
+        //    text links). Visually-hidden controls (.sr-only skip links) skipped.
+        //    The 24-44px band (AAA 2.5.5 / 44pt HIG) stays a soft annotation.
         if (testInfo.project.name === 'mobile-390') {
-            const small = await page.locator('button:visible, a[href]:visible, [role="button"]:visible').evaluateAll(els =>
-                els.filter(el => !el.closest('.sr-only') && !el.classList.contains('sr-only')) // skip visually-hidden (e.g. skip links)
+            const measured = await page.locator('button:visible, [role="button"]:visible').evaluateAll(els =>
+                els.filter(el => !el.closest('.sr-only') && !el.classList.contains('sr-only'))
                     .map(el => {
                         const r = el.getBoundingClientRect()
                         return { w: Math.round(r.width), h: Math.round(r.height), tag: `${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ')[0]}` }
-                    }).filter(b => b.w > 0 && b.h > 0 && (b.w < 44 || b.h < 44)),
+                    }).filter(b => b.w > 0 && b.h > 0),
             )
-            if (small.length) {
+            const belowAA = measured.filter(b => b.w < 24 || b.h < 24)
+            expect(belowAA, `buttons below WCAG 2.2 AA 24px target @390: ` + belowAA.map(s => `${s.tag} ${s.w}x${s.h}`).join('; ')).toEqual([])
+
+            const aaaDebt = measured.filter(b => b.w < 44 || b.h < 44)
+            if (aaaDebt.length) {
                 testInfo.annotations.push({
-                    type: 'wcag-target-size (soft)',
-                    description: `${small.length} target(s) < 44px @390: ` + small.slice(0, 12).map(s => `${s.tag} ${s.w}x${s.h}`).join('; '),
+                    type: 'wcag-target-size-aaa (soft)',
+                    description: `${aaaDebt.length} target(s) 24-44px @390 (AAA/44pt debt): ` + aaaDebt.slice(0, 12).map(s => `${s.tag} ${s.w}x${s.h}`).join('; '),
                 })
             }
         }

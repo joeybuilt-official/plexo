@@ -431,18 +431,18 @@ export default function MemoryPage() {
                                                     </span>
                                                     <span className="text-[11px] text-text-muted">{timeAgo(entry.created_at)}</span>
                                                 </div>
-                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                                     <button
                                                         onClick={() => { setEditingId(entry.id); setEditContent(entry.content) }}
                                                         aria-label="Edit memory entry"
-                                                        className="p-1 text-text-muted hover:text-text-secondary rounded"
+                                                        className="inline-flex h-8 w-8 items-center justify-center text-text-muted hover:text-text-secondary rounded"
                                                     >
                                                         <Pencil className="h-3 w-3" />
                                                     </button>
                                                     <button
                                                         onClick={() => setDeletingId(entry.id)}
                                                         aria-label="Delete memory entry"
-                                                        className="p-1 text-text-muted hover:text-red rounded"
+                                                        className="inline-flex h-8 w-8 items-center justify-center text-text-muted hover:text-red rounded"
                                                     >
                                                         <Trash2 className="h-3 w-3" />
                                                     </button>
