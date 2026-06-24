@@ -647,7 +647,7 @@ export default function ApprovalsPage() {
                                 )}
                                 <button
                                     onClick={() => void revokeStandingApproval(sa.id)}
-                                    className="text-[11px] text-red hover:text-red/80 transition-colors shrink-0"
+                                    className="text-[11px] text-red hover:text-red/80 transition-colors shrink-0 min-h-6"
                                 >
                                     Revoke
                                 </button>

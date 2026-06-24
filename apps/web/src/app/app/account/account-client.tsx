@@ -183,15 +183,25 @@ export function AccountClient() {
 
     if (loading) {
         return (
-            <div className="flex min-h-[40vh] items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-text-muted" />
+            <div className="mx-auto w-full max-w-2xl space-y-8 p-4 sm:p-6">
+                <header className="space-y-1">
+                    <h1 className="text-xl font-medium tracking-tight text-text-primary">Account</h1>
+                </header>
+                <div className="flex min-h-[40vh] items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-text-muted" />
+                </div>
             </div>
         )
     }
 
     if (!user) {
         return (
-            <div className="p-6 text-sm text-text-primary">Not signed in.</div>
+            <div className="mx-auto w-full max-w-2xl space-y-8 p-4 sm:p-6">
+                <header className="space-y-1">
+                    <h1 className="text-xl font-medium tracking-tight text-text-primary">Account</h1>
+                </header>
+                <div className="p-6 text-sm text-text-primary">Not signed in.</div>
+            </div>
         )
     }
 
