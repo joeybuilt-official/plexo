@@ -732,21 +732,12 @@ export const memoryEntries = pgTable('memory_entries', {
     index('memory_entries_superseded_by_idx').on(table.supersededBy),
 ])
 
-// Separate embedding store — decouples vector index rebuilds from the main row.
-// Populated in Phase 4. HNSW index created via migration 0102_memory_rebuild_phase1.sql.
-export const memoryEmbeddings = pgTable('memory_embeddings', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    entryId: uuid('entry_id')
-        .notNull()
-        .unique()
-        .references(() => memoryEntries.id, { onDelete: 'cascade' }),
-    // embedding: vector(384) — added via migration SQL (pgvector not natively supported by drizzle-orm)
-    model: text('model').notNull(),
-    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).defaultNow().notNull(),
-}, (table: any) => [
-    index('memory_embeddings_entry_id_idx').on(table.entryId),
-    // HNSW index on embedding created via migration SQL
-])
+// NOTE: the separate `memory_embeddings` table (0102) was retired 2026-06-23
+// (ADR-0044). It held 0 rows and had zero code references — the live recall
+// vector lives on memory_entries.embedding (read by the cosine HNSW search in
+// packages/agent/src/memory/store.ts), NOT here. Dropped via migration
+// 0138_drop_memory_embeddings.sql. Do NOT confuse with memory_entries.embedding,
+// which is live and must not be dropped.
 
 export const workLedger = pgTable('work_ledger', {
     id: uuid('id').defaultRandom().primaryKey(),
