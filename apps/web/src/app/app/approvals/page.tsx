@@ -201,6 +201,12 @@ export default function ApprovalsPage() {
             if (res.ok) {
                 setItems((prev) => prev.filter((i) => i.id !== id))
                 showToast(true, action === 'approve' ? 'Approved — agent will continue.' : 'Rejected — agent will abort.')
+            } else if (res.status === 409 || res.status === 404 || res.status === 410) {
+                // Already decided in another tab/session — drop the stale row and
+                // reconcile the list instead of leaving a phantom approval.
+                setItems((prev) => prev.filter((i) => i.id !== id))
+                showToast(false, 'Already decided elsewhere — list refreshed.')
+                void fetchApprovals()
             } else {
                 const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
                 showToast(false, err.error?.message ?? `${action} failed`)
@@ -224,6 +230,10 @@ export default function ApprovalsPage() {
                 setItems((prev) => prev.filter((i) => i.id !== id))
                 showToast(true, 'Approved & remembered — future identical actions will auto-approve.')
                 void fetchStandingApprovals()
+            } else if (res.status === 409 || res.status === 404 || res.status === 410) {
+                setItems((prev) => prev.filter((i) => i.id !== id))
+                showToast(false, 'Already decided elsewhere — list refreshed.')
+                void fetchApprovals()
             } else {
                 showToast(false, 'Failed to approve and remember')
             }
