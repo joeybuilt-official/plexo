@@ -159,6 +159,14 @@ export function emitMemoryUserWrite(opts: {
     })
 }
 
+// QA-opt ADR 0044: lets apps/api aggregate memory-write outcomes into a
+// Prometheus counter without packages/agent importing the API metrics lib (same
+// inversion as the LLM-latency + router hooks). Wired at API boot.
+let _onMemoryWrite: ((m: { graphitiOk: boolean; extractedFacts: number | null }) => void) | null = null
+export function setMemoryWriteMetricsHook(fn: (m: { graphitiOk: boolean; extractedFacts: number | null }) => void): void {
+    _onMemoryWrite = fn
+}
+
 /**
  * Phase 5 — every memory write emits one of these so the dashboards can
  * compute `graphiti.write.success.rate` over an arbitrary window.
@@ -181,6 +189,9 @@ export function emitMemoryWriteBackend(opts: {
         extracted_facts: opts.extractedFacts ?? null,
         reason: opts.reason ?? null,
     })
+    // Graphiti is the canonical recall store (ADR 0044). The real silent-failure
+    // mode is an episode that writes OK but extracts 0 facts → nothing recallable.
+    try { _onMemoryWrite?.({ graphitiOk: opts.graphitiOk, extractedFacts: opts.extractedFacts ?? null }) } catch { /* metrics never break writes */ }
 }
 
 /**

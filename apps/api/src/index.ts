@@ -696,6 +696,20 @@ const server = app.listen(port, '0.0.0.0', async () => {
         }
     })()
 
+    // QA-opt ADR 0044: wire memory-write outcomes (extracted|empty|failed) into a
+    // Prometheus counter — graphiti is the canonical recall store, so a write that
+    // extracts 0 facts is the real silent memory-loss signal.
+    void (async () => {
+        try {
+            const { setMemoryWriteMetricsHook } = await import('@plexo/agent/analytics/memory-events')
+            const { recordMemoryWrite } = await import('./lib/metrics.js')
+            setMemoryWriteMetricsHook((m) => recordMemoryWrite(m))
+            logger.info('Memory-write metrics hook wired')
+        } catch (err) {
+            logger.warn({ err }, 'Failed to wire memory-write metrics hook — non-fatal')
+        }
+    })()
+
     // Subscribe TASK_FAILED listeners BEFORE startAgentLoop so that any task
     // failing in the first ms after agent-loop boot still gets channel delivery.
     // In-process EventEmitter has zero buffer — a publish with no subscribers

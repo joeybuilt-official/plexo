@@ -232,6 +232,12 @@ counter('plexo_memory_recall_total', 'Memory recall outcomes by result (hit|miss
 // model_compat_status, so repair is invisible to routing (tracked separately).
 counter('plexo_model_routed_total', 'Router-v2 decisions by task_type, fallback, degraded, operator_action')
 
+// QA-opt ADR 0044: graphiti is the canonical recall store; the silent failure
+// mode is a write that lands but extracts 0 facts (nothing recallable). result ∈
+// {extracted, empty, failed}. (Replaces the originally-planned pgvector coverage
+// gauge AI4 — that store is frozen legacy since the 2026-05-13 graphiti cutover.)
+counter('plexo_memory_write_total', 'Memory-write outcomes by result (extracted|empty|failed)')
+
 // Phase K (Item 15b): instruments the policy-only-gate footgun where a
 // workspace standing approval on `general_task` silently bypasses the
 // requireApprovalForGeneralTasks policy gate. Non-zero in production = signal
@@ -364,4 +370,9 @@ export function recordModelRouted(m: { taskType: string; fallback: boolean; degr
         degraded: m.degraded ? '1' : '0',
         operator_action: m.operatorAction ? '1' : '0',
     })
+}
+
+export function recordMemoryWrite(m: { graphitiOk: boolean; extractedFacts: number | null }): void {
+    const result = !m.graphitiOk ? 'failed' : (m.extractedFacts ?? 0) > 0 ? 'extracted' : 'empty'
+    incrementCounter('plexo_memory_write_total', { result })
 }

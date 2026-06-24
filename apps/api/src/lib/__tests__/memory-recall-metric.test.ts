@@ -8,7 +8,7 @@
  * was previously invisible (debug-log only).
  */
 import { describe, it, expect } from 'vitest'
-import { recordMemoryRecall, recordModelRouted, getCounterSeries, render } from '../metrics.js'
+import { recordMemoryRecall, recordModelRouted, recordMemoryWrite, getCounterSeries, render } from '../metrics.js'
 
 describe('plexo_memory_recall_total', () => {
     it('increments per result label and renders', () => {
@@ -44,5 +44,15 @@ describe('plexo_memory_recall_total', () => {
         )
         expect(s?.value).toBeGreaterThanOrEqual(1)
         expect(render()).toContain('plexo_model_routed_total')
+    })
+
+    it('plexo_memory_write_total classifies extracted/empty/failed', () => {
+        recordMemoryWrite({ graphitiOk: true, extractedFacts: 3 })   // extracted
+        recordMemoryWrite({ graphitiOk: true, extractedFacts: 0 })   // empty (silent loss)
+        recordMemoryWrite({ graphitiOk: false, extractedFacts: null }) // failed
+        const val = (r: string) => getCounterSeries('plexo_memory_write_total').find(x => x.labels.result === r)?.value ?? 0
+        expect(val('extracted')).toBeGreaterThanOrEqual(1)
+        expect(val('empty')).toBeGreaterThanOrEqual(1)
+        expect(val('failed')).toBeGreaterThanOrEqual(1)
     })
 })
