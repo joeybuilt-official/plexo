@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import {
     buildAgentsSnapshot,
+    nextPollCadence,
     ACTIVE_STATUSES,
     type ActiveTaskRow,
     type LatestStep,
@@ -58,5 +59,22 @@ describe('buildAgentsSnapshot', () => {
         expect([...ACTIVE_STATUSES]).toEqual(['queued', 'claimed', 'running'])
         expect(ACTIVE_STATUSES).not.toContain('complete')
         expect(ACTIVE_STATUSES).not.toContain('failed')
+    })
+})
+
+describe('nextPollCadence', () => {
+    it('snaps back to 2s base whenever agents are active', () => {
+        expect(nextPollCadence(1, 10_000)).toBe(2000)
+        expect(nextPollCadence(5, 8000)).toBe(2000)
+    })
+
+    it('backs off 1.5× while idle', () => {
+        expect(nextPollCadence(0, 2000)).toBe(3000)
+        expect(nextPollCadence(0, 3000)).toBe(4500)
+    })
+
+    it('clamps the idle backoff at 10s', () => {
+        expect(nextPollCadence(0, 8000)).toBe(10_000)
+        expect(nextPollCadence(0, 10_000)).toBe(10_000)
     })
 })

@@ -31,6 +31,26 @@ export const ACTIVE_STATUSES = ['queued', 'claimed', 'running'] as const
 
 const STEP_SUMMARY_MAX = 160
 
+// Poll cadence: 2s while agents are active, backing off to 10s when the
+// workspace is idle so a roomful of open dashboards doesn't hammer the DB with
+// 2s polls that always return nothing. Resets to BASE the moment work appears.
+const POLL_BASE_MS = 2000
+const POLL_MAX_MS = 10_000
+
+// Per-workspace concurrent-stream cap. Each stream holds an interval + DB poll;
+// an unbounded fan-out (many tabs / a reconnect storm) multiplies DB load.
+const MAX_STREAMS_PER_WS = 8
+const streamsPerWs = new Map<string, number>()
+
+/**
+ * Next poll gap given the current snapshot's active count and the previous gap.
+ * Active → snap back to BASE; idle → grow 1.5× toward MAX. Pure for testing.
+ */
+export function nextPollCadence(activeCount: number, prevMs: number): number {
+    if (activeCount > 0) return POLL_BASE_MS
+    return Math.min(POLL_MAX_MS, Math.round(prevMs * 1.5))
+}
+
 export interface ActiveTaskRow {
     id: string
     role: string
@@ -98,6 +118,15 @@ agentsActiveStreamRouter.get('/active/stream', async (req, res) => {
     }
     const wsId: string = workspaceId
 
+    // Reject excess concurrent streams before upgrading to SSE so the client
+    // gets a clean 429 (the hook's onerror will retry with backoff).
+    const current = streamsPerWs.get(wsId) ?? 0
+    if (current >= MAX_STREAMS_PER_WS) {
+        res.status(429).json({ error: { code: 'TOO_MANY_STREAMS', message: 'Too many active streams for this workspace' } })
+        return
+    }
+    streamsPerWs.set(wsId, current + 1)
+
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Connection', 'keep-alive')
@@ -105,8 +134,10 @@ agentsActiveStreamRouter.get('/active/stream', async (req, res) => {
 
     let closed = false
 
-    async function poll() {
-        if (closed) return
+    // Returns the number of active agents in this snapshot so the scheduler can
+    // adapt cadence (0 → back off, >0 → poll fast).
+    async function poll(): Promise<number> {
+        if (closed) return 0
         try {
             const active = await agentsActiveRepo.listActiveTasks(wsId, [...ACTIVE_STATUSES])
 
@@ -130,24 +161,41 @@ agentsActiveStreamRouter.get('/active/stream', async (req, res) => {
 
             const snapshot = buildAgentsSnapshot(active as ActiveTaskRow[], latestByTask)
             res.write(`data: ${JSON.stringify({ type: 'agents', ts: Date.now(), data: snapshot })}\n\n`)
+            return snapshot.length
         } catch (err) {
             logger.error({ err, workspaceId: wsId }, 'agents-active-stream poll error')
             if (!closed) {
                 res.write(`data: ${JSON.stringify({ type: 'error', message: 'Internal poll error' })}\n\n`)
             }
+            return 0
         }
     }
 
-    await poll()
+    let cadence = POLL_BASE_MS
+    let pollTimer: ReturnType<typeof setTimeout> | null = null
 
-    const pollTimer = setInterval(poll, 2000)
+    // Self-rescheduling loop (instead of a fixed setInterval) so the gap between
+    // polls can grow while the workspace is idle and snap back when work starts.
+    async function tick() {
+        if (closed) return
+        const activeCount = await poll()
+        if (closed) return
+        cadence = nextPollCadence(activeCount, cadence)
+        pollTimer = setTimeout(() => void tick(), cadence)
+    }
+
+    await tick()
+
     const pingTimer = setInterval(() => {
         if (!closed) res.write(': ping\n\n')
     }, 15000)
 
     req.on('close', () => {
         closed = true
-        clearInterval(pollTimer)
+        if (pollTimer) clearTimeout(pollTimer)
         clearInterval(pingTimer)
+        const n = (streamsPerWs.get(wsId) ?? 1) - 1
+        if (n <= 0) streamsPerWs.delete(wsId)
+        else streamsPerWs.set(wsId, n)
     })
 })
