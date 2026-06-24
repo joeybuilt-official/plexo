@@ -22,17 +22,50 @@ export default defineConfig({
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
     },
+    // Visual-regression + a11y specs run at BOTH operator-standard viewports
+    // (mobile 390, desktop 1440) under dedicated projects; functional specs stay
+    // desktop-only on `chromium`. Match by filename so each spec runs once per
+    // viewport, not 3×.
+    snapshotPathTemplate: '{testDir}/__screenshots__/{testFileName}/{projectName}-{arg}{ext}',
+    expect: {
+        // Streaming/agent panels + relative timestamps are masked in the specs;
+        // this ratio absorbs sub-pixel font AA differences across runs.
+        toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: 'disabled' },
+    },
     projects: [
         // Auth setup — runs first, saves session state
         {
             name: 'setup',
             testMatch: /auth\.setup\.ts/,
         },
-        // All E2E tests — use saved auth state for browser tests
+        // Functional E2E — desktop, excludes the viewport-matrix specs
         {
             name: 'chromium',
             use: {
                 ...devices['Desktop Chrome'],
+                storageState: AUTH_FILE,
+            },
+            testIgnore: [/responsive-visual\.spec\.ts/, /a11y\.spec\.ts/],
+            dependencies: ['setup'],
+        },
+        // Visual + a11y @ mobile 390 (operator standard)
+        {
+            name: 'mobile-390',
+            testMatch: [/responsive-visual\.spec\.ts/, /a11y\.spec\.ts/],
+            use: {
+                ...devices['Pixel 7'],
+                viewport: { width: 390, height: 844 },
+                storageState: AUTH_FILE,
+            },
+            dependencies: ['setup'],
+        },
+        // Visual + a11y @ desktop 1440 (operator standard)
+        {
+            name: 'desktop-1440',
+            testMatch: [/responsive-visual\.spec\.ts/, /a11y\.spec\.ts/],
+            use: {
+                ...devices['Desktop Chrome'],
+                viewport: { width: 1440, height: 900 },
                 storageState: AUTH_FILE,
             },
             dependencies: ['setup'],

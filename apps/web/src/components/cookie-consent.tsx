@@ -43,7 +43,7 @@ export function CookieConsent() {
     return (
         // Corner toast on ≥sm so it never covers a centered composer / controls;
         // full-width pill on mobile but auto-dismissed on first interaction.
-        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg sm:left-auto sm:right-4 sm:mx-0 sm:max-w-sm rounded border border-border bg-surface-1 px-4 py-3 animate-in slide-in-from-bottom-4 duration-300">
+        <div data-testid="cookie-consent" className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg sm:left-auto sm:right-4 sm:mx-0 sm:max-w-sm rounded border border-border bg-surface-1 px-4 py-3 animate-in slide-in-from-bottom-4 duration-300">
             <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                     <p className="text-xs text-text-secondary leading-relaxed">
