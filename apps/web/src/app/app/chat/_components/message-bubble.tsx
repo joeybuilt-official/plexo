@@ -85,7 +85,7 @@ function PhaseIndicator({ phases, currentPhase }: {
                 aria-expanded={expanded}
                 aria-label={expanded ? 'Hide progress steps' : 'Show progress steps'}
                 onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-2 px-3 py-1 rounded-sm bg-surface-1/30 border border-border/20 hover:bg-surface-1/50 transition-all text-xs"
+                className="flex items-center gap-2 px-3 py-1 min-h-6 rounded-sm bg-surface-1/30 border border-border/20 hover:bg-surface-1/50 transition-all text-xs"
             >
                 <Loader2 className="h-3 w-3 text-azure animate-spin" />
                 <span className="text-text-secondary">
@@ -131,7 +131,7 @@ function LivePlanCard({ plan }: { plan: NonNullable<Message['livePlan']> }) {
                 aria-expanded={expanded}
                 aria-label={expanded ? 'Hide plan' : 'Show plan'}
                 onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-2 px-3 py-1 rounded-sm bg-surface-1/30 border border-border/20 hover:bg-surface-1/50 transition-all text-xs w-full"
+                className="flex items-center gap-2 px-3 py-1 min-h-6 rounded-sm bg-surface-1/30 border border-border/20 hover:bg-surface-1/50 transition-all text-xs w-full"
             >
                 <ListChecks className="h-3 w-3 text-azure shrink-0" />
                 <span className="text-text-secondary truncate flex-1 text-left">

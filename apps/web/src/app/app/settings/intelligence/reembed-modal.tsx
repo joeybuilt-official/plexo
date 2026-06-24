@@ -14,7 +14,7 @@
  * job reaches a terminal state.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react'
 import { useReembedJob, startReembed } from '@web/lib/embeddings-client'
 import { useFocusTrap } from '@web/hooks/use-focus-trap'
@@ -62,6 +62,15 @@ export function ReembedModal(props: ReembedModalProps) {
     const isFailed = job?.status === 'failed' || job?.status === 'cancelled'
 
     const trapRef = useFocusTrap<HTMLDivElement>(open)
+
+    useEffect(() => {
+        if (!open) return
+        function handleKey(e: KeyboardEvent) {
+            if (e.key === 'Escape' && !isRunning) onClose()
+        }
+        window.addEventListener('keydown', handleKey)
+        return () => window.removeEventListener('keydown', handleKey)
+    }, [open, isRunning, onClose])
 
     return (
         <div

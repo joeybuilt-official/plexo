@@ -18,7 +18,7 @@ for (const route of ROUTES) {
         if (route.auth && /\/login|\/signin/.test(new URL(page.url()).pathname)) {
             test.skip(true, 'no authenticated session — set E2E_EMAIL/E2E_PASSWORD')
         }
-        await page.waitForLoadState('networkidle').catch(() => {})
+        await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
 
         // 1. Heading present (document has a top-level heading).
         expect(await page.locator('h1, [role="heading"][aria-level="1"]').count(),

@@ -269,7 +269,7 @@ export function QuickSend() {
                                 Forgot an attachment?
                             </span>
                             <button
-                                className="whitespace-nowrap rounded-sm bg-amber/20 hover:bg-amber/30 border border-amber-500/20 px-2 py-1 text-[11px] font-medium text-amber transition-colors uppercase tracking-wider"
+                                className="whitespace-nowrap rounded-sm bg-amber/20 hover:bg-amber/30 border border-amber-500/20 px-2 py-1 min-h-6 text-[11px] font-medium text-amber transition-colors uppercase tracking-wider"
                                 onClick={() => fileInputRef.current?.click()}
                             >
                                 Attach

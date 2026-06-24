@@ -34,6 +34,14 @@ export const ROUTES: RouteDef[] = [
     { path: '/app/connections', id: 'connections', auth: true },
     { path: '/app/conversations', id: 'conversations', auth: true },
     { path: '/app/settings/intelligence/routing', id: 'settings-routing', auth: true },
+    { path: '/app/projects', id: 'projects', auth: true },
+    { path: '/app/account', id: 'account', auth: true },
+    { path: '/app/scheduling', id: 'scheduling', auth: true },
+    { path: '/app/outcomes', id: 'outcomes', auth: true },
+    { path: '/app/works', id: 'works', auth: true },
+    { path: '/app/revisions', id: 'revisions', auth: true },
+    { path: '/app/logs', id: 'logs', auth: true },
+    { path: '/app/settings/intelligence/providers', id: 'settings-providers', auth: true },
 ]
 
 /**

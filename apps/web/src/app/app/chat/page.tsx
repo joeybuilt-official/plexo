@@ -1259,7 +1259,7 @@ function ChatContent() {
                                 sessionId.current = fresh
                                 sessionStorage.setItem('plexo-chat-session', fresh)
                             }}
-                            className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+                            className="min-h-6 text-xs text-text-muted hover:text-text-secondary transition-colors"
                         >
                             Clear
                         </button>
@@ -1291,14 +1291,14 @@ function ChatContent() {
                             <div className="flex items-center gap-3">
                                 <button
                                     onClick={() => window.location.reload()}
-                                    className="text-xs text-azure hover:underline"
+                                    className="min-h-6 text-xs text-azure hover:underline"
                                 >
                                     Retry
                                 </button>
                                 <span className="text-text-muted text-xs">·</span>
                                 <button
                                     onClick={() => setHistoryError(false)}
-                                    className="text-xs text-text-muted hover:text-text-secondary"
+                                    className="min-h-6 text-xs text-text-muted hover:text-text-secondary"
                                 >
                                     Dismiss
                                 </button>

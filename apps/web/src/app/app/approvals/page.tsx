@@ -490,7 +490,7 @@ export default function ApprovalsPage() {
                                             onClick={() => void decide(item.id, 'approve')}
                                             disabled={isActing}
                                             aria-label="Approve this operation"
-                                            className="rounded-md bg-azure-600/20 border border-azure-700/40 px-2.5 py-1 text-xs font-medium text-azure hover:bg-azure-600/30 disabled:opacity-50 transition-colors"
+                                            className="rounded-md bg-azure-600/20 border border-azure-700/40 px-2.5 py-1.5 text-xs font-medium text-azure hover:bg-azure-600/30 disabled:opacity-50 transition-colors"
                                         >
                                             {isActing ? <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" /> : '✓'}
                                         </button>
@@ -498,7 +498,7 @@ export default function ApprovalsPage() {
                                             onClick={() => void decide(item.id, 'reject')}
                                             disabled={isActing}
                                             aria-label="Reject this operation"
-                                            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text-muted hover:border-red-700/60 hover:text-red disabled:opacity-50 transition-colors"
+                                            className="rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-text-muted hover:border-red-700/60 hover:text-red disabled:opacity-50 transition-colors"
                                         >
                                             ✕
                                         </button>

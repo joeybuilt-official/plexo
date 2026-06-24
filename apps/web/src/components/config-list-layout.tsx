@@ -98,7 +98,7 @@ export function ConfigListLayout<T>({
                     {/* Back button: mobile only, shown when detail is open */}
                     {hasSelection && (
                         <button
-                            className="md:hidden flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors shrink-0 -ml-1 pr-1"
+                            className="md:hidden flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors shrink-0 -ml-1 pr-1 min-h-6"
                             onClick={() => {
                                 // Deselect by selecting a non-existent item — pages must
                                 // handle selection as toggle (second click deselects).

@@ -112,13 +112,11 @@ export function CommandPalette() {
         return () => document.removeEventListener('keydown', handler)
     }, [])
 
-    // Focus input when opened
+    // Reset state when opened; focus is handled by useFocusTrap
     useEffect(() => {
         if (open) {
             setQuery('')
             setSelectedIndex(0)
-            // Small delay to ensure DOM is ready
-            requestAnimationFrame(() => inputRef.current?.focus())
         }
     }, [open])
 
@@ -226,7 +224,7 @@ export function CommandPalette() {
                 </div>
 
                 {/* Results */}
-                <div ref={listRef} className="max-h-[50vh] overflow-y-auto p-2" role="listbox">
+                <div ref={listRef} className="max-h-[50vh] overflow-y-auto p-2" role="listbox" aria-activedescendant={filtered[selectedIndex] ? `palette-option-${filtered[selectedIndex].id}` : undefined}>
                     {filtered.length === 0 ? (
                         <div className="py-8 text-center text-sm text-text-muted">
                             No results for &ldquo;{query}&rdquo;
@@ -244,6 +242,7 @@ export function CommandPalette() {
                                     return (
                                         <button
                                             key={item.id}
+                                            id={`palette-option-${item.id}`}
                                             data-index={idx}
                                             onClick={() => navigate(item)}
                                             onMouseEnter={() => setSelectedIndex(idx)}
@@ -252,7 +251,6 @@ export function CommandPalette() {
                                                     ? 'bg-surface-2 text-text-primary'
                                                     : 'text-text-secondary hover:bg-surface-2/50'
                                             }`}
-                                            role="option"
                                             aria-selected={idx === selectedIndex}
                                         >
                                             <Icon className="h-4 w-4 shrink-0 text-text-muted" />

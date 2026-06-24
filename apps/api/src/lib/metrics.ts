@@ -228,9 +228,14 @@ counter('plexo_memory_recall_total', 'Memory recall outcomes by result (hit|miss
 // fell back off its first-choice provider; degraded=1 means it routed to a
 // sub-recommended provider; operator_action=1 means the decision needs operator
 // attention (e.g. all good providers exhausted). Sourced from emitRoutedEvent.
-// NOTE: native-vs-repair rate is NOT here — the selector does not read
-// model_compat_status, so repair is invisible to routing (tracked separately).
 counter('plexo_model_routed_total', 'Router-v2 decisions by task_type, fallback, degraded, operator_action')
+
+// AI1 (ADR 0037 §observe-only addendum): schema-mode calls that required the
+// generateText repair path. repairUsed is computed entirely in-process inside
+// call-model.ts — no DB reads, no scoring-path changes. Purely additive counter.
+// Labels match plexo_llm_latency_seconds for join-ability. workspace_id omitted
+// (high cardinality; join via task logs if needed).
+counter('plexo_model_repair_total', 'Schema-mode LLM calls that required the generateText repair path, by provider, model, task_type')
 
 // QA-opt ADR 0044: graphiti is the canonical recall store; the silent failure
 // mode is a write that lands but extracts 0 facts (nothing recallable). result ∈
@@ -375,4 +380,8 @@ export function recordModelRouted(m: { taskType: string; fallback: boolean; degr
 export function recordMemoryWrite(m: { graphitiOk: boolean; extractedFacts: number | null }): void {
     const result = !m.graphitiOk ? 'failed' : (m.extractedFacts ?? 0) > 0 ? 'extracted' : 'empty'
     incrementCounter('plexo_memory_write_total', { result })
+}
+
+export function recordModelRepair(m: { provider: string; model: string; taskType: string }): void {
+    incrementCounter('plexo_model_repair_total', { provider: m.provider, model: m.model, task_type: m.taskType })
 }

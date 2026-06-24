@@ -668,9 +668,10 @@ const server = app.listen(port, '0.0.0.0', async () => {
     void (async () => {
         try {
             const { setLlmCallMetricsHook } = await import('@plexo/agent/providers/call-model')
-            const { recordLlmLatency } = await import('./lib/metrics.js')
-            setLlmCallMetricsHook((m: { provider: string; model: string; taskType: string; status: string; latencySec: number }) => {
+            const { recordLlmLatency, recordModelRepair } = await import('./lib/metrics.js')
+            setLlmCallMetricsHook((m: { provider: string; model: string; taskType: string; status: string; latencySec: number; repairUsed?: boolean }) => {
                 recordLlmLatency(m.provider, m.model, m.taskType, m.status, m.latencySec)
+                if (m.repairUsed) recordModelRepair({ provider: m.provider, model: m.model, taskType: m.taskType })
             })
             logger.info('LLM call metrics hook wired')
         } catch (err) {

@@ -309,6 +309,7 @@ export default function MemoryPage() {
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                             <select
+                                aria-label="Memory type"
                                 value={teachType}
                                 onChange={e => setTeachType(e.target.value)}
                                 className="rounded-sm border border-border bg-canvas px-2 py-1.5 text-xs text-text-secondary"
@@ -348,6 +349,7 @@ export default function MemoryPage() {
                     {/* Filters */}
                     <div className="flex gap-2">
                         <select
+                            aria-label="Filter by type"
                             value={typeFilter}
                             onChange={e => setTypeFilter(e.target.value)}
                             className="rounded-sm border border-border bg-canvas px-2 py-1.5 text-xs text-text-secondary"
@@ -359,6 +361,7 @@ export default function MemoryPage() {
                             <option value="incident">Incident</option>
                         </select>
                         <select
+                            aria-label="Filter by tier"
                             value={tierFilter}
                             onChange={e => setTierFilter(e.target.value)}
                             className="rounded-sm border border-border bg-canvas px-2 py-1.5 text-xs text-text-secondary"

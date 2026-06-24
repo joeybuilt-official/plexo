@@ -15,7 +15,7 @@
  * but live inline because the picker is a modal over the editor.
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { X, Loader2, Search } from 'lucide-react'
 import { useModelCatalog, type CatalogItemView } from '@web/lib/intelligence-client'
 import { ModelAttributeBadges, type ModelAttributesView } from '../model-attribute-badges'
@@ -62,6 +62,15 @@ export function ModelPickerModal({ open, onClose, providers, onPick }: ModelPick
     }, [providers])
 
     const trapRef = useFocusTrap<HTMLDivElement>(open)
+
+    useEffect(() => {
+        if (!open) return
+        function handleKey(e: KeyboardEvent) {
+            if (e.key === 'Escape') onClose()
+        }
+        window.addEventListener('keydown', handleKey)
+        return () => window.removeEventListener('keydown', handleKey)
+    }, [open, onClose])
 
     if (!open) return null
 

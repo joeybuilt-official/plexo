@@ -25,6 +25,8 @@ import { randomUUID } from 'node:crypto'
 import { Router } from 'express'
 import pino from 'pino'
 import { GraphitiClient } from '@plexo/graphiti-bridge'
+import { db, eq, and } from '@plexo/db'
+import { workspaceAppGrants } from '@plexo/db'
 import { graphCypher, isGraphSidecarConfigured } from '../lib/graph-sidecar.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 
@@ -49,6 +51,49 @@ export function resetGraphRouterForTest(): void {
 }
 export function setGraphRouterClientForTest(c: GraphitiClient | null): void {
     _client = c
+}
+
+// ---------------------------------------------------------------------------
+// Workspace authorization cache
+// ---------------------------------------------------------------------------
+// Cache positive grants 30 s, negative 5 s to avoid a DB hit per cypher call
+// during graph-viz sessions while keeping revocation latency reasonable.
+interface GrantCacheEntry { granted: boolean; expiry: number }
+const _grantCache = new Map<string, GrantCacheEntry>()
+const GRANT_CACHE_POS_MS = 30_000
+const GRANT_CACHE_NEG_MS = 5_000
+
+/** Parses PLEXO_INTERNAL_APP_IDS env var (comma-separated). */
+function internalAppIds(): Set<string> {
+    const raw = process.env.PLEXO_INTERNAL_APP_IDS ?? ''
+    return new Set(raw.split(',').map(s => s.trim()).filter(Boolean))
+}
+
+/**
+ * Returns true if the calling app is authorized for the requested workspace.
+ * Bypass rules (short-circuit before DB):
+ *   - viaSharedKey=true  → internal server-to-server call, always allowed.
+ *   - appId is in PLEXO_INTERNAL_APP_IDS → internal app, always allowed.
+ * Otherwise, workspace_app_grants must have a 'granted' row for (appId, workspaceId).
+ */
+export async function isWorkspaceAuthorized(appId: string, workspaceId: string, viaSharedKey: boolean): Promise<boolean> {
+    if (viaSharedKey || internalAppIds().has(appId)) return true
+    const key = `${appId}:${workspaceId}`
+    const cached = _grantCache.get(key)
+    if (cached && cached.expiry > Date.now()) return cached.granted
+    const [row] = await db
+        .select({ status: workspaceAppGrants.status })
+        .from(workspaceAppGrants)
+        .where(and(eq(workspaceAppGrants.appId, appId), eq(workspaceAppGrants.workspaceId, workspaceId)))
+        .limit(1)
+    const granted = row?.status === 'granted'
+    _grantCache.set(key, { granted, expiry: Date.now() + (granted ? GRANT_CACHE_POS_MS : GRANT_CACHE_NEG_MS) })
+    return granted
+}
+
+/** Test hook — clear the grant cache between test cases. */
+export function clearGrantCacheForTest(): void {
+    _grantCache.clear()
 }
 
 router.use(requireServiceKey)
@@ -182,6 +227,12 @@ router.get('/facts/search', async (req, res) => {
         res.status(400).json({ error: { code: 'INVALID_LIMIT', message: 'limit must be between 1 and 100' } })
         return
     }
+    const appId = req.serviceContext!.appId
+    const viaSharedKey = req.serviceContext!.viaSharedKey ?? false
+    if (!await isWorkspaceAuthorized(appId, workspaceId, viaSharedKey)) {
+        res.status(403).json({ error: { code: 'WORKSPACE_FORBIDDEN', message: 'app is not authorized for this workspace' } })
+        return
+    }
     const client = getClient()
     if (!client) {
         res.status(503).json({ error: { code: 'BRIDGE_UNCONFIGURED', message: 'graphiti sidecar URL or service key not set' } })
@@ -256,6 +307,12 @@ router.post('/cypher', async (req, res) => {
     }
     if (isWriteCypher(body.cypher)) {
         res.status(400).json({ error: { code: 'WRITE_FORBIDDEN', message: 'this surface is read-only' } })
+        return
+    }
+    const callerAppId = req.serviceContext!.appId
+    const callerViaSharedKey = req.serviceContext!.viaSharedKey ?? false
+    if (!await isWorkspaceAuthorized(callerAppId, body.workspaceId, callerViaSharedKey)) {
+        res.status(403).json({ error: { code: 'WORKSPACE_FORBIDDEN', message: 'app is not authorized for this workspace' } })
         return
     }
     if (!isGraphSidecarConfigured()) {

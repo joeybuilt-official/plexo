@@ -31,7 +31,7 @@ export function CopyId({ id, label, className = '' }: CopyIdProps) {
         <button
             onClick={handleClick}
             title={`Copy ${label ?? 'ID'}: ${id}`}
-            className={`group inline-flex items-center gap-1 rounded-md border border-border/50 bg-surface-1/40 px-1.5 py-0.5 font-mono text-[11px] text-text-muted transition-all hover:border-border hover:bg-surface-2/60 hover:text-text-secondary active:scale-95 ${className}`}
+            className={`group inline-flex items-center gap-1 rounded-md border border-border/50 bg-surface-1/40 px-1.5 py-0.5 min-h-6 font-mono text-[11px] text-text-muted transition-all hover:border-border hover:bg-surface-2/60 hover:text-text-secondary active:scale-95 ${className}`}
         >
             {label && <span className="text-text-muted/60 not-italic font-sans">{label}:</span>}
             <span>{id.slice(0, 8)}</span>

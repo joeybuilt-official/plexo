@@ -11,8 +11,8 @@
  * write slip through the read-only surface.
  */
 
-import { describe, it, expect } from 'vitest'
-import { isWriteCypher, clampCypherLimit, MAX_CYPHER_LIMIT } from '../graph.js'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { isWriteCypher, clampCypherLimit, MAX_CYPHER_LIMIT, isWorkspaceAuthorized, clearGrantCacheForTest } from '../graph.js'
 
 const READ_CASES: Array<[string, string]> = [
   ['plain match/return', 'MATCH (n:Entity)-[r:RELATES_TO]->(m:Entity) RETURN n, m LIMIT 500'],
@@ -55,6 +55,88 @@ function limitOf(cypher: string): number | null {
   const m = /\blimit\s+(\d+)\b/i.exec(cypher)
   return m ? Number(m[1]) : null
 }
+
+// ---------------------------------------------------------------------------
+// Workspace authorization guard (SEC3 fix)
+// ---------------------------------------------------------------------------
+vi.mock('@plexo/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@plexo/db')>()
+  return {
+    ...actual,
+    db: {
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+    },
+  }
+})
+
+const FYLO_APP = 'fylo'
+const NEXALOG_APP = 'nexalog'
+const WS_A = '11111111-1111-1111-1111-111111111111'
+const WS_B = '22222222-2222-2222-2222-222222222222'
+
+describe('isWorkspaceAuthorized — workspace grant enforcement (SEC3)', () => {
+  // Import db mock after vi.mock hoisting
+  let dbMock: { limit: ReturnType<typeof vi.fn> }
+
+  beforeEach(async () => {
+    clearGrantCacheForTest()
+    const mod = await import('@plexo/db')
+    // @ts-expect-error accessing mock internals
+    dbMock = mod.db
+    delete process.env.PLEXO_INTERNAL_APP_IDS
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    delete process.env.PLEXO_INTERNAL_APP_IDS
+  })
+
+  it('(a) granted app+ws → true', async () => {
+    dbMock.limit.mockResolvedValueOnce([{ status: 'granted' }])
+    expect(await isWorkspaceAuthorized(FYLO_APP, WS_A, false)).toBe(true)
+  })
+
+  it('(b) absent grant row → false', async () => {
+    dbMock.limit.mockResolvedValueOnce([])
+    expect(await isWorkspaceAuthorized(FYLO_APP, WS_B, false)).toBe(false)
+  })
+
+  it('(b) revoked grant → false', async () => {
+    dbMock.limit.mockResolvedValueOnce([{ status: 'revoked' }])
+    expect(await isWorkspaceAuthorized(FYLO_APP, WS_B, false)).toBe(false)
+  })
+
+  it('(c) viaSharedKey=true bypasses grant check (no DB call)', async () => {
+    const callsBefore = (dbMock.limit as ReturnType<typeof vi.fn>).mock.calls.length
+    expect(await isWorkspaceAuthorized(FYLO_APP, WS_B, true)).toBe(true)
+    expect((dbMock.limit as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore)
+  })
+
+  it('(d) PLEXO_INTERNAL_APP_IDS member bypasses grant check (no DB call)', async () => {
+    process.env.PLEXO_INTERNAL_APP_IDS = 'plexo-api,plexo-ops'
+    const callsBefore = (dbMock.limit as ReturnType<typeof vi.fn>).mock.calls.length
+    expect(await isWorkspaceAuthorized('plexo-api', WS_B, false)).toBe(true)
+    expect((dbMock.limit as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore)
+  })
+
+  it('cross-workspace denial — fylo cannot access nexalog workspace', async () => {
+    // WS_B belongs to nexalog; fylo has no grant
+    dbMock.limit.mockResolvedValueOnce([])
+    expect(await isWorkspaceAuthorized(FYLO_APP, WS_B, false)).toBe(false)
+  })
+
+  it('cache positive result — second call skips DB', async () => {
+    dbMock.limit.mockResolvedValueOnce([{ status: 'granted' }])
+    await isWorkspaceAuthorized(NEXALOG_APP, WS_A, false)
+    const callsAfterFirst = (dbMock.limit as ReturnType<typeof vi.fn>).mock.calls.length
+    // Second call — should use cache, no extra DB hit
+    await isWorkspaceAuthorized(NEXALOG_APP, WS_A, false)
+    expect((dbMock.limit as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsAfterFirst)
+  })
+})
 
 describe('clampCypherLimit — server-side row cap (defense-in-depth)', () => {
   it('leaves an in-range LIMIT untouched', () => {

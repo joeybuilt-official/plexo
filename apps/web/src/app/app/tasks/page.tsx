@@ -219,6 +219,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                             <p className="text-xs text-text-muted">No projects yet — create one from the Projects page.</p>
                         ) : (
                             <select
+                                aria-label="Project"
                                 value={projectId}
                                 onChange={(e) => setProjectId(e.target.value)}
                                 className="rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure focus-ring"

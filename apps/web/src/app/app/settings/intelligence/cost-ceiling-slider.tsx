@@ -163,6 +163,7 @@ export function CostCeilingSlider({ workspaceId }: { workspaceId: string }) {
                 </div>
                 <input
                     type="range"
+                    aria-label="Monthly cost ceiling"
                     min={0}
                     max={STEPS}
                     value={draft}

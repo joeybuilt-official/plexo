@@ -87,7 +87,7 @@ function AgentActivityPanelBase({ sprint, isRunning }: { sprint: SprintActivity;
                     type="button"
                     aria-label="Show sub-agent activity"
                     onClick={() => setOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-md border border-border/30 bg-surface-1/30 hover:bg-surface-1/50 px-2 py-1 text-[11px] text-text-secondary transition-colors max-w-full"
+                    className="inline-flex items-center gap-2 rounded-md border border-border/30 bg-surface-1/30 hover:bg-surface-1/50 px-2 py-1 min-h-6 text-[11px] text-text-secondary transition-colors max-w-full"
                 >
                     <ChevronRight className="w-3 h-3 shrink-0" />
                     {isRunning

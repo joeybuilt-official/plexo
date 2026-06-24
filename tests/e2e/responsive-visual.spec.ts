@@ -25,7 +25,7 @@ for (const route of ROUTES) {
             test.skip(true, 'no authenticated session — set E2E_EMAIL/E2E_PASSWORD')
         }
 
-        await page.waitForLoadState('networkidle').catch(() => {})
+        await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
 
         const mask = VISUAL_MASK_SELECTORS.map(sel => page.locator(sel))
         await expect(page).toHaveScreenshot(`${route.id}.png`, {

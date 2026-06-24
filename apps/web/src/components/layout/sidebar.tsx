@@ -242,6 +242,18 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
         return () => document.removeEventListener('mousedown', handler)
     }, [open])
 
+    useEffect(() => {
+        if (!open) return
+        function handleKey(e: KeyboardEvent) {
+            if (e.key === 'Escape') {
+                setOpen(false)
+                ;(ref.current?.querySelector<HTMLElement>('#workspace-switcher'))?.focus()
+            }
+        }
+        document.addEventListener('keydown', handleKey)
+        return () => document.removeEventListener('keydown', handleKey)
+    }, [open])
+
     async function handleCreate() {
         if (!newName.trim()) return
         const ownerRes = await fetch(`/api/v1/workspaces/${workspaceId}`)
@@ -560,6 +572,7 @@ function NavSection({ id, label, expanded, onToggle, collapsed: sidebarCollapsed
                 id={`nav-section-${id}`}
                 className="grid transition-[grid-template-rows] duration-200 ease-in-out"
                 style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
+                {...(expanded ? {} : { inert: true })}
             >
                 <div className="overflow-hidden">
                     <div className="space-y-0.5">
@@ -888,6 +901,18 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
         }
         document.addEventListener('mousedown', handler)
         return () => document.removeEventListener('mousedown', handler)
+    }, [open])
+
+    useEffect(() => {
+        if (!open) return
+        function handleKey(e: KeyboardEvent) {
+            if (e.key === 'Escape') {
+                setOpen(false)
+                ;(ref.current?.querySelector<HTMLElement>('button'))?.focus()
+            }
+        }
+        document.addEventListener('keydown', handleKey)
+        return () => document.removeEventListener('keydown', handleKey)
     }, [open])
 
     const initials = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase()

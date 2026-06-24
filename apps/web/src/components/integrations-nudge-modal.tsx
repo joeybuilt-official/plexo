@@ -336,7 +336,7 @@ export function IntegrationsNudgeModal() {
                 <div className="flex items-center justify-between gap-3 px-5 py-4 mt-3">
                     <button
                         onClick={() => dismiss(true)}
-                        className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+                        className="text-xs text-text-muted hover:text-text-secondary transition-colors min-h-6 flex items-center"
                     >
                         Don&apos;t ask again
                     </button>

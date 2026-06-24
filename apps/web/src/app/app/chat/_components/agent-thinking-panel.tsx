@@ -398,7 +398,7 @@ function AgentThinkingPanelBase({ events, isRunning, compactOnComplete = true }:
                     type="button"
                     aria-label="Show agent thinking details"
                     onClick={() => setCompactOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-md border border-border/30 bg-surface-1/30 hover:bg-surface-1/50 px-2 py-1 text-[11px] text-text-secondary transition-colors"
+                    className="inline-flex items-center gap-2 rounded-md border border-border/30 bg-surface-1/30 hover:bg-surface-1/50 px-2 py-1 min-h-6 text-[11px] text-text-secondary transition-colors"
                 >
                     <ChevronRight className="w-3 h-3" />
                     <span>{stepCount} step{stepCount !== 1 ? 's' : ''}</span>

@@ -63,6 +63,8 @@ export type LlmCallMetrics = {
     taskType: string
     status: 'success' | 'error'
     latencySec: number
+    /** True when the schema-mode call fell through to the generateText repair path. */
+    repairUsed?: boolean
 }
 let _onCallComplete: ((m: LlmCallMetrics) => void) | null = null
 export function setLlmCallMetricsHook(fn: (m: LlmCallMetrics) => void): void {
@@ -955,7 +957,7 @@ export async function callModel(opts: CallModelOpts<unknown>): Promise<CallModel
                     attempts,
                 }, 'callModel (schema) succeeded')
 
-                _onCallComplete?.({ provider: opts.provider ?? 'unknown', model: modelId, taskType: opts.taskType ?? 'unknown', status: 'success', latencySec: latencyMs / 1000 })
+                _onCallComplete?.({ provider: opts.provider ?? 'unknown', model: modelId, taskType: opts.taskType ?? 'unknown', status: 'success', latencySec: latencyMs / 1000, repairUsed })
 
                 const objectResult: CallModelObjectResult<unknown> = {
                     object: result.object,

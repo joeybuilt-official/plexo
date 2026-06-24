@@ -18,6 +18,7 @@ export function useFocusTrap<T extends HTMLElement>(active: boolean) {
     useEffect(() => {
         if (!active || !ref.current) return
         const el = ref.current
+        const prev = document.activeElement as HTMLElement | null
 
         // Focus first focusable element
         const focusables = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE))
@@ -43,7 +44,10 @@ export function useFocusTrap<T extends HTMLElement>(active: boolean) {
         }
 
         el.addEventListener('keydown', handleKeyDown)
-        return () => el.removeEventListener('keydown', handleKeyDown)
+        return () => {
+            el.removeEventListener('keydown', handleKeyDown)
+            prev?.focus()
+        }
     }, [active])
 
     return ref
