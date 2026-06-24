@@ -1,0 +1,106 @@
+# Visual-regression + a11y gate for the design-system sweeps (FE7/FE8).
+#
+# STATUS: informational until set up — it is NOT yet a required status check.
+# Before it can pass / be made required, an operator must:
+#   1. Provision a long-lived QA better-auth session token and store it as the
+#      repo secret E2E_SESSION_COOKIE (extract it the way scripts in
+#      /workspace/_eval/plexo/shot-plexo.mjs do). A short-lived cookie makes the
+#      gate silently drop authed coverage when it lapses.
+#   2. Regenerate baselines ONCE in the matched 1.58.2 container and commit
+#      tests/e2e/__screenshots__/ (any baselines from the 1.60 _eval harness are
+#      INVALID here — Chromium AA differs across builds):
+#        ssh <server> 'docker run --rm -v /data/appdata/app-stack/workspace/plexo:/w -w /w \
+#          -e E2E_BASE_URL=https://app.getplexo.com -e E2E_SESSION_COOKIE=<TOKEN> \
+#          -e E2E_COOKIE_DOMAIN=app.getplexo.com mcr.microsoft.com/playwright:v1.58.2-noble \
+#          sh -lc "corepack enable && pnpm install --frozen-lockfile && \
+#            pnpm playwright test responsive-visual a11y --project=setup \
+#              --project=mobile-390 --project=desktop-1440 --update-snapshots"'
+#   3. Before gating AUTHED routes, expand VISUAL_MASK_SELECTORS in
+#      tests/e2e/_helpers/routes.ts to cover mutable prod-data regions (relative
+#      timestamps, live list bodies on home/tasks/memory/approvals) — otherwise
+#      fullPage diffs vs LIVE prod false-positive on data/time drift. Until then
+#      treat authed-route results as informational artifacts, gate on public routes.
+#   4. Add "visual-regression / visual-a11y" to main branch protection:
+#        gh api -X PATCH repos/joeybuilt-official/plexo/branches/main/protection/required_status_checks \
+#          -f 'checks[][context]=visual-regression / visual-a11y'
+
+name: visual-regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'packages/ui/**'
+      - 'tests/e2e/**'
+      - 'playwright.config.ts'
+      - '.github/workflows/visual-regression.yml'
+  workflow_dispatch: {}
+
+concurrency:
+  group: visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Pin to the EXACT PW client version from pnpm-lock.yaml (1.58.2). Browser
+    # binaries are baked into this image; a mismatch = every screenshot drifts.
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      options: --ipc=host
+    env:
+      # Read-only authed traffic against prod (no staging env exists today).
+      E2E_BASE_URL: https://app.getplexo.com
+      E2E_SESSION_COOKIE: ${{ secrets.E2E_SESSION_COOKIE }}
+      E2E_COOKIE_DOMAIN: app.getplexo.com
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      # The gate is meaningless without a session — authed routes would all
+      # test.skip. Fail loudly (not silently) if the secret is missing.
+      - name: Require session secret
+        run: |
+          if [ -z "$E2E_SESSION_COOKIE" ]; then
+            echo "::error::E2E_SESSION_COOKIE not set — authed visual/a11y routes would silently skip. Provision the QA better-auth token as a repo secret (see header)."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Image already ships matching browsers — do NOT run `playwright install`.
+      - run: pnpm install --frozen-lockfile
+
+      # Catch a future lockfile bump that forgets to bump the image tag above.
+      - name: Assert PW version matches image
+        run: |
+          V=$(pnpm playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "playwright client: $V"
+          case "$V" in
+            1.58.*) echo "ok" ;;
+            *) echo "::error::PW client $V != image v1.58.2-noble. Bump the container image tag in this workflow to match the lockfile, then regenerate baselines."; exit 1 ;;
+          esac
+
+      # setup project injects the cookie into storageState; mobile-390 +
+      # desktop-1440 run the visual + a11y matrix at both operator viewports.
+      - name: Visual + a11y matrix
+        run: pnpm playwright test responsive-visual a11y --project=setup --project=mobile-390 --project=desktop-1440
+
+      # On diff/failure: upload the HTML report (expected/actual/diff PNGs) + raw
+      # results so a reviewer can eyeball every diff.
+      - name: Upload diff report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: warn
