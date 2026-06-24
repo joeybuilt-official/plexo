@@ -80,6 +80,7 @@ export function EmbeddingCard({ row, availableModels, onModelChange }: Embedding
             </div>
 
             <select
+                aria-label={`Embedding model for ${row.providerType}`}
                 value={row.selectedModel ?? ''}
                 onChange={handleChange}
                 disabled={saving || merged.length === 0}

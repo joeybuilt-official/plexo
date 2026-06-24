@@ -1086,6 +1086,7 @@ export default function ProvidersPage() {
                                         {savingModel && <span className="text-[10px] text-azure animate-pulse">Saving...</span>}
                                     </div>
                                     <select
+                                        aria-label="Active model"
                                         value={selectedInstance.selectedModel || modelOptions[0]}
                                         onChange={(e) => void handleModelChange(selectedInstance.id, e.target.value)}
                                         className="w-full rounded-sm border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary font-mono focus:border-azure focus-ring"

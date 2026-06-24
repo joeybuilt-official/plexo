@@ -106,6 +106,7 @@ export function ModelPickerModal({ open, onClose, providers, onPick }: ModelPick
                         />
                     </div>
                     <select
+                        aria-label="Filter by provider"
                         value={providerFilter}
                         onChange={e => setProviderFilter(e.target.value)}
                         className="rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-primary"
@@ -116,6 +117,7 @@ export function ModelPickerModal({ open, onClose, providers, onPick }: ModelPick
                         ))}
                     </select>
                     <select
+                        aria-label="Filter by cost"
                         value={costFilter}
                         onChange={e => setCostFilter(e.target.value)}
                         className="rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-primary"
@@ -127,6 +129,7 @@ export function ModelPickerModal({ open, onClose, providers, onPick }: ModelPick
                         <option value="premium">premium</option>
                     </select>
                     <select
+                        aria-label="Filter by latency"
                         value={latencyFilter}
                         onChange={e => setLatencyFilter(e.target.value)}
                         className="rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-primary"

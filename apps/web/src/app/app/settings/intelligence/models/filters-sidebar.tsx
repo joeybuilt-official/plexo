@@ -71,6 +71,7 @@ export function FiltersSidebar({ filters, onChange }: FiltersSidebarProps) {
             <div>
                 <label className="text-[11px] uppercase tracking-wide text-text-muted">Provider</label>
                 <select
+                    aria-label="Provider"
                     value={filters.provider}
                     onChange={e => set('provider', e.target.value)}
                     className="mt-1 w-full rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-primary"
@@ -84,6 +85,7 @@ export function FiltersSidebar({ filters, onChange }: FiltersSidebarProps) {
             <div>
                 <label className="text-[11px] uppercase tracking-wide text-text-muted">Capability</label>
                 <select
+                    aria-label="Capability"
                     value={filters.capability}
                     onChange={e => set('capability', e.target.value)}
                     className="mt-1 w-full rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-primary"
@@ -97,6 +99,7 @@ export function FiltersSidebar({ filters, onChange }: FiltersSidebarProps) {
             <div>
                 <label className="text-[11px] uppercase tracking-wide text-text-muted">Strength</label>
                 <select
+                    aria-label="Strength"
                     value={filters.strength}
                     onChange={e => set('strength', e.target.value)}
                     className="mt-1 w-full rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-primary"
@@ -110,6 +113,7 @@ export function FiltersSidebar({ filters, onChange }: FiltersSidebarProps) {
             <div>
                 <label className="text-[11px] uppercase tracking-wide text-text-muted">Cost class</label>
                 <select
+                    aria-label="Cost class"
                     value={filters.cost}
                     onChange={e => set('cost', e.target.value)}
                     className="mt-1 w-full rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-primary"
@@ -125,6 +129,7 @@ export function FiltersSidebar({ filters, onChange }: FiltersSidebarProps) {
             <div>
                 <label className="text-[11px] uppercase tracking-wide text-text-muted">Latency class</label>
                 <select
+                    aria-label="Latency class"
                     value={filters.latency}
                     onChange={e => set('latency', e.target.value)}
                     className="mt-1 w-full rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-primary"
@@ -139,6 +144,7 @@ export function FiltersSidebar({ filters, onChange }: FiltersSidebarProps) {
             <div>
                 <label className="text-[11px] uppercase tracking-wide text-text-muted">Sort</label>
                 <select
+                    aria-label="Sort"
                     value={filters.sort}
                     onChange={e => set('sort', e.target.value as CatalogFilters['sort'])}
                     className="mt-1 w-full rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs text-text-primary"
