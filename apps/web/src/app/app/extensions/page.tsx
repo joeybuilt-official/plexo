@@ -132,7 +132,7 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
                         <span className="text-[11px] font-mono text-muted-foreground shrink-0">v{ext.version}</span>
                         <span className={`text-[10px] font-medium uppercase tracking-wide rounded-sm border px-1.5 py-0.5 shrink-0 ${badgeStyle}`}>{typeBadge}</span>
                         {ext.isFirstParty && (
-                            <span className="flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide rounded-sm border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 shrink-0">
+                            <span className="flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide rounded-sm border border-signal-green/30 bg-signal-green/10 text-emerald-400 px-1.5 py-0.5 shrink-0">
                                 <ShieldCheck className="h-3 w-3" aria-hidden="true" />
                                 Official
                             </span>
@@ -173,7 +173,7 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
             {expanded && (
                 <div className="border-t border-border px-4 py-3 flex flex-col gap-3">
                     {ext.isFirstParty && (
-                        <div className="flex items-center justify-between rounded-sm border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+                        <div className="flex items-center justify-between rounded-sm border border-signal-green/20 bg-signal-green/5 px-3 py-2">
                             <div className="flex items-center gap-2">
                                 <Circle className={`h-2 w-2 shrink-0 ${ext.enabled ? 'fill-emerald-400 text-emerald-400' : 'fill-muted-foreground text-muted-foreground'}`} aria-hidden="true" />
                                 <span className="text-[11px] font-medium text-foreground">

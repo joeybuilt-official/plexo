@@ -168,8 +168,8 @@ export function ModelCompatBadge({
             Icon: Info,
         } :
         kind === 'native' ? {
-            border: 'border-emerald-500/40',
-            bg: 'bg-emerald-500/10',
+            border: 'border-signal-green/40',
+            bg: 'bg-signal-green/10',
             text: 'text-emerald-300',
             icon: 'text-emerald-400',
             Icon: CheckCircle2,

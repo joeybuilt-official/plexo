@@ -66,7 +66,7 @@ export function categoryColor(cat: string): string {
         analytics: 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30',
         storage: 'bg-amber/15 text-orange-400 border border-orange-500/30',
         mcp: 'bg-rose-500/15 text-rose-400 border border-rose-500/30',
-        custom_api: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+        custom_api: 'bg-signal-green/15 text-emerald-400 border border-signal-green/30',
     }
     return map[cat.toLowerCase()] ?? 'bg-surface-2/40 text-text-secondary border border-border'
 }

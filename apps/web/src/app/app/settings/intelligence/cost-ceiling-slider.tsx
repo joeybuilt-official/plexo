@@ -100,7 +100,7 @@ export function CostCeilingSlider({ workspaceId }: { workspaceId: string }) {
     const barColor =
         ceilingState === 'block' ? 'bg-rose-500'
         : ceilingState === 'warn' ? 'bg-amber-400'
-        : 'bg-emerald-500'
+        : 'bg-signal-green'
 
     return (
         <div className="space-y-4">

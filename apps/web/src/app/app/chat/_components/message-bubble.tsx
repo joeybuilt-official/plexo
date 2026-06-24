@@ -481,7 +481,7 @@ function ChatBubble({
                         const providerColors: Record<string, string> = {
                             deepseek: 'bg-blue-500/15 text-blue-400',
                             anthropic: 'bg-amber-500/15 text-amber-400',
-                            openai: 'bg-emerald-500/15 text-emerald-400',
+                            openai: 'bg-signal-green/15 text-emerald-400',
                             google: 'bg-sky-500/15 text-sky-400',
                             groq: 'bg-orange-500/15 text-orange-400',
                             ollama: 'bg-purple-500/15 text-purple-400',

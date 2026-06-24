@@ -44,7 +44,7 @@ describe('badgeConfigFor', () => {
     it('clean → emerald token + "Clean"', () => {
         const cfg = badgeConfigFor('clean')
         expect(cfg.label).toBe('Clean')
-        expect(cfg.iconClass).toContain('text-emerald-500')
+        expect(cfg.iconClass).toContain('text-signal-green')
         expect(cfg.spin).toBe(false)
     })
 
@@ -66,11 +66,13 @@ describe('badgeConfigFor', () => {
         expect(badgeConfigFor(undefined).label).toBe('Not scanned')
     })
 
-    it('uses only project Tailwind colour tokens (zinc / emerald / red / amber)', () => {
+    it('uses only project colour tokens (zinc / brand signal-green / red / amber)', () => {
+        // UX4: the success state migrated from raw Tailwind emerald-500 to the
+        // brand semantic token signal-green. Other states keep their shades for now.
         const states: ScanStatus[] = ['unscanned', 'scanning', 'clean', 'infected', 'error']
         for (const s of states) {
             const cfg = badgeConfigFor(s)
-            expect(cfg.iconClass).toMatch(/text-(zinc|emerald|red|amber)-\d{3}/)
+            expect(cfg.iconClass).toMatch(/text-(zinc-\d{3}|signal-green|red-\d{3}|amber-\d{3})/)
         }
     })
 })

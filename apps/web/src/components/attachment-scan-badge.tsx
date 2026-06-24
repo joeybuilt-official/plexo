@@ -62,8 +62,8 @@ export function badgeConfigFor(status: ScanStatus | undefined): BadgeConfig {
         case 'clean':
             return {
                 label: 'Clean',
-                iconClass: 'text-emerald-500',
-                containerClass: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+                iconClass: 'text-signal-green',
+                containerClass: 'bg-signal-green/10 border-signal-green/20 text-emerald-400',
                 spin: false,
             }
         case 'infected':

@@ -23,8 +23,8 @@ const outcomeMeta: Record<TaskDeliverable['outcome'], { icon: typeof CheckCircle
         icon: CheckCircle2,
         label: 'Completed',
         badge: 'bg-emerald-900/30 text-emerald-400',
-        border: 'border-emerald-500/20',
-        bg: 'bg-emerald-500/5',
+        border: 'border-signal-green/20',
+        bg: 'bg-signal-green/5',
     },
     partial: {
         icon: CircleDot,

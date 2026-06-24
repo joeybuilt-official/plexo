@@ -946,7 +946,7 @@ export default function ProvidersPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                             <h2 className="text-base font-medium text-text-primary">{selectedCatalog.name}</h2>
                             {selectedCatalog.free && (
-                                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wide bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wide bg-signal-green/15 text-emerald-400 border border-signal-green/30">
                                     Free tier
                                 </span>
                             )}
@@ -1029,7 +1029,7 @@ export default function ProvidersPage() {
 
                 {/* Test result — shown prominently right after description */}
                 {testResult && (
-                    <div className={`rounded-sm border px-4 py-3 ${testResult.ok ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'}`}>
+                    <div className={`rounded-sm border px-4 py-3 ${testResult.ok ? 'border-signal-green/40 bg-signal-green/10' : 'border-red-500/40 bg-red-500/10'}`}>
                         <div className="flex items-start gap-2">
                             {testResult.ok
                                 ? <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />

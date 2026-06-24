@@ -190,7 +190,7 @@ export function ChooseProvider({ workspaceId, apiBase = '', onComplete, onSkip, 
                             key={provider.id}
                             className={`rounded border p-4 transition-colors ${
                                 isSaved
-                                    ? 'border-emerald-500/40 bg-emerald-500/5'
+                                    ? 'border-signal-green/40 bg-signal-green/5'
                                     : 'border-border bg-surface-1'
                             }`}
                         >

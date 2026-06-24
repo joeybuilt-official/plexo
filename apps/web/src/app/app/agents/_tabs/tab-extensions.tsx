@@ -108,7 +108,7 @@ export default function ExtensionPromptsTab({ workspaceId }: { workspaceId: stri
                         <div className="flex items-center gap-3">
                             <div className="flex-1 h-2 bg-surface-secondary rounded-full overflow-hidden">
                                 <div
-                                    className={`h-full rounded-full transition-all ${budget.utilization > 0.8 ? 'bg-red-500' : budget.utilization > 0.5 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                    className={`h-full rounded-full transition-all ${budget.utilization > 0.8 ? 'bg-red-500' : budget.utilization > 0.5 ? 'bg-amber-500' : 'bg-signal-green'}`}
                                     style={{ width: `${Math.min(budget.utilization * 100, 100)}%` }}
                                 />
                             </div>

@@ -994,7 +994,7 @@ function DetailPane({
 
 function ScoreBadge({ score }: { score: number }) {
     const color =
-        score > 0 ? 'text-emerald-500' : score < 0 ? 'text-rose-500' : 'text-text-muted'
+        score > 0 ? 'text-signal-green' : score < 0 ? 'text-rose-500' : 'text-text-muted'
     const label = score > 0 ? `+${score}` : `${score}`
     return (
         <span
@@ -1030,7 +1030,7 @@ function VoteControls({ upvotes, downvotes, userVote, size, onVote }: VoteContro
                 title={userVote === 'up' ? 'Remove your upvote' : 'Upvote'}
                 className={`inline-flex items-center gap-1 rounded-md border ${pad} ${text} tabular-nums transition-colors ${
                     userVote === 'up'
-                        ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-500'
+                        ? 'border-signal-green/50 bg-signal-green/10 text-signal-green'
                         : 'border-border bg-surface-1 text-text-muted hover:text-text-primary hover:border-border'
                 }`}
             >
