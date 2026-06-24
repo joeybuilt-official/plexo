@@ -349,14 +349,14 @@ export default function ToolsPage() {
 
     return (
         <div className="flex flex-col gap-6 max-w-4xl">
-            <div className="flex items-start justify-between">
-                <div>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div className="min-w-0">
                     <h1 className="text-2xl font-medium tracking-tight text-text-primary">Extensions</h1>
                     <p className="mt-0.5 text-sm text-text-muted">
                         Manage all installed extensions — skills, tools, agents, channels, and connectors.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center flex-wrap gap-2 shrink-0">
                     <ViewModeToggle />
                     <button
                     onClick={() => void fetchTools()}

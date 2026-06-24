@@ -211,8 +211,8 @@ export default function EscalationsPage() {
 
     return (
         <div className="mx-auto max-w-3xl p-6">
-            <header className="mb-6 flex items-center justify-between">
-                <div>
+            <header className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="min-w-0">
                     <h1 className="text-xl font-medium text-text-primary">Escalations</h1>
                     <p className="text-sm text-text-muted">
                         Per-invocation approvals for risky agent tool calls.

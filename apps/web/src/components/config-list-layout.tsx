@@ -93,7 +93,7 @@ export function ConfigListLayout<T>({
     return (
         <div className="flex flex-col gap-4 h-full">
             {/* Header — on mobile detail view, show a back button instead */}
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                 <div className="flex items-center gap-2 min-w-0">
                     {/* Back button: mobile only, shown when detail is open */}
                     {hasSelection && (
@@ -121,7 +121,7 @@ export function ConfigListLayout<T>({
                     </div>
                 </div>
                 {headerActions && (
-                    <div className="shrink-0 flex items-center gap-2">{headerActions}</div>
+                    <div className="shrink-0 flex items-center flex-wrap gap-2">{headerActions}</div>
                 )}
             </div>
 

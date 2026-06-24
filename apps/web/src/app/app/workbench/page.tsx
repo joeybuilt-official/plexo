@@ -64,9 +64,9 @@ export default function WorkbenchPage() {
                 </div>
             )}
 
-            <div className="flex flex-row gap-4 flex-1 min-h-0">
+            <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
                 {/* Left panel — pinned list */}
-                <div className="w-[280px] shrink-0 flex flex-col gap-2 overflow-y-auto">
+                <div className="w-full lg:w-[280px] shrink-0 flex flex-col gap-2 lg:overflow-y-auto">
                     <input
                         type="text"
                         placeholder="Filter pins…"
@@ -119,10 +119,11 @@ export default function WorkbenchPage() {
                                             unpin(p.pinId).catch((err) => console.error('[workbench] unpin failed', err))
                                             if (selected) setActiveId(null)
                                         }}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-red-400"
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-sm shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 focus-ring transition-opacity text-text-muted hover:text-red-400"
                                         title="Unpin"
+                                        aria-label={`Unpin ${p.work.filename}`}
                                     >
-                                        <PinOff className="h-3 w-3" />
+                                        <PinOff className="h-3.5 w-3.5" />
                                     </button>
                                 </div>
                             </div>
@@ -131,7 +132,7 @@ export default function WorkbenchPage() {
                 </div>
 
                 {/* Right pane — active work */}
-                <div className="flex-1 min-w-0 rounded-sm border border-border bg-surface-1/20 overflow-hidden">
+                <div className="flex-1 min-w-0 min-h-[320px] lg:min-h-0 rounded-sm border border-border bg-surface-1/20 overflow-hidden">
                     {active ? (
                         <WorkRenderer
                             work={active.work}
