@@ -19,11 +19,24 @@ export function DashboardRefresher() {
     const router = useRouter()
     const sseRef = useRef<EventSource | null>(null)
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
     const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
     useEffect(() => {
         let failed = false
+
+        // Coalesce bursts of task events into one trailing refresh. A multi-agent
+        // run can emit a dozen task_* events in a second; without this each one
+        // fires its own router.refresh() (full RSC roundtrip). Trailing 1s window
+        // collapses the burst to a single refresh once it settles.
+        function scheduleRefresh() {
+            if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+            refreshTimerRef.current = setTimeout(() => {
+                refreshTimerRef.current = null
+                router.refresh()
+            }, 1_000)
+        }
 
         function startPolling() {
             if (pollRef.current) return
@@ -68,7 +81,7 @@ export function DashboardRefresher() {
                 try {
                     const payload = JSON.parse(e.data as string) as { type: string }
                     if (REFRESH_EVENTS.has(payload.type)) {
-                        router.refresh()
+                        scheduleRefresh()
                     }
                 } catch {
                     // Ignore malformed JSON
@@ -101,6 +114,10 @@ export function DashboardRefresher() {
             if (pollRef.current) {
                 clearInterval(pollRef.current)
                 pollRef.current = null
+            }
+            if (refreshTimerRef.current) {
+                clearTimeout(refreshTimerRef.current)
+                refreshTimerRef.current = null
             }
         }
     }, [apiBase, workspaceId, router])
