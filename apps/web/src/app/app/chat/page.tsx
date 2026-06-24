@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { useSearchParams } from 'next/navigation'
 import dynamicImport from 'next/dynamic'
 import {
-    AlertCircle, Sparkles, FileUp, Layout,
+    AlertCircle, Sparkles, FileUp, Layout, WifiOff,
 } from 'lucide-react'
 import type { WorkbenchContext } from '@web/components/workbench/artifact-workbench'
 import Link from 'next/link'
@@ -93,6 +93,20 @@ function ChatContent() {
     // Per-turn abort handle so a new send (or unmount) cancels the in-flight
     // request without surfacing the cancellation as an error.
     const sendAbortRef = useRef<AbortController | null>(null)
+    // Proactive connectivity state — init true (server has no navigator, keeps
+    // SSR markup hydration-safe); corrected post-mount. Drives the offline
+    // banner so the user knows before composing, not just after a failed send.
+    const [online, setOnline] = useState(true)
+    useEffect(() => {
+        const sync = () => setOnline(navigator.onLine)
+        sync()
+        window.addEventListener('online', sync)
+        window.addEventListener('offline', sync)
+        return () => {
+            window.removeEventListener('online', sync)
+            window.removeEventListener('offline', sync)
+        }
+    }, [])
     if (!sessionId.current) {
         if (typeof window === 'undefined') {
             sessionId.current = `session-${Date.now()}`
@@ -1395,6 +1409,17 @@ function ChatContent() {
                             </button>
                         </div>
                     )}
+                </div>
+            )}
+
+            {!online && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    className="shrink-0 mx-3 md:mx-6 mb-2 flex items-center gap-2 rounded-sm border border-amber-500/30 bg-amber-dim px-4 py-2 text-xs font-medium text-amber-300"
+                >
+                    <WifiOff className="h-4 w-4 shrink-0 text-amber" aria-hidden="true" />
+                    You&rsquo;re offline — messages won&rsquo;t send until your connection returns.
                 </div>
             )}
 
