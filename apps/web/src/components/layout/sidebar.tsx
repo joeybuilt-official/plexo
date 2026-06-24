@@ -42,6 +42,7 @@ import {
     ShieldCheck,
 } from 'lucide-react'
 import { ArrowUpCircle } from 'lucide-react'
+import { Activity, ClipboardCheck, Target } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { ThemeToggle } from '@web/components/theme-toggle'
 import { useWorkspace } from '@web/context/workspace'
@@ -87,6 +88,8 @@ const NAV_WORK_GROUP = {
         { label: 'Projects', href: '/app/projects', icon: FolderOpen },
         { label: 'Approvals', href: '/app/approvals', icon: ShieldAlert },
         { label: 'Escalations', href: '/app/escalations', icon: AlertTriangle },
+        { label: 'Updates to Review', href: '/app/revisions', icon: ClipboardCheck },
+        { label: 'Outcomes', href: '/app/outcomes', icon: Target },
         { label: 'Memory', href: '/app/memory', icon: Brain },
         { label: 'Routines', href: '/routines', icon: Calendar },
     ] as NavItem[],
@@ -97,6 +100,7 @@ const NAV_WORK = NAV_WORK_GROUP.items
 const NAV_PLATFORM: NavItem[] = [
     { label: 'AI Models', href: '/app/settings/intelligence', icon: Sparkles },
     { label: 'Your Agent', href: '/app/agents', icon: Bot },
+    { label: 'Live Agents', href: '/app/agents/live', icon: Activity },
     { label: 'Extensions', href: '/app/extensions', icon: Zap },
     { label: 'Connections', href: '/app/connections', icon: Plug },
     { label: 'Channels', href: '/app/settings/channels', icon: Radio },
@@ -140,6 +144,8 @@ function sectionForPath(pathname: string): SectionId | null {
         pathname === '/app/projects' || pathname.startsWith('/app/projects/') ||
         pathname === '/app/approvals' || pathname.startsWith('/app/approvals/') ||
         pathname === '/app/escalations' || pathname.startsWith('/app/escalations/') ||
+        pathname === '/app/revisions' || pathname.startsWith('/app/revisions/') ||
+        pathname === '/app/outcomes' || pathname.startsWith('/app/outcomes/') ||
         pathname === '/app/memory' || pathname.startsWith('/app/memory/') ||
         pathname === '/insights' || pathname.startsWith('/insights/') ||
         pathname === '/routines' || pathname.startsWith('/routines/')

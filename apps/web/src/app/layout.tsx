@@ -2,10 +2,20 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import type { Metadata, Viewport } from 'next'
+import { Geist, IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@web/components/theme-provider'
 import { SessionErrorBoundary } from '@web/components/session-error-boundary'
 import { CookieConsent } from '@web/components/cookie-consent'
+
+// FE11 (ADR 0044-adjacent): globals.css declares --font-display:Geist + --font-body:'IBM Plex Sans',
+// but those were never loaded (the old <link> shipped Syne+Inter) so every heading fell back to
+// system-ui. Load the DECLARED faces via next/font/google — self-hosted (no CORS, no CLS,
+// not render-blocking) and built into Next (no new package, ADR-0033-safe). Distinct var names
+// so they don't clash with the --font-* vars globals.css already exposes to components.
+const fontDisplay = Geist({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-geist', display: 'swap' })
+const fontBody = IBM_Plex_Sans({ subsets: ['latin'], weight: ['300', '400', '500', '600'], variable: '--font-ibm-plex', display: 'swap' })
+const fontMono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-jetbrains', display: 'swap' })
 
 const appName = process.env.APP_NAME || 'Plexo'
 const isCustomInstance = appName !== 'Plexo'
@@ -57,12 +67,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-      </head>
+    <html lang="en" className={`${fontDisplay.variable} ${fontBody.variable} ${fontMono.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-canvas font-sans text-text-primary antialiased">
         <ThemeProvider
           attribute="class"

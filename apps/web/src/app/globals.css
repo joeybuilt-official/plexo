@@ -95,11 +95,21 @@
   --radius-lg:          4px;  /* cards, panels */
   --radius-xl:          4px;  /* large surfaces */
 
-  /* Fonts — Geist tight-tracked display, JetBrains Mono for data, Plex for prose */
-  --font-display: 'Geist', system-ui, sans-serif;
-  --font-body:    'IBM Plex Sans', 'Inter', system-ui, sans-serif;
-  --font-sans:    'IBM Plex Sans', 'Inter', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', monospace;
+  /* Fonts — Geist tight-tracked display, JetBrains Mono for data, Plex for prose.
+     The --font-{geist,ibm-plex,jetbrains} vars are injected by next/font/google
+     in layout.tsx (self-hosted); these stacks front them with system fallbacks. */
+  --font-display: var(--font-geist), system-ui, sans-serif;
+  --font-body:    var(--font-ibm-plex), 'Inter', system-ui, sans-serif;
+  --font-sans:    var(--font-ibm-plex), 'Inter', system-ui, sans-serif;
+  --font-mono:    var(--font-jetbrains), 'JetBrains Mono', monospace;
+
+  /* Type scale (UX6) — additive keys; stock text-xs/sm/base intentionally NOT
+     overridden to avoid silently shifting existing call sites. Tailwind v4 emits
+     text-{key} utilities from these. */
+  --text-2xs: 0.625rem;   --text-2xs--line-height: 0.875rem;  /* 10px */
+  --text-label: 0.6875rem; --text-label--line-height: 1rem;   /* 11px — workhorse label */
+  --text-section: 1.75rem; --text-section--line-height: 2rem; /* 28px — section heads */
+  --text-display: 3.5rem; --text-display--line-height: 1.08;  /* 56px — hero */
 }
 
 @layer base {
