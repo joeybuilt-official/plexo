@@ -271,6 +271,8 @@ function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: 
             <button
                 id="workspace-switcher"
                 onClick={() => setOpen((o) => !o)}
+                aria-expanded={open}
+                aria-haspopup="menu"
                 className={`flex min-h-[64px] h-16 w-full items-center ${collapsed ? "justify-center" : "gap-3 px-3"} hover:bg-surface-1/60 transition-colors cursor-pointer ${className}`}
             >
                 {/* App icon */}
@@ -545,6 +547,8 @@ function NavSection({ id, label, expanded, onToggle, collapsed: sidebarCollapsed
         <div>
             <button
                 onClick={() => onToggle(id)}
+                aria-expanded={expanded}
+                aria-controls={`nav-section-${id}`}
                 className="flex w-full items-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted/60 cursor-pointer hover:text-text-muted transition-colors"
             >
                 <ChevronRight
@@ -553,6 +557,7 @@ function NavSection({ id, label, expanded, onToggle, collapsed: sidebarCollapsed
                 {label}
             </button>
             <div
+                id={`nav-section-${id}`}
                 className="grid transition-[grid-template-rows] duration-200 ease-in-out"
                 style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
             >
@@ -891,6 +896,8 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
         <div ref={ref} className="relative w-full">
             <button
                 onClick={() => setOpen((o) => !o)}
+                aria-expanded={open}
+                aria-haspopup="menu"
                 className={`flex w-full items-center ${collapsed ? 'justify-center p-1' : 'gap-2.5 p-2'} rounded text-left hover:bg-surface-1/80 transition-colors`}
                 title={collapsed ? (user?.name ?? 'User') : undefined}
             >

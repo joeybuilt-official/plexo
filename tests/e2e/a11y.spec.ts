@@ -68,6 +68,19 @@ for (const route of ROUTES) {
         )
         expect(unlabeledInputs, `form fields with no label: ${unlabeledInputs.join(', ')}`).toEqual([])
 
+        // 6. HARD (UX9): a disclosure / popup control (aria-haspopup or
+        //    aria-controls) must expose its open/closed state via aria-expanded,
+        //    else screen-reader users get no signal the chevron/menu toggled
+        //    (WCAG 4.1.2). Scoped to the disclosure pattern so unrelated controls
+        //    are never flagged.
+        const noExpanded = await page.locator('button:visible, [role="button"]:visible').evaluateAll(els =>
+            els.filter(el => {
+                const disclosure = el.hasAttribute('aria-haspopup') || el.hasAttribute('aria-controls')
+                return disclosure && el.getAttribute('aria-expanded') === null
+            }).map(el => `${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ')[0]}`),
+        )
+        expect(noExpanded, `disclosure controls missing aria-expanded: ${noExpanded.join(', ')}`).toEqual([])
+
         // 5. SOFT (UX7, known P2): touch targets < 44px on mobile. Reported as a
         //    test annotation, not a failure, so accepted pre-existing debt does
         //    not block the harness.
