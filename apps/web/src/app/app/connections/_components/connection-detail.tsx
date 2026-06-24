@@ -55,7 +55,7 @@ export default function ConnectionDetail({
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 border-b border-border">
                 <div className="flex items-start gap-3">
                     {selected.logoUrl ? (
-                        <Image src={selected.logoUrl} alt={selected.name} width={40} height={40} className="mt-1 sm:mt-0 rounded-sm object-contain bg-white/5 shrink-0" />
+                        <Image src={selected.logoUrl} alt={selected.name} width={40} height={40} className="mt-1 sm:mt-0 rounded-sm object-contain bg-white/5 shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
                     ) : (
                         <div className="h-10 w-10 mt-1 sm:mt-0 rounded-sm bg-surface-2 flex items-center justify-center text-sm font-medium text-text-secondary shrink-0">
                             {selected.name.slice(0, 2).toUpperCase()}
