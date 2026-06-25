@@ -17,7 +17,7 @@
  * Failing any of these blocks the ship gate.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 import { isTrivialMessage, buildTrivialSystemPrompt } from '../../lib/trivial-message.js'
 import {
     getCachedToolSet,
@@ -36,9 +36,9 @@ import {
 type GenResult = { text: string; usage: { inputTokens: number; outputTokens: number } }
 
 const ctl: {
-    generateText: ReturnType<typeof vi.fn>
-    pushTask: ReturnType<typeof vi.fn>
-    recordConversation: ReturnType<typeof vi.fn>
+    generateText: Mock<(...args: any[]) => any>
+    pushTask: Mock<(...args: any[]) => any>
+    recordConversation: Mock<(...args: any[]) => any>
 } = {
     generateText: vi.fn(),
     pushTask: vi.fn(),
