@@ -16,7 +16,9 @@ class AuthStore {
 
   static const _kToken = "plexo.token";
   static const _kBaseUrl = "plexo.baseUrl";
-  static const defaultBaseUrl = "https://getplexo.com";
+  // The app (better-auth at /api/auth/*, plus the /api/v1 proxy) is served by
+  // plexo-saas at app.getplexo.com. getplexo.com is the marketing site.
+  static const defaultBaseUrl = "https://app.getplexo.com";
 
   static const _androidOpts = AndroidOptions(encryptedSharedPreferences: true);
   static const _iosOpts = IOSOptions(
