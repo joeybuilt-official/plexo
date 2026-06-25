@@ -16,7 +16,7 @@
 #   bash scripts/check-platform-compose-drift.sh
 #
 # Env overrides:
-#   PLEXO_VPS_HOST  default root@REDACTED_VPS_IP
+#   PLEXO_VPS_HOST  default root@<prod-server-ip>
 #   PLEXO_VPS_KEY   default ~/.ssh/deploy-key
 #
 # Exit codes:
@@ -24,7 +24,7 @@
 #   1  drift detected OR could not reach prod; full live diff dumped to stdout.
 #
 # Refreshing the baseline (if §3.5 lands and the file gets re-edited later):
-#   1. ssh -i ~/.ssh/deploy-key root@REDACTED_VPS_IP \
+#   1. ssh -i ~/.ssh/deploy-key root@<prod-server-ip> \
 #        'cd /srv/platform && git --no-pager diff infra/docker-compose.yml' \
 #        > /tmp/platform-compose-diff.txt
 #   2. wc -l < /tmp/platform-compose-diff.txt   # → BASELINE_LINES
@@ -33,7 +33,7 @@
 
 set -uo pipefail
 
-VPS="${PLEXO_VPS_HOST:-root@REDACTED_VPS_IP}"
+VPS="${PLEXO_VPS_HOST:-root@<prod-server-ip>}"
 KEY="${PLEXO_VPS_KEY:-$HOME/.ssh/deploy-key}"
 
 # Baseline captured 2026-05-06 evening — `git --no-pager diff infra/docker-compose.yml`

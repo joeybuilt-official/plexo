@@ -5,7 +5,7 @@
 # network so it can reach postgres + the graphiti sidecar (both are
 # compose-internal, no host-port exposure).
 #
-# Usage on the joeybuilt VPS (REDACTED_VPS_IP):
+# Usage on the joeybuilt VPS (<prod-server-ip>):
 #   cd /srv/plexo
 #   ./scripts/cutover-corpus-migrate.sh <workspace-id> [--dry-run|--resume] [--batch=N]
 #

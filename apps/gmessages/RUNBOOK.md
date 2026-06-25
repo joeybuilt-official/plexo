@@ -7,7 +7,7 @@ This document covers four scenarios. Read the **symptoms** column first to ident
 
 > **Production aliases (joeybuilt VPS).** This runbook's commands are dev-shaped (`gmessages` service, `api` alias, direct `psql`, base `docker compose`). On the joeybuilt prod VPS the equivalents are:
 >
-> | dev | prod (joeybuilt VPS `REDACTED_VPS_IP`) |
+> | dev | prod (joeybuilt VPS `<prod-server-ip>`) |
 > |---|---|
 > | `gmessages` (service) | `plexo-gmessages` (service) / `plexo-gmessages` (container) |
 > | `api` (service) | `plexo-api` / `plexo-api` (container) |

@@ -10,7 +10,7 @@
  * Operator should verify an embeddings-capable provider is configured before running.
  *
  * Usage:
- *   WORKSPACE_ID=69d1f1f1-... pnpm tsx scripts/backfill-embeddings.ts
+ *   WORKSPACE_ID=00000000-0000-0000-0000-000000000001 pnpm tsx scripts/backfill-embeddings.ts
  *
  * Options:
  *   --dry-run    Report what would be done without writing

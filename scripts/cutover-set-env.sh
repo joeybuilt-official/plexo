@@ -5,7 +5,7 @@
 # Used by Phases 5, 6, 9 of operator-cutover-runbook.md (each flips an
 # env var like MEMORY_WRITE_BACKEND or MEMORY_READ_BACKEND).
 #
-# Usage on the joeybuilt VPS (REDACTED_VPS_IP):
+# Usage on the joeybuilt VPS (<prod-server-ip>):
 #   sudo ./scripts/cutover-set-env.sh KEY VALUE
 #
 # Examples:

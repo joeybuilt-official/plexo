@@ -78,13 +78,13 @@ jobs:
         run: |
           mkdir -p ~/.ssh && echo "$VPS_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H REDACTED_VPS_IP >> ~/.ssh/known_hosts
+          ssh-keyscan -H <prod-server-ip> >> ~/.ssh/known_hosts
           # Snapshot the canonical compat workspace (00000000-...-c0fe)
           # which is seeded post-Phase-9 with the canonical 5-S-V-O text.
-          ssh root@REDACTED_VPS_IP \
+          ssh root@<prod-server-ip> \
             "docker exec service tar -czf /tmp/graphiti-snapshot.tgz \
              -C /data graphiti/00000000-0000-0000-0000-00000000c0fe --exclude='*.wal'"
-          scp root@REDACTED_VPS_IP:/tmp/graphiti-snapshot.tgz /tmp/graphiti-snapshot.tgz
+          scp root@<prod-server-ip>:/tmp/graphiti-snapshot.tgz /tmp/graphiti-snapshot.tgz
 
       - name: Run schema-compat probe
         if: steps.detect.outputs.needs_bump == 'true'

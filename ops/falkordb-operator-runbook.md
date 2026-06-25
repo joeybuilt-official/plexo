@@ -7,7 +7,7 @@ to it, not a duplicate copy.
 
 > **2026-05-28 the server migration.** All three OVH VPSes were decommissioned.
 > Deploy target is now **the server** (`ssh <server>`). Compose at
-> `/srv/plexo/`. All `ssh root@REDACTED_VPS_IP`
+> `/srv/plexo/`. All `ssh root@<prod-server-ip>`
 > references below are stale; substitute `ssh <server>`. All `docker compose`
 > invocations from the server must specify both compose files:
 > `docker compose -f docker-compose.yml -f docker-compose.prod.yml`.
@@ -81,7 +81,7 @@ Preserved here so the smoke script stops getting copy-pasted into
 every handoff.
 
 ```sh
-ssh <server>  # was: ssh root@REDACTED_VPS_IP (VPS decommissioned 2026-05-28)
+ssh <server>  # was: ssh root@<prod-server-ip> (VPS decommissioned 2026-05-28)
 # if sidecar needs rebuild:
 cd /srv/plexo && docker compose \
   -f docker-compose.yml \

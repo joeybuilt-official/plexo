@@ -90,3 +90,19 @@ README.md.bak
 services/graphiti-sidecar/__pycache__/
 services/graphiti-sidecar/.venv/
 data/graphiti/
+
+# OSS-audit: session planning dirs (never publish)
+.followup-phased/
+.round*-optimize/
+.round*-model-router/
+.b1-phased/
+.stabilize-phased/
+.hardening-phased/
+.e2e-phased/
+.audit-exec/
+.audit-gated/
+.*-phased/
+*.bak-*
+__pycache__/
+.ui-audit/
+.standard-connection-profile/
