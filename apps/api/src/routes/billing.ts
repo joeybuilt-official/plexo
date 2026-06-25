@@ -9,6 +9,11 @@
  *   POST /api/v1/billing/checkout       — create a Stripe Checkout Session, returns { url }
  *   POST /api/v1/billing/stripe-webhook — Stripe → us: subscription lifecycle updates
  *
+ * This is the controller ring: it parses requests, calls the injected billing
+ * use-cases (wired by the composition factory in application/billing), and
+ * formats responses. All business logic lives in the domain/application layers;
+ * all drizzle/stripe access lives in the adapters.
+ *
  * Notes:
  *   - Subscription state lives in `user_subscriptions` (slot 0071). We never
  *     store anything on the `users` table — that's a foreign table (FDW) and
@@ -16,51 +21,18 @@
  *   - The webhook signature is verified with STRIPE_WEBHOOK_SECRET. Raw body
  *     parsing is handled by the mount in apps/api/src/index.ts — this router
  *     assumes req.body is a Buffer for the webhook path.
- *   - Stripe SDK is imported lazily so a missing install/key doesn't crash
+ *   - Stripe SDK is loaded lazily so a missing install/key doesn't crash
  *     boot; affected endpoints return 503 with a clear error instead.
  */
 
 import { Router, type Router as RouterType, type Request, type Response, type RequestHandler } from 'express'
-import * as billingRepo from '../repositories/billing.repository.js'
+import { makeBillingModule } from '../application/billing/index.js'
 import { logger } from '../logger.js'
 import { requireAuth } from '../middleware/auth.js'
 
-type StripeEvent = {
-    type: string
-    data: { object: Record<string, unknown> }
-}
-
 export const billingRouter: RouterType = Router()
 
-// Lazy-loaded Stripe singleton. Kept out of module scope so the api process
-// can start without STRIPE_SECRET_KEY set (for dev / self-host).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _stripe: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getStripe(): Promise<any | null> {
-    if (_stripe) return _stripe
-    const key = process.env.STRIPE_SECRET_KEY
-    if (!key) return null
-    try {
-        const mod = await import('stripe')
-        const Stripe = (mod as unknown as { default: new (k: string, opts?: unknown) => unknown }).default
-        _stripe = new Stripe(key, { apiVersion: '2024-12-18.acacia' as unknown as string })
-        return _stripe
-    } catch (err) {
-        logger.warn({ err }, '[billing] stripe SDK not installed')
-        return null
-    }
-}
-
-async function getOrCreateSubscriptionRow(userId: string) {
-    const existing = await billingRepo.getByUserId(userId)
-    if (existing) return existing
-
-    const row = await billingRepo.insertDefault(userId)
-    if (row) return row
-    // Race — another request inserted first. Re-read.
-    return (await billingRepo.getByUserId(userId))!
-}
+const billing = makeBillingModule()
 
 // ── GET /subscription — read the caller's subscription ───────────────────────
 
@@ -71,13 +43,13 @@ billingRouter.get('/subscription', requireAuth, async (req, res) => {
         return
     }
     try {
-        const row = await getOrCreateSubscriptionRow(userId)
+        const sub = await billing.getSubscription(userId)
         res.json({
             subscription: {
-                tier: row.tier,
-                status: row.status,
-                currentPeriodEnd: row.currentPeriodEnd,
-                trialEndsAt: row.trialEndsAt,
+                tier: sub.tier,
+                status: sub.status,
+                currentPeriodEnd: sub.currentPeriodEnd,
+                trialEndsAt: sub.trialEndsAt,
             },
         })
     } catch (err) {
@@ -96,8 +68,8 @@ billingRouter.post('/checkout', requireAuth, async (req, res) => {
         return
     }
 
-    const stripe = await getStripe()
-    if (!stripe) {
+    const gw = await billing.loadGateway()
+    if (!gw) {
         res.status(503).json({
             error: { code: 'STRIPE_UNAVAILABLE', message: 'Billing is not configured on this instance.' },
         })
@@ -111,27 +83,12 @@ billingRouter.post('/checkout', requireAuth, async (req, res) => {
     }
 
     try {
-        const row = await getOrCreateSubscriptionRow(userId)
-
-        // Reuse the Stripe customer if we already created one; otherwise let
-        // Stripe create a new one and persist its id on webhook receipt.
         const successUrl = (process.env.BILLING_SUCCESS_URL ?? 'https://getplexo.com/app/account/subscription?checkout=success')
         const cancelUrl = (process.env.BILLING_CANCEL_URL ?? 'https://getplexo.com/app/account/subscription?checkout=canceled')
 
-        const session = await stripe.checkout.sessions.create({
-            mode: 'subscription',
-            line_items: [{ price: priceId, quantity: 1 }],
-            success_url: successUrl,
-            cancel_url: cancelUrl,
-            customer_email: row.stripeCustomerId ? undefined : email,
-            customer: row.stripeCustomerId ?? undefined,
-            client_reference_id: userId,
-            metadata: { plexoUserId: userId },
-            subscription_data: { metadata: { plexoUserId: userId } },
-            allow_promotion_codes: true,
-        })
+        const result = await gw.createCheckout({ userId, email, priceId, successUrl, cancelUrl })
 
-        res.json({ url: session.url, sessionId: session.id })
+        res.json({ url: result.url, sessionId: result.sessionId })
     } catch (err) {
         logger.error({ err, userId }, '[billing] POST /checkout failed')
         res.status(500).json({ error: { code: 'CHECKOUT_FAILED', message: 'Could not start checkout' } })
@@ -145,8 +102,8 @@ billingRouter.post('/checkout', requireAuth, async (req, res) => {
 // (which sits behind express.json()) or signature verification will break.
 
 export const stripeWebhookHandler: RequestHandler = async (req: Request, res: Response) => {
-    const stripe = await getStripe()
-    if (!stripe) {
+    const gw = await billing.loadGateway()
+    if (!gw) {
         res.status(503).send('stripe not configured')
         return
     }
@@ -162,10 +119,10 @@ export const stripeWebhookHandler: RequestHandler = async (req: Request, res: Re
         return
     }
 
-    let event: StripeEvent
+    let event
     try {
         // req.body is a Buffer thanks to the raw parser mount.
-        event = stripe.webhooks.constructEvent(req.body as Buffer, sig, webhookSecret) as StripeEvent
+        event = gw.gateway.constructWebhookEvent(req.body as Buffer, sig, webhookSecret)
     } catch (err) {
         logger.warn({ err }, '[billing] webhook signature verification failed')
         res.status(400).send('invalid signature')
@@ -173,89 +130,10 @@ export const stripeWebhookHandler: RequestHandler = async (req: Request, res: Re
     }
 
     try {
-        await handleWebhookEvent(event)
+        await billing.handleStripeWebhook(event)
         res.json({ received: true })
     } catch (err) {
         logger.error({ err, type: event.type }, '[billing] webhook handling failed')
         res.status(500).send('webhook handling failed')
-    }
-}
-
-async function handleWebhookEvent(event: StripeEvent): Promise<void> {
-    const type = event.type as string
-
-    switch (type) {
-        case 'customer.subscription.created':
-        case 'customer.subscription.updated':
-        case 'customer.subscription.deleted': {
-            const sub = event.data.object as {
-                id: string
-                customer: string
-                status: string
-                current_period_end?: number
-                cancel_at?: number | null
-                trial_end?: number | null
-                metadata?: Record<string, string>
-                items?: { data: Array<{ price?: { id: string; lookup_key?: string } }> }
-            }
-
-            const plexoUserId = sub.metadata?.plexoUserId
-            if (!plexoUserId) {
-                logger.warn({ subId: sub.id }, '[billing] webhook missing plexoUserId metadata')
-                return
-            }
-
-            const tierFromPrice = resolveTierFromPrice(sub.items?.data?.[0]?.price)
-            const tier = type === 'customer.subscription.deleted' ? 'free' : tierFromPrice
-            const status = mapStripeStatus(sub.status)
-
-            await billingRepo.upsertFromStripe({
-                userId: plexoUserId,
-                tier,
-                status,
-                stripeCustomerId: sub.customer,
-                stripeSubscriptionId: sub.id,
-                currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : null,
-                trialEndsAt: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
-            })
-
-            logger.info({ plexoUserId, tier, status, type }, '[billing] subscription updated')
-            return
-        }
-        default:
-            // Silently ignore unhandled event types — Stripe sends many, we
-            // only care about subscription lifecycle for now.
-            return
-    }
-}
-
-function resolveTierFromPrice(price: { id?: string; lookup_key?: string } | undefined): 'free' | 'pro' | 'team' | 'enterprise' {
-    if (!price) return 'free'
-    const lookup = price.lookup_key ?? ''
-    if (lookup.includes('enterprise')) return 'enterprise'
-    if (lookup.includes('team')) return 'team'
-    if (lookup.includes('pro')) return 'pro'
-    // Fall back to env-pinned Pro id.
-    if (process.env.STRIPE_PRICE_ID_PRO && price.id === process.env.STRIPE_PRICE_ID_PRO) return 'pro'
-    if (process.env.STRIPE_PRICE_ID_TEAM && price.id === process.env.STRIPE_PRICE_ID_TEAM) return 'team'
-    if (process.env.STRIPE_PRICE_ID_ENTERPRISE && price.id === process.env.STRIPE_PRICE_ID_ENTERPRISE) return 'enterprise'
-    return 'pro'
-}
-
-function mapStripeStatus(stripeStatus: string): 'active' | 'past_due' | 'canceled' | 'paused' {
-    switch (stripeStatus) {
-        case 'active':
-        case 'trialing':
-            return 'active'
-        case 'past_due':
-        case 'unpaid':
-            return 'past_due'
-        case 'paused':
-            return 'paused'
-        case 'canceled':
-        case 'incomplete_expired':
-            return 'canceled'
-        default:
-            return 'active'
     }
 }
