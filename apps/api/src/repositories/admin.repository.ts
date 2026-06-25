@@ -4,7 +4,7 @@
 /**
  * Cross-workspace admin (Command Center) data-access repository.
  *
- * arch-findings B1 — owns the super-admin read queries plus the attachment
+ * owns the super-admin read queries plus the attachment
  * rescan and workspace provisioning writes. The route keeps the super-admin
  * auth gate, env-derived isSuperAdmin computation, Map building, audit emit,
  * and response shaping. These endpoints are intentionally cross-workspace

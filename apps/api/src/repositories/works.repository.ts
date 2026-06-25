@@ -4,7 +4,7 @@
 /**
  * Works (cross-workspace artifact list) data-access repository.
  *
- * arch-findings B1 — owns the artifacts/artifactVersions/tasks join behind
+ * owns the artifacts/artifactVersions/tasks join behind
  * GET /api/v1/works. The route keeps validation, the cap clamp, and response
  * shaping. Workspace scoping is enforced inside the query.
  */

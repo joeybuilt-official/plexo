@@ -4,7 +4,7 @@
 /**
  * Integrations (connections) data-access repository.
  *
- * arch-findings B1 — owns the connections_registry / installed_connections /
+ * owns the connections_registry / installed_connections /
  * channels / paired_sessions table SQL behind the integrations routes. The
  * route keeps all of the side-effects: credential encryption/decryption,
  * SSRF guards, OAuth/token shaping, MCP discovery + channel-bridge wiring,

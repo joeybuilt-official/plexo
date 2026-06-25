@@ -4,7 +4,7 @@
 /**
  * PAX (Plexo Application eXchange) registration data-access repository.
  *
- * arch-findings B1 — owns the pax_registrations / mcp_tokens reads and writes
+ * owns the pax_registrations / mcp_tokens reads and writes
  * behind the PAX register/rotate/revoke routes. The route keeps manifest
  * validation, the capability-ceiling check, token generation/hashing, audit
  * logging, and response shaping.

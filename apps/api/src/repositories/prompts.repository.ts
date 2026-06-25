@@ -4,7 +4,7 @@
 /**
  * Extension-prompt-library data-access repository (PEX §7.6).
  *
- * arch-findings B1 — owns the extension_prompts reads/updates behind the
+ * owns the extension_prompts reads/updates behind the
  * prompts routes. The route keeps validation, tag filtering, variable
  * merging, and template interpolation. Every query is workspace-scoped and
  * excludes soft-deleted rows.

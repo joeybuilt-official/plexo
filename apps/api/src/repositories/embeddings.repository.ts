@@ -4,7 +4,7 @@
 /**
  * Embeddings provider data-access repository.
  *
- * arch-findings B1 — owns the provider_instances reads/writes + the workspace
+ * owns the provider_instances reads/writes + the workspace
  * intelligence-settings reembed-job persistence the embeddings routes perform.
  * Health derivation, capability mapping, and job orchestration stay in the route.
  */

@@ -4,7 +4,7 @@
 /**
  * Artifact-sharing data-access repository.
  *
- * arch-findings B1 — owns the artifacts / artifact_versions / artifact_shares
+ * owns the artifacts / artifact_versions / artifact_shares
  * reads and writes behind the share routes. The route keeps auth, workspace
  * access checks, share-id generation, expiry validation, URL shaping, and the
  * fire-and-forget view-count increment.

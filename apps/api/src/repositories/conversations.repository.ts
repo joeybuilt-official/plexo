@@ -4,7 +4,7 @@
 /**
  * Conversations data-access repository (postgres path).
  *
- * arch-findings B1 — owns the postgres reads for the conversations table. The
+ * owns the postgres reads for the conversations table. The
  * route keeps the FalkorDB/cypher feature-flag path, workspace-access checks, and
  * the snake_case→camelCase shaping; only the SQL lives here. All filters stay
  * parameterised (drizzle `sql` template).

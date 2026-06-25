@@ -4,7 +4,7 @@
 /**
  * Workspace-apps data-access repository (app authorizations).
  *
- * arch-findings B1 — owns user_app_authorizations persistence plus the workspace
+ * owns user_app_authorizations persistence plus the workspace
  * + app-profile existence checks and the per-workspace app listing the routes
  * need. Validation and response shaping stay in the route.
  */

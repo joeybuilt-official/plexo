@@ -4,7 +4,7 @@
 /**
  * Extensions (Tools) data-access repository.
  *
- * arch-findings B1 — owns the raw `extensions` (+ extension_registry,
+ * owns the raw `extensions` (+ extension_registry,
  * extension_prompts, extension_contexts, behavior_rules cleanup) table SQL
  * behind the extensions router. ONLY the SQL moved; the route keeps ALL
  * security/orchestration: manifest validation (validateManifest), SSRF guards,

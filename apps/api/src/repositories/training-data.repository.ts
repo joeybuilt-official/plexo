@@ -4,7 +4,7 @@
 /**
  * Training-data export data-access repository (read-only).
  *
- * arch-findings B1 — owns the raw execute() calls behind the training-data
+ * owns the raw execute() calls behind the training-data
  * endpoints. The SQL strings come from the route's compile-time DATA_SOURCES
  * table; the route keeps the super-admin auth, the semicolon safety guard, and
  * the chat-format conversion. No user data flows into these queries.

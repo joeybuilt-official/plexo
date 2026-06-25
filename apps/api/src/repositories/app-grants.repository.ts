@@ -4,7 +4,7 @@
 /**
  * App-Grant data-access repository — Connection & Profile Standard (ADR 0001 §3).
  *
- * arch-findings B1 — owns the workspace-app-grant reads and the operator
+ * owns the workspace-app-grant reads and the operator
  * upsert plus the vocabulary reads (registered apps, installed connectors,
  * enabled-extension manifests, monitor-mode observations) that back the
  * grants UI. The route keeps operator-only authz, validation, and the

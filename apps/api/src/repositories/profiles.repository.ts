@@ -4,7 +4,7 @@
 /**
  * App-profiles data-access repository.
  *
- * arch-findings B1 — owns the `app_profiles` and `extension_registry` SQL
+ * owns the `app_profiles` and `extension_registry` SQL
  * behind the profile-registration routes. The route keeps the service-key auth,
  * Zod validation, profile negotiation, and response shaping. Only the SQL moves
  * here; the upsert-on-app_id semantics and append-never-overwrite extension

@@ -4,7 +4,7 @@
 /**
  * Extension audit-log data-access repository (read-only).
  *
- * arch-findings B1 — owns extension_audit_log reads. The filter-condition builder
+ * owns extension_audit_log reads. The filter-condition builder
  * moved in here from the route (it's data-shaping); the route passes a typed
  * filter parsed from query params.
  */

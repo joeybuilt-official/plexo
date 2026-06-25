@@ -4,7 +4,7 @@
 /**
  * Extension-registry (marketplace) data-access repository.
  *
- * arch-findings B1 — owns the extension_registry reads/writes behind the
+ * owns the extension_registry reads/writes behind the
  * registry routes. The route keeps auth, manifest validation, signature
  * handling, publisher-ownership checks, and tag filtering.
  */

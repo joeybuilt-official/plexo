@@ -4,7 +4,7 @@
 /**
  * Channels data-access repository.
  *
- * arch-findings B1 — owns the channels table reads/writes. The route keeps
+ * owns the channels table reads/writes. The route keeps
  * config encryption/decryption, webhook auth, and dispatch orchestration.
  */
 import { db, eq, and, desc, inArray, sql } from '@plexo/db'

@@ -4,7 +4,7 @@
 /**
  * Hub catalog data-access repository.
  *
- * arch-findings B1 — owns the extension_registry / extensions / extension_votes
+ * owns the extension_registry / extensions / extension_votes
  * reads and the vote upsert/delete. The route keeps manifest derivation, trust
  * inference, in-process filtering/sorting/pagination, and Map building. Catalog
  * filter predicates (type/search) are built here since they are pure SQL.

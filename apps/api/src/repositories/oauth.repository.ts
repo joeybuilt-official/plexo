@@ -4,7 +4,7 @@
 /**
  * OAuth connection persistence (installed_connections).
  *
- * arch-findings B1 — owns the installed_connections reads/writes the OAuth
+ * owns the installed_connections reads/writes the OAuth
  * callback performs. Credential encryption + scope parsing stay in the route.
  */
 import { db, eq, and } from '@plexo/db'

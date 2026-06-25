@@ -4,7 +4,7 @@
 /**
  * Google Messages connector (inbound) data-access repository.
  *
- * arch-findings B1 — owns the sidecar restore-list read, the inbound dedupe +
+ * owns the sidecar restore-list read, the inbound dedupe +
  * conversation persistence, the lastMessageAt bump, and the paired-session
  * state/heartbeat writes. The route keeps HMAC auth, envelope validation,
  * attachment normalization, and the encrypted-blob handling (decryption stays

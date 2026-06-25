@@ -4,7 +4,7 @@
 /**
  * Escalation-inbox data-access repository (read-only list).
  *
- * arch-findings B1 — owns the escalation-queue list query for the Escalation
+ * owns the escalation-queue list query for the Escalation
  * API. The route keeps workspace-membership auth, the SSE stream, and the
  * approve/reject orchestration (those decision side-effects live in
  * @plexo/agent/escalation/manager). Workspace + status scoping is preserved

@@ -4,7 +4,7 @@
 /**
  * A2A (agent-to-agent) data-access repository.
  *
- * arch-findings B1 — owns the extension/task/mcp-token reads and the external-
+ * owns the extension/task/mcp-token reads and the external-
  * agent registration writes. The route keeps Bearer auth (timing-safe compare),
  * agent-card building, SSRF checks, status mapping, and queue orchestration.
  * Object-level authz (workspace match on tasks) stays in the route.

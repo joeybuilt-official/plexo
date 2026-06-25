@@ -4,7 +4,7 @@
 /**
  * Channel-dispatch app-profile data-access repository.
  *
- * arch-findings B1 — owns the app_profiles existence lookup behind the
+ * owns the app_profiles existence lookup behind the
  * dispatch auth gate. The route keeps the in-process TTL cache and the
  * bearer-token handling.
  */

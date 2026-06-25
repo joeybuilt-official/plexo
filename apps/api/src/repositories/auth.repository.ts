@@ -4,7 +4,7 @@
 /**
  * Auth-route data-access repository.
  *
- * arch-findings B1 — owns the raw table SQL behind the auth router's
+ * owns the raw table SQL behind the auth router's
  * service-to-service workspace/connection/extension orchestration
  * (account-cleanup, workspace/ensure, profiles/auto-attach-user, workspace
  * create). Only the SQL moved here; the route keeps ALL security/side-effect

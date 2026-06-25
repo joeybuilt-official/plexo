@@ -1,7 +1,7 @@
 -- SPDX-License-Identifier: AGPL-3.0-only
 -- Idx: 0136  Tag: 0136_hotpath_indexes
 --
--- arch-findings P1 — missing indexes on the three hottest append/poll tables.
+-- missing indexes on the three hottest append/poll tables.
 --
 --   * session_logs  — one row per request, the worst-growing table, had ZERO
 --                     secondary indexes; every by-session / by-user / time-range

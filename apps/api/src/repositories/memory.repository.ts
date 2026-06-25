@@ -4,7 +4,7 @@
 /**
  * Memory data-access repository (raw-SQL path).
  *
- * arch-findings B1 — owns the raw `memory_entries`, `behavior_rules`,
+ * owns the raw `memory_entries`, `behavior_rules`,
  * `agent_improvement_log`, `memory_tier_stats`, and the workspace
  * `intelligence_settings`-for-eviction SQL used by the Memory API. The route
  * keeps every side-effect: embedding generation (`embed`/`storeMemory`),

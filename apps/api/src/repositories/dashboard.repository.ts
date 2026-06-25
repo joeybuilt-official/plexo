@@ -4,7 +4,7 @@
 /**
  * Dashboard analytics data-access repository (read-only).
  *
- * arch-findings B1 — owns the dashboard summary/activity queries (task status
+ * owns the dashboard summary/activity queries (task status
  * counts, cost rollups, step stats, ensemble coverage, recent activity). The
  * route keeps the numeric post-processing and response shaping. All filters are
  * parameterised. Cross-table reads (api_cost_tracking, work_ledger, task_steps)

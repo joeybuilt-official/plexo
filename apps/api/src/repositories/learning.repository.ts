@@ -4,7 +4,7 @@
 /**
  * Learning / outcomes data-access repository (read-only).
  *
- * arch-findings B1 — owns the outcome-record and prompt-revision reads behind
+ * owns the outcome-record and prompt-revision reads behind
  * the outcomes view and the revision-review (decision seam) UI. Both aggregate
  * across `outcome_records`, `prompt_revisions`, `cron_jobs`, and `tasks`,
  * scoped to a workspace via the routine OR task that owns each outcome. The

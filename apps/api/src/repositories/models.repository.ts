@@ -4,7 +4,7 @@
 /**
  * Model-catalog data-access repository (read-only).
  *
- * arch-findings B1 — owns the models_knowledge reads. The route keeps row
+ * owns the models_knowledge reads. The route keeps row
  * shaping, filtering, sorting, pagination, and recommendation logic.
  */
 import { db, sql } from '@plexo/db'

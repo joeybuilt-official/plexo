@@ -4,7 +4,7 @@
 /**
  * RSI (recursive self-improvement) proposals data-access repository.
  *
- * arch-findings B1 — owns the rsi_proposals / rsi_test_results reads and the
+ * owns the rsi_proposals / rsi_test_results reads and the
  * approve/reject status writes. The route keeps validation, the non-fatal
  * shadow-test orchestration, analytics emits, and the aggregate summary math.
  * All queries are workspace-scoped (object-level authz).

@@ -4,7 +4,7 @@
 /**
  * Users data-access repository (read-only).
  *
- * arch-findings B1 — owns the `users` table reads behind the super-admin Users
+ * owns the `users` table reads behind the super-admin Users
  * API (list + by-id). The `users` table is a postgres_fdw foreign table and is
  * read-only by contract, so this repo never writes. The route keeps the
  * super-admin gate, UUID validation, and response shaping. Distinct from

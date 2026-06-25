@@ -4,7 +4,7 @@
 /**
  * API key (MCP token) data-access repository.
  *
- * arch-findings B1 — owns all mcp_tokens persistence for the api-keys routes.
+ * owns all mcp_tokens persistence for the api-keys routes.
  * Token generation/hashing stays in the route handler (business logic); only the
  * reads/writes live here. Revocation is scoped by workspaceId (object-level authz
  * preserved).

@@ -4,7 +4,7 @@
 /**
  * Debug-snapshot data-access repository (read-only).
  *
- * arch-findings B1 — owns the admin debug stat queries (task queue, sprint
+ * owns the admin debug stat queries (task queue, sprint
  * tasks, work ledger, improvement log). The route keeps the x-debug-token
  * gate, RPC allowlisting, and numeric post-processing.
  */

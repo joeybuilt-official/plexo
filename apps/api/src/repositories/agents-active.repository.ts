@@ -4,7 +4,7 @@
 /**
  * Active-agents-stream data-access repository (read-only).
  *
- * arch-findings B1 — owns the two polled queries behind the workspace
+ * owns the two polled queries behind the workspace
  * active-agents SSE feed: in-flight tasks for a workspace and the latest
  * steps for those task ids. The route keeps the SSE wiring, snapshot
  * building, timers, and lifecycle. Workspace scoping + the active-status /

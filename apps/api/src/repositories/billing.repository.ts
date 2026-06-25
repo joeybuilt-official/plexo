@@ -4,7 +4,7 @@
 /**
  * Billing data-access repository.
  *
- * arch-findings B1 — owns the `user_subscriptions` table SQL behind the billing
+ * owns the `user_subscriptions` table SQL behind the billing
  * routes. All Stripe SDK calls, checkout-session creation, webhook signature
  * verification, tier/status mapping, and the get-or-create race orchestration
  * stay in the route. Only the SQL moves here; every query is scoped to the

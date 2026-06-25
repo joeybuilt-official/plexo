@@ -4,7 +4,7 @@
 /**
  * Health-probe data-access repository (read-only).
  *
- * arch-findings B1 — owns the lightweight liveness/diagnostic reads behind the
+ * owns the lightweight liveness/diagnostic reads behind the
  * /health route: the postgres ping, the workspace-id probe sample, the
  * registered-app-profile count, and the PEX prompt/context aggregate counts.
  * The route keeps the latency timing, Promise.allSettled orchestration,

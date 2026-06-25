@@ -4,7 +4,7 @@
 /**
  * Workbench-pins data-access repository.
  *
- * arch-findings B1 — owns the workbench_pins reads/writes and the joined
+ * owns the workbench_pins reads/writes and the joined
  * pin+artifact+current-version read. The route keeps auth, validation,
  * workspace-access checks, cross-workspace pin guards, and response shaping.
  * All queries are user- and/or workspace-scoped (object-level authz).

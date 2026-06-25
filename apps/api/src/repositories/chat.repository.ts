@@ -4,7 +4,7 @@
 /**
  * Webchat data-access repository.
  *
- * arch-findings B1 — owns the raw table reads behind the chat routes: the
+ * owns the raw table reads behind the chat routes: the
  * model-knowledge consultative-routing lookups, the workspace task-status
  * snapshot, and the task / task-steps / sprint projections that drive the
  * reply long-poll and the live progress SSE stream. The route keeps all of the

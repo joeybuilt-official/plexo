@@ -4,7 +4,7 @@
 /**
  * Cross-app handoff token data-access repository.
  *
- * arch-findings B1 — owns the auth.cross_app_tokens insert/consume queries.
+ * owns the auth.cross_app_tokens insert/consume queries.
  * The route keeps auth, target-app validation, token minting, and redirects.
  */
 import { db, sql } from '@plexo/db'

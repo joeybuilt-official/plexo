@@ -4,7 +4,7 @@
 /**
  * Standing approvals data-access repository (§23).
  *
- * arch-findings B1 — owns standing_approvals persistence, shared by the
+ * owns standing_approvals persistence, shared by the
  * standing-approvals routes and the approve-and-remember path in approvals.ts.
  * Delete is workspace-scoped (object-level authz preserved).
  */

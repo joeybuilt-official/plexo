@@ -4,7 +4,7 @@
 /**
  * Inference-proxy data-access repository (write-only).
  *
- * arch-findings B1 — owns the per-app inference_logs attribution write. The
+ * owns the per-app inference_logs attribution write. The
  * route keeps sampling, rounding, and fire-and-forget error swallowing.
  */
 import { db, sql } from '@plexo/db'

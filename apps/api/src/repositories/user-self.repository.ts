@@ -4,7 +4,7 @@
 /**
  * UserSelf data-access repository (§20).
  *
- * arch-findings B1 — owns the user_self table persistence. The route keeps the
+ * owns the user_self table persistence. The route keeps the
  * request-field selection and default-empty shaping.
  */
 import { db, eq } from '@plexo/db'

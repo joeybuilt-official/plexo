@@ -4,7 +4,7 @@
 /**
  * Tasks data-access repository.
  *
- * arch-findings B1 — owns the `tasks`, `task_steps`, `plexo_ops_task_events`,
+ * owns the `tasks`, `task_steps`, `plexo_ops_task_events`,
  * `artifacts`, and `artifact_versions` reads/writes plus the cost/status-count
  * raw SQL used by the Tasks API. Every queue/executor side-effect stays in the
  * route: queue push/claim (`push`/`list`/`cancel`), executor aborts

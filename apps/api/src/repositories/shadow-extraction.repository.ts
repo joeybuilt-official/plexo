@@ -4,7 +4,7 @@
 /**
  * Shadow-extraction data-access repository (write-only).
  *
- * arch-findings B1 — owns the shadow_extraction_results write. The route keeps
+ * owns the shadow_extraction_results write. The route keeps
  * sampling, the shadow model call, agreement scoring, and field counting.
  */
 import { db, sql } from '@plexo/db'

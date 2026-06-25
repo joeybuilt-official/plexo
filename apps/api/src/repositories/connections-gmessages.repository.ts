@@ -4,7 +4,7 @@
 /**
  * Google Messages connection data-access repository (write-only).
  *
- * arch-findings B1 — owns the three-row paired-connection transaction
+ * owns the three-row paired-connection transaction
  * (installed_connections + channels + paired_sessions). The route keeps
  * credential encryption, audit, and analytics side-effects.
  */

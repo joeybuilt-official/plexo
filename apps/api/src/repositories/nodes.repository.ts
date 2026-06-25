@@ -4,7 +4,7 @@
 /**
  * Nodes data-access repository (federation aggregate).
  *
- * arch-findings B1 — first repository boundary. This module is the single owner
+ * first repository boundary. This module is the single owner
  * of all `nodes` / `node_trust` persistence; route handlers (`routes/nodes.ts`)
  * call these functions and keep auth, validation, and response shaping. This is
  * the pattern to replicate per-aggregate so the ~82 route files stop importing

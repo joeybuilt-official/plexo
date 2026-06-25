@@ -4,7 +4,7 @@
 /**
  * Draft-attachments data-access repository.
  *
- * arch-findings B1 — owns the conversation attachment append + scan-queue enqueue
+ * owns the conversation attachment append + scan-queue enqueue
  * the draft-attachment upload performs. Multipart parsing, storage, and hashing
  * stay in the route.
  */

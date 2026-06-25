@@ -4,7 +4,7 @@
 /**
  * Workspace data-access repository.
  *
- * arch-findings B1 — owns the workspaces table reads/writes. Settings
+ * owns the workspaces table reads/writes. Settings
  * helpers back the per-feature settings routes (search, voice, …); the
  * route keeps encryption, merge logic, and response shaping. All queries
  * are scoped by workspace id.

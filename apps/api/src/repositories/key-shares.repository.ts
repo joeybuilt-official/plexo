@@ -4,7 +4,7 @@
 /**
  * Workspace key-shares data-access repository (cross-workspace credential pointers).
  *
- * arch-findings B1 — owns workspace_key_shares persistence plus the workspace
+ * owns workspace_key_shares persistence plus the workspace
  * reads/writes the share flows touch. The aiProviders settings-blob manipulation
  * (deciding what a "borrowed" provider entry looks like) stays in the route as
  * business logic; this module only loads/saves the settings JSON.

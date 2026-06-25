@@ -4,7 +4,7 @@
 /**
  * Google Messages tools data-access repository.
  *
- * arch-findings B1 — owns the gmessages session lookup plus the conversation
+ * owns the gmessages session lookup plus the conversation
  * reads/writes the thread-list and send tools touch. The route keeps workspace
  * access checks, phone normalization, sidecar dispatch, and response shaping.
  * All queries are workspace-scoped (object-level authz).

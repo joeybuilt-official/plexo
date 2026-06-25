@@ -4,7 +4,7 @@
 /**
  * Sprint-engine data-access repository.
  *
- * arch-findings B1 — owns the sprints / sprint_tasks / sprint_logs reads and
+ * owns the sprints / sprint_tasks / sprint_logs reads and
  * writes behind the sprint-runner routes, plus the sprint-scoped task
  * cancellation queries. The route keeps AI-credential pre-flight, the
  * fire-and-forget runner orchestration, SSE emits, analytics, and the

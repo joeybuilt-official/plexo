@@ -4,7 +4,7 @@
 /**
  * Telegram-adapter data-access repository.
  *
- * arch-findings B1 — owns the telegram-specific read queries (memory heatmap).
+ * owns the telegram-specific read queries (memory heatmap).
  * Sprint/channel/workspace queries the adapter shares live in their own repos.
  * The route keeps Telegram API I/O, command parsing, and message formatting.
  */

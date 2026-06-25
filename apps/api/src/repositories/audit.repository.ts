@@ -4,7 +4,7 @@
 /**
  * Audit-log data-access repository (read-only).
  *
- * arch-findings B1 — owns the audit-log list query for the Audit API. The
+ * owns the audit-log list query for the Audit API. The
  * route keeps validation, action-prefix/cursor parsing, and response shaping.
  * Workspace scoping is preserved verbatim; the optional action-prefix and
  * before-cursor predicates are passed in and applied inside the query.

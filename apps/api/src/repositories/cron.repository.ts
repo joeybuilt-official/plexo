@@ -4,7 +4,7 @@
 /**
  * Cron-jobs data-access repository.
  *
- * arch-findings B1 — owns the cron_jobs reads/writes. The route keeps NL→cron
+ * owns the cron_jobs reads/writes. The route keeps NL→cron
  * parsing, schedule/scheduleAt validation, reminder channel resolution, the
  * task-type allow-list, queue push, and analytics. Channel lookups live in
  * channels.repository. All queries are workspace-scoped (object-level authz).

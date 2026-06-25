@@ -4,7 +4,7 @@
 /**
  * Tool-dispatch data-access repository.
  *
- * arch-findings B1 — owns the installed-extension lookup behind POST
+ * owns the installed-extension lookup behind POST
  * /tools/invoke. The route keeps auth, validation, and dispatch shaping.
  * Workspace scoping is enforced inside the query.
  */

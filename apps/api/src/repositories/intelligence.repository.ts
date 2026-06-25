@@ -4,7 +4,7 @@
 /**
  * Intelligence-settings data-access repository.
  *
- * arch-findings B1 — owns the workspaces.intelligence_settings JSONB reads/
+ * owns the workspaces.intelligence_settings JSONB reads/
  * writes (inference-mode, cost-ceiling, step-budget) and the routing_chains
  * read + atomic-replace transaction behind the intelligence routes. The route
  * keeps validation, the IntelligenceSettings cast, pgRows row-shaping, cache

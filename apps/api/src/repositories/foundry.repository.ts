@@ -4,7 +4,7 @@
 /**
  * Model Foundry data-access repository (read-only).
  *
- * arch-findings B1 — owns the foundry_models listing query. The route keeps
+ * owns the foundry_models listing query. The route keeps
  * admin auth, validation, and the promote/retire/train orchestration (which
  * lives in @plexo/agent/foundry).
  */

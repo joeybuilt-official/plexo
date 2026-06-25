@@ -4,7 +4,7 @@
 /**
  * Agent-behavior-configuration data-access repository (Phase 5).
  *
- * arch-findings B1 — owns the behavior_rules / behavior_snapshots reads and
+ * owns the behavior_rules / behavior_snapshots reads and
  * writes behind the behavior routes. The route keeps validation, the
  * locked-rule guards, AGENTS.md import/export, and resolver orchestration.
  * Every query is workspace-scoped.

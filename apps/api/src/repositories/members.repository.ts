@@ -4,7 +4,7 @@
 /**
  * Workspace membership + invite data-access repository.
  *
- * arch-findings B1 — second repository (after nodes) extending the boundary.
+ * second repository (after nodes) extending the boundary.
  * Owns all persistence for the membership aggregate: workspace_members,
  * workspace_invites, plus the user-by-email lookup and workspace-owner read the
  * membership flows need. Route handlers (routes/members.ts) keep auth, role

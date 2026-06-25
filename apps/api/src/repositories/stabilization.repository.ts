@@ -4,7 +4,7 @@
 /**
  * Stabilization eval-results data-access repository.
  *
- * arch-findings B1 — owns the eval_results reads (dashboard rollup) and the
+ * owns the eval_results reads (dashboard rollup) and the
  * eval-type-discriminated inserts (cycle / workload / fixer / proactive_agent /
  * conversation_quality). The route keeps the service-key guard, request
  * validation, metadata assembly, JSON.stringify, and response shaping. All

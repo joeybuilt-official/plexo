@@ -4,7 +4,7 @@
 /**
  * SSO data-access repository (read-only).
  *
- * arch-findings B1 — owns the auth.user email lookup (foreign table via
+ * owns the auth.user email lookup (foreign table via
  * postgres_fdw). The route keeps token verification, consume, and shaping.
  */
 import { db, sql } from '@plexo/db'

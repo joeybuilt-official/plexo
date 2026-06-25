@@ -4,7 +4,7 @@
 /**
  * Intelligence-dashboard data-access repository (read-only + wizard flag).
  *
- * arch-findings B1 — owns the dashboard's flow/health/logs/cost/router-stats
+ * owns the dashboard's flow/health/logs/cost/router-stats
  * queries plus the first-run wizard flag update. The route keeps the pgRows()
  * unwrapping, numeric post-processing, response shaping, service probes
  * (fetch/redis), cache invalidation, and SSE orchestration. All queries are

@@ -4,7 +4,7 @@
 /**
  * Prometheus-metrics data-access repository (read-only).
  *
- * arch-findings B1 — owns the DB-derived gauge queries. The route keeps the
+ * owns the DB-derived gauge queries. The route keeps the
  * bearer/super-admin auth boundary, per-query non-fatal try/catch, and the
  * setGauge numeric conversion.
  */

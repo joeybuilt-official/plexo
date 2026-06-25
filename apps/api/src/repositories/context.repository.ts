@@ -4,7 +4,7 @@
 /**
  * Extension contexts data-access repository.
  *
- * arch-findings B1 — owns extension_contexts persistence. The route keeps token
+ * owns extension_contexts persistence. The route keeps token
  * estimation, TTL/expiry computation, validation, and response shaping; only the
  * SQL lives here. Reads are workspace-scoped + exclude soft-deleted rows.
  */
