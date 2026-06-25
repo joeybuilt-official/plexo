@@ -112,8 +112,11 @@ workflows:
         - pattern: 'v*'
           include: true
     scripts:
-      - name: Enable pnpm
-        script: corepack enable && corepack prepare pnpm@10.30.3 --activate
+      - name: Install pnpm
+        # npm (always on the node image) instead of corepack — corepack's
+        # signature check is flaky on Codemagic's Windows runners and failed the
+        # build at this step.
+        script: npm install -g pnpm@10.30.3
       - name: Install workspace deps
         # --ignore-scripts: skip native postinstalls (e.g. isolated-vm in
         # @plexo/agent) the desktop shell never bundles; electron-builder pulls
