@@ -27,7 +27,7 @@
     "tsx": "^4"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.7",
     "@types/node": "^22",
     "@types/pg": "^8"
