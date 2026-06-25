@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { DrizzleSessionLogStore } from './drizzle-session-log-store.js'
-import type { SessionLogStore, SessionLogInsert } from './ports.js'
+import { DrizzleSessionLogStore } from './drizzle-session-log-store'
+import type { SessionLogStore, SessionLogInsert } from './ports'
 
-export type { SessionLogStore, SessionLogInsert } from './ports.js'
+export type { SessionLogStore, SessionLogInsert } from './ports'
 
 type InsertSessionLog = SessionLogInsert
 

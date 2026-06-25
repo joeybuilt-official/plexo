@@ -8,7 +8,7 @@
  */
 
 import { db, sessionLogs } from '@plexo/db'
-import type { SessionLogStore, SessionLogInsert } from './ports.js'
+import type { SessionLogStore, SessionLogInsert } from './ports'
 
 export class DrizzleSessionLogStore implements SessionLogStore {
     async append(record: SessionLogInsert): Promise<void> {

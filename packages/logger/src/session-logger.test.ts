@@ -8,8 +8,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { SessionLogger } from './session-logger.js'
-import type { SessionLogStore, SessionLogInsert } from './ports.js'
+import { SessionLogger } from './session-logger'
+import type { SessionLogStore, SessionLogInsert } from './ports'
 
 class FakeStore implements SessionLogStore {
     records: SessionLogInsert[] = []
