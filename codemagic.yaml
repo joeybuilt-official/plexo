@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Joeybuilt LLC
+#
+# Native Flutter client (apps/mobile). Reuses Codemagic app 6a3cb20d912c762e1a8fffe8.
+# Signing group `plexo-android-signing` must provide:
+#   CM_KEYSTORE (base64 of the .jks), CM_STORE_PASSWORD, CM_KEY_ALIAS, CM_KEY_PASSWORD
+workflows:
+  android-release:
+    name: Plexo Android — build + test + bundle (email)
+    environment:
+      flutter: stable
+      groups:
+        - plexo-android-signing
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+    scripts: &build_scripts
+      - name: Get packages
+        script: flutter pub get
+        working_directory: apps/mobile
+      - name: Analyse
+        script: flutter analyze
+        working_directory: apps/mobile
+      - name: Widget tests
+        script: flutter test --reporter=expanded
+        working_directory: apps/mobile
+      - name: Build release APK + AAB
+        script: |
+          echo "$CM_KEYSTORE" | base64 --decode > /tmp/plexo-upload.jks
+          export CM_KEYSTORE_PATH=/tmp/plexo-upload.jks
+          flutter build apk --release \
+            --build-name=1.0.$PROJECT_BUILD_NUMBER \
+            --build-number=$PROJECT_BUILD_NUMBER
+          flutter build appbundle --release \
+            --build-name=1.0.$PROJECT_BUILD_NUMBER \
+            --build-number=$PROJECT_BUILD_NUMBER
+        working_directory: apps/mobile
+    artifacts: &build_artifacts
+      - apps/mobile/build/app/outputs/flutter-apk/app-release.apk
+      - apps/mobile/build/app/outputs/bundle/release/app-release.aab
+    publishing:
+      email:
+        recipients:
+          - user@example.com
+        notify:
+          success: true
+          failure: true
+
+  android-publish:
+    name: Plexo Android — build + publish to Play (internal)
+    environment:
+      flutter: stable
+      groups:
+        - plexo-android-signing
+        - google-play
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'release-v*'
+          include: true
+    scripts: *build_scripts
+    artifacts: *build_artifacts
+    publishing:
+      email:
+        recipients:
+          - user@example.com
+        notify:
+          success: true
+          failure: true
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
