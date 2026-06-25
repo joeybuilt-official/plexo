@@ -354,7 +354,7 @@ importers:
         specifier: ^0.471.1
         version: 0.471.2(react@19.2.3)
       next:
-        specifier: '>=16.2.6'
+        specifier: ^16.2.6
         version: 16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       react:
         specifier: ^19.1.0
@@ -479,7 +479,7 @@ importers:
         specifier: '>=11.15.0'
         version: 11.15.0
       next:
-        specifier: '>=16.2.6'
+        specifier: ^16.2.6
         version: 16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       next-themes:
         specifier: ^0.4.6
@@ -967,7 +967,7 @@ importers:
         specifier: ^19
         version: 19.2.14
       next:
-        specifier: '>=16.2.6'
+        specifier: ^16.2.6
         version: 16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       tailwindcss:
         specifier: ^4

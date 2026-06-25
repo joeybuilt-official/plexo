@@ -133,7 +133,7 @@
     "ai": "^6.0.111",
     "bcrypt": "^5.1",
     "diff": "^8.0.3",
-    "drizzle-orm": "^0.39.3",
+    "drizzle-orm": "^0.45.2",
     "graphology": "^0.26.0",
     "graphology-communities-louvain": "^2.0.2",
     "isolated-vm": "^5.0.1",
