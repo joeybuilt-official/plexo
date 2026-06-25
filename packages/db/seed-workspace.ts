@@ -1,6 +1,6 @@
 import { db, workspaces, workspaceMembers, DEFAULT_INTELLIGENCE_SETTINGS, DEFAULT_WORKSPACE_SETTINGS } from './src/index.js';
-const userId = '32920f1a-99dd-4baa-be01-3b107035b903';
-const workspaceId = '8200ac67-a6b9-4958-8a4e-e5ec87fffe9b';
+const userId = '00000000-0000-0000-0000-000000000002';
+const workspaceId = '00000000-0000-0000-0000-000000000003';
 
 async function run() {
     try {
