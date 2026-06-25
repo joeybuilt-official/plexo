@@ -16,7 +16,6 @@ dependencies:
   http: ^1.2.0
   flutter_secure_storage: ^9.2.2
   shared_preferences: ^2.3.0
-  google_fonts: ^6.2.1
   app_links: ^6.3.0
   url_launcher: ^6.3.0
 
@@ -27,3 +26,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # Bundled (not runtime-fetched) so the app matches the web dark-zinc type
+  # offline and on first launch. OFL-1.1 licenses sit beside the .ttf files.
+  # Both are variable fonts; Flutter maps fontWeight onto the wght axis.
+  fonts:
+    - family: IBMPlexSans
+      fonts:
+        - asset: assets/fonts/IBMPlexSans.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono.ttf

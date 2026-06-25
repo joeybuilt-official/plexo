@@ -8,11 +8,13 @@
 
 import "package:flutter/material.dart";
 
+import "../api/models.dart";
 import "../theme/tokens.dart";
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, required this.onSignOut});
+  const MainShell({super.key, required this.user, required this.onSignOut});
 
+  final PlexoUser user;
   final VoidCallback onSignOut;
 
   @override
@@ -45,7 +47,9 @@ class _MainShellState extends State<MainShell> {
             ),
         ],
       ),
-      body: _Placeholder(dest: dest),
+      body: _index == _destinations.length - 1
+          ? _SettingsBody(user: widget.user, onSignOut: widget.onSignOut)
+          : _Placeholder(dest: dest),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
@@ -67,6 +71,51 @@ class _Dest {
   final String label;
   final IconData icon;
   final IconData selectedIcon;
+}
+
+class _SettingsBody extends StatelessWidget {
+  const _SettingsBody({required this.user, required this.onSignOut});
+  final PlexoUser user;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return ListView(
+      padding: const EdgeInsets.all(PlexoSpace.s4),
+      children: [
+        Card(
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: scheme.primaryContainer,
+              foregroundColor: scheme.onPrimaryContainer,
+              child: Text(
+                (user.name?.isNotEmpty == true ? user.name! : user.email)
+                    .characters
+                    .first
+                    .toUpperCase(),
+              ),
+            ),
+            title: Text(user.name?.isNotEmpty == true ? user.name! : user.email),
+            subtitle: Text(user.email, style: text.bodySmall),
+          ),
+        ),
+        const SizedBox(height: PlexoSpace.s4),
+        OutlinedButton.icon(
+          onPressed: onSignOut,
+          icon: const Icon(Icons.logout),
+          label: const Text("Sign out"),
+        ),
+        const SizedBox(height: PlexoSpace.s4),
+        Text(
+          "Full settings arrive in a later phase.",
+          style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
 }
 
 class _Placeholder extends StatelessWidget {

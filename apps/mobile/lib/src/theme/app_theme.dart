@@ -4,22 +4,25 @@
 // Plexo Material 3 ThemeData factory. Colors come from the explicit web-ported
 // schemes in tokens.dart (not a generated tonal palette) so the app holds
 // pixel parity with the web dark-zinc surfaces. Type uses IBM Plex Sans (body)
-// + JetBrains Mono (code), matching the web app's next/font choices.
+// + JetBrains Mono (code) — bundled as assets (pubspec) to match the web app's
+// next/font choices offline.
 
 import "package:flutter/material.dart";
-import "package:google_fonts/google_fonts.dart";
 
 import "tokens.dart";
 
 class PlexoTheme {
+  /// Monospace family for code/terminal surfaces. Use at the call site:
+  /// `style: TextStyle(fontFamily: PlexoTheme.monoFamily)`.
+  static const String monoFamily = "JetBrainsMono";
+
   static ThemeData dark() => _build(plexoDarkScheme);
   static ThemeData light() => _build(plexoLightScheme);
 
   static ThemeData _build(ColorScheme scheme) {
     final base = ThemeData(brightness: scheme.brightness);
-    // IBM Plex Sans body type; JetBrains Mono is applied per-widget where code
-    // renders (see GoogleFonts.jetBrainsMono at call sites).
-    final textTheme = GoogleFonts.ibmPlexSansTextTheme(base.textTheme).apply(
+    final textTheme = base.textTheme.apply(
+      fontFamily: "IBMPlexSans",
       bodyColor: scheme.onSurface,
       displayColor: scheme.onSurface,
     );

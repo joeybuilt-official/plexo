@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { betterAuth, type Auth } from 'better-auth'
+import { bearer } from 'better-auth/plugins'
 import type { Pool } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { db } from '../client'
@@ -55,6 +56,13 @@ export function createPlexoBetterAuth(opts: PlexoAuthOptions): Auth {
     return betterAuth({
         database: pool,
         secret,
+        // The bearer plugin lets native clients (the Flutter app) authenticate
+        // without cookies: sign-in returns the session token via the
+        // `set-auth-token` response header, and getSession accepts it as
+        // `Authorization: Bearer <token>`. The web app keeps using cookies —
+        // this plugin is additive and does not change the cookie flow. Verifier
+        // (api) and issuer (web) both go through this factory, so both speak it.
+        plugins: [bearer()],
         ...(baseURL ? { baseURL } : {}),
         ...(trustedOrigins && trustedOrigins.length > 0 ? { trustedOrigins } : {}),
         ...(google

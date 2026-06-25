@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 //
-// Composition root. Loads the AuthStore (decrypting persisted session), then
-// renders the themed app, routing to MainShell when authenticated or the login
-// placeholder otherwise. Mirrors fonto_mobile's bootstrap (no Riverpod; manual
-// stores threaded down from here).
+// Composition root. Loads the AuthStore (decrypting any persisted token), then
+// renders the themed app. On launch it validates the token against the instance
+// (getSession); a valid session goes straight to MainShell, otherwise to the
+// login screen. Mirrors fonto_mobile's bootstrap (no Riverpod; manual stores
+// threaded down from here).
 
 import "package:flutter/material.dart";
 
+import "src/api/models.dart";
 import "src/api/plexo_client.dart";
 import "src/screens/login_screen.dart";
 import "src/screens/main_shell.dart";
@@ -31,14 +33,34 @@ class PlexoApp extends StatefulWidget {
 
 class _PlexoAppState extends State<PlexoApp> {
   late final PlexoClient _client = PlexoClient(widget.auth);
-  // Phase 0: a local flag stands in for a real session. Phase 1 replaces this
-  // with AuthStore.isAuthenticated driven by the bearer flow.
-  bool _entered = false;
+  PlexoUser? _user;
+  bool _booting = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final user = await _client.getSession();
+    if (mounted) {
+      setState(() {
+        _user = user;
+        _booting = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
     _client.dispose();
     super.dispose();
+  }
+
+  Future<void> _signOut() async {
+    await _client.signOut();
+    if (mounted) setState(() => _user = null);
   }
 
   @override
@@ -49,9 +71,22 @@ class _PlexoAppState extends State<PlexoApp> {
       theme: PlexoTheme.light(),
       darkTheme: PlexoTheme.dark(),
       themeMode: ThemeMode.dark, // web defaults to dark-zinc
-      home: _entered || widget.auth.isAuthenticated
-          ? MainShell(onSignOut: () => setState(() => _entered = false))
-          : LoginScreen(onContinue: () => setState(() => _entered = true)),
+      home: _booting
+          ? const _Splash()
+          : _user != null
+              ? MainShell(user: _user!, onSignOut: _signOut)
+              : LoginScreen(
+                  client: _client,
+                  initialBaseUrl: widget.auth.baseUrl,
+                  onAuthenticated: (u) => setState(() => _user = u),
+                ),
     );
   }
+}
+
+class _Splash extends StatelessWidget {
+  const _Splash();
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: CircularProgressIndicator()));
 }

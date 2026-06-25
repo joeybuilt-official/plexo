@@ -145,14 +145,10 @@ describe('Phase B — web↔api Better Auth handshake', () => {
 
     // Better Auth's Bearer-header authentication path requires the `bearer()`
     // plugin to be registered on both the issuer (web) and the verifier (api).
-    // The shared factory at packages/db/src/auth/config.ts does not enable that
-    // plugin today — consistent with apps/web/src/lib/auth.ts and
-    // apps/api/src/middleware/better-auth.ts which only consume the cookie
-    // channel. Without the plugin, even though signInEmail returns a session
-    // token, requireBetterAuth's getSession() ignores the Authorization
-    // header and returns 401. Re-enable this scenario after the bearer()
-    // plugin is added to createPlexoBetterAuth().
-    it.skip('bearer path: signIn token is accepted via Authorization: Bearer (requires bearer() plugin)', async () => {
+    // The shared factory at packages/db/src/auth/config.ts now enables it, so a
+    // session token minted by signInEmail is accepted as `Authorization: Bearer`.
+    // This is the channel the native Flutter client uses (ADR-0001 Phase 1).
+    it('bearer path: signIn token is accepted via Authorization: Bearer (requires bearer() plugin)', async () => {
         const email = uniqueEmail('bearer')
 
         await webAuth.api.signUpEmail({
