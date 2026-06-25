@@ -1,0 +1,12 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- Copyright (C) 2026 Joeybuilt LLC -->
+<!-- Source art for the app icon. Rasterize to build/icon.ico (256x256, multi-size). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="56" fill="#18181b"/>
+  <rect x="8" y="8" width="240" height="240" rx="50" fill="none" stroke="#3f3f46" stroke-width="4"/>
+  <g transform="translate(128 128) scale(7) translate(-12 -12)"
+     fill="none" stroke="#f4f4f5" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>
+  </g>
+</svg>

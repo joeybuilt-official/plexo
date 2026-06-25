@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: AGPL-3.0-only
+  Copyright (C) 2026 Joeybuilt LLC
+-->
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; script-src 'self';"
+  />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connect to Plexo</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="loader" class="loader" hidden>
+    <div class="spinner" aria-hidden="true"></div>
+    <p class="loader-text">Connecting to Plexo…</p>
+  </div>
+
+  <main id="connectScreen" class="card" hidden>
+    <div class="card-head">
+      <div class="logo" aria-hidden="true">
+        <!-- Plexo node / lightning glyph (mirrors the Android shell) -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+        </svg>
+      </div>
+      <h1>Connect to Plexo</h1>
+      <p class="subtitle">Enter your self-hosted instance URL below to connect the app.</p>
+    </div>
+
+    <form id="connectForm" novalidate>
+      <input
+        type="url"
+        id="urlInput"
+        name="url"
+        placeholder="https://app.your-domain.com"
+        autocomplete="url"
+        spellcheck="false"
+        required
+      />
+      <p id="error" class="error" role="alert" hidden></p>
+      <button type="submit">Connect Instance</button>
+    </form>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

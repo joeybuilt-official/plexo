@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Joeybuilt LLC
+
+appId: dev.plexo.desktop
+productName: Plexo
+copyright: Copyright (C) 2026 Joeybuilt LLC
+
+directories:
+  output: dist
+  buildResources: build
+
+# Only ship what the app needs at runtime.
+files:
+  - src/**/*
+  - package.json
+  - "!**/*.map"
+
+win:
+  target:
+    - nsis
+    - portable
+  # electron-builder generates a multi-size .ico from this 256x256 PNG at build
+  # time. To ship a hand-tuned icon instead, drop build/icon.ico and point here.
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: Plexo-Setup-${version}.${ext}
+
+portable:
+  artifactName: Plexo-${version}-portable.${ext}
+
+# No auto-update / no publishing of artifacts.
+publish: null

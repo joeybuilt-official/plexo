@@ -31,7 +31,7 @@ android {
             val ksPath = System.getenv("CM_KEYSTORE_PATH")
             if (ksPath != null) {
                 storeFile = file(ksPath)
-                storePassword = System.getenv("CM_STORE_PASSWORD")
+                storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("CM_KEY_ALIAS")
                 keyPassword = System.getenv("CM_KEY_PASSWORD")
             }

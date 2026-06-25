@@ -1,0 +1,21 @@
+{
+  "name": "@plexo/desktop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Plexo desktop shell — connects to a self-hosted Plexo instance.",
+  "license": "AGPL-3.0-only",
+  "main": "src/main.cjs",
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "dist:dir": "electron-builder --win --dir"
+  },
+  "dependencies": {
+    "electron-store": "^10.0.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

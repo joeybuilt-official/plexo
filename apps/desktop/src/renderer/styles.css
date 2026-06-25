@@ -1,0 +1,185 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * Copyright (C) 2026 Joeybuilt LLC
+ *
+ * Dark zinc aesthetic mirrored from apps/android/www/index.html.
+ * Bundled (no CDN) so it satisfies the renderer CSP.
+ */
+
+:root {
+  --zinc-950: #09090b;
+  --zinc-925: #121215;
+  --zinc-900: #18181b;
+  --zinc-800: #27272a;
+  --zinc-700: #3f3f46;
+  --zinc-600: #52525b;
+  --zinc-400: #a1a1aa;
+  --zinc-300: #d4d4d8;
+  --zinc-200: #e4e4e7;
+  --zinc-100: #f4f4f5;
+  --red-400: #f87171;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 24px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--zinc-950);
+  color: var(--zinc-100);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---- Loader -------------------------------------------------------------- */
+
+.loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.spinner {
+  height: 32px;
+  width: 32px;
+  border-radius: 9999px;
+  border: 4px solid var(--zinc-800);
+  border-top-color: var(--zinc-100);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loader-text {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--zinc-400);
+}
+
+/* ---- Connect card -------------------------------------------------------- */
+
+.card {
+  width: 100%;
+  max-width: 24rem;
+  padding: 32px;
+  border-radius: 1rem;
+  background-color: rgba(24, 24, 27, 0.5);
+  border: 1px solid var(--zinc-800);
+  backdrop-filter: blur(6px);
+}
+
+.card-head {
+  text-align: center;
+}
+
+.logo {
+  margin: 0 auto 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 0.75rem;
+  background-color: var(--zinc-800);
+  border: 1px solid var(--zinc-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--zinc-300);
+}
+
+.card-head h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 0;
+  padding: 0 8px;
+  font-size: 0.875rem;
+  color: var(--zinc-400);
+}
+
+/* ---- Form ---------------------------------------------------------------- */
+
+form {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+#urlInput {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 0.75rem;
+  background-color: var(--zinc-950);
+  border: 1px solid var(--zinc-800);
+  color: var(--zinc-100);
+  font-size: 0.875rem;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+#urlInput::placeholder {
+  color: var(--zinc-600);
+}
+
+#urlInput:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--zinc-700);
+}
+
+.error {
+  margin: -4px 0 0;
+  font-size: 0.8125rem;
+  color: var(--red-400);
+}
+
+button[type="submit"] {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 0.75rem;
+  background-color: var(--zinc-100);
+  color: var(--zinc-950);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+button[type="submit"]:hover {
+  background-color: var(--zinc-200);
+}
+
+button[type="submit"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--zinc-500, #71717a), 0 0 0 4px var(--zinc-950);
+}
+
+button[type="submit"]:active {
+  transform: scale(0.98);
+}
