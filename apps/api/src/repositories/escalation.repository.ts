@@ -10,7 +10,8 @@
  * @plexo/agent/escalation/manager). Workspace + status scoping is preserved
  * verbatim and parameterised.
  */
-import { db, and, eq, desc } from '@plexo/db'
+import { and, eq, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { escalationRequests } from '@plexo/db'
 
 /** Escalation rows for a workspace filtered by status, newest-requested first, capped. */

@@ -3,7 +3,8 @@
 
 import { generateText, tool, type ModelMessage } from 'ai'
 import { z } from 'zod'
-import { db, sql, eq, and } from '@plexo/db'
+import { sql, eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { tasks, taskSteps, artifacts, artifactVersions, installedConnections, WORK_KINDS, inferKind, kindToLegacyType, type WorkKind } from '@plexo/db'
 import { ulid } from 'ulid'
 import { buildModel, PROVIDER_DEFAULT_MODELS } from '../providers/registry.js'
@@ -1087,7 +1088,8 @@ async function executeTaskInner(
         // Direct call path (tests/sprint runner) — load from DB as before
         try {
             const { workspaces } = await import('@plexo/db')
-            const { db: dbInst, eq: eqFn } = await import('@plexo/db')
+            const { db: dbInst } = await import('@plexo/db')
+            const { eq: eqFn } = await import('drizzle-orm')
             const [ws] = await dbInst.select({ settings: workspaces.settings }).from(workspaces)
                 .where(eqFn(workspaces.id, ctx.workspaceId)).limit(1)
             if (ws?.settings) {
@@ -1167,7 +1169,8 @@ async function executeTaskInner(
     let extensionContextBlock = ''
     if (!isConversationalFast) try {
         const { extensionPrompts: epTable, extensionContexts: ecTable } = await import('@plexo/db')
-        const { db: dbInst, eq: eqFn, and: andFn, isNull: isNullFn } = await import('@plexo/db')
+        const { db: dbInst } = await import('@plexo/db')
+        const { eq: eqFn, and: andFn, isNull: isNullFn } = await import('drizzle-orm')
 
         // §7.6: Load enabled extension prompts and resolve variables
         const enabledPrompts = await dbInst

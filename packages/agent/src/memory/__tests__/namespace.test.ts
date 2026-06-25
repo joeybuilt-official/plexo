@@ -55,15 +55,6 @@ vi.mock('@plexo/db', async () => {
             select: vi.fn(() => makeChain()),
             execute: vi.fn(async () => []),
         },
-        eq: vi.fn((col: unknown, val: unknown) => ({ op: 'eq', col, val })),
-        ne: vi.fn((col: unknown, val: unknown) => ({ op: 'ne', col, val })),
-        and: vi.fn((...args: unknown[]) => ({ op: 'and', args })),
-        desc: vi.fn(() => ({})),
-        inArray: vi.fn((col: unknown, vals: unknown) => ({ op: 'inArray', col, vals })),
-        sql: Object.assign(
-            function sqlTag() { return {} },
-            { raw: () => ({}), join: () => ({}) },
-        ),
         memoryEntries: {
             id: 'id',
             workspaceId: 'workspaceId',
@@ -80,6 +71,21 @@ vi.mock('@plexo/db', async () => {
         },
     }
 })
+
+// ADR-0045 Phase 2: store.ts imports operators from drizzle-orm directly, so
+// the operator spies (asserted via `import('drizzle-orm')`) live here.
+vi.mock('drizzle-orm', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('drizzle-orm')>()),
+    eq: vi.fn((col: unknown, val: unknown) => ({ op: 'eq', col, val })),
+    ne: vi.fn((col: unknown, val: unknown) => ({ op: 'ne', col, val })),
+    and: vi.fn((...args: unknown[]) => ({ op: 'and', args })),
+    desc: vi.fn(() => ({})),
+    inArray: vi.fn((col: unknown, vals: unknown) => ({ op: 'inArray', col, vals })),
+    sql: Object.assign(
+        function sqlTag() { return {} },
+        { raw: () => ({}), join: () => ({}) },
+    ),
+}))
 
 vi.mock('ai', async () => ({
     generateText: vi.fn(async () => ({ text: 'F: f1\nP: p1\nS: s1' })),
@@ -243,7 +249,7 @@ describe('memory/store namespace wiring', () => {
     it('searchMemory with no namespace falls back to the default slice (backward compat)', async () => {
         const { searchMemory } = await import('../store.js')
         await searchMemory({ workspaceId: 'ws-1', useCache: false })
-        const { inArray } = await import('@plexo/db')
+        const { inArray } = await import('drizzle-orm')
         const inArrayCalls = (inArray as unknown as ReturnType<typeof vi.fn>).mock.calls
         expect(inArrayCalls.length).toBeGreaterThan(0)
         const lastVals = inArrayCalls.at(-1)?.[1]
@@ -257,7 +263,7 @@ describe('memory/store namespace wiring', () => {
             agentId: 'alpha',
             useCache: false,
         })
-        const { inArray } = await import('@plexo/db')
+        const { inArray } = await import('drizzle-orm')
         const inArrayCalls = (inArray as unknown as ReturnType<typeof vi.fn>).mock.calls
         const lastVals = inArrayCalls.at(-1)?.[1]
         expect(lastVals).toEqual(['agent-alpha', SHARED_NAMESPACE])
@@ -270,7 +276,7 @@ describe('memory/store namespace wiring', () => {
             namespaces: ['agent-alpha', 'agent-beta', SHARED_NAMESPACE],
             useCache: false,
         })
-        const { inArray } = await import('@plexo/db')
+        const { inArray } = await import('drizzle-orm')
         const inArrayCalls = (inArray as unknown as ReturnType<typeof vi.fn>).mock.calls
         const lastVals = inArrayCalls.at(-1)?.[1]
         expect(lastVals).toEqual(['agent-alpha', 'agent-beta', SHARED_NAMESPACE])

@@ -19,7 +19,8 @@
  * so the unit tests don't need a DB.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { pgRows } from './pg-rows.js'
 import {
     computeDefaultChainsForWorkspace,

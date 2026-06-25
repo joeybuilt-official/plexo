@@ -20,7 +20,8 @@ import {
     getLastPayload,
     getAnalyticsConfig,
 } from './config.js'
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces, appProfiles } from '@plexo/db'
 import { resolveServiceAuth } from '../middleware/service-key-auth.js'
 import pino from 'pino'

@@ -24,7 +24,8 @@
  * postgres synthesis stack is gone.
  */
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { embed as embedMemory } from '@plexo/agent/memory/store'
 import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 

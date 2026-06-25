@@ -26,7 +26,8 @@
  *   SESSION_TOPIC_DETECTION    — default 'true' ('false' disables embedding call)
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 

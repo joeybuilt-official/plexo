@@ -6,7 +6,8 @@
  * Reads persisted step records from task_steps to enable resume-from-checkpoint.
  */
 
-import { db, eq, sql, desc } from '@plexo/db'
+import { eq, sql, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { taskSteps } from '@plexo/db'
 
 /**

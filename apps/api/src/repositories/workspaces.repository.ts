@@ -9,7 +9,8 @@
  * route keeps encryption, merge logic, and response shaping. All queries
  * are scoped by workspace id.
  */
-import { db, eq, and, desc, inArray, sql } from '@plexo/db'
+import { eq, and, desc, inArray, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces, workspaceMembers, tasks, conversations, memoryEntries, behaviorRules, DEFAULT_INTELLIGENCE_SETTINGS, DEFAULT_WORKSPACE_SETTINGS } from '@plexo/db'
 import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/db/auth/config'
 

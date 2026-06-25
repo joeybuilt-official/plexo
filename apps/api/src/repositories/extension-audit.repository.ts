@@ -8,7 +8,8 @@
  * moved in here from the route (it's data-shaping); the route passes a typed
  * filter parsed from query params.
  */
-import { db, eq, and, desc, sql } from '@plexo/db'
+import { eq, and, desc, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensionAuditLog } from '@plexo/db'
 
 type AuditRow = typeof extensionAuditLog.$inferSelect

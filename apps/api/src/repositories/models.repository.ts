@@ -7,7 +7,8 @@
  * owns the models_knowledge reads. The route keeps row
  * shaping, filtering, sorting, pagination, and recommendation logic.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 const CATALOG_COLS = sql`id, provider, model_id, context_window, cost_per_m_in,
                cost_per_m_out, strengths, reliability_score, last_synced_at`

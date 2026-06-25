@@ -17,7 +17,8 @@
  */
 import { createHash, randomBytes } from 'node:crypto'
 import { createClient, type RedisClientType } from 'redis'
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { mcpTokens, workspaces } from '@plexo/db'
 import type { McpContext } from './types.js'
 import { logger } from './logger.js'

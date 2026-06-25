@@ -14,7 +14,8 @@
  * preserved verbatim: ownership filters use ownerId, member upserts stay
  * onConflictDoNothing, bridge lookups stay scoped by (workspaceId, name).
  */
-import { db, eq, inArray, and, sql } from '@plexo/db'
+import { eq, inArray, and, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import {
     workspaces,
     workspaceMembers,

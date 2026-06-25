@@ -13,7 +13,8 @@
  * Injected into both the planner and executor system prompts so the agent
  * can self-limit to achievable work and surface capability gaps to the user.
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { installedConnections, workspaces, extensions } from '@plexo/db'
 import { buildManifestCapabilityMap } from '../connections/registry.js'
 
@@ -176,7 +177,7 @@ export async function buildCapabilityManifest(workspaceId: string): Promise<Capa
         // Try provider_instances table first (canonical source after Intelligence page)
         try {
             const { providerInstances } = await import('@plexo/db')
-            const { asc } = await import('@plexo/db')
+            const { asc } = await import('drizzle-orm')
             const instances = await db.select({
                 providerType: providerInstances.providerType,
                 selectedModel: providerInstances.selectedModel,

@@ -33,7 +33,8 @@ export interface DigestResult {
 
 async function queryNativeErrors(minOccurrences: number, maxItems: number): Promise<ErrorGroup[]> {
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
         const rows = await db.execute<{
             fingerprint: string; message: string
             occurrence_count: number; first_seen_at: string; last_seen_at: string
@@ -109,7 +110,8 @@ async function createGitHubIssue(opts: {
 
 async function writeDeadLetter(opts: { weekOf: string; attempt: number; error: string }): Promise<void> {
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
         await db.execute(sql`
             INSERT INTO analytics_digest_failures (id, week_of, attempt, error)
             VALUES (gen_random_uuid(), ${opts.weekOf}, ${opts.attempt}, ${opts.error})
@@ -127,7 +129,8 @@ async function queryDomainMetrics(): Promise<Array<{
     domain_tag: string; task_count: number; avg_quality: number | null; quality_delta: number | null
 }>> {
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
         const rows = await db.execute<{
             domain_tag: string; task_count: number; avg_quality: number | null; quality_delta: number | null
         }>(sql`

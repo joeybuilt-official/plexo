@@ -375,7 +375,8 @@ async function isReactionsEnabled(workspaceId: string): Promise<boolean> {
     try {
         // Dynamic import to avoid circular deps — this module lives in @plexo/agent
         // but the DB query is straightforward.
-        const { db, eq } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { eq } = await import('drizzle-orm')
         const { workspaces } = await import('@plexo/db')
         const [ws] = await db
             .select({ settings: workspaces.settings })

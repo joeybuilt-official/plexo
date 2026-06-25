@@ -48,7 +48,8 @@ export async function recordCredit(opts: {
     if (!opts.contextHash || opts.contextRuleKeys.length === 0) return
 
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
 
         // Find learning_events whose source_ref matches any rule key in context
         // and tag them with quality context. This builds the dataset for lift calc.
@@ -74,7 +75,8 @@ export async function recordCredit(opts: {
  */
 export async function checkKillSwitch(workspaceId: string): Promise<boolean> {
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
 
         // Read kill switch config from workspace preferences
         const configRows = await db.execute<{ key: string; value: unknown }>(sql`
@@ -142,7 +144,8 @@ export async function checkKillSwitch(workspaceId: string): Promise<boolean> {
  */
 export async function decayStaleRules(workspaceId: string): Promise<{ staleCount: number }> {
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
 
         // Find reflection-sourced rules that haven't been in a credit observation
         // for 60+ days. Mark them by adding 'stale' to tags.
@@ -184,7 +187,8 @@ export async function decayStaleRules(workspaceId: string): Promise<{ staleCount
  */
 export async function quarantinePoorRules(workspaceId: string): Promise<{ quarantinedCount: number }> {
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
 
         // Find rules with 3+ recent credit observations where quality < 0.5
         const result = await db.execute<{ source_ref: string }>(sql`
@@ -237,7 +241,8 @@ export async function quarantinePoorRules(workspaceId: string): Promise<{ quaran
  */
 export async function refreshDomainMetrics(workspaceId: string): Promise<void> {
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
 
         // Compute weekly aggregates from work_ledger + learning_events
         await db.execute(sql`

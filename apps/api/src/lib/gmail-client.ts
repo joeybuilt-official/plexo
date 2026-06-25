@@ -11,7 +11,8 @@
  *  - users.getProfile fetch (used to baseline historyId)
  */
 
-import { db, eq } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { installedConnections } from '@plexo/db'
 import { decrypt, encrypt } from '../crypto.js'
 import { logger } from '../logger.js'

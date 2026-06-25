@@ -11,7 +11,8 @@
  * checks, validation, audit logging, and the permission-graph shadow-writes —
  * only the SQL lives here.
  */
-import { db, eq, and, desc, isNull } from '@plexo/db'
+import { eq, and, desc, isNull } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaceMembers, workspaceInvites, users, workspaces } from '@plexo/db'
 
 type Role = typeof workspaceMembers.$inferInsert['role']

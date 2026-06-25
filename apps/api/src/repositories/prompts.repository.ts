@@ -9,7 +9,8 @@
  * merging, and template interpolation. Every query is workspace-scoped and
  * excludes soft-deleted rows.
  */
-import { db, eq, and, isNull } from '@plexo/db'
+import { eq, and, isNull } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensionPrompts } from '@plexo/db'
 
 export interface ListPromptsFilter {

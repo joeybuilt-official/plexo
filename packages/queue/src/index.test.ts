@@ -23,6 +23,19 @@ vi.mock('@plexo/db', () => ({
     tasks: { id: 'id' },
 }))
 
+// ADR-0045 Phase 2: the drizzle adapter now imports operators from drizzle-orm
+// directly (not via the @plexo/db barrel), so stub them here too.
+vi.mock('drizzle-orm', () => ({
+    eq: vi.fn(),
+    and: vi.fn(),
+    sql: Object.assign(
+        (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+        { join: vi.fn() },
+    ),
+    asc: vi.fn(),
+    inArray: vi.fn(),
+}))
+
 const { complete } = await import('./index.js')
 
 describe('queue complete() — Phase M pending-score guard', () => {

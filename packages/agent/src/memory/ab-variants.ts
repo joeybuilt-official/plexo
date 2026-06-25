@@ -21,7 +21,8 @@
  *
  * This loop runs entirely within the executor at task completion — no separate job needed.
  */
-import { db, sql, desc, eq } from '@plexo/db'
+import { sql, desc, eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workLedger } from '@plexo/db'
 import { getPreference, learnPreference } from './preferences.js'
 import pino from 'pino'

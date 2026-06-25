@@ -103,7 +103,8 @@ async function emit(event: string, properties: Record<string, unknown>): Promise
     }
 
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
         await db.execute(sql`
             INSERT INTO plexo_ops_analytics (app, event_name, properties, instance_uuid)
             VALUES ('plexo', ${event}, ${JSON.stringify(enriched)}::jsonb, ${instanceId})

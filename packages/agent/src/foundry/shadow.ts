@@ -8,7 +8,8 @@
  * Agreement scores logged for promotion decision.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { ulid } from 'ulid'
 import { createHash } from 'node:crypto'
 import pino from 'pino'

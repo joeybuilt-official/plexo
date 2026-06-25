@@ -14,7 +14,8 @@
  * `alternatives_considered` is ALWAYS emitted per operator decision C2.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import type { Alternative, SelectionResult } from './selector.js'
 import { computeShadowChoice, type ShadowInput } from './shadow.js'
 import type { TaskType } from '../registry.js'

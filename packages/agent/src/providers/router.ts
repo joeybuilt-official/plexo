@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { AnyLanguageModel, TaskType, ProviderKey, DEFAULT_MODEL_ROUTING } from './registry.js'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
 import { buildModel } from './registry.js'
 import { resolveChain, type ChainEntry, type ChainTaskType } from './chain-resolver.js'

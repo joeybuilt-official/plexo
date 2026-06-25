@@ -28,7 +28,8 @@ import { QUALITY_RUBRICS, MODEL_ROUTING } from '../constants.js'
 import { resolveModelFromEnv, buildModel } from '../providers/registry.js'
 import type { ProviderKey } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
 
 const logger = pino({ name: 'quality-judge' })

@@ -14,7 +14,8 @@
  * the SQL moves here. Workspace lookups reuse workspaces.repository and sprint
  * inserts reuse sprints.repository (createSprint).
  */
-import { db, eq, and, desc, sql } from '@plexo/db'
+import { eq, and, desc, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { tasks, taskSteps, sprints, sprintTasks, sprintLogs, modelsKnowledge } from '@plexo/db'
 
 /** Model-knowledge row for a model id, or undefined (consultative routing). */

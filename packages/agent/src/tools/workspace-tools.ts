@@ -17,7 +17,8 @@
 
 import { tool } from 'ai'
 import { z } from 'zod'
-import { db, eq, and, isNull } from '@plexo/db'
+import { eq, and, isNull } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces, behaviorRules, installedConnections, channels, extensions, connectionsRegistry } from '@plexo/db'
 import { invalidateWorkspaceToolSets } from '../tool-set-cache.js'
 import { loadConnectionTools, type ToolSet } from '../connections/bridge.js'
@@ -168,7 +169,7 @@ export async function buildWorkspaceTools(workspaceId: string, opts?: {
                 try {
                     const { db } = await import('@plexo/db')
                     const { conversations, memoryEntries } = await import('@plexo/db')
-                    const { sql, desc } = await import('@plexo/db')
+                    const { sql, desc } = await import('drizzle-orm')
 
                     const keywords = query.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2)
                     if (keywords.length === 0) return 'No meaningful search terms. Try more specific keywords.'

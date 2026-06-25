@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import pino from 'pino'
-import { db, eq, and, inArray, isNotNull, sql } from '@plexo/db'
+import { eq, and, inArray, isNotNull, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { sprints, sprintTasks, tasks, taskSteps } from '@plexo/db'
 import { push as pushTask } from '@plexo/queue'
 import { detectDynamicConflicts } from './conflicts.js'

@@ -9,7 +9,8 @@
  * locked-rule guards, AGENTS.md import/export, and resolver orchestration.
  * Every query is workspace-scoped.
  */
-import { db, eq, and, isNull, desc, or } from '@plexo/db'
+import { eq, and, isNull, desc, or } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { behaviorRules, behaviorSnapshots } from '@plexo/db'
 
 /**

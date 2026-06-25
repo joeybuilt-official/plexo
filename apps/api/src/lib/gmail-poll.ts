@@ -20,7 +20,8 @@
  * N/A since polling is server-initiated, not webhook-driven).
  */
 
-import { db, and, eq, sql } from '@plexo/db'
+import { and, eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { channels, installedConnections, attachmentScanQueue } from '@plexo/db'
 import { push as pushTask } from '@plexo/queue'
 import { decrypt, encrypt } from '../crypto.js'

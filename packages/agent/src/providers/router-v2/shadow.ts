@@ -17,7 +17,8 @@
  * the real scorer. ADR 0006, Round-6 plan Phase 1.
  */
 
-import { db, inArray, modelsKnowledge } from '@plexo/db'
+import { inArray } from 'drizzle-orm'
+import { db, modelsKnowledge } from '@plexo/db'
 import { enumerateModelCandidates, capabilityGate, type KnowledgeRow } from './enumerate.js'
 import { selectBestModel } from './score.js'
 import { getStats } from './stats.js'

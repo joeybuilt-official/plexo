@@ -10,7 +10,8 @@
  * and response shaping. These endpoints are intentionally cross-workspace
  * (super-admin only) — there is no per-workspace authz to preserve.
  */
-import { db, eq, desc, sql, count } from '@plexo/db'
+import { eq, desc, sql, count } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces, tasks, users, installedConnections, memoryEntries, auditLog, workspaceMembers, attachmentScanQueue } from '@plexo/db'
 
 type TaskStatus = 'queued' | 'claimed' | 'running' | 'complete' | 'blocked' | 'cancelled' | 'awaiting_approval'

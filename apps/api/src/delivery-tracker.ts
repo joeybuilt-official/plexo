@@ -8,7 +8,8 @@
  * Never blocks the message flow — failures are logged but swallowed.
  */
 
-import { db, desc, sql, and, eq } from '@plexo/db'
+import { desc, sql, and, eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { messageDeliveries } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from './logger.js'

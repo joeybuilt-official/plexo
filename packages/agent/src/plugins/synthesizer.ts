@@ -17,7 +17,8 @@
  * a fixed allowlist — the LLM cannot expand them.
  */
 
-import { db, eq, and, sql } from '@plexo/db'
+import { eq, and, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensions, connectionsRegistry, workspaces } from '@plexo/db'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'

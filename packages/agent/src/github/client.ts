@@ -234,7 +234,8 @@ export async function resolveGitHubToken(workspaceId?: string): Promise<string> 
     // 1. Try installed_connections for the given workspace
     if (workspaceId) {
         try {
-            const { db, eq, and } = await import('@plexo/db')
+            const { db } = await import('@plexo/db')
+            const { eq, and } = await import('drizzle-orm')
             const { installedConnections } = await import('@plexo/db')
             const { decrypt } = await import('../connections/crypto-util.js')
 

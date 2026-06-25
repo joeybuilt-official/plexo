@@ -17,6 +17,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@plexo/db": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "@plexo/queue": "workspace:*",
     "@plexo/agent": "workspace:*",
     "pino": "^9",

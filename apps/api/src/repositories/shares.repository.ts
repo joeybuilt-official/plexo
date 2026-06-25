@@ -9,7 +9,8 @@
  * access checks, share-id generation, expiry validation, URL shaping, and the
  * fire-and-forget view-count increment.
  */
-import { db, eq, and, sql, isNull, desc } from '@plexo/db'
+import { eq, and, sql, isNull, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { artifacts, artifactVersions, artifactShares } from '@plexo/db'
 
 /** The owning workspace id for an artifact, or undefined. */

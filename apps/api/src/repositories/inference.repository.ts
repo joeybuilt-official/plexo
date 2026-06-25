@@ -7,7 +7,8 @@
  * owns the per-app inference_logs attribution write. The
  * route keeps sampling, rounding, and fire-and-forget error swallowing.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** Attribution-only inference log row (app_id set, never trips the ceiling). */
 export async function insertAppInferenceLog(args: {

@@ -10,7 +10,8 @@
  * parameterised. Cross-table reads (api_cost_tracking, work_ledger, task_steps)
  * use raw `sql` since they aggregate beyond the drizzle `tasks` model.
  */
-import { db, sql, desc } from '@plexo/db'
+import { sql, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { tasks } from '@plexo/db'
 
 /** Task counts grouped by status for a workspace. */

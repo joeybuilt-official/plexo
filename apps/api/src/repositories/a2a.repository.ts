@@ -9,7 +9,8 @@
  * agent-card building, SSRF checks, status mapping, and queue orchestration.
  * Object-level authz (workspace match on tasks) stays in the route.
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensions, tasks, workspaces, mcpTokens } from '@plexo/db'
 
 /** Enabled agent-type extensions for a workspace. */

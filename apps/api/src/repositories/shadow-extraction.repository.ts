@@ -7,7 +7,8 @@
  * owns the shadow_extraction_results write. The route keeps
  * sampling, the shadow model call, agreement scoring, and field counting.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** One shadow-vs-primary comparison row. */
 export async function insertShadowResult(args: {

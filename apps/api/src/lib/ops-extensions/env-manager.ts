@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { db, workspacePreferences, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db, workspacePreferences } from '@plexo/db'
 import { encrypt, decrypt } from '../../crypto.js'
 
 const SENSITIVE_RE = /key|secret|password|token|auth|credential|private|cert|signing/i

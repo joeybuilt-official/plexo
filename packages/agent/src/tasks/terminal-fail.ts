@@ -16,7 +16,8 @@
  */
 
 import pino from 'pino'
-import { db, eq, and, tasks, type TaskStatus } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db, tasks, type TaskStatus } from '@plexo/db'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { generateEscalationSummary, deterministicEscalation, type EscalateInput } from './escalate.js'

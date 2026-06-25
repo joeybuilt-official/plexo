@@ -7,7 +7,8 @@
  * owns the channels table reads/writes. The route keeps
  * config encryption/decryption, webhook auth, and dispatch orchestration.
  */
-import { db, eq, and, desc, inArray, sql } from '@plexo/db'
+import { eq, and, desc, inArray, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { channels, conversations, installedConnections, pairedSessions } from '@plexo/db'
 
 /** Full channel row by id, or undefined. */

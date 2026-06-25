@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { tasks } from '@plexo/db'
 import { getRedis } from './redis-client.js'
 import pino from 'pino'

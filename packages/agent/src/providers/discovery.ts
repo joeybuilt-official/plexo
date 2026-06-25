@@ -10,7 +10,8 @@
  */
 
 import pino from 'pino'
-import { db, eq } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { providerInstances } from '@plexo/db'
 import { EMBEDDING_CAPABLE_PROVIDERS, DEFAULT_EMBEDDING_MODELS } from '../embeddings/adapters.js'
 import { OllamaAdapter } from '../ollama/adapter.js'

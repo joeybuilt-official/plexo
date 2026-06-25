@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { eq, sprintStatusEnum } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { sprintStatusEnum } from '@plexo/db'
 import { sprints } from '@plexo/db'
 import * as sprintsRepo from '../repositories/sprints.repository.js'
 import { logger } from '../logger.js'

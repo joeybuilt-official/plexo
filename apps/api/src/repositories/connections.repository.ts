@@ -12,7 +12,8 @@
  * verbatim — every installed-connection read/write is filtered by workspaceId
  * exactly as the route had it.
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { connectionsRegistry, installedConnections, channels, pairedSessions } from '@plexo/db'
 
 /** All registry rows (cap 500). */

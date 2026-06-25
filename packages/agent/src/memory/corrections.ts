@@ -15,7 +15,8 @@
  */
 
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { learnPreference } from './preferences.js'
 import { recordTaskMemory } from './store.js'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'

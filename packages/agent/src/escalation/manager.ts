@@ -37,7 +37,8 @@
  * human operator. Both TTLs are correct for their respective lifetimes.
  */
 import pino from 'pino'
-import { db, and, eq, lt } from '@plexo/db'
+import { and, eq, lt } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { escalationRequests } from '@plexo/db'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 import { logAuditEntry } from '../audit.js'

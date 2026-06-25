@@ -3,7 +3,8 @@
 
 import { syncModelKnowledge } from '@plexo/agent/providers/knowledge'
 import { runSelfImprovementCycle } from '@plexo/agent/memory/self-improvement'
-import { db, sql, eq, and, inArray } from '@plexo/db'
+import { sql, eq, and, inArray } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { cronJobs, artifactVersions, artifacts, workspaceMembers } from '@plexo/db'
 import { mirrorAuthUserToPublic } from '@plexo/db/auth/config'
 import { logger } from './logger.js'

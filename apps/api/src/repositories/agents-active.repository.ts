@@ -11,7 +11,8 @@
  * task-id filters are passed in and applied verbatim; both queries are
  * parameterised.
  */
-import { db, eq, and, inArray, desc } from '@plexo/db'
+import { eq, and, inArray, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { taskSteps, tasks } from '@plexo/db'
 
 /** In-flight (active-status) tasks for a workspace, oldest first, as snapshot rows. */

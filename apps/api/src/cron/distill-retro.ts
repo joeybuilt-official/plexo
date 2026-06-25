@@ -58,7 +58,8 @@ export async function runDistillRetro(opts: DistillRetroOpts): Promise<DistillRe
         return { routineId: opts.routineId, skipped: true, skipReason: 'DISTILL_ENABLED=false' }
     }
 
-    const { db, eq, sql, and, promptRevisions, cronJobs } = await import('@plexo/db')
+    const { db, promptRevisions, cronJobs } = await import('@plexo/db')
+    const { eq, sql, and } = await import('drizzle-orm')
     const minRows = opts.minRows ?? DEFAULT_MIN_ROWS
 
     // 1. Fetch the routine
@@ -197,7 +198,8 @@ export async function runDistillRetro(opts: DistillRetroOpts): Promise<DistillRe
  * Call from telegram.ts approval handler.
  */
 export async function applyRevision(revisionId: string, reviewedBy: string): Promise<{ ok: boolean; error?: string }> {
-    const { db, eq, and, promptRevisions, cronJobs } = await import('@plexo/db')
+    const { db, promptRevisions, cronJobs } = await import('@plexo/db')
+    const { eq, and } = await import('drizzle-orm')
 
     const [revision] = await db.select().from(promptRevisions).where(eq(promptRevisions.id, revisionId)).limit(1)
     if (!revision) return { ok: false, error: 'revision_not_found' }
@@ -249,7 +251,8 @@ export async function applyRevision(revisionId: string, reviewedBy: string): Pro
  * Reject a revision — marks it as rejected, no DB changes to cron_jobs.
  */
 export async function rejectRevision(revisionId: string, reviewedBy: string): Promise<{ ok: boolean; error?: string }> {
-    const { db, eq, promptRevisions, cronJobs } = await import('@plexo/db')
+    const { db, promptRevisions, cronJobs } = await import('@plexo/db')
+    const { eq } = await import('drizzle-orm')
 
     const [revision] = await db.select({ status: promptRevisions.status, routineId: promptRevisions.routineId })
         .from(promptRevisions).where(eq(promptRevisions.id, revisionId)).limit(1)
@@ -343,7 +346,8 @@ async function notifyTelegram(workspaceId: string, chatId: string, n: RevisionNo
 
     if (!token) {
         try {
-            const { db, eq, channels } = await import('@plexo/db')
+            const { db, channels } = await import('@plexo/db')
+            const { eq } = await import('drizzle-orm')
             const [row] = await db.select({ config: channels.config })
                 .from(channels)
                 .where(eq(channels.workspaceId, workspaceId))

@@ -9,7 +9,8 @@
  * task-type allow-list, queue push, and analytics. Channel lookups live in
  * channels.repository. All queries are workspace-scoped (object-level authz).
  */
-import { db, eq, and, desc, isNull, isNotNull } from '@plexo/db'
+import { eq, and, desc, isNull, isNotNull } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { cronJobs } from '@plexo/db'
 
 /** List cron jobs for a workspace, filtered by kind (reminder=no schedule, schedule=has schedule). */

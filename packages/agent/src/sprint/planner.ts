@@ -7,7 +7,8 @@
  */
 import { z } from 'zod'
 import pino from 'pino'
-import { db, eq } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { sprints, sprintTasks } from '@plexo/db'
 import { AnyLanguageModel } from '../providers/registry.js'
 import { routeAndCall } from '../providers/router-v2/index.js'

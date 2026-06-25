@@ -8,7 +8,8 @@
  * consent-approved data, checks thresholds, emits eligibility events.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { ulid } from 'ulid'
 import pino from 'pino'
 import type { BucketStats } from './types.js'

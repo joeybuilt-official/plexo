@@ -15,7 +15,8 @@
  */
 import pino from 'pino'
 import { generateText } from 'ai'
-import { db, eq, ne, and, desc, sql, inArray } from '@plexo/db'
+import { eq, ne, and, desc, sql, inArray } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { memoryEntries, workspaces } from '@plexo/db'
 import { type WorkspaceAISettings } from '../providers/registry.js'
 import { routeAndCall } from '../providers/router-v2/index.js'

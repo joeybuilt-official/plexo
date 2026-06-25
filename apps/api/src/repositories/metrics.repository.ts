@@ -8,7 +8,8 @@
  * bearer/super-admin auth boundary, per-query non-fatal try/catch, and the
  * setGauge numeric conversion.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** Task counts grouped by status. */
 export async function getTaskCountsByStatus(): Promise<Array<{ status: string; n: string }>> {

@@ -87,7 +87,8 @@ async function loadGmailDelivery(
     expiresAt: string | null
     fromEmail: string
 } | null> {
-    const { db, eq } = await import('@plexo/db')
+    const { db } = await import('@plexo/db')
+    const { eq } = await import('drizzle-orm')
     const { channels, installedConnections } = await import('@plexo/db')
 
     const [chRow] = await db
@@ -185,7 +186,8 @@ async function refreshAccessToken(
 
     // Persist the refreshed token back to installed_connections so future calls hit the cache.
     try {
-        const { db, eq } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { eq } = await import('drizzle-orm')
         const { installedConnections } = await import('@plexo/db')
         const { decrypt, encrypt } = await import('../connections/crypto-util.js')
         const [row] = await db

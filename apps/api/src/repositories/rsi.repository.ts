@@ -9,7 +9,8 @@
  * shadow-test orchestration, analytics emits, and the aggregate summary math.
  * All queries are workspace-scoped (object-level authz).
  */
-import { db, rsiProposals, rsiTestResults, eq, and, desc } from '@plexo/db'
+import { eq, and, desc } from 'drizzle-orm'
+import { db, rsiProposals, rsiTestResults } from '@plexo/db'
 
 /** Newest 50 proposals for a workspace. */
 export async function listProposals(workspaceId: string) {

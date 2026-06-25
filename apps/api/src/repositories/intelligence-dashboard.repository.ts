@@ -12,7 +12,8 @@
  * workspaces, inference_logs, models_knowledge, router_v2_stats) and stay
  * workspace-scoped where the original was. Filters are parameterised.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** Liveness ping for the postgres health probe. */
 export async function pingPostgres(): Promise<void> {

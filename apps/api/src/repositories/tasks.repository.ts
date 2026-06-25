@@ -14,7 +14,8 @@
  * checks. Only the SQL moves here. Workspace scoping and object-level
  * ownership filters are preserved verbatim; all filters stay parameterised.
  */
-import { db, desc, asc, eq, and, gte, sql } from '@plexo/db'
+import { desc, asc, eq, and, gte, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { tasks, taskSteps, plexoOpsTaskEvents, artifacts, artifactVersions } from '@plexo/db'
 
 type Task = typeof tasks.$inferSelect

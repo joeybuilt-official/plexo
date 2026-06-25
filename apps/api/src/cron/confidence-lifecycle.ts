@@ -25,7 +25,8 @@
  */
 
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { GraphitiClient, type CypherResponse } from '@plexo/graphiti-bridge'
 import { emitMemoryRetrievalFlush, emitMemoryConfidenceDecay } from '@plexo/agent/analytics/memory-events'
 

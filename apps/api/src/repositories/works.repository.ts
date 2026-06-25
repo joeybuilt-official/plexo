@@ -8,7 +8,8 @@
  * GET /api/v1/works. The route keeps validation, the cap clamp, and response
  * shaping. Workspace scoping is enforced inside the query.
  */
-import { db, desc, asc, eq, and, sql } from '@plexo/db'
+import { desc, asc, eq, and, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { artifacts, artifactVersions, tasks } from '@plexo/db'
 
 export interface ListWorksFilter {

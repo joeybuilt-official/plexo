@@ -19,7 +19,8 @@ export const karakeepIngestStalled: Agent = {
         if (process.env.KARAKEEP_MONITOR !== '1') return null
         const at = new Date().toISOString()
         try {
-            const { db, sql } = await import('@plexo/db')
+            const { db } = await import('@plexo/db')
+            const { sql } = await import('drizzle-orm')
             const probe = await db.execute<{ exists: boolean }>(sql`
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables

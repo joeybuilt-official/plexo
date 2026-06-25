@@ -9,7 +9,8 @@
  * reads/writes live here. Revocation is scoped by workspaceId (object-level authz
  * preserved).
  */
-import { db, eq, and, desc } from '@plexo/db'
+import { eq, and, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { mcpTokens } from '@plexo/db'
 
 export interface ApiKeyListRow {

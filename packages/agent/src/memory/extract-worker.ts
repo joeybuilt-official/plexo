@@ -14,7 +14,8 @@
 
 import pino from 'pino'
 import { z } from 'zod'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { memoryEntries } from '@plexo/db'
 import { emitMemoryExtraction, emitMemoryEmbedded } from '../analytics/memory-events.js'
 

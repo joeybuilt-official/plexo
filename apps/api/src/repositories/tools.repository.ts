@@ -8,7 +8,8 @@
  * /tools/invoke. The route keeps auth, validation, and dispatch shaping.
  * Workspace scoping is enforced inside the query.
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensions } from '@plexo/db'
 
 /** The installed extension matching a tool name within a workspace, if any. */

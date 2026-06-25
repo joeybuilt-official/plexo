@@ -10,7 +10,8 @@
  * through task classification, confirmation prompts, or task queuing.
  */
 
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { connectionsRegistry, installedConnections } from '@plexo/db'
 import { encrypt } from './crypto.js'
 import { logger } from './logger.js'

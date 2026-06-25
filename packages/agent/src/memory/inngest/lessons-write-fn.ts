@@ -76,7 +76,8 @@ export async function handleLessonsWrite(data: LessonsWriteEventData): Promise<L
 
     if (result.episodeId) {
         try {
-            const { db, eq, promptRevisions } = await import('@plexo/db')
+            const { db, promptRevisions } = await import('@plexo/db')
+            const { eq } = await import('drizzle-orm')
             await db.update(promptRevisions)
                 .set({ graphitiEpisodeId: result.episodeId })
                 .where(eq(promptRevisions.id, data.revisionId))

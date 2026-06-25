@@ -16,7 +16,8 @@
  * Promise.all bounded pool when ingest exceeds ~8 attachments/sec.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { audit } from '../audit.js'
 import { logger } from '../logger.js'
 import { incrementCounter, observeHistogram, setGauge } from './metrics.js'

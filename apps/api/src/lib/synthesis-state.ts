@@ -9,7 +9,8 @@
  * reload. Table: synthesis_suggestion_state (migration 0132).
  */
 
-import { db, synthesisSuggestionState, and, eq, sql } from '@plexo/db'
+import { and, eq, sql } from 'drizzle-orm'
+import { db, synthesisSuggestionState } from '@plexo/db'
 
 export type SynthStatus = 'dismissed' | 'snoozed' | 'accepted'
 

@@ -74,7 +74,8 @@ function emitToolEvent(toolName: string, success: boolean, workspaceId: string):
  */
 export async function getLevioUserTimezone(workspaceId: string): Promise<string | null> {
     try {
-        const { db, eq, and, installedConnections } = await import('@plexo/db')
+        const { db, installedConnections } = await import('@plexo/db')
+        const { eq, and } = await import('drizzle-orm')
         const [row] = await db
             .select({ credentials: installedConnections.credentials })
             .from(installedConnections)

@@ -16,7 +16,8 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import pino from 'pino'
-import { db, eq, and, inArray } from '@plexo/db'
+import { eq, and, inArray } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 const logger = pino({ name: 'connections:bridge' })
 import { installedConnections, workspaces, extensions } from '@plexo/db'

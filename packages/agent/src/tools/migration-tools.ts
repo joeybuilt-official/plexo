@@ -12,7 +12,8 @@
 
 import { tool } from 'ai'
 import { z } from 'zod'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 type MigrationRow = {
     workspace_id: string

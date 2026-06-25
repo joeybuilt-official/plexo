@@ -9,7 +9,8 @@
  * (deciding what a "borrowed" provider entry looks like) stays in the route as
  * business logic; this module only loads/saves the settings JSON.
  */
-import { db, eq, and, inArray } from '@plexo/db'
+import { eq, and, inArray } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaceKeyShares, workspaces } from '@plexo/db'
 
 type KeyShare = typeof workspaceKeyShares.$inferSelect

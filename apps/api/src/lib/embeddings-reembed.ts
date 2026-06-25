@@ -27,7 +27,8 @@
  * multi-process coordination is needed.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import pino from 'pino'
 import type { EmbeddingAdapter } from '@plexo/agent/embeddings/router'
 

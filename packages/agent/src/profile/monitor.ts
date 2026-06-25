@@ -11,7 +11,8 @@
  *
  * Strictly best-effort: a recording failure must NEVER break tool-load.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { profileMonitorObservations } from '@plexo/db'
 
 export interface MonitorItem {

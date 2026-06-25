@@ -21,7 +21,8 @@
  * see their changes within one resolver lookup.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 function dbRows<T>(result: unknown): T[] {
     if (result !== null && typeof result === 'object' && 'rows' in result && Array.isArray((result as { rows: unknown }).rows)) {

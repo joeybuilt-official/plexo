@@ -11,7 +11,8 @@
  * to the caller's userId verbatim; the SQL is unchanged from the pre-refactor
  * repository.
  */
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { userSubscriptions } from '@plexo/db'
 import type { Subscription, SubscriptionRepository } from '../application/billing/ports.js'
 import type { Tier, SubscriptionStatus } from '../domain/billing/subscription.js'

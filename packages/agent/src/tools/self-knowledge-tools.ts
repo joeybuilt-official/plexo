@@ -86,7 +86,8 @@ interface InstalledConnectionRow {
 
 async function readInstalledConnections(workspaceId: string): Promise<InstalledConnectionRow[]> {
     try {
-        const { db, eq, and } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { eq, and } = await import('drizzle-orm')
         const { installedConnections } = await import('@plexo/db')
         const rows = await db
             .select({
@@ -123,7 +124,8 @@ interface ExtensionRow {
 
 async function readExtensions(workspaceId: string): Promise<ExtensionRow[]> {
     try {
-        const { db, eq } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { eq } = await import('drizzle-orm')
         const { extensions } = await import('@plexo/db')
         const rows = await db
             .select({
@@ -199,7 +201,8 @@ async function readWorkspaceMeta(workspaceId: string): Promise<WorkspaceProvider
         memoryEmbedded: 0,
     }
     try {
-        const { db, eq, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { eq, sql } = await import('drizzle-orm')
         const { workspaces, channels } = await import('@plexo/db')
         const [ws] = await db
             .select({ name: workspaces.name, settings: workspaces.settings })
@@ -213,7 +216,7 @@ async function readWorkspaceMeta(workspaceId: string): Promise<WorkspaceProvider
             // Try provider_instances table first (canonical source after Intelligence page)
             try {
                 const { providerInstances } = await import('@plexo/db')
-                const { asc } = await import('@plexo/db')
+                const { asc } = await import('drizzle-orm')
                 const instances = await db.select({
                     providerType: providerInstances.providerType,
                     selectedModel: providerInstances.selectedModel,
@@ -640,7 +643,8 @@ export function buildSelfKnowledgeTools(
 
                 // Persist the change
                 try {
-                    const { db, eq, and } = await import('@plexo/db')
+                    const { db } = await import('@plexo/db')
+                    const { eq, and } = await import('drizzle-orm')
                     const { installedConnections } = await import('@plexo/db')
                     await db
                         .update(installedConnections)

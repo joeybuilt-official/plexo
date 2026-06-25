@@ -14,7 +14,8 @@
  *   - apps/api/src/routes/discord.ts   (Discord adapter)
  */
 
-import { db, eq, desc, sql } from '@plexo/db'
+import { eq, desc, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { conversations } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from './logger.js'

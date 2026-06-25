@@ -18,7 +18,8 @@
  */
 
 import { CronExpressionParser } from 'cron-parser'
-import { db, eq, sql, isNull, and } from '@plexo/db'
+import { eq, sql, isNull, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { cronJobs, channels } from '@plexo/db'
 import type { TaskType } from '@plexo/db'
 import { push } from '@plexo/queue'

@@ -15,7 +15,8 @@
 
 import pino from 'pino'
 import { generateText } from 'ai'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { resolveModelFromEnv, type AnyLanguageModel } from '../providers/registry.js'
 import { loadSettingsFromInstances } from '../providers/settings-from-instances.js'
 import { routeAndCall } from '../providers/router-v2/index.js'

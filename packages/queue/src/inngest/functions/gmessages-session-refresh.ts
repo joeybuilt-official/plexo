@@ -15,7 +15,8 @@
  * receiver wires in 5.
  */
 
-import { db, pairedSessions, eq, and, inArray, lt } from '@plexo/db'
+import { eq, and, inArray, lt } from 'drizzle-orm'
+import { db, pairedSessions } from '@plexo/db'
 import { inngest } from '../client.js'
 
 const DEFAULT_REFRESH_AGE_MIN = 60

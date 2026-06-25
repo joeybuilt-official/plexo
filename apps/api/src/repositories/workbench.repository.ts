@@ -9,7 +9,8 @@
  * workspace-access checks, cross-workspace pin guards, and response shaping.
  * All queries are user- and/or workspace-scoped (object-level authz).
  */
-import { db, eq, and, asc, desc } from '@plexo/db'
+import { eq, and, asc, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workbenchPins, artifacts, artifactVersions } from '@plexo/db'
 
 /** A user's pinned works for a workspace, with current-version content inlined. */

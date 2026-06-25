@@ -7,7 +7,8 @@
  * owns the installed_connections reads/writes the OAuth
  * callback performs. Credential encryption + scope parsing stay in the route.
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { installedConnections } from '@plexo/db'
 
 type NewInstalledConnection = typeof installedConnections.$inferInsert

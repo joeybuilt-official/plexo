@@ -10,7 +10,8 @@
  * attachment normalization, and the encrypted-blob handling (decryption stays
  * in the sidecar). Channel existence/type checks use channels.repository.
  */
-import { db, channels, conversations, messageDedupe, pairedSessions, installedConnections, eq, inArray, and } from '@plexo/db'
+import { eq, inArray, and } from 'drizzle-orm'
+import { db, channels, conversations, messageDedupe, pairedSessions, installedConnections } from '@plexo/db'
 
 /** Paired sessions to rehydrate on sidecar boot, with encrypted creds. */
 export async function listRestoreEntries() {

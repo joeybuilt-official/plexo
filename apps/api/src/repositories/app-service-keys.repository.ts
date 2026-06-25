@@ -8,7 +8,8 @@
  * shared PLEXO_SERVICE_KEY. Raw token is shown ONCE on issue; only the hash
  * + salt persist. listKeys() never returns hash/salt.
  */
-import { db, eq, and, desc } from '@plexo/db'
+import { eq, and, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { appServiceKeys } from '@plexo/db'
 
 /** List keys, optionally filtered by appId. Never returns tokenHash/tokenSalt. */

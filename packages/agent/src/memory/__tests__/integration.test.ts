@@ -147,6 +147,24 @@ vi.mock('@plexo/db', () => ({
     memoryEntries: { id: 'id' },
 }))
 
+// ADR-0045 Phase 2: source imports drizzle operators from 'drizzle-orm' now.
+// Mirror whatever operator stubs the @plexo/db mock defines so the fake db
+// still sees the same recognizable shapes (fall back to real drizzle otherwise).
+vi.mock('drizzle-orm', async (importOriginal) => {
+    const real = await importOriginal<Record<string, unknown>>()
+    const m = (await import('@plexo/db')) as Record<string, unknown>
+    const pick = (k: string): unknown => (k in m ? m[k] : real[k])
+    return {
+        ...real,
+        eq: pick('eq'), and: pick('and'), or: pick('or'), ne: pick('ne'),
+        desc: pick('desc'), asc: pick('asc'), inArray: pick('inArray'),
+        isNull: pick('isNull'), isNotNull: pick('isNotNull'), ilike: pick('ilike'),
+        lt: pick('lt'), lte: pick('lte'), gte: pick('gte'), count: pick('count'),
+        sql: pick('sql'),
+    }
+})
+
+
 vi.mock('../../providers/call-model.js', () => ({ callModel: (...args: unknown[]) => mockCallModel(...args) }))
 vi.mock('../../providers/registry.js', () => ({
     resolveModel: vi.fn(async () => ({ model: 'test-model', meta: { provider: 'test' } })),

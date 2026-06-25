@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { claimTask, completeTask, blockTask, requeueForRetry } from '@plexo/queue'
-import { db, eq, and, sql, inArray } from '@plexo/db'
+import { eq, and, sql, inArray } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { tasks, apiCostTracking, workspaces, sprints, sprintTasks, plexoOpsTaskEvents } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import type { ExecutionPlan } from '@plexo/agent/types'

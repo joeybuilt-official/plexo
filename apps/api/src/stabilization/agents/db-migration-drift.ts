@@ -38,7 +38,8 @@ export const dbMigrationDrift: Agent = {
         }
 
         try {
-            const { db, sql } = await import('@plexo/db')
+            const { db } = await import('@plexo/db')
+            const { sql } = await import('drizzle-orm')
             const rows = await db.execute<{ hash: string }>(sql`
                 SELECT hash FROM drizzle.__drizzle_migrations ORDER BY id ASC
             `)

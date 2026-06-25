@@ -8,7 +8,8 @@
  * admin auth, validation, and the promote/retire/train orchestration (which
  * lives in @plexo/agent/foundry).
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** All foundry models, newest first. */
 export async function listModels() {

@@ -10,7 +10,8 @@
  * plexo_get_task     — get a single task by ID (tasks:read)
  */
 import { z } from 'zod'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { push as queuePush, cancel as queueCancel } from '@plexo/queue'
 import type { McpContext } from '../types.js'
 import { scopeDenied, internalError } from '../errors.js'

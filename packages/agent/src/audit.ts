@@ -12,14 +12,22 @@
  */
 import pino from 'pino'
 import { createHash } from 'node:crypto'
-import { db } from '@plexo/db'
-import { extensionAuditLog } from '@plexo/db'
+import { DrizzleAuditLogStore } from './audit.repository.js'
+import type { AuditLogStore } from './audit.ports.js'
 import { parseToolKey } from './audit-keys.js'
 
 // Re-export for consumers that import helpers from the logger module.
 export { parseToolKey }
 
 const log = pino({ name: 'audit' })
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let store: AuditLogStore = new DrizzleAuditLogStore()
+
+/** Swap the audit store (e.g. an in-memory fake in unit tests). */
+export function setAuditLogStore(next: AuditLogStore): void {
+    store = next
+}
 
 export type AuditAction =
     | 'tool_invoke'
@@ -60,7 +68,7 @@ function hashPayload(payload: unknown): string {
 
 export async function logAuditEntry(entry: AuditEntry): Promise<void> {
     try {
-        await db.insert(extensionAuditLog).values({
+        await store.append({
             workspaceId: entry.workspaceId,
             extensionId: entry.extensionId,
             extensionName: entry.extensionName ?? null,

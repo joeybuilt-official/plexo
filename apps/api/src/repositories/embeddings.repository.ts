@@ -8,7 +8,8 @@
  * intelligence-settings reembed-job persistence the embeddings routes perform.
  * Health derivation, capability mapping, and job orchestration stay in the route.
  */
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { providerInstances, workspaces } from '@plexo/db'
 
 type ProviderInstance = typeof providerInstances.$inferSelect

@@ -1,26 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { db, sessionLogs } from '@plexo/db'
+import { DrizzleSessionLogStore } from './drizzle-session-log-store.js'
+import type { SessionLogStore, SessionLogInsert } from './ports.js'
 
-type InsertSessionLog = typeof sessionLogs.$inferInsert
+export type { SessionLogStore, SessionLogInsert } from './ports.js'
+
+type InsertSessionLog = SessionLogInsert
 
 export class SessionLogger {
     private sessionId: string
     private personaId?: string
+    private store: SessionLogStore
 
-    constructor(opts: { sessionId?: string; personaId?: string }) {
+    constructor(opts: { sessionId?: string; personaId?: string; store?: SessionLogStore }) {
         this.sessionId = opts.sessionId ?? crypto.randomUUID()
         this.personaId = opts.personaId
+        // Default adapter is drizzle; tests inject a fake via `store`.
+        this.store = opts.store ?? new DrizzleSessionLogStore()
     }
 
     async log(eventOpts: Omit<InsertSessionLog, 'id' | 'sessionId' | 'personaId' | 'createdAt'>): Promise<void> {
         try {
-            await db.insert(sessionLogs).values({
+            await this.store.append({
                 ...eventOpts,
                 sessionId: this.sessionId,
                 personaId: this.personaId,
-            })
+            } as InsertSessionLog)
         } catch (e) {
             console.error('Failed to write session log to DB', e)
         }

@@ -14,7 +14,8 @@
  * Runs on a 15-second interval; stops cleanly on SIGTERM via stopEventProcessor().
  */
 
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { nodeEvents } from '@plexo/db'
 import { push } from '@plexo/queue'
 import { storeMemory, type MemoryType } from '@plexo/agent/memory/store'

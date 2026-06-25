@@ -16,7 +16,8 @@
  *
  * All emitters are fire-and-forget: never throw, never block the hot path.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 const INSTANCE = () => process.env.PLEXO_INSTANCE_ID ?? 'unknown'
 

@@ -14,7 +14,8 @@
  * parameterised (drizzle `sql` template) and every query preserves its
  * `workspace_id` scoping verbatim.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** Browse memory_entries with optional type/tier/namespace/text filters + pagination. */
 export async function listMemoryEntries(opts: {

@@ -8,7 +8,8 @@
  * + app-profile existence checks and the per-workspace app listing the routes
  * need. Validation and response shaping stay in the route.
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { appProfiles, userAppAuthorizations, workspaces } from '@plexo/db'
 
 type Authorization = typeof userAppAuthorizations.$inferSelect

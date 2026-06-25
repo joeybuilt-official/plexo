@@ -9,7 +9,8 @@
  * submits job, polls for completion.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { ulid } from 'ulid'
 import pino from 'pino'
 import type { TrainingProvider, TrainingJobConfig } from './types.js'

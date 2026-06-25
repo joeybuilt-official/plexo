@@ -9,7 +9,8 @@
  * validation, the capability-ceiling check, token generation/hashing, audit
  * logging, and response shaping.
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { paxRegistrations, mcpTokens, workspaces } from '@plexo/db'
 
 /** {id} of a workspace by id, or undefined. */

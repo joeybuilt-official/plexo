@@ -8,7 +8,8 @@
  * Sprint/channel/workspace queries the adapter shares live in their own repos.
  * The route keeps Telegram API I/O, command parsing, and message formatting.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 export interface MemoryHeatmapRow {
     tier: string

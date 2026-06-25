@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
-import { db, eq, tasks, plexoOpsTaskEvents } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { db, tasks, plexoOpsTaskEvents } from '@plexo/db'
 import { requeueForRetry, cancel as queueCancel } from '@plexo/queue'
 import { logger } from '../../logger.js'
 

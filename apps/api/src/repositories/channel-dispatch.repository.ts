@@ -8,7 +8,8 @@
  * dispatch auth gate. The route keeps the in-process TTL cache and the
  * bearer-token handling.
  */
-import { db, eq } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { appProfiles } from '@plexo/db'
 
 /** True when an app profile with this id is registered. */

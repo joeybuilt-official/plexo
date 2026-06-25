@@ -8,7 +8,8 @@
  * the draft-attachment upload performs. Multipart parsing, storage, and hashing
  * stay in the route.
  */
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { conversations, attachmentScanQueue } from '@plexo/db'
 
 type NewScanQueueRow = typeof attachmentScanQueue.$inferInsert

@@ -46,7 +46,8 @@ export const LIFT_HARMFUL = 0.7
  */
 export async function isDomainMasteryEnabled(workspaceId: string): Promise<boolean> {
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
         const rows = await db.execute<{ value: unknown }>(sql`
             SELECT value FROM workspace_preferences
             WHERE workspace_id = ${workspaceId}::uuid

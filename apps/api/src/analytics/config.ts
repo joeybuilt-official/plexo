@@ -75,7 +75,8 @@ export function setUsageEnabled(enabled: boolean): void { _usageEnabled = enable
  */
 export async function syncAnalyticsFromDB(): Promise<void> {
     try {
-        const { db, sql } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { sql } = await import('drizzle-orm')
         // Load from first workspace — analytics is instance-level but stored per-workspace
         const rows = await db.execute<{ settings: Record<string, unknown> }>(sql`
             SELECT settings FROM workspaces ORDER BY created_at ASC LIMIT 1

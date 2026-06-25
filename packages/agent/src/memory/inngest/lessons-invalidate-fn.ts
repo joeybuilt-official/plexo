@@ -34,7 +34,8 @@ export async function handleLessonsInvalidate(data: LessonsInvalidateEventData):
     // ran) — nothing to invalidate, leave the column null.
     if (result.ok && !result.skipped) {
         try {
-            const { db, eq, promptRevisions } = await import('@plexo/db')
+            const { db, promptRevisions } = await import('@plexo/db')
+            const { eq } = await import('drizzle-orm')
             await db.update(promptRevisions)
                 .set({ graphitiInvalidatedAt: new Date() })
                 .where(eq(promptRevisions.id, data.revisionId))

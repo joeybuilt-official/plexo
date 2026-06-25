@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { db, eq, and, isNull, artifactShares } from '@plexo/db'
+import { eq, and, isNull } from 'drizzle-orm'
+import { db, artifactShares } from '@plexo/db'
 
 // The human-facing share PAGE is served by the WEB app (e.g. app.getplexo.com/s/<id>),
 // NOT the api origin. PUBLIC_URL points at the api (api.getplexo.com), whose /s/<id>

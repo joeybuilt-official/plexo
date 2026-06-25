@@ -185,7 +185,8 @@ interface TwilioConfigShape { accountSid?: string; authToken?: string; fromNumbe
 
 async function loadTwilioConfig(channelId: string): Promise<{ accountSid: string; authToken: string; fromNumber: string } | null> {
     try {
-        const { db, eq } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { eq } = await import('drizzle-orm')
         const { channels } = await import('@plexo/db')
         const [row] = await db.select({ workspaceId: channels.workspaceId, config: channels.config, type: channels.type, enabled: channels.enabled })
             .from(channels)
@@ -425,7 +426,8 @@ async function deliverToTelegram(
     if (!token) {
         // Try to load from DB as fallback
         try {
-            const { db, eq } = await import('@plexo/db')
+            const { db } = await import('@plexo/db')
+            const { eq } = await import('drizzle-orm')
             const { channels } = await import('@plexo/db')
             const [row] = await db.select({ config: channels.config })
                 .from(channels)
@@ -633,7 +635,8 @@ export async function initTaskFailedListener(): Promise<void> {
             // Look up the task to find the originating channelRef. The event
             // payload deliberately doesn't carry it (it's a memory/audit
             // signal); channel context lives on `tasks.context`.
-            const { db, eq } = await import('@plexo/db')
+            const { db } = await import('@plexo/db')
+            const { eq } = await import('drizzle-orm')
             const { tasks } = await import('@plexo/db')
             const [row] = await db.select({ context: tasks.context })
                 .from(tasks)
@@ -694,7 +697,8 @@ export async function handleInboundConfirmCancel(params: {
     const code = extractConfirmationCode(params.text)
 
     try {
-        const { db, eq, and, sql, desc } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { eq, and, sql, desc } = await import('drizzle-orm')
         const { tasks } = await import('@plexo/db')
         // Match awaiting_approval tasks whose channelRef points at this chat.
         // JSONB containment via `context @> {...}` keeps an index path for

@@ -9,7 +9,8 @@
  * that the LLM and embedding routers consume.
  */
 
-import { db, eq, and, asc, isNull, isNotNull } from '@plexo/db'
+import { eq, and, asc, isNull, isNotNull } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { providerInstances, workspaces } from '@plexo/db'
 import type { WorkspaceAISettings, ProviderKey, AIProviderConfig } from './registry.js'
 import { createHmac, createDecipheriv } from 'crypto'

@@ -26,7 +26,8 @@
  *   PLEXO_ONBOARDING_CANARY_USER_ID=<uuid of a dedicated auth user>
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces, workspaceMembers, DEFAULT_WORKSPACE_SETTINGS, DEFAULT_INTELLIGENCE_SETTINGS } from '@plexo/db'
 import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/db/auth/config'
 import { logger } from './logger.js'

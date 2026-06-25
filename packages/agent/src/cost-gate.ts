@@ -16,14 +16,20 @@
  */
 
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
+import { DrizzleCostGateRepository } from './cost-gate.repository.js'
+import type { CostGateRepository, AgentIntelligenceSettings } from './cost-gate.ports.js'
 
 const logger = pino({ name: 'cost-gate' })
 
-export interface AgentIntelligenceSettings {
-    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
-    costCeilingUsd?: number
-    costCeilingMode?: 'soft_warn' | 'hard_block' | 'off'
+// Re-export for consumers that import the settings type from this module.
+export type { AgentIntelligenceSettings } from './cost-gate.ports.js'
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let repo: CostGateRepository = new DrizzleCostGateRepository()
+
+/** Swap the persistence adapter (e.g. an in-memory fake in unit tests). */
+export function setCostGateRepository(next: CostGateRepository): void {
+    repo = next
 }
 
 export interface AgentSpendSnapshot {
@@ -57,22 +63,6 @@ export class CostCeilingExceededError extends Error {
         )
         this.name = 'CostCeilingExceededError'
     }
-}
-
-// ── DB result normalizer ──────────────────────────────────────────────────
-
-function dbRow<T>(result: unknown): T | undefined {
-    if (result !== null && typeof result === 'object' && 'rows' in result && Array.isArray((result as { rows: unknown }).rows)) {
-        return ((result as { rows: T[] }).rows)[0]
-    }
-    return Array.isArray(result) ? (result as T[])[0] : undefined
-}
-
-function dbRows<T>(result: unknown): T[] {
-    if (result !== null && typeof result === 'object' && 'rows' in result && Array.isArray((result as { rows: unknown }).rows)) {
-        return (result as { rows: T[] }).rows
-    }
-    return Array.isArray(result) ? (result as T[]) : []
 }
 
 // ── Redis client (lazy singleton, same pattern as memory/store.ts) ───────
@@ -140,14 +130,7 @@ async function loadSettings(workspaceId: string): Promise<AgentIntelligenceSetti
     if (hit && hit.expiresAt > Date.now()) return hit.value
     let value: AgentIntelligenceSettings = {}
     try {
-        const result = await db.execute(sql`
-            SELECT intelligence_settings AS s
-            FROM workspaces
-            WHERE id = ${workspaceId}::uuid
-            LIMIT 1
-        `)
-        const row = dbRow<{ s?: AgentIntelligenceSettings }>(result)
-        value = (row?.s ?? {}) as AgentIntelligenceSettings
+        value = await repo.getIntelligenceSettings(workspaceId)
     } catch (err) {
         logger.warn({ err, workspaceId }, 'settings query failed')
         value = {}
@@ -189,22 +172,10 @@ async function loadSpend(workspaceId: string): Promise<AgentSpendSnapshot> {
 
                 // Best-effort: load token counts from DB for reporting only
                 try {
-                    const tokenResult = await db.execute(sql`
-                        SELECT
-                            COUNT(*)::int AS requests,
-                            COALESCE(SUM(COALESCE(input_tokens, 0)), 0)::bigint AS input_tokens,
-                            COALESCE(SUM(COALESCE(output_tokens, 0)), 0)::bigint AS output_tokens
-                        FROM inference_logs
-                        WHERE workspace_id = ${workspaceId}::uuid
-                          AND created_at >= ${start.toISOString()}::timestamptz
-                          AND success = true
-                    `)
-                    const tRow = dbRow<{ input_tokens?: unknown; output_tokens?: unknown; requests?: unknown }>(tokenResult)
-                    if (tRow) {
-                        snapshot.inputTokens = Number(tRow.input_tokens ?? 0)
-                        snapshot.outputTokens = Number(tRow.output_tokens ?? 0)
-                        snapshot.requests = Number(tRow.requests ?? 0)
-                    }
+                    const counts = await repo.getTokenCounts(workspaceId, start.toISOString())
+                    snapshot.inputTokens = counts.inputTokens
+                    snapshot.outputTokens = counts.outputTokens
+                    snapshot.requests = counts.requests
                 } catch (err) {
                     logger.warn({ err, workspaceId }, 'token count query failed')
                 }
@@ -220,51 +191,12 @@ async function loadSpend(workspaceId: string): Promise<AgentSpendSnapshot> {
 
     // Fallback: full DB query (original path)
     try {
-        const result = await db.execute(sql`
-            WITH this_month AS (
-                SELECT COALESCE(il.input_tokens, 0)  AS input_tokens,
-                       COALESCE(il.output_tokens, 0) AS output_tokens,
-                       il.model,
-                       il.provider
-                FROM inference_logs il
-                WHERE il.workspace_id = ${workspaceId}::uuid
-                  AND il.created_at >= ${start.toISOString()}::timestamptz
-                  AND il.success = true
-            ),
-            priced AS (
-                -- LATERAL picks exactly ONE pricing row per inference log, avoiding
-                -- cross-product fan-out when provider is NULL and multiple providers
-                -- share the same model_id in models_knowledge.
-                SELECT tm.input_tokens, tm.output_tokens,
-                       mk.cost_per_m_in, mk.cost_per_m_out
-                FROM this_month tm
-                LEFT JOIN LATERAL (
-                    SELECT cost_per_m_in, cost_per_m_out
-                    FROM models_knowledge
-                    WHERE model_id = tm.model
-                      AND (tm.provider IS NULL OR provider = tm.provider)
-                    ORDER BY (provider = tm.provider) DESC NULLS LAST
-                    LIMIT 1
-                ) mk ON TRUE
-            )
-            SELECT
-                COUNT(*)::int AS requests,
-                COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
-                COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
-                COALESCE(SUM(
-                    CASE WHEN cost_per_m_in IS NOT NULL
-                         THEN (input_tokens::numeric / 1000000.0) * cost_per_m_in ELSE 0 END
-                  + CASE WHEN cost_per_m_out IS NOT NULL
-                         THEN (output_tokens::numeric / 1000000.0) * cost_per_m_out ELSE 0 END
-                ), 0)::float8 AS priced_usd
-            FROM priced
-        `)
-        const row = dbRow<{ priced_usd?: unknown; input_tokens?: unknown; output_tokens?: unknown; requests?: unknown }>(result) ?? {}
+        const full = await repo.getFullSpend(workspaceId, start.toISOString())
         snapshot = {
-            pricedUsd: Number(row.priced_usd ?? 0),
-            inputTokens: Number(row.input_tokens ?? 0),
-            outputTokens: Number(row.output_tokens ?? 0),
-            requests: Number(row.requests ?? 0),
+            pricedUsd: full.pricedUsd,
+            inputTokens: full.inputTokens,
+            outputTokens: full.outputTokens,
+            requests: full.requests,
             monthStart: start.toISOString(),
             computedAt: new Date().toISOString(),
         }

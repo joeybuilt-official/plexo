@@ -14,7 +14,8 @@
  * No interface/port ceremony yet (single implementation, pragmatism clause) —
  * just centralised, typed queries.
  */
-import { db, eq, and, desc, count } from '@plexo/db'
+import { eq, and, desc, count } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { nodes, nodeTrust, nodeEvents } from '@plexo/db'
 
 type Node = typeof nodes.$inferSelect

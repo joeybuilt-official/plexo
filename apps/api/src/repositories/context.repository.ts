@@ -8,7 +8,8 @@
  * estimation, TTL/expiry computation, validation, and response shaping; only the
  * SQL lives here. Reads are workspace-scoped + exclude soft-deleted rows.
  */
-import { db, eq, and, isNull, sql } from '@plexo/db'
+import { eq, and, isNull, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensionContexts } from '@plexo/db'
 
 type ExtensionContext = typeof extensionContexts.$inferSelect

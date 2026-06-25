@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { db, eq, desc } from '@plexo/db'
+import { eq, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { taskSteps } from '@plexo/db'
 import { logger } from './logger.js'
 import { describeToolCall } from './utils/tool-labels.js'

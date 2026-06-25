@@ -10,7 +10,8 @@
  * super-admin gate, UUID validation, and response shaping. Distinct from
  * user-self.repository.ts, which owns the separate `user_self` table.
  */
-import { db, eq, desc } from '@plexo/db'
+import { eq, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { users } from '@plexo/db'
 
 type User = typeof users.$inferSelect

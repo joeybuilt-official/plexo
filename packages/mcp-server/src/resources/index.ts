@@ -11,7 +11,8 @@
  * workspace://memory/recent  — last 10 memory entries
  * workspace://stats          — cost + agent summary
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import type { McpContext } from '../types.js'
 
 export interface ResourceDefinition {

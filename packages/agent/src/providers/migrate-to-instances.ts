@@ -9,7 +9,8 @@
  * have non-managed instances.
  */
 
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces } from '@plexo/db'
 import { addProvider } from './instances.js'
 import pino from 'pino'

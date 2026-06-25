@@ -77,7 +77,8 @@ async function findLivePairedSession(
 ): Promise<PairedSessionRow | null> {
     // Lazy-import @plexo/db so this factory file does not contribute to
     // bridge.ts's circular load. Mirrors the levio.ts pattern.
-    const { db, eq, and, inArray, desc, pairedSessions } = await import('@plexo/db')
+    const { db, pairedSessions } = await import('@plexo/db')
+    const { eq, and, inArray, desc } = await import('drizzle-orm')
     const live: ('active' | 'paired' | 'refreshing')[] = ['active', 'paired', 'refreshing']
 
     const baseWhere = threadHintChannelId
@@ -233,7 +234,8 @@ export const GMESSAGES_TOOLS = (
                         return 'Google Messages error: no live paired session for this connection. Pair a phone at /app/connections/gmessages/pair to begin.'
                     }
 
-                    const { db, eq, and, desc, sql, conversations } = await import('@plexo/db')
+                    const { db, conversations } = await import('@plexo/db')
+                    const { eq, and, desc, sql } = await import('drizzle-orm')
                     // Same fold logic as apps/api channels.ts GET /:id/threads,
                     // narrowed to this paired session's channel.
                     const rows = await db

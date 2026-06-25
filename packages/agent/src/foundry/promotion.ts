@@ -8,7 +8,8 @@
  * Operator must explicitly confirm via admin API. One-way door.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import pino from 'pino'
 import { FOUNDRY_DEFAULTS } from './types.js'
 

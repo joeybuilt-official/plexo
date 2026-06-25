@@ -5,7 +5,8 @@
  * Conflict detection — static (scope-based) and dynamic (GitHub compare).
  */
 import pino from 'pino'
-import { db, eq } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { sprintTasks, sprints } from '@plexo/db'
 import { buildGitHubClient } from '../github/client.js'
 

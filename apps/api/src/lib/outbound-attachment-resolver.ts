@@ -20,7 +20,8 @@
  * does that after the actual transport completes.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { getByKey } from '@plexo/storage'
 import { createHash } from 'node:crypto'
 import {

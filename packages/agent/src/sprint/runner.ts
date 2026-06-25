@@ -25,7 +25,8 @@
  * task with `type: 'coding'` and sprint context in its context payload.
  */
 import pino from 'pino'
-import { db, eq, inArray, and, isNotNull, sql } from '@plexo/db'
+import { eq, inArray, and, isNotNull, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { sprints, sprintTasks, tasks, taskSteps } from '@plexo/db'
 import { push as pushTask, cancel as cancelTask } from '@plexo/queue'
 import { planSprint, type PlanResult } from './planner.js'

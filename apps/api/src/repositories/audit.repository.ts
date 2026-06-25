@@ -9,7 +9,8 @@
  * Workspace scoping is preserved verbatim; the optional action-prefix and
  * before-cursor predicates are passed in and applied inside the query.
  */
-import { db, eq, and, desc, sql } from '@plexo/db'
+import { eq, and, desc, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { auditLog, users } from '@plexo/db'
 
 /** Audit-log rows for a workspace (with user join), action-prefix + before-cursor filtered, newest first, capped. */

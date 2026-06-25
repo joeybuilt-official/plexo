@@ -1,4 +1,5 @@
-import { db, sql, desc, eq, and, gte, ilike } from '@plexo/db'
+import { sql, desc, eq, and, gte, ilike } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensionRegistry } from '@plexo/db'
 
 const NOT_DEPRECATED = eq(extensionRegistry.deprecated, false)

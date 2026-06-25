@@ -17,7 +17,8 @@
  *                         the granted scope. Effective = intersection(requested, granted).
  *   - status 'revoked'  — explicitly denied; effective empty.
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaceAppGrants } from '@plexo/db'
 import { resolveEffectiveProfile, isConnectorAllowed, isCapabilityAllowed, type Profile } from '@plexo/agent/profile/resolve'
 

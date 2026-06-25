@@ -10,7 +10,8 @@
  * here; the upsert-on-app_id semantics and append-never-overwrite extension
  * batch are preserved verbatim.
  */
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { appProfiles, extensionRegistry } from '@plexo/db'
 
 /** Registered app profiles (id/namespace/displayName/lastSeen), ordered by registration. */

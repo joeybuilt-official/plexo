@@ -8,7 +8,8 @@
  * plexo_remember       — store a fact/instruction in workspace memory (memory:write)
  */
 import { z } from 'zod'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import type { McpContext } from '../types.js'
 import { scopeDenied, internalError } from '../errors.js'
 import { requireScope } from '../auth.js'

@@ -17,7 +17,8 @@
  * monitored. Exits non-zero if any embedding call fails permanently after
  * the embed() helper's internal fallbacks.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { embed } from '@plexo/agent/memory/store'
 
 const BATCH = 100

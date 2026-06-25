@@ -15,7 +15,8 @@
 
 import type { Request, Response, NextFunction } from 'express'
 import { timingSafeEqual } from 'crypto'
-import { db, eq } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { nodes } from '@plexo/db'
 import { logger } from '../logger.js'
 

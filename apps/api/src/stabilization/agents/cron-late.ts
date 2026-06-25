@@ -41,7 +41,8 @@ export const cronLate: Agent = {
     async check(): Promise<Alert | null> {
         const at = new Date().toISOString()
         try {
-            const { db, sql } = await import('@plexo/db')
+            const { db } = await import('@plexo/db')
+            const { sql } = await import('drizzle-orm')
             const rows = await db.execute<JobRow>(sql`
                 SELECT name, schedule, enabled, last_run_at, next_run_at
                 FROM cron_jobs

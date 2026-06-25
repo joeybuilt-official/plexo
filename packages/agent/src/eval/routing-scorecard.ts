@@ -16,7 +16,8 @@
  * `shadowExtractionScorecard()` below.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { welchsTTest } from '../memory/ab-variants.js'
 import type { TaskType } from '../providers/registry.js'
 

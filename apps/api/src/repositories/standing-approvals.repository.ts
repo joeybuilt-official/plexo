@@ -8,7 +8,8 @@
  * standing-approvals routes and the approve-and-remember path in approvals.ts.
  * Delete is workspace-scoped (object-level authz preserved).
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { standingApprovals } from '@plexo/db'
 
 type StandingApproval = typeof standingApprovals.$inferSelect

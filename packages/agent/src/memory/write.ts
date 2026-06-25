@@ -25,7 +25,8 @@
  */
 
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { memoryEntries } from '@plexo/db'
 import { z } from 'zod'
 

@@ -9,7 +9,8 @@
  * system — both coexist during the transition period.
  */
 
-import { db, eq, and, asc, sql } from '@plexo/db'
+import { eq, and, asc, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { providerInstances } from '@plexo/db'
 import { discoverCapabilities, type ProviderCapabilities } from './discovery.js'
 import { invalidateSettingsCache } from './settings-from-instances.js'

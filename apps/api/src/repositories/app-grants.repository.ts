@@ -12,7 +12,8 @@
  * verbatim; default-deny semantics live in the route + the upsert is exactly
  * the operator-set/widen mutation.
  */
-import { db, eq, and, desc } from '@plexo/db'
+import { eq, and, desc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaceAppGrants, appProfiles, installedConnections, extensions, profileMonitorObservations } from '@plexo/db'
 
 /** Grant rows for a workspace, newest-updated first. */

@@ -20,7 +20,8 @@
  */
 import { tool } from 'ai'
 import { z } from 'zod'
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensions, workspaces } from '@plexo/db'
 import type { ToolSet } from '../connections/bridge.js'
 import { getWorker, invokeTool, isWorkerLive } from './persistent-pool.js'

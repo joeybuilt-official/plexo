@@ -7,7 +7,8 @@
  * owns the user_self table persistence. The route keeps the
  * request-field selection and default-empty shaping.
  */
-import { db, eq } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { userSelf } from '@plexo/db'
 
 type UserSelf = typeof userSelf.$inferSelect

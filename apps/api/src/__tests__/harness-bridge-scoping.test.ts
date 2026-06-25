@@ -23,16 +23,27 @@ const CONN_B = 'dddddddd-0000-0000-0000-000000000004'
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Capture inArray calls so we can assert whether the filter was applied.
-const inArrayCalls: Array<string[]> = []
-
-vi.mock('@plexo/db', () => {
+// ADR-0045 Phase 2: operators now come from drizzle-orm directly, so the spies
+// live on a drizzle-orm mock (not the @plexo/db barrel).
+const { inArray, eq, and, inArrayCalls } = vi.hoisted(() => {
+    const inArrayCalls: Array<string[]> = []
     const inArray = vi.fn((_col: unknown, ids: string[]) => {
         inArrayCalls.push([...ids])
         return { __inArray: ids }
     })
     const eq = vi.fn(() => ({}))
     const and = vi.fn((...args: unknown[]) => ({ __and: args.filter(Boolean) }))
+    return { inArray, eq, and, inArrayCalls }
+})
 
+vi.mock('drizzle-orm', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('drizzle-orm')>()),
+    inArray,
+    eq,
+    and,
+}))
+
+vi.mock('@plexo/db', () => {
     // Workspace read-only check (select.from.where.limit)
     const wsLimit = vi.fn(async () => [])
     const wsWhere = vi.fn(() => ({ limit: wsLimit }))
@@ -65,9 +76,6 @@ vi.mock('@plexo/db', () => {
         } as any,
         workspaces: { id: 'id', settings: 'settings' } as any,
         extensions: { name: 'name', enabled: 'enabled', workspaceId: 'workspace_id' } as any,
-        eq,
-        and,
-        inArray,
     }
 })
 
@@ -90,21 +98,21 @@ describe('loadConnectionTools — connector allowlist (allowedIds)', () => {
     })
 
     it('no allowedIds → inArray NOT called (allow-all)', async () => {
-        const { inArray } = await import('@plexo/db')
+        const { inArray } = await import('drizzle-orm')
         const { loadConnectionTools } = await import('@plexo/agent/connections/bridge')
         await loadConnectionTools(WS_ID)
         expect(vi.mocked(inArray)).not.toHaveBeenCalled()
     })
 
     it('allowedIds=[CONN_A] → inArray called with [CONN_A]', async () => {
-        const { inArray } = await import('@plexo/db')
+        const { inArray } = await import('drizzle-orm')
         const { loadConnectionTools } = await import('@plexo/agent/connections/bridge')
         await loadConnectionTools(WS_ID, [CONN_A])
         expect(vi.mocked(inArray)).toHaveBeenCalledWith(expect.anything(), [CONN_A])
     })
 
     it('allowedIds=[CONN_A, CONN_B] → inArray includes both', async () => {
-        const { inArray } = await import('@plexo/db')
+        const { inArray } = await import('drizzle-orm')
         const { loadConnectionTools } = await import('@plexo/agent/connections/bridge')
         await loadConnectionTools(WS_ID, [CONN_A, CONN_B])
         expect(vi.mocked(inArray)).toHaveBeenCalledWith(
@@ -114,14 +122,14 @@ describe('loadConnectionTools — connector allowlist (allowedIds)', () => {
     })
 
     it('empty allowedIds → inArray NOT called (deny-all early-return before DB)', async () => {
-        const { inArray } = await import('@plexo/db')
+        const { inArray } = await import('drizzle-orm')
         const { loadConnectionTools } = await import('@plexo/agent/connections/bridge')
         await loadConnectionTools(WS_ID, [])
         expect(vi.mocked(inArray)).not.toHaveBeenCalled()
     })
 
     it('undefined allowedIds → inArray NOT called', async () => {
-        const { inArray } = await import('@plexo/db')
+        const { inArray } = await import('drizzle-orm')
         const { loadConnectionTools } = await import('@plexo/agent/connections/bridge')
         await loadConnectionTools(WS_ID, undefined)
         expect(vi.mocked(inArray)).not.toHaveBeenCalled()

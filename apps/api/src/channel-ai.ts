@@ -391,7 +391,7 @@ async function buildConversationalTools(workspaceId: string) {
                 try {
                     const { db } = await import('@plexo/db')
                     const { conversations } = await import('@plexo/db')
-                    const { sql, desc, asc } = await import('@plexo/db')
+                    const { sql, desc, asc } = await import('drizzle-orm')
 
                     // Auto-detect "first/oldest/earliest" queries even if oldest_first wasn't set explicitly
                     const autoOldest = oldest_first || isFirstConversationQuery(query)
@@ -1407,7 +1407,7 @@ export class ChannelChatHistory {
         try {
             const { db } = await import('@plexo/db')
             const { conversations } = await import('@plexo/db')
-            const { desc, sql } = await import('@plexo/db')
+            const { desc, sql } = await import('drizzle-orm')
             const rows = await db.select({ message: conversations.message, reply: conversations.reply })
                 .from(conversations)
                 .where(sql`${conversations.workspaceId} = ${workspaceId} AND ${conversations.sessionId} LIKE ${sessionPrefix + '%'}`)

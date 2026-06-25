@@ -10,7 +10,8 @@
  * The route keeps the latency timing, Promise.allSettled orchestration,
  * Number() coercion, and try/catch (probes are non-fatal).
  */
-import { db, sql, eq, and, isNull } from '@plexo/db'
+import { sql, eq, and, isNull } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces, extensionPrompts, extensionContexts, appProfiles } from '@plexo/db'
 
 /** Trivial connectivity ping. */

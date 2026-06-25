@@ -36,7 +36,8 @@ async function discoverBridges(): Promise<BridgeRecord[]> {
 
     if (process.env.PLEXO_BRIDGE_DISCOVERY === 'db') {
         try {
-            const { db, eq } = await import('@plexo/db')
+            const { db } = await import('@plexo/db')
+            const { eq } = await import('drizzle-orm')
             const { extensions } = await import('@plexo/db')
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime row shape
             const rows = await db.select().from(extensions).where(eq(extensions.type as any, 'bridge'))

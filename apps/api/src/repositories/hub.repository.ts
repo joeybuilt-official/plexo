@@ -9,7 +9,8 @@
  * inference, in-process filtering/sorting/pagination, and Map building. Catalog
  * filter predicates (type/search) are built here since they are pure SQL.
  */
-import { db, sql, eq, and } from '@plexo/db'
+import { sql, eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensionRegistry, extensions, extensionVotes } from '@plexo/db'
 
 export interface VoteCountRow {

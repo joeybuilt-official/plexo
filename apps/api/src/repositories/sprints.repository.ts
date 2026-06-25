@@ -10,7 +10,8 @@
  * fire-and-forget runner orchestration, SSE emits, analytics, and the
  * in-process executor abort (cancelActiveTask).
  */
-import { db, eq, and, asc, desc, inArray } from '@plexo/db'
+import { eq, and, asc, desc, inArray } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { sprints, sprintTasks, sprintLogs, tasks } from '@plexo/db'
 
 /** Full sprint row by id, or undefined. */

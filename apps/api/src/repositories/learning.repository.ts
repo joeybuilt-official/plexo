@@ -12,7 +12,8 @@
  * decision-seam orchestration. Only the SQL moves here; all filters are
  * parameterised and workspace scoping is preserved verbatim.
  */
-import { db, and, or, eq, desc, inArray, promptRevisions, cronJobs, tasks, outcomeRecords } from '@plexo/db'
+import { and, or, eq, desc, inArray } from 'drizzle-orm'
+import { db, promptRevisions, cronJobs, tasks, outcomeRecords } from '@plexo/db'
 
 /** Recent outcome rows for a workspace (via routine OR task), newest first, capped. */
 export function getOutcomesForWorkspace(workspaceId: string, limit: number) {

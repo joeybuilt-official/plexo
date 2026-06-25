@@ -21,7 +21,8 @@
  * @param activeProvider  The provider actually running the current task (optional)
  * @param activeModel     The model ID actually in use (optional)
  */
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces, installedConnections, extensions } from '@plexo/db'
 import { SAFETY_LIMITS } from '../constants.js'
 import {
@@ -212,7 +213,7 @@ export async function buildIntrospectionSnapshot(
             // Try provider_instances table first (canonical source after Intelligence page)
             try {
                 const { providerInstances } = await import('@plexo/db')
-                const { asc } = await import('@plexo/db')
+                const { asc } = await import('drizzle-orm')
                 const instances = await db.select({
                     providerType: providerInstances.providerType,
                     selectedModel: providerInstances.selectedModel,

@@ -23,7 +23,8 @@
  */
 
 import type { Request, Response, NextFunction, RequestHandler } from 'express'
-import { db, and, eq } from '@plexo/db'
+import { and, eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaceMembers } from '@plexo/db'
 import { UUID_RE } from '../validation.js'
 import { logger } from '../logger.js'

@@ -21,7 +21,8 @@
  * hot path.
  */
 
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { pgRows } from './pg-rows.js'
 
 export interface WorkspaceSpend {

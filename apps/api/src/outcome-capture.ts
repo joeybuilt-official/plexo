@@ -79,7 +79,8 @@ export async function recordHumanVerdict(
         return
     }
     try {
-        const { db, eq, outcomeRecords } = await import('@plexo/db')
+        const { db, outcomeRecords } = await import('@plexo/db')
+        const { eq } = await import('drizzle-orm')
         await db.update(outcomeRecords)
             .set({ humanVerdict: verdict })
             .where(eq(outcomeRecords.taskId, taskId))

@@ -27,7 +27,7 @@
  */
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
-import { eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
 import * as connectionsGmessagesRepo from '../repositories/connections-gmessages.repository.js'
 import { encrypt } from '../crypto.js'
 import { logger } from '../logger.js'

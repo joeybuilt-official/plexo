@@ -17,7 +17,8 @@
  */
 
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 
 const logger = pino({ name: 'memory.consolidation' })

@@ -27,7 +27,8 @@
  */
 
 import { createHash } from 'node:crypto'
-import { db, eq, and, asc } from '@plexo/db'
+import { eq, and, asc } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces, installedConnections, providerInstances } from '@plexo/db'
 import { decrypt } from '../crypto.js'
 import { logger } from '../logger.js'

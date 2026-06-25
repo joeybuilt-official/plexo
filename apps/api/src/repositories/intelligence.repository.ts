@@ -10,7 +10,8 @@
  * keeps validation, the IntelligenceSettings cast, pgRows row-shaping, cache
  * invalidation, and the agent chain-resolver bust.
  */
-import { db, eq, sql } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces } from '@plexo/db'
 
 /** Raw {s: intelligenceSettings} row for a workspace, or undefined. */

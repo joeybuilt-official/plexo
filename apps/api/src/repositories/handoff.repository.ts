@@ -7,7 +7,8 @@
  * owns the auth.cross_app_tokens insert/consume queries.
  * The route keeps auth, target-app validation, token minting, and redirects.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 export interface HandoffTokenRow extends Record<string, unknown> {
     user_id: string

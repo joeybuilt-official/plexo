@@ -8,7 +8,8 @@
  * side: it reads the operator-managed workspace_app_grants table and decides
  * whether enforcement applies to a given tool-load.
  */
-import { db, eq, and } from '@plexo/db'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaceAppGrants } from '@plexo/db'
 import { resolveEffectiveProfile, type Profile } from './resolve.js'
 

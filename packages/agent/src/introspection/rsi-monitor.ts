@@ -1,5 +1,5 @@
-import { db, workLedger, rsiProposals, workspaces, sql } from '@plexo/db'
-import { eq, gte, and, desc } from 'drizzle-orm'
+import { db, workLedger, rsiProposals, workspaces } from '@plexo/db'
+import { eq, gte, and, desc, sql } from 'drizzle-orm'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 const logger = console
 

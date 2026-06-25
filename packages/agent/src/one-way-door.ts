@@ -174,7 +174,8 @@ async function resolveEscalationTimeoutMs(workspaceId?: string): Promise<number>
     // Try workspace settings
     if (workspaceId) {
         try {
-            const { db, eq } = await import('@plexo/db')
+            const { db } = await import('@plexo/db')
+            const { eq } = await import('drizzle-orm')
             const { workspaces } = await import('@plexo/db')
             const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
                 .where(eq(workspaces.id, workspaceId)).limit(1)
@@ -232,7 +233,8 @@ export async function requestApproval(params: {
     if (params.riskLevel === 'critical' || params.riskLevel === 'high') {
         logger.info({ operation: params.operation, riskLevel: params.riskLevel }, 'OWD skipping standing approvals — risk too high')
     } else try {
-        const { db, eq, and } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { eq, and } = await import('drizzle-orm')
         const { standingApprovals } = await import('@plexo/db')
         const matches = await db.select().from(standingApprovals)
             .where(and(

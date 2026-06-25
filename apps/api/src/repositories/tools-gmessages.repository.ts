@@ -9,7 +9,8 @@
  * access checks, phone normalization, sidecar dispatch, and response shaping.
  * All queries are workspace-scoped (object-level authz).
  */
-import { db, eq, and, desc, inArray, sql } from '@plexo/db'
+import { eq, and, desc, inArray, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { channels, conversations, pairedSessions } from '@plexo/db'
 
 /** gmessages channel ids for a workspace. */

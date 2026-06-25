@@ -7,7 +7,8 @@
  * owns the auth.user email lookup (foreign table via
  * postgres_fdw). The route keeps token verification, consume, and shaping.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** Email rows for a user id from the FDW auth.user table. */
 export async function getUserEmail(userId: string): Promise<Array<{ email: string }>> {

@@ -6,4 +6,7 @@ export * from './pushd-schema'
 export * from './gmessages-schema'
 export * from './work-kind'
 export { db, type Database } from './client'
-export { sql, eq, and, or, ne, desc, asc, inArray, isNull, isNotNull, ilike, lt, lte, gte, count } from 'drizzle-orm'
+// ADR-0045 Phase 2: drizzle operators are intentionally NOT re-exported here.
+// Import operators (eq, and, sql, …) directly from 'drizzle-orm' in
+// adapter/repository code — the ORM stays inside the adapter ring, so the
+// barrel no longer couples every consumer to drizzle (the Dependency Rule).

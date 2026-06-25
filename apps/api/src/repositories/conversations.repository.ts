@@ -9,7 +9,8 @@
  * the snake_case→camelCase shaping; only the SQL lives here. All filters stay
  * parameterised (drizzle `sql` template).
  */
-import { db, eq, asc, desc, sql } from '@plexo/db'
+import { eq, asc, desc, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { conversations } from '@plexo/db'
 
 type Conversation = typeof conversations.$inferSelect

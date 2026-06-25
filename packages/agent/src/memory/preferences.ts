@@ -16,7 +16,8 @@
  *   preferred_tools          — ["read_file", "shell", ...]  (ranked by success rate)
  */
 import pino from 'pino'
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { getCachedPreferences, setCachedPreferences, invalidatePrefsCache } from './store.js'
 
 const logger = pino({ name: 'preferences' })

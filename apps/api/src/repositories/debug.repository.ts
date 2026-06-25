@@ -8,7 +8,8 @@
  * tasks, work ledger, improvement log). The route keeps the x-debug-token
  * gate, RPC allowlisting, and numeric post-processing.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** Task queue counts (running / queued / total). */
 export async function getQueueStats(): Promise<Array<{ running: string; queued: string; total: string }>> {

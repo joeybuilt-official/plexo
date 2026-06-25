@@ -23,7 +23,8 @@
  */
 
 import type { Request, Response, NextFunction, RequestHandler } from 'express'
-import { db, eq } from '@plexo/db'
+import { eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces } from '@plexo/db'
 import {
     getCachedIntelligenceSettings,

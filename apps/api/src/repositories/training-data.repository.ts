@@ -9,7 +9,8 @@
  * table; the route keeps the super-admin auth, the semicolon safety guard, and
  * the chat-format conversion. No user data flows into these queries.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** Run a source's count SQL (compile-time constant). */
 export async function countRows(countSql: string): Promise<Array<{ count: string }>> {

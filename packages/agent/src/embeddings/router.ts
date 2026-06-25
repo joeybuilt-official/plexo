@@ -374,7 +374,8 @@ export async function resolveEmbeddingAdapterAsync(
 
     // Fallback: vault/arbiter JSONB (legacy path)
     try {
-        const { db, eq } = await import('@plexo/db')
+        const { db } = await import('@plexo/db')
+        const { eq } = await import('drizzle-orm')
         const { workspaces } = await import('@plexo/db')
         const [row] = await db
             .select({ settings: workspaces.settings })

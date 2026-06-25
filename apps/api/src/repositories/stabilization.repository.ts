@@ -10,7 +10,8 @@
  * validation, metadata assembly, JSON.stringify, and response shaping. All
  * queries are raw `sql` over the eval_results table. Filters are parameterised.
  */
-import { db, sql } from '@plexo/db'
+import { sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 
 /** Most-recent 'cycle' eval row. */
 export async function getLatestCycle() {

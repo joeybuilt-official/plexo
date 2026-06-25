@@ -15,7 +15,8 @@ import { PLATFORM_DEFAULT_RULES } from './types.js'
 import { compileBehavior } from './compiler.js'
 import { computeContextHash } from '../domain-mastery/index.js'
 
-import { db, eq, isNull, and, behaviorRules, behaviorSnapshots } from '@plexo/db'
+import { eq, isNull, and } from 'drizzle-orm'
+import { db, behaviorRules, behaviorSnapshots } from '@plexo/db'
 
 // ── Layer fetchers ────────────────────────────────────────────────────────────
 

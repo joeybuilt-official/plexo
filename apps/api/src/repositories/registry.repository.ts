@@ -8,7 +8,8 @@
  * registry routes. The route keeps auth, manifest validation, signature
  * handling, publisher-ownership checks, and tag filtering.
  */
-import { db, eq, and, ne, ilike } from '@plexo/db'
+import { eq, and, ne, ilike } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { extensionRegistry } from '@plexo/db'
 
 export interface SearchRegistryFilter {

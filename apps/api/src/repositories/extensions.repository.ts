@@ -18,7 +18,8 @@
  * one tx and their non-fatal logging is intrinsic to the DB writes). The route
  * keeps every pre-/post-transaction side-effect.
  */
-import { db, eq, and, sql } from '@plexo/db'
+import { eq, and, sql } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import {
     extensions,
     workspaces,

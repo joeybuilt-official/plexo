@@ -8,7 +8,8 @@
  * plexo_workspace_info - requires system:read scope
  */
 import { z } from 'zod'
-import { db, sql, eq } from '@plexo/db'
+import { sql, eq } from 'drizzle-orm'
+import { db } from '@plexo/db'
 import { workspaces } from '@plexo/db'
 import type { McpContext } from '../types.js'
 import { scopeDenied, internalError } from '../errors.js'

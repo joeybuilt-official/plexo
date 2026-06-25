@@ -20,7 +20,8 @@
  * tighten or loosen for paid tiers.
  */
 
-import { db, pairedSessions, eq, and, lt, inArray, sql } from '@plexo/db'
+import { eq, and, lt, inArray, sql } from 'drizzle-orm'
+import { db, pairedSessions } from '@plexo/db'
 import { inngest } from '../client.js'
 
 const DEFAULT_STALE_HOURS = 24
