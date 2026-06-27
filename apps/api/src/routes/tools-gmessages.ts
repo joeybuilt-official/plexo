@@ -32,7 +32,7 @@ export const toolsGmessagesRouter: RouterType = Router()
 
 // Service-key gated: app integrations (Levio, Fylo, Nexalog) hit these
 // endpoints directly with Bearer PLEXO_SERVICE_KEY + X-App-Id. Mirrors the
-// auth posture of /api/v1/graph/* and /api/v1/synthesis/*.
+// auth posture of /api/v1/graph/*.
 toolsGmessagesRouter.use(requireServiceKey)
 
 type Participant = { phone?: string; name?: string }
