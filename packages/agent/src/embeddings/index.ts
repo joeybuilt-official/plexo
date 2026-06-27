@@ -6,6 +6,7 @@ export {
     resolveEmbeddingAdapterFromEnv,
     resolveEmbeddingAdapterAsync,
     checkDimensionCompatibility,
+    checkProviderLineage,
     type EmbeddingRouterResult,
     type EmbeddingResolution,
     type DimensionCheck,
@@ -14,6 +15,7 @@ export {
 
 export {
     HashEmbeddingAdapter,
+    GatewayEmbeddingAdapter,
     type EmbeddingProviderStatus,
     EMBEDDING_CAPABLE_PROVIDERS,
     EMBEDDING_INCAPABLE_PROVIDERS,

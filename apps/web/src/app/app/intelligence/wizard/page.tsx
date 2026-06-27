@@ -481,14 +481,13 @@ function EmbeddingsStep({
     onChange: (s: string) => void
 }) {
     const localUp = data?.services.embeddings.status === 'up'
-    const byoProviders = data?.providers.items.filter(p => p.enabled && p.hasEmbeddingModel) ?? []
 
     return (
         <div>
             <StepHeader
                 icon={Database}
-                title="Pick an embeddings provider"
-                body="Embeddings power memory recall and SCL expansion. Local is free and private; BYO keys are hosted but cheap. You can change this later in Settings → Intelligence → Embeddings."
+                title="Embeddings"
+                body="Embeddings power memory recall and SCL expansion. Plexo uses the bundled local gateway (384-d) for every workspace — there is no provider pick."
             />
             <div className="grid gap-3 sm:grid-cols-2">
                 <ChoiceTile
@@ -496,22 +495,11 @@ function EmbeddingsStep({
                     active={choice === 'local'}
                     disabled={!localUp}
                     onClick={() => onChange('local')}
-                    title="Local"
-                    badge="Recommended"
+                    title="Local gateway"
+                    badge="Only path"
                     body={localUp
-                        ? 'snowflake-arctic-embed via the on-box embeddings server. Free, private, no API key.'
-                        : 'EMBEDDINGS_URL not reachable. Enable the local-embeddings compose profile to use this.'
-                    }
-                />
-                <ChoiceTile
-                    icon={Sparkles}
-                    active={choice !== null && choice !== 'local'}
-                    disabled={byoProviders.length === 0}
-                    onClick={() => byoProviders[0] && onChange(byoProviders[0].providerType)}
-                    title="BYO key"
-                    body={byoProviders.length > 0
-                        ? `Use ${byoProviders[0]!.providerType} (${byoProviders.length} embedding-capable provider${byoProviders.length === 1 ? '' : 's'} configured).`
-                        : 'No embedding-capable provider keys yet. Add one in Settings → AI Providers.'
+                        ? 'snowflake-arctic-embed-s via the on-box embeddings gateway. Free, private, no API key.'
+                        : 'EMBEDDINGS_URL not reachable. Start the embeddings docker-compose service to enable.'
                     }
                 />
             </div>

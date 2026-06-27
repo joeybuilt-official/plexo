@@ -7,7 +7,9 @@
  * that have NULL embedding columns.
  *
  * MANUAL OPERATION — do NOT run automatically.
- * Operator should verify an embeddings-capable provider is configured before running.
+ * After the 2026-06-27 BYOK collapse the only embedding path is the bundled
+ * Plexo Inference Gateway (384-d, snowflake-arctic-embed-s); this script no
+ * longer needs workspace AI settings to pick a provider.
  *
  * Usage:
  *   WORKSPACE_ID=00000000-0000-0000-0000-000000000001 pnpm tsx scripts/backfill-embeddings.ts
@@ -31,54 +33,20 @@ const dryRun = process.argv.includes('--dry-run')
 const batchSize = Number(process.argv.find(a => a.startsWith('--batch='))?.split('=')[1] ?? 10)
 const delayMs = Number(process.argv.find(a => a.startsWith('--delay='))?.split('=')[1] ?? 500)
 
-async function loadWorkspaceSettings(wsId: string): Promise<WorkspaceAISettings | null> {
-    const [row] = await db
-        .select({ settings: workspaces.settings })
-        .from(workspaces)
-        .where(eq(workspaces.id, wsId))
-        .limit(1)
-
-    const settings = row?.settings as Record<string, unknown> | null
-    if (!settings) return null
-
-    const vault = (settings.vault ?? {}) as Record<string, any>
-    const arbiter = (settings.arbiter ?? {}) as Record<string, any>
-
-    const providers: Record<string, any> = {}
-    for (const [key, entry] of Object.entries(vault)) {
-        providers[key] = {
-            provider: key,
-            apiKey: entry?.apiKey,
-            baseUrl: entry?.baseUrl,
-            enabled: arbiter?.providers?.[key]?.enabled ?? true,
-            model: arbiter?.providers?.[key]?.selectedModel,
-        }
-    }
-
-    return {
-        primaryProvider: (arbiter.primaryProvider ?? 'anthropic') as ProviderKey,
-        fallbackChain: (arbiter.fallbackChain ?? []) as ProviderKey[],
-        providers,
-    }
-}
-
 async function main() {
     console.log(`Backfill embeddings for workspace ${workspaceId}`)
     console.log(`  dry-run: ${dryRun}, batch: ${batchSize}, delay: ${delayMs}ms`)
 
-    // Load workspace settings from DB and resolve embedding provider
-    const aiSettings = await loadWorkspaceSettings(workspaceId!)
-    const resolution = resolveEmbeddingAdapter(workspaceId!, aiSettings)
+    const resolution = await resolveEmbeddingAdapterAsync(workspaceId!)
 
     if (!resolution.adapter || resolution.status !== 'active') {
-        console.error(`No embeddings-capable provider available (status: ${resolution.status})`)
-        console.error(resolution.message ?? 'Configure a provider with embedding support and retry.')
+        console.error(`No embedding adapter available (status: ${resolution.status})`)
+        console.error(resolution.message ?? 'Start the bundled embeddings docker-compose service and retry.')
         process.exit(1)
     }
 
     console.log(`  provider: ${resolution.providerId}, model: ${resolution.model}, dims: ${resolution.dimensions}`)
 
-    // Count entries needing backfill
     const [countRow] = await db.execute<{ total: string; missing: string }>(sql`
         SELECT
             COUNT(*) AS total,
@@ -101,7 +69,6 @@ async function main() {
         process.exit(0)
     }
 
-    // Process in batches
     let processed = 0
     let failed = 0
 

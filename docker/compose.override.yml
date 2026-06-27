@@ -17,7 +17,6 @@ services:
     memswap_limit: 2g
     environment:
       NODE_OPTIONS: "--max-old-space-size=1500 --import=/app/undici-bootstrap.mjs"
-      XENOVA_EMBEDDER: "0"
       PLEXO_DISABLE_CRONS: "1"
       SELF_IMPROVEMENT_ENABLED: "false"
       EMBEDDINGS_URL: ""

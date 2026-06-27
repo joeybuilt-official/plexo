@@ -2,11 +2,18 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Provider-specific embedding adapters.
+ * Embedding adapters.
  *
- * Each adapter knows how to call one provider's embedding API.
- * The EmbeddingRouter selects which adapter to use based on workspace config.
- * No adapter is used directly — everything goes through the router.
+ * Collapsed 2026-06-27 (operator panel 5/5): canonical embedding path is the
+ * bundled Plexo Inference Gateway (`apps/embeddings/`) — a self-hosted 384-d
+ * ONNX service. BYOK cloud SDK adapters and in-process / Ollama HTTP
+ * adapters were removed; stored vectors are `vector(384)` with HNSW indexes,
+ * and a single dimension-safe path eliminates the re-embed/index-rebuild
+ * blast radius any other provider would introduce.
+ *
+ * The HashEmbeddingAdapter is retained as a last-resort deterministic
+ * fallback used only when the caller explicitly asks for it (no semantic
+ * content; never picked by the router).
  */
 
 export interface EmbeddingAdapter {
@@ -16,247 +23,12 @@ export interface EmbeddingAdapter {
     embed(text: string): Promise<number[]>
 }
 
-// ── OpenAI ──────────────────────────────────────────────────────────────────
-
-export class OpenAIEmbeddingAdapter implements EmbeddingAdapter {
-    readonly providerId = 'openai'
-    readonly model: string
-    readonly dimensions: number
-    private apiKey: string
-    private baseUrl: string
-
-    constructor(apiKey: string, baseUrl = 'https://api.openai.com/v1', model = 'text-embedding-3-small', dimensions = 1536) {
-        this.apiKey = apiKey
-        this.baseUrl = baseUrl.replace(/\/+$/, '')
-        this.model = model
-        this.dimensions = dimensions
-    }
-
-    async embed(text: string): Promise<number[]> {
-        const res = await fetch(`${this.baseUrl}/embeddings`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
-            body: JSON.stringify({ model: this.model, input: text.slice(0, 8192), dimensions: this.dimensions }),
-            signal: AbortSignal.timeout(15_000),
-        })
-        if (!res.ok) throw new Error(`OpenAI embedding API error ${res.status}: ${await res.text().catch(() => '')}`)
-        const data = await res.json() as { data: Array<{ embedding: number[] }> }
-        const vec = data.data[0]?.embedding
-        if (!vec || vec.length !== this.dimensions) throw new Error(`OpenAI returned ${vec?.length ?? 0} dims, expected ${this.dimensions}`)
-        return vec
-    }
-}
-
-// ── Google (Gemini) ─────────────────────────────────────────────────────────
-
-export class GoogleEmbeddingAdapter implements EmbeddingAdapter {
-    readonly providerId = 'google'
-    readonly model: string
-    readonly dimensions: number
-    private apiKey: string
-
-    constructor(apiKey: string, model = 'text-embedding-004', dimensions = 768) {
-        this.apiKey = apiKey
-        this.model = model
-        this.dimensions = dimensions
-    }
-
-    async embed(text: string): Promise<number[]> {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent?key=${this.apiKey}`
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: `models/${this.model}`, content: { parts: [{ text: text.slice(0, 8192) }] } }),
-            signal: AbortSignal.timeout(15_000),
-        })
-        if (!res.ok) throw new Error(`Google embedding API error ${res.status}: ${await res.text().catch(() => '')}`)
-        const data = await res.json() as { embedding: { values: number[] } }
-        const vec = data.embedding?.values
-        if (!vec?.length) throw new Error('Google returned empty embedding')
-        return vec
-    }
-}
-
-// ── Mistral ─────────────────────────────────────────────────────────────────
-
-export class MistralEmbeddingAdapter implements EmbeddingAdapter {
-    readonly providerId = 'mistral'
-    readonly model: string
-    readonly dimensions: number
-    private apiKey: string
-
-    constructor(apiKey: string, model = 'mistral-embed', dimensions = 1024) {
-        this.apiKey = apiKey
-        this.model = model
-        this.dimensions = dimensions
-    }
-
-    async embed(text: string): Promise<number[]> {
-        const res = await fetch('https://api.mistral.ai/v1/embeddings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
-            body: JSON.stringify({ model: this.model, input: [text.slice(0, 8192)] }),
-            signal: AbortSignal.timeout(15_000),
-        })
-        if (!res.ok) throw new Error(`Mistral embedding API error ${res.status}: ${await res.text().catch(() => '')}`)
-        const data = await res.json() as { data: Array<{ embedding: number[] }> }
-        const vec = data.data[0]?.embedding
-        if (!vec?.length) throw new Error('Mistral returned empty embedding')
-        return vec
-    }
-}
-
-// ── Voyage AI ───────────────────────────────────────────────────────────────
-
-export class VoyageEmbeddingAdapter implements EmbeddingAdapter {
-    readonly providerId = 'voyage'
-    readonly model: string
-    readonly dimensions: number
-    private apiKey: string
-
-    constructor(apiKey: string, model = 'voyage-3', dimensions = 1024) {
-        this.apiKey = apiKey
-        this.model = model
-        this.dimensions = dimensions
-    }
-
-    async embed(text: string): Promise<number[]> {
-        const res = await fetch('https://api.voyageai.com/v1/embeddings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
-            body: JSON.stringify({ model: this.model, input: [text.slice(0, 8192)] }),
-            signal: AbortSignal.timeout(15_000),
-        })
-        if (!res.ok) throw new Error(`Voyage embedding API error ${res.status}: ${await res.text().catch(() => '')}`)
-        const data = await res.json() as { data: Array<{ embedding: number[] }> }
-        const vec = data.data[0]?.embedding
-        if (!vec?.length) throw new Error('Voyage returned empty embedding')
-        return vec
-    }
-}
-
-// ── Cohere ───────────────────────────────────────────────────────────────────
-
-export class CohereEmbeddingAdapter implements EmbeddingAdapter {
-    readonly providerId = 'cohere'
-    readonly model: string
-    readonly dimensions: number
-    private apiKey: string
-
-    constructor(apiKey: string, model = 'embed-english-v3.0', dimensions = 1024) {
-        this.apiKey = apiKey
-        this.model = model
-        this.dimensions = dimensions
-    }
-
-    async embed(text: string): Promise<number[]> {
-        const res = await fetch('https://api.cohere.com/v2/embed', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
-            body: JSON.stringify({ model: this.model, texts: [text.slice(0, 8192)], input_type: 'search_document', embedding_types: ['float'] }),
-            signal: AbortSignal.timeout(15_000),
-        })
-        if (!res.ok) throw new Error(`Cohere embedding API error ${res.status}: ${await res.text().catch(() => '')}`)
-        const data = await res.json() as { embeddings: { float: number[][] } }
-        const vec = data.embeddings?.float?.[0]
-        if (!vec?.length) throw new Error('Cohere returned empty embedding')
-        return vec
-    }
-}
-
-// ── Ollama (local) ──────────────────────────────────────────────────────────
-
-export class OllamaEmbeddingAdapter implements EmbeddingAdapter {
-    readonly providerId: string
-    readonly model: string
-    readonly dimensions: number
-    private baseUrl: string
-
-    constructor(baseUrl: string, model = 'snowflake-arctic-embed', dimensions = 1024, providerId = 'ollama') {
-        this.baseUrl = baseUrl.replace(/\/+$/, '')
-        this.model = model
-        this.dimensions = dimensions
-        this.providerId = providerId
-    }
-
-    async embed(text: string): Promise<number[]> {
-        if (!text.trim()) throw new Error('Cannot embed empty text')
-
-        const url = `${this.baseUrl}/api/embed`
-        const body = JSON.stringify({
-            model: this.model,
-            input: text.slice(0, 8192),
-            keep_alive: '10m', // keep embedding model warm for subsequent calls
-        })
-        const opts = {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body,
-            signal: AbortSignal.timeout(120_000), // model load on CPU can take 30-60s
-            redirect: 'manual' as const,
-        }
-
-        let res: Response
-        try {
-            res = await fetch(url, opts)
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err)
-            throw new Error(`Ollama embedding connection failed (url=${url}, model=${this.model}): ${msg}`)
-        }
-
-        // Handle HTTP→HTTPS redirect: fetch follows 301 but converts POST→GET,
-        // causing 405. If we get a redirect, retry with the Location header directly.
-        if (res.status >= 300 && res.status < 400) {
-            const location = res.headers.get('location')
-            if (location) {
-                res = await fetch(location, { ...opts, redirect: 'follow' })
-            }
-        }
-
-        if (!res.ok) throw new Error(`Ollama embedding error ${res.status} (url=${url}): ${await res.text().catch(() => '')}`)
-        const data = await res.json() as { embeddings: number[][] }
-        const vec = data.embeddings?.[0]
-        if (!vec?.length) throw new Error(`Ollama returned empty embedding (url=${url}, model=${this.model})`)
-        return vec
-    }
-}
-
-// ── OpenRouter (proxied embeddings) ─────────────────────────────────────────
-
-export class OpenRouterEmbeddingAdapter implements EmbeddingAdapter {
-    readonly providerId = 'openrouter'
-    readonly model: string
-    readonly dimensions: number
-    private apiKey: string
-
-    constructor(apiKey: string, model = 'openai/text-embedding-3-small', dimensions = 1536) {
-        this.apiKey = apiKey
-        this.model = model
-        this.dimensions = dimensions
-    }
-
-    async embed(text: string): Promise<number[]> {
-        // OpenRouter proxies to OpenAI's embedding endpoint
-        const res = await fetch('https://openrouter.ai/api/v1/embeddings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
-            body: JSON.stringify({ model: this.model, input: text.slice(0, 8192) }),
-            signal: AbortSignal.timeout(15_000),
-        })
-        if (!res.ok) throw new Error(`OpenRouter embedding API error ${res.status}: ${await res.text().catch(() => '')}`)
-        const data = await res.json() as { data: Array<{ embedding: number[] }> }
-        const vec = data.data[0]?.embedding
-        if (!vec?.length) throw new Error('OpenRouter returned empty embedding')
-        return vec
-    }
-}
-
 // ── Gateway (Plexo native ONNX embeddings) ───────────────────────────────
 
 /**
  * Calls the Plexo Inference Gateway's /v1/embeddings endpoint.
- * Highest-priority adapter — zero external dependencies, zero API cost.
- * The gateway runs snowflake-arctic-embed via ONNX Runtime natively.
+ * The gateway runs snowflake-arctic-embed-s via ONNX Runtime natively.
+ * 384-d output. Dim-locked to match stored vector(384) columns.
  */
 export class GatewayEmbeddingAdapter implements EmbeddingAdapter {
     readonly providerId = 'plexo-gateway'
@@ -331,36 +103,25 @@ function hashToVector(text: string, dims: number): number[] {
 
 export type EmbeddingProviderStatus = 'active' | 'not-configured' | 'credential-invalid' | 'fallback-hash'
 
-/** Providers known to support embeddings. Others are assumed to NOT support them. */
+/**
+ * Providers known to support embeddings. After the 2026-06-27 collapse this
+ * is just the bundled gateway — other entries are kept for type/string
+ * consumers (e.g. provider discovery for custom OpenAI-compatible endpoints
+ * the operator might wire up), but the router will not pick them.
+ */
 export const EMBEDDING_CAPABLE_PROVIDERS = new Set([
     'plexo-gateway',
-    'openai',
-    'google',
-    'mistral',
-    'voyage',
-    'cohere',
-    'ollama',
-    'ollama_cloud',
-    'openrouter',
 ])
 
 /** Providers that definitely do NOT have embedding endpoints. */
 export const EMBEDDING_INCAPABLE_PROVIDERS = new Set([
-    'anthropic', // Use Voyage AI (Anthropic-recommended pairing)
-    'deepseek',  // No embedding endpoint as of 2026-04
-    'groq',      // Inference-only
-    'xai',       // No embedding endpoint
+    'anthropic',
+    'deepseek',
+    'groq',
+    'xai',
 ])
 
-/** Default embedding model per provider. */
+/** Default embedding model per provider. Only the gateway is wired. */
 export const DEFAULT_EMBEDDING_MODELS: Record<string, { model: string; dimensions: number }> = {
     'plexo-gateway': { model: 'plexo-embed-v1', dimensions: 384 },
-    openai: { model: 'text-embedding-3-small', dimensions: 1536 },
-    google: { model: 'text-embedding-004', dimensions: 768 },
-    mistral: { model: 'mistral-embed', dimensions: 1024 },
-    voyage: { model: 'voyage-3', dimensions: 1024 },
-    cohere: { model: 'embed-english-v3.0', dimensions: 1024 },
-    ollama: { model: 'snowflake-arctic-embed', dimensions: 1024 },
-    ollama_cloud: { model: 'snowflake-arctic-embed', dimensions: 1024 },
-    openrouter: { model: 'openai/text-embedding-3-small', dimensions: 1536 },
 }

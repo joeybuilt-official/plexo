@@ -121,3 +121,53 @@ No migration required. v1.x is purely additive over v1.0:
 
 Each minor bump kept v1.0's surface intact. Bumping `^1.0.0` → `^1.3.0` is
 safe and recommended.
+
+## 2026-06-27 — BYOK embeddings collapse (breaking)
+
+Operator-authorized (panel 5/5) on 2026-06-27. Self-hosters and SDK
+consumers that relied on BYOK embeddings need to know:
+
+### What changed
+
+Plexo now resolves a single embedding adapter for every workspace: the
+bundled Plexo Inference Gateway (`apps/embeddings/`), which serves
+`snowflake-arctic-embed-s` at **384 dimensions** via ONNX Runtime. The
+following paths were removed:
+
+- `XenovaEmbeddingAdapter` (the in-process `@xenova/transformers` path)
+  plus the `XENOVA_EMBEDDER` / `XENOVA_OFFLINE` / `XENOVA_CACHE_DIR`
+  environment flags.
+- `OllamaEmbeddingAdapter` (HTTP path to a local or managed Ollama).
+  `OLLAMA_INTERNAL_URL` is **kept** because LLM/chat paths still use it.
+- The six cloud BYOK embedding adapters: OpenAI, Google, Mistral, Voyage,
+  Cohere, OpenRouter. Cloud provider credentials still work for chat — only
+  their embedding code paths are gone.
+- The `local-embeddings` docker-compose profile gate — the `embeddings`
+  service is now always-on (no `--profile local-embeddings` needed).
+- The Settings → Intelligence → Embeddings "BYO fallback providers"
+  picker, the per-row embedding-model dropdown, the re-embed modal, and
+  the embedder choice tile in the Intelligence wizard.
+- API routes: `GET /api/v1/embeddings/:ws/providers`,
+  `PATCH /api/v1/embeddings/:ws/providers/:id/model`,
+  `POST /api/v1/embeddings/:ws/reembed`,
+  `GET /api/v1/embeddings/:ws/reembed/:jobId`.
+
+### Why it is safe (no data migration)
+
+Every stored embedding column (`memory_entries.embedding`,
+`synthesis.centroid`, `memory_rebuild.embedding`) is already `vector(384)`
+with HNSW indexes — the dimension of the bundled gateway. There is no
+re-embed and no index rebuild. The collapse is dim-safe by construction.
+
+### What you need to do
+
+- **Self-hosters using BYOK embedding keys.** Drop any `XENOVA_*` env
+  vars from your `.env`. Your cloud embedding API keys are no longer
+  read; remove them if you don't also use the same provider for chat.
+  Confirm the `embeddings` docker-compose service is up:
+  `docker compose up -d embeddings`.
+- **Operators with custom `EMBEDDINGS_URL`.** No action required; the
+  custom URL still takes precedence over the bundled default.
+- **SDK consumers of `@joeybuilt/plexo-sdk`.** The SDK surface did not
+  change; embedding-router exports `resolveEmbeddingAdapterAsync` still
+  resolve identically (a Gateway adapter at 384 dims).

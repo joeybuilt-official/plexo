@@ -182,8 +182,8 @@ services:
       # Requires the Docker socket to be mounted. See the comment near 'volumes:' below.
       DOCKER_SOCKET_ENABLED: ${DOCKER_SOCKET_ENABLED:-false}
       COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-plexo}
-      # Plexo Embeddings Server — native ONNX embeddings (highest priority).
-      # Active only when running with --profile local-embeddings.
+      # Plexo Embeddings Server — native ONNX embeddings.
+      # Always-on as of 2026-06-27 (BYOK collapse). 384-d snowflake-arctic-embed-s.
       EMBEDDINGS_URL: ${EMBEDDINGS_URL:-http://embeddings:3001}
       # Managed Ollama sidecar — fallback for LLM + embedding calls
       OLLAMA_INTERNAL_URL: http://ollama:11434
@@ -216,14 +216,12 @@ services:
     mem_limit: 512m
     memswap_limit: 768m
 
-  # ── Embeddings Server (native ONNX embeddings, opt-in) ─────
+  # ── Embeddings Server (native ONNX embeddings) ─────
   # Bundled local embeddings via snowflake-arctic-embed.
-  # Only starts with: docker compose --profile local-embeddings up
-  # Self-hosters who BYO embedding provider keys (OpenAI, Voyage, etc.)
-  # do not need this service running.
+  # Always-on as of 2026-06-27 (BYOK collapse, operator panel 5/5):
+  # this is the single canonical 384-d embedding path for every workspace.
 
   embeddings:
-    profiles: ["local-embeddings"]
     build:
       context: .
       dockerfile: docker/Dockerfile.embeddings

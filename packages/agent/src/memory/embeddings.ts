@@ -21,10 +21,10 @@
  * Empty / whitespace-only inputs return a zero vector at the resolved
  * adapter's dimension count — same contract every existing adapter ships.
  *
- * Provider resolution honours the existing precedence: Xenova default
- * (XENOVA_EMBEDDER!=='0'), then EMBEDDINGS_URL gateway, then workspace AI
- * settings, then env vars, then managed Ollama. Callers that need a
- * specific workspace just pass `workspaceId`.
+ * Provider resolution: the embedding router is collapsed to a single
+ * gateway path (Plexo Inference Gateway, 384-d). Callers that need a
+ * specific workspace just pass `workspaceId` — it's threaded through for
+ * logging but the resolved adapter is identical across workspaces.
  */
 import pino from 'pino'
 import {
@@ -142,7 +142,7 @@ async function resolveOrThrow(workspaceId?: string): Promise<{
     if (!resolution.adapter || resolution.status !== 'active') {
         const err = new Error(
             `No embedding provider available (status=${resolution.status}). ` +
-            `Set XENOVA_EMBEDDER=1 (default) or configure an embeddings-capable provider.`,
+            `The bundled embeddings gateway should be running; check EMBEDDINGS_URL and the embeddings docker-compose service.`,
         )
         ;(err as Error & { code?: string }).code = 'NO_EMBEDDER'
         throw err
