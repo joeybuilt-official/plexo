@@ -1,0 +1,19 @@
+-- SPDX-License-Identifier: AGPL-3.0-only
+-- Idx: 0139  Tag: 0139_drop_synthesis_suggestion_state
+--
+-- Activated drop of orphaned `synthesis_suggestion_state` (operator authorized
+-- 2026-06-27). The table was created by 0132 to back the Plexo
+-- `routes/synthesis.ts` + `lib/synthesis-state.ts` server surface used by the
+-- Nexalog synthesis-inbox client. That whole chain has been retired:
+--   - Plexo server cut: commit 28dd0c1 (merged to main) deleted
+--     `apps/api/src/routes/synthesis.ts`, `apps/api/src/lib/synthesis-state.ts`,
+--     `apps/api/src/lib/synthesis.ts`, the Drizzle `synthesisSuggestionState`
+--     export, and the nightly synthesis cron.
+--   - Nexalog client cut: joeybuilt-official/nexalog PR #4 (commit a964523),
+--     merged + deployed 2026-06-27.
+-- No remaining readers or writers. Drop is forward-only and idempotent.
+--
+-- Apply path: this repo's drizzle journal is journal-driven up to 0129; 0130+
+-- are applied manually via psql against the prod `plexo` DB at deploy time
+-- (same flow as 0138_drop_memory_embeddings.sql).
+DROP TABLE IF EXISTS synthesis_suggestion_state;
