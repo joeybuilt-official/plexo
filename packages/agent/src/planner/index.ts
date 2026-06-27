@@ -171,19 +171,8 @@ PHASES (optional but preferred):
 
 // ── Default workspace AI settings ─────────────────────────────────────────────
 
-/** Compute execution waves from plan steps using their depends_on edges.
- *
- * Phase B1 (ADR 0020): wired through `FALKORDB_PLANNER_WAVES` for
- * parity w/ `sprint/planner.ts`, but PlanStep records are ephemeral
- * (in-memory only — never persisted to FalkorDB) so the cypher path
- * has no data to read. The flag exists here as scaffolding for the
- * follow-up that persists plan steps as Task nodes; until then this
- * always falls through to JS. We accept a `sprintId` arg threaded from
- * `planTask` (taskId is the closest analog) for future use.
- */
+/** Compute execution waves from plan steps using their depends_on edges. */
 function computeWaves(steps: PlanStep[], _sprintIdForCypher?: string, _workspaceIdForCypher?: string): number[][] {
-    // Future: when plan steps are persisted as Task nodes, gate cypher
-    // path here on FALKORDB_PLANNER_WAVES + workspaceId + sprintId.
     const nodes = steps.map((s) => ({
         id: String(s.stepNumber),
         depends_on: (s.depends_on ?? []).map(String),

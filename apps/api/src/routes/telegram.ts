@@ -716,34 +716,6 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
         )
         return
     }
-
-    if (text.startsWith('/criticalpath')) {
-        const sprintId = text.slice('/criticalpath'.length).trim()
-        if (!sprintId) {
-            await sendMessage(token, chatId, 'Usage: /criticalpath <sprint-id>', { workspaceId })
-            return
-        }
-        try {
-            const sprint = await sprintsRepo.getSprint(sprintId)
-            if (!sprint) {
-                await sendMessage(token, chatId, `Sprint \`${sprintId}\` not found.`, { workspaceId })
-                return
-            }
-            const { criticalPathToCompletion } = await import('@plexo/agent/planner/cypher-waves')
-            const chain = await criticalPathToCompletion(sprint.workspaceId, sprintId)
-            if (!chain || chain.length === 0) {
-                await sendMessage(token, chatId, 'No critical path found for that sprint (no task graph in FalkorDB, or sprint has no dependencies).', { workspaceId })
-                return
-            }
-            const lines = chain.map((t, i) => `${i + 1}. [${t.status}] ${t.description}`)
-            await sendMessage(token, chatId, `*Critical path for sprint ${sprintId}:*\n\n${lines.join('\n')}`, { workspaceId })
-        } catch (err) {
-            logger.error({ err, sprintId }, 'telegram: /criticalpath failed')
-            await sendMessage(token, chatId, 'Failed to compute critical path.', { workspaceId })
-        }
-        return
-    }
-
     if (text === '/memoryheatmap') {
         try {
             const rows = await telegramRepo.getMemoryHeatmap(workspaceId)

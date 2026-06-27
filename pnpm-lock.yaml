@@ -105,9 +105,6 @@ importers:
       '@plexo/db':
         specifier: link:packages/db
         version: link:packages/db
-      '@plexo/graphiti-bridge':
-        specifier: link:packages/graphiti-bridge
-        version: link:packages/graphiti-bridge
     devDependencies:
       '@playwright/test':
         specifier: ^1.58.2
@@ -145,9 +142,6 @@ importers:
       '@plexo/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@plexo/graphiti-bridge':
-        specifier: link:../../packages/graphiti-bridge
-        version: link:../../packages/graphiti-bridge
       '@plexo/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -667,9 +661,6 @@ importers:
       '@plexo/db':
         specifier: workspace:*
         version: link:../db
-      '@plexo/graphiti-bridge':
-        specifier: workspace:*
-        version: link:../graphiti-bridge
       '@plexo/queue':
         specifier: workspace:*
         version: link:../queue
@@ -774,18 +765,6 @@ importers:
       typescript:
         specifier: ^5.7
         version: 5.9.3
-
-  packages/graphiti-bridge:
-    devDependencies:
-      '@types/node':
-        specifier: ^22
-        version: 22.19.13
-      typescript:
-        specifier: ^5.7
-        version: 5.9.3
-      vitest:
-        specifier: 3.2.6
-        version: 3.2.6(@types/debug@4.1.12)(@types/node@22.19.13)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
 
   packages/logger:
     dependencies:

@@ -28,7 +28,6 @@ import { db } from '@plexo/db'
 import { workspaceMembers } from '@plexo/db'
 import { UUID_RE } from '../validation.js'
 import { logger } from '../logger.js'
-import { readMembershipFromGraph } from '../lib/permission-graph.js'
 
 declare global {
     namespace Express {
@@ -61,33 +60,12 @@ function cacheKey(userId: string, workspaceId: string): string {
     return `${userId}:${workspaceId}`
 }
 
-// Phase C1 read-cutover (ADR 0022, operator-authorized 2026-05-28):
-// graph is primary, postgres is the fallback-on-error path. Disagreement
-// logs WIN with postgres for security-safer denial — a stale graph row that
-// says "member" while postgres says "no" must NOT grant access. The dual
-// write at members.ts / auth.ts / workspaces.ts stays in place; postgres
-// remains the canonical write target. Setting PERM_GRAPH_READ=shadow flips
-// back to the pre-cutover behaviour without a redeploy.
-const PERM_GRAPH_READ_MODE = (process.env.PERM_GRAPH_READ ?? 'graph').toLowerCase()
-
 async function lookupMembership(userId: string, workspaceId: string): Promise<string | null> {
     const key = cacheKey(userId, workspaceId)
     const hit = membershipCache.get(key)
     if (hit && hit.expiry > Date.now()) return hit.role
 
     let role: string | null = null
-    let resolvedBy: 'graph' | 'postgres' | 'postgres-fallback' = 'postgres'
-    let graphRole: string | null = null
-    let graphErr: unknown = null
-
-    if (PERM_GRAPH_READ_MODE === 'graph') {
-        try {
-            graphRole = await readMembershipFromGraph({ userId, workspaceId })
-        } catch (err) {
-            graphErr = err
-        }
-    }
-
     try {
         const [row] = await db
             .select({ role: workspaceMembers.role })
@@ -97,35 +75,9 @@ async function lookupMembership(userId: string, workspaceId: string): Promise<st
                 eq(workspaceMembers.userId, userId),
             ))
             .limit(1)
-        const pgRole = row?.role ?? null
-
-        if (PERM_GRAPH_READ_MODE === 'graph' && graphErr === null) {
-            if (graphRole === pgRole) {
-                role = graphRole
-                resolvedBy = 'graph'
-            } else {
-                // Disagreement: postgres wins for security-safer denial.
-                logger.warn(
-                    { userId, workspaceId, postgresRole: pgRole, graphRole },
-                    'permission-graph read disagreement — postgres wins',
-                )
-                role = pgRole
-                resolvedBy = 'postgres-fallback'
-            }
-        } else {
-            if (graphErr !== null) {
-                logger.warn(
-                    { userId, workspaceId, err: graphErr },
-                    'permission-graph read failed — postgres fallback engaged',
-                )
-                resolvedBy = 'postgres-fallback'
-            }
-            role = pgRole
-            if (PERM_GRAPH_READ_MODE !== 'graph') resolvedBy = 'postgres'
-        }
+        role = row?.role ?? null
     } catch (err) {
         logger.error({ err, userId, workspaceId }, 'workspace membership lookup failed')
-        // Graph alone is not a trusted access source — fail closed.
         return null
     }
 
@@ -137,7 +89,7 @@ async function lookupMembership(userId: string, workspaceId: string): Promise<st
         role,
         expiry: Date.now() + (role ? POSITIVE_TTL_MS : NEGATIVE_TTL_MS),
     })
-    logger.debug({ userId, workspaceId, role, resolvedBy }, 'membership resolved')
+    logger.debug({ userId, workspaceId, role }, 'membership resolved')
     return role
 }
 

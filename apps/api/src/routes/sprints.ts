@@ -11,7 +11,6 @@ import { ulid } from 'ulid'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { nameProject } from '../channel-ai.js'
-import { criticalPathToCompletion } from '@plexo/agent/planner/cypher-waves'
 
 export const sprintsRouter: RouterType = Router()
 
@@ -155,12 +154,7 @@ sprintsRouter.get('/:id', async (req, res) => {
         if (!await ensureWorkspaceAccess(req, res, sprint.workspaceId)) return
         // Tasks linked to sprint via project field — select key columns, cap at 200
         const sprintTasks = await sprintsRepo.listTasksForSprintProject(id)
-        let criticalPath: string[] | null = null
-        if (process.env.FALKORDB_PLANNER_WAVES === 'true') {
-            const chain = await criticalPathToCompletion(sprint.workspaceId, id)
-            criticalPath = chain ? chain.map((t) => t.id) : null
-        }
-        res.json({ sprint, tasks: sprintTasks, criticalPath })
+        res.json({ sprint, tasks: sprintTasks, criticalPath: null })
     } catch (err) {
         logger.error({ err }, 'GET /api/sprints/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch sprint' } })

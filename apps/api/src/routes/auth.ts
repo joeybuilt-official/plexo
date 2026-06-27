@@ -8,7 +8,6 @@ import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { optionalAuth } from '../middleware/auth.js'
-import { mirrorMembershipUpsert } from '../lib/permission-graph.js'
 
 export const authRouter: RouterType = Router()
 
@@ -90,7 +89,6 @@ authRouter.post('/workspace/ensure', requireServiceKey, async (req, res) => {
 
         await authRepo.insertOwnerMember(ws.workspaceId, userId)
         // Phase C1 (ADR 0022) shadow-write — owner seed on workspace create.
-        void mirrorMembershipUpsert({ workspaceId: ws.workspaceId, userId, role: 'owner' })
 
         trackEvent('workspace.created', 'info', { workspaceId: ws.workspaceId, source: (req as any).serviceContext?.appId })
         logger.info({ userId, name: displayName, appId: (req as any).serviceContext?.appId }, 'Workspace auto-created via service key')
@@ -151,7 +149,6 @@ authRouter.post('/profiles/auto-attach-user', requireServiceKey, async (req, res
             workspaceId = ws.id
             await authRepo.insertOwnerMember(ws.id, userId)
             // Phase C1 (ADR 0022) shadow-write — auto-attach owner seed.
-            void mirrorMembershipUpsert({ workspaceId: ws.id, userId, role: 'owner' })
             trackEvent('workspace.created', 'info', { workspaceId: ws.id, source: appId, reason: 'auto-attach' })
             logger.info({ userId, workspaceId: ws.id, appId }, 'Workspace auto-created via profiles/auto-attach-user')
         }
@@ -264,7 +261,6 @@ authRouter.post('/workspace', optionalAuth, async (req, res) => {
         // Seed the owner as a member so the Members page shows them immediately
         await authRepo.insertOwnerMember(ws.workspaceId, resolvedOwnerId)
         // Phase C1 (ADR 0022) shadow-write — setup-wizard owner seed.
-        void mirrorMembershipUpsert({ workspaceId: ws.workspaceId, userId: resolvedOwnerId, role: 'owner' })
 
         trackEvent('workspace.created', 'info', { workspaceId: ws.workspaceId, name: name.trim() })
 

@@ -17,7 +17,6 @@ import { randomBytes } from 'crypto'
 import { logger } from '../logger.js'
 import { audit } from '../audit.js'
 import { UUID_RE } from '../validation.js'
-import { mirrorMembershipUpsert, mirrorMembershipDelete } from '../lib/permission-graph.js'
 import * as membersRepo from '../repositories/members.repository.js'
 
 export const membersRouter: RouterType = Router({ mergeParams: true })
@@ -78,7 +77,6 @@ membersRouter.post('/', async (req, res) => {
 
         await membersRepo.upsertMember(workspaceId, foundUserId, role as MemberRole)
         // Phase C1 (ADR 0022) shadow-write to permission graph.
-        void mirrorMembershipUpsert({ workspaceId, userId: foundUserId, role })
 
         logger.info({ workspaceId, userId: foundUserId, role }, 'Member added')
         audit(req, { workspaceId, action: 'member.add', resource: 'workspace_members', resourceId: foundUserId, metadata: { role, email } })
@@ -118,7 +116,6 @@ membersRouter.patch('/:userId', async (req, res) => {
     try {
         await membersRepo.updateMemberRole(workspaceId, userId, role as MemberRole)
         // Phase C1 (ADR 0022) shadow-write — role change.
-        void mirrorMembershipUpsert({ workspaceId, userId, role })
 
         audit(req, { workspaceId, action: 'member.role_change', resource: 'workspace_members', resourceId: userId, metadata: { role } })
         res.json({ ok: true })
@@ -155,7 +152,6 @@ membersRouter.delete('/:userId', async (req, res) => {
 
         await membersRepo.deleteMember(workspaceId, userId)
         // Phase C1 (ADR 0022) shadow-write — membership deletion.
-        void mirrorMembershipDelete({ workspaceId, userId })
 
         logger.info({ workspaceId, userId }, 'Member removed')
         audit(req, { workspaceId, action: 'member.remove', resource: 'workspace_members', resourceId: userId })
@@ -288,7 +284,6 @@ invitesRouter.post('/:token/accept', async (req, res) => {
         // membership/invite state and the double-accept race stays closed.
         await membersRepo.acceptInviteTx({ token, userId, role: invite.role, workspaceId: invite.workspaceId })
         // Phase C1 (ADR 0022) shadow-write — invite acceptance.
-        void mirrorMembershipUpsert({ workspaceId: invite.workspaceId, userId, role: invite.role })
 
         logger.info({ tokenPrefix: token.slice(0, 8) + '...', userId, workspaceId: invite.workspaceId }, 'Invite accepted')
         audit(req, { workspaceId: invite.workspaceId, userId, action: 'invite.accept', resource: 'workspace_invites', resourceId: token, metadata: { role: invite.role } })

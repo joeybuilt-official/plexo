@@ -14,7 +14,6 @@
     "@plexo/agent": "workspace:*",
     "@plexo/db": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "@plexo/graphiti-bridge": "link:../../packages/graphiti-bridge",
     "@plexo/logger": "workspace:*",
     "@plexo/queue": "workspace:*",
     "@joeybuilt/plexo-sdk": "workspace:*",

@@ -24,15 +24,9 @@ Writes insert into `memory_entries` (workspace-scoped, embedded via Gateway 384-
 
 Reads flow through `packages/agent/src/memory/read-backend.ts` and resolve via the postgres HNSW knn query in `packages/agent/src/memory/store.ts` (`searchMemory`). The `MEMORY_READ_BACKEND` env var is no longer honored.
 
-### Bridge (non-memory consumers retained)
+### Bridge (removed)
 
-`packages/graphiti-bridge` is retained — eight non-memory call sites still use the bridge (workspace permission mirror, conversation cypher, planner cypher waves, ops scripts, the architecture-boundary regex, the `docker/Dockerfile.api` bridge stages, and the integration test). All of these silently no-op when `PLEXO_GRAPHITI_SIDECAR_URL` / `PLEXO_SERVICE_KEY` are unset, so operators can decommission the sidecar without touching code. See:
-
-- `apps/api/src/lib/permission-graph.ts` (ADR 0022 — workspace permission graph)
-- `apps/api/src/lib/graph-sidecar.ts` (conversation cypher)
-- `packages/agent/src/sprint/cypher-waves.ts` (ADR 0020 — task-dag cypher)
-
-These are out of scope for the memory pipeline; they are listed here only so future readers don't mistake the retained bridge for live memory wiring.
+`packages/graphiti-bridge` was removed in 2026-06. All non-memory consumers — the workspace permission mirror (ADR 0022), the conversation cypher helper, the planner cypher-waves path (ADR 0020), the SDK-facing `/api/v1/graph/*` routes, and the bridge multi-stage Dockerfile steps — were retired together with it. Drop `PLEXO_GRAPHITI_SIDECAR_URL` from your environment; the graphiti sidecar container and its FalkorDB / Neo4j store can be decommissioned.
 
 ## SCL: Structured Context Language
 

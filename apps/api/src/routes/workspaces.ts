@@ -7,7 +7,6 @@ import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
-import { mirrorMembershipUpsert } from '../lib/permission-graph.js'
 import { getAuth } from '../middleware/better-auth.js'
 import { cancelActiveTask } from '../agent-loop.js'
 import { deleteByPrefix } from '@plexo/storage'
@@ -134,7 +133,6 @@ workspacesRouter.post('/', async (req, res) => {
         }
 
         // Phase C1 (ADR 0022) shadow-write — owner seed on POST /workspaces.
-        void mirrorMembershipUpsert({ workspaceId: created.id, userId: ownerId, role: 'owner' })
 
         res.status(201).json(created)
     } catch (err) {

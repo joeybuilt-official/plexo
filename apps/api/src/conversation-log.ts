@@ -19,7 +19,6 @@ import { db } from '@plexo/db'
 import { conversations } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from './logger.js'
-import { graphWrite, isGraphSidecarConfigured } from './lib/graph-sidecar.js'
 
 // ── Session gap configuration ─────────────────────────────────────────────────
 
@@ -99,98 +98,6 @@ export async function recordConversation(params: RecordConversationParams): Prom
                 })
             } catch (err) {
                 logger.debug({ err }, 'recordConversation: persistTurnEmbedding failed (non-fatal)')
-            }
-        })()
-    }
-
-    // ── Phase B2 (ADR 0021) dual-write: Message + Session + IN_SESSION + NEXT ──
-    // Postgres is authoritative. Any sidecar failure logs + telemetry but never
-    // throws from this fn. FIRE-AND-FORGET: the whole dual-write block (incl. the
-    // prevMessageId postgres lookup) runs in a detached IIFE so a wedged sidecar
-    // OR a saturated postgres pool can never delay the chat HTTP response. The
-    // earlier shape kept the prevMessageId await on the request path; while
-    // postgres is fast it's still a non-zero hop that we don't need to pay for
-    // here. Drift is still surfaced via the catch-telemetry below — just off the
-    // hot path.
-    if (isGraphSidecarConfigured()) {
-        // Session id falls back to the conversation id when no session is set —
-        // mirrors the SQL `COALESCE(session_id, id)` used by the grouped view.
-        const sessionId = params.sessionId ?? id
-        void (async () => {
-            try {
-                // Find the prior message in the same session (postgres lookup —
-                // authoritative ordering). Skipped for first turn / no-session.
-                let prevMessageId: string | null = null
-                if (params.sessionId) {
-                    const [prev] = await db
-                        .select({ id: conversations.id })
-                        .from(conversations)
-                        .where(sql`workspace_id = ${params.workspaceId} AND session_id = ${params.sessionId} AND id != ${id}`)
-                        .orderBy(desc(conversations.createdAt))
-                        .limit(1)
-                    prevMessageId = prev?.id ?? null
-                }
-
-                await graphWrite({
-                    workspace_id: params.workspaceId,
-                    app: 'plexo',
-                    nodes: [
-                        {
-                            label: 'Message',
-                            id,
-                            properties: {
-                                source: params.source,
-                                message: params.message,
-                                created_at: createdAt.toISOString(),
-                                ...(params.reply != null ? { reply: params.reply } : {}),
-                                ...(params.errorMsg != null ? { error_msg: params.errorMsg } : {}),
-                                status: params.status,
-                                ...(params.intent != null ? { intent: params.intent } : {}),
-                                ...(params.taskId != null ? { task_id: params.taskId } : {}),
-                                ...(params.channelRef != null ? { channel_ref: JSON.stringify(params.channelRef) } : {}),
-                                ...(params.attachments && params.attachments.length > 0
-                                    ? { attachments: JSON.stringify(params.attachments) }
-                                    : {}),
-                            },
-                        },
-                        {
-                            label: 'Session',
-                            id: sessionId,
-                            properties: {
-                                ...(params.source ? { source: params.source } : {}),
-                                session_key: sessionId,
-                                last_activity_at: createdAt.toISOString(),
-                            },
-                        },
-                    ],
-                    edges: [
-                        {
-                            type: 'IN_SESSION',
-                            from_label: 'Message',
-                            from_id: id,
-                            to_label: 'Session',
-                            to_id: sessionId,
-                        },
-                        ...(prevMessageId
-                            ? [{
-                                type: 'NEXT' as const,
-                                from_label: 'Message' as const,
-                                from_id: prevMessageId,
-                                to_label: 'Message' as const,
-                                to_id: id,
-                            }]
-                            : []),
-                    ],
-                })
-            } catch (err) {
-                // Telemetry signal: FalkorDB is falling behind (or the prevMessageId
-                // postgres lookup failed). Postgres conversations row stays
-                // authoritative either way. Runs off the request path so it never
-                // delays/fails the caller.
-                logger.warn(
-                    { err, conversationId: id, workspaceId: params.workspaceId, sessionId },
-                    'recordConversation: graph sidecar dual-write failed (postgres authoritative)',
-                )
             }
         })()
     }

@@ -43,7 +43,7 @@ function walk(dir: string, acc: string[] = []): string[] {
 const rel = (p: string) => relative(repoRoot, p).replace(/\\/g, '/')
 
 describe('Guard A — SDK purity (packages/sdk imports no Plexo Core internals)', () => {
-    const CORE_IMPORT_RE = /from\s+['"]@plexo\/(agent|db|queue|graphiti-bridge|storage)(\/[^'"]*)?['"]/
+    const CORE_IMPORT_RE = /from\s+['"]@plexo\/(agent|db|queue|storage)(\/[^'"]*)?['"]/
 
     it('no packages/sdk source file imports @plexo/* core internals', () => {
         const files = walk(resolve(repoRoot, 'packages/sdk/src'))

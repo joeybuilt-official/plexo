@@ -5,62 +5,9 @@ import { Router, type Router as RouterType } from 'express'
 import { logger } from '../logger.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
-import { graphCypher, isGraphSidecarConfigured } from '../lib/graph-sidecar.js'
 import * as conversationsRepo from '../repositories/conversations.repository.js'
 
 export const conversationsRouter: RouterType = Router()
-
-
-// ── Feature flag (Phase B2 / ADR 0021) ────────────────────────────────────────
-// While we gate on a 7-day clean parity window, the SQL path stays default.
-// FALKORDB_CONVERSATIONS=true flips reads to cypher per request.
-
-function useCypher(): boolean {
-    return process.env.FALKORDB_CONVERSATIONS === 'true' && isGraphSidecarConfigured()
-}
-
-// Header order returned by /v1/graph/cypher for `RETURN msg` etc.
-function row(headers: string[], r: unknown[], key: string): unknown {
-    const idx = headers.indexOf(key)
-    return idx === -1 ? undefined : r[idx]
-}
-
-interface FalkorNode {
-    labels?: string[]
-    properties: Record<string, unknown>
-    id?: number
-}
-
-function isFalkorNode(v: unknown): v is FalkorNode {
-    return Boolean(v) && typeof v === 'object' && 'properties' in (v as Record<string, unknown>)
-}
-
-/** Project a FalkorDB Message node back to the postgres row shape the
- *  frontend expects (snake_case keys mapped to camelCase exactly as the
- *  SQL groupBySession path does today). */
-function messageNodeToRow(n: FalkorNode, extras: Record<string, unknown> = {}): Record<string, unknown> {
-    const p = n.properties
-    return {
-        id: p.id,
-        workspaceId: p.workspace_id ?? null,
-        sessionId: p.session_id ?? p.session ?? null,
-        source: p.source,
-        message: p.message,
-        reply: p.reply ?? null,
-        errorMsg: p.error_msg ?? null,
-        status: p.status,
-        intent: p.intent ?? null,
-        taskId: p.task_id ?? null,
-        channelRef: typeof p.channel_ref === 'string' ? safeJSON(p.channel_ref) : (p.channel_ref ?? null),
-        attachments: typeof p.attachments === 'string' ? (safeJSON(p.attachments) ?? []) : (p.attachments ?? []),
-        createdAt: p.created_at,
-        ...extras,
-    }
-}
-
-function safeJSON(s: string): unknown {
-    try { return JSON.parse(s) } catch { return null }
-}
 
 
 // ── GET /api/v1/conversations/:id ─────────────────────────────────────────────
@@ -73,38 +20,6 @@ conversationsRouter.get('/:id', async (req, res) => {
         return
     }
     try {
-        if (useCypher()) {
-            // Phase O (ADR 0002 sibling / mirror of Phase H): the graph read is
-            // best-effort. A wedged/slow graphiti sidecar must never delay or fail
-            // this endpoint — on any cypher error fall through to the postgres path
-            // below (authoritative, always available). Only a *successful* cypher
-            // result (incl. an authoritative not-found) returns from inside here.
-            try {
-                // We need workspaceId to scope the cypher graph. Fetch from postgres
-                // (cheap, indexed lookup) so the cypher query knows which graph DB to
-                // target; then run cypher and trust the result.
-                const auth = await conversationsRepo.getConversationWorkspaceId(id)
-                if (!auth) {
-                    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Conversation not found' } })
-                    return
-                }
-                if (!await ensureWorkspaceAccess(req, res, auth.workspaceId)) return
-                const cy = await graphCypher({
-                    workspace_id: auth.workspaceId,
-                    cypher: 'MATCH (msg:Message {id: $id}) RETURN msg',
-                    params: { id },
-                })
-                if (!cy.rows.length || !isFalkorNode(cy.rows[0]?.[0])) {
-                    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Conversation not found' } })
-                    return
-                }
-                res.json(messageNodeToRow(cy.rows[0][0] as FalkorNode, { workspaceId: auth.workspaceId }))
-                return
-            } catch (err) {
-                logger.warn({ err, id }, 'cypher conversation read failed — falling back to postgres')
-            }
-        }
-
         const item = await conversationsRepo.getConversationById(id)
         if (!item) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Conversation not found' } })
@@ -145,27 +60,6 @@ conversationsRouter.get('/', async (req, res) => {
             return
         }
         if (sessionId) {
-            if (useCypher()) {
-                try {
-                    const cy = await graphCypher({
-                        workspace_id: workspaceId,
-                        cypher:
-                            'MATCH (msg:Message)-[:IN_SESSION]->(session:Session {id: $sid}) ' +
-                            'RETURN msg ' +
-                            'ORDER BY msg.created_at ASC ' +
-                            'LIMIT $lim',
-                        params: { sid: sessionId, lim },
-                    })
-                    const items = cy.rows
-                        .map(r => r[0])
-                        .filter(isFalkorNode)
-                        .map(n => messageNodeToRow(n, { workspaceId, sessionId }))
-                    res.json({ items, nextCursor: null, sessionId })
-                    return
-                } catch (err) {
-                    logger.warn({ err, workspaceId, sessionId }, 'cypher session read failed — falling back to postgres')
-                }
-            }
             const items = await conversationsRepo.listSessionTurns(workspaceId, sessionId, lim)
             res.json({ items, nextCursor: null, sessionId })
             return
@@ -174,63 +68,6 @@ conversationsRouter.get('/', async (req, res) => {
         // Grouped view: one row per session (the most recent turn), plus a turn count.
         // Falls back to per-row view for conversations without a sessionId.
         if (groupBySession === 'true') {
-            if (useCypher()) {
-                try {
-                    // Cypher equivalent of:
-                    //   ROW_NUMBER() OVER (PARTITION BY COALESCE(session_id,id) ORDER BY created_at DESC)
-                    //   COUNT(*) OVER (PARTITION BY COALESCE(session_id,id))
-                    // → group all Messages by their Session, pick latest, count siblings.
-                    // Cursor is interpreted as a Message id; we look up its created_at first
-                    // for parity with the SQL `< (SELECT created_at FROM conversations WHERE id = ${cursor})`.
-                    let cursorTs: string | null = null
-                    if (cursor) {
-                        const cur = await graphCypher({
-                            workspace_id: workspaceId,
-                            cypher: 'MATCH (m:Message {id: $id}) RETURN m.created_at AS created_at',
-                            params: { id: cursor },
-                        })
-                        if (cur.rows.length) {
-                            cursorTs = cur.rows[0]?.[0] as string ?? null
-                        }
-                    }
-                    const cy = await graphCypher({
-                        workspace_id: workspaceId,
-                        cypher:
-                            'MATCH (msg:Message)-[:IN_SESSION]->(session:Session) ' +
-                            (cursorTs ? 'WHERE msg.created_at < $cursor_ts ' : '') +
-                            'WITH session, collect(msg) AS msgs ' +
-                            'WITH session, msgs, ' +
-                            // ADR-0021 §74: tied created_at picks deterministically by id (lexicographic ULID),
-                            // matching SQL ROW_NUMBER tiebreaker behaviour via the conversations PK index.
-                            '     reduce(latest = msgs[0], m IN msgs | ' +
-                            '       CASE WHEN m.created_at > latest.created_at ' +
-                            '              OR (m.created_at = latest.created_at AND m.id > latest.id) ' +
-                            '            THEN m ELSE latest END) AS latest, ' +
-                            '     size(msgs) AS turn_count ' +
-                            'RETURN latest AS msg, turn_count ' +
-                            'ORDER BY latest.created_at DESC, latest.id DESC ' +
-                            'LIMIT $lim',
-                        params: { lim, ...(cursorTs ? { cursor_ts: cursorTs } : {}) },
-                    })
-                    const items = cy.rows
-                        .map(r => ({
-                            node: row(cy.header, r, 'msg'),
-                            turn_count: row(cy.header, r, 'turn_count'),
-                        }))
-                        .filter(x => isFalkorNode(x.node))
-                        .map(x => messageNodeToRow(x.node as FalkorNode, {
-                            workspaceId,
-                            turn_count: x.turn_count,
-                        }))
-                    const nextCursor = items.length === lim ? (items[items.length - 1]?.id as string ?? null) : null
-                    res.json({ items, nextCursor })
-                    return
-                } catch (err) {
-                    logger.warn({ err, workspaceId }, 'cypher grouped read failed — falling back to postgres')
-                }
-            }
-            // Use a window function to get the latest turn per session
-            // plus a count of total turns per session.
             const rawRows = await conversationsRepo.listGroupedBySession(workspaceId, cursor, lim)
             // Raw execute returns snake_case columns. Map them to camelCase to match the frontend ConversationItem type.
             const items = (rawRows as Array<Record<string, unknown>>).map((row) => ({
@@ -255,44 +92,6 @@ conversationsRouter.get('/', async (req, res) => {
         }
 
         // Default: flat list, newest first
-        if (useCypher()) {
-            try {
-                // Cursor here is interpreted as "message id whose created_at bounds the page".
-                // SQL path uses `id < ${cursor}` (ULID lexicographic ≈ time order). Cypher
-                // mirrors with `msg.created_at < $cursor_ts` for an equivalent slice.
-                let cursorTs: string | null = null
-                if (cursor) {
-                    const cur = await graphCypher({
-                        workspace_id: workspaceId,
-                        cypher: 'MATCH (m:Message {id: $id}) RETURN m.created_at AS created_at',
-                        params: { id: cursor },
-                    })
-                    if (cur.rows.length) {
-                        cursorTs = cur.rows[0]?.[0] as string ?? null
-                    }
-                }
-                const cy = await graphCypher({
-                    workspace_id: workspaceId,
-                    cypher:
-                        'MATCH (msg:Message)-[:IN_SESSION]->(s:Session) ' +
-                        (cursorTs ? 'WHERE msg.created_at < $cursor_ts ' : '') +
-                        'RETURN msg ' +
-                        'ORDER BY msg.created_at DESC ' +
-                        'LIMIT $lim',
-                    params: { lim, ...(cursorTs ? { cursor_ts: cursorTs } : {}) },
-                })
-                const items = cy.rows
-                    .map(r => r[0])
-                    .filter(isFalkorNode)
-                    .map(n => messageNodeToRow(n, { workspaceId }))
-                const nextCursor = items.length === lim ? (items[items.length - 1]?.id as string ?? null) : null
-                res.json({ items, nextCursor })
-                return
-            } catch (err) {
-                logger.warn({ err, workspaceId }, 'cypher conversations list read failed — falling back to postgres')
-            }
-        }
-
         const items = await conversationsRepo.listFlat(workspaceId, cursor, lim)
 
         const nextCursor = items.length === lim ? (items[items.length - 1]?.id ?? null) : null

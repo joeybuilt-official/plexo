@@ -208,14 +208,14 @@ now go through postgres only.
    - `GRAPHITI_LLM_MODEL`, `GRAPHITI_LLM_SMALL_MODEL`, `GRAPHITI_EMBEDDING_MODEL`
    - `GRAPHITI_SCHEMA_STRICT`
    - `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` (if present)
-3. `PLEXO_GRAPHITI_SIDECAR_URL` and `PLEXO_SERVICE_KEY` are still read by
-   the retained non-memory graphiti consumers: the workspace permission
-   mirror (`lib/permission-graph.ts`), the conversation cypher helper
-   (`lib/graph-sidecar.ts`), the dual-write confidence-lifecycle cron, the
-   sprint planner's cypher waves, and the ops scripts. Each of these
-   no-ops gracefully when the env is unset, so it is safe to leave them
-   unset. Set them only if you still operate a graphiti sidecar for one of
-   those flows.
+3. All graphiti-bridge consumers have now been removed. Drop
+   `PLEXO_GRAPHITI_SIDECAR_URL` from your environment as well. The
+   workspace permission mirror, the conversation cypher helper, the
+   confidence-lifecycle cypher dual-write, the sprint planner's cypher
+   waves, the SDK-facing `/api/v1/graph/*` routes, and the ops/admin
+   scripts that wrapped `packages/graphiti-bridge` are all deleted in this
+   release. `PLEXO_SERVICE_KEY` stays in use by other sidecars (gmessages,
+   etc.); leave it set.
 4. Recall quality: this change has **no effect on stored memory data**.
    Every postgres-side write path (`memory_entries`, the HNSW vector
    index, the keyword/ILIKE fallback) was already the canonical store per
