@@ -33,37 +33,28 @@ import { emitMemoryWriteBackend } from '../analytics/memory-events.js'
 
 const logger = pino({ name: 'memory-write-backend' })
 
-export type WriteBackend = 'graphiti'
+export type WriteBackend = 'postgres' | 'dual' | 'graphiti'
 
 let _client: GraphitiClient | null = null
 let _clientWarned = false
 
-/**
- * Phase 5 closure (2026-05-28): single-write path. `postgres` and `dual`
- * modes were retired with the operator-authorized rollout — Graphiti on
- * FalkorDB is the only supported memory write backend. Setting
- * MEMORY_WRITE_BACKEND to anything else hard-fails in production and warns
- * (then forces 'graphiti') in dev/test.
- */
+const VALID_BACKENDS = new Set<string>(['postgres', 'dual', 'graphiti'])
+
 export function getWriteBackend(): WriteBackend {
-    const raw = (process.env.MEMORY_WRITE_BACKEND ?? 'graphiti').toLowerCase()
-    if (raw !== 'graphiti') {
-        if (process.env.NODE_ENV === 'production') {
-            throw new Error(
-                `Phase 5 closure: MEMORY_WRITE_BACKEND=${raw} is no longer supported. Set MEMORY_WRITE_BACKEND=graphiti or unset.`,
-            )
-        }
-        logger.warn({ raw }, 'Phase 5 closure: only graphiti backend is supported; forcing graphiti')
+    const raw = (process.env.MEMORY_WRITE_BACKEND ?? 'postgres').toLowerCase()
+    if (!VALID_BACKENDS.has(raw)) {
+        logger.warn({ raw }, 'MEMORY_WRITE_BACKEND unrecognised; falling back to postgres')
+        return 'postgres'
     }
-    return 'graphiti'
+    return raw as WriteBackend
 }
 
-export function shouldWritePostgres(_backend: WriteBackend = getWriteBackend()): boolean {
-    return false
+export function shouldWritePostgres(backend: WriteBackend = getWriteBackend()): boolean {
+    return backend === 'postgres' || backend === 'dual'
 }
 
-export function shouldMirrorGraphiti(_backend: WriteBackend = getWriteBackend()): boolean {
-    return true
+export function shouldMirrorGraphiti(backend: WriteBackend = getWriteBackend()): boolean {
+    return backend === 'graphiti' || backend === 'dual'
 }
 
 function getClient(): GraphitiClient | null {

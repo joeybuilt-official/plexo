@@ -180,7 +180,6 @@ describe('GET /sources', () => {
         expect(ids).toContain('task_steps')
         expect(ids).toContain('memory_entries')
         expect(ids).toContain('behavior_snapshots')
-        expect(ids).toContain('scl_concept_graphs')
     })
 
     it('handles DB errors gracefully', async () => {
@@ -321,7 +320,7 @@ describe('POST /export', () => {
         expect(String(lastSql)).toContain('50000')
     })
 
-    it('exports all 7 sources at once', async () => {
+    it('exports all sources at once', async () => {
         const res = await fetch(`${base}/export`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -332,7 +331,6 @@ describe('POST /export', () => {
                     'task_steps',
                     'memory_entries',
                     'behavior_snapshots',
-                    'scl_concept_graphs',
                     'golden_records',
                 ],
                 format: 'jsonl_chat',

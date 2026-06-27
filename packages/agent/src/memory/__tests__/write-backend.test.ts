@@ -26,42 +26,45 @@ const {
 
 describe('getWriteBackend', () => {
     const orig = process.env.MEMORY_WRITE_BACKEND
-    const origNodeEnv = process.env.NODE_ENV
     afterEach(() => {
         if (orig === undefined) delete process.env.MEMORY_WRITE_BACKEND
         else process.env.MEMORY_WRITE_BACKEND = orig
-        if (origNodeEnv === undefined) delete process.env.NODE_ENV
-        else process.env.NODE_ENV = origNodeEnv
     })
 
-    it('defaults to graphiti when env unset (Phase 5 closure)', () => {
+    it('defaults to postgres when env unset', () => {
         delete process.env.MEMORY_WRITE_BACKEND
-        expect(getWriteBackend()).toBe('graphiti')
+        expect(getWriteBackend()).toBe('postgres')
+    })
+    it('honors postgres', () => {
+        process.env.MEMORY_WRITE_BACKEND = 'postgres'
+        expect(getWriteBackend()).toBe('postgres')
+    })
+    it('honors dual', () => {
+        process.env.MEMORY_WRITE_BACKEND = 'dual'
+        expect(getWriteBackend()).toBe('dual')
     })
     it('honors graphiti', () => {
         process.env.MEMORY_WRITE_BACKEND = 'graphiti'
         expect(getWriteBackend()).toBe('graphiti')
     })
-    it('warns + forces graphiti when env requests dual or postgres in dev', () => {
-        delete process.env.NODE_ENV
-        process.env.MEMORY_WRITE_BACKEND = 'dual'
-        expect(getWriteBackend()).toBe('graphiti')
-        process.env.MEMORY_WRITE_BACKEND = 'postgres'
-        expect(getWriteBackend()).toBe('graphiti')
-    })
-    it('throws when env requests dual or postgres in production', () => {
-        process.env.NODE_ENV = 'production'
-        process.env.MEMORY_WRITE_BACKEND = 'postgres'
-        expect(() => getWriteBackend()).toThrowError(/Phase 5 closure/)
+    it('warns + falls back to postgres on invalid value', () => {
+        process.env.MEMORY_WRITE_BACKEND = 'badvalue'
+        expect(getWriteBackend()).toBe('postgres')
     })
 })
 
-describe('shouldWritePostgres / shouldMirrorGraphiti (Phase 5 closure constants)', () => {
-    it('shouldWritePostgres is false', () => {
-        expect(shouldWritePostgres()).toBe(false)
+describe('shouldWritePostgres / shouldMirrorGraphiti', () => {
+    it('postgres → write true, mirror false', () => {
+        expect(shouldWritePostgres('postgres')).toBe(true)
+        expect(shouldMirrorGraphiti('postgres')).toBe(false)
     })
-    it('shouldMirrorGraphiti is true', () => {
-        expect(shouldMirrorGraphiti()).toBe(true)
+    it('graphiti → write false, mirror true', () => {
+        expect(shouldWritePostgres('graphiti')).toBe(false)
+        expect(shouldMirrorGraphiti('graphiti')).toBe(true)
+    })
+    it('dual → both true', () => {
+        expect(shouldWritePostgres('dual')).toBe(true)
+        expect(shouldMirrorGraphiti('dual')).toBe(true)
     })
 })
 

@@ -80,15 +80,6 @@ const DATA_SOURCES: DataSource[] = [
         sampleSql: `SELECT id, workspace_id, compiled_prompt, triggered_by, trigger_resource_id, created_at FROM behavior_snapshots ORDER BY created_at DESC LIMIT $1`,
         format: 'behavior',
     },
-    {
-        id: 'scl_concept_graphs',
-        label: 'SCL Concept Graphs',
-        description: 'Domain-region concept maps extracted from task completions',
-        table: 'scl_concept_graphs',
-        countSql: `SELECT count(*) AS count FROM scl_concept_graphs`,
-        sampleSql: `SELECT id, domain_region, graph_json, created_at FROM scl_concept_graphs ORDER BY created_at DESC LIMIT $1`,
-        format: 'knowledge',
-    },
 ]
 
 // ── GET /sources ────────────────────────────────────────────────────────
@@ -300,18 +291,6 @@ function toChatFormat(
                     { role: 'system', content: prompt },
                     { role: 'user', content: 'What are your current behavioral rules?' },
                     { role: 'assistant', content: `My behavior is configured with the following compiled prompt:\n${prompt}` },
-                ],
-            }
-        }
-
-        case 'scl_concept_graphs': {
-            const graph = row.graph_json as unknown
-            if (!graph) return null
-            return {
-                messages: [
-                    { role: 'system', content: 'You are an SCL knowledge extractor for Plexo.' },
-                    { role: 'user', content: `Extract the concept graph for domain region: ${row.domain_region ?? 'unknown'}` },
-                    { role: 'assistant', content: JSON.stringify(graph) },
                 ],
             }
         }

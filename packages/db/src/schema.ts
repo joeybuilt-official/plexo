@@ -2095,33 +2095,9 @@ export const promptRevisions = pgTable('prompt_revisions', {
 export type PromptRevision = typeof promptRevisions.$inferSelect
 export type NewPromptRevision = typeof promptRevisions.$inferInsert
 
-// ── Synthesis tables (memory_themes, memory_knn_edges, memory_theme_runs,
-//    synthesis_suggestions, memory_theme_history, scl_concept_graphs)
-//    were removed in 2026-05-20 alongside the SCL teardown. Graphiti is the
-//    canonical structure layer. The Drizzle drop migration is 0118 in
-//    packages/db/drizzle/.
-
-// ── synthesis_suggestion_state (Phase 8 v2) ──────────────────────────
-// Per-suggestion inbox state for the Graphiti-derived synthesis engine
-// (routes/synthesis.ts). Suggestions themselves are computed on demand
-// from the themes-forest and are NOT stored; only the user's action on a
-// suggestion (dismiss / snooze / accept) is persisted here, keyed by the
-// deterministic suggestion id, so dismissed/snoozed items don't re-surface
-// in the pending inbox across reloads. Mute is kind-level (client keeps a
-// localStorage copy as canonical).
-export const synthesisSuggestionState = pgTable('synthesis_suggestion_state', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    workspaceId: uuid('workspace_id').notNull(),
-    suggestionId: text('suggestion_id').notNull(),
-    kind: text('kind').notNull(),
-    status: text('status').notNull(), // 'dismissed' | 'snoozed' | 'accepted'
-    snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table: any) => [
-    uniqueIndex('synthesis_state_ws_sid_uidx').on(table.workspaceId, table.suggestionId),
-    index('synthesis_state_ws_status_idx').on(table.workspaceId, table.status),
-])
-
-export type SynthesisSuggestionState = typeof synthesisSuggestionState.$inferSelect
-export type NewSynthesisSuggestionState = typeof synthesisSuggestionState.$inferInsert
+// ── Synthesis + SCL tables removed (themes/synthesis zombie-code teardown).
+//    memory_themes, memory_knn_edges, memory_theme_runs, synthesis_suggestions,
+//    memory_theme_history, scl_concept_graphs were dropped by 0118 (2026-05-20).
+//    synthesis_suggestion_state (created by 0132) lost its only consumer when
+//    routes/synthesis.ts + lib/synthesis-state.ts were deleted; the Drizzle def
+//    is gone too. The prod table is now orphaned (no drop migration here).

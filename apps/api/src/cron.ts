@@ -13,7 +13,6 @@ import { runRSIMonitor } from '@plexo/agent/introspection/rsi-monitor'
 import { emitRsiProposalCreated } from './analytics/events.js'
 import { runWeeklyDigest } from './analytics/digest-worker.js'
 import { deleteByPrefix } from '@plexo/storage'
-import { runSynthesisNightly } from './cron/synthesis-nightly.js'
 import { flushRetrievalCounts, decayConfidence } from './cron/confidence-lifecycle.js'
 import { pollAllGmailChannels } from './lib/gmail-poll.js'
 import { runAttachmentScanTick } from './lib/attachment-scan-worker.js'
@@ -24,7 +23,6 @@ import { flushOpsAlerts, evaluateSloBreaches, sloThresholdsFromEnv, recordSloBre
 import { INTERNAL_JOB_NAMES } from './cron-internal-jobs.js'
 
 export { runRSIMonitor }
-export { runSynthesisNightly }
 
 /** Update last_run_at + last_run_status for internal cron jobs so the
  *  dashboard doesn't show them as stale / never-run. */
@@ -349,10 +347,6 @@ const INTERNAL_JOBS: Array<{
         intervalMs: 7 * 24 * 60 * 60 * 1000,
         handler: runDataRetention,
     },
-    // Synthesis nightly DISABLED per ADR 0017 — operated on memory_entries
-    // which is being deprecated; clustering/SCL paths replaced by Phase A2
-    // (FalkorDB cypher). Re-enable by reverting the cron-removal commit if
-    // you need the legacy clustering refresh during the dual-store window.
     {
         // Phase 7 — tier cooldown: hot→active (7d stale), active→cold (90d stale).
         name: '__internal_flush_retrieval_counts',
