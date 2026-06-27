@@ -228,22 +228,6 @@ export async function applyRevision(revisionId: string, reviewedBy: string): Pro
 
     logger.info({ revisionId, routineId: revision.routineId, version: revision.version }, 'distill-retro: revision applied')
 
-    // Async lesson write — fire and forget; approval path must not await Graphiti
-    const { inngest } = await import('@plexo/queue/inngest')
-    void inngest.send({
-        name: 'lessons.graphiti.write',
-        data: {
-            workspaceId:      routine.workspaceId,
-            routineId:        revision.routineId,
-            revisionId,
-            version:          revision.version,
-            content:          revision.proposedDiff,
-            rationale:        revision.rationale,
-            sourceOutcomeIds: revision.sourceOutcomeIds ?? [],
-            reviewedBy,
-        },
-    })
-
     return { ok: true }
 }
 
@@ -254,13 +238,10 @@ export async function rejectRevision(revisionId: string, reviewedBy: string): Pr
     const { db, promptRevisions, cronJobs } = await import('@plexo/db')
     const { eq } = await import('drizzle-orm')
 
-    const [revision] = await db.select({ status: promptRevisions.status, routineId: promptRevisions.routineId })
+    const [revision] = await db.select({ status: promptRevisions.status })
         .from(promptRevisions).where(eq(promptRevisions.id, revisionId)).limit(1)
     if (!revision) return { ok: false, error: 'revision_not_found' }
     if (revision.status !== 'pending') return { ok: false, error: `revision_not_pending (${revision.status})` }
-
-    const [routine] = await db.select({ workspaceId: cronJobs.workspaceId })
-        .from(cronJobs).where(eq(cronJobs.id, revision.routineId)).limit(1)
 
     await db.update(promptRevisions).set({
         status:     'rejected',
@@ -269,15 +250,6 @@ export async function rejectRevision(revisionId: string, reviewedBy: string): Pr
     }).where(eq(promptRevisions.id, revisionId))
 
     logger.info({ revisionId }, 'distill-retro: revision rejected')
-
-    // Async lesson invalidation — fire and forget
-    if (routine?.workspaceId) {
-        const { inngest } = await import('@plexo/queue/inngest')
-        void inngest.send({
-            name: 'lessons.graphiti.invalidate',
-            data: { workspaceId: routine.workspaceId, revisionId, reviewedBy },
-        })
-    }
 
     return { ok: true }
 }

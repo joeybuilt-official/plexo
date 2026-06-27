@@ -377,11 +377,6 @@ export function recordModelRouted(m: { taskType: string; fallback: boolean; degr
     })
 }
 
-export function recordMemoryWrite(m: { graphitiOk: boolean; extractedFacts: number | null }): void {
-    const result = !m.graphitiOk ? 'failed' : (m.extractedFacts ?? 0) > 0 ? 'extracted' : 'empty'
-    incrementCounter('plexo_memory_write_total', { result })
-}
-
 export function recordModelRepair(m: { provider: string; model: string; taskType: string }): void {
     incrementCounter('plexo_model_repair_total', { provider: m.provider, model: m.model, task_type: m.taskType })
 }

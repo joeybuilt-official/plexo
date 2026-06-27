@@ -602,37 +602,10 @@ export async function chatWithAI(
             // Non-fatal — fall back to the existing prompt if the helper breaks.
         }
 
-        // Proactive memory recall — inject relevant stored facts into the prompt
-        // so personal questions ("where do I live?", "what's my role?") get answered
-        // without the model needing to call memory_query explicitly.
-        const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')?.content ?? ''
-        const msgText = typeof lastUserMsg === 'string' ? lastUserMsg : ''
-        if (msgText.length >= 10) {
-            // Hard budget — same head-of-line block as the webchat path. Graphiti
-            // is best-effort context; never stall the channel reply on it.
-            const MEMORY_RECALL_BUDGET_MS = Number(process.env.PLEXO_MEMORY_RECALL_BUDGET_MS) || 1500
-            try {
-                const { readFromGraphiti } = await import('@plexo/agent/memory/read-backend')
-                const hits = await Promise.race([
-                    readFromGraphiti({ workspaceId, queryText: msgText, limit: 5 }),
-                    new Promise<null>(resolve => setTimeout(() => resolve(null), MEMORY_RECALL_BUDGET_MS)),
-                ])
-                if (hits && hits.length > 0) {
-                    const memBlock = hits.map(h => `- ${h.shorthand || h.content.slice(0, 200)}`).join('\n')
-                    finalSystem += `\n\n=== RELEVANT MEMORY ===\n${memBlock}\n=== END MEMORY ===`
-                    logger.info({ workspaceId, hits: hits.length, query: msgText.slice(0, 60) }, 'channel-ai: injected proactive memory context')
-                    recordMemoryRecall('hit')
-                } else if (hits === null) {
-                    logger.debug({ workspaceId, budgetMs: MEMORY_RECALL_BUDGET_MS }, 'channel-ai: memory recall over budget — proceeding without')
-                    recordMemoryRecall('budget_exceeded')
-                } else {
-                    recordMemoryRecall('miss')
-                }
-            } catch (err) {
-                logger.debug({ err, workspaceId }, 'channel-ai: proactive memory search failed')
-                recordMemoryRecall('error')
-            }
-        }
+        // Proactive memory recall removed 2026-06-27 — graphiti backend retired.
+        // `msgText` is still used downstream for the conversation-quality flag.
+        const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.content ?? ""
+        const msgText = typeof lastUserMsg === "string" ? lastUserMsg : ""
 
 
         // Vision gate: resolve the model to check vision support before building messages

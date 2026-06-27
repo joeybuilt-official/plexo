@@ -332,70 +332,6 @@ services:
     mem_limit: 512m
     memswap_limit: 768m
 
-  # ── FalkorDB (ADR 0015) ──────────────────────────────────
-  # Multi-tenant graph backend for the graphiti sidecar. One server,
-  # one Cypher graph per workspace. Replaces Kuzu (single-instance
-  # filesystem-locked binding). SSPL license is acceptable here per
-  # ADR 0010 §Pre-mortem: server-side only, never shipped.
-  #
-  # Persistence (ADR 0030):
-  #   --save "" clears any image-baked defaults; then three explicit
-  #   tiers ensure BGSAVE fires on a predictable cadence regardless of
-  #   write volume:
-  #     3600 1      → ≥1 write in the last hour          (low-traffic safety)
-  #     300 100     → ≥100 writes in 5 min               (normal traffic)
-  #     60 10000    → ≥10000 writes in 60s               (burst)
-  #   The previous policy ("60 1000" alone) silently disabled hourly
-  #   snapshots: at plexo's per-workspace-locked write rate, 1000 writes
-  #   in 60s never happened, so LASTSAVE drifted past the 25h alert
-  #   threshold. The ops/falkordb-backup.cron host cron (operator-installed,
-  #   non-guaranteed) still owns daily off-host rotation; these in-process
-  #   save points are the always-on safety net.
-  falkordb:
-    profiles: ["graphiti"]
-    image: falkordb/falkordb:v4.18.6
-    restart: unless-stopped
-    logging: *default-logging
-    command:
-      - "--save"
-      - ""
-      - "--save"
-      - "3600 1"
-      - "--save"
-      - "300 100"
-      - "--save"
-      - "60 10000"
-      - "--appendonly"
-      - "yes"
-    volumes:
-      - falkordb_data:/data
-    # No host-port exposure; sidecar reaches it on the compose-internal
-    # network only.
-    mem_limit: 4g
-    memswap_limit: 4g
-
-  # ── Graphiti sidecar (ADR 0011, ADR 0015) ────────────────
-  # Profile-gated; brings up FalkorDB alongside.
-  # Start with: `docker compose --profile graphiti up -d graphiti-sidecar`
-  graphiti-sidecar:
-    profiles: ["graphiti"]
-    depends_on:
-      - falkordb
-    build:
-      context: .
-      dockerfile: services/graphiti-sidecar/Dockerfile
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY}
-      FALKORDB_HOST: falkordb
-      FALKORDB_PORT: "6379"
-      PLEXO_INFERENCE_BASE: ${PLEXO_INFERENCE_BASE:-http://api:3001/api/inference}
-    ports:
-      - "127.0.0.1:8090:8080"
-    mem_limit: 1g
-    memswap_limit: 1500m
-
   # ── Web Dashboard ────────────────────────────────────────
 
   web:
@@ -552,6 +488,4 @@ volumes:
   caddy_config:
   generated_skills:
   postgres-backups:
-  graphiti_data:  # ADR 0015: orphaned by FalkorDB switch; retain 30 days then drop
-  falkordb_data:
   vision-models:  # ONNX weight cache for the @plexo/vision service

@@ -171,3 +171,57 @@ re-embed and no index rebuild. The collapse is dim-safe by construction.
 - **SDK consumers of `@joeybuilt/plexo-sdk`.** The SDK surface did not
   change; embedding-router exports `resolveEmbeddingAdapterAsync` still
   resolve identically (a Gateway adapter at 384 dims).
+
+## 2026-06-27 — BREAKING: Graphiti memory backend retired (postgres-only)
+
+The Graphiti-as-memory-backend code path was retired. Memory writes and reads
+now go through postgres only.
+
+### What changed
+
+- The `MEMORY_WRITE_BACKEND` and `MEMORY_READ_BACKEND` environment variables
+  are no longer read. The selector functions `getWriteBackend()` /
+  `shouldWritePostgres()` are kept as a single-mode compatibility shim
+  (always postgres).
+- The `mirrorToGraphiti`, `shouldMirrorGraphiti`, `readFromGraphiti`, and
+  `invalidateGraphitiLesson` exports are gone. So is the entire
+  `packages/agent/src/memory/read-backend.ts` module and the two
+  `packages/agent/src/memory/inngest/lessons-{write,invalidate}-fn.ts`
+  Inngest functions.
+- The `services/graphiti-sidecar/` build context, the `graphiti-sidecar`
+  and `falkordb` compose services, the `profiles: ["graphiti"]` gate, and
+  the `graphiti_data` + `falkordb_data` volumes were removed from the repo
+  compose files.
+- The `plexo_memory_write_total` Prometheus counter and the
+  `setMemoryWriteMetricsHook` wiring were removed.
+
+### Operator checklist
+
+1. Stop and remove the `plexo-graphiti-sidecar` (and the FalkorDB / Neo4j
+   data container if you ran one). They are no longer built by
+   `docker compose build` and the container will not be re-created.
+2. Remove these variables from your prod `.env` / compose env (no-op since
+   nothing reads them anymore):
+   - `MEMORY_WRITE_BACKEND`
+   - `MEMORY_READ_BACKEND`
+   - `GRAPHITI_LESSONS_ENABLED`
+   - `GRAPHITI_LLM_MODEL`, `GRAPHITI_LLM_SMALL_MODEL`, `GRAPHITI_EMBEDDING_MODEL`
+   - `GRAPHITI_SCHEMA_STRICT`
+   - `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` (if present)
+3. `PLEXO_GRAPHITI_SIDECAR_URL` and `PLEXO_SERVICE_KEY` are still read by
+   the retained non-memory graphiti consumers: the workspace permission
+   mirror (`lib/permission-graph.ts`), the conversation cypher helper
+   (`lib/graph-sidecar.ts`), the dual-write confidence-lifecycle cron, the
+   sprint planner's cypher waves, and the ops scripts. Each of these
+   no-ops gracefully when the env is unset, so it is safe to leave them
+   unset. Set them only if you still operate a graphiti sidecar for one of
+   those flows.
+4. Recall quality: this change has **no effect on stored memory data**.
+   Every postgres-side write path (`memory_entries`, the HNSW vector
+   index, the keyword/ILIKE fallback) was already the canonical store per
+   ADR 0044; this PR removes the dead mirror branches. The chat,
+   channel-ai, and planner proactive-recall blocks that previously hit
+   graphiti were degrading to "no memory context" when the sidecar was
+   absent, so removing them entirely is functionally equivalent to the
+   prior best-effort path.
+

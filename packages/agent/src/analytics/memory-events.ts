@@ -120,32 +120,6 @@ export function emitMemoryConfidenceDecay(opts: {
     })
 }
 
-/**
- * Phase 6 follow-up — plan-time memory injection.
- *
- * Emits when `buildMemoryBlock` injects facts into the planner system prompt.
- * Fires both on success (factsInjected > 0) and on the empty/error paths
- * (factsInjected = 0, retrievalFailed = true|false) so downstream analytics
- * can correlate "plans informed by memory" with plan quality / outcome.
- *
- * Distinct from `memory.retrieval`, which fires on every queryMemory call.
- * This event is planner-specific and tells you whether a plan actually got
- * past-context injected.
- */
-export function emitMemoryInjection(opts: {
-    workspaceId: string
-    userId?: string
-    factsInjected: number
-    retrievalFailed: boolean
-}): void {
-    void emit('memory.plan-injection', {
-        workspace_id: opts.workspaceId,
-        user_id: opts.userId ?? null,
-        facts_injected: opts.factsInjected,
-        retrieval_failed: opts.retrievalFailed,
-    })
-}
-
 export function emitMemoryUserWrite(opts: {
     workspaceId: string
     ruleKey: string
@@ -160,54 +134,3 @@ export function emitMemoryUserWrite(opts: {
     })
 }
 
-// QA-opt ADR 0044: lets apps/api aggregate memory-write outcomes into a
-// Prometheus counter without packages/agent importing the API metrics lib (same
-// inversion as the LLM-latency + router hooks). Wired at API boot.
-let _onMemoryWrite: ((m: { graphitiOk: boolean; extractedFacts: number | null }) => void) | null = null
-export function setMemoryWriteMetricsHook(fn: (m: { graphitiOk: boolean; extractedFacts: number | null }) => void): void {
-    _onMemoryWrite = fn
-}
-
-/**
- * Phase 5 — every memory write emits one of these so the dashboards can
- * compute `graphiti.write.success.rate` over an arbitrary window.
- */
-export function emitMemoryWriteBackend(opts: {
-    workspaceId: string
-    mode: 'graphiti' | 'dual' | 'postgres'
-    graphitiOk: boolean
-    latencyMs: number
-    episodeId?: string
-    extractedFacts?: number
-    reason?: string
-}): void {
-    void emit('memory.write-backend', {
-        workspace_id: opts.workspaceId,
-        mode: opts.mode,
-        graphiti_ok: opts.graphitiOk,
-        latency_ms: opts.latencyMs,
-        episode_id: opts.episodeId ?? null,
-        extracted_facts: opts.extractedFacts ?? null,
-        reason: opts.reason ?? null,
-    })
-    // Graphiti is the canonical recall store (ADR 0044). The real silent-failure
-    // mode is an episode that writes OK but extracts 0 facts → nothing recallable.
-    try { _onMemoryWrite?.({ graphitiOk: opts.graphitiOk, extractedFacts: opts.extractedFacts ?? null }) } catch { /* metrics never break writes */ }
-}
-
-/**
- * Phase 5 — divergence-detector output. Emitted from a periodic sampler
- * (operator-triggered today; cron-wired post-Phase-9).
- */
-export function emitMemoryDivergence(opts: {
-    workspaceId: string
-    sampled: number
-    missingInGraphiti: number
-}): void {
-    void emit('memory.divergence', {
-        workspace_id: opts.workspaceId,
-        sampled: opts.sampled,
-        missing_in_graphiti: opts.missingInGraphiti,
-        missing_pct: opts.sampled === 0 ? 0 : opts.missingInGraphiti / opts.sampled,
-    })
-}

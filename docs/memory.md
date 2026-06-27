@@ -1,56 +1,38 @@
 # Workspace Memory and SCL
 
-Plexo maintains workspace memory through two systems: a graph-shaped episodic memory store (Graphiti on Kuzu) and SCL (Structured Context Language), a structural compression system that builds a navigable concept map from task history.
+Plexo maintains workspace memory in two systems: a postgres-backed episodic memory store (`memory_entries`, pgvector) and SCL (Structured Context Language), a structural compression system that builds a navigable concept map from task history.
 
-## Graphiti memory pipeline
+## Postgres memory pipeline
 
-As of the 2026-05-12 21:40:40 UTC cutover, workspace memory writes and reads flow through Graphiti — a temporally-aware knowledge-graph engine — running in a Python sidecar with a per-workspace Kuzu graph backend.
+As of 2026-06-27, workspace memory writes and reads land exclusively on `memory_entries` (postgres + pgvector HNSW). The earlier Graphiti memory mirror was retired in the same change — see `CHANGELOG.md` and `MIGRATING.md` for the operator checklist.
 
-See:
-- [ADR 0010 — Graphiti adoption](../adr/0010-graphiti-adoption.md) (why Graphiti)
-- [ADR 0011 — Python sidecar](../adr/0011-graphiti-python-sidecar.md) (sidecar architecture)
-- [ADR 0013 — Cutover execution](../adr/0013-graphiti-cutover-execution.md) (live cutover)
-- [ADR 0014 — Post-cutover cleanup re-split](../adr/0014-post-cutover-cleanup-resplit.md) (Phase F.1 / F.2 split)
+Historical ADRs (memory pipeline retired 2026-06-27):
+- [ADR 0010 — Graphiti adoption](../adr/0010-graphiti-adoption.md)
+- [ADR 0011 — Python sidecar](../adr/0011-graphiti-python-sidecar.md)
+- [ADR 0013 — Cutover execution](../adr/0013-graphiti-cutover-execution.md)
+- [ADR 0014 — Post-cutover cleanup re-split](../adr/0014-post-cutover-cleanup-resplit.md)
+
+Live decision: [ADR 0044 — Canonical recall vector store](../adr/0044-canonical-recall-vector-store.md) (postgres pgvector is the canonical recall store).
 
 ### Writes
 
-All writes go through the env-gated gateway at `packages/agent/src/memory/write-backend.ts`. Mode is selected via `MEMORY_WRITE_BACKEND`:
+All writes flow through `packages/agent/src/memory/write-backend.ts`. The `WriteBackend` type is the literal `'postgres'`; `getWriteBackend()` is a constant. The `MEMORY_WRITE_BACKEND` env var is no longer honored — leaving it set is harmless.
 
-| Mode | Behavior |
-|------|----------|
-| `postgres` | Legacy path; inserts into `memory_entries` only |
-| `dual` | Writes to both Graphiti and `memory_entries`; postgres is authoritative |
-| `graphiti` | Graphiti-only; postgres insert skipped |
-
-**Current prod value: `MEMORY_WRITE_BACKEND=graphiti`** (since 2026-05-12 21:40:40 UTC).
+Writes insert into `memory_entries` (workspace-scoped, embedded via Gateway 384-d ONNX, pgvector column `embedding vector(384)` with HNSW index).
 
 ### Reads
 
-Reads route through `packages/agent/src/memory/read-backend.ts`, gated by `MEMORY_READ_BACKEND` (`graphiti` or `postgres`). The Graphiti path is exposed as:
+Reads flow through `packages/agent/src/memory/read-backend.ts` and resolve via the postgres HNSW knn query in `packages/agent/src/memory/store.ts` (`searchMemory`). The `MEMORY_READ_BACKEND` env var is no longer honored.
 
-```ts
-readFromGraphiti(opts: GraphitiSearchOpts): Promise<MemorySearchResult[] | null>
-```
+### Bridge (non-memory consumers retained)
 
-Results are mapped back into the existing `MemorySearchResult` shape so callers (planner, channel-ai, chat route, agent executor) do not change.
+`packages/graphiti-bridge` is retained — eight non-memory call sites still use the bridge (workspace permission mirror, conversation cypher, planner cypher waves, ops scripts, the architecture-boundary regex, the `docker/Dockerfile.api` bridge stages, and the integration test). All of these silently no-op when `PLEXO_GRAPHITI_SIDECAR_URL` / `PLEXO_SERVICE_KEY` are unset, so operators can decommission the sidecar without touching code. See:
 
-### Bridge layer
+- `apps/api/src/lib/permission-graph.ts` (ADR 0022 — workspace permission graph)
+- `apps/api/src/lib/graph-sidecar.ts` (conversation cypher)
+- `packages/agent/src/sprint/cypher-waves.ts` (ADR 0020 — task-dag cypher)
 
-Both backends use `@plexo/graphiti-bridge` (`packages/graphiti-bridge/src/index.ts`), which wraps HMAC-signed HTTP calls to the sidecar. The bridge is constructed lazily; missing `PLEXO_GRAPHITI_SIDECAR_URL` / `PLEXO_SERVICE_KEY` degrades to postgres-only with a one-time warning.
-
-### Sidecar
-
-`services/graphiti-sidecar/main.py` runs FastAPI + `graphiti-core` 0.29 with the Kuzu backend. The sidecar owns episode ingestion, entity extraction, edge construction, and temporal search.
-
-### Per-workspace isolation
-
-Each workspace gets its own Kuzu graph at `/data/graphiti/<workspace-id>/`. No cross-workspace edges; queries are scoped by graph directory at the sidecar boundary.
-
-### Legacy `memory_entries` (in transition)
-
-The `memory_entries` Postgres table still exists. Phase F.1 (ADR 0014) migrated the planner's primary call site to the Graphiti bridge and removed dead clustering code, but **40+ peripheral call sites** still touch `memory_entries` directly via Drizzle or raw SQL — including divergence, suggest, knn, consolidation, conversation-bridge, several API routes, and the synthesis-nightly / confidence-lifecycle crons.
-
-Phase F.2 drops the table after **30 consecutive days of zero new writes** (no `created_at > now() - 30d` rows). Storage cost in the meantime is ~57 MB — negligible. Stale-read risk on the legacy paths is acknowledged and accepted during the observation window.
+These are out of scope for the memory pipeline; they are listed here only so future readers don't mistake the retained bridge for live memory wiring.
 
 ## SCL: Structured Context Language
 

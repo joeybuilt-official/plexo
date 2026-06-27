@@ -40,12 +40,8 @@ vi.mock('../../providers/registry.js', () => ({
 // Phase 5 closure: shouldWritePostgres is always false in production.
 // Force postgres path so these tests exercise the insert logic.
 vi.mock('../write-backend.js', () => ({
-    getWriteBackend: () => 'graphiti',
+    getWriteBackend: () => 'postgres',
     shouldWritePostgres: () => true,
-    shouldMirrorGraphiti: () => false,
-    mirrorToGraphiti: vi.fn(async () => ({ ok: true, episodeId: null, extractedFactsCount: 0, extractedNodesCount: 0, latencyMs: 0 })),
-    resetWriteBackendForTest: vi.fn(),
-    setWriteBackendClientForTest: vi.fn(),
 }))
 
 import { resolveConflict, writeFact } from '../write.js'

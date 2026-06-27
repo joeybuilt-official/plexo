@@ -115,9 +115,6 @@ export async function extractTurn(params: {
             return
         }
 
-        const { getWriteBackend, shouldWritePostgres, shouldMirrorGraphiti, mirrorToGraphiti } = await import('./write-backend.js')
-        const backend = getWriteBackend()
-
         let factsWritten = 0
         for (const rawFact of parsed.facts.slice(0, 3)) {
             // ADR 0004: length/range limits live here (not in the strict schema)
@@ -134,67 +131,39 @@ export async function extractTurn(params: {
             const content = `${fact.subject} ${fact.predicate} ${fact.object}`
             const id = crypto.randomUUID()
 
-            if (shouldWritePostgres(backend)) {
-                await db.insert(memoryEntries).values({
-                    id,
-                    workspaceId,
-                    type: 'pattern',
-                    content,
-                    factType: fact.factType,
-                    subject: fact.subject,
-                    predicate: fact.predicate,
-                    object: fact.object,
-                    domain: fact.domain ?? null,
-                    sourceText: userMessage.slice(0, 500),
-                    source,
-                    scopeLevel: 'workspace',
-                    confidence: fact.confidence,
-                    metadata: { session_id: sessionId, extracted_at: new Date().toISOString() },
-                    namespace: 'default',
-                    tier: 'active',
-                })
+            await db.insert(memoryEntries).values({
+                id,
+                workspaceId,
+                type: 'pattern',
+                content,
+                factType: fact.factType,
+                subject: fact.subject,
+                predicate: fact.predicate,
+                object: fact.object,
+                domain: fact.domain ?? null,
+                sourceText: userMessage.slice(0, 500),
+                source,
+                scopeLevel: 'workspace',
+                confidence: fact.confidence,
+                metadata: { session_id: sessionId, extracted_at: new Date().toISOString() },
+                namespace: 'default',
+                tier: 'active',
+            })
 
-                // Pattern rows must land with embeddings — mirrors the storeMemory
-                // pattern/note embedding floor so vector search never sees nulls.
-                // Skipped in graphiti-only mode: the sidecar's add_episode handles
-                // its own embedding pipeline against the workspace's inference URL.
-                const embedStart = Date.now()
-                const vector = await embed(content, workspaceId, aiSettings ?? undefined).catch(() => null)
-                if (vector) {
-                    const vecStr = `[${vector.join(',')}]`
-                    await db.execute(
-                        sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
-                    )
-                    emitMemoryEmbedded({ workspaceId, factId: id, dimensions: vector.length, latencyMs: Date.now() - embedStart })
-                }
-            }
-
-            const hasChatProvider = aiSettings !== null && Object.keys(aiSettings.providers).length > 0
-            if (shouldMirrorGraphiti(backend) && !hasChatProvider) {
-                logger.info({ workspaceId }, 'extract-worker: skipping graphiti mirror — workspace has no chat provider')
-            } else if (shouldMirrorGraphiti(backend)) {
-                // Fire-and-forget; the helper never throws and emits its own
-                // success/failure analytics. We don't await it because the
-                // Inngest fn already runs in a step.run() boundary that owns
-                // retry semantics for the postgres write — Graphiti errors
-                // surface in the dashboards, not in fact-extraction failures.
-                void mirrorToGraphiti({
-                    workspaceId,
-                    content,
-                    sourceDescription: `app:plexo|src:${source}`,
-                    name: `extract-${fact.factType}`,
-                    triple: { subject: fact.subject, predicate: fact.predicate, object: fact.object },
-                    metadata: {
-                        session_id: sessionId,
-                        fact_type: fact.factType,
-                        domain: fact.domain ?? null,
-                        confidence: fact.confidence,
-                    },
-                })
+            // Pattern rows must land with embeddings — mirrors the storeMemory
+            // pattern/note embedding floor so vector search never sees nulls.
+            const embedStart = Date.now()
+            const vector = await embed(content, workspaceId, aiSettings ?? undefined).catch(() => null)
+            if (vector) {
+                const vecStr = `[${vector.join(',')}]`
+                await db.execute(
+                    sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
+                )
+                emitMemoryEmbedded({ workspaceId, factId: id, dimensions: vector.length, latencyMs: Date.now() - embedStart })
             }
             factsWritten++
 
-            logger.info({ workspaceId, factType: fact.factType, subject: fact.subject, backend }, 'extract-worker: fact persisted')
+            logger.info({ workspaceId, factType: fact.factType, subject: fact.subject }, 'extract-worker: fact persisted')
         }
         emitMemoryExtraction({
             workspaceId,

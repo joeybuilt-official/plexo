@@ -1375,9 +1375,8 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         // bulk of production traffic (task paths) wrote zero memory.
         // This hook captures every completed task as a 'task' memory
         // entry — type matches MemoryType ('task'|'incident'|'session'|
-        // 'pattern'). storeMemory mirrors to Graphiti when
-        // MEMORY_WRITE_BACKEND=graphiti (current prod setting). Fire-
-        // and-forget; never blocks lifecycle.
+        // 'pattern'). Postgres-only since the graphiti retirement
+        // (2026-06-27). Fire-and-forget; never blocks lifecycle.
         if (taskWorkspaceId) {
             try {
                 const taskCtxForMemory = task.context as Record<string, unknown> | null | undefined

@@ -174,12 +174,8 @@ vi.mock('../../providers/registry.js', () => ({
 // Phase 5 closure: shouldWritePostgres is always false in production.
 // Force postgres path so these tests exercise the insert logic.
 vi.mock('../write-backend.js', () => ({
-    getWriteBackend: () => 'graphiti',
+    getWriteBackend: () => 'postgres',
     shouldWritePostgres: () => true,
-    shouldMirrorGraphiti: () => false,
-    mirrorToGraphiti: vi.fn(async () => ({ ok: true, episodeId: null, extractedFactsCount: 0, extractedNodesCount: 0, latencyMs: 0 })),
-    resetWriteBackendForTest: vi.fn(),
-    setWriteBackendClientForTest: vi.fn(),
 }))
 
 import { writeFact } from '../write.js'
@@ -342,6 +338,4 @@ describe('user-authored immunity probe', () => {
     })
 })
 
-// Hybrid retrieval probe removed — postgres queryMemory deleted in Phase F.1
-// (ADR 0014). Read path now goes through readFromGraphiti; see
-// memory/__tests__/read-backend.test.ts for coverage of the new path.
+// Hybrid retrieval probe removed — postgres-only memory path (graphiti retired 2026-06-27).

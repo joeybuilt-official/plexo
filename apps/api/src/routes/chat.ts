@@ -32,7 +32,6 @@ import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } f
 import { loadWorkspaceAISettings } from '../agent-loop.js'
 import { runSprint } from '@plexo/agent/sprint/runner'
 import { storeMemory, rememberInstruction } from '@plexo/agent/memory/store'
-import { readFromGraphiti } from '@plexo/agent/memory/read-backend'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { setPreference } from '@plexo/agent/memory/preferences'
 import {
@@ -630,42 +629,9 @@ chatRouter.post('/message', async (req, res) => {
         // Two triggers:
         const skipRecallForTrivial = isTrivialMessage(trimmedMsg)
 
-        // ── Proactive memory recall for conversations ──
-        // Search graphiti so personal facts (location, role, preferences) are
-        // available even when the conversation-table recall misses.
-        // Non-blocking, non-fatal.
-        let memoryContext: string | null = null
-        if (!skipRecallForTrivial && trimmedMsg.length >= 10) {
-            // Hard budget: memory recall is best-effort context. If graphiti is
-            // jammed (per-workspace asyncio.Lock held by a heavy add_episode),
-            // do not stall the user's reply waiting for it.
-            const MEMORY_RECALL_BUDGET_MS = Number(process.env.PLEXO_MEMORY_RECALL_BUDGET_MS) || 1500
-            try {
-                const hits = await Promise.race([
-                    readFromGraphiti({
-                        workspaceId,
-                        queryText: trimmedMsg,
-                        limit: 5,
-                    }),
-                    new Promise<null>(resolve => setTimeout(() => resolve(null), MEMORY_RECALL_BUDGET_MS)),
-                ])
-                if (hits && hits.length > 0) {
-                    memoryContext = '=== RELEVANT MEMORY ===\n' + hits.map(h =>
-                        `- ${h.shorthand || h.content.slice(0, 200)}`
-                    ).join('\n') + '\n=== END MEMORY ==='
-                    logger.info({ workspaceId, hits: hits.length }, 'Webchat: injected memory context')
-                    recordMemoryRecall('hit')
-                } else if (hits === null) {
-                    logger.debug({ workspaceId, budgetMs: MEMORY_RECALL_BUDGET_MS }, 'Webchat: memory recall over budget — proceeding without')
-                    recordMemoryRecall('budget_exceeded')
-                } else {
-                    recordMemoryRecall('miss')
-                }
-            } catch (err) {
-                logger.debug({ err }, 'Webchat: memory search failed — proceeding without')
-                recordMemoryRecall('error')
-            }
-        }
+        // Proactive memory recall removed 2026-06-27 — graphiti backend retired.
+        // Postgres recall already runs further down in the agent loop via searchMemory.
+        const memoryContext: string | null = null
 
         // ── Self-configuration: detect credentials and auto-install connection ──
         // Works in internal chat exactly like Telegram/Slack/Discord.

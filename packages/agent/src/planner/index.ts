@@ -19,8 +19,6 @@ import { routeAndCall } from '../providers/router-v2/index.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
-import { readFromGraphiti } from '../memory/read-backend.js'
-import { emitMemoryInjection } from '../analytics/memory-events.js'
 import type { ExecutionPlan, ExecutionContext, PlanStep, OneWayDoor, PlannerResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { buildExecutionWaves } from '../utils/topo-sort.js'
@@ -203,46 +201,6 @@ function defaultSettings(): WorkspaceAISettings {
     }
 }
 
-const MEMORY_FACT_LIMIT = 5
-const MEMORY_FACT_CHAR_CAP = 240
-
-/**
- * Phase 6 — memory-informed planning. Pull up to 5 high-confidence memory
- * entries (vector similarity against the task description) and render them
- * as a "RELEVANT PAST CONTEXT" block. Returns undefined on empty results
- * or any retrieval failure so planning never blocks on memory.
- */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-export async function buildMemoryBlock(
-    workspaceId: string,
-    userId: string,
-    queryText: string,
-    aiSettings: WorkspaceAISettings,
-): Promise<string | undefined> {
-    try {
-        void userId
-        void aiSettings
-        const hits = await readFromGraphiti({
-            workspaceId,
-            queryText,
-            limit: MEMORY_FACT_LIMIT,
-        })
-        const hitCount = hits?.length ?? 0
-        emitMemoryInjection({ workspaceId, userId, factsInjected: hitCount, retrievalFailed: false })
-        if (!hits || hits.length === 0) return undefined
-        const lines = hits.map((h) => {
-            const text = (h.shorthand?.trim() || h.content.trim()).replace(/\s+/g, ' ')
-            return `- ${text.length > MEMORY_FACT_CHAR_CAP ? text.slice(0, MEMORY_FACT_CHAR_CAP - 1) + '…' : text}`
-        })
-        return `RELEVANT PAST CONTEXT (from prior tasks and learned facts — use to avoid known failures and reuse established patterns; ignore if not applicable):\n${lines.join('\n')}`
-    } catch (err) {
-        logger.warn({ err, workspaceId }, 'planner: graphiti memory read failed — proceeding without memory context')
-        emitMemoryInjection({ workspaceId, userId, factsInjected: 0, retrievalFailed: true })
-        return undefined
-    }
-}
-
 // ── Planner ────────────────────────────────────────────────────────────────────
 
 export async function planTask(
@@ -269,8 +227,7 @@ export async function planTask(
     }))
 
     const capabilityBlock = manifestToPromptBlock(manifest)
-    const memoryBlock = await buildMemoryBlock(ctx.workspaceId, ctx.userId, taskDescription, settings)
-    const systemPrompt = buildPlannerSystem(capabilityBlock, ctx.workspaceName, ctx.sprintGoal, memoryBlock)
+    const systemPrompt = buildPlannerSystem(capabilityBlock, ctx.workspaceName, ctx.sprintGoal, undefined)
 
     const userPrompt = JSON.stringify({
         task: taskDescription,

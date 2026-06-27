@@ -184,62 +184,36 @@ export async function writeFact(params: WriteFactParams): Promise<WriteFactResul
         }
     }
 
-    const { getWriteBackend, shouldWritePostgres, shouldMirrorGraphiti, mirrorToGraphiti } = await import('./write-backend.js')
-    const backend = getWriteBackend()
+    // Insert the new fact.
+    await db.insert(memoryEntries).values({
+        id: newId,
+        workspaceId,
+        type: 'pattern',
+        content: `${subject} ${predicate} ${object}`,
+        factType,
+        subject,
+        predicate,
+        object,
+        domain: domain ?? null,
+        confidence,
+        source,
+        scopeLevel,
+        userId: userId ?? null,
+        namespace,
+        isAnchored,
+        tier: 'active',
+        metadata: { written_by: 'write.ts', action },
+    })
 
-    if (shouldMirrorGraphiti(backend)) {
-        void mirrorToGraphiti({
-            workspaceId,
-            content: `${subject} ${predicate} ${object}`,
-            sourceDescription: `app:plexo|src:writeFact|action:${action}`,
-            name: `fact-${factType}`,
-            triple: { subject, predicate, object },
-            metadata: {
-                fact_type: factType,
-                domain: domain ?? null,
-                confidence,
-                source,
-                scope_level: scopeLevel,
-                user_id: userId ?? null,
-                namespace,
-                is_anchored: isAnchored,
-                superseded_id: supersededId,
-            },
-        })
-    }
-
-    if (shouldWritePostgres(backend)) {
-        // Insert the new fact.
-        await db.insert(memoryEntries).values({
-            id: newId,
-            workspaceId,
-            type: 'pattern',
-            content: `${subject} ${predicate} ${object}`,
-            factType,
-            subject,
-            predicate,
-            object,
-            domain: domain ?? null,
-            confidence,
-            source,
-            scopeLevel,
-            userId: userId ?? null,
-            namespace,
-            isAnchored,
-            tier: 'active',
-            metadata: { written_by: 'write.ts', action },
-        })
-
-        // If UPDATE: invalidate the old fact now that the new row exists.
-        if (action === 'UPDATE' && supersededId) {
-            await db.execute(sql`
-                UPDATE memory_entries
-                SET invalid_at = NOW(),
-                    superseded_by = ${newId}::uuid
-                WHERE id = ${supersededId}::uuid
-            `)
-            logger.info({ workspaceId, supersededId, newId }, 'write: fact superseded')
-        }
+    // If UPDATE: invalidate the old fact now that the new row exists.
+    if (action === 'UPDATE' && supersededId) {
+        await db.execute(sql`
+            UPDATE memory_entries
+            SET invalid_at = NOW(),
+                superseded_by = ${newId}::uuid
+            WHERE id = ${supersededId}::uuid
+        `)
+        logger.info({ workspaceId, supersededId, newId }, 'write: fact superseded')
     }
 
     return { action, id: newId, supersededId }

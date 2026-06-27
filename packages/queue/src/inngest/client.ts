@@ -48,25 +48,6 @@ export type GmessagesEvents = {
             source: string
         }
     }
-    'lessons.graphiti.write': {
-        data: {
-            workspaceId: string
-            routineId: string
-            revisionId: string
-            version: number
-            content: string
-            rationale: string
-            sourceOutcomeIds: string[]
-            reviewedBy: string
-        }
-    }
-    'lessons.graphiti.invalidate': {
-        data: {
-            workspaceId: string
-            revisionId: string
-            reviewedBy: string
-        }
-    }
 }
 
 export const inngest = new Inngest({

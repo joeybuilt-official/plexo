@@ -181,11 +181,6 @@ vi.mock('@plexo/agent/memory/store', () => ({
     searchMemory: vi.fn(async () => []),
 }))
 
-vi.mock('@plexo/agent/memory/read-backend', () => ({
-    readFromGraphiti: vi.fn(async () => null),
-    isGraphitiReadEnabled: vi.fn(() => false),
-}))
-
 vi.mock('@plexo/agent/memory/preferences', () => ({
     setPreference: vi.fn(async () => undefined),
 }))

@@ -25,8 +25,6 @@ import { channelsGmessagesRouter } from './routes/channels-gmessages.js'
 import { connectionsGmessagesRouter } from './routes/connections-gmessages.js'
 import { createInngestExpressHandler } from '@plexo/queue/inngest-express'
 import { extractTurnFn } from '@plexo/agent/memory/inngest/extract-turn-fn'
-import { lessonsWriteFn } from '@plexo/agent/memory/inngest/lessons-write-fn'
-import { lessonsInvalidateFn } from '@plexo/agent/memory/inngest/lessons-invalidate-fn'
 import { inferenceRouter } from './routes/inference.js'
 import { graphRouter } from './routes/graph.js'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
@@ -519,7 +517,7 @@ app.use('/api/plexo/channels', jsonDefault, channelsSubscriptionRouter)
 // POSTs back to invoke them when crons fire. ADR-0006: Plexo and Levio
 // share the Inngest substrate.
 // Inngest payloads carry event data + step state per fn invocation.
-app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn, lessonsWriteFn, lessonsInvalidateFn]))
+app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn]))
 
 // Inference shim — exposes Plexo's per-workspace LLM provider router as an
 // OpenAI-compatible endpoint for the Graphiti Python sidecar (ADR 0011).
@@ -686,20 +684,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
             logger.info('Router metrics hook wired')
         } catch (err) {
             logger.warn({ err }, 'Failed to wire router metrics hook — non-fatal')
-        }
-    })()
-
-    // QA-opt ADR 0044: wire memory-write outcomes (extracted|empty|failed) into a
-    // Prometheus counter — graphiti is the canonical recall store, so a write that
-    // extracts 0 facts is the real silent memory-loss signal.
-    void (async () => {
-        try {
-            const { setMemoryWriteMetricsHook } = await import('@plexo/agent/analytics/memory-events')
-            const { recordMemoryWrite } = await import('./lib/metrics.js')
-            setMemoryWriteMetricsHook((m) => recordMemoryWrite(m))
-            logger.info('Memory-write metrics hook wired')
-        } catch (err) {
-            logger.warn({ err }, 'Failed to wire memory-write metrics hook — non-fatal')
         }
     })()
 

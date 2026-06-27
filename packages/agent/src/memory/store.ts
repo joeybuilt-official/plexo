@@ -250,28 +250,6 @@ export async function storeMemory(params: {
 
     const id = crypto.randomUUID()
 
-    const { getWriteBackend, shouldWritePostgres, shouldMirrorGraphiti, mirrorToGraphiti } = await import('./write-backend.js')
-    const backend = getWriteBackend()
-
-    if (shouldMirrorGraphiti(backend)) {
-        void mirrorToGraphiti({
-            workspaceId,
-            content,
-            sourceDescription: `app:plexo|src:storeMemory|ns:${namespace}`,
-            name: `${type}-${id.slice(0, 8)}`,
-            metadata: { type, tier, namespace, ...(metadata as Record<string, unknown>) },
-        })
-    }
-
-    if (!shouldWritePostgres(backend)) {
-        // Graphiti-only mode — skip the entire postgres write + shorthand + embed
-        // chain. Callers receive the generated id so the analytics surface
-        // stays consistent; Phase 6 (read-path cutover) replaces any postgres-
-        // dependent reads of this id.
-        void invalidateSearchCache(workspaceId)
-        return id
-    }
-
     await db.insert(memoryEntries).values({
         id,
         workspaceId,
@@ -365,25 +343,6 @@ export async function searchMemory(params: {
     agentId?: string
 }): Promise<MemorySearchResult[]> {
     const { workspaceId, query, type, limit = 5, useCache = true } = params
-
-    // Phase 6 — read-backend gateway. In graphiti mode, delegate to the
-    // sidecar's hybrid search and short-circuit. Postgres mode (default)
-    // keeps today's path. Bridge-not-configured falls through to postgres
-    // so dev workflows w/o the sidecar don't break.
-    if (query && query.trim().length > 0) {
-        const { getReadBackend, readFromGraphiti } = await import('./read-backend.js')
-        if (getReadBackend() === 'graphiti') {
-            const grResults = await readFromGraphiti({ workspaceId, queryText: query, limit })
-            if (grResults !== null) {
-                // Apply type filter client-side (Graphiti collapses Plexo's
-                // type enum onto edges; the schema-mapping doc maps everything
-                // to 'pattern' for Phase 6, so a `type` filter equal to
-                // 'pattern' is a no-op and any other type returns []).
-                if (type && type !== 'pattern') return []
-                return grResults
-            }
-        }
-    }
 
     // Namespace resolution precedence: namespaces[] → namespace → agentId → default.
     const resolvedNamespaces: string[] = (() => {
@@ -602,24 +561,6 @@ export async function writeShared(params: {
         ...metadata,
         sharedBy: authorAgentId ?? null,
         sharedAt: new Date().toISOString(),
-    }
-
-    const { getWriteBackend, shouldWritePostgres, shouldMirrorGraphiti, mirrorToGraphiti } = await import('./write-backend.js')
-    const backend = getWriteBackend()
-
-    if (shouldMirrorGraphiti(backend)) {
-        void mirrorToGraphiti({
-            workspaceId: rest.workspaceId,
-            content: rest.content,
-            sourceDescription: `app:plexo|src:writeShared|ns:${SHARED_NAMESPACE}`,
-            name: `shared-${id.slice(0, 8)}`,
-            metadata: { ...mergedMetadata, type: rest.type, tier: rest.tier ?? 'active' },
-        })
-    }
-
-    if (!shouldWritePostgres(backend)) {
-        void invalidateSearchCache(rest.workspaceId)
-        return id
     }
 
     await db.insert(memoryEntries).values({
