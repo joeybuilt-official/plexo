@@ -84,16 +84,6 @@ COPY tsconfig.base.json                ./
 RUN pnpm install --frozen-lockfile --filter @joeybuilt/plexo-sdk \
  && pnpm -C packages/sdk run build
 
-# sharp@0.32.6 install hook — its package.json `scripts.install` invokes
-# `node install/libvips && node install/dll-copy && prebuild-install`.
-# We replicate that here. sharp@0.34.5 ships its install differently
-# (single binary in @img/sharp-*); pnpm install resolves those packages
-# already since they're plain dependencies.
-RUN cd /app/node_modules/.pnpm/sharp@0.32.6/node_modules/sharp \
- && node install/libvips \
- && node install/dll-copy \
- && (./node_modules/.bin/prebuild-install || (node install/can-compile && node-gyp rebuild && node install/dll-copy))
-
 # ── Runtime image ─────────────────────────────────────────────────────────────
 FROM base AS runner
 WORKDIR /app
