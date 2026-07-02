@@ -54,6 +54,8 @@ async function downsizeForOcr(base64: string): Promise<string> {
         return base64
     }
     const resized = await sharp(bytes)
+        // ponytail: force sRGB pipeline — see label.ts for the same colourspace bug.
+        .pipelineColourspace('srgb')
         .removeAlpha()
         .resize(OCR_INPUT_MAX_EDGE, OCR_INPUT_MAX_EDGE, {
             fit: 'inside',
