@@ -44,6 +44,9 @@ async function downsize(base64: string): Promise<string> {
     const h = meta.height ?? 0
     if (w <= LABEL_INPUT_MAX_EDGE && h <= LABEL_INPUT_MAX_EDGE) return base64
     const resized = await sharp(bytes)
+        // ponytail: force sRGB pipeline — some inputs (CMYK/multiband TIFF, weird ICC)
+        // otherwise crash with `vips_colourspace: no known route from 'multiband' to 'srgb'`.
+        .pipelineColourspace('srgb')
         .removeAlpha()
         .resize(LABEL_INPUT_MAX_EDGE, LABEL_INPUT_MAX_EDGE, {
             fit: 'inside',

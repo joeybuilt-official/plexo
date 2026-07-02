@@ -184,8 +184,11 @@ async function letterboxToDet(imageBase64: string): Promise<{
     const padX = Math.floor((DET_INPUT_SIZE - newW) / 2)
     const padY = Math.floor((DET_INPUT_SIZE - newH) / 2)
     const resized = await sharp(bytes)
+        // ponytail: pipelineColourspace (early) beats toColorspace (output) for
+        // .raw().toBuffer() — otherwise vips fails with `no known route from
+        // 'srgb' to 'multiband'` on the raw-output path.
+        .pipelineColourspace('srgb')
         .removeAlpha()
-        .toColorspace('srgb')
         .resize(newW, newH, { kernel: 'linear' })
         .extend({
             top: padY,
@@ -426,6 +429,8 @@ export async function embed(
     // measurably worse but the contract permits it.
     const bytes = decodeBase64Input(image)
     const cropBuf = await sharp(bytes)
+        // ponytail: sRGB pipeline — same fix as detect path above.
+        .pipelineColourspace('srgb')
         .removeAlpha()
         .extract({
             left: Math.round(bbox[0]),
