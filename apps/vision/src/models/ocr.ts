@@ -26,7 +26,7 @@
 
 import sharp from 'sharp'
 import { childLogger } from '../lib/logger.js'
-import { decodeBase64Input } from '../lib/image.js'
+import { decodeBase64Input, openSrgb } from '../lib/image.js'
 
 const logger = childLogger('ocr')
 
@@ -53,9 +53,7 @@ async function downsizeForOcr(base64: string): Promise<string> {
         // uploads.
         return base64
     }
-    const resized = await sharp(bytes)
-        // ponytail: force sRGB pipeline — see label.ts for the same colourspace bug.
-        .pipelineColourspace('srgb')
+    const resized = await (await openSrgb(bytes))
         .removeAlpha()
         .resize(OCR_INPUT_MAX_EDGE, OCR_INPUT_MAX_EDGE, {
             fit: 'inside',

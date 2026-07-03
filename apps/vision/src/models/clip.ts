@@ -33,8 +33,7 @@ import {
     type PreTrainedTokenizer,
     type Processor,
 } from '@huggingface/transformers'
-import sharp from 'sharp'
-import { decodeBase64Input } from '../lib/image.js'
+import { decodeBase64Input, openSrgb } from '../lib/image.js'
 import { childLogger } from '../lib/logger.js'
 
 const logger = childLogger('clip')
@@ -127,9 +126,8 @@ function l2Normalize(v: Float32Array): number[] {
  */
 async function toRawImage(image: string): Promise<RawImage> {
     const bytes = decodeBase64Input(image)
-    const { data, info } = await sharp(bytes, { failOn: 'error' })
+    const { data, info } = await (await openSrgb(bytes))
         .removeAlpha()
-        .toColorspace('srgb')
         .raw()
         .toBuffer({ resolveWithObject: true })
     // RawImage holds packed HWC bytes — exactly what sharp returns.
