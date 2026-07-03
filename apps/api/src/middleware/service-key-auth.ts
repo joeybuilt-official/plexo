@@ -108,6 +108,43 @@ export async function requireServiceKey(req: Request, res: Response, next: NextF
 }
 
 /**
+ * Jex mesh service-key auth: a Bearer-only variant of requireServiceKey for the
+ * cross-app identity mesh (ADR-0016 B3). The mesh contract carries the calling
+ * appId in the request BODY (recognition) or omits it entirely (profile GET),
+ * so — unlike requireServiceKey — X-App-Id is NOT required alongside the shared
+ * PLEXO_SERVICE_KEY. Per-app `psk_` keys still resolve (they self-identify).
+ * Same key material, same constant-time compare — no new auth scheme.
+ */
+export async function requireMeshServiceKey(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const authHeader = req.headers.authorization
+    if (!authHeader?.startsWith('Bearer ')) {
+        res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Missing Bearer token' } })
+        return
+    }
+
+    const token = authHeader.slice(7)
+    const headerAppId = req.headers['x-app-id'] as string | undefined
+
+    // Shared PLEXO_SERVICE_KEY — accepted Bearer-only (mesh contract has no X-App-Id header).
+    const serviceKey = process.env.PLEXO_SERVICE_KEY
+    if (serviceKey && timingSafeEqual(token, serviceKey)) {
+        req.serviceContext = { appId: headerAppId ?? 'mesh', viaSharedKey: true }
+        next()
+        return
+    }
+
+    // Per-app key (A3) — self-identifying, X-App-Id optional.
+    const resolved = await resolveServiceAuth(token, headerAppId)
+    if (resolved) {
+        req.serviceContext = { appId: resolved.appId, viaSharedKey: resolved.viaSharedKey }
+        next()
+        return
+    }
+
+    res.status(401).json({ error: { code: 'INVALID_KEY', message: 'Invalid service key' } })
+}
+
+/**
  * Constant-time string comparison to prevent timing attacks.
  */
 function timingSafeEqual(a: string, b: string): boolean {
