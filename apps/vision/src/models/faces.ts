@@ -21,7 +21,7 @@
 import sharp from 'sharp'
 import * as ort from 'onnxruntime-node'
 import { childLogger } from '../lib/logger.js'
-import { decodeBase64Input } from '../lib/image.js'
+import { decodeBase64Input, openSrgb } from '../lib/image.js'
 import { ensureArtifact, registerArtifact } from '../lib/download.js'
 import { decodeStride, nms, type RawFaceDetection } from '../lib/face-detect.js'
 import {
@@ -183,11 +183,7 @@ async function letterboxToDet(imageBase64: string): Promise<{
     const newH = Math.round(origH * scale)
     const padX = Math.floor((DET_INPUT_SIZE - newW) / 2)
     const padY = Math.floor((DET_INPUT_SIZE - newH) / 2)
-    const resized = await sharp(bytes)
-        // ponytail: pipelineColourspace (early) beats toColorspace (output) for
-        // .raw().toBuffer() — otherwise vips fails with `no known route from
-        // 'srgb' to 'multiband'` on the raw-output path.
-        .pipelineColourspace('srgb')
+    const resized = await (await openSrgb(bytes))
         .removeAlpha()
         .resize(newW, newH, { kernel: 'linear' })
         .extend({
@@ -351,9 +347,8 @@ async function runDetect(imageBase64: string): Promise<{
         }
     })
     // Decode original-resolution RGB once so the alignment step can reuse it.
-    const decoded = await sharp(decodeBase64Input(imageBase64))
+    const decoded = await (await openSrgb(decodeBase64Input(imageBase64)))
         .removeAlpha()
-        .toColorspace('srgb')
         .raw()
         .toBuffer({ resolveWithObject: true })
     return {
@@ -428,9 +423,7 @@ export async function embed(
     // bbox-centered crop without similarity-transform alignment. Quality is
     // measurably worse but the contract permits it.
     const bytes = decodeBase64Input(image)
-    const cropBuf = await sharp(bytes)
-        // ponytail: sRGB pipeline — same fix as detect path above.
-        .pipelineColourspace('srgb')
+    const cropBuf = await (await openSrgb(bytes))
         .removeAlpha()
         .extract({
             left: Math.round(bbox[0]),

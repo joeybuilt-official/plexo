@@ -18,7 +18,7 @@
 
 import sharp from 'sharp'
 import { childLogger } from '../lib/logger.js'
-import { decodeBase64Input } from '../lib/image.js'
+import { decodeBase64Input, openSrgb } from '../lib/image.js'
 
 const logger = childLogger('label')
 
@@ -43,10 +43,7 @@ async function downsize(base64: string): Promise<string> {
     const w = meta.width ?? 0
     const h = meta.height ?? 0
     if (w <= LABEL_INPUT_MAX_EDGE && h <= LABEL_INPUT_MAX_EDGE) return base64
-    const resized = await sharp(bytes)
-        // ponytail: force sRGB pipeline — some inputs (CMYK/multiband TIFF, weird ICC)
-        // otherwise crash with `vips_colourspace: no known route from 'multiband' to 'srgb'`.
-        .pipelineColourspace('srgb')
+    const resized = await (await openSrgb(bytes))
         .removeAlpha()
         .resize(LABEL_INPUT_MAX_EDGE, LABEL_INPUT_MAX_EDGE, {
             fit: 'inside',

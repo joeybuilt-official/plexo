@@ -20,6 +20,66 @@ import sharp from 'sharp'
 
 const DATA_URL_RE = /^data:image\/[a-zA-Z+.-]+;base64,(.+)$/
 
+/**
+ * True when libvips can convert this interpretation to sRGB via the normal
+ * colourspace pipeline. Images libvips tags `multiband` (or that decode to a
+ * non-standard band count — anything other than 1/3/4) have NO conversion
+ * route to sRGB, so `pipelineColourspace('srgb')` / `toColorspace('srgb')`
+ * throw `vips_colourspace: no known route from 'multiband' to 'srgb'`.
+ */
+export function isRoutableToSrgb(space: string | undefined, channels: number | undefined): boolean {
+    if (space === 'multiband') return false
+    if (channels !== undefined && ![1, 3, 4].includes(channels)) return false
+    return true
+}
+
+/**
+ * Pack arbitrary-band raw HWC pixels into 3-band RGB. Pure — no libvips.
+ * ≥3 bands → first three become R,G,B (extra/alpha bands dropped). 1–2 bands →
+ * greyscale (+ optional alpha) → the luma band is replicated across R,G,B.
+ */
+export function bandsToRgb(data: Uint8Array, width: number, height: number, channels: number): Buffer {
+    const px = width * height
+    const out = Buffer.allocUnsafe(px * 3)
+    for (let i = 0; i < px; i++) {
+        const base = i * channels
+        if (channels >= 3) {
+            out[i * 3] = data[base]!
+            out[i * 3 + 1] = data[base + 1]!
+            out[i * 3 + 2] = data[base + 2]!
+        } else {
+            const luma = data[base]!
+            out[i * 3] = luma
+            out[i * 3 + 1] = luma
+            out[i * 3 + 2] = luma
+        }
+    }
+    return out
+}
+
+/**
+ * Open image bytes as a sharp pipeline guaranteed to reach 3-band sRGB, safe
+ * for CMYK / scanner / pro-camera inputs that libvips tags `multiband`.
+ *
+ * Fast path (the vast majority): `pipelineColourspace('srgb')`. When the input
+ * is NOT routable (see {@link isRoutableToSrgb}) we bypass colourspace
+ * conversion entirely — read the native raw bands (which never triggers a
+ * colourspace route) and reinterpret them into RGB via {@link bandsToRgb}.
+ * The prior fix (f074c4c) used only the fast path, so multiband inputs kept
+ * failing 100%; this is the actual root-cause fix. Callers continue the
+ * returned pipeline as before (`.removeAlpha()` is a harmless no-op on the
+ * already-3-band raw path).
+ */
+export async function openSrgb(bytes: Buffer): Promise<sharp.Sharp> {
+    const meta = await sharp(bytes, { failOn: 'none' }).metadata()
+    if (isRoutableToSrgb(meta.space, meta.channels)) {
+        return sharp(bytes, { failOn: 'none' }).pipelineColourspace('srgb')
+    }
+    const { data, info } = await sharp(bytes, { failOn: 'none' }).raw().toBuffer({ resolveWithObject: true })
+    const rgb = bandsToRgb(data, info.width, info.height, info.channels)
+    return sharp(rgb, { raw: { width: info.width, height: info.height, channels: 3 } })
+}
+
 /** Parse a base64 string or data URL into raw bytes. */
 export function decodeBase64Input(input: string): Buffer {
     if (!input || typeof input !== 'string') {
@@ -49,7 +109,7 @@ export async function decodeToRGB(
     opts: { width?: number; height?: number; fit?: 'cover' | 'contain' } = {},
 ): Promise<DecodedImage> {
     const bytes = decodeBase64Input(input)
-    let pipeline = sharp(bytes, { failOn: 'error' }).removeAlpha().toColorspace('srgb')
+    let pipeline = (await openSrgb(bytes)).removeAlpha()
     if (opts.width || opts.height) {
         pipeline = pipeline.resize(opts.width ?? null, opts.height ?? null, {
             fit: opts.fit ?? 'cover',
