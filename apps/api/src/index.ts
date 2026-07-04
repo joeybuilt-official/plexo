@@ -163,6 +163,8 @@ import { agentsRunRouter } from './routes/agents-run.js'
 import { agentsRunCustomRouter } from './routes/agents-run-custom.js'
 import { nodesRouter } from './routes/nodes.js'
 import { federationRouter } from './routes/federation.js'
+import { makeJexIdentityRouter } from './routes/jex-identity.js'
+import { drizzleJexRecognitionRepository } from './repositories/jex-recognitions.repository.js'
 import { nodeEventsRouter } from './routes/node-events.js'
 import { workspaceAppsRouter } from './routes/workspace-apps.js'
 import { workbenchRouter } from './routes/workbench.js'
@@ -503,6 +505,12 @@ app.use('/api/oauth', authLimiter, jsonDefault, oauthRouter)
 // Mounted unversioned because sibling apps construct stable URLs of the
 // form /api/sso/handoff?app=…&return=… and /api/sso/verify.
 app.use('/api/sso', authLimiter, jsonDefault, ssoRouter)
+
+// Jex identity mesh — Plexo as coordinator (ADR-0016 B3). Mounted unversioned
+// so sibling apps (Nexalog PlexoCoordinator, …) target a stable URL:
+// POST /api/jex/identity/recognition, GET /api/jex/identity/profile/:userId.
+// Bearer PLEXO_SERVICE_KEY auth via requireMeshServiceKey.
+app.use('/api/jex', jsonDefault, makeJexIdentityRouter(drizzleJexRecognitionRepository))
 
 // Channel subscription contract for sibling apps (ADR-0002).
 // HMAC-authenticated; mounted unversioned so app SDKs target a stable URL.

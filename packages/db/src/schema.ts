@@ -2101,3 +2101,24 @@ export type NewPromptRevision = typeof promptRevisions.$inferInsert
 //    synthesis_suggestion_state (created by 0132) lost its only consumer when
 //    routes/synthesis.ts + lib/synthesis-state.ts were deleted; the Drizzle def
 //    is gone too. The prod table is now orphaned (no drop migration here).
+
+// ── Jex mesh identity recognitions (ADR-0016 B3) ─────────────────
+// Cross-app federated identity. Each row records that `appId` recognized the
+// mesh identity (userId + email) via WebAuthn `credentialId`. This is a
+// DEDICATED table — never the users FDW (public.users → pushd.auth.user), whose
+// ON CONFLICT 500s (see reference_plexo_prod_users_fdw). Plexo aggregates these
+// into the canonical profile served at GET /api/jex/identity/profile/:userId.
+// The natural key (appId, userId, credentialId) makes recognition idempotent.
+export const jexRecognitions = pgTable('jex_recognitions', {
+    appId:        text('app_id').notNull(),
+    userId:       uuid('user_id').notNull(),
+    email:        text('email').notNull(),
+    credentialId: text('credential_id').notNull(),
+    seenAt:       timestamp('seen_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+    primaryKey({ columns: [table.appId, table.userId, table.credentialId] }),
+    index('jex_recognitions_user_idx').on(table.userId),
+])
+
+export type JexRecognition = typeof jexRecognitions.$inferSelect
+export type NewJexRecognition = typeof jexRecognitions.$inferInsert
