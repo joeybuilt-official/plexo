@@ -4,7 +4,7 @@ builds:
     executor: docker
     type: android
     flavor: flutter
-    image: ghcr.io/cirruslabs/flutter:stable
+    image: pushd/flutter-3.44.6-jdk17:latest
     secrets:
       - GITHUB_TOKEN
       - CM_KEYSTORE_BASE64
