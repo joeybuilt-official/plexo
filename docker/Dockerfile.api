@@ -172,4 +172,8 @@ RUN chown -R plexo:plexo /app
 USER plexo
 EXPOSE 3001
 
-CMD ["node", "--max-old-space-size=350", "/app/apps/api/node_modules/tsx/dist/cli.mjs", "apps/api/src/index.ts"]
+# 2048MiB: vision analyze-image transcodes with sharp (native memory, off-heap)
+# but the AI-SDK still buffers the model request/response on the V8 heap; 350
+# breached under a fatal OOM crash loop (2026-07-10). Do NOT lower without
+# re-testing the analyze-image drain against large originals.
+CMD ["node", "--max-old-space-size=2048", "/app/apps/api/node_modules/tsx/dist/cli.mjs", "apps/api/src/index.ts"]

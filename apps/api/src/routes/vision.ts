@@ -25,7 +25,7 @@
  */
 
 import { Router, type Router as RouterType } from 'express'
-import { generateText } from 'ai'
+import { generateText, APICallError } from 'ai'
 import { z } from 'zod'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -35,6 +35,7 @@ import { findVisionCapableModel, modelSupportsVision } from '@plexo/agent/provid
 import { PROVIDER_DEFAULT_MODELS, buildOllamaModel } from '@plexo/agent/providers/registry'
 import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import { CallModelError } from '@plexo/agent/providers/call-model'
+import { prepAnalyzeImage } from './analyze-image-source.js'
 import { logger } from '../logger.js'
 
 export const visionRouter: RouterType = Router()
@@ -525,20 +526,43 @@ visionRouter.post('/analyze-image', requireServiceKey, async (req, res) => {
         return
     }
 
+    const userPrompt = buildAnalyzeUserPrompt({ filename, mimeType, hints })
+    const startedAt = Date.now()
+
+    // Transcode the source to a JPEG data: URL before the model ever sees it —
+    // Ollama can't decode WebP (Fonto previews are WebP) and the SDK would
+    // otherwise buffer a bare URL uncapped onto the heap. See prepAnalyzeImage.
+    // A decode/fetch failure here is PERMANENT → terminal 422, never retried.
+    let imageContent: string
+    try {
+        imageContent = await prepAnalyzeImage(parsedUrl)
+    } catch (err) {
+        const latencyMs = Date.now() - startedAt
+        const message = err instanceof CallModelError ? err.message : 'source image could not be fetched or decoded'
+        logger.warn({
+            event: 'vision.analyze_image.failure',
+            workspaceId,
+            model: ANALYZE_PRIMARY_MODEL,
+            latencyMs,
+            reason: 'image_decode',
+            message: message.slice(0, 200),
+        }, 'POST /vision/analyze-image failed (source undecodable — permanent)')
+        res.status(422).json({ error: { code: 'IMAGE_DECODE_FAILED', message: 'Source image could not be fetched or decoded' } })
+        return
+    }
+
     // Build the multimodal user message. The AI-SDK's `content: [text, image]`
     // shape is exactly what `POST /vision/ocr` already uses upstream.
-    const userPrompt = buildAnalyzeUserPrompt({ filename, mimeType, hints })
     const messages = [
         {
             role: 'user' as const,
             content: [
                 { type: 'text' as const, text: userPrompt },
-                { type: 'image' as const, image: parsedUrl },
+                { type: 'image' as const, image: imageContent },
             ],
         },
     ]
 
-    const startedAt = Date.now()
     let modelUsed = ANALYZE_PRIMARY_MODEL
     try {
         // ADR 0002 §5 — direct local-Ollama call. Bypass router-v2 to avoid
@@ -569,6 +593,11 @@ visionRouter.post('/analyze-image', requireServiceKey, async (req, res) => {
                 system: ANALYZE_SYSTEM_PROMPT + '\n\nYou MUST output a single JSON object — no markdown fences, no commentary, no preamble. The object MUST have ALL of these keys: classification, subClassification, confidence, description, ocrText, labels, suggestedTags.',
                 messages,
                 maxOutputTokens: ANALYZE_MAX_OUTPUT_TOKENS,
+                // Our own ANALYZE_ATTEMPTS loop is the ONLY retry. Disable the
+                // SDK's _retryWithExponentialBackoff — on a rejected image it
+                // re-buffers the payload each attempt (heap-OOM driver) and a
+                // 4xx image-reject is permanent anyway.
+                maxRetries: 0,
                 abortSignal: AbortSignal.timeout(ANALYZE_TIMEOUT_MS),
             })
             const rawText = (routed.text ?? '').trim()
@@ -631,6 +660,21 @@ visionRouter.post('/analyze-image', requireServiceKey, async (req, res) => {
         })
     } catch (err) {
         const latencyMs = Date.now() - startedAt
+        // Model rejected the image itself (e.g. Ollama 400 "Failed to load
+        // image or audio file"). Post-transcode this should not fire, but if it
+        // does it is PERMANENT for this asset → terminal 422, never retried.
+        if (APICallError.isInstance(err) && err.statusCode === 400) {
+            logger.warn({
+                event: 'vision.analyze_image.failure',
+                workspaceId,
+                model: modelUsed,
+                latencyMs,
+                reason: 'model_rejected_image',
+                message: String(err.message).slice(0, 200),
+            }, 'POST /vision/analyze-image failed (model rejected image — permanent)')
+            res.status(422).json({ error: { code: 'IMAGE_DECODE_FAILED', message: 'Vision model could not load the image' } })
+            return
+        }
         // CallModelError carries one of 6 sentinel codes — map them to HTTP.
         if (err instanceof CallModelError) {
             const status =
