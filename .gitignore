@@ -106,3 +106,8 @@ data/graphiti/
 __pycache__/
 .ui-audit/
 .standard-connection-profile/
+
+# Plexo Unification — audit/planning scaffolding (public repo: keep out per AGENTS.md)
+/progress.md
+/docs/plexo-plan.md
+/docs/plexo-phase0-findings.md

@@ -42,6 +42,8 @@ import { billingRouter, stripeWebhookHandler } from './routes/billing.js'
 import { oauthRouter } from './routes/oauth.js'
 import { tasksRouter } from './routes/tasks.js'
 import { sprintsRouter } from './routes/sprints.js'
+import { sessionFabricRouter } from './routes/sessions.js'
+import { fabricSecurityRouter } from './routes/fabric-security.js'
 import { dashboardRouter } from './routes/dashboard.js'
 import { telegramRouter, initTelegramWebhook } from './routes/telegram.js'
 import { slackRouter } from './routes/slack.js'
@@ -360,6 +362,8 @@ v1.use('/tasks/:taskId/clarification', clarificationRouter)
 v1.use('/parallel', parallelRouter)
 v1.use('/sprints', sprintsRouter)
 v1.use('/sprints', sprintRunnerRouter)
+v1.use(sessionFabricRouter) // Session Fabric: /sessions, /sessions/:id/{events,lease,participants}, /runners — per-handler workspace check
+v1.use(fabricSecurityRouter) // Session Fabric security bar (Phase 1c): /fabric/{tokens,kill}, /sessions/:id/{grant,policy/evaluate}
 v1.use('/dashboard', requireWorkspaceMember('workspaceId'), dashboardRouter)
 v1.use('/approvals', owdRouter)
 v1.use('/memory', requireWorkspaceMember('workspaceId'), memoryRouter)

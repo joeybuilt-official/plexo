@@ -26,6 +26,9 @@ import {
     smallint,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+// Session Fabric (Phase 1a): imported for the nullable tasks.sessionId FK.
+// The .references() callback is lazy so this import cycle never eager-evals.
+import { sessions } from './session-fabric-schema'
 
 // ── Enums ────────────────────────────────────────────────────────
 
@@ -315,6 +318,9 @@ export const tasks = pgTable('tasks', {
     // deleting a sprint doesn't cascade-delete the task history.
     projectId: text('project_id').references((): any => sprints.id, { onDelete: 'set null' }), // eslint-disable-line @typescript-eslint/no-explicit-any
     parentId: text('parent_id').references((): any => tasks.id, { onDelete: 'set null' }), // eslint-disable-line @typescript-eslint/no-explicit-any -- self-ref
+    // Session Fabric (Phase 1a): nullable back-link to the fabric session that
+    // spawned this task. Null for tasks not born inside a session.
+    sessionId: text('session_id').references((): any => sessions.id), // eslint-disable-line @typescript-eslint/no-explicit-any -- cross-file ref, avoid import cycle eager eval
     context: jsonb('context').notNull(),
     qualityScore: real('quality_score'),
     /** Round-5 Phase 3: provider/model the router actually dispatched to. Written
@@ -2122,3 +2128,10 @@ export const jexRecognitions = pgTable('jex_recognitions', {
 
 export type JexRecognition = typeof jexRecognitions.$inferSelect
 export type NewJexRecognition = typeof jexRecognitions.$inferInsert
+
+// ── Session Fabric (Phase 1a) ────────────────────────────────────
+// Re-exported here (not just from index.ts) so drizzle-kit — which reads
+// ./src/schema.ts as its single entrypoint — emits the fabric migrations.
+// `sessions` is also imported at the top of this file for the tasks.sessionId
+// FK; the reference callback is lazy, so the import cycle never eager-evals.
+export * from './session-fabric-schema'

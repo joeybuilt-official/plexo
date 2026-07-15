@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "herald.rm-rf",
+      "match": { "tool": "bash", "cmd_pattern": "\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\\b" },
+      "decision": "deny",
+      "teach": "Recursive force-delete is irreversible. Scope the path and delete explicitly, or ask an operator."
+    },
+    {
+      "id": "herald.git-push",
+      "match": { "tool": "bash", "cmd_pattern": "\\bgit\\s+push\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Pushing to a remote publishes work. Requires a drive grant and a green verify."
+    },
+    {
+      "id": "herald.git-reset-hard",
+      "match": { "tool": "bash", "cmd_pattern": "\\bgit\\s+reset\\s+--hard\\b" },
+      "decision": "gate",
+      "teach": "A hard reset discards uncommitted work. Confirm the target ref first."
+    },
+    {
+      "id": "herald.docker-down-kill",
+      "match": { "tool": "bash", "cmd_pattern": "\\bdocker(\\s+compose)?\\s+(down|kill)\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Stopping containers can take services offline. Name the target stack and confirm."
+    },
+    {
+      "id": "herald.publish",
+      "match": { "tool": "bash", "cmd_pattern": "publish\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Publishing a package/artifact is externally visible and hard to unwind."
+    },
+    {
+      "id": "herald.deploy",
+      "match": { "tool": "bash", "cmd_pattern": "\\bdeploy\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Deploys touch production. Requires a drive grant and operator confirmation."
+    },
+    {
+      "id": "herald.sudo",
+      "match": { "tool": "bash", "cmd_pattern": "\\bsudo\\b" },
+      "decision": "deny",
+      "teach": "Privilege escalation is not permitted from a fabric runner."
+    },
+    {
+      "id": "herald.eval",
+      "match": { "tool": "bash", "cmd_pattern": "\\beval\\b" },
+      "decision": "deny",
+      "teach": "Dynamic shell eval hides intent. Run the concrete command instead."
+    },
+    {
+      "id": "herald.bash-c",
+      "match": { "tool": "bash", "cmd_pattern": "\\bbash\\s+-c\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Wrapped bash -c obscures the real command. Prefer a direct invocation."
+    },
+    {
+      "id": "herald.curl-pipe-bash",
+      "match": { "tool": "bash", "cmd_pattern": "\\bcurl\\b[^|]*\\|[^|]*\\b(bash|sh)\\b" },
+      "decision": "deny",
+      "teach": "Piping remote content straight into a shell runs unreviewed code. Download, review, then run."
+    },
+    {
+      "id": "phalanx.edit-before-plan",
+      "match": { "tool": "edit" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Phalanx gate: no code edit before a seeded task/plan exists."
+    },
+    {
+      "id": "phalanx.commit-before-verify",
+      "match": { "tool": "bash", "cmd_pattern": "\\bgit\\s+commit\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Phalanx gate: no commit before a verify/test ran green this turn."
+    }
+  ]
+}
