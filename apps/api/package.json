@@ -16,6 +16,7 @@
     "drizzle-orm": "^0.45.2",
     "@plexo/logger": "workspace:*",
     "@plexo/queue": "workspace:*",
+    "@plexo/session-fabric": "workspace:*",
     "@joeybuilt/plexo-sdk": "workspace:*",
     "@plexo/storage": "workspace:*",
     "@types/pg": "^8.20.0",
