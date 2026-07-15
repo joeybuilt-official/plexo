@@ -48,6 +48,7 @@ COPY packages/sdk/package.json          packages/sdk/
 COPY packages/logger/package.json       packages/logger/
 COPY packages/storage/package.json      packages/storage/
 COPY packages/ui/package.json           packages/ui/
+COPY packages/session-fabric/package.json packages/session-fabric/
 
 # Native build deps so sharp prebuild fetch + onnxruntime-node prebuild
 # fetch can fall through to source compile if needed.
@@ -109,6 +110,7 @@ COPY --from=deps /app/packages/queue/node_modules  ./packages/queue/node_modules
 COPY --from=deps /app/packages/sdk/node_modules    ./packages/sdk/node_modules
 COPY --from=deps /app/packages/logger/node_modules    ./packages/logger/node_modules
 COPY --from=deps /app/packages/storage/node_modules    ./packages/storage/node_modules
+COPY --from=deps /app/packages/session-fabric/node_modules ./packages/session-fabric/node_modules
 
 # Source files
 COPY tsconfig.base.json ./
@@ -120,6 +122,7 @@ COPY packages/sdk             ./packages/sdk
 COPY --from=deps /app/packages/sdk/dist ./packages/sdk/dist
 COPY packages/logger   ./packages/logger
 COPY packages/storage  ./packages/storage
+COPY packages/session-fabric ./packages/session-fabric
 
 # Bundled reference extensions (Phase 5) — activate() entry points loaded by
 # the persistent worker pool at /app/extensions/core/<name>/dist/index.js
@@ -161,7 +164,7 @@ ENV APP_VERSION=auto
 # Link workspace packages so dynamic imports resolve at runtime (tsx static
 # imports work via process memory; dynamic imports need these symlinks)
 RUN mkdir -p /app/node_modules/@plexo && \
-    for pkg in agent db queue sdk logger scl-core storage; do \
+    for pkg in agent db queue sdk logger scl-core storage session-fabric; do \
       ln -sf /app/packages/${pkg} /app/node_modules/@plexo/${pkg}; \
     done
 
