@@ -192,10 +192,12 @@ export async function buildWorkspaceTools(workspaceId: string, opts?: {
                     if (source === 'memory' || source === 'all') {
                         const conditions = keywords.map(kw => sql`(${memoryEntries.content} ILIKE ${'%' + kw + '%'} OR ${memoryEntries.shorthand} ILIKE ${'%' + kw + '%'})`)
                         const filter = conditions.length === 1 ? conditions[0]! : sql.join(conditions, sql` OR `)
-                        const rows = await db.select({ content: memoryEntries.content, shorthand: memoryEntries.shorthand, type: memoryEntries.type, tier: memoryEntries.tier, createdAt: memoryEntries.createdAt })
-                            .from(memoryEntries).where(sql`${memoryEntries.workspaceId} = ${workspaceId} AND (${filter})`).orderBy(desc(memoryEntries.createdAt)).limit(limit)
-                        if (rows.length > 0) {
-                            sections.push(`=== MEMORY (${rows.length} matches) ===\n` + rows.map(r => {
+                        const rows = await db.select({ content: memoryEntries.content, shorthand: memoryEntries.shorthand, type: memoryEntries.type, tier: memoryEntries.tier, createdAt: memoryEntries.createdAt, confidence: memoryEntries.confidence })
+                            .from(memoryEntries).where(sql`${memoryEntries.workspaceId} = ${workspaceId} AND (${filter})`).orderBy(sql`${memoryEntries.confidence} * exp(-EXTRACT(EPOCH FROM (now() - ${memoryEntries.createdAt})) / 604800) DESC`).limit(Math.min(limit * 5, 100))
+                        const { rankBySalience } = await import('./salience.js')
+                        const ranked = rankBySalience(rows, { budgetChars: 4000, limit })
+                        if (ranked.length > 0) {
+                            sections.push(`=== MEMORY (${ranked.length} matches) ===\n` + ranked.map(r => {
                                 const ts = r.createdAt instanceof Date ? r.createdAt.toISOString().slice(0, 19) : String(r.createdAt)
                                 return `[${ts}] (${r.type}/${r.tier}) ${r.shorthand ?? r.content.slice(0, 300)}`
                             }).join('\n'))
