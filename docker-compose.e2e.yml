@@ -94,6 +94,11 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:-e2e000000000000000000000000000000000000000000000000000000000auth}
       BETTER_AUTH_URL: http://localhost:3000
       PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-e2e00000000000000000000000000000000000000000000000000000service}
+      # e2e-only dummies: let the parity harness (scripts/parity-harness.mjs) mint
+      # fabric device tokens + grants against the throwaway stack. Same pattern as
+      # PLEXO_SERVICE_KEY above.
+      SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-e2e-admin@example.com}
+      FABRIC_DEVICE_TOKEN_SECRET: ${FABRIC_DEVICE_TOKEN_SECRET:-e2e00000000000000000000000000000000000000000000000000000fabric}
       CORS_ORIGINS: http://localhost:3000
       ALLOW_SIDELOAD: "false"
       ENABLE_SPRINT_CODING_TASKS: "false"

@@ -127,6 +127,7 @@
     "e2e:test": "E2E_BASE_URL=http://127.0.0.1:3000 E2E_API_URL=http://127.0.0.1:3001 playwright test tests/e2e/p0-*.spec.ts tests/e2e/p1-*.spec.ts tests/e2e/p2-*.spec.ts",
     "e2e:logs": "docker compose -f docker-compose.e2e.yml logs --tail 200 -f",
     "e2e:reset": "bash scripts/e2e-down.sh && bash scripts/e2e-up.sh",
+    "parity": "node scripts/parity-harness.mjs",
     "lint": "turbo lint",
     "db:generate": "pnpm --filter @plexo/db db:generate",
     "db:migrate": "pnpm --filter @plexo/db db:migrate",
