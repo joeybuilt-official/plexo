@@ -293,6 +293,42 @@ describe('runPlanVerify', () => {
         expect(backend.executed).toEqual([])
         expect(await repo.listEvents(session.id, 0)).toHaveLength(0)
     })
+
+    it('(e) slow model calls that outlast the TTL still complete — lease re-claimed', async () => {
+        const clock = deps.clock as TestClock
+        const executed: string[] = []
+        const slow: RunnerBackend = {
+            async plan() { clock.advance(130_000); return STEPS }, // > 120s TTL
+            async executeStep(step) { executed.push(step.id); return { stepId: step.id, ok: true } },
+            async verify() { clock.advance(130_000); return { outcomeKind: 'test', reward: 1, rewardSource: 't@v1' } },
+        }
+        const out = await runPlanVerify(deps, slow, {
+            sessionId: session.id, runnerId: 'runA', goal: 'g', tier: 'drive', rules: [ALLOW_ALL],
+        })
+        expect(out.ok).toBe(true)
+        if (!out.ok) return
+        expect(out.value.status).toBe('completed') // outcome persisted despite ~260s of model latency
+        expect(executed).toEqual(['s0', 's1'])
+        const evs = await repo.listEvents(session.id, 0)
+        expect(evs.map((e) => e.kind)).toContain('outcome')
+        expect(await repo.getLease(session.id)).toBeNull() // released on completion
+    })
+
+    it('(f) lease stolen by another runner during planning → NO_LEASE', async () => {
+        const clock = deps.clock as TestClock
+        const backend: RunnerBackend = {
+            async plan() { clock.advance(130_000); await claim(deps, session.id, 'runB'); return STEPS },
+            async executeStep(step) { return { stepId: step.id, ok: true } },
+            async verify() { return { outcomeKind: 'test', reward: 1, rewardSource: 't@v1' } },
+        }
+        const out = await runPlanVerify(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', goal: 'g', tier: 'drive', rules: [ALLOW_ALL],
+        })
+        expect(out.ok).toBe(false)
+        if (out.ok) return
+        expect(out.error.code).toBe('NO_LEASE')
+        expect(await repo.listEvents(session.id, 0)).toHaveLength(0) // nothing persisted after the steal
+    })
 })
 
 // ── resumeRun (approval resume) ─────────────────────────────────
