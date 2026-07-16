@@ -69,9 +69,9 @@ export function buildClient(profile: PlexoProfile, verbose = false) {
 
     return {
         get: <T>(path: string) => request<T>('GET', path),
-        post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
+        post: <T>(path: string, body?: unknown, extraHeaders?: Record<string, string>) => request<T>('POST', path, body, extraHeaders),
         patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
-        delete: <T>(path: string) => request<T>('DELETE', path),
+        delete: <T>(path: string, body?: unknown) => request<T>('DELETE', path, body),
     }
 }
 
