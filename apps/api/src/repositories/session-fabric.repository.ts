@@ -23,6 +23,7 @@ import type {
 import type {
     Lease,
     NewSessionEvent,
+    PresenceInstanceRow,
     Runner,
     Session,
     SessionEvent,
@@ -113,6 +114,99 @@ export function makeSessionFabricRepo(): SessionRepo {
                         .map((p) => ({ role: p.role, lastHeartbeat: p.lastHeartbeat })),
                 }
             })
+        },
+
+        async listWorkspaceInstances(workspaceId: string): Promise<PresenceInstanceRow[]> {
+            const runnerRows = await db
+                .select({
+                    id: runners.id,
+                    capabilities: runners.capabilities,
+                    status: runners.status,
+                    lastHeartbeat: runners.lastHeartbeat,
+                })
+                .from(runners)
+                .where(eq(runners.workspaceId, workspaceId))
+
+            const runnerIds = runnerRows.map((r) => r.id)
+            const runnerLeaseRows = runnerIds.length
+                ? await db
+                      .select({
+                          runnerId: leases.runnerId,
+                          sessionId: leases.sessionId,
+                          claimedUntil: leases.claimedUntil,
+                      })
+                      .from(leases)
+                      .innerJoin(sessions, eq(sessions.id, leases.sessionId))
+                      .where(and(inArray(leases.runnerId, runnerIds), eq(sessions.workspaceId, workspaceId)))
+                : []
+            // A runner may hold leases on multiple sessions; the greatest claimedUntil wins.
+            const leaseByRunner = new Map<string, (typeof runnerLeaseRows)[number]>()
+            for (const l of runnerLeaseRows) {
+                const cur = leaseByRunner.get(l.runnerId)
+                if (!cur || l.claimedUntil.getTime() > cur.claimedUntil.getTime()) leaseByRunner.set(l.runnerId, l)
+            }
+
+            const runnerInstances: PresenceInstanceRow[] = runnerRows.map((r) => {
+                const lease = leaseByRunner.get(r.id) ?? null
+                return {
+                    id: r.id,
+                    kind: 'runner',
+                    surface: null,
+                    capabilities: r.capabilities,
+                    status: r.status,
+                    role: null,
+                    lastHeartbeat: r.lastHeartbeat,
+                    leaseSessionId: lease?.sessionId ?? null,
+                    leaseUntil: lease?.claimedUntil ?? null,
+                }
+            })
+
+            const headRows = await db
+                .select({
+                    participantId: sessionParticipants.participantId,
+                    surface: sessionParticipants.surface,
+                    capabilities: sessionParticipants.capabilities,
+                    role: sessionParticipants.role,
+                    lastHeartbeat: sessionParticipants.lastHeartbeat,
+                    sessionId: sessionParticipants.sessionId,
+                })
+                .from(sessionParticipants)
+                .innerJoin(sessions, eq(sessions.id, sessionParticipants.sessionId))
+                .where(and(eq(sessions.workspaceId, workspaceId), eq(sessionParticipants.kind, 'head')))
+
+            // A head appears once per joined session; collapse to one instance per participantId:
+            // freshest heartbeat wins the row, any driver-role session becomes drivingSessionId.
+            const headByParticipant = new Map<string, PresenceInstanceRow>()
+            for (const h of headRows) {
+                const existing = headByParticipant.get(h.participantId)
+                if (!existing) {
+                    headByParticipant.set(h.participantId, {
+                        id: h.participantId,
+                        kind: 'head',
+                        surface: h.surface,
+                        capabilities: h.capabilities,
+                        status: null,
+                        role: h.role,
+                        lastHeartbeat: h.lastHeartbeat,
+                        leaseSessionId: h.role === 'driver' ? h.sessionId : null,
+                        leaseUntil: null,
+                    })
+                    continue
+                }
+                if (h.lastHeartbeat.getTime() > existing.lastHeartbeat.getTime()) {
+                    existing.surface = h.surface
+                    existing.capabilities = h.capabilities
+                    existing.role = h.role
+                    existing.lastHeartbeat = h.lastHeartbeat
+                }
+                if (existing.leaseSessionId === null && h.role === 'driver') existing.leaseSessionId = h.sessionId
+            }
+            // role and drivingSessionId must agree: a head adopted as driving is a driver.
+            for (const inst of headByParticipant.values()) {
+                if (inst.leaseSessionId !== null) inst.role = 'driver'
+            }
+
+            return [...runnerInstances, ...headByParticipant.values()]
         },
 
         async maxSeq(sessionId: string): Promise<number> {

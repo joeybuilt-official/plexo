@@ -22,6 +22,7 @@ import { registerConfig } from './commands/config.js'
 import { registerPax } from './commands/pax.js'
 import { registerDoctor } from './commands/doctor.js'
 import { registerSessions } from './commands/sessions.js'
+import { registerPresence } from './commands/presence.js'
 import { registerAttach } from './commands/attach.js'
 import { registerDrive } from './commands/drive.js'
 import { registerRun } from './commands/run.js'
@@ -47,6 +48,7 @@ registerConfig(program)
 registerPax(program)
 registerDoctor(program)
 registerSessions(program)
+registerPresence(program)
 registerAttach(program)
 registerDrive(program)
 registerRun(program)
