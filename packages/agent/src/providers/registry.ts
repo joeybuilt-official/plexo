@@ -552,10 +552,17 @@ export function buildModel(
             return cf(modelId)
         }
         case 'ollama': {
+            const fromInternalEnv = !config.baseUrl && !!process.env.OLLAMA_INTERNAL_URL
             let base = resolveBaseUrl((config.baseUrl ?? process.env.OLLAMA_INTERNAL_URL ?? 'http://localhost:11434').replace(/\/+$/, ''))
             // Auto-upgrade http→https for remote Ollama instances behind reverse proxies.
             // Without this, the 301 redirect changes POST to GET, causing 405 errors.
-            if (base.startsWith('http://') && !base.includes('localhost') && !base.includes('127.0.0.1')) {
+            // Skip for the internal Docker sidecar (OLLAMA_INTERNAL_URL) and single-label
+            // Docker service hostnames (e.g. http://ollama:11434) — those are plaintext
+            // HTTP and upgrading them sends a TLS handshake to a plaintext port
+            // ("wrong version number").
+            const olHost = new URL(base).hostname
+            const isInternalHost = fromInternalEnv || !olHost.includes('.') || olHost === 'localhost' || olHost === '127.0.0.1'
+            if (base.startsWith('http://') && !isInternalHost) {
                 base = base.replace('http://', 'https://')
             }
             const ol = createOpenAICompatible({
