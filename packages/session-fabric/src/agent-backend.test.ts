@@ -6,6 +6,8 @@ import {
     AgentSdkBackend,
     RefuseToolExecutor,
     REFUSE_MESSAGE,
+    PLAN_SYSTEM,
+    VERIFY_SYSTEM,
     type ModelClient,
     type ToolExecutor,
 } from './agent-backend'
@@ -88,9 +90,40 @@ describe('AgentSdkBackend.verify', () => {
         expect(v).toEqual({
             outcomeKind: 'test',
             reward: 1,
-            rewardSource: 'agent-sdk-verify@claude-opus-4-8',
+            rewardSource: 'agent-sdk-verify',
             note: 'looks good',
         })
+    })
+
+    it('routes through the verify model when one is supplied; plan model untouched', async () => {
+        const planM = scriptedModel([])
+        const verifyM = scriptedModel(['{"reward":1,"note":"ok"}'])
+        const backend = new AgentSdkBackend(planM, undefined, verifyM)
+        await backend.verify([STEP], [{ stepId: 's0', ok: true }])
+        expect(verifyM.prompts[0]?.system).toBe(VERIFY_SYSTEM)
+        expect(planM.prompts).toEqual([])
+    })
+
+    it('falls back to the plan model when no verify model is given (backward compat)', async () => {
+        const planM = scriptedModel(['{"reward":1,"note":"ok"}'])
+        const backend = new AgentSdkBackend(planM)
+        await backend.verify([STEP], [{ stepId: 's0', ok: true }])
+        expect(planM.prompts[0]?.system).toBe(VERIFY_SYSTEM)
+    })
+
+    it('plan uses the plan model, never the verify model', async () => {
+        const planM = scriptedModel(['[{"id":"s0","description":"noop"}]'])
+        const verifyM = scriptedModel([])
+        const backend = new AgentSdkBackend(planM, undefined, verifyM)
+        await backend.plan('g')
+        expect(planM.prompts[0]?.system).toBe(PLAN_SYSTEM)
+        expect(verifyM.prompts).toEqual([])
+    })
+
+    it('keeps the RefuseToolExecutor default when verify model passed via position 3', async () => {
+        const backend = new AgentSdkBackend(scriptedModel([]), undefined, scriptedModel([]))
+        const r = await backend.executeStep(STEP)
+        expect(r).toEqual({ stepId: 's0', ok: false, output: REFUSE_MESSAGE })
     })
 
     it('clamps out-of-range rewards to [0,1]', async () => {

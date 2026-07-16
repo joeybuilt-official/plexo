@@ -79,13 +79,13 @@ function buildRunnerBackend(workspaceId?: string): AgentSdkBackend {
     if (process.env.PLEXO_RUNNER_MODEL_CLIENT === 'anthropic') {
         return new AgentSdkBackend(anthropicModelClient())
     }
+    const common = { workspaceId, loadSettings: loadSettingsFromInstances, stepTimeoutMs: 120_000 }
+    // undefined toolExecutor preserves the D2 RefuseToolExecutor default; verify routes
+    // at the cheaper 'judging' tier (honors per-workspace modelOverrides.judging).
     return new AgentSdkBackend(
-        routerModelClient({
-            workspaceId,
-            loadSettings: loadSettingsFromInstances,
-            taskType: 'planning',
-            stepTimeoutMs: 120_000,
-        }),
+        routerModelClient({ ...common, taskType: 'planning' }),
+        undefined,
+        routerModelClient({ ...common, taskType: 'judging' }),
     )
 }
 

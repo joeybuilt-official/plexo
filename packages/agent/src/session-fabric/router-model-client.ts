@@ -36,7 +36,7 @@ export interface RouterModelClientOptions {
     settings?: WorkspaceAISettings
     /** Loader (e.g. loadSettingsFromInstances) — resolves the workspace's configured chain. */
     loadSettings?: (workspaceId: string) => Promise<WorkspaceAISettings | null>
-    /** Registry task tier both plan and verify map to. Default 'planning'. */
+    /** Registry tier THIS client's calls map to (the backend now builds a separate client for plan vs verify). Default 'planning'. */
     taskType?: TaskType
     /** Forwarded to callModel wall-clock timeout. Planner uses 120_000. */
     stepTimeoutMs?: number
