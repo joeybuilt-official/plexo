@@ -1,11 +1,42 @@
 {
-  "version": 1,
+  "version": 2,
   "rules": [
     {
-      "id": "herald.rm-rf",
-      "match": { "tool": "bash", "cmd_pattern": "\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\\b" },
+      "id": "herald.rm-recursive-force",
+      "match": { "tool": "bash", "cmd_pattern": "\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive\\b[^\\n]*--force|--force\\b[^\\n]*--recursive)\\b" },
       "decision": "deny",
-      "teach": "Recursive force-delete is irreversible. Scope the path and delete explicitly, or ask an operator."
+      "teach": "Recursive force-delete is irreversible."
+    },
+    {
+      "id": "herald.sudo",
+      "match": { "tool": "bash", "cmd_pattern": "\\bsudo\\b" },
+      "decision": "deny",
+      "teach": "Privilege escalation is not permitted from a fabric runner."
+    },
+    {
+      "id": "herald.eval",
+      "match": { "tool": "bash", "cmd_pattern": "\\beval\\b" },
+      "decision": "deny",
+      "teach": "Dynamic shell eval hides intent. Run the concrete command instead. eval can dynamically reconstruct any command and defeat every pattern rule."
+    },
+    {
+      "id": "herald.curl-pipe-bash",
+      "match": { "tool": "bash", "cmd_pattern": "\\bcurl\\b[^|]*\\|[^|]*\\b(bash|sh)\\b" },
+      "decision": "deny",
+      "teach": "Piping remote content straight into a shell runs unreviewed code. Download, review, then run."
+    },
+    {
+      "id": "herald.psql-destructive",
+      "match": { "tool": "bash", "cmd_pattern": "\\bpsql\\b[^\\n]*\\b([Dd][Rr][Oo][Pp]|[Tt][Rr][Uu][Nn][Cc][Aa][Tt][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee])\\b" },
+      "decision": "deny",
+      "teach": "Destructive SQL against a live DB is irreversible."
+    },
+    {
+      "id": "herald.rm-force",
+      "match": { "tool": "bash", "cmd_pattern": "\\brm\\s+(-[a-zA-Z]*f|--force)\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Force-delete: confirm the path."
     },
     {
       "id": "herald.git-push",
@@ -21,11 +52,25 @@
       "teach": "A hard reset discards uncommitted work. Confirm the target ref first."
     },
     {
-      "id": "herald.docker-down-kill",
-      "match": { "tool": "bash", "cmd_pattern": "\\bdocker(\\s+compose)?\\s+(down|kill)\\b" },
+      "id": "herald.git-clean",
+      "match": { "tool": "bash", "cmd_pattern": "\\bgit\\s+clean\\s+-[a-zA-Z]*f" },
       "tier": "drive",
       "decision": "gate",
-      "teach": "Stopping containers can take services offline. Name the target stack and confirm."
+      "teach": "git clean -f deletes untracked files irreversibly."
+    },
+    {
+      "id": "herald.git-checkout-dashdash",
+      "match": { "tool": "bash", "cmd_pattern": "\\bgit\\s+checkout\\s+--" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Discards uncommitted changes to the named paths."
+    },
+    {
+      "id": "herald.docker-stop-family",
+      "match": { "tool": "bash", "cmd_pattern": "\\bdocker(\\s+compose)?\\s+(down|kill|rm|stop|prune)\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Stopping/removing/pruning containers can take services offline or lose state."
     },
     {
       "id": "herald.publish",
@@ -35,36 +80,39 @@
       "teach": "Publishing a package/artifact is externally visible and hard to unwind."
     },
     {
-      "id": "herald.deploy",
-      "match": { "tool": "bash", "cmd_pattern": "\\bdeploy\\b" },
+      "id": "herald.deploy-release",
+      "match": { "tool": "bash", "cmd_pattern": "\\b(deploy|release)\\b" },
       "tier": "drive",
       "decision": "gate",
-      "teach": "Deploys touch production. Requires a drive grant and operator confirmation."
-    },
-    {
-      "id": "herald.sudo",
-      "match": { "tool": "bash", "cmd_pattern": "\\bsudo\\b" },
-      "decision": "deny",
-      "teach": "Privilege escalation is not permitted from a fabric runner."
-    },
-    {
-      "id": "herald.eval",
-      "match": { "tool": "bash", "cmd_pattern": "\\beval\\b" },
-      "decision": "deny",
-      "teach": "Dynamic shell eval hides intent. Run the concrete command instead."
+      "teach": "Deploys/releases touch production or cut an external artifact."
     },
     {
       "id": "herald.bash-c",
-      "match": { "tool": "bash", "cmd_pattern": "\\bbash\\s+-c\\b" },
+      "match": { "tool": "bash", "cmd_pattern": "\\b(bash|sh)\\s+-c\\b" },
       "tier": "drive",
       "decision": "gate",
-      "teach": "Wrapped bash -c obscures the real command. Prefer a direct invocation."
+      "teach": "Wrapped bash/sh -c obscures the real command."
     },
     {
-      "id": "herald.curl-pipe-bash",
-      "match": { "tool": "bash", "cmd_pattern": "\\bcurl\\b[^|]*\\|[^|]*\\b(bash|sh)\\b" },
-      "decision": "deny",
-      "teach": "Piping remote content straight into a shell runs unreviewed code. Download, review, then run."
+      "id": "herald.base64",
+      "match": { "tool": "bash", "cmd_pattern": "\\bbase64\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "base64 can hide payload intent."
+    },
+    {
+      "id": "herald.python-c",
+      "match": { "tool": "bash", "cmd_pattern": "\\bpython[0-9.]*\\s+-c\\b" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Inline python -c obscures intent."
+    },
+    {
+      "id": "herald.write-redirect",
+      "match": { "tool": "bash", "cmd_pattern": "(^|[^0-9>])>>?\\s*[^|>&\\s]" },
+      "tier": "drive",
+      "decision": "gate",
+      "teach": "Shell redirect overwrites/append files."
     },
     {
       "id": "phalanx.edit-before-plan",
