@@ -101,7 +101,8 @@
     "./channels/gmail-send": "./src/channels/gmail-send.ts",
     "./channels/outbound-attachments-port": "./src/channels/outbound-attachments-port.ts",
     "./tool-set-cache": "./src/tool-set-cache.ts",
-    "./memory/embeddings": "./src/memory/embeddings.ts"
+    "./memory/embeddings": "./src/memory/embeddings.ts",
+    "./session-fabric/anthropic-model-client": "./src/session-fabric/anthropic-model-client.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
