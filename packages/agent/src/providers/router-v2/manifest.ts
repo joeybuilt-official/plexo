@@ -81,6 +81,13 @@ export const PROVIDER_DEFAULT_MODEL_CLASS: Partial<Record<ProviderKey, string>> 
     deepseek: 'deepseek-v3',
     groq: 'llama-3.3-70b',
     ollama_cloud: 'gpt-oss:20b-cloud',
+    // Local keyless last-resort. The default model CLASS documents that ollama's
+    // chat entry is served by a real chat model (gemma3:4b), NOT the vision model
+    // (qwen2.5vl) — vision is resolved on a separate path (providers/vision.ts,
+    // findVisionCapableModel, by model-name heuristic), so this never collides.
+    // NB: the selector resolves the concrete model via resolveModelId (instance
+    // config.model / overrides), not this map — this is documentation + parity.
+    ollama: 'gemma3:4b',
 }
 
 /** Convenience for tests + downstream introspection. */
@@ -91,6 +98,8 @@ export const MANIFEST_PROVIDERS: ProviderKey[] = [
     'deepseek',
     'groq',
     'ollama_cloud',
+    // Local keyless permanent chat fallback (never preempts a funded paid provider).
+    'ollama',
 ]
 
 /** Quality threshold: entries strictly below this are considered "low-quality" for Q2 hybrid routing. */
@@ -132,6 +141,7 @@ export const MANIFEST: ManifestTable = {
         groq: { priorScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-06-05' },
         cerebras: { priorScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-06-05' },
         ollama_cloud: { priorScore: 3, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit', 'ollama-cloud-cold-start-latency'], lastValidatedAt: '2026-05-23' },
+        ollama: { priorScore: 2, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-07-15' },
     },
     codeGeneration: {
         anthropic: { priorScore: 5, capabilities: [...BASE, 'long-context-200k'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
@@ -141,6 +151,7 @@ export const MANIFEST: ManifestTable = {
         groq: { priorScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-06-05' },
         cerebras: { priorScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-06-05' },
         ollama_cloud: { priorScore: 3, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit', 'ollama-cloud-cold-start-latency'], lastValidatedAt: '2026-05-23' },
+        ollama: { priorScore: 2, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-07-15' },
     },
     verification: {
         anthropic: { priorScore: 5, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
@@ -149,6 +160,7 @@ export const MANIFEST: ManifestTable = {
         deepseek: { priorScore: 3, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
         groq: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
         cerebras: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-06-05' },
+        ollama: { priorScore: 2, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-07-15' },
     },
     summarization: {
         openai: { priorScore: 4, capabilities: [...BASE], quirks: ['openai-no-retry-after'], lastValidatedAt: '2026-05-13' },
@@ -158,6 +170,7 @@ export const MANIFEST: ManifestTable = {
         groq: { priorScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
         cerebras: { priorScore: 3, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-06-05' },
         ollama_cloud: { priorScore: 3, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-05-13' },
+        ollama: { priorScore: 2, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-07-15' },
     },
     conversation: {
         openai: { priorScore: 5, capabilities: [...BASE], quirks: ['openai-no-retry-after'], lastValidatedAt: '2026-05-13' },
@@ -167,6 +180,7 @@ export const MANIFEST: ManifestTable = {
         cerebras: { priorScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-06-05' },
         deepseek: { priorScore: 3, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
         ollama_cloud: { priorScore: 3, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit', 'ollama-cloud-cold-start-latency'], lastValidatedAt: '2026-05-13' },
+        ollama: { priorScore: 2, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-07-15' },
     },
     classification: {
         groq: { priorScore: 4, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
@@ -176,6 +190,7 @@ export const MANIFEST: ManifestTable = {
         deepseek: { priorScore: 3, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-05-13' },
         google: { priorScore: 3, capabilities: [...BASE], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
         ollama_cloud: { priorScore: 3, capabilities: [...BASE], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-05-13' },
+        ollama: { priorScore: 2, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-07-15' },
     },
     logAnalysis: {
         google: { priorScore: 5, capabilities: [...BASE, 'long-context-1m'], quirks: ['google-content-policy-returns-200-with-refusal-string'], lastValidatedAt: '2026-05-13' },
@@ -184,6 +199,7 @@ export const MANIFEST: ManifestTable = {
         deepseek: { priorScore: 3, capabilities: [...BASE, 'long-context-200k'], quirks: ['deepseek-slow-on-long-prompts'], lastValidatedAt: '2026-05-13' },
         groq: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-05-13' },
         cerebras: { priorScore: 2, capabilities: [...BASE, 'low-latency'], quirks: [], lastValidatedAt: '2026-06-05' },
+        ollama: { priorScore: 2, capabilities: [...BASE], quirks: [], lastValidatedAt: '2026-07-15' },
     },
     extraction: {
         openai: { priorScore: 5, capabilities: [...BASE, 'json-mode', 'function-calling-strict'], quirks: ['openai-no-retry-after', 'openai-strict-json-mode'], lastValidatedAt: '2026-05-13' },
@@ -193,6 +209,7 @@ export const MANIFEST: ManifestTable = {
         groq: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'function-calling-strict'], quirks: ['groq-strict-json-schema'], lastValidatedAt: '2026-06-08' },
         cerebras: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-06-08' },
         ollama_cloud: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-06-08' },
+        ollama: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: [], lastValidatedAt: '2026-07-15' },
     },
     judging: {
         anthropic: { priorScore: 5, capabilities: [...BASE, 'json-mode'], quirks: ['anthropic-429-respects-retry-after'], lastValidatedAt: '2026-05-13' },
@@ -202,6 +219,7 @@ export const MANIFEST: ManifestTable = {
         groq: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'function-calling-strict'], quirks: ['groq-strict-json-schema'], lastValidatedAt: '2026-06-08' },
         cerebras: { priorScore: 3, capabilities: [...BASE, 'low-latency', 'json-mode'], quirks: [], lastValidatedAt: '2026-06-05' },
         ollama_cloud: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-06-08' },
+        ollama: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: [], lastValidatedAt: '2026-07-15' },
     },
 }
 

@@ -24,6 +24,7 @@ import { registerDoctor } from './commands/doctor.js'
 import { registerSessions } from './commands/sessions.js'
 import { registerAttach } from './commands/attach.js'
 import { registerDrive } from './commands/drive.js'
+import { registerRun } from './commands/run.js'
 
 const program = new Command()
     .name('plexo')
@@ -48,6 +49,7 @@ registerDoctor(program)
 registerSessions(program)
 registerAttach(program)
 registerDrive(program)
+registerRun(program)
 
 // Global error handler
 program.hook('postAction', () => {

@@ -131,7 +131,14 @@ export function classifyError(err: unknown): Classification {
         msg.includes('socket hang up') ||
         msg.includes('network error') ||
         msg.includes('fetch failed') ||
-        msg.includes('cannot connect')
+        msg.includes('cannot connect') ||
+        // A dead / removed endpoint (410 Gone, 404 Not Found) must cascade to
+        // another candidate rather than fail hard — e.g. a decommissioned local
+        // model URL. Treated as network-class so the workspace advances.
+        msg.includes('410') ||
+        msg.includes('gone') ||
+        msg.includes('404') ||
+        msg.includes('not found')
     ) {
         return { class: 'network', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
