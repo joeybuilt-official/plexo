@@ -116,6 +116,22 @@ function buildAvailable(settings: WorkspaceAISettings): AvailableProvider[] {
     return out
 }
 
+/**
+ * True when a provider referenced by the workspace's preference order
+ * (primaryProvider / fallbackChain) is ABSENT from settings.providers — the
+ * signal that settings-from-instances pruned it (e.g. balanceExhaustedAt set,
+ * see settings-from-instances.ts:180). Used to turn a dead-end NoCandidate into
+ * an actionable operator error. Best-effort: a purely additive heuristic.
+ */
+function providersPrunedForExhaustion(settings: WorkspaceAISettings): boolean {
+    const present = settings.providers as Record<string, unknown>
+    if (settings.primaryProvider && !present[settings.primaryProvider]) return true
+    for (const k of settings.fallbackChain) {
+        if (!present[k]) return true
+    }
+    return false
+}
+
 function cooldownMsForClass(c: ReturnType<typeof classifyError>): number {
     switch (c.class) {
         case 'rate-limit': return c.retryAfterMs ?? COOLDOWN_RATE_LIMIT_MS
@@ -259,6 +275,18 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
                     recordCall({ workspaceId, provider: fb.provider, model: fbModel, taskType }, Date.now() - fbStart, false)
                     lastError = err
                 }
+            }
+            // Resilience: if no candidate could serve this task AND paid providers
+            // were pruned upstream for balance exhaustion (settings-from-instances
+            // drops balanceExhaustedAt rows), the workspace has NO chat-capable
+            // fallback left. Surface an ACTIONABLE operator error rather than the
+            // silent NoCandidate — the local keyless `ollama` chat fallback should
+            // normally prevent this, so reaching here means even it is unavailable.
+            if (providersPrunedForExhaustion(settings)) {
+                throw new RouterV2NoCandidateError(
+                    'all paid providers out of credit and no chat-capable fallback is available; add credit to a provider or ensure the local ollama chat model (gemma3:4b) is reachable',
+                    true,
+                )
             }
             throw new RouterV2NoCandidateError(sel.rationale, false)
         }
