@@ -15,8 +15,12 @@ import { type Deps, appendEvent, claimLease, releaseLease, replayEvents } from '
 import { type Result, err, ok } from './ports'
 import type { Tier } from './tiers'
 
-/** Lease TTL for a plan/verify run; renewed elsewhere if a run outlives it. */
-const RUN_LEASE_TTL_MS = 60_000
+/**
+ * Lease TTL for a plan/verify run. The run also RE-CLAIMS the lease around each
+ * slow model call (plan/verify) — the holder re-wins unless another runner stole
+ * an expired lease — so real model latency can't silently expire it mid-run.
+ */
+const RUN_LEASE_TTL_MS = 120_000
 
 export interface Step {
     id: string
@@ -83,6 +87,11 @@ export async function runPlanVerify(
     if (!claimed.ok) return err('NO_LEASE', `runner ${runnerId} could not lease session ${sessionId}`)
 
     const steps = await backend.plan(input.goal)
+    // plan() is a model call that can outlast the TTL; refresh the lease before
+    // persisting. Fails only if another runner stole the (expired) lease.
+    const refreshed = await claimLease(deps, { sessionId, runnerId, ttlMs: RUN_LEASE_TTL_MS })
+    if (!refreshed.ok) return err('NO_LEASE', `runner ${runnerId} lost session ${sessionId} lease during planning`)
+
     const planned = await appendEvent(deps, {
         sessionId, runnerId, kind: 'plan', actorType: 'runner', actorId: runnerId, payload: { steps },
     })
@@ -168,6 +177,10 @@ export async function driveFrom(
     let verdict: VerifyVerdict | undefined
     if (status === 'completed') {
         verdict = await backend.verify(steps, results)
+        // verify() is a model call too; refresh the lease before the outcome append.
+        const reclaimed = await claimLease(deps, { sessionId, runnerId, ttlMs: RUN_LEASE_TTL_MS })
+        if (!reclaimed.ok) return err('NO_LEASE', `runner ${runnerId} lost session ${sessionId} lease during verify`)
+
         const outcome = await appendEvent(deps, {
             sessionId, runnerId, kind: 'outcome', actorType: 'runner', actorId: runnerId,
             outcomeKind: verdict.outcomeKind, reward: verdict.reward, reward_source: verdict.rewardSource,
