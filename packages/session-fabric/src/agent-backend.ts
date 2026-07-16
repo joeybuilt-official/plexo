@@ -60,14 +60,14 @@ const verdictSchema = z.object({
     note: z.string().optional(),
 })
 
-const PLAN_SYSTEM =
+export const PLAN_SYSTEM =
     'You are a planning backend for a policy-gated task runner. ' +
     'Decompose the GOAL into an ordered list of concrete steps. ' +
     'Each step is an object: {id, description, tool?, cmd?, path?, cwd?}. ' +
     'Use short slug ids (s0, s1, …). Do NOT execute anything. ' +
     'Respond with ONLY a JSON array of steps — no prose, no code fences.'
 
-const VERIFY_SYSTEM =
+export const VERIFY_SYSTEM =
     'You are a verification backend. Given the planned steps and their results ' +
     '(a JSON object {steps, results}), judge whether the goal was satisfied. ' +
     'Respond with ONLY a JSON object {"reward": <0..1>, "note": <short string>} — ' +
@@ -99,7 +99,9 @@ function parseJson(where: string, raw: string): unknown {
 export class AgentSdkBackend implements RunnerBackend {
     constructor(
         private readonly model: ModelClient,
+        // D2 default preserved: passing `undefined` here still yields RefuseToolExecutor.
         private readonly toolExecutor: ToolExecutor = new RefuseToolExecutor(),
+        private readonly verifyModel?: ModelClient,
     ) {}
 
     async plan(goal: string): Promise<Step[]> {
@@ -116,7 +118,7 @@ export class AgentSdkBackend implements RunnerBackend {
     }
 
     async verify(steps: Step[], results: StepResult[]): Promise<VerifyVerdict> {
-        const raw = await this.model.complete({ system: VERIFY_SYSTEM, user: JSON.stringify({ steps, results }) })
+        const raw = await (this.verifyModel ?? this.model).complete({ system: VERIFY_SYSTEM, user: JSON.stringify({ steps, results }) })
         const parsed = verdictSchema.safeParse(parseJson('verify', raw))
         if (!parsed.success) {
             throw new Error(`AgentSdkBackend.verify: model output did not match verdict schema: ${parsed.error.message}`)
@@ -124,6 +126,6 @@ export class AgentSdkBackend implements RunnerBackend {
         const reward = Math.max(0, Math.min(1, parsed.data.reward))
         // ponytail: LLM self-verify has no dedicated outcomeKind; 'test' = "acceptance asserted".
         // Add a 'model' kind to VerifyVerdict if this must be distinguished from a real test signal.
-        return { outcomeKind: 'test', reward, rewardSource: 'agent-sdk-verify@claude-opus-4-8', note: parsed.data.note }
+        return { outcomeKind: 'test', reward, rewardSource: 'agent-sdk-verify', note: parsed.data.note }
     }
 }
