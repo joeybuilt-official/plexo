@@ -16,3 +16,5 @@ export * from './policy'
 // runner port is reachable from the package root as `RunnerPort`.
 export { runPlanVerify } from './runner'
 export type { Step, StepResult, VerifyVerdict, RunOutcome, RunnerBackend as RunnerPort } from './runner'
+export { AgentSdkBackend, RefuseToolExecutor, REFUSE_MESSAGE } from './agent-backend'
+export type { ModelClient, ToolExecutor } from './agent-backend'
