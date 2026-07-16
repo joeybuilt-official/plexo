@@ -34,10 +34,14 @@ import {
     replayEvents,
     getSessionUsage,
     superviseSession,
+    runPlanVerify,
+    resumeRun,
+    AgentSdkBackend,
     type Deps,
     type FabricErrorCode,
     type Result,
 } from '@plexo/session-fabric'
+import { anthropicModelClient } from '@plexo/agent/session-fabric/anthropic-model-client'
 import { z } from 'zod'
 import { makeSessionFabricRepo } from '../repositories/session-fabric.repository.js'
 import {
@@ -45,6 +49,7 @@ import {
     enforceEventTier,
     enforceJoinTier,
     killSwitchGuard,
+    loadPolicyRules,
     requireDeviceToken,
 } from './fabric-security.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -58,6 +63,10 @@ const deps: Deps = {
     clock: { now: () => new Date() },
     idGen: { next: () => ulid() },
 }
+
+// SAFETY: default RefuseToolExecutor (no ToolExecutor arg) — real step execution
+// stays gated behind D2 container isolation (ADR 0050). Never pass a real executor here.
+const runnerBackend = new AgentSdkBackend(anthropicModelClient())
 
 const DEFAULT_LEASE_TTL_MS = 30_000
 const MAX_LEASE_TTL_MS = 300_000
@@ -124,6 +133,18 @@ const leaseBody = z.object({
 const superviseBody = z.object({
     maxCostUsd: z.number().positive().optional(),
     maxTokens: z.number().int().positive().optional(),
+})
+
+const driveBody = z.object({
+    goal: z.string().min(1).max(8192),
+    runnerId: z.string().min(1).max(128),
+    tier: policyTierSchema.optional(),
+})
+
+const approveBody = z.object({
+    stepId: z.string().min(1).max(128),
+    decision: z.enum(['approve', 'deny']),
+    runnerId: z.string().min(1).max(128),
 })
 
 function badRequest(res: import('express').Response, err: z.ZodError): void {
@@ -362,6 +383,57 @@ sessionFabricRouter.post('/sessions/:id/supervise', requireDeviceToken, killSwit
     } catch (err) {
         logger.error({ err, sessionId: String(req.params.id) }, 'supervise session failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to supervise session' } })
+    }
+})
+
+// ── Server-side runner (plan/verify + approval resume) ──────────
+
+sessionFabricRouter.post('/sessions/:id/drive', requireDeviceToken, killSwitchGuard, enforceDriveTier, async (req, res) => {
+    const parsed = driveBody.safeParse(req.body)
+    if (!parsed.success) return badRequest(res, parsed.error)
+    try {
+        if (!(await loadSessionForAccess(req, res))) return
+        const session = await getSession(deps, String(req.params.id))
+        if (!session) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Session not found' } })
+            return
+        }
+        const result = await runPlanVerify(deps, runnerBackend, {
+            sessionId: session.id,
+            runnerId: parsed.data.runnerId,
+            goal: parsed.data.goal,
+            tier: parsed.data.tier ?? session.policyTier,
+            rules: loadPolicyRules(),
+        })
+        sendResult(res, result)
+    } catch (err) {
+        logger.error({ err, sessionId: String(req.params.id) }, 'POST /sessions/:id/drive failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to drive session' } })
+    }
+})
+
+sessionFabricRouter.post('/sessions/:id/approve', requireDeviceToken, killSwitchGuard, enforceDriveTier, async (req, res) => {
+    const parsed = approveBody.safeParse(req.body)
+    if (!parsed.success) return badRequest(res, parsed.error)
+    try {
+        if (!(await loadSessionForAccess(req, res))) return
+        const session = await getSession(deps, String(req.params.id))
+        if (!session) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Session not found' } })
+            return
+        }
+        const result = await resumeRun(deps, runnerBackend, {
+            sessionId: session.id,
+            runnerId: parsed.data.runnerId,
+            tier: session.policyTier,
+            rules: loadPolicyRules(),
+            stepId: parsed.data.stepId,
+            decision: parsed.data.decision,
+        })
+        sendResult(res, result)
+    } catch (err) {
+        logger.error({ err, sessionId: String(req.params.id) }, 'POST /sessions/:id/approve failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to resume session' } })
     }
 })
 
