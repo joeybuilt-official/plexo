@@ -53,6 +53,9 @@ class InMemoryRepo implements SessionRepo {
         }
         return out
     }
+    async listWorkspaceInstances(): Promise<import('./ports').PresenceInstanceRow[]> {
+        return []
+    }
 
     async maxSeq(sessionId: string): Promise<number> {
         let max = 0

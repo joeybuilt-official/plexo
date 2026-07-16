@@ -146,6 +146,41 @@ export interface MasterSessionEntry {
     }
 }
 
+// ── Workspace presence view ─────────────────────────────────────
+
+/**
+ * Raw per-instance row the repo returns for the presence aggregation over
+ * runners + session_participants(head) + leases. Carries the wall-clock inputs
+ * (`lastHeartbeat`, `leaseUntil`) but decides NO liveness/driving — the
+ * use-case derives those against the injected `Clock`.
+ */
+export interface PresenceInstanceRow {
+    id: string
+    kind: ParticipantKind
+    surface: ParticipantSurface | null
+    capabilities: unknown
+    status: RunnerStatus | null
+    role: ParticipantRole | null
+    lastHeartbeat: Date
+    /** Session this instance drives (runner: greatest-`claimedUntil` lease; head: its `driver`-role session). */
+    leaseSessionId: string | null
+    /** Lease expiry for runners; `null` for heads (role='driver' has no TTL). */
+    leaseUntil: Date | null
+}
+
+/** Derived presence view: `alive`/`drivingSessionId` computed by the use-case. */
+export interface PresenceInstance {
+    id: string
+    kind: ParticipantKind
+    surface: ParticipantSurface | null
+    capabilities: unknown
+    status: RunnerStatus | null
+    role: ParticipantRole | null
+    lastHeartbeat: Date
+    alive: boolean
+    drivingSessionId: string | null
+}
+
 // ── The persistence port ────────────────────────────────────────
 
 export type NewSessionEvent = Omit<SessionEvent, 'id' | 'createdAt'>
@@ -154,6 +189,8 @@ export interface SessionRepo {
     createSession(row: Session): Promise<Session>
     getSession(id: string): Promise<Session | null>
     listSessions(workspaceId: string): Promise<SessionListRow[]>
+    /** Raw runner + head-participant instances for the workspace presence view. */
+    listWorkspaceInstances(workspaceId: string): Promise<PresenceInstanceRow[]>
 
     /** Highest seq for a session, or 0 when it has no events. */
     maxSeq(sessionId: string): Promise<number>

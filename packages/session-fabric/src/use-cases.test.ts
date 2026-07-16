@@ -7,6 +7,7 @@ import {
     type Clock,
     type IdGen,
     type NewSessionEvent,
+    type PresenceInstanceRow,
     type SessionListRow,
     type SessionRepo,
     SeqConflictError,
@@ -18,6 +19,8 @@ import {
     createSession,
     joinParticipant,
     listMasterSessions,
+    listWorkspacePresence,
+    PRESENCE_WINDOW_MS,
     registerRunner,
     releaseLease,
     renewLease,
@@ -51,6 +54,63 @@ class InMemoryRepo implements SessionRepo {
                 .map((p) => ({ role: p.role, lastHeartbeat: p.lastHeartbeat }))
             out.push({ session, lease, runnerStatus, participants })
         }
+        return out
+    }
+
+    async listWorkspaceInstances(workspaceId: string): Promise<PresenceInstanceRow[]> {
+        const out: PresenceInstanceRow[] = []
+        for (const r of this.runners.values()) {
+            if (r.workspaceId !== workspaceId) continue
+            let leaseSessionId: string | null = null
+            let leaseUntil: Date | null = null
+            for (const l of this.leases.values()) {
+                if (l.runnerId !== r.id) continue
+                if (leaseUntil === null || l.claimedUntil.getTime() > leaseUntil.getTime()) {
+                    leaseUntil = l.claimedUntil
+                    leaseSessionId = l.sessionId
+                }
+            }
+            out.push({
+                id: r.id,
+                kind: 'runner',
+                surface: null,
+                capabilities: r.capabilities,
+                status: r.status,
+                role: null,
+                lastHeartbeat: r.lastHeartbeat,
+                leaseSessionId,
+                leaseUntil,
+            })
+        }
+        const heads = new Map<string, PresenceInstanceRow>()
+        for (const p of this.participants) {
+            if (p.kind !== 'head') continue
+            const s = this.sessions.get(p.sessionId)
+            if (!s || s.workspaceId !== workspaceId) continue
+            const driverSession = p.role === 'driver' ? p.sessionId : null
+            const existing = heads.get(p.participantId)
+            if (!existing) {
+                heads.set(p.participantId, {
+                    id: p.participantId,
+                    kind: 'head',
+                    surface: p.surface,
+                    capabilities: p.capabilities,
+                    status: null,
+                    role: p.role,
+                    lastHeartbeat: p.lastHeartbeat,
+                    leaseSessionId: driverSession,
+                    leaseUntil: null,
+                })
+            } else {
+                if (p.lastHeartbeat.getTime() > existing.lastHeartbeat.getTime()) {
+                    existing.lastHeartbeat = p.lastHeartbeat
+                    existing.surface = p.surface
+                    existing.role = p.role
+                }
+                if (driverSession) existing.leaseSessionId = driverSession
+            }
+        }
+        for (const row of heads.values()) out.push(row)
         return out
     }
 
@@ -261,6 +321,7 @@ describe('appendEvent', () => {
             createSession: base.createSession.bind(base),
             getSession: base.getSession.bind(base),
             listSessions: base.listSessions.bind(base),
+            listWorkspaceInstances: base.listWorkspaceInstances.bind(base),
             maxSeq: base.maxSeq.bind(base),
             listEvents: base.listEvents.bind(base),
             upsertParticipant: base.upsertParticipant.bind(base),
@@ -318,5 +379,90 @@ describe('listMasterSessions', () => {
         expect(entry.participants.present).toBe(1)
         expect(entry.participants.byRole.observer).toBe(1)
         expect(entry.participants.byRole.steerer).toBe(1)
+    })
+})
+
+// ── Workspace presence view ─────────────────────────────────────
+
+describe('workspace presence: liveness window + who-is-driving', () => {
+    let deps: Deps
+    let repo: InMemoryRepo
+    let clock: TestClock
+
+    beforeEach(() => {
+        clock = new TestClock()
+        repo = new InMemoryRepo()
+        deps = { repo, clock, idGen: seqIdGen() }
+    })
+
+    async function seedInWorkspace(): Promise<Session> {
+        return createSession(deps, { workspaceId: WS, createdBy: USER, title: 'S' })
+    }
+
+    it('online runner w/ active lease is alive + drives its leased session; stale runner is not alive; head driver drives its session', async () => {
+        const session = await seedInWorkspace()
+
+        // (1) online runner holding an active lease
+        await registerRunner(deps, { id: 'r_live', workspaceId: WS, backend: 'generic', status: 'online' })
+        const claim = await claimLease(deps, { sessionId: session.id, runnerId: 'r_live', ttlMs: 60_000 })
+        expect(claim.ok).toBe(true)
+
+        // (2) stale runner: registered, then heartbeat backdated past the window
+        await registerRunner(deps, { id: 'r_stale', workspaceId: WS, backend: 'generic', status: 'online' })
+        repo.runners.get('r_stale')!.lastHeartbeat = new Date(clock.now().getTime() - PRESENCE_WINDOW_MS - 1)
+
+        // (3) a head participant driving the session
+        await joinParticipant(deps, { sessionId: session.id, participantId: 'h_driver', kind: 'head', role: 'driver' })
+
+        const items = await listWorkspacePresence(deps, WS)
+        const live = items.find((i) => i.id === 'r_live')!
+        const stale = items.find((i) => i.id === 'r_stale')!
+        const head = items.find((i) => i.id === 'h_driver')!
+
+        expect(live.kind).toBe('runner')
+        expect(live.alive).toBe(true)
+        expect(live.drivingSessionId).toBe(session.id)
+
+        expect(stale.alive).toBe(false)
+        expect(stale.drivingSessionId).toBe(null)
+
+        expect(head.kind).toBe('head')
+        expect(head.role).toBe('driver')
+        expect(head.alive).toBe(true)
+        expect(head.drivingSessionId).toBe(session.id)
+    })
+
+    it('a stale head with role=driver is not alive and does not claim to drive', async () => {
+        const session = await seedInWorkspace()
+        await joinParticipant(deps, { sessionId: session.id, participantId: 'h_dead', kind: 'head', role: 'driver' })
+        const p = repo.participants.find((x) => x.participantId === 'h_dead')!
+        p.lastHeartbeat = new Date(clock.now().getTime() - PRESENCE_WINDOW_MS - 1)
+
+        const head = (await listWorkspacePresence(deps, WS)).find((i) => i.id === 'h_dead')!
+        expect(head.alive).toBe(false)
+        expect(head.drivingSessionId).toBe(null)
+    })
+
+    it('liveness flips exactly at the 30s window boundary', async () => {
+        await registerRunner(deps, { id: 'r_edge', workspaceId: WS, backend: 'generic', status: 'online' })
+        const runner = repo.runners.get('r_edge')!
+
+        // exactly at the window edge -> still alive (>=)
+        runner.lastHeartbeat = new Date(clock.now().getTime() - PRESENCE_WINDOW_MS)
+        expect((await listWorkspacePresence(deps, WS))[0]!.alive).toBe(true)
+
+        // one ms older -> stale
+        runner.lastHeartbeat = new Date(clock.now().getTime() - PRESENCE_WINDOW_MS - 1)
+        expect((await listWorkspacePresence(deps, WS))[0]!.alive).toBe(false)
+    })
+
+    it('runner lease that has expired does not count as driving', async () => {
+        const session = await seedInWorkspace()
+        await registerRunner(deps, { id: 'r_exp', workspaceId: WS, backend: 'generic', status: 'online' })
+        await claimLease(deps, { sessionId: session.id, runnerId: 'r_exp', ttlMs: 10_000 })
+        clock.advance(20_000) // lease claimedUntil now in the past
+
+        const item = (await listWorkspacePresence(deps, WS)).find((i) => i.id === 'r_exp')!
+        expect(item.drivingSessionId).toBe(null)
     })
 })

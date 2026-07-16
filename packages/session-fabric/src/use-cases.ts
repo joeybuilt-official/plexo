@@ -25,6 +25,7 @@ import {
     type JoinInput,
     type MasterSessionEntry,
     type NewSessionEvent,
+    type PresenceInstance,
     type RegisterRunnerInput,
     type Result,
     type SessionListRow,
@@ -95,6 +96,30 @@ export async function listMasterSessions(deps: Deps, workspaceId: string): Promi
     const rows = await deps.repo.listSessions(workspaceId)
     const now = deps.clock.now()
     return rows.map((r) => toEntry(r, now))
+}
+
+// ── Workspace presence ──────────────────────────────────────────
+
+export async function listWorkspacePresence(deps: Deps, workspaceId: string): Promise<PresenceInstance[]> {
+    const rows = await deps.repo.listWorkspaceInstances(workspaceId)
+    const now = deps.clock.now()
+    const cutoff = now.getTime() - PRESENCE_WINDOW_MS
+    return rows.map((r) => {
+        const leaseLive = r.leaseSessionId !== null && (r.leaseUntil === null || r.leaseUntil.getTime() > now.getTime())
+        const alive = r.lastHeartbeat.getTime() >= cutoff
+        const driving = r.kind === 'runner' ? leaseLive : leaseLive && alive
+        return {
+            id: r.id,
+            kind: r.kind,
+            surface: r.surface,
+            capabilities: r.capabilities,
+            status: r.status,
+            role: r.role,
+            lastHeartbeat: r.lastHeartbeat,
+            alive,
+            drivingSessionId: driving ? r.leaseSessionId : null,
+        }
+    })
 }
 
 // ── Participants + runners ──────────────────────────────────────

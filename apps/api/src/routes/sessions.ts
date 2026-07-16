@@ -28,6 +28,7 @@ import {
     getSession,
     joinParticipant,
     listMasterSessions,
+    listWorkspacePresence,
     registerRunner,
     releaseLease,
     renewLease,
@@ -188,6 +189,22 @@ sessionFabricRouter.get('/sessions', async (req, res) => {
     } catch (err) {
         logger.error({ err }, 'GET /sessions failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list sessions' } })
+    }
+})
+
+sessionFabricRouter.get('/presence', async (req, res) => {
+    const workspaceId = (req.query.workspaceId as string) ?? ''
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required for workspaceId' } })
+        return
+    }
+    if (!(await ensureWorkspaceAccess(req, res, workspaceId))) return
+    try {
+        const items = await listWorkspacePresence(deps, workspaceId)
+        res.json({ items, total: items.length })
+    } catch (err) {
+        logger.error({ err }, 'GET /presence failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list presence' } })
     }
 })
 
