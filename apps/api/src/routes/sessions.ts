@@ -32,6 +32,7 @@ import {
     releaseLease,
     renewLease,
     replayEvents,
+    getSessionUsage,
     type Deps,
     type FabricErrorCode,
     type Result,
@@ -221,6 +222,17 @@ sessionFabricRouter.get('/sessions/:id/events', async (req, res) => {
     } catch (err) {
         logger.error({ err, sessionId: String(req.params.id) }, 'GET /sessions/:id/events failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to replay events' } })
+    }
+})
+
+sessionFabricRouter.get('/sessions/:id/usage', async (req, res) => {
+    try {
+        if (!(await loadSessionForAccess(req, res))) return
+        const summary = await getSessionUsage(deps, req.params.id)
+        res.json(summary)
+    } catch (err) {
+        logger.error({ err, sessionId: String(req.params.id) }, 'GET /sessions/:id/usage failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to summarize usage' } })
     }
 })
 

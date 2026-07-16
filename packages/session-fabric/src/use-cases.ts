@@ -33,6 +33,7 @@ import {
     ok,
     SeqConflictError,
 } from './ports'
+import { summarizeUsage, type UsageSummary } from './usage'
 
 /** A participant is "present" if it beat within this window of `now`. */
 export const PRESENCE_WINDOW_MS = 30_000
@@ -232,4 +233,11 @@ export async function appendEvent(deps: Deps, input: AppendInput): Promise<Resul
 
 export async function replayEvents(deps: Deps, sessionId: string, sinceSeq: number): Promise<SessionEvent[]> {
     return deps.repo.listEvents(sessionId, sinceSeq)
+}
+
+// ── Usage rollup (read-only aggregation over the event log) ──────
+
+// ponytail: aggregates in TS over the full event list; swap for a SQL SUM/GROUP BY rollup if a session's event count ever gets large
+export async function getSessionUsage(deps: Deps, sessionId: string): Promise<UsageSummary> {
+    return summarizeUsage(await replayEvents(deps, sessionId, 0))
 }
