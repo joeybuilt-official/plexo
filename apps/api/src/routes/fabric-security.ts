@@ -79,7 +79,7 @@ export function cfAccessGuard(req: Request, res: Response, next: NextFunction): 
 
 let cachedRules: PolicyRule[] | null = null
 
-function loadPolicyRules(): PolicyRule[] {
+export function loadPolicyRules(): PolicyRule[] {
     if (cachedRules) return cachedRules
     const require = createRequire(import.meta.url)
     const path = require.resolve('@plexo/session-fabric/policy/fabric-policy.json')

@@ -15,11 +15,13 @@ import { type Deps, claimLease, createSession } from './use-cases'
 import type { PolicyRule } from './policy'
 import {
     runPlanVerify,
+    resumeRun,
     type RunnerBackend,
     type Step,
     type StepResult,
     type VerifyVerdict,
 } from './runner'
+import { REFUSE_MESSAGE } from './agent-backend'
 
 // ── In-memory adapter (copied minimally from use-cases.test.ts) ──
 
@@ -163,18 +165,26 @@ async function seedSession(deps: Deps): Promise<Session> {
 function fakeBackend(opts: {
     steps: Step[]
     verdict?: VerifyVerdict
-}): RunnerBackend & { executed: string[] } {
+    refuse?: boolean
+}): RunnerBackend & { executed: string[]; verifiedWith: StepResult[] } {
     const executed: string[] = []
+    const state = { verifiedWith: [] as StepResult[] }
     return {
         executed,
+        get verifiedWith() {
+            return state.verifiedWith
+        },
         async plan() {
             return opts.steps
         },
         async executeStep(step: Step): Promise<StepResult> {
             executed.push(step.id)
-            return { stepId: step.id, ok: true, output: `ran ${step.id}` }
+            return opts.refuse
+                ? { stepId: step.id, ok: false, output: REFUSE_MESSAGE }
+                : { stepId: step.id, ok: true, output: `ran ${step.id}` }
         },
-        async verify() {
+        async verify(_steps: Step[], results: StepResult[]) {
+            state.verifiedWith = results
             return opts.verdict ?? { outcomeKind: 'test', reward: 1, rewardSource: 'test@v1', note: 'ok' }
         },
     }
@@ -282,5 +292,154 @@ describe('runPlanVerify', () => {
         expect(out.error.code).toBe('NO_LEASE')
         expect(backend.executed).toEqual([])
         expect(await repo.listEvents(session.id, 0)).toHaveLength(0)
+    })
+})
+
+// ── resumeRun (approval resume) ─────────────────────────────────
+
+// Gates the Read step (s0) when the actor is below drive → drive/resume pauses on it.
+const GATE_READ: PolicyRule = { id: 'drive-only-read', match: { tool: 'Read' }, tier: 'drive', decision: 'allow' }
+const GATE_BASH: PolicyRule = { id: 'drive-only-bash', match: { tool: 'Bash' }, tier: 'drive', decision: 'allow' }
+
+const STEPS3: Step[] = [
+    { id: 's0', description: 'read', tool: 'Read', path: '/a' },
+    { id: 's1', description: 'shell', tool: 'Bash', cmd: 'echo hi' },
+    { id: 's2', description: 'write', tool: 'Write', path: '/b' },
+]
+
+function decisionsFor(events: SessionEvent[], stepId: string): SessionEvent[] {
+    return events.filter(
+        (e) => e.kind === 'approval_decision' && (e.payload as { stepId: string }).stepId === stepId,
+    )
+}
+
+describe('resumeRun', () => {
+    let deps: Deps & { repo: SessionRepo }
+    let repo: InMemoryRepo
+    let session: Session
+
+    beforeEach(async () => {
+        repo = new InMemoryRepo()
+        deps = makeDeps(repo)
+        session = await seedSession(deps)
+    })
+
+    async function driveToPause(runnerId = 'runA'): Promise<ReturnType<typeof fakeBackend>> {
+        const backend = fakeBackend({ steps: STEPS, refuse: true })
+        const out = await runPlanVerify(deps, backend, {
+            sessionId: session.id, runnerId, goal: 'g', tier: 'steer', rules: [GATE_READ, ALLOW_ALL],
+        })
+        expect(out.ok).toBe(true)
+        if (out.ok) expect(out.value.status).toBe('paused')
+        return backend
+    }
+
+    it('(a) a gate rule pauses the run → paused, lease held, approval_request emitted', async () => {
+        await driveToPause('runA')
+        const evs = await repo.listEvents(session.id, 0)
+        expect(evs.some((e) => e.kind === 'approval_request')).toBe(true)
+        const lease = await repo.getLease(session.id)
+        expect(lease?.runnerId).toBe('runA')
+    })
+
+    it('(b) resume approve → executes the gated step (RefuseToolExecutor semantics) and completes', async () => {
+        const backend = await driveToPause('runA')
+        const out = await resumeRun(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', tier: 'steer', rules: [GATE_READ, ALLOW_ALL],
+            stepId: 's0', decision: 'approve',
+        })
+        expect(out.ok).toBe(true)
+        if (!out.ok) return
+        expect(out.value.status).toBe('completed')
+        expect(backend.executed).toEqual(['s0', 's1'])
+
+        const evs = await repo.listEvents(session.id, 0)
+        const s0Result = evs.find(
+            (e) => e.kind === 'tool_result' && (e.payload as { stepId: string }).stepId === 's0',
+        )
+        expect((s0Result?.payload as { ok: boolean; output?: string }).ok).toBe(false)
+        expect((s0Result?.payload as { output?: string }).output).toBe(REFUSE_MESSAGE)
+        expect(evs.some((e) => e.kind === 'outcome')).toBe(true)
+        expect(await repo.getLease(session.id)).toBeNull()
+    })
+
+    it('(c) resume deny → status denied, lease released, gated step not executed', async () => {
+        const backend = await driveToPause('runA')
+        const out = await resumeRun(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', tier: 'steer', rules: [GATE_READ, ALLOW_ALL],
+            stepId: 's0', decision: 'deny',
+        })
+        expect(out.ok).toBe(true)
+        if (!out.ok) return
+        expect(out.value.status).toBe('denied')
+        expect(out.value.deniedStepId).toBe('s0')
+        expect(backend.executed).toEqual([])
+        expect(await repo.getLease(session.id)).toBeNull()
+    })
+
+    it('(d) resume reconstructs steps + priorResults from the event log', async () => {
+        const backend = fakeBackend({ steps: STEPS3, refuse: true })
+        const drove = await runPlanVerify(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', goal: 'g', tier: 'steer', rules: [GATE_BASH, ALLOW_ALL],
+        })
+        expect(drove.ok).toBe(true)
+        if (drove.ok) expect(drove.value.pausedOnStepId).toBe('s1')
+        expect(backend.executed).toEqual(['s0']) // s0 ran before the s1 gate paused it
+
+        const out = await resumeRun(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', tier: 'steer', rules: [GATE_BASH, ALLOW_ALL],
+            stepId: 's1', decision: 'approve',
+        })
+        expect(out.ok).toBe(true)
+        if (!out.ok) return
+        expect(out.value.status).toBe('completed')
+        // verify saw the pre-pause s0 result carried forward, plus s1 + s2
+        expect(backend.verifiedWith.map((r) => r.stepId)).toEqual(['s0', 's1', 's2'])
+        expect(backend.verifiedWith.find((r) => r.stepId === 's0')?.output).toBe(REFUSE_MESSAGE)
+    })
+
+    it('(e) resume by a non-lease-holder runner → NO_LEASE', async () => {
+        const backend = await driveToPause('runA')
+        const out = await resumeRun(deps, backend, {
+            sessionId: session.id, runnerId: 'runB', tier: 'steer', rules: [GATE_READ, ALLOW_ALL],
+            stepId: 's0', decision: 'approve',
+        })
+        expect(out.ok).toBe(false)
+        if (out.ok) return
+        expect(out.error.code).toBe('NO_LEASE')
+    })
+
+    it('(f) idempotency: a second approve for the same step is a no-op', async () => {
+        const backend = await driveToPause('runA')
+        const first = await resumeRun(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', tier: 'steer', rules: [GATE_READ, ALLOW_ALL],
+            stepId: 's0', decision: 'approve',
+        })
+        expect(first.ok).toBe(true)
+        const executedAfterFirst = [...backend.executed]
+
+        const second = await resumeRun(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', tier: 'steer', rules: [GATE_READ, ALLOW_ALL],
+            stepId: 's0', decision: 'approve',
+        })
+        expect(second.ok).toBe(true)
+        if (second.ok) expect(second.value.status).toBe('completed')
+        expect(backend.executed).toEqual(executedAfterFirst) // no double execution
+
+        const evs = await repo.listEvents(session.id, 0)
+        expect(decisionsFor(evs, 's0')).toHaveLength(1) // no duplicate approval_decision
+    })
+
+    it('(g) decision for a step that is not the pending approval → rejected, no decision recorded', async () => {
+        const backend = await driveToPause('runA') // paused on s0
+        const out = await resumeRun(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', tier: 'steer', rules: [GATE_READ, ALLOW_ALL],
+            stepId: 's1', decision: 'approve', // s1 is not the gated step
+        })
+        expect(out.ok).toBe(false)
+        expect(backend.executed).toEqual([])
+        const evs = await repo.listEvents(session.id, 0)
+        expect(evs.some((e) => e.kind === 'approval_decision')).toBe(false)
+        expect((await repo.getLease(session.id))?.runnerId).toBe('runA') // lease untouched
     })
 })
