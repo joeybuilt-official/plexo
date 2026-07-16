@@ -43,6 +43,8 @@ import {
     type Result,
 } from '@plexo/session-fabric'
 import { anthropicModelClient } from '@plexo/agent/session-fabric/anthropic-model-client'
+import { routerModelClient } from '@plexo/agent/session-fabric/router-model-client'
+import { loadSettingsFromInstances } from '@plexo/agent/providers/settings-from-instances'
 import { z } from 'zod'
 import { makeSessionFabricRepo } from '../repositories/session-fabric.repository.js'
 import {
@@ -67,7 +69,25 @@ const deps: Deps = {
 
 // SAFETY: default RefuseToolExecutor (no ToolExecutor arg) — real step execution
 // stays gated behind D2 container isolation (ADR 0050). Never pass a real executor here.
-const runnerBackend = new AgentSdkBackend(anthropicModelClient())
+//
+// Model backend: prefer the Provider Router (per-workspace provider/model + API-key
+// degrade + cross-provider cascade) per feedback_no_hardwired_llm_provider. Anthropic
+// (env ANTHROPIC_API_KEY) is the explicit hard floor — via PLEXO_RUNNER_MODEL_CLIENT=
+// anthropic (opt-out) or the router's runtime anthropic fallback when its cascade is
+// exhausted / settings can't load (router-model-client.ts complete()).
+function buildRunnerBackend(workspaceId?: string): AgentSdkBackend {
+    if (process.env.PLEXO_RUNNER_MODEL_CLIENT === 'anthropic') {
+        return new AgentSdkBackend(anthropicModelClient())
+    }
+    return new AgentSdkBackend(
+        routerModelClient({
+            workspaceId,
+            loadSettings: loadSettingsFromInstances,
+            taskType: 'planning',
+            stepTimeoutMs: 120_000,
+        }),
+    )
+}
 
 const DEFAULT_LEASE_TTL_MS = 30_000
 const MAX_LEASE_TTL_MS = 300_000
@@ -415,7 +435,7 @@ sessionFabricRouter.post('/sessions/:id/drive', requireDeviceToken, killSwitchGu
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Session not found' } })
             return
         }
-        const result = await runPlanVerify(deps, runnerBackend, {
+        const result = await runPlanVerify(deps, buildRunnerBackend(session.workspaceId), {
             sessionId: session.id,
             runnerId: parsed.data.runnerId,
             goal: parsed.data.goal,
@@ -439,7 +459,7 @@ sessionFabricRouter.post('/sessions/:id/approve', requireDeviceToken, killSwitch
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Session not found' } })
             return
         }
-        const result = await resumeRun(deps, runnerBackend, {
+        const result = await resumeRun(deps, buildRunnerBackend(session.workspaceId), {
             sessionId: session.id,
             runnerId: parsed.data.runnerId,
             tier: session.policyTier,
