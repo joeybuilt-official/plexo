@@ -33,6 +33,7 @@ import {
     renewLease,
     replayEvents,
     getSessionUsage,
+    superviseSession,
     type Deps,
     type FabricErrorCode,
     type Result,
@@ -118,6 +119,11 @@ const runnerBody = z.object({
 const leaseBody = z.object({
     runnerId: z.string().min(1).max(128),
     ttlMs: z.number().int().positive().max(MAX_LEASE_TTL_MS).optional(),
+})
+
+const superviseBody = z.object({
+    maxCostUsd: z.number().positive().optional(),
+    maxTokens: z.number().int().positive().optional(),
 })
 
 function badRequest(res: import('express').Response, err: z.ZodError): void {
@@ -343,6 +349,19 @@ sessionFabricRouter.delete('/sessions/:id/lease', async (req, res) => {
     } catch (err) {
         logger.error({ err, sessionId: String(req.params.id) }, 'DELETE /sessions/:id/lease failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to release lease' } })
+    }
+})
+
+sessionFabricRouter.post('/sessions/:id/supervise', requireDeviceToken, killSwitchGuard, enforceDriveTier, async (req, res) => {
+    const parsed = superviseBody.safeParse(req.body)
+    if (!parsed.success) return badRequest(res, parsed.error)
+    try {
+        if (!(await loadSessionForAccess(req, res))) return
+        const result = await superviseSession(deps, { sessionId: String(req.params.id), budget: parsed.data })
+        res.json(result)
+    } catch (err) {
+        logger.error({ err, sessionId: String(req.params.id) }, 'supervise session failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to supervise session' } })
     }
 })
 
