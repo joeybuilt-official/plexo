@@ -65,6 +65,9 @@ services:
     environment:
       DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD:-e2e-test-password}@plexo-db:5432/plexo
       MIGRATIONS_DIR: /app/packages/db/drizzle
+      # e2e-only: fresh stack needs the un-journaled hand-SQL migrations (0130+)
+      # that prod applies manually before recreate. Never set in prod compose.
+      APPLY_ORPHANED_SQL: "1"
     mem_limit: 256m
 
   api:
