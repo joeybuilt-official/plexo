@@ -22,6 +22,7 @@
 
 import { routeAndCall } from '../providers/router-v2/index.js'
 import type { TaskType, WorkspaceAISettings } from '../providers/registry.js'
+import { PIN_SKIPPABLE_ERROR } from '../providers/pin-skippable.js'
 import { anthropicModelClient } from './anthropic-model-client.js'
 
 /** Structural mirror of session-fabric's `ModelClient` port. */
@@ -71,6 +72,51 @@ export function routerModelClient(opts: RouterModelClientOptions = {}): ModelCli
                     settings = (await opts.loadSettings(opts.workspaceId)) ?? undefined
                 }
                 settings ??= defaultSettings()
+
+                // Workspace-pinned judge model — verify ('judging') clients only.
+                // Mirrors quality-judge.ts pin precedence: try the pin FIRST when
+                // its provider is connected (present in the enabled providers map);
+                // on a pin-skippable error fall through to the router cascade.
+                if (taskType === 'judging' && settings.judgeModel && settings.providers[settings.judgeModel.provider]) {
+                    const { provider, model } = settings.judgeModel
+                    const cfg = settings.providers[provider]
+                    try {
+                        const { buildModel } = await import('../providers/registry.js')
+                        // Pin id passed as modelIdOverride (top precedence) so a
+                        // workspace summarization modelOverride can't hijack the
+                        // pinned judge — deliberate divergence from quality-judge.ts.
+                        const pinned = buildModel(
+                            provider,
+                            { provider, apiKey: cfg?.apiKey, baseUrl: cfg?.baseUrl, model },
+                            'summarization',
+                            settings,
+                            model,
+                        )
+                        const { callModel } = await import('../providers/call-model.js')
+                        const r = await callModel({
+                            model: pinned,
+                            system,
+                            prompt: user,
+                            taskType,
+                            provider,
+                            stepTimeoutMs: opts.stepTimeoutMs,
+                        })
+                        if (r.text?.trim()) return r.text
+                        // Empty pin completion → fall through to the cascade
+                        // (mirrors doCall's empty-throw semantics below).
+                        console.warn(
+                            `[routerModelClient] pinned judge ${provider}/${model} skipped → cascade: empty completion`,
+                        )
+                    } catch (err) {
+                        const msg = err instanceof Error ? err.message : String(err)
+                        // Non-skippable → outer catch → anthropic floor (mirrors
+                        // quality-judge's bail on non-skippable pin errors).
+                        if (!PIN_SKIPPABLE_ERROR.test(msg)) throw err
+                        console.warn(
+                            `[routerModelClient] pinned judge ${provider}/${model} skipped → cascade: ${msg.slice(0, 200)}`,
+                        )
+                    }
+                }
 
                 return await routeAndCall({
                     workspaceId: opts.workspaceId,

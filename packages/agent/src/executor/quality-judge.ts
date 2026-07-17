@@ -26,6 +26,7 @@ import { z } from 'zod'
 import pino from 'pino'
 import { QUALITY_RUBRICS, MODEL_ROUTING } from '../constants.js'
 import { resolveModelFromEnv, buildModel } from '../providers/registry.js'
+import { PIN_SKIPPABLE_ERROR } from '../providers/pin-skippable.js'
 import type { ProviderKey } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { eq, sql } from 'drizzle-orm'
@@ -458,12 +459,6 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
     //        providers; parse-malformed/quota/rate-limit all advance cascade)
     //   4. env fallback (resolveModelFromEnv)
 
-    // Errors that warrant skipping a pinned judge and trying the cascade.
-    // Includes auth/missing-key/resolution failures so a pin that points at a
-    // disabled or unkeyed provider degrades to the provider-agnostic cascade
-    // (never dead-ends at self-score — the judge must not depend on one vendor).
-    const pinSkippable = /json_schema|response format|structured|No object generated|JSON parsing failed|credit balance|insufficient_quota|rate.?limit|quota|tpd|401|403|invalid.?api.?key|authentication|unauthorized|x-api-key|missing.+key|no api key|429|ENOTFOUND|fetch failed|CALL_MODEL_TIMEOUT|CALL_MODEL_PARSE|NO_PROVIDER_AVAILABLE|ProviderResolutionError/i
-
     // 1. Workspace pin — attempted ONLY when the pinned provider is actually
     //    connected (present in the enabled providers map). A pin at a disabled
     //    provider (e.g. ws pins anthropic/haiku but anthropic is off) is skipped
@@ -488,7 +483,7 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
             return { score, meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: [`${provider}/${model}`] } }
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
-            if (pinSkippable.test(msg)) {
+            if (PIN_SKIPPABLE_ERROR.test(msg)) {
                 logger.warn({ candidate: `${provider}/${model}`, reason: msg.slice(0, 200) }, 'Pinned judge skipped — trying router-v2 cascade')
             } else {
                 logger.warn({ err }, 'Quality judge failed — self-score passthrough')
