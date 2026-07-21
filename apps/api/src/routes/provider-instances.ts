@@ -33,9 +33,15 @@ router.get('/', async (req: any, res: any) => {
 
         // Auto-refresh stale capabilities (older than 1 hour) in the background.
         // This ensures model lists stay current without requiring manual refresh.
+        // Refreshable = anything discovery can actually probe: an API key, an
+        // endpoint URL, or a managed instance (endpoint resolved from env).
+        // The old `p.encryptedKey` gate silently excluded keyless local Ollama
+        // instances forever — their model lists went stale for months.
         const ONE_HOUR = 60 * 60 * 1000
         const stale = providers.filter(p =>
-            p.encryptedKey && (!p.lastDiscoveredAt || Date.now() - new Date(p.lastDiscoveredAt).getTime() > ONE_HOUR)
+            p.enabled &&
+            (p.encryptedKey || p.endpointUrl || p.managed) &&
+            (!p.lastDiscoveredAt || Date.now() - new Date(p.lastDiscoveredAt).getTime() > ONE_HOUR)
         )
         if (stale.length > 0) {
             const { refreshInstanceCapabilities } = await import('@plexo/agent/providers/instances')

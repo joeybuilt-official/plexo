@@ -368,6 +368,32 @@ export const PROVIDER_DEFAULT_MODELS: Partial<Record<string, string>> = {
     fal: 'fal-ai/flux/schnell',
 }
 
+/**
+ * Hosts that speak plaintext HTTP by design — never auto-upgrade these to
+ * https. Covers loopback, single-label Docker service names, RFC1918 LAN
+ * ranges, the CGNAT block (100.64.0.1/10 — Tailscale addresses live here),
+ * and mDNS/tailnet/LAN suffixes. Public dotted hostnames still get upgraded:
+ * remote instances behind reverse proxies 301 http→https, which turns POST
+ * into GET and breaks with 405s.
+ */
+export function isPlaintextHttpHost(hostname: string): boolean {
+    const h = hostname.toLowerCase()
+    if (!h.includes('.')) return true // single-label: Docker service / bare host
+    if (h === 'localhost' || h.endsWith('.localhost')) return true
+    if (/^127\./.test(h)) return true
+    if (/^10\./.test(h)) return true
+    if (/^192\.168\./.test(h)) return true
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true
+    if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h)) return true // 100.64.0.1/10
+    return (
+        h.endsWith('.local') ||
+        h.endsWith('.lan') ||
+        h.endsWith('.internal') ||
+        h.endsWith('.home.arpa') ||
+        h.endsWith('.ts.net')
+    )
+}
+
 export function buildModel(
     providerKey: ProviderKey,
     config: AIProviderConfig,
@@ -558,12 +584,12 @@ export function buildModel(
             let base = resolveBaseUrl((config.baseUrl ?? process.env.OLLAMA_INTERNAL_URL ?? 'http://localhost:11434').replace(/\/+$/, ''))
             // Auto-upgrade http→https for remote Ollama instances behind reverse proxies.
             // Without this, the 301 redirect changes POST to GET, causing 405 errors.
-            // Skip for the internal Docker sidecar (OLLAMA_INTERNAL_URL) and single-label
-            // Docker service hostnames (e.g. http://ollama:11434) — those are plaintext
-            // HTTP and upgrading them sends a TLS handshake to a plaintext port
-            // ("wrong version number").
+            // Skip for the internal Docker sidecar (OLLAMA_INTERNAL_URL) and any
+            // private/LAN/tailnet host (see isPlaintextHttpHost) — those are
+            // plaintext HTTP and upgrading them sends a TLS handshake to a
+            // plaintext port ("wrong version number") or an unreachable :443.
             const olHost = new URL(base).hostname
-            const isInternalHost = fromInternalEnv || !olHost.includes('.') || olHost === 'localhost' || olHost === '127.0.0.1'
+            const isInternalHost = fromInternalEnv || isPlaintextHttpHost(olHost)
             if (base.startsWith('http://') && !isInternalHost) {
                 base = base.replace('http://', 'https://')
             }
@@ -601,7 +627,10 @@ export function buildModel(
             }
             let base = (config.baseUrl ?? '').replace(/\/+$/, '')
             if (!base) throw new Error(`Custom provider ${providerKey} requires a baseUrl`)
-            if (base.startsWith('http://') && !base.includes('localhost') && !base.includes('127.0.0.1')) {
+            // Same http→https upgrade rule as the ollama branch: only public
+            // hosts. Instance-scoped self-hosted entries (custom_ollama_*) sit
+            // on LAN/tailnet addresses that must stay plaintext.
+            if (base.startsWith('http://') && !isPlaintextHttpHost(new URL(base).hostname)) {
                 base = base.replace('http://', 'https://')
             }
             if (!base.endsWith('/v1')) base += '/v1'

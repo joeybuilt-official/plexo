@@ -346,7 +346,10 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             // a dead primary) and the web app surfaces a site-wide notice. Only
             // when a workspace is known (skip the env-fallback path). Fire-and-
             // forget — never block or fail the cascade. (Fix A)
-            if (workspaceId && isBalanceExhaustedError(err)) {
+            // Gated on the quota class: a rate-limit/network/5xx error must never
+            // durably pull a provider even if its message carries billing-ish
+            // words (belt-and-suspenders on top of the classifier's own guards).
+            if (workspaceId && cls.class === 'quota' && isBalanceExhaustedError(err)) {
                 void markProviderBalanceExhausted(workspaceId, chosen.provider)
             }
             if (cls.class === 'auth' && err instanceof Error) {

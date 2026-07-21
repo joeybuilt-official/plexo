@@ -49,6 +49,18 @@ function queueOpsEvent(event: string, payload: Record<string, unknown>): void {
     console.info(JSON.stringify({ event, ...payload }))
 }
 
+/**
+ * Remove URLs before substring classification. Provider messages embed
+ * marketing/help links whose PATHS contain classification keywords — e.g.
+ * groq's daily-cap 429 ends with "Need more tokens? Upgrade to Dev Tier today
+ * at https://console.groq.com/settings/billing", where 'billing' would
+ * otherwise read as funds depletion. Words inside a URL are the provider
+ * pointing at a page, not describing the error.
+ */
+function stripUrls(msg: string): string {
+    return msg.replace(/https?:\/\/[^\s"')\]}>]+/gi, ' ')
+}
+
 function parseRetryAfterMs(msg: string): number | undefined {
     const m = msg.match(/retry[- ]after[:\s]*(\d+(?:\.\d+)?)/i)
     if (!m) return undefined
@@ -65,7 +77,7 @@ export function classifyError(err: unknown): Classification {
     if (!(err instanceof Error)) {
         return { class: 'unknown', shouldFallback: false, suggestedAction: 'fail-hard' }
     }
-    const msg = err.message.toLowerCase()
+    const msg = stripUrls(err.message).toLowerCase()
     const retryAfterMs = parseRetryAfterMs(err.message)
 
     // Auth — surface to operator, advance silently to next provider.
@@ -96,7 +108,9 @@ export function classifyError(err: unknown): Classification {
         msg.includes('insufficient_balance') ||
         msg.includes('billing') ||
         msg.includes('credit balance') ||
-        msg.includes('402')
+        // Word boundary (like the /\b500\b/ precedent below): a bare
+        // includes('402') matches token counts such as "Used 140250".
+        /\b402\b/.test(msg)
     ) {
         return { class: 'quota', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
@@ -247,15 +261,37 @@ export function shouldFallbackFromError(err: unknown): boolean {
  * matches here because its message also carries "billing" ("check your plan and
  * billing details"); deepseek's "Insufficient Balance" and any HTTP 402 match
  * too. Net: only unambiguous funds depletion gets the durable pull.
+ *
+ * Two additional guards, both learned from groq's free-tier daily-cap 429
+ * ("Rate limit reached ... tokens per day (TPD) ... Please try again in 9m38s.
+ * Need more tokens? Upgrade to Dev Tier today at
+ * https://console.groq.com/settings/billing"):
+ *   1. URLs are stripped before matching — 'billing' inside a help link is the
+ *      provider pointing at a page, not describing the error.
+ *   2. A message carrying rate-limit signatures is NEVER funds depletion,
+ *      whatever upsell copy rides along; it recovers on its own and must not
+ *      persist-pull the provider.
  */
 export function isBalanceExhaustedError(err: unknown): boolean {
     if (!(err instanceof Error)) return false
-    const msg = err.message.toLowerCase()
+    const msg = stripUrls(err.message).toLowerCase()
+    if (
+        msg.includes('rate limit') ||
+        msg.includes('429') ||
+        msg.includes('too many requests') ||
+        msg.includes('tokens per day') ||
+        msg.includes('tokens per minute') ||
+        msg.includes('tpd') ||
+        msg.includes('tpm') ||
+        msg.includes('try again in')
+    ) {
+        return false
+    }
     return (
         msg.includes('insufficient balance') ||
         msg.includes('insufficient_balance') ||
         msg.includes('credit balance') ||
         msg.includes('billing') ||
-        msg.includes('402')
+        /\b402\b/.test(msg)
     )
 }

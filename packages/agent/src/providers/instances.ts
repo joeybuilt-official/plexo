@@ -90,6 +90,7 @@ export async function addProvider(workspaceId: string, input: ProviderInstanceIn
         endpointUrl: input.endpointUrl ?? null,
         encryptedKey: input.encryptedKey ?? null,
         workspaceId,
+        managed: input.managed ?? false,
     })
 
     const [row] = await db.insert(providerInstances).values({

@@ -58,14 +58,19 @@ export async function discoverCapabilities(instance: {
     endpointUrl: string | null
     encryptedKey: string | null
     workspaceId?: string
+    managed?: boolean
 }): Promise<ProviderCapabilities> {
     const { providerType, endpointUrl } = instance
 
     // Ollama: dynamic discovery via /api/tags
     if (providerType === 'ollama' || providerType === 'ollama_cloud') {
         // Ollama Cloud is a hosted service — default to ollama.com when no
-        // endpoint URL is explicitly configured.
-        const resolvedEndpoint = endpointUrl || (providerType === 'ollama_cloud' ? 'https://ollama.com' : null)
+        // endpoint URL is explicitly configured. Managed rows may store no
+        // endpoint at all — the routing layer resolves them from
+        // OLLAMA_INTERNAL_URL (settings-from-instances), so discovery must too.
+        const resolvedEndpoint = endpointUrl
+            || (providerType === 'ollama_cloud' ? 'https://ollama.com' : null)
+            || (instance.managed ? process.env.OLLAMA_INTERNAL_URL ?? null : null)
         if (!resolvedEndpoint) {
             return { supportsChat: false, supportsEmbeddings: false, chatModels: [], embeddingModels: [], discoveryError: 'No endpoint URL configured' }
         }
@@ -148,6 +153,7 @@ export async function refreshInstanceCapabilities(instanceId: string): Promise<P
         endpointUrl: row.endpointUrl,
         encryptedKey: row.encryptedKey,
         workspaceId: row.workspaceId,
+        managed: row.managed,
     })
 
     await db.update(providerInstances)

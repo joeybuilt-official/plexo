@@ -8,9 +8,12 @@ export const dynamic = 'force-dynamic'
 /**
  * Self-hosted servers sub-page.
  *
- * List of user-configured self-hosted provider instances (rows with an
- * endpointUrl set) + an add-form for a new one. Managed rows are hidden
- * (they live in Embeddings → Bundled services when healthy).
+ * List of ALL local-server provider instances — user-configured rows (with an
+ * endpointUrl) plus the managed built-in Ollama, which renders read-only with
+ * a "Built-in" badge. Managed rows used to be hidden here on the promise that
+ * they'd show under Embeddings → Bundled services, but that section never
+ * rendered them — leaving no place in the UI where the built-in Ollama
+ * connection was visible at all.
  */
 
 import { useState } from 'react'
@@ -68,7 +71,10 @@ export default function SelfHostedPage() {
     )
 
     const allProviders = data?.providers ?? data?.items ?? []
-    const selfHosted = allProviders.filter((p) => !!p.endpointUrl && !p.managed)
+    // Every instance that is (or fronts) a local server: user-added rows have
+    // an endpointUrl; managed built-ins may resolve theirs from env at
+    // runtime, so include them by flag too.
+    const selfHosted = allProviders.filter((p) => !!p.endpointUrl || p.managed)
 
     // Add-form state
     const [serverUrl, setServerUrl] = useState('')
@@ -176,36 +182,62 @@ export default function SelfHostedPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {selfHosted.map((p) => (
-                                        <div
-                                            key={p.id}
-                                            className="rounded-sm border border-border bg-surface-1 p-3 flex items-start gap-3"
-                                        >
-                                            <Server className="h-4 w-4 text-text-muted shrink-0 mt-0.5" />
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-sm font-medium text-text-primary truncate">
-                                                    {p.nickname}
-                                                </p>
-                                                <p className="text-[11px] text-text-muted font-mono truncate">
-                                                    {p.endpointUrl}
-                                                </p>
-                                                <p className="text-[11px] text-text-muted mt-0.5">
-                                                    last discovered{' '}
-                                                    {p.lastDiscoveredAt
-                                                        ? new Date(p.lastDiscoveredAt).toLocaleString()
-                                                        : 'never'}
-                                                </p>
-                                            </div>
-                                            <button
-                                                onClick={() => void handleRemove(p.id, p.nickname)}
-                                                disabled={removingId === p.id}
-                                                className="flex items-center gap-1 rounded-md border border-red-800/40 bg-red-dim px-2 py-1 text-[11px] text-red hover:border-red-700 disabled:opacity-50"
+                                    {selfHosted.map((p) => {
+                                        const broken = !!p.capabilities?.discoveryError
+                                        const models = p.capabilities?.chatModels ?? []
+                                        return (
+                                            <div
+                                                key={p.id}
+                                                className="rounded-sm border border-border bg-surface-1 p-3 flex items-start gap-3"
                                             >
-                                                {removingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                                Remove
-                                            </button>
-                                        </div>
-                                    ))}
+                                                <Server className="h-4 w-4 text-text-muted shrink-0 mt-0.5" />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span
+                                                            className={`h-2 w-2 rounded-full shrink-0 ${broken ? 'bg-red-500' : 'bg-green-500'}`}
+                                                            title={broken ? p.capabilities?.discoveryError ?? 'Unreachable' : 'Connected'}
+                                                        />
+                                                        <p className="text-sm font-medium text-text-primary truncate">
+                                                            {p.nickname}
+                                                        </p>
+                                                        {p.managed && (
+                                                            <span className="rounded-sm border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-muted shrink-0">
+                                                                Built-in
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[11px] text-text-muted font-mono truncate">
+                                                        {p.endpointUrl ?? 'bundled service (internal)'}
+                                                    </p>
+                                                    {broken ? (
+                                                        <p className="text-[11px] text-red mt-0.5 truncate">
+                                                            {p.capabilities?.discoveryError}
+                                                        </p>
+                                                    ) : models.length > 0 ? (
+                                                        <p className="text-[11px] text-text-muted mt-0.5 truncate">
+                                                            {models.length} model{models.length === 1 ? '' : 's'}: {models.slice(0, 4).join(', ')}{models.length > 4 ? ', …' : ''}
+                                                        </p>
+                                                    ) : null}
+                                                    <p className="text-[11px] text-text-muted mt-0.5">
+                                                        last discovered{' '}
+                                                        {p.lastDiscoveredAt
+                                                            ? new Date(p.lastDiscoveredAt).toLocaleString()
+                                                            : 'never'}
+                                                    </p>
+                                                </div>
+                                                {!p.managed && (
+                                                    <button
+                                                        onClick={() => void handleRemove(p.id, p.nickname)}
+                                                        disabled={removingId === p.id}
+                                                        className="flex items-center gap-1 rounded-md border border-red-800/40 bg-red-dim px-2 py-1 text-[11px] text-red hover:border-red-700 disabled:opacity-50"
+                                                    >
+                                                        {removingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                                        Remove
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
                                 </div>
                             )}
                         </section>
@@ -215,7 +247,9 @@ export default function SelfHostedPage() {
                             <div>
                                 <h3 className="text-sm font-medium text-text-primary">Add a server</h3>
                                 <p className="text-[11px] text-text-muted">
-                                    Point to a local Ollama or LM Studio server you control.
+                                    Point to a local Ollama or LM Studio server you control. Add as
+                                    many as you like — each one joins the AI fallback chain
+                                    independently.
                                 </p>
                             </div>
 

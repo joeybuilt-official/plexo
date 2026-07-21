@@ -49,6 +49,7 @@ const PRIVATE_IPV4 = [
     /^172\.(1[6-9]|2[0-9]|3[01])\./,
     /^169\.254\./,
     /^127\./,
+    /^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./, // CGNAT 100.64.0.1/10 (Tailscale addresses)
 ]
 
 export type SSRFCheck = { ok: true } | { ok: false; reason: string }

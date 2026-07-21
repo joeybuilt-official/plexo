@@ -52,6 +52,25 @@ describe('loadSettingsFromInstances', () => {
         expect(result!.fallbackChain).toEqual([])
     })
 
+    it('gives a second same-type instance with its own endpoint an instance-scoped chain entry', async () => {
+        mockRows.push(
+            { id: 'aaaa1111-0000-4000-9000-000000000001', providerType: 'ollama', enabled: true, encryptedKey: null, endpointUrl: 'http://ollama:11434', managed: true, selectedModel: 'gemma3:4b', preferenceOrder: 0 },
+            { id: 'bbbb2222-0000-4000-9000-000000000002', providerType: 'deepseek', enabled: true, encryptedKey: null, endpointUrl: null, managed: false, selectedModel: 'deepseek-chat', preferenceOrder: 1 },
+            { id: 'cccc3333-0000-4000-9000-000000000003', providerType: 'ollama', enabled: true, encryptedKey: null, endpointUrl: 'http://100.64.0.1:11434', managed: false, selectedModel: null, preferenceOrder: 2, capabilities: { chatModels: ['qwen3:32b'] } },
+        )
+
+        const result = await loadSettingsFromInstances('ws-multi')
+        expect(result!.primaryProvider).toBe('ollama')
+        const instanceKey = 'custom_ollama_cccc3333'
+        expect(result!.fallbackChain).toEqual(['deepseek', instanceKey])
+        // Both servers keep their own endpoint + model — neither collapses into the other.
+        expect(result!.providers.ollama?.baseUrl).toBe('http://ollama:11434')
+        expect((result!.providers as any)[instanceKey]?.baseUrl).toBe('http://100.64.0.1:11434')
+        // Model pinned to the instance's first discovered chat model, never a
+        // DEFAULT_MODEL_ROUTING (Claude) id.
+        expect((result!.providers as any)[instanceKey]?.model).toBe('qwen3:32b')
+    })
+
     it('resolves managed Ollama URL from env', async () => {
         process.env.OLLAMA_INTERNAL_URL = 'http://ollama:11434'
         mockRows.push(

@@ -195,6 +195,32 @@ async function loadSettingsFromInstancesUncached(workspaceId: string): Promise<W
         }
 
         const existing = providers[key]
+        if (existing && baseUrl && baseUrl !== existing.baseUrl) {
+            // A SECOND instance of an already-claimed provider type with its own
+            // endpoint (e.g. another self-hosted Ollama server). Don't collapse
+            // both into one type-keyed slot — give it an instance-scoped
+            // custom key so every configured server participates in the
+            // fallback chain independently. buildModel's `custom_*` branch
+            // serves it via its OpenAI-compatible /v1 endpoint (Ollama and
+            // LM Studio both expose one).
+            const caps = row.capabilities as { chatModels?: string[] } | null
+            const instanceKey = `custom_${key}_${row.id.slice(0, 8)}` as ProviderKey
+            providers[instanceKey] = {
+                provider: instanceKey,
+                apiKey,
+                baseUrl,
+                // Never let this fall through to DEFAULT_MODEL_ROUTING (a
+                // Claude id) — pin the instance's selected or first
+                // discovered model.
+                model: row.selectedModel ?? caps?.chatModels?.[0] ?? undefined,
+                enabled: true,
+                displayName: row.nickname,
+                capabilities: (row.capabilities as Record<string, unknown>) ?? undefined,
+            } as AIProviderConfig
+            chain.push(instanceKey)
+            if (!primaryProvider) primaryProvider = instanceKey
+            continue
+        }
         // Don't overwrite a provider that already has a key or URL with one that doesn't.
         // This handles the case where a user-configured Ollama (with URL) coexists with
         // the managed Plexo Built-in AI (without URL) — the user's config should win.

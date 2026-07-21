@@ -23,6 +23,25 @@ describe('isBalanceExhaustedError (Fix A)', () => {
         expect(isBalanceExhaustedError(new Error('429'))).toBe(false)
     })
 
+    it('does NOT flag groq\'s REAL full TPD message (upsell URL contains "billing")', () => {
+        // Verbatim production message — the truncated fixture above passed while
+        // production misfired on the /settings/billing URL in the upsell tail.
+        const groqTpd = new Error(
+            '429 Rate limit reached for model `llama-3.3-70b-versatile` in organization ' +
+            '`org_01kjh7p9n8f1qs6nz2bz77vy6b` service tier `on_demand` on tokens per day (TPD): ' +
+            'Limit 100000, Used 97050, Requested 3619. Please try again in 9m38.016s. ' +
+            'Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing',
+        )
+        expect(isBalanceExhaustedError(groqTpd)).toBe(false)
+        // And it classifies as rate-limit (not quota) so it only gets a cooldown.
+        expect(classifyError(groqTpd).class).toBe('rate-limit')
+    })
+
+    it('does NOT flag numbers that merely contain 402 (word-boundary match)', () => {
+        expect(isBalanceExhaustedError(new Error('upstream error: request id 84025, tokens used 140250'))).toBe(false)
+        expect(isBalanceExhaustedError(new Error('Request failed with status 402'))).toBe(true)
+    })
+
     it('does NOT persist-pull on a bare insufficient_quota (ambiguous: OpenAI=funds but Groq=daily TPD reset)', () => {
         // The ambiguous token alone must not trigger a durable pull — a daily
         // quota cap recovers on its own. Genuine funds cases carry billing/402/
