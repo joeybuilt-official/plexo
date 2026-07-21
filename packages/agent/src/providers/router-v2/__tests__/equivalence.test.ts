@@ -423,6 +423,8 @@ describe('router-v2 error-classifier', () => {
         ['context length exceeded for this model', 'context-window'],
         ['Request blocked by safety filters', 'content-policy'],
         ['content_policy violation', 'content-policy'],
+        ['500 Internal Server Error', 'transient-5xx'],
+        ['AI_APICallError: Internal Server Error', 'transient-5xx'],
         ['502 Bad Gateway', 'transient-5xx'],
         ['503 Service Unavailable', 'transient-5xx'],
         ['529 overloaded', 'transient-5xx'],

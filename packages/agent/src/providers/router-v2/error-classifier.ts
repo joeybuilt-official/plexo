@@ -144,11 +144,18 @@ export function classifyError(err: unknown): Classification {
     }
 
     // Transient server errors — advance + count toward circuit-breaker.
+    // Bare 500 (Internal Server Error) belongs here too: without it a provider
+    // 500 fell through to 'unknown' (shouldFallback=false) and dead-ended the
+    // cascade instead of trying the next provider. Matched with a word boundary
+    // (/\b500\b/) rather than includes('500') so it doesn't collide with token
+    // counts / latencies like "1500", "5000", or "500ms".
     if (
         msg.includes('502') ||
         msg.includes('503') ||
         msg.includes('504') ||
         msg.includes('529') ||
+        /\b500\b/.test(msg) ||
+        msg.includes('internal server error') ||
         msg.includes('overloaded') ||
         msg.includes('bad gateway') ||
         msg.includes('gateway timeout') ||
