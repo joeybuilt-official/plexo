@@ -45,5 +45,16 @@ node --max-old-space-size=200 "$TSX_PATH" scripts/encrypt-channel-configs.ts || 
   echo "[migrate] WARN: encrypt-channel-configs.ts failed; continuing (next migrate run will retry)" >&2
 }
 
+# Opt-in (e2e only): apply un-journaled hand-SQL migrations (0130+) that prod
+# applies manually. FAIL LOUD — a half-applied fabric schema must not let the
+# api service start against a lying schema.
+if [ "$APPLY_ORPHANED_SQL" = "1" ]; then
+  echo "[migrate] APPLY_ORPHANED_SQL=1 — applying un-journaled SQL migrations"
+  node --max-old-space-size=200 "$TSX_PATH" scripts/apply-orphaned-sql.ts || {
+    echo "[migrate] ERROR: apply-orphaned-sql.ts failed" >&2
+    exit 1
+  }
+fi
+
 echo "[migrate] Done"
 
