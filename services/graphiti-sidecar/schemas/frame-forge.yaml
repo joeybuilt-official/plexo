@@ -1,0 +1,121 @@
+# Per-app schema for Frame Forge (memory layer).
+# Loaded by services/graphiti-sidecar/schema_registry.py.
+#
+# Frame Forge runs a single shared global graph (workspace_id = frame-forge-global);
+# learning + memory are system-wide, not per-project (ADR plexo-port/0001).
+#
+# Required = property keys that MUST appear in node.attributes (or, for
+# graphiti-native fields like Episodic content/source_description, in the
+# request body that becomes the node).
+# Optional = property keys we recognize and allow without warning.
+# Any other key is "unregistered": logged when STRICT_SCHEMA=false, raises
+# 422 when STRICT_SCHEMA=true.
+
+app: frame-forge
+graph_template: "frame-forge:<workspace_id>"
+
+node_labels:
+  Episodic:
+    required: [content, source_description]
+    optional:
+      - name
+      - source
+      - valid_at
+      - episode_type
+      # Phase A2 (ADR 0018) — confidence lifecycle + kNN on graph nodes.
+      - tier                # 'hot' | 'active' | 'cold'
+      - last_retrieved_at   # ISO ts; bumped on retrieval
+      - is_anchored         # bool; anchored nodes skip decay
+      - confidence          # real; decays weekly via cypher SET
+      - superseded_by       # node id; cold-tier guard
+      - embedding           # vector; FalkorDB vector index
+      # A3 S1 (ADR 0031, Path a) — plexo-side identity for dual-store
+      # parity. Lifted by the sidecar from source_metadata.plexo_memory_id
+      # and SET on the Episodic node post-graphiti.add_episode. Soft-
+      # introduced as optional; flipped to REQUIRED at A3 S4 cutover.
+      - plexo_memory_id
+  Entity:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  IdentityFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  PreferenceFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  SkillFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  ContextFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  ConstraintFact:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  Generic:
+    required: [name]
+    optional: [summary, plexo_memory_type]
+  # Phase B1 (ADR 0020) — task execution DAG on graph.
+  Task:
+    required: [id, description, status]
+    optional: [priority, scope, acceptance, branch, sprint_id]
+  # Phase B2 (ADR 0021) — conversation threading on graph.
+  Message:
+    required: [id, source, message, created_at]
+    optional:
+      - reply
+      - error_msg
+      - status
+      - intent
+      - task_id
+      - channel_ref
+      - attachments
+  Session:
+    required: [id]
+    optional: [source, session_key, last_activity_at]
+  # Phase C1 (ADR 0022) — workspace permission graph (security-critical;
+  # 30-day dual-read window before any read-path cutover).
+  User:
+    required: [id]
+    optional: [email]
+  Workspace:
+    required: [id]
+    optional: [name]
+
+edge_types:
+  RELATES_TO:
+    from: Entity
+    to: Entity
+    props: [fact, plexo_memory_id, plexo_memory_type]
+  HAS_EPISODE_OF:
+    from: Episodic
+    to: Entity
+    props: []
+  # Phase A2 — kNN edges between Episodic nodes; weight = cosine similarity.
+  SIMILAR_TO:
+    from: Episodic
+    to: Episodic
+    props: [weight]
+  # Phase B1 — task DAG.
+  DEPENDS_ON:
+    from: Task
+    to: Task
+    props: []
+  # Phase B2 — message-to-session membership + sibling chain.
+  IN_SESSION:
+    from: Message
+    to: Session
+    props: []
+  NEXT:
+    from: Message
+    to: Message
+    props: []
+  # Phase C1 (ADR 0022) — membership edge carries the role string.
+  # Role-as-node + GRANTS edge deferred to a follow-on if hierarchical
+  # roles are needed.
+  MEMBER_OF:
+    from: User
+    to: Workspace
+    props: [role]
+
+predicate_vocabulary: []
