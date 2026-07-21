@@ -430,6 +430,11 @@ export default function ProvidersPage() {
     const [confirmRemove, setConfirmRemove] = useState(false)
     const [removing, setRemoving] = useState(false)
 
+    // Key rotation (for connected providers)
+    const [showRotateKey, setShowRotateKey] = useState(false)
+    const [rotateKeyInput, setRotateKeyInput] = useState('')
+    const [rotatingKey, setRotatingKey] = useState(false)
+
     // Model change saving
     const [savingModel, setSavingModel] = useState(false)
 
@@ -516,6 +521,8 @@ export default function ProvidersPage() {
         setBaseUrlInput('')
         setConnectError(null)
         setConfirmRemove(false)
+        setShowRotateKey(false)
+        setRotateKeyInput('')
         setTestResult(null)
         setDiscoveredModels(null)
         setDiscoveryFailed(false)
@@ -777,6 +784,32 @@ export default function ProvidersPage() {
             await loadProviders()
         } catch { toast('Failed to remove provider.') }
         finally { setRemoving(false) }
+    }
+
+    // Rotate the API key in place — PATCH { apiKey } re-encrypts server-side,
+    // so key rotation no longer requires remove + re-add.
+    async function handleRotateKey(instance: ProviderInstance) {
+        const key = rotateKeyInput.trim()
+        if (!key) return
+        setRotatingKey(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/providers/${instance.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey: key }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                toast(extractErrorMessage(data.error) || 'Failed to update the key.')
+                return
+            }
+            if (data.warning) toast(String(data.warning))
+            else toast.success('API key updated')
+            setShowRotateKey(false)
+            setRotateKeyInput('')
+            await loadProviders()
+        } catch { toast('Failed to update the key.') }
+        finally { setRotatingKey(false) }
     }
 
     // Status banner test (top of chain)
@@ -1145,9 +1178,42 @@ export default function ProvidersPage() {
                                         Manage keys <ExternalLink className="h-2.5 w-2.5" />
                                     </a>
                                 </div>
-                                <p className="text-[11px] text-text-muted">
-                                    To rotate your key, remove this provider and add it again.
-                                </p>
+                                {!showRotateKey ? (
+                                    <button
+                                        onClick={() => setShowRotateKey(true)}
+                                        className="self-start text-[11px] text-azure hover:text-azure/80 transition-colors"
+                                    >
+                                        Replace key…
+                                    </button>
+                                ) : (
+                                    <div className="flex flex-col gap-2">
+                                        <input
+                                            type="password"
+                                            value={rotateKeyInput}
+                                            onChange={(e) => setRotateKeyInput(e.target.value)}
+                                            placeholder={selectedCatalog.keyPrefix ? `${selectedCatalog.keyPrefix}...` : 'New API key'}
+                                            autoComplete="off"
+                                            className="min-h-[44px] rounded-sm border border-border bg-surface-1 px-3 py-2 text-[16px] sm:text-sm text-text-primary font-mono placeholder:text-text-muted focus:border-azure focus-ring"
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => void handleRotateKey(selectedInstance)}
+                                                disabled={rotatingKey || !rotateKeyInput.trim()}
+                                                className="flex items-center justify-center gap-1.5 rounded-sm bg-azure px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-azure/90 transition-colors disabled:opacity-50"
+                                            >
+                                                {rotatingKey && <Loader2 className="h-3 w-3 animate-spin" />}
+                                                {rotatingKey ? 'Saving…' : 'Save key'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setShowRotateKey(false); setRotateKeyInput('') }}
+                                                disabled={rotatingKey}
+                                                className="rounded-sm border border-border bg-surface-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 

@@ -50,7 +50,7 @@ export const FALLBACK_MODELS: Record<string, string[]> = {
     anthropic_subscription: ['claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
     google: ['gemini-2.5-flash', 'gemini-2.5-pro'],
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'],
-    cerebras: ['llama3.1-8b', 'qwen-3-235b-a22b-instruct-2507', 'gpt-oss-120b', 'zai-glm-4.7'],
+    cerebras: ['gpt-oss-120b', 'zai-glm-4.7', 'gemma-4-31b'],
     deepseek: ['deepseek-chat', 'deepseek-reasoner'],
     mistral: ['mistral-large-latest', 'mistral-small-latest'],
     xai: ['grok-3', 'grok-3-mini'],

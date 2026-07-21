@@ -99,20 +99,31 @@ router.post('/', async (req: any, res: any) => {
 
     try {
         // Duplicate detection
-        const { listProviders, addProvider } = await import('@plexo/agent/providers/instances')
+        const { listProviders, addProvider, updateProvider, refreshInstanceCapabilities } = await import('@plexo/agent/providers/instances')
         const existing = await listProviders(workspaceId)
 
+        // A disabled duplicate is invisible in the settings UI (it only renders
+        // enabled instances), so a 409 pointing at "the existing one" would be
+        // a dead-end. Revive it in place instead: re-enable + replace the key.
+        let revive: (typeof existing)[number] | null = null
+
         // Cloud provider: same type = duplicate
-        if (!endpointUrl && existing.some(p => p.providerType === providerType && !p.managed)) {
-            return res.status(409).json({ error: 'This provider is already added. You can edit the existing one instead.' })
+        if (!endpointUrl) {
+            const dups = existing.filter(p => p.providerType === providerType && !p.managed)
+            if (dups.some(p => p.enabled)) {
+                return res.status(409).json({ error: 'This provider is already added. You can edit the existing one instead.' })
+            }
+            revive = dups[0] ?? null
         }
 
         // Own server: same endpoint URL = duplicate
         if (endpointUrl) {
             const normalized = endpointUrl.replace(/\/+$/, '').toLowerCase()
-            if (existing.some(p => p.endpointUrl?.replace(/\/+$/, '').toLowerCase() === normalized)) {
+            const dups = existing.filter(p => p.endpointUrl?.replace(/\/+$/, '').toLowerCase() === normalized)
+            if (dups.some(p => p.enabled)) {
                 return res.status(409).json({ error: 'A provider with this server address is already added.' })
             }
+            revive = dups[0] ?? null
             const { resolveAndCheckSSRFSafe } = await import('../lib/ssrf-guard.js')
             const safety = await resolveAndCheckSSRFSafe(endpointUrl)
             if (!safety.ok) {
@@ -127,12 +138,29 @@ router.post('/', async (req: any, res: any) => {
             encryptedKey = encrypt(apiKey, workspaceId)
         }
 
-        const instance = await addProvider(workspaceId, {
-            nickname,
-            providerType,
-            endpointUrl: endpointUrl || null,
-            encryptedKey,
-        })
+        let instance
+        if (revive) {
+            const updated = await updateProvider(revive.id, {
+                nickname,
+                enabled: true,
+                ...(encryptedKey ? { encryptedKey } : {}),
+            })
+            if (!updated) {
+                return res.status(500).json({ error: 'Something went wrong on our end. Try again in a moment.' })
+            }
+            instance = updated
+            logger.info({ workspaceId, providerType, instanceId: instance.id }, 'Revived disabled provider instance on re-add')
+            // The key may have changed — refresh what it can reach (same
+            // fire-and-forget pattern as the GET-route staleness refresh).
+            refreshInstanceCapabilities(instance.id).catch(() => {})
+        } else {
+            instance = await addProvider(workspaceId, {
+                nickname,
+                providerType,
+                endpointUrl: endpointUrl || null,
+                encryptedKey,
+            })
+        }
 
         // FUN-025: Validate the key immediately after save via a lightweight test.
         // Key is still saved even if validation fails — user gets a warning.
@@ -140,7 +168,10 @@ router.post('/', async (req: any, res: any) => {
         if (apiKey) {
             try {
                 const { testProvider } = await import('@plexo/agent/providers/registry')
-                const testResult = await testProvider(providerType as any, { apiKey, baseUrl: endpointUrl }, 8_000)
+                // A revived instance may have a selected model — test against
+                // that instead of the registry default so the warning reflects
+                // what the key will actually be used for.
+                const testResult = await testProvider(providerType as any, { apiKey, baseUrl: endpointUrl, model: instance.selectedModel ?? undefined }, 8_000)
                 if (!testResult.ok) {
                     keyWarning = `Key saved, but connection test failed: ${testResult.message}`
                     logger.warn({ workspaceId, providerType, message: testResult.message }, 'FUN-025: BYOK key validation failed on save')
@@ -154,6 +185,7 @@ router.post('/', async (req: any, res: any) => {
         return res.json({
             ok: true,
             provider: { ...instance, encryptedKey: instance.encryptedKey ? '__configured__' : null },
+            ...(revive ? { revived: true } : {}),
             ...(keyWarning ? { warning: keyWarning } : {}),
         })
     } catch (err) {
@@ -411,7 +443,7 @@ router.post('/reorder', async (req: any, res: any) => {
 router.patch('/:instanceId', async (req: any, res: any) => {
     const instanceId = req.params.instanceId as string
     const workspaceId = req.params.id as string
-    const updates = req.body as { nickname?: string; selectedModel?: string; enabled?: boolean; endpointUrl?: string }
+    const { apiKey, ...updates } = req.body as { nickname?: string; selectedModel?: string; enabled?: boolean; endpointUrl?: string; apiKey?: string }
 
     try {
         if (updates.endpointUrl !== undefined) {
@@ -425,13 +457,54 @@ router.patch('/:instanceId', async (req: any, res: any) => {
             }
         }
 
-        const { updateProvider, getProvider } = await import('@plexo/agent/providers/instances')
+        const { updateProvider, getProvider, refreshInstanceCapabilities } = await import('@plexo/agent/providers/instances')
+
+        // BYOK key rotation: encrypt a replacement key in place so rotating
+        // doesn't require delete + re-add (which loses chain position and
+        // model selection).
+        let encryptedKey: string | undefined
+        if (typeof apiKey === 'string' && apiKey.length > 0) {
+            const { encrypt } = await import('../crypto.js')
+            encryptedKey = encrypt(apiKey, workspaceId)
+        }
 
         // Snapshot the prior selected model so we only re-validate on a real
         // model change (not e.g. a nickname-only edit).
         const before = await getProvider(instanceId)
-        const updated = await updateProvider(instanceId, updates)
+        // Whitelist the columns this route may touch — the body must never be
+        // able to write encryptedKey (or anything else) directly.
+        const updated = await updateProvider(instanceId, {
+            ...(updates.nickname !== undefined ? { nickname: updates.nickname } : {}),
+            ...(updates.selectedModel !== undefined ? { selectedModel: updates.selectedModel } : {}),
+            ...(updates.enabled !== undefined ? { enabled: updates.enabled } : {}),
+            ...(updates.endpointUrl !== undefined ? { endpointUrl: updates.endpointUrl } : {}),
+            ...(encryptedKey ? { encryptedKey } : {}),
+        })
         if (!updated) return res.status(404).json({ error: 'Provider not found' })
+
+        // FUN-025 parity with the POST route: validate a replaced key right
+        // away. The key stays saved either way — the user just gets a warning.
+        let keyWarning: string | undefined
+        if (encryptedKey) {
+            try {
+                const { testProvider } = await import('@plexo/agent/providers/registry')
+                const testResult = await testProvider(
+                    updated.providerType as any,
+                    { apiKey, baseUrl: updated.endpointUrl ?? undefined, model: updated.selectedModel ?? undefined },
+                    8_000,
+                )
+                if (!testResult.ok) {
+                    keyWarning = `Key saved, but connection test failed: ${testResult.message}`
+                    logger.warn({ workspaceId, instanceId, providerType: updated.providerType, message: testResult.message }, 'FUN-025: BYOK key validation failed on rotate')
+                }
+            } catch (testErr) {
+                keyWarning = 'Key saved, but we could not verify it. It may still work.'
+                logger.warn({ testErr, workspaceId, instanceId }, 'FUN-025: BYOK key validation threw on rotate')
+            }
+            // New key → possibly different model access; refresh in the
+            // background (same fire-and-forget pattern as the GET route).
+            refreshInstanceCapabilities(instanceId).catch(() => {})
+        }
 
         const modelChanged = updates.selectedModel !== undefined
             && updates.selectedModel !== before?.selectedModel
@@ -444,16 +517,16 @@ router.patch('/:instanceId', async (req: any, res: any) => {
                 // Decrypt the stored key so the agent layer can run a real
                 // synthetic call. Crypto is workspace-scoped and lives here
                 // in the API; the agent layer accepts the plaintext key.
-                let apiKey: string | undefined
+                let storedKey: string | undefined
                 if (updated.encryptedKey) {
                     try {
                         const { decrypt } = await import('../crypto.js')
-                        apiKey = decrypt(updated.encryptedKey, workspaceId)
+                        storedKey = decrypt(updated.encryptedKey, workspaceId)
                     } catch (decErr) {
                         logger.warn({ err: decErr, instanceId }, 'PATCH compat: key decrypt failed; will record failure')
                     }
                 }
-                const result = await validateProviderInstanceCompat(instanceId, { apiKey })
+                const result = await validateProviderInstanceCompat(instanceId, { apiKey: storedKey })
                 compat = {
                     status: result.status,
                     latencyMs: result.latencyMs,
@@ -477,6 +550,7 @@ router.patch('/:instanceId', async (req: any, res: any) => {
             ok: true,
             provider: { ...provider, encryptedKey: provider.encryptedKey ? '__configured__' : null },
             ...(compat ? { compat } : {}),
+            ...(keyWarning ? { warning: keyWarning } : {}),
         })
     } catch (err) {
         logger.error({ err, instanceId }, 'Failed to update provider')

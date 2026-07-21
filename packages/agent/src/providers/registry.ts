@@ -352,7 +352,9 @@ export const PROVIDER_DEFAULT_MODELS: Partial<Record<string, string>> = {
     together: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
     fireworks: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
     perplexity: 'sonar',
-    cerebras: 'llama3.1-8b',
+    // Cerebras retired llama3.1-8b (2026-07: /v1/models lists only
+    // gpt-oss-120b, zai-glm-4.7, gemma-4-31b — verified on a free-tier key).
+    cerebras: 'gpt-oss-120b',
     sambanova: 'Meta-Llama-3.3-70B-Instruct',
     cohere: 'command-a-03-2025',
     cloudflare: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
@@ -822,10 +824,10 @@ const DEFAULT_TEST_MODELS: Partial<Record<string, string>> = {
     // endpoint across all accounts. Smaller 8B/3B variants are not deployed.
     fireworks: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
     perplexity: 'sonar',
-    // Cerebras: 8B is the ONLY model guaranteed in the free tier. Larger
-    // models (qwen-3-235b, gpt-oss-120b, zai-glm-4.7) require paid access
-    // and return 403 "API key doesn't have permission for this model".
-    cerebras: 'llama3.1-8b',
+    // Cerebras retired llama3.1-8b entirely (2026-07). /v1/models on a
+    // free-tier key lists gpt-oss-120b, zai-glm-4.7, gemma-4-31b, and a
+    // smoke completion on gpt-oss-120b succeeds — so it's free-tier safe.
+    cerebras: 'gpt-oss-120b',
     // SambaNova: 8B variant is in the free tier; 70B is paid.
     sambanova: 'Meta-Llama-3.1-8B-Instruct',
     // Cohere: command-r is the cheapest chat model.
