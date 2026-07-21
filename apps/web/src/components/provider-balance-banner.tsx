@@ -14,7 +14,7 @@
  */
 
 import { useState } from 'react'
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle, ExternalLink, X } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import { useProviderAlerts, dismissProviderAlert } from '@web/lib/provider-alerts-client'
 
@@ -26,6 +26,19 @@ const PROVIDER_LABELS: Record<string, string> = {
     cerebras: 'Cerebras',
     google: 'Google',
     ollama_cloud: 'Ollama Cloud',
+}
+
+/** Direct links to each provider's top-up / billing console, so "Add credit"
+ * is one click instead of a scavenger hunt. Unknown providers just omit the
+ * link — the notice still works. */
+const PROVIDER_BILLING_URLS: Record<string, string> = {
+    deepseek: 'https://platform.deepseek.com/top_up',
+    openai: 'https://platform.openai.com/settings/organization/billing/overview',
+    anthropic: 'https://console.anthropic.com/settings/billing',
+    groq: 'https://console.groq.com/settings/billing',
+    cerebras: 'https://cloud.cerebras.ai',
+    google: 'https://console.cloud.google.com/billing',
+    ollama_cloud: 'https://ollama.com/settings/billing',
 }
 
 export function ProviderBalanceBanner() {
@@ -53,6 +66,7 @@ export function ProviderBalanceBanner() {
         <>
             {exhausted.map((p) => {
                 const label = p.nickname || PROVIDER_LABELS[p.providerType] || p.providerType
+                const billingUrl = PROVIDER_BILLING_URLS[p.providerType]
                 return (
                     <div key={p.providerType} className="border-b border-amber/40 bg-amber/10 px-4 py-2">
                         <div className="flex items-center justify-between gap-3">
@@ -63,14 +77,26 @@ export function ProviderBalanceBanner() {
                                     been paused. Add credit to restore it, then dismiss this notice to re-enable routing.
                                 </div>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => onDismiss(p.providerType)}
-                                disabled={dismissing === p.providerType}
-                                className="inline-flex shrink-0 items-center gap-1 rounded border border-amber/50 px-2.5 py-1 text-[11px] text-amber transition-colors hover:bg-amber/20 disabled:opacity-50"
-                            >
-                                {dismissing === p.providerType ? 'Dismissing…' : (<>Dismiss <X className="h-3 w-3" /></>)}
-                            </button>
+                            <div className="flex shrink-0 items-center gap-2">
+                                {billingUrl && (
+                                    <a
+                                        href={billingUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 rounded border border-amber/50 bg-amber/20 px-2.5 py-1 text-[11px] font-medium text-amber transition-colors hover:bg-amber/30"
+                                    >
+                                        Add credit <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => onDismiss(p.providerType)}
+                                    disabled={dismissing === p.providerType}
+                                    className="inline-flex shrink-0 items-center gap-1 rounded border border-amber/50 px-2.5 py-1 text-[11px] text-amber transition-colors hover:bg-amber/20 disabled:opacity-50"
+                                >
+                                    {dismissing === p.providerType ? 'Dismissing…' : (<>Dismiss <X className="h-3 w-3" /></>)}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )
