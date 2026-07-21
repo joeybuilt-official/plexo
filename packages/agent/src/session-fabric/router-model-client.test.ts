@@ -6,6 +6,7 @@ import type { WorkspaceAISettings } from '../providers/registry.js'
 
 const routeAndCall = vi.fn()
 const callModel = vi.fn()
+const buildModel = vi.fn()
 const anthropicComplete = vi.fn()
 
 vi.mock('../providers/router-v2/index.js', () => ({
@@ -13,6 +14,9 @@ vi.mock('../providers/router-v2/index.js', () => ({
 }))
 vi.mock('../providers/call-model.js', () => ({
     callModel: (opts: unknown) => callModel(opts),
+}))
+vi.mock('../providers/registry.js', () => ({
+    buildModel: (...args: unknown[]) => buildModel(...args),
 }))
 vi.mock('./anthropic-model-client.js', () => ({
     anthropicModelClient: () => ({ complete: (i: unknown) => anthropicComplete(i) }),
@@ -26,8 +30,20 @@ const FAKE_MODEL = { id: 'fake' } as never
 beforeEach(() => {
     routeAndCall.mockReset()
     callModel.mockReset()
+    buildModel.mockReset()
     anthropicComplete.mockReset()
 })
+
+const PINNED_MODEL = { id: 'pinned' } as never
+
+function pinnedSettings(): WorkspaceAISettings {
+    return {
+        primaryProvider: 'openai',
+        fallbackChain: [],
+        providers: { openai: { provider: 'openai', apiKey: 'sk-1', baseUrl: 'https://oai.example' } },
+        judgeModel: { provider: 'openai', model: 'gpt-4o-mini' },
+    }
+}
 
 describe('routerModelClient', () => {
     it('maps {system,user} -> callModel {system,prompt} and returns .text', async () => {
@@ -104,5 +120,99 @@ describe('routerModelClient', () => {
 
         expect(out).toBe('ANTHROPIC_FLOOR')
         expect(out).not.toBe('   ')
+    })
+
+    it('judging: workspace-pinned judge model is tried first and short-circuits the cascade', async () => {
+        buildModel.mockReturnValue(PINNED_MODEL)
+        callModel.mockResolvedValue({ text: 'JUDGE' })
+        const settings = pinnedSettings()
+
+        const client = routerModelClient({ taskType: 'judging', settings, stepTimeoutMs: 60_000 })
+        const out = await client.complete({ system: 'SYS', user: 'USER' })
+
+        expect(out).toBe('JUDGE')
+        // 5th arg = modelIdOverride: top precedence in buildModel, so a
+        // workspace summarization modelOverride cannot hijack the pinned judge.
+        expect(buildModel).toHaveBeenCalledWith(
+            'openai',
+            { provider: 'openai', apiKey: 'sk-1', baseUrl: 'https://oai.example', model: 'gpt-4o-mini' },
+            'summarization',
+            settings,
+            'gpt-4o-mini',
+        )
+        expect(callModel).toHaveBeenCalledWith({
+            model: PINNED_MODEL,
+            system: 'SYS',
+            prompt: 'USER',
+            taskType: 'judging',
+            provider: 'openai',
+            stepTimeoutMs: 60_000,
+        })
+        expect(routeAndCall).not.toHaveBeenCalled()
+        expect(anthropicComplete).not.toHaveBeenCalled()
+    })
+
+    it('judging: pin at a disconnected provider is skipped straight to the cascade', async () => {
+        const settings = pinnedSettings()
+        settings.judgeModel = { provider: 'groq', model: 'llama-3.3-70b-versatile' }
+        routeAndCall.mockResolvedValue('CASCADE')
+
+        const client = routerModelClient({ taskType: 'judging', settings })
+        const out = await client.complete({ system: 's', user: 'u' })
+
+        expect(out).toBe('CASCADE')
+        expect(buildModel).not.toHaveBeenCalled()
+        expect(routeAndCall).toHaveBeenCalledTimes(1)
+    })
+
+    it('judging: pin-skippable error (rate limit) falls through to the cascade', async () => {
+        buildModel.mockReturnValue(PINNED_MODEL)
+        callModel.mockRejectedValueOnce(new Error('429 rate limit exceeded'))
+        routeAndCall.mockResolvedValue('CASCADE')
+
+        const client = routerModelClient({ taskType: 'judging', settings: pinnedSettings() })
+        const out = await client.complete({ system: 's', user: 'u' })
+
+        expect(out).toBe('CASCADE')
+        expect(routeAndCall).toHaveBeenCalledTimes(1)
+        expect(anthropicComplete).not.toHaveBeenCalled()
+    })
+
+    it('judging: non-skippable pin error bypasses the cascade to the anthropic floor', async () => {
+        buildModel.mockReturnValue(PINNED_MODEL)
+        callModel.mockRejectedValueOnce(new Error('kaboom'))
+        anthropicComplete.mockResolvedValue('ANTHROPIC_FLOOR')
+
+        const client = routerModelClient({ taskType: 'judging', settings: pinnedSettings() })
+        const out = await client.complete({ system: 's', user: 'u' })
+
+        expect(out).toBe('ANTHROPIC_FLOOR')
+        expect(routeAndCall).not.toHaveBeenCalled()
+    })
+
+    it('judging: empty pin completion falls through to the cascade', async () => {
+        buildModel.mockReturnValue(PINNED_MODEL)
+        callModel.mockResolvedValue({ text: '   ' })
+        routeAndCall.mockResolvedValue('CASCADE')
+
+        const client = routerModelClient({ taskType: 'judging', settings: pinnedSettings() })
+        const out = await client.complete({ system: 's', user: 'u' })
+
+        expect(out).toBe('CASCADE')
+        expect(routeAndCall).toHaveBeenCalledTimes(1)
+    })
+
+    it('planning: pin is never consulted — routes straight through routeAndCall', async () => {
+        const settings = pinnedSettings()
+        routeAndCall.mockResolvedValue('PLAN')
+
+        const client = routerModelClient({ taskType: 'planning', settings })
+        const out = await client.complete({ system: 's', user: 'u' })
+
+        expect(out).toBe('PLAN')
+        expect(buildModel).not.toHaveBeenCalled()
+        expect(routeAndCall).toHaveBeenCalledWith(
+            expect.objectContaining({ taskType: 'planning', settings }),
+        )
     })
 })
