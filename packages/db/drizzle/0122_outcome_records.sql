@@ -1,5 +1,5 @@
--- SPDX-License-Identifier: AGPL-3.0-only
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
+-- SPDX-License-Identifier: MIT
 -- Idx: 0122  Tag: 0122_outcome_records
 --
 -- Outcome records: one row per terminal task.

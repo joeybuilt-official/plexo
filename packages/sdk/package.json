@@ -1,6 +1,6 @@
 {
   "name": "@joeybuilt/plexo-sdk",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "type": "module",
   "exports": {
     ".": {
@@ -35,5 +35,5 @@
   "publishConfig": {
     "access": "public"
   },
-  "license": "AGPL-3.0-only"
+  "license": "MIT"
 }

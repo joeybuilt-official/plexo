@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: MIT
 # Plexo Graphiti sidecar (ADR 0011). Phase 2: scaffold; Phase 3 adds Graphiti deps.
 
 FROM python:3.12-slim AS base

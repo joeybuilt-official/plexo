@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 
 // FUN-034 — Artifact cleanup handled by cron job in apps/api/src/cron.ts (runArtifactCleanup)

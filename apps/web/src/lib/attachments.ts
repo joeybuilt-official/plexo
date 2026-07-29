@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 
 /** 'image' = raster (jpeg/png/gif/webp), 'svg' = SVG text, 'pdf' = PDF binary */

@@ -6,7 +6,7 @@
   "displayName": "Research Agent",
   "description": "Deep research with source gathering and cited summaries. Reference implementation of a Plexo PEX Agent.",
   "author": "Plexo",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "entry": "/app/extensions/core/research-agent/dist/index.js",
   "minPexVersion": "0.4.0",
   "homepage": "https://getplexo.com/ext/@plexo/research-agent",

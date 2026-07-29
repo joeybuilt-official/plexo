@@ -6,7 +6,7 @@
   "displayName": "Koforje Bridge",
   "description": "Proxies tool calls to Koforje's HTTP API for workspace, file search, agent run, and deploy operations.",
   "author": "Joeybuilt LLC",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "entry": "/app/extensions/core/koforje-bridge/dist/index.js",
   "minPexVersion": "0.4.0",
   "homepage": "https://getplexo.com/ext/@joeybuilt/koforje-bridge",

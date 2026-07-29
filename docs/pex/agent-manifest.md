@@ -45,7 +45,7 @@ and is bundled into the API container at
   "displayName": "Research Agent",
   "description": "Deep research with source gathering and cited summaries.",
   "author": "Plexo",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "entry": "/app/extensions/core/research-agent/dist/index.js",
   "minPexVersion": "0.4.0",
   "capabilities": ["storage:read", "storage:write", "ui:notify"],

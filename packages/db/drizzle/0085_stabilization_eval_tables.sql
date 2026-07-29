@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Stabilization eval tables: ground truth for SCL evaluation + eval results storage.
 -- Both tables ship with every Plexo instance. Ground truth data is populated
 -- by the test harness; eval_results can be written by any operator's eval tooling.

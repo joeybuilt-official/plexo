@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0129  Tag: 0129_inference_logs_app_id
 --
 -- Round-5 Phase 6 (WS E): per-app cost attribution.

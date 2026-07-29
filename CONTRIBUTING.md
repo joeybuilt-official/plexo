@@ -1,6 +1,6 @@
 # Contributing to Plexo
 
-Plexo is open-source under AGPL-3.0. This repo is the self-hosted Plexo platform. Managed-cloud features live in a separate private repository.
+Plexo is open-source under MIT. This repo is the self-hosted Plexo platform. Managed-cloud features live in a separate private repository.
 
 ## What do you want to do?
 
@@ -87,11 +87,11 @@ All commits must include a `Signed-off-by` line. This certifies you have the rig
 - All new source files must include the SPDX header:
 
 ```typescript
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 ```
 
-- Do not introduce AGPL-incompatible dependencies.
+- Do not introduce copyleft (GPL/AGPL) dependencies into MIT-licensed packages; `apps/gmessages` is the sole AGPL carve-out.
 - No TODOs merged to main.
 
 ## Reporting Bugs
@@ -108,4 +108,4 @@ Do **not** open a public issue. See [SECURITY.md](SECURITY.md).
 
 ## License
 
-AGPL-3.0-only. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

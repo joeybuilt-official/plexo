@@ -15,5 +15,5 @@
     "@types/mime-types": "^2.1.4",
     "typescript": "^5.4.5"
   },
-  "license": "AGPL-3.0-only"
+  "license": "MIT"
 }

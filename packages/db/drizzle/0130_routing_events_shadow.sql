@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0130  Tag: 0130_routing_events_shadow
 --
 -- Round-6 Phase 1 (ADR 0006): model-level router shadow logging. Records what

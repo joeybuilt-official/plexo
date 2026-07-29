@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0131  Tag: 0131_routing_events_model_routed
 --
 -- Round-6 Phase 4 (ADR 0006): mark which served routing decisions came from the

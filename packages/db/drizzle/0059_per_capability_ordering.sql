@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Copyright (C) 2026 Joeybuilt LLC
 --
 -- Add per-capability preference ordering to provider_instances.

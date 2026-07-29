@@ -4,7 +4,7 @@ info:
   description: AI agent operations platform API
   version: 0.8.0-beta.1
   license:
-    name: AGPL-3.0-only
+    name: MIT
     url: https://www.gnu.org/licenses/agpl-3.0.html
   contact:
     name: Joeybuilt

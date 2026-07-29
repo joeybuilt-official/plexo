@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0136  Tag: 0136_hotpath_indexes
 --
 -- missing indexes on the three hottest append/poll tables.

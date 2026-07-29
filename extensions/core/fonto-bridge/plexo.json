@@ -6,7 +6,7 @@
   "displayName": "Fonto Bridge",
   "description": "Proxies tool calls to Fonto's data API for asset, collection, and tag operations.",
   "author": "Joeybuilt LLC",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "entry": "/app/extensions/core/fonto-bridge/dist/index.js",
   "minPexVersion": "0.4.0",
   "homepage": "https://getplexo.com/ext/@joeybuilt/fonto-bridge",

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: MIT
 # Copyright (C) 2026 Joeybuilt LLC
 #
 # e2e-up.sh — bring up the ephemeral E2E stack and wait until healthy.

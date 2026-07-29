@@ -3,7 +3,7 @@
   <p><strong>The open-source AI agent platform.</strong></p>
   <p>Autonomous task execution with persistent memory, intelligent model routing, and a self-extending extension system. Describe an objective — Plexo plans, executes, and delivers.</p>
 
-  <a href="https://github.com/joeybuilt-official/plexo/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License" /></a>
+  <a href="https://github.com/joeybuilt-official/plexo/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License" /></a>
   <a href="https://github.com/joeybuilt-official/plexo/releases"><img src="https://img.shields.io/github/v/release/joeybuilt-official/plexo?label=version" alt="Version" /></a>
   <a href="https://hub.getplexo.com"><img src="https://img.shields.io/badge/Hub-marketplace-blueviolet" alt="Hub" /></a>
   <a href="https://getplexo.com"><img src="https://img.shields.io/badge/Cloud-getplexo.com-brightgreen" alt="Cloud" /></a>
@@ -173,7 +173,7 @@ If you build something on top of plexo, send a PR adding it to the [Extension Hu
 
 ## Contributing
 
-Plexo is open source under AGPL-3.0. Contributions are welcome.
+Plexo is open source under MIT. Contributions are welcome.
 
 1. Fork the repository
 2. Create your feature branch
@@ -182,7 +182,7 @@ Plexo is open source under AGPL-3.0. Contributions are welcome.
 
 ## License
 
-[AGPL-3.0](LICENSE) — You can use, modify, and self-host freely. If you modify Plexo and offer it as a network service, you must publish your modifications under the same license.
+[MIT](LICENSE) — Use, modify, and self-host freely with attribution. The `apps/gmessages` subtree is the sole exception: it remains AGPL-3.0 because it links mautrix-gmessages. See [LICENSING.md](LICENSING.md).
 
 ---
 

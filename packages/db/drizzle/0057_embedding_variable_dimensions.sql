@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Copyright (C) 2026 Joeybuilt LLC
 --
 -- Remove fixed 1536-dimension constraint from memory_entries.embedding.

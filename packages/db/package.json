@@ -32,5 +32,5 @@
     "@types/node": "^22",
     "@types/pg": "^8"
   },
-  "license": "AGPL-3.0-only"
+  "license": "MIT"
 }

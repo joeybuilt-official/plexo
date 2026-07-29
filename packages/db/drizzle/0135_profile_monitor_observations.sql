@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0135  Tag: 0135_profile_monitor_observations
 --
 -- Connection & Profile Standard (ADR 0001 §3) — monitor-mode observations.

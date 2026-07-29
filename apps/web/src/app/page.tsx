@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { redirect } from 'next/navigation'
@@ -114,7 +114,7 @@ export default async function LandingPage() {
 
                         <p className="mt-5 text-lg text-text-secondary max-w-lg">
                             Plexo is the agent harness — tasks, schedules, channels, and one-way-door safety.
-                            Connect Claude, GPT, or your own Ollama. Self-hosted. AGPL-3.0.
+                            Connect Claude, GPT, or your own Ollama. Self-hosted. MIT.
                         </p>
 
                         {/* CTAs */}
@@ -146,7 +146,7 @@ export default async function LandingPage() {
                             <StatBlock value="17" label="Providers" />
                             <StatBlock value="6" label="Extension types" />
                             <StatBlock value="5" label="Channels" />
-                            <StatBlock value="AGPL-3.0" label="License" />
+                            <StatBlock value="MIT" label="License" />
                         </div>
                     </div>
 
@@ -417,7 +417,7 @@ routing:
                         {[
                             { title: 'Your data never leaves', desc: 'Task history, agent memory, conversation logs -- all on your infrastructure. No telemetry phones home.' },
                             { title: 'No model lock-in', desc: 'Switch providers via dropdown. Fallback chains ensure uptime. Run local models via Ollama with zero external calls.' },
-                            { title: 'AGPL-3.0 open source', desc: 'Every line inspectable. Free forever for self-hosted use. Commercial licensing for modified network services.' },
+                            { title: 'MIT open source', desc: 'Every line inspectable. Free forever, permissive reuse. The apps/gmessages component remains AGPL-3.0.' },
                             { title: 'One-command deploy', desc: 'Docker Compose. Install script generates secrets, writes env, running in 60 seconds. No Kubernetes required.' },
                         ].map((f, i) => (
                             <div key={f.title}
@@ -487,7 +487,7 @@ routing:
                 <footer className="w-full max-w-6xl mt-2 border-t border-border/30 py-8 flex flex-wrap items-center justify-between gap-4 text-[11px] text-text-muted">
                     <div className="flex items-center gap-2">
                         <PlexoMark className="h-3.5 w-3.5" />
-                        <span>&copy; {new Date().getFullYear()} Joeybuilt LLC &middot; AGPL-3.0</span>
+                        <span>&copy; {new Date().getFullYear()} Joeybuilt LLC &middot; MIT</span>
                     </div>
                     <div className="flex items-center gap-5">
                         <a href="https://joeybuilt.com" target="_blank" rel="noopener noreferrer"

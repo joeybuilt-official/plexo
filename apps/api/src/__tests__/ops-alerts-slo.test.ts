@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 vi.mock('../channel-delivery.js', () => ({ getChannelToken: () => undefined }))

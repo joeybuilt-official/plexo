@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "Plexo desktop shell — connects to a self-hosted Plexo instance.",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "main": "src/main.cjs",
   "packageManager": "pnpm@10.30.3",
   "scripts": {

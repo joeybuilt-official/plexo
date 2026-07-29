@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- SPDX-License-Identifier: MIT -->
 
 # Plexo Application eXchange (PAX) Protocol Specification
 
@@ -649,7 +649,7 @@ per token by default). Hosts MAY configure per-app rate limits.
 ## Appendix C — SDK TypeScript Interface (types only)
 
 ```typescript
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 
 /** PAX SDK surface — types only. Implementation in @plexo/pax-sdk. */
 

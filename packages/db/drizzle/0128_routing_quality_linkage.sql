@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0128  Tag: 0128_routing_quality_linkage
 --
 -- Round-5 Phase 3 (ADR 0001): link the routing decision to the work outcome so

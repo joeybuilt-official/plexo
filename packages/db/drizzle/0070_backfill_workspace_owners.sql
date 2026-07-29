@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Copyright (C) 2026 Joeybuilt LLC
 --
 -- Migration 0070 — Backfill workspace_members for pre-existing workspace owners.

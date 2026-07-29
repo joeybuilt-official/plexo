@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0139  Tag: 0139_drop_synthesis_suggestion_state
 --
 -- Activated drop of orphaned `synthesis_suggestion_state` (operator authorized

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 // Tests for SCL evaluation metrics — deterministic, no LLM calls.
 
 import { describe, it, expect } from 'vitest'

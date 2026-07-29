@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0127  Tag: 0127_router_v2_stats
 --
 -- Router-v2 per-(workspace, provider, model, task_type) call stats, persisted

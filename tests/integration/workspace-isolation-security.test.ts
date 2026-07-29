@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 // Stabilization: SEC-P1 — Adversarial workspace isolation test suite.
 // Verifies no API endpoint returns data from workspace B when authenticated as workspace A.
 

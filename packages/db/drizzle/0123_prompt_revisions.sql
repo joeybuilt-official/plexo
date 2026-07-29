@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Copyright (C) 2026 Joeybuilt LLC
 -- Migration 0123 — prompt_revisions table for distillation retro agent
 -- REQUIRES: cron_jobs (0001+), outcome_records (0122)

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 // k6 stress test — find breaking point under escalating load.
 // Run: k6 run tests/load/stress.js
 

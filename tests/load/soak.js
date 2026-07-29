@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 // k6 soak test — sustained load for 2 hours, detect memory leaks and connection pool exhaustion.
 // Run: k6 run tests/load/soak.js
 

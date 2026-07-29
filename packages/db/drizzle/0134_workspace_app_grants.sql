@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0134  Tag: 0134_workspace_app_grants
 --
 -- Connection & Profile Standard (ADR 0001 §3) — per-(app×workspace) capability

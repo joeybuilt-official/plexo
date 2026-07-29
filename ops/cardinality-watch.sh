@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: MIT
 # Copyright (C) 2026 Joeybuilt LLC
 #
 # Phase 6 cardinality watch (ADR 0029, post-cutover-stabilization §8 Phase 6).

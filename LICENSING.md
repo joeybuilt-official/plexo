@@ -1,31 +1,32 @@
 # Licensing
 
-Plexo is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+Plexo is licensed under the [MIT License](LICENSE).
 
 Copyright is held by **Joeybuilt LLC**.
 
-## What AGPL-3.0 Means for You
+## The one exception: `apps/gmessages`
 
-You can use, modify, and distribute Plexo freely under AGPL-3.0 terms. The key obligation:
+The `apps/gmessages` subtree is licensed under the **GNU Affero General Public
+License v3.0 (AGPL-3.0-only)**, not MIT. It statically links
+[`go.mau.fi/mautrix-gmessages`](https://github.com/mautrix/gmessages), which is
+AGPL-3.0; that copyleft extends to the linked work. The subtree carries its own
+[LICENSE](apps/gmessages/LICENSE) and every file in it retains an AGPL-3.0
+SPDX header. If you distribute `apps/gmessages` (or a derivative), or offer it
+as a network service, AGPL-3.0's Section 13 source-disclosure obligation applies
+to that component.
 
-**Network use triggers source disclosure.** If you modify Plexo and offer it as a network service (e.g., a hosted platform), you must make your modified source code available to users of that service under AGPL-3.0. This is Section 13 of the AGPL — it closes the "SaaS loophole" present in standard GPL.
-
-Using Plexo unmodified, or modifying it for internal use only, does not trigger this requirement.
+Everything else in this repository is MIT: use, modify, and distribute freely,
+provided the copyright notice and permission notice are retained.
 
 ## Contributions
 
-Contributors retain copyright of their contributions. By submitting a pull request, you license your contribution under AGPL-3.0 via the [Developer Certificate of Origin](https://developercertificate.org/) (DCO). All commits must include a `Signed-off-by` line:
-
-```
-Signed-off-by: Your Name <your@email.com>
-```
-
-Use `git commit -s` to add this automatically.
+By submitting a pull request you license your contribution under the same terms
+as the file(s) you change — MIT for the repository at large, AGPL-3.0 for
+`apps/gmessages`. Contributions are accepted under the
+[Developer Certificate of Origin](https://developercertificate.org/); add a
+`Signed-off-by` line with `git commit -s`.
 
 ## Joeybuilt Managed Service
 
-Joeybuilt operates a managed SaaS instance of Plexo from a separate private codebase. The SaaS overlay is not part of this repository and is not covered by AGPL-3.0.
-
-## Commercial Licensing
-
-If AGPL-3.0 does not work for your use case, contact [licensing@getplexo.com](mailto:licensing@getplexo.com) for alternative licensing arrangements.
+Joeybuilt operates a managed SaaS instance of Plexo from a separate private
+codebase. That overlay is not part of this repository.

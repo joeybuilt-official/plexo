@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- SPDX-License-Identifier: MIT -->
 <!-- Pre-coding audit — written before any PAX code or spec work -->
 
 # PAX Pre-Coding Audit

@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- PAX (Plexo Application eXchange) — registration table
 -- Stores external app registrations; tokens live in mcp_tokens with type='pax'
 

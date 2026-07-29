@@ -51,7 +51,7 @@ export default function AboutPage() {
                                 <h2 className="font-display text-lg font-semibold text-text-primary">Open source</h2>
                             </div>
                             <p className="text-sm text-text-secondary leading-relaxed">
-                                Plexo is open source under the AGPL-3.0 license. The Hub is part of the
+                                Plexo is open source under the MIT license. The Hub is part of the
                                 Plexo monorepo and can be self-hosted by anyone running their own instance.
                             </p>
                             <a

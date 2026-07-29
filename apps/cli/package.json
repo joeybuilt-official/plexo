@@ -4,7 +4,7 @@
   "description": "Plexo CLI — terminal interface to your Plexo instance",
   "type": "module",
   "private": false,
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "bin": {
     "plexo": "./dist/index.js"
   },

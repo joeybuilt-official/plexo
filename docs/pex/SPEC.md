@@ -1,7 +1,7 @@
 # Plexo Extension Protocol (PEX) Specification v0.4.0
 
 **Status:** Authoritative
-**License:** AGPL-3.0-only
+**License:** MIT
 **Copyright:** (C) 2026 Joeybuilt LLC
 
 ---

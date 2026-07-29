@@ -6,7 +6,7 @@
   "displayName": "Levio Bridge",
   "description": "Proxies tool calls to Levio's data API for email, calendar, and task operations.",
   "author": "Joeybuilt LLC",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "entry": "/app/extensions/core/levio-bridge/dist/index.js",
   "minPexVersion": "0.4.0",
   "homepage": "https://getplexo.com/ext/@joeybuilt/levio-bridge",

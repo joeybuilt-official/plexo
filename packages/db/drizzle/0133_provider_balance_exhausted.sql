@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0133  Tag: 0133_provider_balance_exhausted
 --
 -- Fix A (chat-capacity): persist provider funds-depletion state.

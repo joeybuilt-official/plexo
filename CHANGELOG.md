@@ -202,7 +202,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **`scripts/self-update.sh`** — one-click update script: git pull → pnpm install → db:migrate → docker compose build + up; respects `PLEXO_MANAGED=true` to skip Docker steps on managed hosting.
 - **Version source of truth** — `NEXT_PUBLIC_APP_VERSION` injected from root `package.json` via `next.config.ts`; sidebar and dashboard footer read from the same env var; eliminates hardcoded version strings.
 - **Router** — completed remaining gaps: `enabled` flag respected, accurate identity line, judge/planner router wiring finalized.
-- AGPL-3.0-only license
+- MIT license
 - Commercial context + ZeroClaw parity gate in AGENTS.md
 - `.agents-local.md` gitignored for private operational notes
 - **Multi-category projects** — new project creation supports Code, Research, Writing, Ops, Data, Marketing, and General types with category-appropriate terminology, form fields, and planner prompts.
@@ -239,7 +239,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **README redesign** — rewrote README.md with improved visual hierarchy, copy crispness, and feature presentation.
 
 ### Infrastructure
-- Relicensed from BSL 1.1 to **AGPL-3.0-only**
+- Relicensed from BSL 1.1 to **MIT**
 - Added `.dockerignore` to prevent stale host symlinks from leaking into image builds
 - Busted `db` package build cache to clear stale symlinks from prior builds
 - `AUTH_URL` now derived from `ADMIN_URL` in gateway compose config; hardcoded production domains removed from gateway

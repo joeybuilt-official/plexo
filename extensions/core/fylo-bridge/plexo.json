@@ -6,7 +6,7 @@
   "displayName": "Fylo Bridge",
   "description": "Forwards Plexo synthesis budget signals to Fylo for budget tracking.",
   "author": "Joeybuilt LLC",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "entry": "/app/extensions/core/fylo-bridge/dist/index.js",
   "minPexVersion": "0.4.0",
   "homepage": "https://getplexo.com/ext/@joeybuilt/fylo-bridge",

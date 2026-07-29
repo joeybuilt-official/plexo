@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MIT
 -- Idx: 0132  Tag: 0132_synthesis_suggestion_state
 --
 -- Phase 8 v2: persist synthesis-inbox actions.
