@@ -758,6 +758,25 @@ export class ProviderResolutionError extends Error {
 }
 
 /**
+ * Resolve a model from the workspace's SUCCESSFULLY-CONNECTED providers
+ * (feedback_no_hardwired_llm_provider). Loads provider_instances settings and lets
+ * the router pick the best-ranked connected provider's model — never a hardwired
+ * model/provider or a system env key. Falls back to resolveModelFromEnv only when
+ * the workspace has no usable settings (dev / no-workspace contexts).
+ */
+export async function resolveWorkspaceModel(
+    workspaceId: string,
+    taskType: TaskType = 'summarization',
+): Promise<AnyLanguageModel> {
+    const { loadSettingsFromInstances } = await import('./settings-from-instances.js')
+    const settings = await loadSettingsFromInstances(workspaceId)
+    if (!settings) return resolveModelFromEnv(DEFAULT_MODEL_ROUTING[taskType])
+    const { routeAndBuild } = await import('./router-v2/index.js')
+    const { model } = await routeAndBuild({ workspaceId, taskType, settings })
+    return model
+}
+
+/**
  * Direct Ollama model factory — bypasses the workspace router. Used by
  * service-key endpoints that target the local Ollama install
  * (OLLAMA_INTERNAL_URL) for a specific multimodal model rather than the

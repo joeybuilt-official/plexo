@@ -23,7 +23,6 @@
 import { routeAndCall } from '../providers/router-v2/index.js'
 import type { TaskType, WorkspaceAISettings } from '../providers/registry.js'
 import { PIN_SKIPPABLE_ERROR } from '../providers/pin-skippable.js'
-import { anthropicModelClient } from './anthropic-model-client.js'
 
 /** Structural mirror of session-fabric's `ModelClient` port. */
 export interface ModelClient {
@@ -139,9 +138,16 @@ export function routerModelClient(opts: RouterModelClientOptions = {}): ModelCli
                     },
                 })
             } catch {
-                // Runtime hard floor: router cascade exhausted or settings load failed →
-                // Anthropic (env ANTHROPIC_API_KEY). feedback_no_hardwired_llm_provider.
-                return anthropicModelClient().complete({ system, user })
+                // Provider-agnostic last resort (feedback_no_hardwired_llm_provider):
+                // the workspace cascade is exhausted or settings failed to load. Fall
+                // back to whatever provider a SYSTEM env key configures — never a
+                // hardwired Anthropic. With no provider env (the normal per-workspace
+                // deployment) resolveModelFromEnv throws, surfacing an honest
+                // "no provider" error instead of a misleading Anthropic auth failure.
+                const { resolveModelFromEnv } = await import('../providers/registry.js')
+                const { callModel } = await import('../providers/call-model.js')
+                const r = await callModel({ model: resolveModelFromEnv(), system, prompt: user, taskType })
+                return r.text ?? ''
             }
         },
     }

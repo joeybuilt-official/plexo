@@ -26,7 +26,7 @@ import pino from 'pino'
 import { sql, desc, eq } from 'drizzle-orm'
 import { db } from '@plexo/db'
 import { workLedger } from '@plexo/db'
-import { resolveModelFromEnv } from '../providers/registry.js'
+import { resolveWorkspaceModel } from '../providers/registry.js'
 import { getPreference, learnPreference } from './preferences.js'
 
 const logger = pino({ name: 'prompt-improvement' })
@@ -62,17 +62,8 @@ export async function proposePromptImprovements(params: {
 }): Promise<PromptPatch[]> {
     const { workspaceId, lookbackDays = 14, minSamples = 5 } = params
 
-    const hasProvider = !!(
-        process.env.OPENAI_API_KEY ??
-        process.env.OPENROUTER_API_KEY ??
-        process.env.GEMINI_API_KEY ??
-        process.env.GROQ_API_KEY ??
-        process.env.MISTRAL_API_KEY
-    )
-    if (!hasProvider) {
-        logger.warn('No AI provider API key — cannot run prompt improvement analysis')
-        return []
-    }
+    // Provider selection is workspace-connection-driven (feedback_no_hardwired_llm_provider):
+    // resolveWorkspaceModel below routes through connected providers; no env-key gate.
 
     const currentOverrides = (await getPreference(workspaceId, 'prompt_overrides')) as Record<string, string> | null ?? {}
 
@@ -114,12 +105,11 @@ export async function proposePromptImprovements(params: {
     const lowQuality = samples.filter((s) => (s.qualityScore ?? 1) < 0.7 || s.calibration === 'over')
     const highQuality = samples.filter((s) => (s.qualityScore ?? 0) >= 0.8)
 
-    // No hard-coded provider: resolveModelFromEnv picks the model from whichever
-    // provider the user has authenticated (env), defaulting via DEFAULT_MODEL_ROUTING.
-    const model = resolveModelFromEnv()
-
     let patches: PromptPatch[] = []
     try {
+        // Route through the workspace's connected providers — no hardwired
+        // provider / env key (feedback_no_hardwired_llm_provider).
+        const model = await resolveWorkspaceModel(workspaceId)
         const textResult = await generateText({
             model,
             system: `You are an AI meta-evaluator. You review AI agent task performance data and the agent's current system prompt overrides, then propose targeted improvements to the prompt.

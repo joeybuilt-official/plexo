@@ -229,7 +229,7 @@ function inferCapabilities(requestedCapabilities: string[]): string[] {
 async function generateExtensionCode(
     research: APIResearch,
     requestedCapabilities: string[],
-    _workspaceId: string,
+    workspaceId: string,
 ): Promise<string> {
     const systemPrompt = `You are a PEX tool generator for the Plexo AI agent platform.
 Your output is a JavaScript ESM module that will run in a sandboxed worker thread.
@@ -273,11 +273,10 @@ Generate the complete activate(sdk) function with all tools fully implemented.
 Use fetch() to call ${research.baseUrl} for all API calls.
 Auth: get credentials with sdk.connections.getCredentials('${research.registryId}') and use the apiKey field.`
 
-    // Use resolveModelFromEnv for internal synthesizer calls — the workspace aiSettings
-    // is a raw JSONB object, not a WorkspaceAISettings, so withFallback would fail.
-    // resolveModelFromEnv prioritises OPENAI_API_KEY → GEMINI_API_KEY → OPENROUTER → Ollama.
-    const { resolveModelFromEnv } = await import('../providers/registry.js')
-    const model = resolveModelFromEnv()
+    // Route through the workspace's connected providers — no hardwired provider /
+    // env key (feedback_no_hardwired_llm_provider).
+    const { resolveWorkspaceModel } = await import('../providers/registry.js')
+    const model = await resolveWorkspaceModel(workspaceId)
     // Phase 3 hardening — callModel owns retry + abort + error codes.
     // Stable 60s step timeout matches the prior lack of explicit timeout.
     //

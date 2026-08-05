@@ -248,7 +248,7 @@ ${JSON.stringify(ledgerSummary, null, 2)}`
             }
         }
         if (!textResult) {
-            textResult = await doCall(resolveModelFromEnv('claude-haiku-4-5'))
+            textResult = await doCall(resolveModelFromEnv())
         }
         const cleaned = textResult.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
         proposals = ProposalsSchema.parse(JSON.parse(cleaned)).proposals
