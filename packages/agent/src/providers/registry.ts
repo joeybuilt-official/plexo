@@ -22,16 +22,20 @@ import { createHash } from 'crypto'
 // Lazy-imported because undici may be a vendored bind-mount that doesn't
 // resolve at static-import time in test environments.
 type UndiciAgentCtor = new (opts: Record<string, unknown>) => unknown
-let cachedUndiciAgent: UndiciAgentCtor | null = null
+type UndiciModule = { Agent: UndiciAgentCtor; fetch: typeof globalThis.fetch }
+let cachedUndici: UndiciModule | null = null
 let undiciLoadAttempted = false
-async function loadUndiciAgent(): Promise<UndiciAgentCtor | null> {
-    if (cachedUndiciAgent) return cachedUndiciAgent
+async function loadUndici(): Promise<UndiciModule | null> {
+    if (cachedUndici) return cachedUndici
     if (undiciLoadAttempted) return null
     undiciLoadAttempted = true
     try {
         const mod = await import('undici')
-        cachedUndiciAgent = (mod as { Agent: UndiciAgentCtor }).Agent
-        return cachedUndiciAgent
+        cachedUndici = {
+            Agent: (mod as { Agent: UndiciAgentCtor }).Agent,
+            fetch: (mod as unknown as { fetch: typeof globalThis.fetch }).fetch,
+        }
+        return cachedUndici
     } catch {
         return null
     }
@@ -39,9 +43,9 @@ async function loadUndiciAgent(): Promise<UndiciAgentCtor | null> {
 
 function buildAnthropicFetch(): typeof globalThis.fetch {
     return (async (url: any, init: any) => {
-        const Agent = await loadUndiciAgent()
-        if (!Agent) return globalThis.fetch(url, init)
-        const dispatcher = new Agent({
+        const undici = await loadUndici()
+        if (!undici) return globalThis.fetch(url, init)
+        const dispatcher = new undici.Agent({
             connectTimeout: 60_000,
             headersTimeout: 120_000,
             bodyTimeout: 120_000,
@@ -49,7 +53,13 @@ function buildAnthropicFetch(): typeof globalThis.fetch {
             keepAliveTimeout: 1,
             keepAliveMaxTimeout: 1,
         })
-        return globalThis.fetch(url, { ...(init ?? {}), dispatcher } as any)
+        // Use undici's OWN fetch, not Node's global fetch. Handing a
+        // userland-undici Agent to the built-in fetch as `dispatcher` throws
+        // "invalid onRequestStart method": Node's internal undici expects a
+        // different handler interface than the userland package's Agent. Pairing
+        // undici.fetch with undici.Agent keeps both on one implementation, so the
+        // fresh-per-call dispatcher (stuck-socket avoidance) is honored.
+        return undici.fetch(url, { ...(init ?? {}), dispatcher } as any)
     }) as unknown as typeof globalThis.fetch
 }
 
