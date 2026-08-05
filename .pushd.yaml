@@ -7,16 +7,16 @@ builds:
     image: pushd/flutter-3.44.6-jdk17:latest
     secrets:
       - GITHUB_TOKEN
-      - CM_KEYSTORE_BASE64
-      - CM_KEYSTORE_PASSWORD
-      - CM_KEY_ALIAS
-      - CM_KEY_PASSWORD
+      - ANDROID_KEYSTORE_BASE64
+      - ANDROID_KEYSTORE_PASSWORD
+      - ANDROID_KEY_ALIAS
+      - ANDROID_KEY_PASSWORD
     commands:
       - git clone --depth 1 --branch main https://x-access-token:$GITHUB_TOKEN@github.com/joeybuilt-official/plexo.git .
       - printf '\nkotlin.jvm.target.validation.mode=warning\n' >> apps/mobile/android/gradle.properties
-      - printf '%s' "$CM_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > /tmp/plexo-upload.jks
+      - printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > /tmp/plexo-upload.jks
       - cd apps/mobile && flutter pub get
-      - cd apps/mobile && CM_KEYSTORE_PATH=/tmp/plexo-upload.jks flutter build apk --release
+      - cd apps/mobile && ANDROID_KEYSTORE_PATH=/tmp/plexo-upload.jks flutter build apk --release
     artifacts:
       - apps/mobile/build/app/outputs/flutter-apk/app-release.apk
     deliver:

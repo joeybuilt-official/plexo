@@ -64,13 +64,13 @@ from it at build time.
 `win.icon` in `electron-builder.yml` to `build/icon.ico`. The bundled PNG is a
 functional placeholder only.
 
-## CI (Codemagic)
+## CI (Pushd)
 
-Codemagic builds the Windows artifacts on a Windows worker with:
+Pushd builds the Windows artifacts on a Windows worker with:
 
 ```bash
 pnpm --filter @plexo/desktop run dist
 ```
 
 `publish: null` in `electron-builder.yml` means no auto-update feed and no
-artifact publishing — Codemagic collects the files from `apps/desktop/dist/`.
+artifact publishing — Pushd collects the files from `apps/desktop/dist/`.

@@ -23,24 +23,25 @@ android {
         versionName = flutter.versionName
     }
 
-    // Release signing is driven by env vars supplied by the Codemagic
-    // `plexo-android-signing` group; CM_KEYSTORE_PATH is exported in the build
-    // step after base64-decoding CM_KEYSTORE. Falls back to debug keys locally.
+    // Release signing is driven by env vars supplied by the Pushd
+    // `plexo-android-signing` secrets; ANDROID_KEYSTORE_PATH is exported in the
+    // build step after base64-decoding ANDROID_KEYSTORE_BASE64. Falls back to
+    // debug keys locally.
     signingConfigs {
         create("release") {
-            val ksPath = System.getenv("CM_KEYSTORE_PATH")
+            val ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
             if (ksPath != null) {
                 storeFile = file(ksPath)
-                storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("CM_KEY_ALIAS")
-                keyPassword = System.getenv("CM_KEY_PASSWORD")
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = if (System.getenv("CM_KEYSTORE_PATH") != null) {
+            signingConfig = if (System.getenv("ANDROID_KEYSTORE_PATH") != null) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
