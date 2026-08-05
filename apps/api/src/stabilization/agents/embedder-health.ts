@@ -10,7 +10,13 @@
 
 import type { Agent, Alert } from './index.js'
 
-const EMBEDDING_URL = process.env.EMBEDDING_INTERNAL_URL ?? 'http://localhost:3001'
+// Probe the real embeddings service. EMBEDDING_INTERNAL_URL is an explicit
+// override; otherwise use EMBEDDINGS_URL (set in compose to the embeddings
+// container). The old 'http://localhost:3001' default pointed at the API's OWN
+// process — whose /health returns 200 but which has no /v1/embeddings route, so
+// every probe reported a false critical 404. Fall back to the service host, not
+// localhost.
+const EMBEDDING_URL = process.env.EMBEDDING_INTERNAL_URL ?? process.env.EMBEDDINGS_URL ?? 'http://plexo-embeddings:3001'
 const EXPECTED_DIM = parseInt(process.env.EMBEDDING_DIM ?? '384', 10)
 
 export const embedderHealth: Agent = {

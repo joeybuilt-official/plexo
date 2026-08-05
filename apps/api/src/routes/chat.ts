@@ -36,6 +36,8 @@ import { detectCredentialMessage, autoInstallConnection } from '../credential-se
 import { setPreference } from '@plexo/agent/memory/preferences'
 import {
     recordConversation,
+    updateConversationById,
+    linkTaskToConversation,
     getSessionChannelRef,
     replyToChannel,
     getSessionTurns,
@@ -264,6 +266,12 @@ chatRouter.post('/message', async (req, res) => {
     const lockKey = `${workspaceId}:${clientSessionId || 'new'}`
 
     await withSessionLock(lockKey, async () => {
+    // Persist-pending-then-backfill: one durable row per turn, hoisted so the
+    // outer catch can settle it even when a model call throws/aborts.
+    let conversationId: string | null = null
+    let turnSettled = false
+    let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = 'CONVERSATION'
+    let trimmedMsg = ''
     try {
         // ── Parallel load: workspace + AI settings + session history ──────────
         // These are all independent — run them concurrently instead of sequentially.
@@ -310,8 +318,8 @@ chatRouter.post('/message', async (req, res) => {
         const taglineHint = agentTagline ? ` (${agentTagline})` : ''
 
         // Classify intent — skip if caller forced CONVERSATION (e.g. "Just answer" button)
-        // Default to CONVERSATION — tasks only get proposed when classifier explicitly says so.
-        let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = 'CONVERSATION'
+        // Default to CONVERSATION (declared at handler top) — tasks only get proposed
+        // when the classifier explicitly says so.
 
         type ContentPart = { type: 'text'; text: string } | { type: 'image'; image: string | URL; mimeType?: string }
 
@@ -346,7 +354,7 @@ chatRouter.post('/message', async (req, res) => {
             }
         }
 
-        const trimmedMsg = finalMessageText.trim() || (hasImages ? `[Image${validImages.length > 1 ? 's' : ''} attached]` : '')
+        trimmedMsg = finalMessageText.trim() || (hasImages ? `[Image${validImages.length > 1 ? 's' : ''} attached]` : '')
 
         // ── Universal session resolution (web chat) ───────────────────────────
         // The client's sessionId is treated as a stable thread seed — the
@@ -751,6 +759,21 @@ chatRouter.post('/message', async (req, res) => {
 
         logger.info({ workspaceId, intent, message: trimmedMsg.slice(0, 80) }, 'Webchat intent classified')
 
+        // Persist a pending row BEFORE any heavy model call so a throw/abort mid-turn
+        // can never make the conversation vanish. Terminal sites below backfill it in
+        // place; the outer catch marks it failed if nothing else settled it. `.catch`
+        // so a DB hiccup here never blocks the turn. Source starts 'dashboard' (the
+        // channel isn't known yet — conversationSource is computed later, per-branch).
+        conversationId = await recordConversation({
+            workspaceId,
+            sessionId,
+            source: 'dashboard',
+            message: trimmedMsg,
+            status: 'pending',
+            intent,
+            messageEmbedding: _resolvedEmbedding,
+        }).catch(() => null)
+
         // ── MEMORY intent: store instruction immediately ───────────────────────────
         if (intent === 'MEMORY') {
             try {
@@ -769,7 +792,13 @@ chatRouter.post('/message', async (req, res) => {
                 const reply = `Got it — I'll remember that and apply it going forward.`
 
                 try {
-                    await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                    if (conversationId) {
+                        await updateConversationById(conversationId, { reply, status: 'complete' })
+                        turnSettled = true
+                    } else {
+                        await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                        turnSettled = true
+                    }
                 } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
                 res.json({ status: 'complete', reply })
@@ -951,7 +980,13 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             res.write(`data: ${JSON.stringify({ error: EMPTY_RESPONSE_MSG })}\n\n`)
                             res.end()
                             try {
-                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: EMPTY_RESPONSE_MSG, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                if (conversationId) {
+                                    await updateConversationById(conversationId, { errorMsg: EMPTY_RESPONSE_MSG, status: 'failed' })
+                                    turnSettled = true
+                                } else {
+                                    await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: EMPTY_RESPONSE_MSG, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                    turnSettled = true
+                                }
                             } catch (err) { logger.error({ err }, "Failed to record conversation") }
                             trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'empty_response', messageLength: 0 })
                             return
@@ -969,7 +1004,13 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             res.end()
                         }
                         try {
-                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                            if (conversationId) {
+                                await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
+                                turnSettled = true
+                            } else {
+                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                turnSettled = true
+                            }
                         } catch (err) { logger.error({ err }, "Failed to record conversation") }
                         trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'failed', messageLength: 0, errorMessage: classified.message })
                         // Still run post-stream persistence with whatever we got
@@ -994,7 +1035,13 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
 
                     // ── Post-stream persistence (runs inside session lock) ──────
                     try {
-                        await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                        if (conversationId) {
+                            await updateConversationById(conversationId, { reply: replyText, status: 'complete' })
+                            turnSettled = true
+                        } else {
+                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                            turnSettled = true
+                        }
                     } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
                     if (externalChannelRef) {
@@ -1035,7 +1082,9 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             messages: streamMessages,
                             tools: chatTools as any,
                             stopWhen: stepCountIs(5),
-                            abortSignal: AbortSignal.timeout(120_000),
+                            // No SSE heartbeat on this buffered path, so keep the
+                            // request under the ~100s upstream tunnel idle window.
+                            abortSignal: AbortSignal.timeout(90_000),
                         })
                         return { text: await stream.text }
                     }
@@ -1068,7 +1117,13 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         logger.warn({ workspaceId, providerKey }, 'Webchat: empty response from model')
                         const classified = classifyAIError(new Error('Empty response from model — the model returned no text.'))
                         try {
-                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                            if (conversationId) {
+                                await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
+                                turnSettled = true
+                            } else {
+                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                turnSettled = true
+                            }
                         } catch (err) { logger.error({ err }, "Failed to record conversation") }
                         trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'empty_response', messageLength: 0 })
                         res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
@@ -1076,7 +1131,13 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                     }
 
                     try {
-                        await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                        if (conversationId) {
+                            await updateConversationById(conversationId, { reply: replyText, status: 'complete' })
+                            turnSettled = true
+                        } else {
+                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                            turnSettled = true
+                        }
                     } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
                     if (externalChannelRef) {
@@ -1115,7 +1176,13 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                 logger.error({ err, workspaceId, errorType: classified.type }, 'Webchat conversational reply failed')
                 trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'failed', messageLength: 0, errorMessage: classified.message })
                 try {
-                    await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                    if (conversationId) {
+                        await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
+                        turnSettled = true
+                    } else {
+                        await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                        turnSettled = true
+                    }
                 } catch (err) { logger.error({ err }, "Failed to record conversation") }
                 res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical, model: `${resolvedProvider}/${resolvedModel}` })
             }
@@ -1173,7 +1240,14 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
 
             const confirmReply = recommendedSwitch.trim() || null
             try {
-                await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent, taskId, messageEmbedding: _resolvedEmbedding })
+                if (conversationId) {
+                    await updateConversationById(conversationId, { reply: confirmReply, status: 'complete' })
+                    await linkTaskToConversation(conversationId, taskId)
+                    turnSettled = true
+                } else {
+                    await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent, taskId, messageEmbedding: _resolvedEmbedding })
+                    turnSettled = true
+                }
             } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
             // Apr-14: chat-to-task UX — return a structured task summary so the
@@ -1199,7 +1273,13 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
         // PROJECT — one confirm because it creates a full multi-task sprint
         const confirmReply = `This is a multi-step effort. Confirm to get started.${recommendedSwitch}`
         try {
-            await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+            if (conversationId) {
+                await updateConversationById(conversationId, { reply: confirmReply, status: 'complete' })
+                turnSettled = true
+            } else {
+                await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                turnSettled = true
+            }
         } catch (err) {
             logger.error({ err, workspaceId }, 'Webchat: failed to record pre-confirmation conversation')
         }
@@ -1215,6 +1295,11 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/message failed')
         trackEvent('channel.error', 'error', { channel: 'webchat', error: 'message_handler_failed' })
+        if (conversationId && !turnSettled) {
+            try { await updateConversationById(conversationId, { errorMsg: err instanceof Error ? err.message.slice(0, 500) : 'chat handler failed', status: 'failed' }) } catch { /* best-effort */ }
+        } else if (!conversationId && !turnSettled) {
+            try { await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, errorMsg: 'chat handler failed', status: 'failed', intent, messageEmbedding: _resolvedEmbedding }) } catch { /* best-effort */ }
+        }
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: "Couldn't queue your message. Try again — if it keeps happening, check Settings → AI Providers." } })
     }
     }) // end withSessionLock

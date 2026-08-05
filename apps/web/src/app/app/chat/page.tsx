@@ -1146,19 +1146,28 @@ function ChatContent() {
             ))
         } catch (err) {
             // Three distinct terminal states — never blanket everything as "timed out":
-            //  1. Aborted (new send / navigation) — silent, drop the pending bubble.
+            //  1. Aborted (a new send superseded this one, or the stream tore
+            //     down) — keep the bubble as an interrupted turn. The backend now
+            //     durably persists every turn, so the row exists server-side;
+            //     hard-removing the bubble here made a real, saved turn look like
+            //     it silently vanished.
             //  2. Network failure (fetch throws TypeError) — connection lost.
             //  3. Anything else — a genuine error, surfaced as such.
             if (err instanceof DOMException && err.name === 'AbortError') {
-                setMessages((prev) => prev.filter((m) => m.id !== pendingId))
+                setMessages((prev) => prev.map((m) =>
+                    m.id === pendingId ? {
+                        ...m, status: 'failed',
+                        content: 'Response interrupted. Your message was saved — send again to continue.',
+                    } : m
+                ))
             } else {
                 const isNetwork = err instanceof TypeError
                 setMessages((prev) => prev.map((m) =>
                     m.id === pendingId ? {
                         ...m, status: 'failed',
                         content: isNetwork
-                            ? 'Lost connection to the server. Your conversation is saved — just send again.'
-                            : 'Something went wrong sending your message. Your conversation is saved — just send again.',
+                            ? 'Lost connection to the server. Your message was saved — send again to continue.'
+                            : 'Something went wrong sending your message. Your message was saved — send again to continue.',
                     } : m
                 ))
             }

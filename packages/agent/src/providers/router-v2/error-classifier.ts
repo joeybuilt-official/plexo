@@ -179,6 +179,28 @@ export function classifyError(err: unknown): Classification {
         return { class: 'transient-5xx', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
 
+    // Aborted / timed-out attempt — the per-attempt deadline (AbortSignal.timeout
+    // in the caller's doCall) fired, which the AI SDK surfaces as
+    // "AbortError: Delay was aborted" from its internal retry `delay()`, or as a
+    // DOMException named 'TimeoutError'. The message carries no 5xx / 'timeout'
+    // keyword, so without this branch it fell through to 'unknown'
+    // (shouldFallback=false) and DEAD-ENDED the cascade — the exact bug that let a
+    // slow provider (cerebras, p95≈30s) kill completions instead of failing over
+    // to a healthy candidate (e.g. ollama_cloud). Treat as transient so the router
+    // cools the slow candidate and advances. NOTE: a deliberate user-cancel also
+    // aborts, but the chat/stream handler tears down the whole response on cancel
+    // and never re-enters the cascade, so advancing here only affects the
+    // deadline-driven aborts we want to fail over.
+    if (
+        err.name === 'AbortError' ||
+        err.name === 'TimeoutError' ||
+        msg.includes('was aborted') ||
+        msg.includes('operation was aborted') ||
+        msg.includes('the operation timed out')
+    ) {
+        return { class: 'transient-5xx', shouldFallback: true, suggestedAction: 'fallback-next' }
+    }
+
     // Content policy refusal — provider returned a refusal; advance, do not
     // penalize the model (legitimate provider behavior).
     if (

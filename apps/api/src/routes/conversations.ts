@@ -54,9 +54,13 @@ conversationsRouter.get('/', async (req, res) => {
     try {
         const lim = Math.min(parseInt(limit, 10) || 50, 200)
 
-        // Session thread view: all turns for a specific session ID (chronological)
-        if (sessionId && sessionId.length > 64) {
-            res.status(400).json({ error: { code: 'INVALID_SESSION', message: 'sessionId max 64 chars' } })
+        // Session thread view: all turns for a specific session ID (chronological).
+        // Cap is a sanity bound, not a format limit: web sessions are minted as
+        // `web-<workspaceUuid>-<clientUuid>` = 77 chars, so a 64 cap 400'd EVERY
+        // web thread ("No turns found" despite persisted rows). 128 covers the
+        // current format with headroom while still bounding the query param.
+        if (sessionId && sessionId.length > 128) {
+            res.status(400).json({ error: { code: 'INVALID_SESSION', message: 'sessionId max 128 chars' } })
             return
         }
         if (sessionId) {

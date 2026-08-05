@@ -44,16 +44,29 @@ export const dbMigrationDrift: Agent = {
                 SELECT hash FROM drizzle.__drizzle_migrations ORDER BY id ASC
             `)
             const applied = rows.map((r) => r.hash).filter(Boolean)
-            // Drizzle stores migration hashes, not filenames, so we can't do
-            // a strict 1:1 set diff. Instead we count: applied count should
-            // match the number of on-disk files. Mismatch → drift.
-            if (applied.length !== onDisk.length) {
+            // The repo INTENTIONALLY keeps hand-SQL (0130+) and DRAFT_* OUT of
+            // meta/_journal.json — they're applied via apply-orphaned-sql.ts and
+            // never journaled, so drizzle won't re-apply them on prod. Counting
+            // ALL on-disk .sql therefore over-reports drift by the orphan count
+            // (it can never read 0). Compare the applied ledger against the
+            // JOURNALED files only; orphans + DRAFT_ are expected on disk.
+            let expected = onDisk
+            try {
+                const journalRaw = await fs.readFile(join(MIGRATION_DIR, 'meta', '_journal.json'), 'utf-8')
+                const journaledTags = new Set(
+                    (JSON.parse(journalRaw) as { entries: Array<{ tag: string }> }).entries.map((e) => e.tag),
+                )
+                expected = onDisk.filter((tag) => journaledTags.has(tag))
+            } catch {
+                // No journal readable — fall back to counting all on-disk files.
+            }
+            if (applied.length !== expected.length) {
                 return {
                     agent: 'db-migration-drift',
                     at,
                     severity: 'critical',
-                    message: `Migration count drift: ${applied.length} applied vs ${onDisk.length} on disk`,
-                    metadata: { applied: applied.length, onDisk: onDisk.length, dir: MIGRATION_DIR },
+                    message: `Migration count drift: ${applied.length} applied vs ${expected.length} journaled on disk`,
+                    metadata: { applied: applied.length, journaledOnDisk: expected.length, onDiskTotal: onDisk.length, dir: MIGRATION_DIR },
                 }
             }
             return null

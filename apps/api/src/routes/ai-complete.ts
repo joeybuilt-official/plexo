@@ -32,6 +32,18 @@ import type { TaskType } from '@plexo/agent/providers/registry'
 
 export const aiCompleteRouter: RouterType = Router()
 
+/**
+ * Per-attempt model deadline. The old hard-coded 30_000 was tighter than the p95
+ * of slower providers (cerebras ≈30s), so the AI SDK's retry `delay()` was
+ * aborted ("Delay was aborted") on ~1/4 of calls. That abort now fails over (see
+ * error-classifier), but a slightly longer default also lets the first pick
+ * succeed. Env-gated so ops can tune without a redeploy.
+ */
+const AI_COMPLETE_TIMEOUT_MS = (() => {
+    const n = parseInt(process.env.AI_COMPLETE_TIMEOUT_MS ?? '', 10)
+    return Number.isFinite(n) && n > 0 ? n : 60_000
+})()
+
 type MessageRole = 'user' | 'assistant' | 'system'
 interface InputMessage {
     role: MessageRole
@@ -81,7 +93,7 @@ aiCompleteRouter.post('/complete', requireServiceKey, async (req, res) => {
             workspaceId,
             taskType,
             settings: aiSettings,
-            doCall: (model) => generateText({ model, messages: allMessages, abortSignal: AbortSignal.timeout(30_000) }),
+            doCall: (model) => generateText({ model, messages: allMessages, abortSignal: AbortSignal.timeout(AI_COMPLETE_TIMEOUT_MS) }),
         })
 
         res.json({ text: result.text })

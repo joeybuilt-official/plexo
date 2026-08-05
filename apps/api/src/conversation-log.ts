@@ -133,6 +133,28 @@ export async function updateConversationForTask(
         .where(eq(conversations.taskId, taskId))
 }
 
+// ── Backfill a conversation by its own id ────────────────────────────────────
+
+/**
+ * Backfill reply + status on a conversation row addressed by its own id.
+ * Companion to `updateConversationForTask` (which keys off taskId) for the
+ * interactive web-chat path, where a row is inserted as status='pending' BEFORE
+ * the model call and updated in place once the turn resolves — so an aborted or
+ * failed generation still leaves a durable row instead of vanishing.
+ */
+export async function updateConversationById(
+    conversationId: string,
+    update: { reply?: string | null; errorMsg?: string | null; status: 'complete' | 'failed' },
+): Promise<void> {
+    await db.update(conversations)
+        .set({
+            reply: update.reply ?? null,
+            errorMsg: update.errorMsg ?? null,
+            status: update.status,
+        })
+        .where(eq(conversations.id, conversationId))
+}
+
 // ── Mark a conversation as failed delivery ───────────────────────────────────
 
 export async function markConversationDeliveryFailed(conversationId: string, errorMsg: string): Promise<void> {
