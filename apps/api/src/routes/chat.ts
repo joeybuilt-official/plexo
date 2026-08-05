@@ -927,13 +927,25 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 stopWhen: stepCountIs(5),
                                 abortSignal: AbortSignal.timeout(120_000),
                             })
+                            let attemptText = ''
                             for await (const chunk of stream.textStream) {
+                                attemptText += chunk
                                 fullText += chunk
                                 res.write(`data: ${JSON.stringify({ chunk })}\n\n`)
                             }
                             // Ensure the full text promise resolves (side effects)
                             await stream.text
-                            return { text: fullText }
+                            // Surface an empty stream as an error so router-v2 sees it
+                            // (classifyError -> 'empty-output') and runs the
+                            // retry-same-then-fallback cascade, instead of the silent
+                            // { text: '' } that recorded a false success and stranded the
+                            // turn on the same do-nothing provider. Guard on THIS
+                            // attempt's output so a partial reply already streamed to the
+                            // client is never dropped or re-sent on a retry.
+                            if (!attemptText.trim()) {
+                                throw new Error('No output generated: the model returned an empty stream')
+                            }
+                            return { text: attemptText }
                         }
 
                         const result = visionFallbackModel
@@ -1086,7 +1098,14 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             // request under the ~100s upstream tunnel idle window.
                             abortSignal: AbortSignal.timeout(90_000),
                         })
-                        return { text: await stream.text }
+                        const text = await stream.text
+                        // Empty completion -> throw so router-v2 cascades to another
+                        // provider instead of returning a silent blank (mirrors the
+                        // SSE path above).
+                        if (!text.trim()) {
+                            throw new Error('No output generated: the model returned an empty completion')
+                        }
+                        return { text }
                     }
 
                     const result = visionFallbackModel
