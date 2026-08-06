@@ -12,7 +12,7 @@
 
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { Router, type NextFunction, type Request, type Response, type Router as ExpressRouter } from 'express'
+import { Router, type NextFunction, type Request, type RequestHandler, type Response, type Router as ExpressRouter } from 'express'
 import { ulid } from 'ulid'
 import { z } from 'zod'
 import {
@@ -52,11 +52,11 @@ const audit = makeAuditSink()
 const guardDeps: GuardDeps = { signer, revocations, killSwitch, grants, audit }
 
 // Guards consumed by routes/sessions.ts to protect mutating endpoints.
-export const requireDeviceToken = makeRequireDeviceToken(guardDeps)
-export const killSwitchGuard = makeKillSwitchGuard(guardDeps)
-export const enforceEventTier = makeEnforceEventTier(guardDeps)
-export const enforceJoinTier = makeEnforceJoinTier(guardDeps)
-export const enforceDriveTier = makeEnforceTier(guardDeps, 'drive')
+export const requireDeviceToken: RequestHandler = makeRequireDeviceToken(guardDeps)
+export const killSwitchGuard: RequestHandler = makeKillSwitchGuard(guardDeps)
+export const enforceEventTier: RequestHandler = makeEnforceEventTier(guardDeps)
+export const enforceJoinTier: RequestHandler = makeEnforceJoinTier(guardDeps)
+export const enforceDriveTier: RequestHandler = makeEnforceTier(guardDeps, 'drive')
 
 /**
  * Opt-in Cloudflare Access edge check. When enabled, requires the

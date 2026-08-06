@@ -11,7 +11,7 @@
 import { sql } from 'drizzle-orm'
 import { db } from '@plexo/db'
 
-export interface MemoryHeatmapRow {
+export type MemoryHeatmapRow = {
     tier: string
     confidence_band: string
     count: number

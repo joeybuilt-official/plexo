@@ -49,7 +49,7 @@ export async function bumpLastMessageAt(channelId: string, at: Date): Promise<vo
 }
 
 /** Update a paired session's connection state. */
-export async function updateSessionState(pairedSessionId: string, state: string, errorDetail: string | null): Promise<void> {
+export async function updateSessionState(pairedSessionId: string, state: (typeof pairedSessions.$inferSelect)['state'], errorDetail: string | null): Promise<void> {
     await db.update(pairedSessions)
         .set({ state, stateChangedAt: new Date(), errorDetail })
         .where(eq(pairedSessions.id, pairedSessionId))

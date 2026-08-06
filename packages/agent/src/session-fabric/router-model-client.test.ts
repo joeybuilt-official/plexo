@@ -7,7 +7,7 @@ import type { WorkspaceAISettings } from '../providers/registry.js'
 const routeAndCall = vi.fn()
 const callModel = vi.fn()
 const buildModel = vi.fn()
-const anthropicComplete = vi.fn()
+const resolveModelFromEnv = vi.fn()
 
 vi.mock('../providers/router-v2/index.js', () => ({
     routeAndCall: (input: unknown) => routeAndCall(input),
@@ -17,21 +17,22 @@ vi.mock('../providers/call-model.js', () => ({
 }))
 vi.mock('../providers/registry.js', () => ({
     buildModel: (...args: unknown[]) => buildModel(...args),
-}))
-vi.mock('./anthropic-model-client.js', () => ({
-    anthropicModelClient: () => ({ complete: (i: unknown) => anthropicComplete(i) }),
+    // Provider-agnostic hard floor (feedback_no_hardwired_llm_provider): the
+    // exhaustion path dynamically imports resolveModelFromEnv, not anthropic.
+    resolveModelFromEnv: () => resolveModelFromEnv(),
 }))
 
 // Import AFTER the mocks are registered.
 const { routerModelClient } = await import('./router-model-client.js')
 
 const FAKE_MODEL = { id: 'fake' } as never
+const ENV_MODEL = { id: 'env' } as never
 
 beforeEach(() => {
     routeAndCall.mockReset()
     callModel.mockReset()
     buildModel.mockReset()
-    anthropicComplete.mockReset()
+    resolveModelFromEnv.mockReset()
 })
 
 const PINNED_MODEL = { id: 'pinned' } as never
@@ -95,30 +96,41 @@ describe('routerModelClient', () => {
         )
     })
 
-    it('falls back to the anthropic floor when routeAndCall throws (runtime cascade-exhausted)', async () => {
+    it('falls back to the env-resolved provider floor when routeAndCall throws (runtime cascade-exhausted)', async () => {
+        // Provider-agnostic floor: on exhaustion, resolve a model from SYSTEM env
+        // keys and call it — never a hardwired Anthropic (feedback_no_hardwired_llm_provider).
         routeAndCall.mockRejectedValue(new Error('RouterV2CascadeExhausted'))
-        anthropicComplete.mockResolvedValue('ANTHROPIC_FLOOR')
+        resolveModelFromEnv.mockReturnValue(ENV_MODEL)
+        callModel.mockResolvedValue({ text: 'ENV_FLOOR' })
 
         const client = routerModelClient()
         const out = await client.complete({ system: 's', user: 'u' })
 
-        expect(out).toBe('ANTHROPIC_FLOOR')
-        expect(anthropicComplete).toHaveBeenCalledWith({ system: 's', user: 'u' })
+        expect(out).toBe('ENV_FLOOR')
+        expect(resolveModelFromEnv).toHaveBeenCalledTimes(1)
+        expect(callModel).toHaveBeenCalledWith({
+            model: ENV_MODEL,
+            system: 's',
+            prompt: 'u',
+            taskType: 'planning',
+        })
     })
 
-    it('an empty completion throws in doCall (cascade) → floor to anthropic on exhaustion', async () => {
+    it('an empty completion throws in doCall (cascade) → env-resolved floor on exhaustion', async () => {
         // routeAndCall runs doCall; an empty text must throw so routeAndCall cascades.
         // Here we let that throw bubble to model exhaustion, proving '' is never returned.
         routeAndCall.mockImplementation(async (input: { doCall: (m: unknown) => Promise<string> }) =>
             input.doCall(FAKE_MODEL),
         )
-        callModel.mockResolvedValue({ text: '   ' })
-        anthropicComplete.mockResolvedValue('ANTHROPIC_FLOOR')
+        // 1st call = the doCall cascade attempt (empty → throws); 2nd = the floor.
+        callModel.mockResolvedValueOnce({ text: '   ' })
+        callModel.mockResolvedValueOnce({ text: 'ENV_FLOOR' })
+        resolveModelFromEnv.mockReturnValue(ENV_MODEL)
 
         const client = routerModelClient()
         const out = await client.complete({ system: 's', user: 'u' })
 
-        expect(out).toBe('ANTHROPIC_FLOOR')
+        expect(out).toBe('ENV_FLOOR')
         expect(out).not.toBe('   ')
     })
 
@@ -149,7 +161,7 @@ describe('routerModelClient', () => {
             stepTimeoutMs: 60_000,
         })
         expect(routeAndCall).not.toHaveBeenCalled()
-        expect(anthropicComplete).not.toHaveBeenCalled()
+        expect(resolveModelFromEnv).not.toHaveBeenCalled()
     })
 
     it('judging: pin at a disconnected provider is skipped straight to the cascade', async () => {
@@ -175,19 +187,27 @@ describe('routerModelClient', () => {
 
         expect(out).toBe('CASCADE')
         expect(routeAndCall).toHaveBeenCalledTimes(1)
-        expect(anthropicComplete).not.toHaveBeenCalled()
+        expect(resolveModelFromEnv).not.toHaveBeenCalled()
     })
 
-    it('judging: non-skippable pin error bypasses the cascade to the anthropic floor', async () => {
+    it('judging: non-skippable pin error bypasses the cascade to the env-resolved floor', async () => {
         buildModel.mockReturnValue(PINNED_MODEL)
+        // 1st call = the pinned judge attempt (throws, non-skippable); 2nd = the floor.
         callModel.mockRejectedValueOnce(new Error('kaboom'))
-        anthropicComplete.mockResolvedValue('ANTHROPIC_FLOOR')
+        callModel.mockResolvedValueOnce({ text: 'ENV_FLOOR' })
+        resolveModelFromEnv.mockReturnValue(ENV_MODEL)
 
         const client = routerModelClient({ taskType: 'judging', settings: pinnedSettings() })
         const out = await client.complete({ system: 's', user: 'u' })
 
-        expect(out).toBe('ANTHROPIC_FLOOR')
+        expect(out).toBe('ENV_FLOOR')
         expect(routeAndCall).not.toHaveBeenCalled()
+        expect(callModel).toHaveBeenLastCalledWith({
+            model: ENV_MODEL,
+            system: 's',
+            prompt: 'u',
+            taskType: 'judging',
+        })
     })
 
     it('judging: empty pin completion falls through to the cascade', async () => {

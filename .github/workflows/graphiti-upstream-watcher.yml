@@ -47,8 +47,19 @@ jobs:
             echo "no-op: $PINNED already latest"
             echo "needs_bump=false" >> "$GITHUB_OUTPUT"
           else
-            echo "bump candidate: $PINNED → $LATEST"
-            echo "needs_bump=true" >> "$GITHUB_OUTPUT"
+            BRANCH="chore/graphiti-core-$LATEST"
+            # Idempotency guard. This cron re-runs daily while the pin lags $LATEST.
+            # Once an earlier run has opened the bump branch, a fresh commit built
+            # off the newer main diverges from it, so `git push` is rejected
+            # non-fast-forward — the daily failure. Treat an existing bump branch as
+            # "already handled" and no-op today; deleting the branch re-arms the bump.
+            if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+              echo "bump branch $BRANCH already exists on origin — already handled; no-op"
+              echo "needs_bump=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "bump candidate: $PINNED → $LATEST"
+              echo "needs_bump=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Open feature branch + bump pin

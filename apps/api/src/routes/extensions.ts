@@ -683,7 +683,7 @@ extensionsRouter.post('/skill', async (req, res) => {
 
         const inserted = await extensionsRepo.insertSkillExtension({
             workspaceId,
-            manifest: manifest as { name: string; version: string; type: string; entry: string } & Record<string, unknown>,
+            manifest,
             settings,
             skillPath: skillPath ?? null,
             skillContent: parsed.markdownBody,
@@ -807,7 +807,7 @@ extensionsRouter.post('/skill/install-url', async (req, res) => {
 
         const inserted = await extensionsRepo.insertSkillUrlExtension({
             workspaceId,
-            manifest: manifest as { name: string; version: string; type: string; entry: string } & Record<string, unknown>,
+            manifest,
             skillPath: url,
             skillContent: parsed.markdownBody,
             skillFrontmatter: parsed.frontmatter as object,

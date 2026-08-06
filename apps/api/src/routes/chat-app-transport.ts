@@ -77,7 +77,7 @@ function fallbackOpts(workspaceId: string): FallbackOptions {
  * OR a Better Auth session. Populates req.serviceContext for service-key
  * callers; session callers already have req.user.
  */
-function requireServiceKeyOrSession(req: Request, res: Response, next: () => void): void {
+function requireServiceKeyOrSession(req: Request, res: Response, next: () => void): void | Promise<void> {
     const authHeader = req.headers.authorization
     if (authHeader?.startsWith('Bearer ')) {
         // Attempt service key auth

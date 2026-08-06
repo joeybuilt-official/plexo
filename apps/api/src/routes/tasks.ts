@@ -684,7 +684,7 @@ tasksRouter.post('/:id/assets/export', async (req, res) => {
             
             const browser = await puppeteer.default.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
             const page = await browser.newPage()
-            await page.setContent(wrappedHtml, { waitUntil: 'networkidle0' })
+            await page.setContent(wrappedHtml, { waitUntil: 'load' })
             const pdfBuffer = await page.pdf({ format: 'A4', margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' } })
             await browser.close()
             

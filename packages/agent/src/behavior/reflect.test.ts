@@ -14,9 +14,15 @@ vi.mock('ai', () => ({
     generateText: (...args: unknown[]) => mockGenerateText(...args),
 }))
 
-vi.mock('../providers/registry.js', () => ({
-    resolveModelFromEnv: vi.fn(() => 'mock-model'),
-}))
+vi.mock('../providers/registry.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../providers/registry.js')>()
+    return {
+        // Keep the rest real (incl. DEFAULT_MODEL_ROUTING, which unmocked
+        // graph modules like router-v2 import); stub only the model resolver.
+        ...actual,
+        resolveModelFromEnv: vi.fn(() => 'mock-model'),
+    }
+})
 
 vi.mock('pino', () => ({
     default: () => ({

@@ -16,7 +16,7 @@
  */
 import { desc, asc, eq, and, gte, sql } from 'drizzle-orm'
 import { db } from '@plexo/db'
-import { tasks, taskSteps, plexoOpsTaskEvents, artifacts, artifactVersions } from '@plexo/db'
+import { tasks, taskSteps, plexoOpsTaskEvents, artifacts, artifactVersions, type TaskType } from '@plexo/db'
 
 type Task = typeof tasks.$inferSelect
 
@@ -48,7 +48,7 @@ export async function getTaskWorkspaceStatusContext(id: string): Promise<{ works
 }
 
 /** Workspace id + status + context + type for a task (clarification respond), or undefined. */
-export async function getTaskWorkspaceStatusContextType(id: string): Promise<{ workspaceId: string; status: string; context: unknown; type: string } | undefined> {
+export async function getTaskWorkspaceStatusContextType(id: string): Promise<{ workspaceId: string; status: string; context: unknown; type: TaskType } | undefined> {
     const [task] = await db.select({ workspaceId: tasks.workspaceId, status: tasks.status, context: tasks.context, type: tasks.type })
         .from(tasks).where(eq(tasks.id, id)).limit(1)
     return task
@@ -180,7 +180,7 @@ export async function getAllTimeCost(workspaceId: string): Promise<{ total: stri
 }
 
 /** Artifact id + meta + owning task id by id, or undefined. */
-export async function getArtifactForMeta(artifactId: string): Promise<{ id: string; meta: unknown; taskId: string } | undefined> {
+export async function getArtifactForMeta(artifactId: string): Promise<{ id: string; meta: unknown; taskId: string | null } | undefined> {
     const [art] = await db.select({ id: artifacts.id, meta: artifacts.meta, taskId: artifacts.taskId })
         .from(artifacts).where(eq(artifacts.id, artifactId)).limit(1)
     return art

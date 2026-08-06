@@ -93,7 +93,7 @@ clarificationRouter.post('/respond', async (req, res) => {
         // Queue the chosen alternative as a new task
         const newTaskId = await push({
             workspaceId: row.workspaceId ?? '',
-            type: row.type ?? 'content_creation',
+            type: row.type ?? 'general',
             source: 'dashboard',
             priority: 1,
             context: {

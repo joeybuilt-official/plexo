@@ -223,7 +223,7 @@ export async function insertSideloadedExtension(params: {
 /** Insert a SKILL.md-sourced extension row; returns the inserted row. */
 export async function insertSkillExtension(params: {
     workspaceId: string
-    manifest: { name: string; version: string; type: string; entry: string } & Record<string, unknown>
+    manifest: ExtensionManifest
     settings: Record<string, unknown>
     skillPath: string | null
     skillContent: string
@@ -253,7 +253,7 @@ export async function insertSkillExtension(params: {
 /** Insert a SKILL.md-from-URL extension row; returns the inserted row. */
 export async function insertSkillUrlExtension(params: {
     workspaceId: string
-    manifest: { name: string; version: string; type: string; entry: string } & Record<string, unknown>
+    manifest: ExtensionManifest
     skillPath: string
     skillContent: string
     skillFrontmatter: object

@@ -45,11 +45,21 @@ extensionAuditRouter.get('/', async (req, res) => {
 
     const limit = Math.min(parseInt(limitStr ?? '50', 10) || 50, 200)
     const offset = parseInt(offsetStr ?? '0', 10) || 0
+    const filters: auditRepo.AuditFilters = {
+        workspaceId,
+        extensionId: q.extensionId,
+        agentId: q.agentId,
+        tool: q.tool,
+        action: q.action,
+        outcome: q.outcome,
+        from: q.from,
+        to: q.to,
+    }
 
     try {
         const [rows, total] = await Promise.all([
-            auditRepo.listAuditLog(q as auditRepo.AuditFilters, limit, offset),
-            auditRepo.countAuditLog(q as auditRepo.AuditFilters),
+            auditRepo.listAuditLog(filters, limit, offset),
+            auditRepo.countAuditLog(filters),
         ])
 
         res.json({ items: rows, total })
@@ -77,11 +87,21 @@ extensionAuditRouter.get('/by-extension', async (req, res) => {
     }
 
     const perGroup = Math.min(parseInt(perGroupStr, 10) || 5, 50)
+    const filters: auditRepo.AuditFilters = {
+        workspaceId,
+        extensionId: q.extensionId,
+        agentId: q.agentId,
+        tool: q.tool,
+        action: q.action,
+        outcome: q.outcome,
+        from: q.from,
+        to: q.to,
+    }
 
     try {
         // Pull last 500 rows matching filters, then bucket in memory.
         // Cheap vs a window function and good enough for UI preview scale.
-        const rows = await auditRepo.listForGrouping(q as auditRepo.AuditFilters, 500)
+        const rows = await auditRepo.listForGrouping(filters, 500)
 
         type Row = typeof rows[number]
         const groups = new Map<string, { extensionId: string; extensionName: string | null; count: number; items: Row[] }>()

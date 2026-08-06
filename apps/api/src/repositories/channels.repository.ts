@@ -18,7 +18,7 @@ export async function getById(channelId: string) {
 }
 
 /** {id,config,workspaceId,enabled} rows for all channels of a given type. */
-export async function listByType(type: string) {
+export async function listByType(type: (typeof channels.$inferSelect)['type']) {
     return db
         .select({ id: channels.id, config: channels.config, workspaceId: channels.workspaceId, enabled: channels.enabled })
         .from(channels)

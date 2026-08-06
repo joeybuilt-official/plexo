@@ -6,5 +6,8 @@
 process.env.DATABASE_URL ??= 'postgresql://plexo:plexo@localhost:5432/plexo'
 process.env.REDIS_URL ??= 'redis://localhost:6379'
 process.env.ANTHROPIC_API_KEY = 'sk-ant-test-unit'
+// Managed-proxy request signing fails closed on an unset secret (router.ts) —
+// provide a deterministic test value so proxy-mode routing tests can sign.
+process.env.PLEXO_SIGNING_SECRET = 'test-signing-secret'
 process.env.NODE_ENV = 'test'
 
