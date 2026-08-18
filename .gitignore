@@ -111,3 +111,16 @@ __pycache__/
 /progress.md
 /docs/plexo-plan.md
 /docs/plexo-phase0-findings.md
+
+# Claude local configuration
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Track project Claude rules, agents, and commands despite the broad local-state ignore above
+!.claude/agents/
+!.claude/agents/**
+!.claude/commands/
+!.claude/commands/**
+!.claude/rules/
+!.claude/rules/**
+!.claude/settings.local.json.example

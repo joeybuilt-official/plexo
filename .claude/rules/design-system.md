@@ -1,0 +1,52 @@
+# UI Design System
+
+> Applies to Plexo web, Hub, shared React, and Flutter surfaces. The dominant reference is the existing Plexo token system; no external design reference was selected.
+
+## Visual language
+
+**Plexo visual language:** Geometric Precision: dark navy-black surfaces, electric blue actions, compact operational layouts, and square corners.
+
+| Axis | Plexo choice |
+| --- | --- |
+| Chrome weight | Flat surfaces with hairline structural borders; no new shadows or glow effects. |
+| Palette strategy | Navy/blue foundation with semantic amber, red, and green signals from the existing tokens. |
+| Density | Dense operational UI with compact rows, panels, and dashboards. |
+| Default text size | `text-sm` body UI; `text-xs` or `text-label` for labels and metadata. |
+| Hover and motion | Light 150ms color/border transitions; respect reduced-motion preferences. |
+
+The web source of truth is `apps/web/src/app/globals.css`; mobile mirrors its colors and spacing in `apps/mobile/lib/src/theme/tokens.dart`.
+
+## Component boundaries
+
+- Generic primitives live in `packages/ui/src/components/` and `apps/web/src/components/ui/`.
+- Product-aware web components live in `apps/web/src/components/` and route-local `_components/` folders.
+- Assemble from existing primitives before adding a new one. Variants belong on the primitive, not as call-site overrides.
+- Presentation maps known states to styles; business eligibility and permissions stay outside components.
+- Use `lucide-react` at `h-4 w-4` for standard web icons. Larger empty-state or hero icons are deliberate exceptions.
+- Style web surfaces through Tailwind CSS 4 and the Plexo token classes (`bg-canvas`, `bg-surface-*`, `border-border`, `text-text-*`, `text-accent`).
+- Flutter surfaces use the matching `PlexoColor`, `PlexoSpace`, and `PlexoRadius` tokens.
+
+## Typography and spacing scale
+
+| Role | Plexo value |
+| --- | --- |
+| Section header | `text-xs font-medium uppercase tracking-wider text-text-muted` |
+| Field label | `text-xs text-text-muted` |
+| Field value | `text-sm text-text-primary` |
+| Section padding | `p-4` |
+| Element gap | `gap-2` or `gap-3` |
+| Borders | `border border-border` or `border-border-subtle` |
+
+Use existing `--color-*`, `--text-*`, 4px radius, and 4px-base spacing tokens before adding a literal. Existing `packages/ui` components contain older shadow/rounding variants; do not spread those variants without a deliberate design decision.
+
+## Page and form patterns
+
+- Detail pages keep the primary record or activity in the main pane; metadata and secondary actions stay secondary.
+- Lists place search and filters above one consistent list or paging mechanism.
+- Dashboards put a scannable summary first and link metrics to the records they summarize.
+- Forms use labels above inputs, preserve entered values after failed submission, and place field errors beside the field.
+- Every async surface has designed loading, empty, and error states.
+
+## Consistency check
+
+Check token use, responsive layout, loading/empty/error states, keyboard/focus behavior, icon size, contrast, and reduced-motion behavior before calling a UI change done.
