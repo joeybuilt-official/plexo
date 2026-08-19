@@ -64,11 +64,11 @@ const DUMMY_CREDS = {}
 const DUMMY_OPTS = { connectionId: 'test-conn', workspaceId: 'test-ws' }
 
 describe('connection registry — single source of truth', () => {
-    it('has at least the baseline 28 providers', () => {
+    it('has at least the baseline 24 providers', () => {
         const count = connectionRegistryCount()
-        expect(count.total).toBeGreaterThanOrEqual(28)
-        expect(count.real).toBeGreaterThanOrEqual(16)
-        expect(count.stub).toBeGreaterThanOrEqual(12)
+        expect(count.total).toBeGreaterThanOrEqual(24)
+        expect(count.real).toBeGreaterThanOrEqual(13)
+        expect(count.stub).toBeGreaterThanOrEqual(11)
     })
 
     it('every descriptor has a callable factory', () => {

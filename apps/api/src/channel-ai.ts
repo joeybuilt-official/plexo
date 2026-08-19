@@ -694,14 +694,9 @@ export async function chatWithAI(
         let channelTools: Record<string, unknown> = {}
         if (channelContext) {
             try {
-                const { buildChannelTools } = await import('@plexo/agent/channels/channel-tools')
-                channelTools = buildChannelTools({
-                    channel: channelContext.channel,
-                    workspaceId,
-                    chatId: channelContext.chatId,
-                    messageId: channelContext.messageId,
-                    botToken: channelContext.botToken,
-                })
+                // channel-tools module removed in DD-6c (multi-channel surface stripped).
+                // react_to_message-style tools are no longer bound; proceeding without.
+                throw new Error('channel-tools module removed')
             } catch (err) {
                 logger.warn({ err, workspaceId }, 'channel-ai: failed to build channel tools — proceeding without')
             }

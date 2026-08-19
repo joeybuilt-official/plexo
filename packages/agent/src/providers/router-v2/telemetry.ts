@@ -17,7 +17,6 @@
 import { sql } from 'drizzle-orm'
 import { db } from '@plexo/db'
 import type { Alternative, SelectionResult } from './selector.js'
-import { computeShadowChoice, type ShadowInput } from './shadow.js'
 import type { TaskType } from '../registry.js'
 
 export interface RoutedEvent {
@@ -67,16 +66,10 @@ export function buildRoutedEvent(args: {
     }
 }
 
-/**
- * `shadowInput` (Round-6 Phase 1): when the PLEXO_MODEL_ROUTER flag is on, the
- * model-level router's would-pick is computed (off the hot path — this whole
- * function is fire-and-forget) and stored on the same routing_events row as the
- * served decision. Omitted/flag-off → shadow_model_choice stays NULL.
- */
-export function emitRoutedEvent(evt: RoutedEvent, shadowInput?: ShadowInput): void {
+export function emitRoutedEvent(evt: RoutedEvent): void {
     console.info(JSON.stringify(evt))
     try { _onRouted?.(evt) } catch { /* metrics must never break routing */ }
-    void persistRoutedEvent(evt, shadowInput)
+    void persistRoutedEvent(evt)
 }
 
 // QA-opt ADR 0037: lets apps/api aggregate routing decisions into Prometheus
@@ -87,23 +80,8 @@ export function setRoutedEventMetricsHook(fn: (evt: RoutedEvent) => void): void 
     _onRouted = fn
 }
 
-async function persistRoutedEvent(evt: RoutedEvent, shadowInput?: ShadowInput): Promise<void> {
+async function persistRoutedEvent(evt: RoutedEvent): Promise<void> {
     try {
-        let shadow: string | null = null
-        if (shadowInput) {
-            const choice = await computeShadowChoice(shadowInput)
-            if (choice) {
-                shadow = JSON.stringify(choice)
-                console.info(JSON.stringify({
-                    event: 'model.shadow',
-                    workspaceId: evt.workspaceId,
-                    taskType: evt.taskType,
-                    served: evt.chosen ? `${evt.chosen.provider}/${evt.chosen.model}` : null,
-                    shadow: choice.chosen,
-                    shortlist: choice.shortlist,
-                }))
-            }
-        }
         await db.execute(sql`
             INSERT INTO routing_events
                 (workspace_id, task_id, task_type, provider, model, fallback_engaged, selector_duration_ms, shadow_model_choice, model_routed)
@@ -115,7 +93,7 @@ async function persistRoutedEvent(evt: RoutedEvent, shadowInput?: ShadowInput): 
                 ${evt.chosen?.model ?? null},
                 ${evt.fallbackEngaged},
                 ${Math.round(evt.selectorDurationMs)},
-                ${shadow},
+                ${null},
                 ${evt.modelRouted}
             )
         `)

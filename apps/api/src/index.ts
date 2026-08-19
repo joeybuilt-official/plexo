@@ -69,7 +69,6 @@ import { trainingDataRouter } from './routes/training-data.js'
 import { standingApprovalsRouter } from './routes/standing-approvals.js'
 import { userSelfRouter } from './routes/user-self.js'
 import { registryRouter } from './routes/registry.js'
-import { hubRouter } from './routes/hub.js'
 import { analyticsRouter } from './analytics/router.js'
 import { channelDispatchRouter } from './routes/channel-dispatch.js'
 import { configureAnalytics, syncAnalyticsFromDB } from './analytics/config.js'
@@ -147,7 +146,6 @@ import { contextRouter } from './routes/context.js'
 import { systemRouter } from './routes/system.js'
 import { voiceRouter } from './routes/voice.js'
 import { searchRouter } from './routes/search.js'
-import { visionRouter } from './routes/vision.js'
 import { codeRouter } from './routes/code.js'
 import { stabilizationRouter } from './routes/stabilization.js'
 import { parallelRouter } from './routes/parallel.js'
@@ -176,7 +174,6 @@ import { adminTasksRouter } from './routes/admin/tasks.js'
 import ollamaAdminRouter from './routes/ollama-admin.js'
 import { providerInstancesRouter } from './routes/provider-instances.js'
 import { providerAlertsRouter } from './routes/provider-alerts.js'
-import { embeddingsRouter } from './routes/embeddings.js'
 import { embeddingsServiceRouter } from './routes/embeddings-service.js'
 import { intelligenceRouter } from './routes/intelligence.js'
 import { intelligenceDashboardRouter } from './routes/intelligence-dashboard.js'
@@ -379,7 +376,6 @@ v1.use('/users', usersRouter)
 v1.use('/workspaces/:id/members', requireWorkspaceMember('id'), membersRouter)
 v1.use('/invites', invitesRouter)
 v1.use('/extensions', workspaceRateLimit, extensionsRouter) // per-handler workspace check
-v1.use('/hub', hubRouter) // in-app Hub catalog — per-handler workspace check
 v1.use('/audit', requireWorkspaceMember('workspaceId'), auditRouter)
 v1.use('/extension-audit', requireWorkspaceMember('workspaceId'), extensionAuditRouter)
 v1.use('/escalations', requireWorkspaceMember('workspaceId'), escalationRouter)
@@ -408,7 +404,6 @@ v1.use('/chat', jsonDefault, chatAppTransportRouter) // Levio-Pex app transport 
 v1.use('/message-deliveries', messageDeliveriesRouter)
 v1.use('/voice', voiceRouter)
 v1.use('/search', searchRouter)
-v1.use('/vision', visionRouter)
 v1.use('/behavior/:workspaceId', requireWorkspaceMember('workspaceId'), behaviorRouter)
 v1.use('/prompts/:workspaceId', requireWorkspaceMember('workspaceId'), promptsRouter)
 v1.use('/context/:workspaceId', requireWorkspaceMember('workspaceId'), contextRouter)
@@ -423,7 +418,6 @@ v1.use('/workspaces/:id/provider-alerts', requireWorkspaceMember('id'), provider
 // Service-key /embed (single segment) must mount BEFORE the workspace-scoped
 // settings router (two-segment /:workspaceId/...) so /embed resolves cleanly.
 v1.use('/embeddings', embeddingsServiceRouter)
-v1.use('/embeddings', embeddingsRouter)
 v1.use('/intelligence', intelligenceRouter)
 v1.use('/intel-dashboard', intelligenceDashboardRouter)
 v1.use('/models', modelsRouter)

@@ -26,7 +26,6 @@ import { resolveSessionId } from '../lib/session-resolver.js'
 import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystemPrompt, translateErrorForUser, TASK_SUGGEST_HINT } from '../channel-ai.js'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { trackDelivery } from '../delivery-tracker.js'
-import { maybeReact } from '@plexo/agent/channels/reaction-manager'
 import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
 import { sanitizeForSlack } from '../lib/telegram-sanitize.js'
 
@@ -469,14 +468,6 @@ slackRouter.post('/events', async (req: Request, res: Response) => {
         const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
         await recordConversation({ workspaceId, sessionId: resolvedSessionId, source: 'slack', message: text, reply: memReply, status: 'complete', intent: 'CONVERSATION', channelRef, messageEmbedding: resolvedEmbedding }).catch((e: Error) => logger.warn({ e }, 'Slack: recordConversation failed (MEMORY)'))
         return
-    }
-
-    // ── Acknowledge receipt immediately with an emoji reaction ──────────
-    if (event.channel && event.ts) {
-        maybeReact(
-            { channel: 'slack', workspaceId, messageText: text, intent, isError: false },
-            { channel: 'slack', slackBotToken: BOT_TOKEN ?? '', slackChannel: event.channel, slackTimestamp: event.ts },
-        )
     }
 
     if (intent === 'CONVERSATION' || intent === 'PROJECT') {

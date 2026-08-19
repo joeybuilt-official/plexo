@@ -52,7 +52,6 @@ import { resolveSessionId, persistTurnEmbedding } from '../lib/session-resolver.
 import { loadVoiceSettings, transcribeWithFallback, synthesizeSpeech, hasAnyTranscriptionProvider } from '../lib/deepgram.js'
 import { markTaskDelivered } from '../channel-delivery.js'
 import { trackDelivery } from '../delivery-tracker.js'
-import { maybeReact } from '@plexo/agent/channels/reaction-manager'
 import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
 import { sanitizeForTelegram } from '../lib/telegram-sanitize.js'
 
@@ -986,13 +985,6 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     }
 
     try {
-
-    // ── Acknowledge receipt immediately with an emoji reaction ──────────
-    // Fires before any AI processing so the user sees instant feedback.
-    maybeReact(
-        { channel: 'telegram', workspaceId, messageText: text, intent, isError: false },
-        { channel: 'telegram', telegramToken: token, telegramChatId: chatId, telegramMessageId: msg.message_id },
-    )
 
     // ── Memory instruction shortcut ─────────────────────────────────────
     // classifyIntent flagged this as an explicit behavioral instruction

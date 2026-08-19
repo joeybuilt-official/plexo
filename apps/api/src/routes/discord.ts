@@ -32,7 +32,6 @@ import { chatWithAI, classifyIntent, ChannelChatHistory, buildConversationSystem
 import { sanitizeForDiscord } from '../lib/telegram-sanitize.js'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { trackDelivery } from '../delivery-tracker.js'
-import { maybeReact } from '@plexo/agent/channels/reaction-manager'
 import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
 import type { Request, Response } from 'express'
 
@@ -356,14 +355,6 @@ discordRouter.post('/interactions', async (req: Request, res: Response) => {
                 await recordConversation({ workspaceId, sessionId: discordSession.sessionId, source: 'discord', message: description, reply: memReply, status: 'complete', intent: 'CONVERSATION', channelRef }).catch((e: Error) => logger.warn({ e }, 'Discord: recordConversation failed (MEMORY)'))
                 return
             }
-
-            // ── Acknowledge receipt immediately with an emoji reaction ──────
-            // Note: Discord interactions don't expose a user message_id, so this
-            // will no-op until DM/gateway message handling is added.
-            maybeReact(
-                { channel: 'discord', workspaceId, messageText: description, intent, isError: false },
-                { channel: 'discord', discordBotToken: process.env.DISCORD_BOT_TOKEN ?? '', discordChannelId: interaction.channel_id ?? '' },
-            )
 
             if (intent === 'CONVERSATION' || intent === 'PROJECT') {
                 // Discord interactions don't expose a user message id, so
