@@ -1009,13 +1009,30 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 abortSignal: AbortSignal.timeout(120_000),
                             })
                             let attemptText = ''
-                            for await (const chunk of stream.textStream) {
-                                attemptText += chunk
-                                fullText += chunk
-                                res.write(`data: ${JSON.stringify({ chunk })}\n\n`)
+                            let hasWritten = false
+                            try {
+                                for await (const chunk of stream.textStream) {
+                                    attemptText += chunk
+                                    fullText += chunk
+                                    res.write(`data: ${JSON.stringify({ chunk })}\n\n`)
+                                    hasWritten = true
+                                }
+                                // Ensure the full text promise resolves (side effects)
+                                await stream.text
+                            } catch (streamErr) {
+                                if (hasWritten) {
+                                    // Partial output already delivered to the client. Do NOT
+                                    // let the router cascade to another provider — it would
+                                    // re-stream from the start and duplicate what the client
+                                    // already received. Throw a sentinel the classifier treats
+                                    // as non-fallback so routeAndCall stops here; the outer
+                                    // streamErr handler surfaces the error to the client.
+                                    const sentinel = new Error('partial stream already delivered; not retryable to avoid duplicate output')
+                                    sentinel.name = 'StreamPartialAbortError'
+                                    throw sentinel
+                                }
+                                throw streamErr
                             }
-                            // Ensure the full text promise resolves (side effects)
-                            await stream.text
                             // Surface an empty stream as an error so router-v2 sees it
                             // (classifyError -> 'empty-output') and runs the
                             // retry-same-then-fallback cascade, instead of the silent
