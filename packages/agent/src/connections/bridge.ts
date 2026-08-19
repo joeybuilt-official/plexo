@@ -1006,12 +1006,15 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
                 creds = await maybeRefreshGoogleToken(creds, row.id, workspaceId)
             }
 
-            const tools = factory(creds, { connectionId: row.id, workspaceId })
+            const tools = await factory(creds, { connectionId: row.id, workspaceId })
 
             // Apply enabled_tools filter (null = all enabled)
             const enabled = row.enabledTools as string[] | null
             for (const [name, def] of Object.entries(tools)) {
-                const shortName = name.split('__')[1] ?? name  // e.g. "create_branch"
+                // mcp__<server>__<tool> → raw tool name is the LAST segment;
+                // {prefix}__<tool> → raw tool name is the SECOND segment.
+                const segs = name.split('__')
+                const shortName = (segs.length > 2 ? segs[segs.length - 1] : segs[1]) ?? name
                 if (enabled !== null && !enabled.includes(shortName) && !enabled.includes(name)) {
                     continue
                 }

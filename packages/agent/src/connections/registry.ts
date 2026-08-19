@@ -44,6 +44,7 @@ import { AIRTABLE_TOOLS } from './factories/airtable.js'
 import { DISCORD_TOOLS } from './factories/discord.js'
 import { TELEGRAM_TOOLS } from './factories/telegram.js'
 import { GMESSAGES_TOOLS } from './factories/gmessages.js'
+import { MCP_TOOLS } from './factories/mcp.js'
 import {
     GITLAB_TOOLS,
     NETLIFY_TOOLS,
@@ -72,6 +73,7 @@ export type ConnectionCategory =
     | 'media'
     | 'ai'
     | 'infra'
+    | 'mcp'
 
 export interface CapabilitySpec {
     /** Short capability name matching the suffix after `{prefix}__`.
@@ -228,6 +230,19 @@ export const CONNECTION_REGISTRY: Record<string, ConnectionDescriptor> = {
             { name: 'list_threads', description: 'List recent Google Messages threads' },
         ],
         factory: GMESSAGES_TOOLS,
+    },
+
+    // ── MCP (user-configured external tool servers) ──────────────────────────
+    // Capabilities are discovered dynamically at runtime from each configured
+    // MCP server, so the static capability list is empty — the factory returns
+    // one agent tool per discovered MCP tool, namespaced mcp__<server>__<tool>.
+    mcp_custom: {
+        id: 'mcp_custom',
+        displayName: 'MCP Server',
+        category: 'mcp',
+        toolPrefix: 'mcp',
+        capabilities: [],
+        factory: MCP_TOOLS,
     },
 
     // ── Infra / Ops ──────────────────────────────────────────────────────────

@@ -77,9 +77,9 @@ describe('connection registry — single source of truth', () => {
         }
     })
 
-    it('factory tool names match declared capabilities (no drift)', () => {
+    it('factory tool names match declared capabilities (no drift)', async () => {
         for (const [id, desc] of Object.entries(CONNECTION_REGISTRY)) {
-            const tools = desc.factory(DUMMY_CREDS, DUMMY_OPTS)
+            const tools = await desc.factory(DUMMY_CREDS, DUMMY_OPTS)
             const actualNames = Object.keys(tools).sort()
             const expectedNames = desc.capabilities
                 .map((c) => `${desc.toolPrefix}__${c.name}`)
@@ -88,9 +88,9 @@ describe('connection registry — single source of truth', () => {
         }
     })
 
-    it('every tool name is prefixed with its provider toolPrefix', () => {
+    it('every tool name is prefixed with its provider toolPrefix', async () => {
         for (const [id, desc] of Object.entries(CONNECTION_REGISTRY)) {
-            const tools = desc.factory(DUMMY_CREDS, DUMMY_OPTS)
+            const tools = await desc.factory(DUMMY_CREDS, DUMMY_OPTS)
             for (const name of Object.keys(tools)) {
                 expect(name.startsWith(`${desc.toolPrefix}__`), `${id} tool ${name}`).toBe(true)
             }
