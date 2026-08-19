@@ -799,9 +799,7 @@ function ChatContent() {
                 setMessages((prev) => prev.map((m) =>
                     m.id === msgId ? {
                         ...m, status: 'complete',
-                        content: data.name ? `Project "${data.name}" created and running. Track progress →` : `Project created and running. Track progress →`,
-                        fixUrl: `/app/projects/${data.sprintId}`,
-                        fixLabel: 'Open project',
+                        content: data.name ? `Project "${data.name}" created and running.` : `Project created and running.`,
                     } : m
                 ))
             }

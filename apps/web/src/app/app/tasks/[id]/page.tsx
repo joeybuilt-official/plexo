@@ -187,13 +187,10 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                             {humanSource(task.source, task.context ?? {})}
                         </span>
                         {task.projectId && (
-                            <Link
-                                href={`/app/projects/${task.projectId}`}
-                                className="inline-flex items-center gap-1 rounded border border-azure-800/30 bg-azure-900/20 px-2 py-0.5 text-[11px] text-azure hover:text-azure transition-colors"
-                            >
+                            <span className="inline-flex items-center gap-1 rounded border border-azure-800/30 bg-azure-900/20 px-2 py-0.5 text-[11px] text-azure">
                                 <FolderOpen className="h-3 w-3" />
                                 {task.project ?? 'Project'}
-                            </Link>
+                            </span>
                         )}
                         <CopyId id={task.id} label="task" />
                     </div>

@@ -414,21 +414,14 @@ function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick
 
 // ── Badge renderer (keeps badge logic centralized) ───────────────────────────
 
-function NavBadge({ href, sidebarCollapsed, pendingApprovals, blockedTasks, pendingImprovements, capabilityWarning, rsiPending }: {
+function NavBadge({ href, sidebarCollapsed, blockedTasks, pendingImprovements, capabilityWarning, rsiPending }: {
     href: string
     sidebarCollapsed: boolean
-    pendingApprovals: number
     blockedTasks: number
     pendingImprovements: number
     capabilityWarning: boolean
     rsiPending: number
 }) {
-    // Approvals
-    if (href === '/app/approvals' && pendingApprovals > 0) {
-        return sidebarCollapsed
-            ? <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />
-            : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-sm bg-red-500 px-1 text-[10px] font-medium text-white">{pendingApprovals}</span>
-    }
     // Blocked Tasks
     if (href === '/app/tasks' && blockedTasks > 0) {
         return sidebarCollapsed
@@ -603,7 +596,6 @@ export function Sidebar({ user, onNavClick, className = '', mobile = false }: { 
         try { localStorage.setItem(SIDEBAR_SECTION_KEY, next ?? '') } catch {}
     }
 
-    const [pendingApprovals, setPendingApprovals] = useState(0)
     const [blockedTasks, setBlockedTasks] = useState(0)
     const [pendingImprovements, setPendingImprovements] = useState(0)
     const [rsiPending, setRsiPending] = useState(0)
@@ -631,21 +623,9 @@ export function Sidebar({ user, onNavClick, className = '', mobile = false }: { 
     }, [workspace?.ownerId])
 
     // Toast on state transitions — fire when counts increase, skip initial load
-    const prevApprovals = useRef<number | null>(null)
     const prevBlocked = useRef<number | null>(null)
     const prevSystemWarning = useRef<boolean | null>(null)
     const prevCapabilityWarning = useRef<boolean | null>(null)
-
-    useEffect(() => {
-        if (prevApprovals.current !== null && pendingApprovals > prevApprovals.current) {
-            toast.warning(`${pendingApprovals} task${pendingApprovals !== 1 ? 's' : ''} need${pendingApprovals === 1 ? 's' : ''} approval`, {
-                description: 'Agent is waiting for your sign-off to continue.',
-                action: { label: 'Review', onClick: () => { window.location.href = '/app/approvals' } },
-                duration: 8000,
-            })
-        }
-        prevApprovals.current = pendingApprovals
-    }, [pendingApprovals])
 
     useEffect(() => {
         if (prevBlocked.current !== null && blockedTasks > prevBlocked.current) {
@@ -686,12 +666,6 @@ export function Sidebar({ user, onNavClick, className = '', mobile = false }: { 
         if (!wsId) return
 
         try {
-            const appRes = await fetch(`${api}/api/v1/approvals?workspaceId=${wsId}`, { cache: 'no-store' })
-            if (appRes.ok) {
-                const data = await appRes.json() as { total?: number }
-                setPendingApprovals(data.total ?? 0)
-            }
-
             const statsRes = await fetch(`${api}/api/v1/tasks/stats/summary?workspaceId=${wsId}`, { cache: 'no-store' })
             if (statsRes.ok) {
                 const data = await statsRes.json() as { byStatus?: Record<string, number> }
@@ -756,7 +730,6 @@ export function Sidebar({ user, onNavClick, className = '', mobile = false }: { 
 
     const badgeProps = {
         sidebarCollapsed,
-        pendingApprovals,
         blockedTasks,
         pendingImprovements,
         capabilityWarning,

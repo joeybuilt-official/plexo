@@ -10,8 +10,7 @@ import { ReadOnlyBanner } from './read-only-banner'
 
 export function DashboardMain({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
-    // For now, only /chat and maybe /insights (if it has a lot of data) should be full-bleed.
-    // Actually, let's start with just /chat as requested.
+    // For now, only /chat should be full-bleed.
     const isFullBleed = pathname === '/app/chat'
 
     return (
