@@ -15,21 +15,23 @@
  * Generated extensions run in the same PEX sandbox as marketplace extensions.
  * Capabilities are inferred from requested operations and validated against
  * a fixed allowlist — the LLM cannot expand them.
+ *
+ * ADR-0045: the core generation/transform logic is pure — all IO (filesystem,
+ * doc scraping, DB) reaches through the ports in `synthesizer-ports.ts`. The
+ * public `synthesizeExtension` entry composes the core with the ports resolved
+ * from that module (defaults reproduce prior behaviour; the composition root
+ * may override them).
  */
 
-import { eq, and, sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { extensions, connectionsRegistry, workspaces } from '@plexo/db'
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { terminateWorker } from './persistent-pool.js'
-import { isBlockedUrl } from '../tools/web-tools.js'
-import type { ExtensionManifest, ManifestType } from '@joeybuilt/plexo-sdk'
+import type { ExtensionManifest } from '@joeybuilt/plexo-sdk'
+import {
+    type APIResearch,
+    getSynthesizerFilesystem,
+    getSynthesizerDocFetch,
+    getSynthesizerRepository,
+} from './synthesizer-ports.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const GENERATED_EXTENSIONS_DIR =
-    process.env.GENERATED_SKILLS_DIR ?? '/var/plexo/generated-skills'
 
 const MAX_CODE_BYTES = 100 * 1024 // 100KB hard cap
 
@@ -86,24 +88,6 @@ export interface SynthesizeResult {
     error?: string
 }
 
-interface APIEndpoint {
-    method: string
-    path: string
-    description: string
-    parameters?: Record<string, unknown>
-}
-
-interface APIResearch {
-    serviceName: string
-    baseUrl: string
-    authScheme: 'api_key' | 'bearer' | 'basic' | 'oauth2'
-    authHeaderName: string
-    registryId: string
-    docsUrl: string
-    endpoints: APIEndpoint[]
-    rawContent: string
-}
-
 // ── Slug sanitization ─────────────────────────────────────────────────────────
 
 function sanitizeSlug(name: string): string {
@@ -117,11 +101,14 @@ function sanitizeSlug(name: string): string {
 
 // ── API Research ──────────────────────────────────────────────────────────────
 
-async function researchAPI(input: SynthesizeInput): Promise<APIResearch> {
+async function researchAPI(
+    input: SynthesizeInput,
+    docFetch: ReturnType<typeof getSynthesizerDocFetch>,
+): Promise<APIResearch> {
     const { serviceName, serviceWebsite } = input
     const slug = sanitizeSlug(serviceName)
 
-    const blockedReason = await isBlockedUrl(serviceWebsite)
+    const blockedReason = await docFetch.isBlocked(serviceWebsite)
     if (blockedReason) throw new Error(`Service website rejected: ${blockedReason}`)
 
     // Candidate doc URLs to try in order
@@ -136,29 +123,11 @@ async function researchAPI(input: SynthesizeInput): Promise<APIResearch> {
     const scraped: string[] = []
 
     for (const url of candidates.slice(0, 3)) {
-        try {
-            const res = await fetch(url, {
-                headers: {
-                    'User-Agent': 'Plexo-Synthesizer/1.0 (API documentation scraper)',
-                    Accept: 'text/html,application/json,*/*',
-                },
-                signal: AbortSignal.timeout(10_000),
-            })
-            if (!res.ok) continue
-            const text = await res.text()
-            // Strip HTML tags, normalise whitespace
-            const clean = text
-                .replace(/<script[\s\S]*?<\/script>/gi, '')
-                .replace(/<style[\s\S]*?<\/style>/gi, '')
-                .replace(/<[^>]+>/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim()
-                .slice(0, 8000) // cap per page
-            if (clean.length > 200) scraped.push(`[${url}]\n${clean}`)
-            if (scraped.length >= 3) break
-        } catch {
-            // non-fatal — try next candidate
+        const clean = await docFetch.fetchText(url)
+        if (clean && clean.length > 200) {
+            scraped.push(`[${url}]\n${clean.slice(0, 8000)}`)
         }
+        if (scraped.length >= 3) break
     }
 
     const rawContent = scraped.join('\n\n---\n\n').slice(0, 16000)
@@ -406,121 +375,6 @@ function generateManifest(
     }
 }
 
-// ── Disk I/O ──────────────────────────────────────────────────────────────────
-
-async function writeExtensionToDisk(
-    slug: string,
-    code: string,
-    manifest: ExtensionManifest,
-): Promise<string> {
-    const safeSlug = sanitizeSlug(slug)
-    if (!safeSlug) throw new Error('Invalid slug — service name produced empty sanitized value')
-
-    const dir = path.join(GENERATED_EXTENSIONS_DIR, safeSlug)
-    await fs.mkdir(dir, { recursive: true })
-
-    const indexPath = path.join(dir, 'index.js')
-    const manifestPath = path.join(dir, 'plexo.json')
-
-    // Back up existing file
-    try {
-        await fs.access(indexPath)
-        await fs.rename(indexPath, path.join(dir, 'index.js.bak'))
-    } catch {
-        // no existing file — fine
-    }
-
-    await fs.writeFile(indexPath, code, 'utf-8')
-    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
-
-    return indexPath
-}
-
-// ── Connection registry entry ─────────────────────────────────────────────────
-
-async function registerConnection(research: APIResearch): Promise<void> {
-    const { serviceName, registryId, docsUrl, authScheme } = research
-
-    await db.execute(sql`
-        INSERT INTO connections_registry
-            (id, name, description, category, auth_type, oauth_scopes, setup_fields,
-             tools_provided, cards_provided, is_core, is_generated, doc_url, created_at)
-        VALUES
-            (${registryId},
-             ${serviceName},
-             ${'Auto-generated connection for ' + serviceName + '. Created by Plexo agent synthesizer.'},
-             ${'custom'},
-             ${'api_key'},
-             ${'[]'}::jsonb,
-             ${JSON.stringify([{ key: 'apiKey', label: 'API Key', type: 'password', required: true }])}::jsonb,
-             ${'[]'}::jsonb,
-             ${'[]'}::jsonb,
-             ${false},
-             ${true},
-             ${docsUrl},
-             now())
-        ON CONFLICT (id) DO UPDATE SET
-            name = EXCLUDED.name,
-            description = EXCLUDED.description,
-            doc_url = EXCLUDED.doc_url,
-            is_generated = true
-    `)
-
-    // For oauth2 services, note that we fall back to API key flow
-    void authScheme // used for research context, not stored separately for generated connections
-}
-
-// ── Plugin install + activate ─────────────────────────────────────────────────
-
-async function installAndActivate(
-    manifest: ExtensionManifest,
-    workspaceId: string,
-    serviceSource: string,
-    docsUrl: string,
-    taskId?: string,
-): Promise<string> {
-    const settings = {
-        isGenerated: true,
-        generatedAt: new Date().toISOString(),
-        sourceService: serviceSource,
-        apiDocsUrl: docsUrl,
-        generationTaskId: taskId ?? null,
-    }
-
-    try {
-        terminateWorker(manifest.name)
-    } catch {
-        // no existing worker — fine
-    }
-
-    const [row] = await db
-        .insert(extensions)
-        .values({
-            workspaceId,
-            name: manifest.name,
-            version: manifest.version,
-            type: manifest.type as any,
-            pexVersion: manifest.plexo,
-            entry: manifest.entry,
-            manifest: manifest as unknown as Record<string, unknown>,
-            enabled: true,
-            settings: settings as Record<string, unknown>,
-        })
-        .onConflictDoUpdate({
-            target: [extensions.workspaceId, extensions.name],
-            set: {
-                version: manifest.version,
-                entry: manifest.entry,
-                manifest: manifest as unknown as Record<string, unknown>,
-                enabled: true,
-                settings: settings as Record<string, unknown>,
-            },
-        })
-        .returning({ id: extensions.id })
-
-    return row!.id
-}
-
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function synthesizeExtension(input: SynthesizeInput): Promise<SynthesizeResult> {
@@ -528,9 +382,13 @@ export async function synthesizeExtension(input: SynthesizeInput): Promise<Synth
     const slug = sanitizeSlug(serviceName)
     const registryId = `generated-${slug}`
 
+    const filesystem = getSynthesizerFilesystem()
+    const docFetch = getSynthesizerDocFetch()
+    const repository = getSynthesizerRepository()
+
     try {
         // 1. Research the API
-        const research = await researchAPI(input)
+        const research = await researchAPI(input, docFetch)
 
         // 2. Infer and validate capabilities
         const capabilities = inferCapabilities(requestedCapabilities)
@@ -552,23 +410,23 @@ export async function synthesizeExtension(input: SynthesizeInput): Promise<Synth
             }
         }
 
-        // 5. Build manifest (entry path determined after writing)
-        const entryPath = path.join(GENERATED_EXTENSIONS_DIR, slug, 'index.js')
+        // 5. Build manifest (entry path resolved by the filesystem port)
+        const entryPath = filesystem.entryPathFor(slug)
         const manifest = generateManifest(serviceName, slug, registryId, capabilities, entryPath)
 
         // 6. Write to disk
-        await writeExtensionToDisk(slug, code, manifest)
+        await filesystem.writeExtension(slug, code, manifest)
 
         // 7. Register connection entry (so credential UI appears immediately)
-        await registerConnection(research)
+        await repository.registerConnection(research)
 
         // 8. Install and auto-activate plugin
-        const pluginId = await installAndActivate(
+        const pluginId = await repository.installAndActivate({
             manifest,
             workspaceId,
-            slug,
-            research.docsUrl,
-        )
+            serviceSource: slug,
+            docsUrl: research.docsUrl,
+        })
 
         return {
             ok: true,

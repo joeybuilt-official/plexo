@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@plexo/agent": "workspace:*",
+    "@plexo/auth": "workspace:*",
     "@plexo/db": "workspace:*",
+    "@plexo/domain": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "@plexo/logger": "workspace:*",
     "@plexo/queue": "workspace:*",

@@ -17,6 +17,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@plexo/db": "workspace:*",
+    "@plexo/auth": "workspace:*",
     "@plexo/logger": "workspace:*",
     "@plexo/ui": "workspace:*",
     "@types/react-syntax-highlighter": "^15.5.13",

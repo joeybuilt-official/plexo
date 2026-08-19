@@ -1,0 +1,21 @@
+{
+  "name": "@plexo/domain",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./work-kind": "./src/work-kind.ts"
+  },
+  "main": null,
+  "types": null,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.7",
+    "vitest": "^3"
+  },
+  "license": "MIT"
+}

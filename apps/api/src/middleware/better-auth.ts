@@ -33,7 +33,7 @@ declare global {
 
 import type { Auth } from 'better-auth'
 import { Pool } from 'pg'
-import { createPlexoBetterAuth } from '@plexo/db/auth/config'
+import { createPlexoBetterAuth } from '@plexo/auth/config'
 import { logger } from '../logger.js'
 
 let _authInstance: Auth | null = null

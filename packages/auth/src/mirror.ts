@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { sql } from 'drizzle-orm'
-import type { Database } from '../client'
+import type { Database } from '@plexo/db'
 
 /**
  * Better Auth user payload shape (subset used for the public.users mirror).

@@ -11,6 +11,9 @@
 //   - the enum values
 //   - the inference fallback used when the agent forgets to declare `kind`
 //   - a lightweight language hint for code/config kinds
+//
+// Lives in @plexo/domain (ADR-0045): content classification is a business rule,
+// not a persistence concern — it has no drizzle/db/IO deps.
 
 export const WORK_KINDS = [
     'markdown',      // default, free-form structured markdown

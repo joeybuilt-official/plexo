@@ -5,7 +5,15 @@
 
 import React, { useState } from 'react'
 
-export function SignIn({ onSignIn, apiUrl }: { onSignIn: () => void; apiUrl?: string }) {
+export type CredentialsResult = { success: boolean; error?: string }
+
+export function SignIn({
+    onSignIn,
+    onSubmitCredentials
+}: {
+    onSignIn: () => void
+    onSubmitCredentials: (email: string, password: string) => Promise<CredentialsResult>
+}) {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
@@ -16,29 +24,13 @@ export function SignIn({ onSignIn, apiUrl }: { onSignIn: () => void; apiUrl?: st
         setLoading(true)
         setError('')
 
-        try {
-            const base = apiUrl || window.location.origin
-            const res = await fetch(`${base}/api/auth/callback/credentials`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ email, password, callbackUrl: '/', redirect: 'false' })
-            })
-
-            if (res.ok) {
-                const data = await res.json()
-                if (data.url && !data.error) {
-                    onSignIn()
-                } else {
-                    setError('Invalid credentials.')
-                }
-            } else {
-                setError('Failed to sign in.')
-            }
-        } catch (e) {
-            setError(e instanceof Error ? e.message : 'Sign in failed')
-        } finally {
-            setLoading(false)
+        const result = await onSubmitCredentials(email, password)
+        if (result.success) {
+            onSignIn()
+        } else {
+            setError(result.error ?? 'Sign in failed')
         }
+        setLoading(false)
     }
 
     return (

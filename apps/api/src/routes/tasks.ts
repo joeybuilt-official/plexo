@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { inferKind, type WorkKind } from '@plexo/db'
+import { inferKind, type WorkKind } from '@plexo/domain'
 import * as tasksRepo from '../repositories/tasks.repository.js'
 import { push, list, cancel as queueCancel } from '@plexo/queue'
 import { getResumeStep } from '@plexo/agent/executor/step-builder'

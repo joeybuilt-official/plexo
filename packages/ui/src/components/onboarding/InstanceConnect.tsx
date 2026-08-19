@@ -5,11 +5,13 @@
 
 import React, { useState } from 'react'
 import { Server, Globe, Loader2 } from 'lucide-react'
+import { useHealthCheck } from '../../hooks/useHealthCheck'
 
 export function InstanceConnect({ onConnect }: { onConnect: (url: string) => void }) {
     const [url, setUrl] = useState('')
     const [status, setStatus] = useState<'idle' | 'checking' | 'failed'>('idle')
     const [errorMsg, setErrorMsg] = useState('')
+    const { checkHealth } = useHealthCheck()
 
     const handleConnect = async (targetUrl: string) => {
         let cleanUrl = targetUrl.trim().replace(/\/+$/, '')
@@ -21,17 +23,12 @@ export function InstanceConnect({ onConnect }: { onConnect: (url: string) => voi
         setStatus('checking')
         setErrorMsg('')
         
-        try {
-            const res = await fetch(`${cleanUrl}/health`, { method: 'GET' })
-            if (res.ok) {
-                onConnect(cleanUrl)
-            } else {
-                setStatus('failed')
-                setErrorMsg("Couldn't reach that address. Check the URL and try again.")
-            }
-        } catch (e) {
+        const result = await checkHealth(cleanUrl)
+        if (result.ok) {
+            onConnect(cleanUrl)
+        } else {
             setStatus('failed')
-            setErrorMsg(e instanceof Error ? e.message : "Couldn't reach that address. Check the URL and try again.")
+            setErrorMsg(result.error ?? "Couldn't reach that address. Check the URL and try again.")
         }
     }
 

@@ -14,7 +14,7 @@
 
 import { type Auth } from 'better-auth'
 import { Pool } from 'pg'
-import { createPlexoBetterAuth } from '@plexo/db/auth/config'
+import { createPlexoBetterAuth } from '@plexo/auth/config'
 
 // DI-002: Internal API base + service key for the beforeDelete hook.
 // These are server-side only (never shipped to the browser).

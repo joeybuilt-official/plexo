@@ -5,11 +5,13 @@
 
 import React, { useState, useEffect } from 'react'
 import { Server, MonitorPlay } from 'lucide-react'
+import { useHealthCheck } from '../../hooks/useHealthCheck'
 
 export function ModeSelection({ onSelectMode }: { onSelectMode: (mode: 'local' | 'remote') => void }) {
     const [dockerInstalled, setDockerInstalled] = useState<boolean | null>(null)
     const [starting, setStarting] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const { waitForHealthy } = useHealthCheck()
 
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tauri global has no typings
@@ -44,14 +46,7 @@ export function ModeSelection({ onSelectMode }: { onSelectMode: (mode: 'local' |
                 return
             }
             
-            let passed = false
-            for (let i = 0; i < 30; i++) {
-                try {
-                    const health = await fetch('http://localhost:3000/health')
-                    if (health.ok) { passed = true; break; }
-                } catch { /* health endpoint not ready yet */ }
-                await new Promise(r => setTimeout(r, 2000))
-            }
+            const passed = await waitForHealthy('http://localhost:3000', 30, 2000)
 
             if (!passed) {
                 setError('Local stack took too long to become healthy.')

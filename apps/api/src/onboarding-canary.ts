@@ -29,7 +29,7 @@
 import { sql } from 'drizzle-orm'
 import { db } from '@plexo/db'
 import { workspaces, workspaceMembers, DEFAULT_WORKSPACE_SETTINGS, DEFAULT_INTELLIGENCE_SETTINGS } from '@plexo/db'
-import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/db/auth/config'
+import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/auth'
 import { logger } from './logger.js'
 import { emitCanaryResult } from './analytics/events.js'
 import { recordCanaryFailureForAlert } from './ops-alerts.js'

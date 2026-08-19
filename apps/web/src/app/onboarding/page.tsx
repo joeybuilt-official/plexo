@@ -7,7 +7,7 @@ import React, { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ModeSelection } from '@plexo/ui/components/onboarding/ModeSelection'
 import { InstanceConnect } from '@plexo/ui/components/onboarding/InstanceConnect'
-import { SignIn } from '@plexo/ui/components/onboarding/SignIn'
+import { SignIn, type CredentialsResult } from '@plexo/ui/components/onboarding/SignIn'
 import { EnableNotifications } from '@plexo/ui/components/onboarding/EnableNotifications'
 import { EnableBiometric } from '@plexo/ui/components/onboarding/EnableBiometric'
 import { OnboardingComplete } from '@plexo/ui/components/onboarding/OnboardingComplete'
@@ -95,7 +95,26 @@ function OnboardingContent() {
 
         // Screen 3: Sign in
         if (step === 3) {
-            return <SignIn onSignIn={() => router.push('/app/onboarding?step=4')} />
+            const onSubmitCredentials = async (email: string, password: string): Promise<CredentialsResult> => {
+                try {
+                    const base = window.location.origin
+                    const res = await fetch(`${base}/api/auth/callback/credentials`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({ email, password, callbackUrl: '/', redirect: 'false' })
+                    })
+                    if (!res.ok) return { success: false, error: 'Failed to sign in.' }
+                    const data = await res.json()
+                    if (data.url && !data.error) return { success: true }
+                    return { success: false, error: 'Invalid credentials.' }
+                } catch (e) {
+                    return { success: false, error: e instanceof Error ? e.message : 'Sign in failed' }
+                }
+            }
+            return <SignIn
+                onSignIn={() => router.push('/app/onboarding?step=4')}
+                onSubmitCredentials={onSubmitCredentials}
+            />
         }
 
         // Screen 4: Choose AI provider
