@@ -10,15 +10,17 @@ import localPkg from "./package.json";
 // Prefer an id the deploy pipeline injects (PLEXO_BUILD_ID); fall back to the
 // git SHA; else return null so Next uses its default random id.
 function resolveBuildId(): string | null {
-  if (process.env.PLEXO_BUILD_ID) return process.env.PLEXO_BUILD_ID;
+  // "unknown" is the git-meta sentinel when no SHA could be resolved — treat it
+  // as absent so builds don't all collide on the id "unknown".
+  const injected = process.env.PLEXO_BUILD_ID?.trim();
+  if (injected && injected !== "unknown") return injected;
   try {
-    return (
-      execSync("git rev-parse --short HEAD", {
-        stdio: ["ignore", "pipe", "ignore"],
-      })
-        .toString()
-        .trim() || null
-    );
+    const sha = execSync("git rev-parse --short HEAD", {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    return sha && sha !== "unknown" ? sha : null;
   } catch {
     return null;
   }
