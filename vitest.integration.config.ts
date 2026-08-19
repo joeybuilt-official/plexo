@@ -9,7 +9,8 @@ export default defineConfig({
         // intercept subpath imports (e.g. `@plexo/agent/planner`); subpaths
         // fall through to Node, which resolves via each package's `exports`.
         alias: [
-            { find: /^@plexo\/db\/auth\/config$/, replacement: resolve('./packages/db/src/auth/config.ts') },
+            { find: /^@plexo\/auth\/config$/, replacement: resolve('./packages/auth/src/config.ts') },
+            { find: /^@plexo\/auth$/, replacement: resolve('./packages/auth/src/index.ts') },
             { find: /^@plexo\/db$/, replacement: resolve('./packages/db/src/index.ts') },
             { find: /^@plexo\/agent$/, replacement: resolve('./packages/agent/src/index.ts') },
             { find: /^@plexo\/queue$/, replacement: resolve('./packages/queue/src/index.ts') },
@@ -38,7 +39,7 @@ export default defineConfig({
         // Inline workspace packages; externalize everything else for native resolution
         server: {
             deps: {
-                inline: ['@plexo/db', '@plexo/db/auth/config', '@plexo/queue', '@plexo/agent', '@joeybuilt/plexo-sdk'],
+                inline: ['@plexo/db', '@plexo/auth', '@plexo/auth/config', '@plexo/queue', '@plexo/agent', '@joeybuilt/plexo-sdk'],
             },
         },
     },

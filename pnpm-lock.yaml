@@ -144,6 +144,9 @@ importers:
       '@plexo/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@plexo/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@plexo/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -324,6 +327,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.3)
+      '@plexo/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@plexo/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -625,6 +631,34 @@ importers:
       '@types/ssh2':
         specifier: ^1.15.5
         version: 1.15.5
+      typescript:
+        specifier: ^5.7
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.6
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
+
+  packages/auth:
+    dependencies:
+      '@plexo/db':
+        specifier: workspace:*
+        version: link:../db
+      better-auth:
+        specifier: '>=1.6.2'
+        version: 1.6.22(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.29.2)(pg@8.22.0)(postgres@3.4.9))(next@16.2.9(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(pg@8.22.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@3.2.6(@types/debug@4.1.13)(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      drizzle-orm:
+        specifier: '>=0.45.2'
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.29.2)(pg@8.22.0)(postgres@3.4.9)
+      pg:
+        specifier: ^8.20.0
+        version: 8.22.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22
+        version: 22.20.0
+      '@types/pg':
+        specifier: ^8
+        version: 8.20.0
       typescript:
         specifier: ^5.7
         version: 5.9.3

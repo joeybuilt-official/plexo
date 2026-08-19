@@ -21,7 +21,7 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import type { AddressInfo } from 'node:net'
 import { Pool } from 'pg'
 import type { Auth } from 'better-auth'
-import { createPlexoBetterAuth } from '@plexo/db/auth/config'
+import { createPlexoBetterAuth } from '@plexo/auth/config'
 import { requireBetterAuth } from '../../apps/api/src/middleware/better-auth.js'
 import { workspacesRouter } from '../../apps/api/src/routes/workspaces.js'
 import { tasksRouter } from '../../apps/api/src/routes/tasks.js'

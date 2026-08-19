@@ -1580,19 +1580,6 @@
   },
   {
     "type": "dependency",
-    "from": "apps/api/src/cron.ts",
-    "to": "@plexo/db/auth/config",
-    "unresolvedTo": "@plexo/db/auth/config",
-    "dependencyTypes": [
-      "unknown"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "not-unresolvable"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "apps/api/src/cron/confidence-lifecycle.ts",
     "to": "@plexo/agent/analytics/memory-events",
     "unresolvedTo": "@plexo/agent/analytics/memory-events",
@@ -1749,48 +1736,9 @@
   },
   {
     "type": "dependency",
-    "from": "apps/api/src/middleware/better-auth.ts",
-    "to": "@plexo/db/auth/config",
-    "unresolvedTo": "@plexo/db/auth/config",
-    "dependencyTypes": [
-      "unknown"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "not-unresolvable"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "apps/api/src/onboarding-canary.ts",
-    "to": "@plexo/db/auth/config",
-    "unresolvedTo": "@plexo/db/auth/config",
-    "dependencyTypes": [
-      "unknown"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "not-unresolvable"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "apps/api/src/profile-negotiation.ts",
     "to": "@plexo/agent/profile/resolve",
     "unresolvedTo": "@plexo/agent/profile/resolve",
-    "dependencyTypes": [
-      "unknown"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "not-unresolvable"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "apps/api/src/repositories/workspaces.repository.ts",
-    "to": "@plexo/db/auth/config",
-    "unresolvedTo": "@plexo/db/auth/config",
     "dependencyTypes": [
       "unknown"
     ],
@@ -2503,19 +2451,6 @@
   },
   {
     "type": "dependency",
-    "from": "apps/api/src/routes/workspaces.ts",
-    "to": "@plexo/db/auth/config",
-    "unresolvedTo": "@plexo/db/auth/config",
-    "dependencyTypes": [
-      "unknown"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "not-unresolvable"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "apps/api/src/scripts/embed-backfill.ts",
     "to": "@plexo/agent/memory/store",
     "unresolvedTo": "@plexo/agent/memory/store",
@@ -2555,7 +2490,7 @@
   },
   {
     "type": "dependency",
-    "from": "packages/db/src/auth/config.ts",
+    "from": "packages/auth/src/config.ts",
     "to": "better-auth/plugins",
     "unresolvedTo": "better-auth/plugins",
     "dependencyTypes": [

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { Router, type Router as RouterType } from 'express'
-import { type AuthUserPayload } from '@plexo/db/auth/config'
+import { type AuthUserPayload } from '@plexo/auth'
 import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'

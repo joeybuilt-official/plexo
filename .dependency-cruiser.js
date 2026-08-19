@@ -59,6 +59,13 @@ module.exports = {
             from: { path: '^packages/mcp-server/src/' },
             to: { path: '^apps/' },
         },
+        {
+            name: 'auth-imports-outer',
+            comment: '@plexo/auth is an adapter — may import db/ORM, not agent/api/apps/ui',
+            severity: 'error',
+            from: { path: '^packages/auth/src/' },
+            to: { path: 'packages/(agent|api|ui|sdk)/' },
+        },
 
         // ── agent core must not import the ORM / db adapter directly ──────────
         // Inner-ring business rules reach drizzle/db via repository PORTS, not

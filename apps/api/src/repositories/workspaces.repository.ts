@@ -12,7 +12,7 @@
 import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import { db } from '@plexo/db'
 import { workspaces, workspaceMembers, tasks, conversations, memoryEntries, behaviorRules, DEFAULT_INTELLIGENCE_SETTINGS, DEFAULT_WORKSPACE_SETTINGS } from '@plexo/db'
-import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/db/auth/config'
+import { mirrorAuthUserToPublic, type AuthUserPayload } from '@plexo/auth'
 
 /** Raw settings JSON for a workspace, or undefined if no such workspace. */
 export async function getSettings(workspaceId: string): Promise<Record<string, unknown> | null | undefined> {

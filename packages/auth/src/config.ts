@@ -5,7 +5,7 @@ import { betterAuth, type Auth } from 'better-auth'
 import { bearer } from 'better-auth/plugins'
 import type { Pool } from 'pg'
 import { randomUUID } from 'node:crypto'
-import { db } from '../client'
+import { db } from '@plexo/db'
 import { mirrorAuthUserToPublic, type AuthUserPayload } from './mirror'
 
 export { mirrorAuthUserToPublic, type AuthUserPayload } from './mirror'

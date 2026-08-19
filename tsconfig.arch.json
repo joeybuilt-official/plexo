@@ -6,6 +6,8 @@
       "@plexo/agent": ["packages/agent/src/index.ts"],
       "@plexo/api": ["packages/api/src/index.ts"],
       "@plexo/domain": ["packages/domain/src/index.ts"],
+      "@plexo/auth": ["packages/auth/src/index.ts"],
+      "@plexo/auth/config": ["packages/auth/src/config.ts"],
       "@plexo/web": ["packages/web/src/index.ts"],
       "@plexo/cli": ["packages/cli/src/index.ts"],
       "@plexo/db": ["packages/db/src/index.ts"],

@@ -6,7 +6,7 @@
  *
  * Pins audit fix #4: a session minted by the web's Better Auth instance
  * must be accepted by the api's Better Auth middleware. Both sides go
- * through the shared factory at packages/db/src/auth/config.ts. If the
+ * through the shared factory at packages/auth/src/config.ts. If the
  * configs ever diverge (different secret, cookie attributes, generateId,
  * etc.) this test will fail loudly because the api middleware will return
  * 401 instead of 200.
@@ -19,7 +19,7 @@ import express from 'express'
 import type { AddressInfo } from 'node:net'
 import { Pool } from 'pg'
 import type { Auth } from 'better-auth'
-import { createPlexoBetterAuth } from '@plexo/db/auth/config'
+import { createPlexoBetterAuth } from '@plexo/auth/config'
 import { requireBetterAuth } from '../../apps/api/src/middleware/better-auth.js'
 
 const TEST_PASSWORD = 'Phase-B-Test-Password-1234!'
@@ -145,7 +145,7 @@ describe('Phase B — web↔api Better Auth handshake', () => {
 
     // Better Auth's Bearer-header authentication path requires the `bearer()`
     // plugin to be registered on both the issuer (web) and the verifier (api).
-    // The shared factory at packages/db/src/auth/config.ts now enables it, so a
+    // The shared factory at packages/auth/src/config.ts now enables it, so a
     // session token minted by signInEmail is accepted as `Authorization: Bearer`.
     // This is the channel the native Flutter client uses (ADR-0001 Phase 1).
     it('bearer path: signIn token is accepted via Authorization: Bearer (requires bearer() plugin)', async () => {
