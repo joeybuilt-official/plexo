@@ -46,7 +46,7 @@ import {
 import { resolveSessionId as resolveUniversalSession, embedMessage as embedSessionMessage } from '../lib/session-resolver.js'
 import { buildConversationSystemPrompt, translateErrorForUser, nameProject } from '../channel-ai.js'
 import { WEBCHAT_CLASSIFY_SYSTEM } from '@plexo/agent/prompts/build-system-prompt'
-import { buildTools } from '@plexo/agent/executor'
+import { buildTools, wireSubagentRunner } from '@plexo/agent/executor'
 import type { ExecutionContext, StepEvent } from '@plexo/agent/types'
 import { getTelegramToken } from './telegram.js'
 import { preClassifyIntent } from './chat-intent.js'
@@ -947,6 +947,12 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         if (t) codeTools[name] = t
                     }
                     chatTools = { ...codeTools, ...chatTools }
+                    // DD-4: wire spawn_subagent runner so the inline chat loop
+                    // can dispatch forked sub-agents using the resolved settings
+                    // + the full chat toolset.
+                    if (aiSettings) {
+                        wireSubagentRunner(inlineCtx, aiSettings, chatTools)
+                    }
                 } catch (toolErr) {
                     logger.warn({ err: toolErr, workspaceId }, 'webchat: code tools build failed — continuing with workspace tools only')
                 }

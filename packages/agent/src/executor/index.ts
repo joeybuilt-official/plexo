@@ -28,6 +28,8 @@ import { logAuditEntry, logToolCalls } from '../audit.js'
 import { searchMemory } from '../memory/store.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
 import { ToolWorker } from './tool-worker.js'
+import { wireSubagentRunner } from './subagent.js'
+export { wireSubagentRunner, runSubagent, buildSubagentToolset, SUBAGENT_DEFAULT_TOOLS, SUBAGENT_BLOCKED_TOOLS, SUBAGENT_MAX_STEPS } from './subagent.js'
 
 function stripNullBytes<T>(value: T): T {
     if (value == null) return value
@@ -945,6 +947,31 @@ Declare a "kind" so the user gets the right renderer:
                 return `Child task ${childId} still running after 5m — check /tasks/${childId} for status`
             },
         }),
+        spawn_subagent: tool({
+            description: 'Dispatch a forked sub-agent that runs a nested agent loop with a scoped brief + a read-only tool subset, then returns its final text result. Use for parallel or decomposed work. The sub-agent CANNOT spawn further sub-agents (max depth 1). Default tools: read_file, grep, glob, web_search, web_read_page, web_fetch. Whitelist `tools` to grant more (e.g. write_file, shell), but spawn_subagent/task_complete are always excluded.',
+            inputSchema: z.object({
+                brief: z.string().min(1).describe('The self-contained task brief the sub-agent executes'),
+                goal: z.string().optional().describe('Optional explicit goal line appended to the brief'),
+                tools: z.array(z.string()).optional().describe('Whitelist of parent tool names the sub-agent may use (default: read-only safe subset). spawn_subagent + task_complete are always excluded.'),
+                maxSteps: z.number().int().positive().max(25).optional().describe('Step ceiling for the nested loop (default 10, max 25)'),
+            }),
+            execute: async (input) => {
+                if (!ctx.runSubagent) {
+                    return `ERROR: spawn_subagent is not wired in this execution context (no runner available)`
+                }
+                try {
+                    return await ctx.runSubagent({
+                        brief: input.brief,
+                        goal: input.goal,
+                        tools: input.tools,
+                        maxSteps: input.maxSteps,
+                    })
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err)
+                    return `ERROR: spawn_subagent failed: ${msg}`
+                }
+            },
+        }),
     }
 }
 
@@ -1588,6 +1615,15 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
             }
         }
         : settings
+
+    // DD-4: wire the spawn_subagent runner so the tool can dispatch a nested
+    // agent loop using the parent's resolved settings + full toolset. The
+    // sub-agent's toolset is scoped (read-only default) and spawn_subagent is
+    // always stripped from it — the recursion guard. Suppressed for
+    // conversational tasks (their allTools has no spawn_subagent anyway).
+    if (!isConversational) {
+        wireSubagentRunner(ctx, effectiveSettings, allTools)
+    }
 
     let routingFallbackUsed = false
     let routingFallbackReason: string | undefined
