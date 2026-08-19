@@ -15,8 +15,9 @@
  * Requires ENCRYPTION_SECRET env var.
  */
 
-import { db, eq } from '../src/index.js'
+import { db } from '../src/index.js'
 import { channels } from '../src/index.js'
+import { eq } from 'drizzle-orm'
 import { createHmac, createCipheriv, randomBytes } from 'node:crypto'
 
 // Same per-channel-type sensitive-key map as apps/api/src/lib/channel-config-crypto.ts.

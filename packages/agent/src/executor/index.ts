@@ -55,6 +55,7 @@ import { classifyCapabilityGap } from '../tasks/classify-capability-gap.js'
 import { buildWebTools } from '../tools/web-tools.js'
 import { buildConversationalTaskPrompt, buildTaskPrompt } from '../prompts/build-system-prompt.js'
 import { resolveUserTimezone } from '../user-timezone-port.js'
+import { getFilesystemPort } from './filesystem-port.js'
 
 import { compactStaleToolResults, compactStaleAssistantMessages } from './context-projector.js'
 export { compactStaleToolResults, compactStaleAssistantMessages }
@@ -199,8 +200,7 @@ async function promoteWriteFilesToWorks(
     accumulatedSteps: unknown[],
     ctx: { taskId: string; workspaceId: string; sprintId?: string | null; sprintWorkDir?: string },
 ): Promise<string[]> {
-    const { readFileSync, existsSync, mkdirSync, writeFileSync } = await import('node:fs')
-    const { basename, resolve, isAbsolute, join } = await import('node:path')
+    const fs = getFilesystemPort()
     const workDir = (ctx.sprintWorkDir as string | undefined) ?? process.cwd()
     const assetDir = `/tmp/plexo-assets/${ctx.taskId}`
     const promoted: string[] = []
@@ -210,14 +210,14 @@ async function promoteWriteFilesToWorks(
             if (tc.toolName !== 'write_file') continue
             const args = tc.args as { path?: string } | undefined
             if (!args?.path) continue
-            const absPath = isAbsolute(args.path) ? args.path : resolve(workDir, args.path)
-            if (!existsSync(absPath)) continue
-            const content = readFileSync(absPath, 'utf8')
-            const filename = basename(absPath)
+            const absPath = fs.isAbsolute(args.path) ? args.path : fs.resolve(workDir, args.path)
+            if (!fs.exists(absPath)) continue
+            const content = fs.readFile(absPath, 'utf8')
+            const filename = fs.basename(absPath)
             if (promoted.includes(filename)) continue // skip dupes
             // Write to /tmp so the filesystem fallback in the assets API works
-            mkdirSync(assetDir, { recursive: true })
-            writeFileSync(join(assetDir, filename), content, 'utf8')
+            fs.mkdir(assetDir, { recursive: true })
+            fs.writeFile(fs.join(assetDir, filename), content, 'utf8')
             // Persist to DB
             try {
                 const inferred = inferKind(filename, content)
@@ -2686,8 +2686,8 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
     if (ctx.sprintWorkDir && filesWritten.length > 0) {
         void import('./structural-proof.js').then(async ({ verifyStructure }) => {
             const workDir = ctx.sprintWorkDir!
-            const { resolve, isAbsolute } = await import('node:path')
-            const absPaths = filesWritten.map((p) => isAbsolute(p) ? p : resolve(workDir, p))
+            const fsPort = getFilesystemPort()
+            const absPaths = filesWritten.map((p) => fsPort.isAbsolute(p) ? p : fsPort.resolve(workDir, p))
             const proof = await verifyStructure(absPaths).catch(() => null)
             if (proof && !proof.passed) {
                 const pinoMod = await import('pino')

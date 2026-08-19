@@ -51,6 +51,7 @@ import { getTelegramToken } from './telegram.js'
 import { preClassifyIntent } from './chat-intent.js'
 import { validateImages } from '../application/chat/validateImages.js'
 import { resolveHeuristicIntent, parseClassifyResponse } from '../application/chat/classifyIntent.js'
+import { persistTurn } from '../application/chat/persistTurn.js'
 import { trackError, trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -79,21 +80,9 @@ const INLINE_CODE_TOOLS = ['read_file', 'write_file', 'edit_file', 'grep', 'glob
 // ── Per-session mutex ────────────────────────────────────────────────────────
 // Prevents concurrent message processing for the same session, which would
 // cause race conditions on session resolution, duplicate provider calls, and
-// conversation history corruption (FUN-001).
-const sessionLocks = new Map<string, Promise<void>>()
-
-function withSessionLock<T>(sessionKey: string, fn: () => Promise<T>): Promise<T> {
-    const prev = sessionLocks.get(sessionKey) ?? Promise.resolve()
-    let resolve: () => void
-    const current = new Promise<void>(r => { resolve = r })
-    sessionLocks.set(sessionKey, current)
-    return prev.then(() => fn()).finally(() => {
-        resolve!()
-        if (sessionLocks.get(sessionKey) === current) {
-            sessionLocks.delete(sessionKey)
-        }
-    })
-}
+// conversation history corruption (FUN-001). Extracted to
+// application/chat/sessionLock.ts so the chain semantics are unit-testable.
+import { withSessionLock } from '../application/chat/sessionLock.js'
 
 /** Build fallback options with auth-failure notification for a workspace. */
 function fallbackOpts(workspaceId: string): FallbackOptions {
@@ -1065,13 +1054,14 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             res.write(`data: ${JSON.stringify({ error: EMPTY_RESPONSE_MSG })}\n\n`)
                             res.end()
                             try {
-                                if (conversationId) {
-                                    await updateConversationById(conversationId, { errorMsg: EMPTY_RESPONSE_MSG, status: 'failed' })
-                                    turnSettled = true
-                                } else {
-                                    await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: EMPTY_RESPONSE_MSG, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
-                                    turnSettled = true
-                                }
+                                const persistedId = await persistTurn({
+                                    conversationId,
+                                    create: { workspaceId, sessionId, source: conversationSource, message: trimmedMsg, intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null },
+                                    status: 'failed',
+                                    errorMsg: EMPTY_RESPONSE_MSG,
+                                })
+                                conversationId = persistedId
+                                turnSettled = true
                             } catch (err) { logger.error({ err }, "Failed to record conversation") }
                             trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'empty_response', messageLength: 0 })
                             return
@@ -1089,13 +1079,14 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             res.end()
                         }
                         try {
-                            if (conversationId) {
-                                await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
-                                turnSettled = true
-                            } else {
-                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
-                                turnSettled = true
-                            }
+                            const persistedId = await persistTurn({
+                                conversationId,
+                                create: { workspaceId, sessionId, source: conversationSource, message: trimmedMsg, intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null },
+                                status: 'failed',
+                                errorMsg: classified.message,
+                            })
+                            conversationId = persistedId
+                            turnSettled = true
                         } catch (err) { logger.error({ err }, "Failed to record conversation") }
                         trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'failed', messageLength: 0, errorMessage: classified.message })
                         // Still run post-stream persistence with whatever we got
@@ -1120,13 +1111,14 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
 
                     // ── Post-stream persistence (runs inside session lock) ──────
                     try {
-                        if (conversationId) {
-                            await updateConversationById(conversationId, { reply: replyText, status: 'complete' })
-                            turnSettled = true
-                        } else {
-                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
-                            turnSettled = true
-                        }
+                        const persistedId = await persistTurn({
+                            conversationId,
+                            create: { workspaceId, sessionId, source: conversationSource, message: trimmedMsg, intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null },
+                            status: 'complete',
+                            reply: replyText,
+                        })
+                        conversationId = persistedId
+                        turnSettled = true
                     } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
                     if (externalChannelRef) {
