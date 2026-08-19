@@ -12,6 +12,7 @@ import { parentPort, workerData } from 'node:worker_threads'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { dirname, resolve, isAbsolute } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { applyUnifiedPatch, PatchError, grepSearchSync, formatGrepRows, globSearchSync } from './code-tools.js'
 
 const workDir: string = workerData?.workDir ?? process.cwd()
 
@@ -107,6 +108,50 @@ function executeTool(name: string, input: Record<string, unknown>): string {
             ].filter(Boolean).join('\n')
 
             return combined || '(no output)'
+        }
+
+        case 'edit_file': {
+            const rawPath = input.path as string
+            const p = isAbsolute(rawPath) ? rawPath : resolve(workDir, rawPath)
+            assertContained(p)
+            if (!existsSync(p)) return `ERROR: File not found: ${p}`
+            const oldContent = readFileSync(p, 'utf8')
+            let patched: { result: string; bytesChanged: number }
+            try {
+                patched = applyUnifiedPatch(oldContent, input.patch as string)
+            } catch (e) {
+                if (e instanceof PatchError) return `ERROR: ${e.message}`
+                throw e
+            }
+            writeFileSync(p, patched.result, 'utf8')
+            return `OK: patched ${p} (${patched.bytesChanged >= 0 ? '+' : ''}${patched.bytesChanged} bytes)`
+        }
+
+        case 'grep': {
+            const rawRoot = (input.path as string | undefined) ?? workDir
+            const root = isAbsolute(rawRoot) ? rawRoot : resolve(workDir, rawRoot)
+            assertContained(root)
+            const rows = grepSearchSync({
+                root,
+                pattern: input.pattern as string,
+                glob: input.glob as string | undefined,
+                ignoreCase: Boolean(input.ignoreCase),
+                maxResults: (input.maxResults as number | undefined) ?? 200,
+            })
+            return formatGrepRows(rows)
+        }
+
+        case 'glob': {
+            const rawRoot = (input.path as string | undefined) ?? workDir
+            const root = isAbsolute(rawRoot) ? rawRoot : resolve(workDir, rawRoot)
+            assertContained(root)
+            const matches = globSearchSync({
+                root,
+                pattern: input.pattern as string,
+                limit: (input.limit as number | undefined) ?? 200,
+            })
+            if (matches.length === 0) return '(no matches)'
+            return matches.join('\n')
         }
 
         default:

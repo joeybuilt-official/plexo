@@ -182,7 +182,7 @@ interface GenerateResult {
 const TOOL_ISOLATION = process.env.PLEXO_TOOL_ISOLATION === '1'
 
 /** Tools eligible for worker-thread isolation */
-const WORKER_ELIGIBLE_TOOLS = new Set(['read_file', 'write_file', 'shell'])
+const WORKER_ELIGIBLE_TOOLS = new Set(['read_file', 'write_file', 'shell', 'edit_file', 'grep', 'glob'])
 
 /**
  * Promote write_file outputs to works (DB + /tmp/plexo-assets).
@@ -336,6 +336,99 @@ async function dispatchTool(
                 }
 
                 return `OK: wrote ${newContent.length} bytes to ${p}`
+            } catch (e) {
+                return `ERROR: ${(e as Error).message}`
+            }
+        }
+
+        case 'edit_file': {
+            try {
+                const rawPath = input.path as string
+                const p = isAbsolute(rawPath) ? rawPath : resolve(defaultCwd, rawPath)
+                const realResolved = resolve(p)
+                const realCwd = resolve(defaultCwd)
+                if (!realResolved.startsWith(realCwd) && !realResolved.startsWith('/tmp/plexo-')) {
+                    return `ERROR: Path "${rawPath}" is outside the working directory`
+                }
+                if (!existsSync(p)) {
+                    return `ERROR: File not found: ${p}`
+                }
+                const { applyUnifiedPatch, PatchError } = await import('./code-tools.js')
+                const oldContent = readFileSync(p, 'utf8')
+                const patch = input.patch as string
+                let patched: { result: string; bytesChanged: number }
+                try {
+                    patched = applyUnifiedPatch(oldContent, patch)
+                } catch (e) {
+                    if (e instanceof PatchError) return `ERROR: ${e.message}`
+                    throw e
+                }
+                writeFileSync(p, patched.result, 'utf8')
+
+                if (emit) {
+                    let diff = ''
+                    try {
+                        const { createPatch } = await import('diff')
+                        const relPath = defaultCwd ? relative(defaultCwd, p) : p
+                        diff = createPatch(relPath, oldContent, patched.result, '', '')
+                    } catch { /* diff unavailable */ }
+                    const relPath = defaultCwd ? relative(defaultCwd, p) : p
+                    emit({
+                        type: 'step.file_write',
+                        taskId: ctx.taskId,
+                        workspaceId: ctx.workspaceId,
+                        path: relPath,
+                        patch: diff,
+                        ts: Date.now(),
+                    })
+                }
+
+                return `OK: patched ${p} (${patched.bytesChanged >= 0 ? '+' : ''}${patched.bytesChanged} bytes)\n${patch}`
+            } catch (e) {
+                return `ERROR: ${(e as Error).message}`
+            }
+        }
+
+        case 'grep': {
+            try {
+                const rawRoot = (input.path as string | undefined) ?? defaultCwd
+                const root = isAbsolute(rawRoot) ? rawRoot : resolve(defaultCwd, rawRoot)
+                const realResolved = resolve(root)
+                const realCwd = resolve(defaultCwd)
+                if (!realResolved.startsWith(realCwd) && !realResolved.startsWith('/tmp/plexo-')) {
+                    return `ERROR: Path "${rawRoot}" is outside the working directory`
+                }
+                const { grepSearchSync, formatGrepRows } = await import('./code-tools.js')
+                const rows = grepSearchSync({
+                    root,
+                    pattern: input.pattern as string,
+                    glob: input.glob as string | undefined,
+                    ignoreCase: Boolean(input.ignoreCase),
+                    maxResults: (input.maxResults as number | undefined) ?? 200,
+                })
+                return formatGrepRows(rows)
+            } catch (e) {
+                return `ERROR: ${(e as Error).message}`
+            }
+        }
+
+        case 'glob': {
+            try {
+                const rawRoot = (input.path as string | undefined) ?? defaultCwd
+                const root = isAbsolute(rawRoot) ? rawRoot : resolve(defaultCwd, rawRoot)
+                const realResolved = resolve(root)
+                const realCwd = resolve(defaultCwd)
+                if (!realResolved.startsWith(realCwd) && !realResolved.startsWith('/tmp/plexo-')) {
+                    return `ERROR: Path "${rawRoot}" is outside the working directory`
+                }
+                const { globSearchSync } = await import('./code-tools.js')
+                const matches = globSearchSync({
+                    root,
+                    pattern: input.pattern as string,
+                    limit: (input.limit as number | undefined) ?? 200,
+                })
+                if (matches.length === 0) return '(no matches)'
+                return matches.join('\n')
             } catch (e) {
                 return `ERROR: ${(e as Error).message}`
             }
@@ -523,6 +616,34 @@ function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
                 cwd: z.string().optional().describe('Working directory (optional)'),
             }),
             execute: async (input) => dispatchTool('shell', input as Record<string, unknown>, ctx, worker),
+        }),
+        edit_file: tool({
+            description: 'Apply a unified-diff patch to an existing file. The patch must include @@ hunk headers with context lines that match the file exactly. Rejected (no partial write) on context mismatch or missing file. Use this for surgical edits instead of rewriting the whole file with write_file.',
+            inputSchema: z.object({
+                path: z.string().describe('Path to the file to edit'),
+                patch: z.string().describe('Unified-diff patch with @@ -a,b +c,d @@ hunk headers and context lines'),
+            }),
+            execute: async (input) => dispatchTool('edit_file', input as Record<string, unknown>, ctx, worker),
+        }),
+        grep: tool({
+            description: 'Search file contents under a directory. Returns `file:line: match` rows. Supports regex or literal patterns, optional glob filter, ignore-case, and max-results. Skips node_modules/.git/binary files.',
+            inputSchema: z.object({
+                pattern: z.string().describe('String or JavaScript regex pattern to match'),
+                path: z.string().optional().describe('Search root (default: working directory)'),
+                glob: z.string().optional().describe('Picomatch-style path filter, e.g. "*.ts" or "src/**/*.{js,ts}"'),
+                ignoreCase: z.boolean().optional().describe('Case-insensitive match'),
+                maxResults: z.number().optional().describe('Cap on returned rows (default 200)'),
+            }),
+            execute: async (input) => dispatchTool('grep', input as Record<string, unknown>, ctx, worker),
+        }),
+        glob: tool({
+            description: 'Find files by picomatch-style pattern under a directory. Supports *, **, ?, {a,b}. Returns matched relative paths. Skips node_modules/.git.',
+            inputSchema: z.object({
+                pattern: z.string().describe('Picomatch-style pattern, e.g. "src/**/*.ts" or "**/*.{json,yaml}"'),
+                path: z.string().optional().describe('Search root (default: working directory)'),
+                limit: z.number().optional().describe('Cap on returned paths (default 200)'),
+            }),
+            execute: async (input) => dispatchTool('glob', input as Record<string, unknown>, ctx, worker),
         }),
         task_complete: tool({
             description: 'REQUIRED — call this to finish the task. Every task MUST end with this tool call. For conversational messages, call immediately with your reply in the summary. For multi-step tasks, call after completing all steps. Include works and verificationSteps when applicable.',
