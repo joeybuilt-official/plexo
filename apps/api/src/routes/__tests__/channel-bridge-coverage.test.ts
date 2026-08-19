@@ -20,8 +20,6 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const CHANNEL_ROUTES = [
     { name: 'web chat',          file: 'chat.ts' },
     { name: 'telegram',          file: 'telegram.ts' },
-    { name: 'slack',             file: 'slack.ts' },
-    { name: 'discord',           file: 'discord.ts' },
     { name: 'app-transport',     file: 'chat-app-transport.ts' },
 ]
 

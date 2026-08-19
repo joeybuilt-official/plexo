@@ -815,7 +815,7 @@ export { CONNECTION_REGISTRY } from './registry.js'
 
 // ── Google OAuth token refresh ────────────────────────────────────────────────
 
-const GOOGLE_REGISTRY_IDS = new Set(['google-drive', 'google-workspace'])
+const GOOGLE_REGISTRY_IDS = new Set(['google-workspace'])
 
 async function maybeRefreshGoogleToken(
     creds: ConnectionCredentials,
@@ -986,13 +986,11 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
                 continue
             }
 
-            // Decrypt credentials. gmessages stores a base64-encoded libgm
-            // AuthData blob (not JSON) and its factory ignores creds entirely
-            // (state lives in the sidecar); skip the JSON.parse for it.
+            // Decrypt credentials.
             let creds: ConnectionCredentials = {}
             try {
                 const raw = row.credentials as { encrypted?: string } | null
-                if (raw?.encrypted && row.registryId !== 'gmessages') {
+                if (raw?.encrypted) {
                     const decrypted = decrypt(raw.encrypted, workspaceId)
                     creds = JSON.parse(decrypted) as ConnectionCredentials
                 }
