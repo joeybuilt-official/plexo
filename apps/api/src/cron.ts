@@ -9,8 +9,6 @@ import { cronJobs, artifactVersions, artifacts, workspaceMembers } from '@plexo/
 import { mirrorAuthUserToPublic } from '@plexo/db/auth/config'
 import { logger } from './logger.js'
 import { loadWorkspaceAISettings } from './agent-loop.js'
-import { runRSIMonitor } from '@plexo/agent/introspection/rsi-monitor'
-import { emitRsiProposalCreated } from './analytics/events.js'
 import { runWeeklyDigest } from './analytics/digest-worker.js'
 import { deleteByPrefix } from '@plexo/storage'
 import { flushRetrievalCounts, decayConfidence } from './cron/confidence-lifecycle.js'
@@ -21,8 +19,6 @@ import { getSchemaRelaxedStats } from '@plexo/agent/providers/call-model'
 import { getLaneStats } from '@plexo/agent/providers/router-v2'
 import { flushOpsAlerts, evaluateSloBreaches, sloThresholdsFromEnv, recordSloBreachForAlert } from './ops-alerts.js'
 import { INTERNAL_JOB_NAMES } from './cron-internal-jobs.js'
-
-export { runRSIMonitor }
 
 /** Update last_run_at + last_run_status for internal cron jobs so the
  *  dashboard doesn't show them as stale / never-run. */
@@ -37,23 +33,12 @@ async function markInternalJobRun(name: string, status: 'success' | 'failure'): 
     }
 }
 
-/**
- * Executes background cron jobs.
- * This can be run via an external scheduler (e.g. GitHub Actions, Render cron)
- * or imported and executed periodically by the API server.
- */
 export async function runCronJobs() {
     logger.info('Starting scheduled jobs...')
     try {
         await syncModelKnowledge()
-        const inserted = await runRSIMonitor()
-        logger.info({ event: 'rsi_scan_complete', inserted }, 'RSI monitor scan completed')
-        // Emit one analytics event per new proposal (anomaly type unknown at this level — use generic label)
-        for (let i = 0; i < inserted; i++) emitRsiProposalCreated('unknown')
-        await markInternalJobRun('RSI Monitor', 'success')
         logger.info('Scheduled jobs completed successfully.')
     } catch (err) {
-        await markInternalJobRun('RSI Monitor', 'failure')
         logger.error({ err }, 'Scheduled jobs failed.')
     }
 }

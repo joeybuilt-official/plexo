@@ -11,7 +11,6 @@ import { Command } from 'commander'
 import pkg from '../package.json' with { type: 'json' }
 import { registerAuth } from './commands/auth.js'
 import { registerTask } from './commands/task.js'
-import { registerSprint } from './commands/sprint.js'
 import { registerCron } from './commands/cron.js'
 import { registerConnection } from './commands/connection.js'
 import { registerExtension } from './commands/plugin.js'
@@ -37,7 +36,6 @@ const program = new Command()
 
 registerAuth(program)
 registerTask(program)
-registerSprint(program)
 registerCron(program)
 registerConnection(program)
 registerExtension(program)

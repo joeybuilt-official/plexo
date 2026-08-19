@@ -3,8 +3,7 @@
 
 /**
  * Canonical names of internal cron jobs — those executed as direct function
- * handlers by the in-process scheduler in cron.ts (the INTERNAL_JOBS array)
- * plus the few run directly elsewhere ('RSI Monitor' via runCronJobs).
+ * handlers by the in-process scheduler in cron.ts (the INTERNAL_JOBS array).
  *
  * The cron-dispatch engine MUST skip these so it never queues an empty agent
  * task for them. This lives in its own dependency-free module (not cron.ts) so
@@ -13,8 +12,7 @@
  *
  * Must be kept in sync with cron.ts INTERNAL_JOBS — a startup assertion in
  * cron.ts (scheduleMemoryConsolidation) logs an error if an INTERNAL_JOBS name
- * is missing here. Also includes a few names not in that array: 'RSI Monitor'
- * (run via runCronJobs) and the legacy 'flush-retrieval-counts' alias (a
+ * is missing here. Also includes the legacy 'flush-retrieval-counts' alias (a
  * pre-rename row still present in some deployments alongside
  * '__internal_flush_retrieval_counts').
  */
@@ -30,6 +28,5 @@ export const INTERNAL_JOB_NAMES: ReadonlySet<string> = new Set<string>([
     'gmail-poll',
     'Router stats snapshot',
     'Ops alerts flush',
-    'RSI Monitor',
     'flush-retrieval-counts',
 ])

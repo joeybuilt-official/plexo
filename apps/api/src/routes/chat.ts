@@ -30,7 +30,6 @@ import { PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/providers/regi
 import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } from '@plexo/agent/providers/vision'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
-import { runSprint } from '@plexo/agent/sprint/runner'
 import { storeMemory, rememberInstruction } from '@plexo/agent/memory/store'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { setPreference } from '@plexo/agent/memory/preferences'
@@ -763,17 +762,7 @@ chatRouter.post('/message', async (req, res) => {
         }
 
 
-        // Lazy-load full introspection snapshot only for TASK/PROJECT paths
-        // (skipped for CONVERSATION to save 80-150ms of DB queries)
-        let fullIdentityLine = identityLine
-        if (intent === 'TASK' || intent === 'PROJECT') {
-            try {
-                const { buildIntrospectionSnapshot, toConversationSnapshot } = await import('@plexo/agent/introspection')
-                const snapshot = await buildIntrospectionSnapshot(workspaceId, resolvedProvider, resolvedModel)
-                const conversationSafe = toConversationSnapshot(snapshot)
-                fullIdentityLine = `${identityLine}\n\nHere is your state and self-awareness snapshot:\n${JSON.stringify(conversationSafe, null, 2)}`
-            } catch { /* non-fatal — proceed with slim identity */ }
-        }
+        const fullIdentityLine = identityLine
 
         // Consultative routing: Check for recommended model
         let recommendedSwitch = ''
@@ -1517,89 +1506,8 @@ chatRouter.post('/execute-action', async (req, res) => {
             emitToWorkspace(workspaceId, { type: 'task_queued', taskId, source: 'dashboard' })
             audit(req, { workspaceId, userId: req.user?.id, action: 'task.create', resource: 'tasks', resourceId: taskId, metadata: { source: 'dashboard', via: 'chat' } })
             res.status(202).json({ taskId, status: 'queued' })
-        } else if (intent === 'PROJECT') {
-            if (resolvedCategory === 'code' && process.env.ENABLE_SPRINT_CODING_TASKS !== 'true') {
-                res.status(503).json({ error: { code: 'SPRINT_CODING_DISABLED', message: 'Sprint coding tasks are disabled on this instance. Set ENABLE_SPRINT_CODING_TASKS=true to enable; see docs/operations/sprint-coding-flag.md.' } })
-                return
-            }
-
-            // Pre-check: verify at least one AI provider is configured before creating the sprint row.
-            // This avoids leaving a zombie sprint in 'planning' state when credentials are missing.
-            let aiSettings: Awaited<ReturnType<typeof loadWorkspaceAISettings>>['aiSettings'] = null
-            let hasCredential = false
-            try {
-                const loaded = await loadWorkspaceAISettings(workspaceId)
-                hasCredential = !!loaded.credential
-                if (loaded.aiSettings) aiSettings = loaded.aiSettings
-            } catch (err) {
-                logger.warn({ err, workspaceId }, 'Could not resolve AI settings for sprint planner — using env fallback')
-            }
-
-            if (!hasCredential) {
-                res.status(402).json({
-                    error: {
-                        code: 'NO_AI_CREDENTIAL',
-                        message: 'No AI provider is configured for this workspace. Go to Settings → AI Providers and add at least one API key before starting a project.',
-                    },
-                })
-                return
-            }
-
-            const id = ulid()
-            const projectName = await nameProject(workspaceId, description)
-            const sprint = await sprintsRepo.createSprint({
-                id,
-                workspaceId,
-                request: description,
-                category: resolvedCategory,
-                repo: repo ?? null,
-                status: 'planning',
-                metadata: { name: projectName },
-            })
-            if (!sprint) throw new Error('Sprint insert returned no rows')
-            logger.info({ workspaceId, sprintId: sprint.id, category: resolvedCategory }, 'Webchat project explicitly confirmed and created')
-
-            runSprint({
-                sprintId: sprint.id,
-                workspaceId,
-                category: resolvedCategory,
-                repo: repo ?? undefined,
-                request: description,
-                aiSettings,
-            }).catch((err: unknown) => {
-                logger.error({ err, sprintId: sprint.id }, 'Sprint run failed')
-                trackEvent('sprint.failed', 'error', { channel: 'webchat', sprintId: sprint.id, workspaceId })
-                trackError(err, { sprintId: sprint.id, workspaceId, category: resolvedCategory })
-
-                // Report the failure back to the originating conversation/session
-                // so the user isn't left staring at a silent "Created" status.
-                const errMsg = err instanceof Error ? err.message : String(err)
-                const userFacingReply = translateErrorForUser(errMsg)
-
-                void recordConversation({
-                    workspaceId,
-                    sessionId: sessionId ?? null,
-                    source: 'dashboard',
-                    message: description,
-                    reply: userFacingReply,
-                    errorMsg: errMsg,
-                    status: 'failed',
-                    intent: 'PROJECT',
-                    messageEmbedding: _executeActionEmbedding,
-                }).catch((recErr: unknown) => logger.warn({ recErr }, 'Failed to record sprint error turn'))
-
-                emitToWorkspace(workspaceId, {
-                    type: 'chat_error',
-                    sessionId: sessionId ?? null,
-                    sprintId: sprint.id,
-                    message: userFacingReply,
-                })
-            })
-
-            audit(req, { workspaceId, userId: req.user?.id, action: 'sprint.create', resource: 'sprints', resourceId: sprint.id, metadata: { category: resolvedCategory } })
-            res.status(201).json({ sprintId: sprint.id, status: 'created', category: resolvedCategory, name: projectName })
         } else {
-            res.status(400).json({ error: { code: 'INVALID_INTENT', message: 'intent must be TASK or PROJECT' } })
+            res.status(400).json({ error: { code: 'INVALID_INTENT', message: 'intent must be TASK' } })
         }
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/execute-action failed')

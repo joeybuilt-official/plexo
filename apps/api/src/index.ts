@@ -41,7 +41,6 @@ import { authRouter } from './routes/auth.js'
 import { billingRouter, stripeWebhookHandler } from './routes/billing.js'
 import { oauthRouter } from './routes/oauth.js'
 import { tasksRouter } from './routes/tasks.js'
-import { sprintsRouter } from './routes/sprints.js'
 import { sessionFabricRouter } from './routes/sessions.js'
 import { fabricSecurityRouter } from './routes/fabric-security.js'
 import { dashboardRouter } from './routes/dashboard.js'
@@ -50,7 +49,6 @@ import { slackRouter } from './routes/slack.js'
 import { twilioRouter } from './routes/twilio.js'
 import { discordRouter } from './routes/discord.js'
 import { owdRouter } from './routes/approvals.js'
-import { sprintRunnerRouter } from './routes/sprint-runner.js'
 import { memoryRouter } from './routes/memory.js'
 import { connectionsRouter } from './routes/connections.js'
 import { workspacesRouter } from './routes/workspaces.js'
@@ -67,7 +65,6 @@ import { publicSkillsRouter } from './routes/public-skills.js'
 import { auditRouter } from './routes/audit.js'
 import { extensionAuditRouter } from './routes/extension-audit.js'
 import { escalationRouter } from './routes/escalation.js'
-import { foundryRouter } from './routes/foundry.js'
 import { trainingDataRouter } from './routes/training-data.js'
 import { standingApprovalsRouter } from './routes/standing-approvals.js'
 import { userSelfRouter } from './routes/user-self.js'
@@ -92,7 +89,6 @@ import { terminateAll } from '@plexo/agent/persistent-pool'
 import { drainPendingJudges } from '@plexo/agent/executor'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
-import { initSprintLogger } from '@plexo/agent/sprint/logger'
 import { setOutboundAttachmentsHandler } from '@plexo/agent/channels/outbound-attachments-port'
 import { setUserTimezoneResolver } from '@plexo/agent/user-timezone-port'
 import { getLevioUserTimezone } from '@plexo/agent/connections/factories/levio'
@@ -152,9 +148,7 @@ import { systemRouter } from './routes/system.js'
 import { voiceRouter } from './routes/voice.js'
 import { searchRouter } from './routes/search.js'
 import { visionRouter } from './routes/vision.js'
-import { introspectRouter } from './routes/introspect.js'
 import { codeRouter } from './routes/code.js'
-import { rsiRouter } from './routes/rsi.js'
 import { stabilizationRouter } from './routes/stabilization.js'
 import { parallelRouter } from './routes/parallel.js'
 import { paxRouter } from './routes/pax.js'
@@ -196,8 +190,8 @@ import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
 import { startEventProcessor, stopEventProcessor } from './federation/event-processor.js'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '@plexo/db'
-import { sprints, nodes } from '@plexo/db'
-import { runCronJobs, scheduleMemoryConsolidation, runRSIMonitor } from './cron.js'
+import { nodes } from '@plexo/db'
+import { runCronJobs, scheduleMemoryConsolidation } from './cron.js'
 import { setProviderFailureSink } from '@plexo/agent/providers/router-v2'
 import { emitProviderFailureEvent } from './analytics/events.js'
 import { recordProviderFailureForAlert, sloThresholdsFromEnv, opsAlertDeliveryConfigured } from './ops-alerts.js'
@@ -360,8 +354,6 @@ v1.use('/outcomes', outcomesRouter) // outcomes/learning read view: GET /outcome
 v1.use('/tasks', taskInjectRouter) // mid-run inject: POST /tasks/:id/inject
 v1.use('/tasks/:taskId/clarification', clarificationRouter)
 v1.use('/parallel', parallelRouter)
-v1.use('/sprints', sprintsRouter)
-v1.use('/sprints', sprintRunnerRouter)
 v1.use(sessionFabricRouter) // Session Fabric: /sessions, /sessions/:id/{events,lease,participants}, /runners — per-handler workspace check
 v1.use(fabricSecurityRouter) // Session Fabric security bar (Phase 1c): /fabric/{tokens,kill}, /sessions/:id/{grant,policy/evaluate}
 v1.use('/dashboard', requireWorkspaceMember('workspaceId'), dashboardRouter)
@@ -391,7 +383,6 @@ v1.use('/hub', hubRouter) // in-app Hub catalog — per-handler workspace check
 v1.use('/audit', requireWorkspaceMember('workspaceId'), auditRouter)
 v1.use('/extension-audit', requireWorkspaceMember('workspaceId'), extensionAuditRouter)
 v1.use('/escalations', requireWorkspaceMember('workspaceId'), escalationRouter)
-v1.use('/foundry', requireSuperAdmin, foundryRouter)
 v1.use('/admin/training-data', requireSuperAdmin, trainingDataRouter)
 v1.use('/standing-approvals', standingApprovalsRouter)
 v1.use('/user-self', userSelfRouter)
@@ -436,8 +427,6 @@ v1.use('/embeddings', embeddingsRouter)
 v1.use('/intelligence', intelligenceRouter)
 v1.use('/intel-dashboard', intelligenceDashboardRouter)
 v1.use('/models', modelsRouter)
-v1.use('/workspaces/:id/introspect', requireWorkspaceMember('id'), introspectRouter)
-v1.use('/workspaces/:id/rsi', requireWorkspaceMember('id'), rsiRouter)
 v1.use('/code', codeRouter)
 v1.use('/works', worksRouter) // works listing — workspace-scoped
 v1.use('/workbench', workbenchRouter) // works phase 7 — per-user pins
@@ -614,22 +603,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
             }
         } catch { /* analytics must never crash the app */ }
     }).catch(() => { /* non-fatal — defaults remain */ })
-    // On startup: reset any sprints left in 'running' state by a previous process.
-    // Fire-and-forget async runners die with the process, leaving DB rows orphaned.
-    void db.update(sprints)
-        .set({ status: 'failed', completedAt: new Date() })
-        .where(eq(sprints.status, 'running'))
-        .then(async () => {
-            logger.info('Startup: orphaned running sprints reset to failed')
-            // FUN-019: also reset orphaned sprint_tasks still in running/queued
-            await db.execute(sql`
-                UPDATE sprint_tasks SET status = 'failed'
-                WHERE status IN ('running', 'queued')
-                  AND sprint_id IN (SELECT id FROM sprints WHERE status = 'failed')
-            `)
-            logger.info('Startup: orphaned sprint_tasks reset to failed')
-        })
-        .catch((err: unknown) => logger.error({ err }, 'Startup: failed to reset orphaned sprints'))
 
     // Reconcile self-node DID with PLEXO_INSTANCE_ID.
     // The migration inserts a placeholder self-record; this corrects it on every boot.
@@ -813,12 +786,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
     }
 
     // Schedule RSI monitor every 6h (first run after 7m so it doesn't contend with memory consolidation)
-    if (process.env.PLEXO_DISABLE_CRONS !== '1') {
-        setTimeout(() => {
-            void runRSIMonitor()
-            setInterval(() => { void runRSIMonitor() }, 6 * 60 * 60 * 1000).unref()
-        }, 7 * 60 * 1000)
-    }
 
     // Onboarding canary — every 30m (first run after 4m). OFF unless both
     // PLEXO_ONBOARDING_CANARY=1 and PLEXO_ONBOARDING_CANARY_USER_ID are set.
@@ -835,15 +802,12 @@ const server = app.listen(port, '0.0.0.0', async () => {
         INSERT INTO cron_jobs (id, workspace_id, name, schedule, enabled, created_at)
         SELECT gen_random_uuid(), w.id, n.name, '0 */6 * * *', true, now()
         FROM (SELECT id FROM workspaces LIMIT 50) w
-        CROSS JOIN (VALUES ('Memory consolidation'), ('RSI Monitor')) AS n(name)
+        CROSS JOIN (VALUES ('Memory consolidation')) AS n(name)
         WHERE NOT EXISTS (
             SELECT 1 FROM cron_jobs cj
             WHERE cj.workspace_id = w.id AND cj.name = n.name
         )
     `).catch((err: unknown) => logger.warn({ err }, 'Startup: failed to seed default cron rows — non-fatal'))
-
-    // Wire sprint activity logger → SSE emitter so runner events stream to Control Room
-    initSprintLogger((workspaceId: string, event: Record<string, unknown>) => emitToWorkspace(workspaceId, event as import('./sse-emitter.js').AgentEvent))
 
     // OWD → SSE: when an agent requests approval, push a real-time notification
     // to all connected SSE clients in that workspace so the approval banner appears
@@ -875,13 +839,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
             const [telegramRow] = await db.execute(sql`
                 SELECT 1 FROM telegram_chats LIMIT 1
             `)
-            const [sprintRow] = await db.execute(sql`
-                SELECT 1 FROM sprints WHERE status = 'complete' LIMIT 1
-            `)
-
-            const [rsiRow] = await db.execute(sql`
-                SELECT 1 FROM rsi_proposals LIMIT 1
-            `)
 
             await emitHeartbeat({
                 taskVolumeThisWeek: taskCount,
@@ -892,8 +849,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
                     discord: connTypes.has('discord'),
                     github: connTypes.has('github'),
                     memory: memEntryCount > 0,
-                    sprints: !!sprintRow,
-                    rsi: !!rsiRow,
                 },
             })
             logger.debug('Analytics heartbeat sent')
